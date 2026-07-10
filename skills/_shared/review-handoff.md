@@ -4,7 +4,13 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). The `/geni
 
 State.md `phase: action-gate` during this phase.
 
-**Handoff schema version: `m6-v3`.** Bumped from `m6-v1` to `m6-v2` — per-finding body schema extended with verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) emitted by the Phase 4.2 per-finding verifier; `Validation:` also admits `unverified`, orchestrator-assigned when the verifier failed to spawn (legal since m6-v2 — see the presence rules below). Bumped from `m6-v2` to `m6-v3` — `## Deferred — sub-threshold` entries carry the structured block schema (D-prefixed id, `File:`, `Why deferred:`, `Suggested fix:` — see §"Deferred-entry schema" below), and `## Findings` admits `[USER-ELECTED]`-tagged promotions from the §4.6 include-deferred gate. Producer writes the value into the handoff frontmatter (`geniro_schema_version:` per `/geniro:review` SKILL.md §5.1 Handoff file write). Consumers accept `m6-v1` (legacy — verification fields absent), `m6-v2` (verification fields mandatory on every kept finding: CRITICAL / HIGH / MEDIUM; bare deferred list), AND `m6-v3` (structured deferred entries; verification-field rules unchanged). Within m6-v2/v3, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence on HIGH — apply the "treat as confirmed + one-line warning" fallback.
+**Handoff schema version: `m6-v3`** (the producer writes `geniro_schema_version:` into the handoff frontmatter per `/geniro:review` SKILL.md §5.1). Consumers accept `m6-v1`, `m6-v2`, and `m6-v3`; per-version field-presence contract:
+
+- `m6-v1` (legacy): no per-finding verification fields at any severity; bare deferred list.
+- `m6-v2`: the four verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) present on every kept finding (CRITICAL / HIGH / MEDIUM), emitted by the Phase 4.2 per-finding verifier; `Validation:` admits `unverified` (orchestrator-assigned when the verifier failed to spawn — see the presence rules below); bare deferred list.
+- `m6-v3`: as `m6-v2`, plus `## Deferred — sub-threshold` entries carry the structured block schema (D-prefixed id, `File:`, `Why deferred:`, `Suggested fix:` — see §"Deferred-entry schema" below) and `## Findings` admits `[USER-ELECTED]`-tagged promotions from the §4.6 include-deferred gate.
+
+Within `m6-v2`/`v3`, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence — apply the "treat as confirmed + one-line warning" fallback.
 
 ## Contents
 
@@ -18,7 +24,7 @@ State.md `phase: action-gate` during this phase.
 - §4.6 — Include-deferred gate (chained after the "/geniro:implement findings" pick)
 - §5 — Round-N escalation
 - §6 — Failing-tests gate
-- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with four invariants → 7.9 post-posting overturn reconciliation)
+- §7 — Action == Post drill (sub-sections 7.0 fail-closed guard with four invariants → 7.8 post-posting overturn reconciliation)
 - §8 — Empty-answer handling (universal)
 - §9 — Terminal state mapping
 
@@ -39,7 +45,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 
 **Firing order:**
 
-1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry, fired in sequence (cap-extension applies only within a single entry whose options exceed 4 — never to batching entries). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
+1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry, fired in sequence (cap-extension per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension — within a single entry only, never batching entries). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip. Two picks drill into sub-gates of their own path, not extra top-level gates: "Post Draft PR review" drills into the §7 Post drill, and "/geniro:implement findings" drills into the §4.6 include-deferred gate when `## Deferred — sub-threshold` is non-empty.
 4. **Failing tests:** fires once per gate-chain pass when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests; a later chat-text commit/push request re-fires it (§6). Firing order relative to Action gate conditional:
@@ -96,7 +102,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 4. Mirror the resolution into the body `## Resolved Questions` section per the schema example in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
-5. Each entry gets its own `AskUserQuestion` call, fired in sequence with a message-first render before each (per step 2); cap-extension applies only to a single entry whose options exceed 4 — never to batching entries into one call.
+5. Each entry gets its own `AskUserQuestion` call, fired in sequence with a message-first render before each (per step 2); cap-extension per § Cap-extension applies within a single entry only, never batching entries into one call.
 
 6. After the last entry resolves, every `open_questions[]` entry MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
 
@@ -229,7 +235,7 @@ EOF
 
 Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
 
-**Write/rewrite discipline — schema comes from the template, never from memory.** Any full handoff write (Phase 5.1 first write) or rewrite (a later round updating the file, a re-author after compaction, any whole-file replacement) follows this procedure — re-authoring the handoff from memory drops the identity frontmatter, renames fields (`pr-head-sha` → `pr-head-oid`, breaking the §7.5 freshness check that then reads null), collapses the per-finding verification fields into a prose line (downstream parses it as legacy `m6-v1`), and drops snapshot fields the same run's Post drill needs:
+**Write/rewrite discipline — schema comes from the template, never from memory.** Any full handoff write (Phase 5.1 first write) or rewrite (a later round updating the file, a re-author after compaction, any whole-file replacement) follows this procedure — re-authoring the handoff from memory drops the identity frontmatter, renames fields (`pr-head-sha` → `pr-head-oid`, breaking the §7.4 freshness check that then reads null), collapses the per-finding verification fields into a prose line (downstream parses it as legacy `m6-v1`), and drops snapshot fields the same run's Post drill needs:
 
 1. **Before writing, re-read the source schema.** Re-read the §2.6 template above (or, for a rewrite, the prior handoff being updated) and take the field set from there — the frontmatter keys, the per-finding verification fields (present since `m6-v2`), and the `## ` section list. Do not reconstruct any of them from memory.
 2. **Write via `atomic_state_write`** with the full frontmatter + body skeleton, every finding rendered as the multi-line per-finding body block (not a prose collapse).
@@ -267,7 +273,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
   - **step0_status:** `pending | resolved | wontfix` [PRODUCT-DECISION only — omit for other types]
 ```
 
-**The `- [ ]` checkbox is the addressed-tracker (presentation-only).** Every finding is written unchecked (`- [ ]`); the engineer ticks it (`- [x]`) by hand as they resolve that finding. No gate, consumer, or guard reads its checked state — they parse the `- **<Field>:**` sub-fields and the frontmatter — and it is never carried into a posted PR comment (the §7.6 pre-POST scrub composes comment bodies fresh). The `· <SEVERITY>` suffix on the title line mirrors the `Severity:` sub-field for at-a-glance scanning; the sub-field stays the canonical value the §3 / §7.0 gates read. The title line leads with the plain-text finding id (`F<n> — …`) and bolds only the short title — some markdown previews break a bold-led checkbox item with nested detail lines, so plain-text-lead keeps the checkbox inline. A handoff written before this rendering existed shows the finding header as `### F<n> — <title>` — same block, same fields; consumers parse by the `- **<Field>:**` labels and the frontmatter, never by the header shape.
+**The `- [ ]` checkbox is the addressed-tracker (presentation-only).** Every finding is written unchecked (`- [ ]`); the engineer ticks it (`- [x]`) by hand as they resolve that finding. No gate, consumer, or guard reads its checked state — they parse the `- **<Field>:**` sub-fields and the frontmatter — and it is never carried into a posted PR comment (the §7.5 pre-POST scrub composes comment bodies fresh). The `· <SEVERITY>` suffix on the title line mirrors the `Severity:` sub-field for at-a-glance scanning; the sub-field stays the canonical value the §3 / §7.0 gates read. The title line leads with the plain-text finding id (`F<n> — …`) and bolds only the short title — some markdown previews break a bold-led checkbox item with nested detail lines, so plain-text-lead keeps the checkbox inline. A handoff written before this rendering existed shows the finding header as `### F<n> — <title>` — same block, same fields; consumers parse by the `- **<Field>:**` labels and the frontmatter, never by the header shape.
 
 The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 4 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
 
@@ -292,7 +298,7 @@ Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution
   - **Decision Type:** FIX-NOW | TESTABLE | INTENT-CHECK   [optional — never PRODUCT-DECISION, which §4.1 Path B keeps out of this section]
 ```
 
-The schema exists because two consumers parse these entries: the §7 post drill anchors each posted deferred entry's comment by its `File:` path:line (§7.5) and matches POST responses back by (path, line) (§7.7), and the §4.6 include-deferred gate promotes entries into `## Findings` re-rendered as full per-finding blocks — a bare prose list supports neither. **Legacy bare-list entries** (no `File:` sub-field, written by m6-v1/v2 producers) stay awareness-only: the §4.6 include-deferred gate skips them with a one-line notice, and the post drill falls back to listing them in the top-level review body under the `## Findings on unchanged lines` shape when no path:line can be parsed.
+The schema exists because two consumers parse these entries: the §7 post drill anchors each posted deferred entry's comment by its `File:` path:line (§7.4) and matches POST responses back by (path, line) (§7.6), and the §4.6 include-deferred gate promotes entries into `## Findings` re-rendered as full per-finding blocks — a bare prose list supports neither. **Legacy bare-list entries** (no `File:` sub-field, written by m6-v1/v2 producers) stay awareness-only: the §4.6 include-deferred gate skips them with a one-line notice, and the post drill falls back to listing them in the top-level review body under the `## Findings on unchanged lines` shape when no path:line can be parsed.
 
 **Wontfix path.** If the user picks "Other" with explicit text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream gates — they're recorded but de-prioritized. Downstream consumers treat `wontfix` as "user acknowledged and chose to defer".
 
@@ -316,7 +322,7 @@ Read the `## Findings` body section, scanning each finding's `Decision Type:` an
    - **Definition of Done (this step):** every fired PRODUCT-DECISION AUQ's `options[]` (across chained calls) contains the literal `"Keep off the PR — I'll handle this"` label — verifiable as a count of fired AUQs == count of PRODUCT-DECISION findings, each carrying the disposition option.
 4. Update the finding line in the state file via `atomic_state_write`: replace `recommendation:` field with user's chosen option text AND set `step0_status: resolved` (or `step0_status: wontfix` when the user picks "Other" with skip/defer text). Preserve `options:`, `evidence:`, `why-matters:`, `suggested-fix:`. The state file is the handoff to the next skill, so the chosen path AND the body travel with the finding. The `step0_status` flip is the sentinel §7.0 re-reads to verify this gate actually fired — without it, a §3-skipped finding ships to PR as if the AUQ header `"Open decision"` were a tag. When the user picks the **Keep off the PR** disposition, set `step0_status: resolved`, write `recommendation: keep-off-pr`, AND add `post-disposition: off-pr` to the finding line — §7.1 reads `post-disposition: off-pr` and drops the finding from the post set, so a residue you chose to handle yourself never reaches the PR author. When the user's pick instead resolves the finding with **no change to the code** (accept-as-is / keep the current behavior / confirms the existing code is fine), the finding needs no action: set `step0_status: resolved`, write the chosen text into `recommendation:`, AND add `post-disposition: no-action` to the finding line. §7.1 reads it and drops the finding from the post set — a decision that ends in "leave it as it is" is nothing the PR author can act on, so it belongs in the report, not as a PR comment.
 
-Fire one `AskUserQuestion` call per PRODUCT-DECISION finding, in sequence — render the finding, ask, collect the answer, then move to the next. Many findings means many sequential calls, never several findings batched into one call's `questions[]` array (the tabbed multi-question prompt the user submits all at once; the `gate-render` hook hard-blocks it). The cap-extension (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension) applies only when ONE finding's option set overflows 4 slots — its own `Options:` plus the appended "Keep off the PR", "Explain further", and "Challenge this finding" options, or an explicit `(more-options-exist: chain-follow-up)` — in which case chain follow-up calls for that single finding; it never batches multiple findings.
+Fire one `AskUserQuestion` call per PRODUCT-DECISION finding, in sequence — render the finding, ask, collect the answer, then move to the next. Many findings means many sequential calls, never several findings batched into one call's `questions[]` array (the tabbed multi-question prompt the user submits all at once; the `gate-render` hook hard-blocks it). Cap-extension per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension applies when ONE finding's option set overflows 4 slots (its own `Options:` plus the appended "Keep off the PR", "Explain further", and "Challenge this finding" options) — chain follow-up calls for that single finding, never batch multiple findings.
 
 Always-WAIT. If empty answer returns, fall back to plain text and re-ask — never default to the reviewer's synthesis.
 
@@ -382,20 +388,7 @@ AskUserQuestion(
 
 After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator NEVER auto-invokes /geniro:implement.
 
-**Severity-driven recommendation:**
-- Any CRITICAL OR ≥2 HIGH findings → `/geniro:implement` is "(Recommended)"
-- 0 CRITICAL AND ≤1 HIGH findings → "Skip — keep findings on disk" is "(Recommended)"
-
-**Question:** "How should I proceed with the N findings?"
-
-**Options (≤4 per AUQ cap):**
-
-- **/geniro:implement findings (Recommended when CRITICAL/HIGH count >0)** — exit /geniro:review, suggest the next command `/geniro:implement .geniro/state/handoff/from-review-<branch>.md`. /geniro:implement pre-loads the findings, applies the fixes, and asks before committing or pushing — choosing this routes the work, it does not pre-authorize a ship.
-- **Post Draft PR review** — present whenever state file's `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag from prior run) AND not kept off the PR (`post-disposition: off-pr` from the §3 open-decision gate) AND not resolved to need no action (`post-disposition: no-action`). LOW / deferred awareness findings count as postable — an all-LOW review still offers this option. On selection, drill into granularity sub-question (Step 2 below) before any `gh api` call. Posting is an external write to a public surface — this action gate is mandatory before ANY review posting: the orchestrator must fire it and wait — never auto-post (even a draft), never publish, and never substitute a chat-text "submit it yourself" line for the pick; picking this option IS the approval. The post creates a PENDING draft only, which the user submits themselves (per §7.5).
-- **Continue rounds (re-review)** — when round ≥3 fires Round-N escalation gate; otherwise loops back to Phase 1 increment round counter.
-- **Skip — keep findings on disk** — terminal exit; user can resume later.
-
-"Post" is omitted only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]`, OR every remaining finding is kept off the PR (`post-disposition: off-pr`) or resolved to need no action (`post-disposition: no-action`) — findings of any severity (including LOW / deferred / sub-threshold) count as postable, so an all-LOW review still presents the option. The Action gate is mutually exclusive — user chooses ONE path.
+**Post-option presence.** "Post Draft PR review" is present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag) AND not kept off the PR (`post-disposition: off-pr`) AND not resolved to need no action (`post-disposition: no-action`) — an all-LOW review still presents it. Omit it only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]`, OR every remaining finding is `post-disposition: off-pr` or `no-action`. Posting is an external write to a public surface — this gate is mandatory before ANY review posting: fire it and wait; never auto-post (even a draft), never publish, never substitute a chat-text "submit it yourself" line for the pick. Picking it IS the approval; the post creates a PENDING draft the user submits themselves (per §7.4). The Action gate is mutually exclusive — user chooses ONE path.
 
 **Persist user pick to `approvals[]`** with category `action_gate`, written via `atomic_state_write`.
 
@@ -419,7 +412,7 @@ Fires when the §4 Action-gate pick is `"/geniro:implement findings"` AND `## De
 **On include (all or picked)** — rewrite the handoff per the §2.6 write/rewrite discipline (full-file `atomic_state_write`, preserve every prior frontmatter field):
 
 1. MOVE each included entry out of `## Deferred — sub-threshold` INTO `## Findings`, re-rendered as the full per-finding body block with `[USER-ELECTED]` appended to its title-line tag list. Severity stays as scored — never inflated.
-2. Verification fields per the presence rules: a promoted LOW carries none; a promoted evidence-less MEDIUM carries all four fields on the finding-verification.md §4.5 spawn-failure convention — `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "user-elected promotion — verifier never ran"`, `Recommended-action:` mirroring the finding's original Decision Type — an accounted state per §7.1, excluded from any post set.
+2. Verification fields per the §"Verification fields — presence rules" USER-ELECTED convention: a promoted LOW carries none; a promoted evidence-less MEDIUM carries all four fields on the spawn-failure convention, excluded from any post set.
 3. The report is already `report_status: final` at this point, and a full rewrite resets it to `draft` (per /geniro:review SKILL.md §5.5 idempotent re-entry). Re-run the §3.5 finalize silently after the rewrite — safe, because a promotion can never introduce a PRODUCT-DECISION (§4.1 Path B keeps those out of `## Deferred — sub-threshold` by construction), so no decision gate re-opens.
 4. A legacy bare-list entry with no `File:` sub-field is skipped with a one-line notice (it cannot be re-rendered as a per-finding block) and stays in the report for awareness.
 
@@ -474,13 +467,13 @@ When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to 
 
 ### 7.0 Step 0 — Unresolved-ambiguity guard (fail-closed)
 
-This re-read is a mandatory, explicit step that fires in the window between the Action gate's "Post" pick and the first `gh api POST /reviews` call — never earlier (an Action-gate-time read can go stale before POST) and never assumed-already-done. It is its own Bash read of the handoff; a Post drill that reaches §7.5 without a §7.0 read of state.md in that window has skipped the guard.
+This re-read is a mandatory, explicit step that fires in the window between the Action gate's "Post" pick and the first `gh api POST /reviews` call — never earlier (an Action-gate-time read can go stale before POST) and never assumed-already-done. It is its own Bash read of the handoff; a Post drill that reaches §7.4 without a §7.0 read of state.md in that window has skipped the guard.
 
 Before any of the Post-drill steps below fire, re-read state.md and verify FOUR invariants. If any fails, abort the Post drill — never post to GitHub with unresolved ambiguity, missing user picks, refuted findings baked in, or a provisional (un-finalized) report.
 
 **Invariant A — no `open_questions[]` left `unresolved`.** The §2.5 Pre-gate runs first in Phase 6 and should leave zero entries with `status: unresolved` by the time Action gate fires.
 
-**Invariant B — every PRODUCT-DECISION finding has `step0_status: resolved` (or `wontfix`).** The §3 Step 0 per-finding gate runs after §2.5 and flips each PRODUCT-DECISION finding's `step0_status: pending` → `resolved` once the user's AUQ pick lands. A finding still at `pending` here means §3 never fired for it — and §7.5 would route it to `comments[]` by `File:` sentinel alone, with either AUQ chip label (`"Open question"` from §2.5 or `"Open decision"` from §3) potentially leaking into the comment body as if it were a tag.
+**Invariant B — every PRODUCT-DECISION finding has `step0_status: resolved` (or `wontfix`).** The §3 Step 0 per-finding gate runs after §2.5 and flips each PRODUCT-DECISION finding's `step0_status: pending` → `resolved` once the user's AUQ pick lands. A finding still at `pending` here means §3 never fired for it — and §7.4 would route it to `comments[]` by `File:` sentinel alone, with either AUQ chip label (`"Open question"` from §2.5 or `"Open decision"` from §3) potentially leaking into the comment body as if it were a tag.
 
 **Invariant C — every kept finding (CRITICAL / HIGH / MEDIUM) has `Validation: confirmed`, `clarified`, or `unverified`.** The Phase 4.2 per-finding verifier should filter `validation: refuted` findings before they reach the handoff. Any kept finding in `## Findings` carrying `Validation: refuted` indicates a producer-side filter failure; posting it to GitHub would surface a finding the verifier already judged incorrect. This guard re-checks at the external-effect boundary as defense-in-depth — refuted should never reach Post. `Validation: unverified` (orchestrator-assigned when the verifier failed to spawn, per finding-verification.md §4.5) is a legal value, not a violation — its disposition is per-finding: exclude the finding from the §7.1 post set (the same per-finding mechanism as `post-disposition: off-pr`) and surface a one-line warning that it was withheld because the verifier never ran. Missing `Validation:` on a CRITICAL / HIGH / MEDIUM finding (legacy handoff per §2 back-compat) is NOT a violation: treat as `confirmed` and proceed with the one-line warning. The guard rejects `refuted` and field-mismatch (values outside the four-value enum), not absence and not `unverified`.
 
@@ -502,21 +495,21 @@ This §7.0 check is the fail-closed second line of defense for ALL FOUR invarian
    - After resolution loops for lists (a) + (b) + (d) complete, loop back to step 1 of this section. Do NOT proceed to §7.1 until step 3 finds ALL FOUR filtered lists empty.
 4. When step 3 finds all four filtered lists empty, proceed to §7.1.
 
-**Definition of Done (§7.0 guard):** the §7.0 guard ran between the action pick and any POST — verifiable as a Bash read of the handoff (`cat`/`head` of state.md) issued AFTER the Action gate recorded the "Post" pick and BEFORE the §7.5 `gh api POST /reviews` call. No such read in that window means the guard did not run; do not POST.
+**Definition of Done (§7.0 guard):** the §7.0 guard ran between the action pick and any POST — verifiable as a Bash read of the handoff (`cat`/`head` of state.md) issued AFTER the Action gate recorded the "Post" pick and BEFORE the §7.4 `gh api POST /reviews` call. No such read in that window means the guard did not run; do not POST.
 
-This guard exists because posting a draft PR review with unresolved ambiguity, missing user picks, verifier-refuted findings buried in the body, or a report the user has not finished deciding would push it onto the PR author or downstream reviewer — exactly the failure mode the `open_questions[]` array, `step0_status:` sentinel, `Validation:` field, and `report_status` lifecycle are designed to prevent. The four invariants are independent (different arrays, different gates, different producer phases) so the guard must check all four; checking only some leaves the remaining paths uncovered.
+The four invariants are independent (different arrays, different gates, different producer phases), so the guard must check all four — checking only some leaves the remaining paths uncovered.
 
 ### 7.1 Step 1.5 — Already-on-PR dedup (post-set filter)
 
 The post-drill's eligible-finding set is every unposted finding across `## Findings` (kept CRITICAL / HIGH / MEDIUM — including unchanged repeats from prior rounds — plus any LOW `PRODUCT-DECISION` admitted via §4.1 Path B; a `[USER-ELECTED]` promotion sitting in `## Findings` from a §4.6 include is an ordinary eligible unposted finding on a later Post — a promoted LOW carries no verification fields per the presence rules, which is not an exclusion reason) AND `## Deferred — sub-threshold` (awareness items — LOW plus any severity that failed every §4.1 admission signal) — once the user has chosen to post, severity no longer gates postability, and any exclusion is surfaced (`## Filtered` `reason:`, or `Validation: unverified` kept-in-place) like every other finding's. This step removes from the post set findings that already exist on the PR, so the user isn't asked to re-raise what's already there.
 
-Safety invariant: every exclusion is surfaced — tagged and moved to `## Filtered` with a `reason:`, or (for verification exclusions) kept in `## Findings` with `Validation: unverified` as the recorded reason — never silently dropped. The user sees exactly what was withheld and why, so §7.4's completeness guarantee holds.
+Safety invariant: every exclusion is surfaced — tagged and moved to `## Filtered` with a `reason:`, or (for verification exclusions) kept in `## Findings` with `Validation: unverified` as the recorded reason — never silently dropped. The user sees exactly what was withheld and why, so the post-set completeness guarantee (§7.2) holds.
 
 Run THREE overlap checks against the snapshots already persisted to state.md frontmatter in Phase 1 (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1 / §1.1 — a `/geniro:review`-only path; cross-skill consumers never run this drill). A `null` or absent snapshot means "nothing to dedup against" — skip that check.
 
 1. **Resolved bot threads** (`resolved-threads-snapshot:`) — exclude findings whose `path:lines` overlaps a snapshot entry. Overlap rule: finding `<P>:A-B` overlaps a snapshot entry `<Q>:L` when `P == Q` AND `A <= L <= B`. Path equality is required. Tag `[ALREADY-RESOLVED-ON-PR]`, move to `## Filtered` with `reason: already-resolved-on-pr`.
 2. **Unresolved bot comments** (`pr-bot-comments-snapshot:`) — these carry `path:line`, so apply the SAME range-overlap rule as check 1 (as precise). Catches a still-open CodeRabbit / other-bot finding the parallel reviewers re-discovered. Tag `[ALREADY-RAISED-ON-PR]`, move to `## Filtered` with `reason: already-raised-by-bot-reviewer`.
-3. **Author / human formal reviews** (`pr-formal-reviews-snapshot:`) — these are free prose with NO line, so the range rule cannot apply. Use a CONSERVATIVE match: exclude ONLY when the finding's `path` basename AND a distinctive keyword from the finding's title BOTH appear in a formal-review body. Tag `[ALREADY-RAISED-ON-PR]`, move to `## Filtered` with `reason: likely-raised-in-author-review`. When the match is uncertain (path basename appears but no strong title-keyword hit), do NOT exclude — keep the finding in the post set, because a duplicate comment is a smaller harm than a silently withheld finding (§7.4 completeness wins ties).
+3. **Author / human formal reviews** (`pr-formal-reviews-snapshot:`) — these are free prose with NO line, so the range rule cannot apply. Use a CONSERVATIVE match: exclude ONLY when the finding's `path` basename AND a distinctive keyword from the finding's title BOTH appear in a formal-review body. Tag `[ALREADY-RAISED-ON-PR]`, move to `## Filtered` with `reason: likely-raised-in-author-review`. When the match is uncertain (path basename appears but no strong title-keyword hit), do NOT exclude — keep the finding in the post set, because a duplicate comment is a smaller harm than a silently withheld finding (§7.2 completeness wins ties).
 
 Also exclude any finding carrying `post-disposition: off-pr` (set by the §3 open-decision gate when the user picked "Keep off the PR — I'll handle this"): append `[KEPT-OFF-PR]` to its tag list, move it to `## Filtered` with `reason: user-kept-off-pr`, and never place it in the inline `comments[]` or the body. This is the audience control for a decision residue the PR author cannot action — the decision is recorded for the reviewer, not posted to the PR.
 
@@ -528,9 +521,11 @@ The Step 2 granularity AUQ and Step 3 per-finding gate count only non-excluded f
 
 When Step 1.5 empties the post set, fall back to Skip semantics — do not call `gh api` POST; surface `All eligible findings were excluded (already on the PR, kept-off-PR, no action needed, or unverified) — nothing drafted on PR` once in chat.
 
+Every kept finding posts, apart from these exclusions. The test-confirmation gate never filters the posted finding set — when it authored failing tests, each `[CONFIRMED-BY-TEST]` finding gains a `**Failing test:** \`<path>\`` line (per §7.5), but no finding is ever removed from the post set.
+
 ### 7.2 Step 2 — Granularity gate
 
-**Non-skippable whenever the post set would exclude any finding.** Once the user picks "Post", severity does not gate postability — every eligible finding (CRITICAL / HIGH / MEDIUM / LOW / deferred) is in the post set unless it leaves via an accounted path: a user pick in this gate (or its §7.3 follow-up), a §7.1 dedup exclusion that wrote a `## Filtered` `reason:`, a §7.1 disposition exclusion (`post-disposition: off-pr` or `no-action`), or a §7.1 verification exclusion (`Validation: unverified` — the field itself is the recorded reason). There is no other path. The orchestrator never narrows the post set at §7.5 payload time on its own judgment — an unaccounted exclusion (a finding silently dropped with no user pick and no recorded reason) is the failure this gate prevents. So this AUQ fires whenever the §7.1-filtered eligible set is non-empty; it is skipped only when §7.1 already emptied the set (handled above — Skip semantics).
+**Non-skippable whenever the post set would exclude any finding.** Once the user picks "Post", severity does not gate postability — every eligible finding (CRITICAL / HIGH / MEDIUM / LOW / deferred) is in the post set unless it leaves via an accounted path: a user pick in this gate (or its §7.3 follow-up), a §7.1 dedup exclusion that wrote a `## Filtered` `reason:`, a §7.1 disposition exclusion (`post-disposition: off-pr` or `no-action`), or a §7.1 verification exclusion (`Validation: unverified` — the field itself is the recorded reason). There is no other path. The orchestrator never narrows the post set at §7.4 payload time on its own judgment — an unaccounted exclusion (a finding silently dropped with no user pick and no recorded reason) is the failure this gate prevents. So this AUQ fires whenever the §7.1-filtered eligible set is non-empty; it is skipped only when §7.1 already emptied the set (handled above — Skip semantics).
 
 Chain a follow-up `AskUserQuestion` with header "Post mode":
 
@@ -543,7 +538,7 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 ### 7.3 Step 3 — Per-finding gate
 
-Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — Step 3.5 is test-gate-independent and applies no filter). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
+Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — the test-confirmation gate applies no filter of its own). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
 - **Chat render (first):** render the finding to chat per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — a self-contained block instantiating that template. The posting loop over ≥2 eligible findings is a decision queue, so each render opens with the tracker (`✔ Decision 1 — <short tag> · ● Decision 2 of N — <short tag> · ○ …`; the denominator is the eligible-finding count after the §7.1 filter). The user decides whether to post from an explained finding, not a side-box snippet.
@@ -561,13 +556,7 @@ Full explanation above. Post this finding to the PR as an inline comment, or ski
 
 After loop completes (or user picked "Stop posting"), aggregated post set is the union of "Post" picks. If empty, treat as Skip and proceed without firing `gh api` POST.
 
-### 7.4 Step 3.5 — Post-set (test-gate-independent)
-
-Every kept finding posts, apart from the §7.1 exclusions. The test-confirmation gate never filters the posted finding set — when it authored failing tests, each `[CONFIRMED-BY-TEST]` finding gains a `**Failing test:** \`<path>\`` line (per §7.6), but no finding is ever removed from the post set.
-
-This step is retained as a no-op so the surrounding `§7.x` section numbers stay stable — removing it would renumber `§7.5` onward and break the cross-references that point at those sections.
-
-### 7.5 Step 4 — Post via the GitHub reviews API
+### 7.4 Step 4 — Post via the GitHub reviews API
 
 Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url`. Pass snapshotted `pr-head-sha` as `commit_id` — but see head-SHA freshness rule. ONE `gh api` call posts the entire review.
 
@@ -621,9 +610,9 @@ finding-count: <N>
 comment-ids: [<id1>, <id2>,...]
 ```
 
-### 7.6 PR-comment body content rules (hard)
+### 7.5 PR-comment body content rules (hard)
 
-GitHub PR comments are public, audience-expanding output. Each comment body opens with the severity badge per the §7.5 comment-object template (`**MEDIUM** — <description>`) and MUST contain ONLY: severity badge, finding's plain-language description, recommendation, and (for `[CONFIRMED-BY-TEST]` findings) the appended `**Failing test:** \`<test-path>\`` line. The orchestrator's internal finding handle (`M1`, `M1b`, `L5`, …) is a chat/handoff cross-reference only — it MUST NOT prefix or appear in a comment title; the PR author has no map for `M1b`.
+GitHub PR comments are public, audience-expanding output. Each comment body opens with the severity badge per the §7.4 comment-object template (`**MEDIUM** — <description>`) and MUST contain ONLY: severity badge, finding's plain-language description, recommendation, and (for `[CONFIRMED-BY-TEST]` findings) the appended `**Failing test:** \`<test-path>\`` line. The orchestrator's internal finding handle (`M1`, `M1b`, `L5`, …) is a chat/handoff cross-reference only — it MUST NOT prefix or appear in a comment title; the PR author has no map for `M1b`.
 
 **MUST NOT** add to the body or top-level review body:
 - Plugin branding (`Geniro`, `/geniro:` prefix, "Generated by …" footers).
@@ -641,9 +630,9 @@ The reviewer-agent's `description:` and `recommendation:` fields go into the bod
 
 **Secret redaction — before assembly (hard).** Before composing the `comments[].body` and top-level `body` strings, pipe every free-form segment bound for the PR — each finding's description, recommendation, and Evidence excerpt, plus the summary and section prose — through `redact_secrets` (`source "${CLAUDE_PLUGIN_ROOT}/lib/redact-secrets.sh"`; API in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/redact-secrets.md`). A finding that quotes a leaked secret must describe the leak's location (`path:line`), never reproduce the secret — a PR comment reaches a wider audience than the code and survives after the code is fixed, so a quoted credential re-leaks on a public surface. Redaction runs inside the verbatim `description:`/`recommendation:` fields too: the `[REDACTED:…]` placeholder still locates the leak, and the secret's literal value is never information the PR author needs.
 
-**Enforcement — scrub before POST (hard).** §7.6 is otherwise advisory — an orchestrator naturally echoes its own finding handle (`**M1b …`), skill branding (`## /geniro:review …`), or a `handoff`/state-path reference into the composed title and summary, so the rules leak under drift. Before the `gh api POST /reviews`, scan the assembled top-level `body` and every `comments[].body` against the MUST-NOT set above; on a hit in orchestrator-composed text (comment title, summary header, section prose) strip or rewrite it and re-scan until clean — never POST a body that still matches. Match only the orchestrator-prepended title/prefix and the summary/section framing — never the verbatim `description:`/`recommendation:` segment a finding carries (a reviewer that legitimately writes "the `L2` cache" or names a code symbol `M1` stands; the leak vector is a handle in the *title slot*, `**M1b — …`, not a token mid-sentence). The lone exception is the internal knowledge-base cross-reference class (`incident N` / `learning X.Y.Z`, and a `B.x.y` token in that incident/learning context per the bullet above): scrub it wherever it appears, INCLUDING mid-sentence inside a reviewer's verbatim `description:`/`recommendation:` — replace the parenthetical ID with nothing (or a shareable link) and preserve the rest of the sentence. This is the external-effect-boundary analog of the §7.0 guard.
+**Enforcement — scrub before POST (hard).** §7.5 is otherwise advisory — an orchestrator naturally echoes its own finding handle (`**M1b …`), skill branding (`## /geniro:review …`), or a `handoff`/state-path reference into the composed title and summary, so the rules leak under drift. Before the `gh api POST /reviews`, scan the assembled top-level `body` and every `comments[].body` against the MUST-NOT set above; on a hit in orchestrator-composed text (comment title, summary header, section prose) strip or rewrite it and re-scan until clean — never POST a body that still matches. Match only the orchestrator-prepended title/prefix and the summary/section framing — never the verbatim `description:`/`recommendation:` segment a finding carries (a reviewer that legitimately writes "the `L2` cache" or names a code symbol `M1` stands; the leak vector is a handle in the *title slot*, `**M1b — …`, not a token mid-sentence). The lone exception is the internal knowledge-base cross-reference class (`incident N` / `learning X.Y.Z`, and a `B.x.y` token in that incident/learning context per the bullet above): scrub it wherever it appears, INCLUDING mid-sentence inside a reviewer's verbatim `description:`/`recommendation:` — replace the parenthetical ID with nothing (or a shareable link) and preserve the rest of the sentence. This is the external-effect-boundary analog of the §7.0 guard.
 
-### 7.7 Step 5 — Persist `[POSTED-TO-PR]` markers
+### 7.6 Step 5 — Persist `[POSTED-TO-PR]` markers
 
 Parse POST response to extract review's `id` field. Second call to derive per-comment URLs:
 
@@ -659,7 +648,7 @@ Match each returned comment back to its source finding by `(path, line)`, and ta
 
 Per-finding tagging matched by path+line is the only valid form. A single aggregate marker (one `[POSTED-TO-PR]` written at the section or review level, or a prose note like "posted 8 of 12") is invalid — it leaves the individual findings untagged, so the next round's unposted-set computation (§7.1 reads per-finding `[POSTED-TO-PR]` markers) cannot tell which findings already posted and re-raises them. The marker IS the per-finding idempotency key; an aggregate marker has no key the dedup reads.
 
-**Definition of Done (§7.7):** every finding that posted in this run carries its own `[POSTED-TO-PR]` tag on its own line — verifiable as count of `[POSTED-TO-PR]` tags added == count of comments in the POST response. No aggregate or section-level marker stands in for per-finding tags.
+**Definition of Done (§7.6):** every finding that posted in this run carries its own `[POSTED-TO-PR]` tag on its own line — verifiable as count of `[POSTED-TO-PR]` tags added == count of comments in the POST response. No aggregate or section-level marker stands in for per-finding tags.
 
 If the GET fails (rate limit, transient error), persist the per-finding `[POSTED-TO-PR]` markers without `posted-to-pr:` URLs — the dedupe contract holds (the per-finding marker IS the key). Match findings to posted comments by the `(path, line)` you sent in the POST payload, since the per-comment URLs are what the GET would have supplied.
 
@@ -671,7 +660,7 @@ Drafted <P> of <K> findings (<K1> kept, <K2> minor) as a pending review on <pr-u
 
 `<K>` counts every finding eligible for the post set (§7.1) — `<K1>` counts `## Findings` entries (kept CRITICAL / HIGH / MEDIUM, plus Path-B LOW `PRODUCT-DECISION`s and `[USER-ELECTED]` promotions) plus `<K2>` counts `## Deferred — sub-threshold` entries, so `<K1>` + `<K2>` always sums to `<K>` over the §7.1 eligible set (counting only kept findings would undercount posted deferred entries). Omit the parenthetical split when `<K2>` is zero. `<W>` spans the same eligible set, so the withheld-reason breakdown covers kept and minor exclusions alike.
 
-### 7.8 Step 6 — Posting-failure semantics
+### 7.7 Step 6 — Posting-failure semantics
 
 If the `gh api` call fails (non-zero exit, HTTP error, missing scopes, secondary rate limit): surface the error verbatim to the user and stop — do not retry, do not fall back, do not bypass with `--no-verify`-style flags, do not silently downgrade to top-level `gh pr comment`. No partial state is written: leave per-finding `[POSTED-TO-PR]` tags off entirely so user can re-run cleanly after fixing the underlying issue. Mirrors fail-closed semantics.
 
@@ -684,13 +673,13 @@ error: <verbatim gh stderr>
 consequence: post-aborted-no-state-mutation
 ```
 
-### 7.9 Post-posting overturn reconciliation
+### 7.8 Post-posting overturn reconciliation
 
 Fires when an in-session re-check (a user challenge, later analysis) overturns or re-grades a finding carrying `[POSTED-TO-PR]`.
 
 **State reconciliation — mandatory and immediate, never a conditional chat offer.** Via `atomic_state_write`, move the finding to `## Filtered` with `reason: overturned-after-post` (or, for a re-grade, annotate the new grade on its line). Preserve the original severity so the user can re-elevate, and keep the `posted-to-pr: <url>` reference on the line so the external comment stays traceable.
 
-**PR-side write — gated.** Editing, replying to, or deleting the posted comment is an external effect: offer it through its own one-question gate. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy, the withdraw/downgrade option must NOT carry "(Recommended)" unless the overturn is itself verifier-confirmed. AFTER the PR-side write succeeds, append a `non-resumable-actions[]` entry (`action: pr-comment-amended`, `pr-ref`, `comment-id`, `kind: edit|reply|delete`, `completed-at` a live clock read interpolated in the same write call — full schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum) — write after the side-effect succeeds, consistent with §7.5 and implement/SKILL.md.
+**PR-side write — gated.** Editing, replying to, or deleting the posted comment is an external effect: offer it through its own one-question gate. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy, the withdraw/downgrade option must NOT carry "(Recommended)" unless the overturn is itself verifier-confirmed. AFTER the PR-side write succeeds, append a `non-resumable-actions[]` entry (`action: pr-comment-amended`, `pr-ref`, `comment-id`, `kind: edit|reply|delete`, `completed-at` a live clock read interpolated in the same write call — full schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum) — write after the side-effect succeeds, consistent with §7.4 and implement/SKILL.md.
 
 | Rationalization | Why it is wrong |
 |---|---|

@@ -6,8 +6,7 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 
 - Test Design Philosophy (canonical)
 - What to Check
-- Output Format
-- Common False Positives
+- Common false positives
 - Litmus Test (The Deletion Test)
 - Tests of the scenery — never author, flag for removal
 - Assertion completeness & spec coverage
@@ -294,11 +293,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 - No tests for recovery from failure states
 - Permission/authorization gaps in tests
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Intentional coverage gaps** — Some code doesn't need comprehensive testing
 - Glue code without logic might not need tests

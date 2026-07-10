@@ -10,7 +10,7 @@ This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either t
 - LINEAR CONTEXT supplement (workflow integration)
 - Spec-premise validation
 - What to Check
-- Common False Positives
+- Common false positives
 - Severity Tagging
 - Cross-PR Scope Split (peer-PR context)
 - Output Anchor
@@ -236,12 +236,12 @@ For each scoped item the diff DOES touch, read the hunk against the spec's state
 **How to detect:**
 - Take the scoped items that HAVE a matching changed file (the complement of Check 1's miss set). For each, extract the spec's stated behavior: status codes, defaults, field names, boundary conditions, error handling — from the item's own bullet, section 9, or the acceptance criteria.
 - Read the corresponding hunks and compare each stated behavior against what the code actually does.
-- Run §Spec-premise validation on every candidate contradiction first: a grounded departure (the spec premise is contradicted by live code and the diff's choice is the correct one) routes to `[INTENT-CHECK]` capped at MEDIUM, as usual.
+- Run §Spec-premise validation on every candidate contradiction first; a grounded departure routes per that section.
 - An ungrounded contradiction (the premise still holds and the hunk contradicts it anyway) is HIGH — `Evidence:` quotes the spec fragment and the contradicting hunk side by side, so the reader sees the mismatch without re-deriving it.
 
 **Red flag:** the diff touches a scoped item and the hunk contradicts the spec's stated behavior for it — e.g., the spec says "returns 404 when user not found"; the handler returns 400.
 
-## Common False Positives
+## Common false positives
 
 Skip or downgrade findings in these cases — they look like rubric violations but reflect routine PR patterns the rubric is not designed to flag:
 
@@ -262,7 +262,7 @@ The detection signals above come from `gh pr view --json isDraft,author,title,bo
 
 Do not emit findings for items the plan did not commit to. PLAN CONTEXT is the rubric here — if a check's precondition is not visible in the plan, the check does not fire. This is the load-bearing constraint that separates this dimension from inventing requirements: a finding is only valid when the missing artifact can be cited verbatim back to a specific fragment of the plan in the `Evidence:` field.
 
-Apply the severity downgrades from the False Positives section before tagging. A precondition-met finding against an exploratory-plan item drops one level (HIGH becomes MEDIUM, MEDIUM becomes informational); a precondition-met finding against a draft PR may be suppressed entirely per the draft-PR carve-out. A divergence classified as a spec-defect by §Spec-premise validation overrides the Check-N structural severity entirely: it caps at MEDIUM and routes to `[INTENT-CHECK]`, because the gap is in the spec, not the implementation.
+Apply the severity downgrades from the False Positives section before tagging. A precondition-met finding against an exploratory-plan item drops one level (HIGH becomes MEDIUM, MEDIUM becomes informational); a precondition-met finding against a draft PR may be suppressed entirely per the draft-PR carve-out. A divergence §Spec-premise validation classifies as a spec-defect overrides the Check-N structural severity per that section (the gap is in the spec, not the implementation).
 
 ## Cross-PR Scope Split (peer-PR context)
 
@@ -280,4 +280,4 @@ Spec-compliance findings have no `path:lines`. Emit each finding with:
 - All other reviewer-agent output fields per the standard template (Severity, Cause, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
 - `Evidence:` quotes the relevant fragment of the plan verbatim (with a brief surrounding marker — e.g., "plan section: `## Acceptance criteria`, AC3: `…`") AND names the missing artifact in the diff (e.g., "no file under `migrations/` in the changed-files list").
 
-The Phase 6 Post drill's Step 4 composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.5) detects the `File: SPEC-COMPLIANCE` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST under a `## Spec Compliance` section, NOT into the inline `comments[]` array (which requires a path-anchored line).
+The Phase 6 Post drill's Step 4 composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4) detects the `File: SPEC-COMPLIANCE` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST under a `## Spec Compliance` section, NOT into the inline `comments[]` array (which requires a path-anchored line).

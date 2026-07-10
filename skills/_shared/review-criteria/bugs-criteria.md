@@ -5,10 +5,8 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 ## Contents
 
 - What to Check
-- Output Format
-- Common False Positives
+- Common false positives
 - Cross-PR API Conflicts (peer-PR context)
-- Stack-Agnostic Patterns
 - Review Checklist
 - Severity Guidelines
 
@@ -244,11 +242,7 @@ Walk the change's purpose against the states a working version encounters:
 
 **Finding shape:** "`<fn@file:line>` handles the populated case, but `<concrete reachable scenario>` reaches `<file:line>` with `<empty | concurrent | failed>` input, producing `<crash | wrong result | data loss | hang>`." Name why THIS change reaches the state (e.g. "this PR adds the endpoint that hits the empty-list path"), so the failure is a delta the PR introduces, not a pre-existing gap the verifier will refute. Severity by impact (this dimension may emit CRITICAL): CRITICAL on data loss or a crash on a reachable common path; HIGH / MEDIUM otherwise. Tag `[FIX-NOW]` when it is plainly a bug; `[PRODUCT-DECISION]` when whether to handle the case at all is a judgment call.
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Defensive coding** — Extra null checks aren't always wrong
 - `if (obj && obj.field)` might be intentional for safety
@@ -283,15 +277,6 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for API-
 - Same shared module imported and mutated by both PRs (concurrent edits to the same lookup table / config object).
 
 A valid finding shape: "PR #N (peer) modifies `<symbol>` at `<file:line>`; current diff also modifies the same symbol with incompatible <shape | type | side-effect> — coordinate ordering / merge resolution before shipping both". Severity HIGH when shipping both causes runtime breakage; MEDIUM when it's a stale-state coordination concern.
-
-## Stack-Agnostic Patterns
-
-This criteria works across languages:
-- Use language-specific grep/pattern equivalents
-- JavaScript: `obj.field`, `obj?.field`, `obj ?? default`
-- Python: `obj['field']`, `getattr(obj, 'field')`, `obj is None`
-- Go: pointer dereference checks, nil checks
-- Rust: `Option<T>`, `Result<T,E>` unwrap patterns
 
 ## Review Checklist
 

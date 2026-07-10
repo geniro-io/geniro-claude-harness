@@ -147,7 +147,7 @@ Each entry is `{action, completed-at, <action-specific-fields>}`, where `complet
 | `pr-created` | `/geniro:implement` | `pr`, `url` |
 | `pr-comment-posted` | `/geniro:implement` | `pr`, `comment-id` |
 | `pr-review-comment-batch` | `/geniro:review` | `pr-ref`, `finding-count`, `comment-ids` |
-| `pr-comment-amended` | `/geniro:review` (review-handoff.md §7.9) | `pr-ref`, `comment-id`, `kind: edit\|reply\|delete` |
+| `pr-comment-amended` | `/geniro:review` (review-handoff.md §7.8) | `pr-ref`, `comment-id`, `kind: edit\|reply\|delete` |
 | `git-commit` | `/geniro:plan`, `/geniro:implement` | `commit-sha` |
 | `slack-notify-sent` | `/geniro:actions` | `channel`, `ts` |
 | `release-tagged` | `/geniro:actions` | `tag` |

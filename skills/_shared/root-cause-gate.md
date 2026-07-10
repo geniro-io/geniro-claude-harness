@@ -14,12 +14,13 @@ Skip silently when zero `[SYMPTOM]` (or `MIXED`) classifications are present aft
 
 ## Always-WAIT contract
 
-This gate is **Always-WAIT** in every mode and lane (Auto, Fast, Light included). Auto-handling SYMPTOM findings ("just patch it, the visible defect goes away") is unsafe — the user has context the orchestrator does not:
-- The deeper bug may be intentionally deferred for v2 (the symptom-patch IS the right call right now while the root cause is being addressed in a separate work stream).
-- Conversely, the orchestrator's `[SYMPTOM]` classification may be wrong, and the user knows the true root cause sits elsewhere — in which case a "just patch it" auto-handling buries the real bug.
-- Or the user wants to halt and run `/geniro:debug` first to confirm causation before any fix lands.
+This gate is **Always-WAIT** in every mode and lane (Auto, Fast, Light included). Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § "What counts as an artifact"). The reviewer-agent and /geniro:plan's spec-authoring classify findings/designs by structural signals (does the change touch the surface where the defect shows, or the layer where causation originates?) but cannot judge user intent — and two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
 
-The orchestrator cannot distinguish those three cases from the finding alone. Always-WAIT routes the call to the only entity who can.
+- **Intentional deferral** — the deeper bug is being addressed in a separate work stream, so the symptom-patch IS the right call right now.
+- **Wrong classification** — the orchestrator's `[SYMPTOM]` tag is wrong and the user knows the true root cause sits elsewhere; auto-handling would bury the real bug.
+- **Halt for causation** — the user wants to run `/geniro:debug` first to confirm the cause before any fix lands.
+
+The orchestrator cannot distinguish these from the finding alone. Always-WAIT routes the call to the only entity that holds the intent. The cost is one AUQ per `[SYMPTOM]` finding that survives the upstream filter; the gate skips silently when zero exist.
 
 Empty `AskUserQuestion` answer = upstream Claude Code bug; fall back to plain text and re-ask. Never auto-default.
 
@@ -65,15 +66,6 @@ After the gate resolves:
 - **"Confirmed root cause (proceed)"** → re-tag the finding/design as `[ROOT-CAUSE]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` (set the `cause:` field in `<task-dir>/state.md` `## Accepted Findings` and `.geniro/state/<skill>/<slug>/state.md`), then proceed in the upstream skill — the finding/design enters the normal fix-loop / implementation pool.
 - **"Symptom — escalate to /geniro:debug"** → halt the current skill at the gate. Surface a handoff message: `Run /geniro:debug "<finding/design title>" to confirm the root cause via the scientific-method workflow, then re-invoke the original skill once the debug findings persist to <PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md.` Do NOT auto-invoke `/geniro:debug` — surface the suggestion only; the user runs the slash command themselves (matches the escalation convention in `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`). The current skill exits cleanly; its state file remains so the user can resume after debug.
 - **"Mixed — annotate and proceed"** → re-tag the finding/design as `[SYMPTOM-ACK]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`, append a row to a `## Acknowledged tech debt` section in the skill's Ship summary capturing `<title>` + `<file:line>` + `<symptom>` + `<suspected root cause>` so the user has a documented backlog. Then proceed in the upstream skill.
-
-## Why this exists
-
-Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § "What counts as an artifact"). Extending that discipline beyond `/geniro:debug` is necessary because the reviewer-agent and /geniro:plan's orchestrator-side spec-authoring classify findings/designs by structural signals (does the change touch the surface where the defect is observed, or does it touch the layer where causation originates?) but cannot judge user intent. Two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
-
-- intentional deferral (root cause is being addressed in a separate work stream; patch the surface for now)
-- accidental shortcut (author didn't realize the real bug sits elsewhere; patch will mask the defect until it re-emerges through a different surface)
-
-Always-WAIT routes the call to the only entity that holds that intent. The cost is one AUQ call per `[SYMPTOM]` finding that survives the relevance-filter; the gate is skipped silently when zero symptom-classified findings exist.
 
 ## Anti-rationalization
 

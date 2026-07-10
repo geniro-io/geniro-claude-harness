@@ -13,13 +13,12 @@ State.md `phase: stratify` during Phase 4.3 (which is a sub-phase of Phase 4 str
 - §5 — Step 4: Independent re-verification by the orchestrator
 - §6 — Step 5: Demote-don't-delete logic
 - §7 — Step 6: Fail-open
-- §8 — Why Phase 4.3 exists
 
 ---
 
 ## 1. Purpose
 
-Reduce false positives by asking the user whether to spawn `adversarial-tester-agent` to author failing tests that confirm review findings. Tests that fail today on independent orchestrator re-run (F→P-confirmed) tag the corresponding finding `[CONFIRMED-BY-TEST]` and stay in the report. Tests that pass today (agent's `discarded-cannot-repro` signal) demote the finding to `## Filtered` with `[CHALLENGED-BY-TEST]` — finding stays visible, deprioritized but not deleted.
+Reduce false positives by asking the user whether to spawn `adversarial-tester-agent` to author failing tests that confirm review findings. This is the false-positive reduction stage: independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4.2's read-only verifier. Tests that fail today on independent orchestrator re-run (F→P-confirmed) tag the corresponding finding `[CONFIRMED-BY-TEST]` and stay in the report. Tests that pass today (agent's `discarded-cannot-repro` signal) demote the finding to `## Filtered` with `[CHALLENGED-BY-TEST]` — finding stays visible, deprioritized but not deleted.
 
 **Spawn the agent only after explicit user approval.** The gate is the load-bearing safety property; an inline gate degrades to "this counts as approval".
 
@@ -118,8 +117,6 @@ If `backpressure.sh` unavailable: `<project test command> <test path> 2>&1 | tai
 - Non-zero (red) → test STILL fails on independent re-run → keep authored test on disk; tag the corresponding finding `[CONFIRMED-BY-TEST]`.
 - Zero (green) → test passes despite agent reporting it red → likely flake or framework issue. Note "[test path] flipped green on independent re-run" under `## Caveats`. Do NOT delete the test (user reviews authored tests in Phase 6); do NOT tag the finding `[CONFIRMED-BY-TEST]`.
 
-Never trust the agent's red/green claim alone — the orchestrator's independent re-run IS the gate.
-
 **Persist authored tests for Phase 6.** For every test kept on disk in Step 4 (red on independent re-run), record its path as a row in the state.md `## Authored Tests` body section. Phase 6's Failing-tests gate fires off that section being non-empty; without this write, the tests authored here never reach the commit-policy gate.
 
 ---
@@ -151,9 +148,3 @@ stage: phase-4-3
 error: adversarial-tester-agent-failed-or-unparseable
 consequence: bug-confirmation-skipped
 ```
-
----
-
-## 8. Why Phase 4.3 exists
-
-Phase 4.3 is the false-positive reduction stage. Independent test-execution catches findings that read as bugs but cannot be reproduced — a different signal than Phase 4.2's read-only verifier. The gate is non-negotiable: the user can decline, but the offer is not orchestrator's to skip.

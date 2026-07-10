@@ -60,17 +60,15 @@ At most 3 candidates per run. On overflow keep the 3 highest-significance and dr
 
 ## Decision logic when target is ambiguous
 
-Apply in order — first match wins:
+The §Routing table names the target for each discovery type; this ladder resolves only the case where a candidate could fit more than one. Apply in order — first match wins, so the priority ordering IS the tie-break:
 
-1. **Can a linter, formatter, CI check, or hook enforce it without LLM judgment?** → **Project rules/hooks**
-2. **Is it a code rule that genuinely needs file-pattern scoping (language-specific, directory-specific) — i.e., should fire only when matching files are read/written?** → **`.claude/rules/<scope>.md`** with `paths:` glob (file-scoped, Anthropic-native)
-2.5. **Is it a cross-cutting code-style / convention rule that should apply to all code-writing and all review (no file pattern)?** → **`.geniro/instructions/code-style.md`** (Geniro cross-skill scope)
-3. **Is it a quality gate / workflow step / hard constraint that should fire when a particular skill runs (not per-file)?** → **`.geniro/instructions/<skill>.md`** (skill-scoped, Geniro-specific)
-4. **Is it a project-wide command, structure fact, or compaction-surviving gate that every agent needs every turn?** → **CLAUDE.md**
-5. **Is it an architectural decision that is hard to reverse AND surprising without context AND the result of genuine trade-offs (including a refactor candidate explicitly REJECTED with rationale)?** → **ADR** (`docs/adr/` or `docs/decisions/` — see ADR rules below)
-6. **Is it a reusable technical insight (gotcha, lightweight architectural decision, surprising coupling)?** → **Knowledge** (`.geniro/knowledge/learnings.jsonl` — path resolved per `_shared/primary-worktree.md`)
-7. **Is it a user preference or correction about how to collaborate?** → **Memory** (native auto-memory)
-8. **Uncertain TARGET** → default to **Knowledge** (lowest risk, still searchable). This step resolves target ambiguity only — a candidate of uncertain WORTH already failed the §Candidate bar and never reaches the ladder, so it must not survive here as a learnings-targeted suggestion.
+1. Enforceable by a linter / formatter / CI check / hook without LLM judgment → **Project rules/hooks** (automation beats every memory-based target).
+2. Needs file-pattern scoping (fires only when matching files are read/written) → **`.claude/rules/<scope>.md`** with `paths:` glob — chosen before the broader instruction targets below.
+3. Cross-cutting code-style with no file pattern → **`.geniro/instructions/code-style.md`**; a skill-behavior gate / workflow step → **`.geniro/instructions/<skill>.md`**.
+4. Project-wide command, structure fact, or compaction-surviving gate every agent needs every turn → **CLAUDE.md**.
+5. Hard-to-reverse AND surprising-without-context AND genuine-trade-off decision (incl. a refactor candidate REJECTED with rationale) → **ADR**; any lighter reusable insight → **Knowledge**.
+6. Collaboration preference / correction → **Memory** (native auto-memory).
+7. Uncertain TARGET → default **Knowledge** (lowest risk, still searchable). Resolves target ambiguity only — a candidate of uncertain WORTH already failed the §Candidate bar and never reaches the ladder.
 
 ## ADR target — when to use it (sparingly)
 

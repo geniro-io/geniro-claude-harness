@@ -8,7 +8,7 @@ When intent sources (a spec.md, a PR ref, or a tracker ticket) are absent, behav
 
 - What to Check
 - Output Format
-- Common False Positives
+- Common false positives
 - Severity Tagging
 - Anti-rationalization
 - Reference notes
@@ -157,7 +157,7 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - `Confidence:` — 0-100 numeric. Heuristic — ≥80 when caller-grep returns unambiguous downstream references and the deleted symbol has no rename/move match in the diff; 60-79 when callers were checked in a single language scope only; 40-59 when the caller-grep was partial or the intent classification rests on inference rather than explicit statement.
 - `Provenance:` — present only when §5 applies; the resolved 5-role attribution per §5. Carries `Provenance-PR: #<num> author @<login> merger @<login>` OR `Provenance-commit: <SHA> by @<login> on <date>` as appropriate; bot merger gets the `automerge-triggered-by: @<login | trigger unknown>` suffix.
 
-## Common False Positives
+## Common false positives
 
 Two false-positive classes route to other dims rather than being suppressed here:
 

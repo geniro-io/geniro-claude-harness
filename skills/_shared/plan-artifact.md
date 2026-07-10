@@ -20,7 +20,7 @@ Owns the full lifecycle of an opt-in "visual plan artifact" for `/geniro:plan` �
 
 Run only when state shows `artifact_mode: true` — the user opted in. The caller checks this before entering any step here; do not re-check.
 
-The page is native-only. It exists exactly when Claude Code's `Artifact` tool can publish to `claude.ai` in this session. There is no portable Markdown or HTML fallback file — a session that can't publish gets a one-time skip notice (per §Unavailable / skip handling) and `/plan` proceeds in chat. The create step (§Availability detection & create) additionally guards the rest of the lifecycle: once it records that this session can't publish, the update step skips silently rather than retrying.
+The page is native-only — it exists exactly when Claude Code's `Artifact` tool can publish to `claude.ai` in this session; there is no portable Markdown or HTML fallback file. A session that can't publish gets one skip notice and no retry for the rest of the run — the full skip/never-retry contract lives in §Unavailable / skip handling.
 
 ## The opt-in question
 

@@ -5,9 +5,7 @@ OWASP-aligned security analysis: injection attacks, authentication/authorization
 ## Contents
 
 - What to Check
-- Output Format
-- Common False Positives
-- Stack-Agnostic Patterns
+- Common false positives
 - Review Checklist
 - Severity Guidelines
 
@@ -190,13 +188,6 @@ grep -in "debug\|development\|process.env.NODE_ENV" file.js
 - Unmaintained packages
 - Supply chain risks
 
-**How to detect:**
-```bash
-# Check lock files for outdated packages
-# Review new dependencies in package.json/Cargo.toml
-# Look for version pinning on vulnerable packages
-```
-
 ### 9. Suppression Rule Audit
 
 Scan the diff for newly added suppression directives that silence a previously-active security check. These are dangerous because they un-audit a flagged risk without a paper trail:
@@ -265,11 +256,7 @@ Every finding must cite the full reachable path — entry point → trigger → 
 
 **Volume guard.** Prefer depth over breadth: a handful of composition findings per run, highest-severity chains first. An exhaustive list of speculative chains is the over-flagging failure the admission gate then has to absorb.
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Legitimate concatenation** — String building isn't always injection
 - Check if values are sanitized before use
@@ -299,15 +286,6 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 - Deterministically test-reproducible edge case (null/boundary/coercion) → route to the bugs/tests dimensions
 - Classic single-hunk vulnerability-class hit → the matching section in §1-§9
 - Chain with any unverified link → not emitted at all; an uncited link is speculation, not evidence
-
-## Stack-Agnostic Patterns
-
-Works across languages/frameworks:
-- JavaScript: parameterized queries (prepared statements)
-- Python: `execute` with tuple parameters, not f-strings in SQL
-- Go: `database/sql` with placeholders
-- Rust: ORM libraries with query builders
-- Java: PreparedStatement, not string concatenation
 
 ## Review Checklist
 

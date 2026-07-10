@@ -5,8 +5,7 @@ Visual and interaction quality for UI changes: tokens, spacing, typography, stat
 ## Contents
 
 - What to Check
-- Output Format
-- Common False Positives
+- Common false positives
 - Stack-Agnostic Patterns
 - Review Checklist
 - Severity Guidelines
@@ -127,11 +126,7 @@ diff /tmp/exemplar.txt /tmp/new.txt
 
 **Red flag:** primary action not visually dominant, or critical actions revealed only on hover.
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Greenfield with no design system** — if no token/scale/exemplar exists, tag findings as informational only; skip tokens/spacing/typography/exemplar checks.
 2. **Arbitrary Tailwind values as convention** — some projects intentionally use arbitrary values. Check `tailwind.config.*` and existing files before flagging `p-[13px]`-style classes.
