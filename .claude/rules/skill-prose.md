@@ -50,6 +50,15 @@ Reconciliation between this rule and the explain-WHY rule: explain WHY for rules
 | "Read `<task-dir>/.kr-out.md`." | "OMIT `model=` at every spawn site — plugin agents declare their tier in frontmatter (`inherit`, or `sonnet` for the two mechanical carve-outs) and the runtime arg defeats the user's session-level `/model` choice." |
 | "Set `phase: ship` on entry." | (Don't write "set phase to ship because the state machine expects ..." — the state machine is documented in §State machine; the imperative is enough.) |
 
+## Assume a capable model
+
+Write instructions at the altitude of goal + constraint, not mechanics. The model already knows standard tooling, shell idioms, platform quirks, and general engineering practice — spelling those out costs tokens, goes stale, and (worse) primes the model toward one specific mechanism when a better one exists for the environment it's actually running in.
+
+- "Poll until the server responds or ~30 seconds elapse" — the model picks a loop shape that works on its platform. Don't prescribe the loop, the sleep interval, or a `timeout`-command wrapper.
+- "Bound the fetch so an offline remote can't hang the run" — not a snippet probing for `timeout` vs `gtimeout`.
+
+Detail earns its place only where the model reliably gets it wrong without it (the explain-WHY cases: anti-patterns, escape hatches, error semantics) or where the value is a project contract (exact paths, schemas, thresholds, canonical option labels). Litmus: would a competent engineer joining the project need this sentence, or just the goal? If just the goal, write just the goal.
+
 ## One default + escape hatch
 
 Per Anthropic best-practices: *"Don't present multiple approaches unless necessary. Bad: 'You can use pypdf, or pdfplumber, or PyMuPDF, or pdf2image, or...' Good: 'Use pdfplumber for text extraction... For scanned PDFs requiring OCR, use pdf2image with pytesseract instead.'"*
