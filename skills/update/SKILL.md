@@ -54,7 +54,7 @@ External sends: not in `/geniro:update` ACI ever.
 | Already on latest version | `info: already on latest version (<version>)` — done |
 | Hooks/registry write blocked | `aborted: blocked by hook — see <hint>` |
 
-## Phase 1 — Pre-check
+## Phase 1 — pre-check
 
 ### Step 0 — Load custom instructions
 
@@ -108,41 +108,14 @@ On `Cancel` → terminate with `info: update cancelled by user`. On `Confirm upd
 
 If `--dry-run` was passed in `$ARGUMENTS`, **skip the AUQ entirely** and instead read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` (the currently-installed copy, before any marketplace fetch — `$PLUGIN_PATH` is not set until Phase 2 Step 2, which dry-run skips); print "what would happen" and exit. `--dry-run` does NOT modify any files.
 
-## Phase 2 — Update
+## Phase 2 — update
 
 ### Step 1 — Marketplace refresh + plugin update (exponential backoff)
 
-On network errors — 4 retries with 2s / 4s / 8s / 16s backoff:
+Run the marketplace update, then the plugin update, each retried up to 4× on network error with 2s / 4s / 8s / 16s backoff between attempts; abort with a non-zero exit if either still fails after the 4th attempt (Termination case: network error after 4 retries):
 
-```bash
-attempt=1
-while [ $attempt -le 4 ]; do
-if claude plugin marketplace update geniro-claude-harness 2>&1 | tee /tmp/geniro-update.log; then
-break
-fi
-echo "Marketplace update attempt $attempt failed; retrying in $((2 ** attempt))s..." >&2
-sleep $((2 ** attempt))
-attempt=$((attempt + 1))
-done
-if [ $attempt -gt 4 ]; then
-echo "ERROR: marketplace update failed after 4 retries — abort." >&2
-exit 1
-fi
-
-attempt=1
-while [ $attempt -le 4 ]; do
-if claude plugin update geniro-claude-plugin@geniro-claude-harness --scope user 2>&1 | tee /tmp/geniro-plugin-update.log; then
-break
-fi
-echo "Plugin update attempt $attempt failed; retrying in $((2 ** attempt))s..." >&2
-sleep $((2 ** attempt))
-attempt=$((attempt + 1))
-done
-if [ $attempt -gt 4 ]; then
-echo "ERROR: plugin update failed after 4 retries — abort." >&2
-exit 1
-fi
-```
+1. `claude plugin marketplace update geniro-claude-harness`
+2. `claude plugin update geniro-claude-plugin@geniro-claude-harness --scope user`
 
 Pass `--scope user` explicitly. The plugin is meant to be available in every directory, which is the user (global) scope — the install record that the global `enabledPlugins` entry in `settings.json` resolves against. Updating without the flag lets the CLI target whichever scope matches the current working directory; when a project-scoped install record exists for the cwd, the user-scope record gets dropped and the plugin then loads only in that one project (it disappears everywhere else). Pinning the scope keeps the global install authoritative.
 
@@ -211,7 +184,7 @@ fi
 
 Transition to Phase 3.
 
-## Phase 3 — Post-check
+## Phase 3 — post-check
 
 ### Step 1 — Plugin file hash-check (sanity mode)
 
@@ -293,7 +266,7 @@ Skip if file doesn't exist (user didn't run `/geniro:setup` or has no `statusLin
 
 Transition to Phase 4.
 
-## Phase 4 — Migration
+## Phase 4 — migration
 
 ```bash
 MIGRATION_FILE="$PLUGIN_PATH/MIGRATION.md"
@@ -328,7 +301,7 @@ If MIGRATION.md is present but malformed (cannot parse the heading structure), s
 
 **Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. The single sanctioned deviation is the live-task guard above: restricting a delete-class command to the orphan subset of its detected paths (same operation, narrower target set) — widening scope, changing the operation, or improvising a different fix stays forbidden. Entries whose `Auto-fix:` value is `manual-only` (matched case-insensitively) require user action — print the manual steps instead.
 
-## Done — Final report
+## Done — final report
 
 `/geniro:update` always emits the restart warning — a version transition leaves in-memory skill bodies pointing at the old version until the session restarts. The `/geniro:setup` re-run recommendation is **conditional**: `/geniro:setup`'s only work `/geniro:update` has not already done is regenerate the project CLAUDE.md (its `.geniro/` migration sweep re-walks the same MIGRATION.md entries Phase 4 just walked), so recommend it only when the run leaves setup-relevant work.
 

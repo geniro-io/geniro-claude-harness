@@ -22,7 +22,7 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 ---
 
-## Your Role — Restructure, Don't Ship
+## Your role — restructure, don't ship
 
 You refactor. You validate behavior preservation. You do NOT commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
@@ -30,7 +30,7 @@ The zero-behavior-change guarantee is enforced per-step via the orchestrator-inl
 
 ---
 
-## State Machine
+## State machine
 
 state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented` (SessionStart recovery treats all six as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (≥30% blocked), `verify-escalated` (PRODUCT-DECISION or 1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — your previous options:" so the user re-picks without losing context.
 
@@ -38,7 +38,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ---
 
-## Loop Invariants
+## Loop invariants
 
 The canonical loop invariants apply, with four skill-specific notes:
 
@@ -47,15 +47,16 @@ The canonical loop invariants apply, with four skill-specific notes:
 3. **Invariant #7 (errors → structured observations)** — per-step blocked rationale, baseline validation failure, and reviewer CRITICAL findings all become structured `## Tool log` / `## Errors` entries.
 4. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**Turn-completion check (canonical, un-numbered).** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check: never stop on a statement of intent or an announced-but-unfired question — at every gate the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard, and an answered question is continued with the next action, never a silent stop.
+**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 `## Tool log` schema: typical run produces 3-6 entries (reviewer-agent + custom reviewers + escalation entries; smell detection and per-step execution run orchestrator-inline and emit to state.md `## Plan steps` directly).
 
 ---
 
-## Budgets — Quality-First
+## Budgets — quality-first
 
-This skill has no hard kill caps. Same model as other skills.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — quality-first (canonical): no hard kill caps, no wall-time / tool-call / model-turn / cost ceiling. This skill's own gates:
+
 **Quality gates (escalate to user, do not abort):**
 
 | Gate | Cap | Where | Past threshold |
@@ -73,7 +74,6 @@ This skill has no hard kill caps. Same model as other skills.
 | Smell-detection rounds | 1 (orchestrator-inline) | |
 | Smell-evidence filter rounds | 1 (Medium+ only) | |
 
-**Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
 ---
 
 ## Subagent model tiering
@@ -88,7 +88,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 | Independent reviewer-agent + custom reviewers | inherit (OMIT `model=`) | Phase 3 diff review (Medium+ tier only); inheritance lets the user's session-level `/model` choice propagate |
 | Focused ADR-drafting agent | inherit (OMIT `model=`) | ADR path (only fires if ADR-eligible PRODUCT-DECISION) |
 
-## Agent Failure Handling
+## Agent failure handling
 
 If any delegated agent fails (timeout, error, empty/garbage result): retry once with the same prompt. If the retry also fails:
 - **Smell detection and smell evidence** run orchestrator-inline and cannot fail separately — failures bubble up as normal orchestrator errors (Read / Grep / Glob unavailable would halt the skill).
@@ -103,13 +103,13 @@ Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standa
 
 ---
 
-## Universal Rule: All Choice Questions Use AskUserQuestion
+## Universal rule: all choice questions use AskUserQuestion
 
 Route every user-facing choice in this skill through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — a plain-text choice bypasses the approvals persistence the structured tool records. The enumerated gates are examples, not an exhaustive list.
 
 ---
 
-## Memory I/O Schedule
+## Memory I/O schedule
 
 | Phase | Helper | Direction | MODE |
 |---|---|---|---|
@@ -125,7 +125,7 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 
 ---
 
-## Phase 1 — Plan
+## Phase 1 — plan
 
 state.md `phase: plan`. Light by cost vs Phase 2 — a scope-discovery batch (Read + Grep) + 1 baseline validation run + orchestrator-inline smell detection (Medium+) + orchestrator-inline smell evidence (Medium+) + orchestrator plan-build.
 
@@ -185,7 +185,7 @@ These 4 refactor-specific signals are orthogonal to the canonical effort-scaling
 
 Skipped for Trivial and Small per Step 3.
 
-The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn. Sequential per-step refactoring needs continuous state across steps, which a spawned subagent loses; running inline preserves the per-step regression-skip predicate. For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
+The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn, for the state-continuity reason spelled out at Phase 2 §2.2. For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
 
 **Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 — full smell taxonomy + change-impact scoring + escalation rules. The orchestrator reads this file once at entry and applies the rubric inline.
 
@@ -262,7 +262,7 @@ state.md transitions: `plan` → `apply` once approval complete. `## Plan` body 
 
 ---
 
-## Phase 2 — Apply
+## Phase 2 — apply
 
 state.md `phase: apply`. The orchestrator executes the approved plan, one step at a time, with per-step validation. The zero-behavior-change guarantee is enforced via the per-step regression test pass.
 
@@ -331,7 +331,7 @@ If green: state.md transitions to `phase: verify`. `## Apply Summary` body secti
 
 ---
 
-## Phase 3 — Verify
+## Phase 3 — verify
 
 state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. No `git push` / `gh pr create` — refactor never ships code, only produces a working-tree diff (deliverable) and a state-file audit trail.
 
@@ -424,7 +424,7 @@ At Phase 3 exit:
 
 **Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
 
-Rule/improvement mining moved to `/geniro:reflect` — run it on demand to analyze recent sessions for durable rule candidates.
+For durable rule mining, run `/geniro:reflect` on demand to analyze recent sessions for durable rule candidates.
 
 ### 3.6 Cleanup
 
@@ -459,7 +459,7 @@ T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categor
 **Phase 3 (Verify):**
 - Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
 - Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only), focused ADR-drafting agent (if PRODUCT-DECISION ADR path picked).
-- Allowed: targeted per-file revert via `git restore --source=HEAD -- <each changed path>` (orchestration-level revert; list the specific changed paths, NEVER a bare `.` or `*` — the git-guardrail hook blocks the mass-discard form) — exception to git-write constraint.
+- Allowed: targeted per-file revert via `git restore --source=HEAD -- <each changed path>` — an orchestration-level revert exception to the git-write constraint; list the specific changed paths, never a bare `.`/`*` (see § Git Constraint).
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.
 
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
@@ -490,13 +490,13 @@ Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 | "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Hard kill caps abort legitimate complex refactors mid-stride. The skill is quality-first — no hard kill caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
 | "Auto-promote a recorded discovery into a project rule when refactor completes." | Phase 3 §3.5 offers to capture it via `/geniro:instructions create` and only when the same pattern has recurred (`recurrence_count >= 3`) — do NOT auto-write the rule. The user authors and curates project rules; auto-promotion creates noise + drift. |
-| "The revert step needs `git checkout -- .` / `git restore .`, but the guard blocks it — I'll bypass the hook or run `git stash`." | The mass-discard form is blocked because a bare `.` / `*` pathspec wipes every uncommitted change, not just the failed step. The working revert path the guard allows is targeted: `git restore --source=HEAD -- <each changed path>`, listing only the paths the step touched (per § ACI per-phase / § Git Constraint). Use that — don't bypass the hook or stash. If some other guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
+| "The revert step needs `git checkout -- .` / `git restore .`, but the guard blocks it — I'll bypass the hook or run `git stash`." | Use the targeted form § Git Constraint allows — `git restore --source=HEAD -- <each changed path>`, listing only the paths the step touched — never the bare `.`/`*` pathspec the guard blocks, and never a bypass or `git stash`. If some other guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
 | "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
 | "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
 
 ---
 
-## Task Tracking
+## Task tracking
 
 Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level todos: Plan, Apply, Verify. During Phase 2, add dynamic per-step todos derived from the approved plan. Mark `in_progress` → `completed` as phases run. At most ONE todo is `in_progress` at a time.
 
