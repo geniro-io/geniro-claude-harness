@@ -9,7 +9,7 @@ Run `/geniro:setup` to analyze your codebase and generate a tailored configurati
 
 ## Available Skills
 
-The current skill set is 12 skills. The 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) have their replacements documented in the right-hand column; their `skills/` directories have been removed.
+The current skill set is 13 skills. The 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) have their replacements documented in the right-hand column; their `skills/` directories have been removed.
 
 | Skill | Purpose |
 |-------|---------|
@@ -21,6 +21,7 @@ The current skill set is 12 skills. The 8 deleted skills (`/brainstorm`, `/decom
 | `/geniro:refactor` | Zero-behavior-change restructuring (Plan → Apply → Verify): tier-scaled smell detection, HIGH-step approval, per-step regression checks with a blocked-step protocol, independent review. Never ships — the working-tree diff is the deliverable; product decisions escalate to `/implement`. |
 | `/geniro:onboard` | Rapid orientation in an unfamiliar codebase: scans structure (≤50-file default cap) and writes `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` on the canonical 8-section template. `--focus` / `--depth` limit scope. |
 | `/geniro:investigate` | Evidence-based Q&A over code, git history, and the internet: classifies the question, spawns 1-3 matching research agents, re-verifies load-bearing claims, presents a cited answer with save-routing. Never ships code. |
+| `/geniro:reflect` | On-demand session-history miner: locates the project's past Claude Code session transcripts (`<config-dir>/projects/<munged-cwd>/*.jsonl`), selects recent work-bearing sessions (or grep-matches a search string), spawns parallel read-only transcript analysts, then one reflection-agent synthesis against the candidate bar + prior declines. Approved candidates route per `_shared/improvement-routing.md` (CLAUDE.md / `.claude/rules/` / `.geniro/instructions/` / learnings); declines emit so they stop re-surfacing. Stateless; read-only on transcripts; zero candidates is a valid outcome. |
 | `/geniro:instructions` | Stateless CRUD (list / create / edit / validate / delete) over `.geniro/instructions/` — the project-rules layer. Scopes: `global`, `code-style`, `memory`, `review-extra/<slug>`, per-skill. Also manages the optional `## Data Sources`, `## Memory Backend`, and `## Additional Steps` blocks. Writes resolve to the primary worktree. |
 | `/geniro:actions` | CRUD + runner over `.geniro/actions/` — user-authored workflow helpers (Slack/PR/release automations) with mandatory `risk_class` frontmatter. `run <name>` executes directly: invoking IS the authorization, no confirmation gate. |
 | `/geniro:setup` | Singleton bootstrap (Detect → Interview → Generate → Validate): detects the stack from lockfiles/configs, interviews for ambiguous detections + integrations (issue tracker, OpenSpec), generates a project-specific CLAUDE.md, and verifies it via a read-only subagent. Re-run mode sweeps `MIGRATION.md` first. |
