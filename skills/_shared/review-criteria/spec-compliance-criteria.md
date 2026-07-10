@@ -1,6 +1,6 @@
 # Spec Compliance Review Criteria
 
-Completeness audit of the diff **against the plan / spec** — what the spec promised but the diff omits. The diff's code quality (correctness, security, architecture, tests, optimizations, guidelines, conventions, design) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF completeness only. The spec is the **primary rubric** for what the change intended; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored. But the spec is a fallible human artifact, not ground truth: a divergence between spec and diff can mean the diff is wrong OR the spec is wrong. Before flagging an omission as a defect against the implementation, rule out that the code deliberately and correctly departed from a spec premise the live code contradicts (see §Spec-premise validation) — otherwise a correct implementation gets blamed for the spec's own error.
+Conformance audit of the diff **against the plan / spec** — what the spec promised but the diff omits (checks 1-11), and what the diff implements contrary to the spec's stated behavior (check 12). The diff's code quality (correctness, security, architecture, tests, optimizations, guidelines, conventions, design) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF conformance only. The spec is the **primary rubric** for what the change intended; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored. But the spec is a fallible human artifact, not ground truth: a divergence between spec and diff can mean the diff is wrong OR the spec is wrong. Before flagging an omission or contradiction as a defect against the implementation, rule out that the code deliberately and correctly departed from a spec premise the live code contradicts (see §Spec-premise validation) — otherwise a correct implementation gets blamed for the spec's own error.
 
 This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
 
@@ -8,6 +8,7 @@ This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either t
 
 - schema-aware mode
 - LINEAR CONTEXT supplement (workflow integration)
+- Spec-premise validation
 - What to Check
 - Common False Positives
 - Severity Tagging
@@ -34,7 +35,7 @@ When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schem
 
 Findings MUST cite the specific section (or frontmatter field) violated/missing — e.g., `Evidence: section 2 (Scope.Included) names "src/api/auth/*" but diff touches no auth file`. The 11 checks below name the canonical section anchors.
 
-**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
+**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9 and 12. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
 
 ## LINEAR CONTEXT supplement (workflow integration)
 
@@ -48,7 +49,7 @@ Findings from Linear-AC mismatches carry the prefix "Linear AC: " in the Cause f
 
 ## Spec-premise validation (classify the divergence before assigning blame)
 
-Every candidate omission below is a divergence between what the spec asked for and what the diff did. A divergence has two possible causes, and they route to opposite outcomes — classify which BEFORE emitting the finding. You have Read / Grep / Bash; use them to ground the check against the live code, not against the spec's own words.
+Every candidate finding below — an omission (checks 1-11) or a contradiction (check 12) — is a divergence between what the spec asked for and what the diff did. A divergence has two possible causes, and they route to opposite outcomes — classify which BEFORE emitting the finding. You have Read / Grep / Bash; use them to ground the check against the live code, not against the spec's own words.
 
 For each candidate divergence, ask: **is the spec's premise still true in the current codebase?**
 
@@ -61,9 +62,9 @@ For each candidate divergence, ask: **is the spec's premise still true in the cu
   - **Evidence:** cite TWO live-code facts, each with `file:line` — (1) the fact that contradicts the spec's premise, AND (2) the fact establishing the diff's departure is the *correct* response, not merely that the premise is stale. Quote the spec fragment alongside them. The second citation is the load-bearing guard against under-reporting: "the premise looks stale" is not enough to clear the implementation — you must show the omission is the right call. Cite (1) but not (2) → inconclusive (see below), not a spec-defect.
   - **Also emit a structured `open_questions[]` entry** (`source: spec-compliance`, `status: unresolved`) so the decision actually gates the handoff — an `[INTENT-CHECK]` tag alone surfaces the note in the PR body but fires no interactive decision gate. Phrase: "Spec premise `<premise>` is contradicted by `<code reality>` (`file:line`); the diff correctly departed. Decide: fix the spec, change the code to match the spec, or accept the divergence." This reuses the same channel as §Cross-PR Scope Split — same `open_questions[]` plumbing, same handoff gating.
 
-- **If the code's departure is NOT grounded** (the spec premise still holds and the diff genuinely skipped a still-valid scoped item), emit the standard code-omission finding per §What to Check at its normal severity.
+- **If the code's departure is NOT grounded** (the spec premise still holds and the diff genuinely skipped a still-valid scoped item, or implemented it contrary to the stated behavior), emit the standard finding per §What to Check at its normal severity.
 
-This is skip-when-clean: it only runs when a real divergence surfaces, and it never rewrites the spec — it flags the spec as possibly-wrong and routes the decision to the user via the `open_questions[]` gate above. When the grounding check is inconclusive (you cannot cite BOTH live-code facts — the premise contradiction AND the correctness of the departure), default to the standard code-omission finding but note the uncertainty in `Evidence:`.
+This is skip-when-clean: it only runs when a real divergence surfaces, and it never rewrites the spec — it flags the spec as possibly-wrong and routes the decision to the user via the `open_questions[]` gate above. When the grounding check is inconclusive (you cannot cite BOTH live-code facts — the premise contradiction AND the correctness of the departure), default to the standard finding per §What to Check but note the uncertainty in `Evidence:`.
 
 ## What to Check
 
@@ -226,14 +227,28 @@ The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field 
 
 **Red flag:** section 7 names tool `X` (or frontmatter `tools_required` lists `X`); `which X` returns non-zero / package.json has no `X` entry. Severity HIGH — diff cannot work without the tool.
 
+### 12. Implemented but Divergent
+
+For each scoped item the diff DOES touch, read the hunk against the spec's stated behavior for that item — presence is not compliance. Checks 1-11 catch what the diff omits; this check catches what it implements contrary to the spec: a wrong status code, an inverted default, a different field name, a boundary handled differently than the acceptance criterion states.
+
+**schema cite:** section 2 (Scope — Included) — the touched item; section 9 (Validation) / section 1 (Objective) — where its stated behavior lives. In prose fallback, cite the spec fragment that states the behavior.
+
+**How to detect:**
+- Take the scoped items that HAVE a matching changed file (the complement of Check 1's miss set). For each, extract the spec's stated behavior: status codes, defaults, field names, boundary conditions, error handling — from the item's own bullet, section 9, or the acceptance criteria.
+- Read the corresponding hunks and compare each stated behavior against what the code actually does.
+- Run §Spec-premise validation on every candidate contradiction first: a grounded departure (the spec premise is contradicted by live code and the diff's choice is the correct one) routes to `[INTENT-CHECK]` capped at MEDIUM, as usual.
+- An ungrounded contradiction (the premise still holds and the hunk contradicts it anyway) is HIGH — `Evidence:` quotes the spec fragment and the contradicting hunk side by side, so the reader sees the mismatch without re-deriving it.
+
+**Red flag:** the diff touches a scoped item and the hunk contradicts the spec's stated behavior for it — e.g., the spec says "returns 404 when user not found"; the handler returns 400.
+
 ## Common False Positives
 
 Skip or downgrade findings in these cases — they look like rubric violations but reflect routine PR patterns the rubric is not designed to flag:
 
-- **Draft PRs** (`gh pr view --json isDraft` returns `true`): incomplete scope is expected while the author iterates. Skip checks 4–9, 10–11; keep checks 1–3 (scope items, migration presence, rollback) because those are structural and easier to forget than to defer intentionally.
+- **Draft PRs** (`gh pr view --json isDraft` returns `true`): incomplete scope is expected while the author iterates. Skip checks 4–9, 10–11; keep checks 1–3 (scope items, migration presence, rollback) because those are structural and easier to forget than to defer intentionally, and check 12 — code the draft already wrote that contradicts the spec is a defect worth catching early, not iteration slack.
 - **Exploratory / brainstorm-style plans** (PLAN CONTEXT contains "TBD", "TODO", "follow-up", "out of scope", "future work", "tentative", "phase 2 will", or similar deferral markers near the scoped item): the plan itself did not commit to the scope. Downgrade the severity by one level (CRITICAL → HIGH, HIGH → MEDIUM, MEDIUM → informational) for findings that hit the deferred item.
 - **Bot-author PRs** (author user matches `dependabot[bot]`, `renovate[bot]`, `release-please[bot]`, `github-actions[bot]`, `changesets[bot]`, or a similar automation account — check `gh pr view --json author --jq '.author.login'`): the rubric does not apply. Skip every check; emit zero findings.
-- **Trivial PRs** (<20 LOC AND a single file changed): scope-completeness expectations do not apply at this size. Skip checks 1, 2, 6, 7, 9, 10, 11. Keep checks 3 (rollback), 4 (AC tests), 5 (flag wiring), 8 (config) only if their preconditions visibly fire in the diff or PR body.
+- **Trivial PRs** (<20 LOC AND a single file changed): scope-completeness expectations do not apply at this size. Skip checks 1, 2, 6, 7, 9, 10, 11. Keep checks 3 (rollback), 4 (AC tests), 5 (flag wiring), 8 (config), and 12 (behavior divergence) only if their preconditions visibly fire in the diff or PR body.
 - **Plan covers a multi-PR effort and this PR is one slice**: when PLAN CONTEXT explicitly enumerates a multi-PR plan (e.g., "PR 1: schema; PR 2: handler; PR 3: backfill") and the PR body cites which slice it is, restrict scope-completeness to the named slice. Items belonging to later slices are not omissions.
 - **Reverts and cherry-picks**: when the title begins with `Revert "` or `Cherry-pick` / `[backport]`, the spec the diff is held against is the parent change, not the original plan. Skip every check unless the revert/backport itself introduces new scope.
 
@@ -242,12 +257,12 @@ The detection signals above come from `gh pr view --json isDraft,author,title,bo
 ## Severity Tagging
 
 - **CRITICAL** — data-mutating migration with no rollback path (Check 3); semantic shift with fail-closed implications and no boundary assertion in tests (Check 7); flag-gated rollout with no flag wiring (Check 5). These ship broken, unsafe, or unrollable.
-- **HIGH** — scoped item from the plan is missing from the diff (Check 1); migration absent when the plan mentions a schema change (Check 2); multi-writer change with no documented deploy order (Check 6); new config / env var with no config-surface entry (Check 8); Done Condition not realized in the diff (Check 10); Tools Required missing from the environment (Check 11). Reviewers cannot verify or operate the change without these.
+- **HIGH** — scoped item from the plan is missing from the diff (Check 1); migration absent when the plan mentions a schema change (Check 2); multi-writer change with no documented deploy order (Check 6); new config / env var with no config-surface entry (Check 8); Done Condition not realized in the diff (Check 10); Tools Required missing from the environment (Check 11); implementation contradicts the spec's stated behavior for a touched item, with the departure not grounded in live code (Check 12). Reviewers cannot verify or operate the change without these.
 - **MEDIUM** — acceptance criterion named in the plan with no test reference (Check 4); operational concern named in the plan with no observability emission (Check 9); plan mentions a consideration the diff only partially addresses; semantic-shift PR with Before/After missing from the body but tests cover the boundary.
 
 Do not emit findings for items the plan did not commit to. PLAN CONTEXT is the rubric here — if a check's precondition is not visible in the plan, the check does not fire. This is the load-bearing constraint that separates this dimension from inventing requirements: a finding is only valid when the missing artifact can be cited verbatim back to a specific fragment of the plan in the `Evidence:` field.
 
-Apply the severity downgrades from the False Positives section before tagging. A precondition-met finding against an exploratory-plan item drops one level (HIGH becomes MEDIUM, MEDIUM becomes informational); a precondition-met finding against a draft PR may be suppressed entirely per the draft-PR carve-out. The final severity tag should reflect both the structural class of the gap (Check N → CRITICAL/HIGH/MEDIUM here) AND any downgrade rule that fires from the False Positives section. A divergence classified as a spec-defect by §Spec-premise validation overrides the Check-N structural severity entirely: it caps at MEDIUM and routes to `[INTENT-CHECK]`, because the gap is in the spec, not the implementation.
+Apply the severity downgrades from the False Positives section before tagging. A precondition-met finding against an exploratory-plan item drops one level (HIGH becomes MEDIUM, MEDIUM becomes informational); a precondition-met finding against a draft PR may be suppressed entirely per the draft-PR carve-out. A divergence classified as a spec-defect by §Spec-premise validation overrides the Check-N structural severity entirely: it caps at MEDIUM and routes to `[INTENT-CHECK]`, because the gap is in the spec, not the implementation.
 
 ## Cross-PR Scope Split (peer-PR context)
 

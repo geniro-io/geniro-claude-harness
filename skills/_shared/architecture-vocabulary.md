@@ -22,6 +22,8 @@ Single source of truth for design vocabulary. Skills cite this file rather than 
 3. **High locality over low locality.** A typical change should touch as few places as possible. If adding a single feature edits N files in M directories, the seam is wrong — refactor the seam, not the feature.
 4. **Use adapters at trust boundaries.** Anywhere external code (DB, third-party API, transport layer) meets internal code, put an adapter. The adapter absorbs upstream change.
 5. **High-leverage code deserves more design.** Code many callers depend on warrants extra care: stable interface, deep implementation, comprehensive tests. Low-leverage code can stay simple.
+6. **Apply the deletion test to suspected shallow modules.** Imagine deleting the module. If the complexity just vanishes, it was a pass-through wrapper — remove it. If the complexity reappears across N callers, the module was earning its keep — deepen it instead.
+7. **One adapter means a hypothetical seam; two mean a real one.** Don't introduce an interface / port unless at least two adapters are justified — typically production + test. A single-adapter seam is indirection without depth: the interface has exactly one meaning, so callers pay the extra hop and gain nothing.
 
 ## Anti-vocabulary (reject these framings)
 

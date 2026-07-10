@@ -245,9 +245,16 @@ Render two sibling blocks in the spawn prompts of the bugs / architecture / regr
 
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. The base branch is whatever scope-anchor resolves (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files"). NEVER invoke `gh pr list` to **invent a target** — PR mode triggers ONLY on explicit PR-ref forms.
 
-Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target ARE allowed (consume a user-supplied PR ref rather than invent one).
+Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target ARE allowed.
 
-**Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Do NOT promote "Auto Mode Active" reminder into transcript framing — review has no auto mode.
+**Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Do NOT promote an "Auto Mode Active" reminder into transcript framing.
+
+**Target sanity gate (before the Phase 1.5 mechanical pre-pass).** Once scope resolves, confirm the target is actually reviewable before anything downstream consumes it:
+
+- For a branch or diff-range input, `git rev-parse <ref>` must succeed for every named ref.
+- For every input shape, the resolved diff must be non-empty.
+
+An unresolvable ref or empty diff stops the run here. Report the problem in plain English — which ref failed to resolve, or that the target resolves to zero changed lines (commonly already merged, mistyped, or anchored to the wrong base) — then write terminal `phase: aborted` with `## Termination reason: empty-or-unresolvable-target: <detail>` and spawn nothing. Failing later, inside the parallel reviewer batch, wastes every spawn at once — and reviewers handed an empty diff invent findings against code that is not there.
 
 ### 2.1 Scope-exclusion transparency
 

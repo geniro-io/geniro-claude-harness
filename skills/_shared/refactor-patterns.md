@@ -69,10 +69,26 @@ Scan the target codebase for:
 - Inconsistent error handling or null-safety patterns
 - Report: code quality impacts
 
+#### Named Smell Baseline
+Match the scope files against the canonical named smells below (Fowler's *Refactoring* ch. 3 vocabulary — standard names the user can look up). Every hit is a labelled heuristic — report it as "possible Feature Envy", never as a hard violation: the smell-evidence filter (/geniro:refactor Phase 1) decides KEEP/FILTER, and a documented repo convention always wins over the label. Skip any smell the project's lint config already enforces — the lint run in the pipeline catches it deterministically and cheaper. Duplicated Code, Long Method, and Large Class / Divergent Change are already owned by the Duplication, Long Methods, and God Classes categories above — don't double-report them under a second name.
+
+Each smell reads what-it-is → how-to-fix:
+
+- **Mysterious Name** — a name that doesn't reveal what the thing does → rename; if no honest name comes, the design underneath is murky.
+- **Feature Envy** — a method reaching into another object's data more than its own → move it onto the data it envies.
+- **Data Clumps** — the same few fields or parameters travelling together → bundle them into one type.
+- **Primitive Obsession** — a primitive standing in for a domain concept → give the concept its own type.
+- **Repeated Switches** — the same type-cascade recurring across files → polymorphism or one shared map.
+- **Shotgun Surgery** — one logical change forcing scattered edits → gather what changes together.
+- **Speculative Generality** — hooks or parameters for needs nothing has → delete until a real need shows.
+- **Message Chains** — long `a.b().c().d()` navigation → hide the walk behind one method.
+- **Middle Man** — a module that mostly delegates onward → cut it; call the target directly.
+- **Refused Bequest** — an implementer ignoring most of what it inherits → drop the inheritance, use composition.
+
 #### Deepening Opportunities
 **Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first** to ground the vocabulary (depth, seam, adapter, leverage, locality, deep vs shallow modules).
 
-This lens is orthogonal to the 6 smell categories above — it asks "is this module **shallow** when it could be **deep**?" rather than "is there a smell?" A shallow module exposes nearly all its internal complexity through a wide interface; a deep module hides a lot of behavior behind a small interface.
+This lens is orthogonal to the smell categories above — it asks "is this module **shallow** when it could be **deep**?" rather than "is there a smell?"
 
 Look for:
 - **Wide-interface modules with low internal logic** — e.g., a util file with 12 exported helpers each used once. The exports are the interface; the implementation is trivial. Consider absorbing the callers' logic INTO the module so the module hides more behavior behind fewer exports.
@@ -86,6 +102,8 @@ For each deepening opportunity, report:
 - **Proposed deepening**: what behavior to absorb (1-2 sentences)
 - **Affected call sites**: count of consumers (this drives risk classification per Step 2)
 - **Vocabulary tag**: which terms apply (depth / seam / adapter / leverage / locality)
+- **Dependency category → test strategy**: classify the candidate's dependencies — **in-process** (merge and test through the new interface directly), **local-substitutable** (a test stand-in exists; the seam stays internal), **remote-but-owned** (define a port at the seam: production adapter + in-memory test adapter), or **true-external** (injected port + mock adapter). The category determines how the deepened module is verified.
+- **Tests to replace, not layer**: when tests exist at the deepened module's new interface, list the old unit tests on the absorbed shallow modules for deletion in the same step — a test that must change whenever the implementation changes was testing past the interface, so keeping it alongside the interface tests is duplicated maintenance, not extra safety. (Test-file edits still route through the Guardrails approval below.)
 
 Deepening findings are subject to the same Step 2 Change Impact Scoring as smells. They are typically MEDIUM or HIGH risk because they touch the seam between modules and their consumers — flag accordingly.
 
