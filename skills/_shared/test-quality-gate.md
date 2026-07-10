@@ -8,7 +8,7 @@ Consumers: `/geniro:implement` (Phase 3, after the fix loop converges, before Sh
 
 ## Relationship to the tests reviewer dimension (no new agent)
 
-This gate spawns no agent. The audit is already performed by the fresh `tests` reviewer dimension that Phase 3 spawns — a fresh isolated context, anchoring-free, reading `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`, which carries the three test-honesty checks: claimed-vs-asserted scope, spec-coverage traceability, and redundancy among new tests. The gate is the surfacing-and-decision layer on top of that reviewer's output: it selects the test-honesty findings and presents them as a deliberate decision. A second agent re-reading the same diff would double the cost for no new signal — the value this gate adds is visibility and a user decision, not a second audit.
+This gate spawns no agent. The audit is already performed by the fresh `tests` reviewer dimension that Phase 3 spawns — a fresh isolated context, anchoring-free, reading `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`, which carries the test-honesty checks: claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, and scenery tests flagged for removal. The gate is the surfacing-and-decision layer on top of that reviewer's output: it selects the test-honesty findings and presents them as a deliberate decision. A second agent re-reading the same diff would double the cost for no new signal — the value this gate adds is visibility and a user decision, not a second audit.
 
 ## When it applies
 
@@ -18,7 +18,7 @@ This gate spawns no agent. The audit is already performed by the fresh `tests` r
 
 ## What it surfaces
 
-From the Phase 3 `tests`-dimension output (and the `adversarial-tester` authored-test list), select the test-honesty findings — those flagged for claimed-vs-asserted mismatch, spec-coverage gap, weak/zero assertions (the Deletion Test), or redundancy among new tests. Partition them:
+From the Phase 3 `tests`-dimension output (and the `adversarial-tester` authored-test list), select the test-honesty findings — those flagged for claimed-vs-asserted mismatch, spec-coverage gap, weak/zero assertions (the Deletion Test), redundancy among new tests, or a scenery test recommended for removal (presentational detail, framework behavior, duplicated coverage). Partition them:
 
 - **Found and already fixed** — test-quality findings the bounded fix loop resolved this run. They need no decision; list them for visibility so the user sees the audit ran and what it changed.
 - **Open** — test-quality findings not auto-resolved (a judgment call the loop left standing, or one it did not fix). These carry the decision.

@@ -10,6 +10,20 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v2.78.0
 
+### Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead
+
+`/geniro:implement`, `/geniro:review`, and `/geniro:refactor` no longer spawn the `reflection-agent` automatically after a run settles — the "Suggest improvements" step (and its background-spawn/drain machinery) is removed from all three. Rule and improvement mining is now the dedicated `/geniro:reflect` skill: run it on demand to analyze recent sessions — diffs, findings, or transcript extracts — for durable rule candidates, walked one at a time with the same candidate bar and routing targets as before. `/geniro:plan` and `/geniro:onboard` keep their inline candidate-drafting steps, and the recurring-pattern rule offers in `/geniro:debug` and `/geniro:refactor` are unchanged.
+
+**Action required:** None beyond awareness — run `/geniro:reflect` when you want improvement suggestions; no state-file schema changed.
+
+**Auto-detect:** N/A — behavior change in the shipped skills with no project-state impact.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — the same suggestions remain available on demand; nothing fires automatically anymore.
+
+---
+
 ### `/geniro:implement` no longer patches docs at Ship
 
 The "Update Docs" Ship sub-step is removed from `/geniro:implement` — a run no longer edits documentation files itself before shipping. Documentation staleness is still covered: the architecture reviewer's docs-staleness check in the Phase 3 self-review flags docs the diff made stale as ordinary findings, which route through the normal fix loop and gates.

@@ -15,7 +15,7 @@ A skill or agent body MUST NOT contain any of the following. If present, strip b
 - No Cyrillic, Greek, Han, Hiragana, or other non-Latin script characters anywhere in skill/agent body OR comments OR error messages.
 - No English-Russian or English-other-language mixes ("см. ниже", "вместо того", etc.).
 - Skill UI prompts (AskUserQuestion `question:` / `description:` / `header:`) MUST be English-only.
-- Detection: `grep -rPn '[^\x00-\x7F]' skills/ agents/` should return zero non-emoji matches. Allowed: an em-dash, a curly quote, a `→` arrow in a diagram, mathematical symbols. Disallowed: any letter outside the basic Latin range.
+- Detection is mechanized in `tests/authoring/lint-skills.sh` (hard failure). Allowed: an em-dash, a curly quote, a `→` arrow in a diagram, mathematical symbols. Disallowed: any letter outside the basic Latin range.
 
 ### 2. Plugin-author-internal references
 
@@ -38,9 +38,10 @@ Skills are runtime instructions, not change logs. Strip:
 
 ### 4. Informational noise / hedges
 
-Strip text that the runtime model already knows or that does not change behavior:
+Apply the no-op test to every sentence: does it change the model's behavior versus what it would do by default? A failing sentence is deleted whole, not trimmed to a shorter no-op — "be thorough" addressed to a model that is already thorough is paid-for silence, and the fix for a too-weak steering word is a stronger one ("relentless"), not more words. Sentences that commonly fail the test:
 
 - Re-explanations of standard tooling ("the Read tool reads a file", "git is a version control system").
+- Over-detailed mechanics the model derives itself — platform command recipes, shell idiom hand-holding, prescribed loop/poll shapes where a goal + bound suffices. State goal + constraint per `.claude/rules/skill-prose.md` §"Assume a capable model"; when editing near such a passage, remove it even if your change didn't introduce it.
 - Hedging without conditional ("this may or may not work depending"). Either state the condition under which it does/doesn't, or drop the line.
 - Restatements of preceding paragraphs in summary form. The reader read the preceding paragraph 200 tokens ago.
 - "Note:" / "Important:" / "Keep in mind:" prefixes on lines that aren't notes or important — these are filler.

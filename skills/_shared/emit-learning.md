@@ -18,7 +18,7 @@
 
 **Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`.
 
-`ARCHITECTURE.md` § "Memory Layers" documents the L2 entry schema and lifecycle.
+The canonical L2 entry schema is documented in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § "T3 — append-only (learnings sidecar)"; `ARCHITECTURE.md` § "Memory Layers" covers the four-layer taxonomy and lifecycle.
 
 ## API
 
@@ -104,7 +104,7 @@ Before redaction and dedup, `emit_learning` scans **every string value in the en
 - **Override phrasing** — `<verb> <previous-reference> <instruction-noun>`, e.g. "ignore previous instructions", "disregard the above context", "new directives:". Genuine technical learnings essentially never use this structure.
 - **Chat-template control tokens** — `<|im_start|>`, `<|system|>`, `</system>`, etc.
 
-The pattern set is deliberately narrow. A false reject only drops one best-effort learning — callers ignore `emit_learning` failures, so it never breaks a workflow — whereas a stored payload persists across sessions. If a legitimate learning needs one of these phrases, rephrase it. Control-plane tokens (`producer`/`scope`/`tags`/`type`/`trust`) are scanned too but never match the structured shapes, so scanning the whole entry is harmless and removes any "smuggle it into a non-standard key" bypass.
+The pattern set is deliberately narrow. A false reject drops just one best-effort learning — the caller surfaces the non-zero return per §Caller contract rule 3 but does not block the workflow on it — whereas a stored payload persists across sessions. If a legitimate learning needs one of these phrases, rephrase it. Control-plane tokens (`producer`/`scope`/`tags`/`type`/`trust`) are scanned too but never match the structured shapes, so scanning the whole entry is harmless and removes any "smuggle it into a non-standard key" bypass.
 
 ## Dedup pipeline
 
@@ -159,7 +159,7 @@ jq -nc \
 - **Dedup window is 200 lines.** Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/geniro:debug` session, a few per `/geniro:implement` run) the 200-line window covers weeks; if it becomes too short, callers can pre-query `learnings.jsonl` via `query-learnings` and pass `supersedes` explicitly.
 - **No multi-entry batching.** One JSON object per call. Callers that need to emit many at once should loop.
 - **Sanitization is per-call.** A pattern that fires across multiple ext fields emits multiple audit-log rows. Aggregating is left to readers of the audit log.
-- **No producer→trust auto-default.** `ARCHITECTURE.md` § "Memory Layers" documents per-emitter trust defaults (e.g. `/geniro:debug` → `verified`). The helper does NOT auto-set `trust` based on producer; callers must supply it explicitly — a missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).
+- **No producer→trust auto-default.** The helper does NOT auto-set `trust` based on producer; each caller supplies it explicitly at its emit site (e.g. `/geniro:debug` emits confirmed root causes as `verified`). A missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).
 - **Concurrent emit-learning with the same caller-supplied `dedup_key` is not serialized.** Two parallel calls with the same key but different content append both without auto-injecting `supersedes`, because each call's dedup-scan happens before the other's append. Acceptable given the helper's no-lock design; if strict serialization is needed, callers can wrap calls with a file lock.
 
 ## Test coverage

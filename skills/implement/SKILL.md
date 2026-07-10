@@ -9,21 +9,21 @@ argument-hint: "[task description | spec.md path | empty to resume | 'continue']
 
 # Implement Skill — 3-Phase Autonomous Loop
 
-You are an autonomous executor. You consume an externally-provided spec (or inline task description), make all required code edits, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`. Single orchestrator owns Phase 2 code-edits — no parallel code-editing subagents.
+You are an autonomous executor. You consume an externally-provided spec (or inline task description), make all required code edits, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`. A single orchestrator owns Phase 2 code-edits; an independent, self-contained slice may be delegated to a code-editing subagent per Phase 2 Step 3's delegation rule — coupled slices never are.
 
 **Phases:**
 
 1. **Analyze (Phase 1)** — Step 0 workspace setup AUQ (with auto-continue for in-worktree fix-up runs); semantic-parse `$ARGUMENTS`; resolve spec source (spec.md / plan.md / DESIGN_DOC frontmatter OR inline-task fallback); refresh custom instructions + project snapshot; spawn knowledge-retrieval and codebase-explorer agents in parallel; query past learnings; persist review/debug handoffs to state.md; fact-check the spec against the current code before any edit (spec-driven mode only).
-2. **Implement (Phase 2)** — TodoWrite sequential decomposition (3-15 todos, one in_progress at a time); per-todo Edit/Write batch; end-of-phase test-suite run via `test-runner-agent`; bounded 3-retry fix loop on test failure → escalate-AUQ on exhaust.
+2. **Implement (Phase 2)** — TodoWrite sequential decomposition (3-15 todos, one in_progress at a time); per-todo Edit/Write batch, with optional delegation of a genuinely independent slice to a code-editing subagent (Step 3 delegation rule); end-of-phase test-suite run via `test-runner-agent`; bounded 3-retry fix loop on test failure → escalate-AUQ on exhaust.
 3. **Self-review + Ship (Phase 3)** — reviewer-agents in parallel (bugs / security / architecture / tests / code-quality) + 1 adversarial-tester-agent (skipped when codebase-explorer reports `change_scope: trivial` OR when `--no-adversarial` modifier is present in `$ARGUMENTS`) + any custom dimensions discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, ≤10 cap, path-filtered); bounded 3-round fix loop, round N+1 = dims with actionable findings only (minor findings collect into a pre-ship disposition gate instead of forcing rounds); on clean exit, the minor-findings and test-quality gates, then ship sub-step (Pre-Ship Visual Verification if applicable, commit, ship-mode AUQ, learnings + snapshot writes, cleanup).
 
-**Reference material** (templates, $ARGUMENTS-parse table, subagent spawn templates, fix-loop, ship sub-step): Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` AT each phase. Do NOT pre-load the entire file.
+**Reference material** (templates, $ARGUMENTS-parse table, subagent spawn templates, fix-loop, ship sub-step): Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` AT each phase — load only the section that phase needs, so the reference's other phases don't crowd the working context.
 
 ---
 
 ## State machine
 
-State.md frontmatter `phase:` transitions (alignment-immune table; `from-phase → to-phase | trigger`):
+State.md frontmatter `phase:` transitions (`from-phase → to-phase | trigger`):
 
 | From | To | Trigger |
 |---|---|---|
@@ -58,20 +58,13 @@ Each `git push` / `gh pr create` / posted comment appends to `non-resumable-acti
 
 ## Loop invariants
 
-Apply throughout all 3 phases. Invariants 1-7 are the canonical agent-loop set (stated generically in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`, which `/geniro:onboard` and `/geniro:investigate` cite); 8-10 are implementation-specific:
+The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across all 3 phases. Two apply with implementation-specific bounds: invariant 4 caps reviewer-agent output at ~4000 chars per dimension (Bash output >8000 chars summarized before downstream use); invariant 5's bounded retry loops are 3 rounds in Phase 2 and 3 rounds in Phase 3, escalating early when the loop is not converging (no forward progress across two checkpoints, the same failure recurring, or cost/scope drift past the codebase-explorer effort tier OR the user's spec-declared `budget` per the §PHASE 2 Step 6 trigger list — the scope-drift trigger set is shared across Phase 2 and the Phase 3 fix loop and dedupes to fire once per run). This skill adds three invariants:
 
-1. **One result per tool call.** Every Edit / Write / Bash / Agent spawn produces exactly one structured result. Failed spawn → result with `status: failed`; never absent.
-2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Paths absolute; slugs match the rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`.
-3. **Permission before side-effect.** Any tool call mutating external state (`git push`, `gh pr create`, posted PR comment) is preceded by AUQ approval or recorded approval (persisted via schema).
-4. **Bounded and structured tool results.** Reviewer-agent output capped at ~4000 chars per dimension; longer truncated with marker. Bash output >8000 chars summarized before downstream use.
-5. **Escalation gates, not silent abort.** Bounded retry loops (3 rounds in Phase 2, 3 rounds in Phase 3) surface to user via `AskUserQuestion` at exhaustion — and earlier when the loop is not converging (no forward progress across two checkpoints, the same failure recurring, or cost/scope drift past the codebase-explorer effort tier OR the user's spec-declared `budget` per the §PHASE 2 Step 6 trigger list). The scope-drift trigger set is shared across both Phase 2 and the Phase 3 fix loop and dedupes so it fires once per run. Never silent abort, never infinite loop, never spend the full retry budget against an unmoving wall.
-6. **Final answer grounded in observations.** Phase 3 Ship result text MUST quote actual tool output (push ref, PR URL, commit SHA) — never "git push succeeded" without evidence. Self-review reads `## Tool log` entries before claiming clean state.
-7. **Errors, denials, cancellations, timeouts → structured observations.** Failed `gh pr create`, denied permission, hook-blocked Write, subagent timeout, non-zero Bash exit becomes a structured observation entry — never silently skipped.
 8. **Investigation reads delegated to subagents.** Phase 1 inline-Reads only L4 instructions (3 files), L3 semantic snapshot (2 files), spec.md body, and state.md. `.claude/rules/*.md` bodies, exemplar source files, L2 learnings entries, and prior plans are spawned out to Knowledge-Retrieval + Codebase-Explorer subagents and read back as condensed reports. Inline-reading the rest is the documented context-bloat regression. The two primary Phase 1 subagent spawns are the plugin-defined `knowledge-retrieval-agent` and `codebase-explorer-agent` (implementation-specific — takes a spec.md, produces REUSE/EXTEND/NO-ANALOGUE inventory). For ad-hoc cross-file research inside Phase 2 (per-step "trace this flow" / "find all sites that call this helper" queries that aren't covered by Codebase-Explorer's Phase 1 inventory), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 9. **One todo in_progress at a time.** Phase 2's TodoWrite decomposition enforces sequential focus. Marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop).
 10. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**Turn-completion check (canonical, un-numbered).** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check: never stop on a statement of intent or an announced-but-unfired question — at every gate the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard, and an answered question is continued with the next action, never a silent stop.
+**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 **Side-effect — `## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into a body section per `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling" (the "Tool log persistence." paragraph). Routine Read/Edit/Bash on local files do NOT need logging — Claude Code's tool_result return is sufficient.
 
@@ -79,9 +72,9 @@ Apply throughout all 3 phases. Invariants 1-7 are the canonical agent-loop set (
 
 ## Budgets — quality-first framing
 
-No hard kill caps. No wall-time / tool-call / model-turn / cost ceilings. User tokens unlimited.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — quality-first (canonical): no hard kill caps, no wall-time / tool-call / model-turn / cost ceiling. This skill's own gates:
 
-**Quality gates (Class-B — escalate to user, do not abort):**
+**Quality gates (escalate to user, do not abort):**
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -91,12 +84,6 @@ No hard kill caps. No wall-time / tool-call / model-turn / cost ceilings. User t
 **Architecture constraints (design intent, not budget):**
 - Parallel spawns at Phase 3 Round 1: reviewer-agents (`bugs` / `security` / `architecture` / `tests` / `code-quality`) + 1 `adversarial-tester-agent`, unless `change_scope: trivial` or `--no-adversarial` modifier strips the adversarial slot. Custom reviewer dimensions from `.geniro/instructions/review-extra/` append to the same batch (≤10 cap, path-filtered).
 - Parallel spawns at Phase 1 Step 7: 2 subagents (`knowledge-retrieval-agent` + `codebase-explorer-agent`).
-
-**Explicitly NOT capped:**
-- Wall-time per run. Complex implementation can take hours.
-- Total tool calls per phase. Large refactors easily exceed 100 calls; no cap.
-- Total model turns per phase. Multi-file work needs many turns.
-- Total cost per run. Deferred to if a cost-aware mode is opted into.
 
 ---
 
@@ -130,28 +117,9 @@ deep-mode: <true|false>   # set by the --deep flag (Phase 1 parse); missing read
 
 When `deep-mode: true`, Phase 1 (spec fact-check) and Phase 3 (self-review) run their deeper paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. Activation (the `--deep` flag or the Step 0 Question 3 chooser) and its flag-only fallbacks follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2; persistence is materialized once at Phase 1 Step 4.
 
-**Write contract.** Route every state.md mutation through `atomic_state_write` (cited from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`) — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash. The State-helper enforcement hook hard-blocks such a direct write (exit 2).
+**Write contract.** Route every state.md mutation through `atomic_state_write` — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash; the State-helper enforcement hook hard-blocks such a direct write (exit 2). Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
 
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write ".geniro/planning/<task-slug>/state.md" <<'EOF'
----
-<frontmatter>
----
-
-<body sections>
-EOF
-```
-
-**Validation before resume.** When Phase 1 detects a pre-existing state.md (resume path), pre-flight via `validate_state_file`:
-
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
-if ! validate_state_file ".geniro/planning/<task-slug>/state.md"; then
-# Open recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency)
-...
-fi
-```
+**Validation before resume.** When Phase 1 detects a pre-existing state.md (resume path), pre-flight via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`; on failure, open the recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
 
 ---
 
@@ -250,7 +218,7 @@ When L4/L3/L2 reads disagree, follow the protocol in `${CLAUDE_PLUGIN_ROOT}/skil
 |---|---|---|
 | **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (`git status`, `gh pr view`, `git worktree add`, `git checkout -b`, and the Step 0 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent`, plus the read-only spec-claim verifier spawns fired by the Step 12.5 spec-challenge gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md`, plus one top-level `general-purpose` web-research spawn (WebSearch + WebFetch) for the library-candidate research in the Step 8.5 library-reuse audit (OMIT `model=`); Workflow (`deep-mode: true` only — the internal deep fan-out for the Phase 1 spec-check and Phase 3 self-review, OMIT `model=`) | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
 | **Phase 1 subagents** | Per agent frontmatter `tools:` whitelist — see `agents/knowledge-retrieval-agent.md` and `agents/codebase-explorer-agent.md` | Edit / Write (except their own OUTPUT_PATH); Agent (leaf agents, no nesting) |
-| **Phase 2 (Implement) inner loop** | Read / Grep / Glob / Edit / Write / Bash (incl. test runs); `test-runner-agent` spawn at end-of-phase | `git push`, `gh pr create`, `gh pr comment`, Phase 3 agent types |
+| **Phase 2 (Implement) inner loop** | Read / Grep / Glob / Edit / Write / Bash (incl. test runs); `test-runner-agent` spawn at end-of-phase; bounded code-delegate spawns (`general-purpose`, disjoint file sets) per §PHASE 2 Step 3 "Delegating a todo" | `git push`, `gh pr create`, `gh pr comment`, Phase 3 agent types |
 | **Phase 2 test-runner-agent** | Bash (one test-suite invocation), Read, Grep — enforced by `agents/test-runner-agent.md` frontmatter | Edit / Write on source code; git mutation; destructive Bash; Agent (leaf agent) |
 | **Phase 3 reviewer-agent spawns** | Per dim: Read / Grep / Glob / Bash (read-only) — enforced by `agents/reviewer-agent.md` frontmatter `tools:` whitelist | Edit / Write / Agent / mutating Bash / external network |
 | **Phase 3 adversarial-tester-agent spawn** | Read / Write / Edit (restricted to test-file paths) / Bash (read-only) / Glob / Grep — enforced by `agents/adversarial-tester-agent.md` frontmatter `tools:` + Critical Constraints | Production-source edits; git mutation; destructive Bash; Agent (leaf agent) |
@@ -360,37 +328,9 @@ The full cross-skill catalog of modifiers and the spec `launch_config` block (wo
 
 Single `AskUserQuestion` call carrying up to 3 questions (always-WAIT, never auto-resolve). When a spec `launch_config` pre-answered a question (Step 0g), drop that question from the batch — the pre-set is its answer; if `launch_config` pre-answers every question that would otherwise fire, the AUQ does not fire at all.
 
-**Question 1 — always asked when rules 5 or 6 fire:**
+**Question 1 — always asked when rules 5 or 6 fire** (header: `"Git workspace"`) — offers "New feature branch (Recommended)" / "Current branch" / "Git worktree"; literal template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Step 0c AUQ templates".
 
-```
-header: "Git workspace"
-question: "Where should /geniro:implement land its edits?"
-multiSelect: false
-options:
-  - label: "New feature branch (Recommended)"
-    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
-  - label: "Current branch"
-    description: "Pre-flight only; no git mutation. Echo 'Continuing on <branch> at <toplevel>.'"
-  - label: "Git worktree"
-    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same branch-name-format conformance as 'New feature branch'."
-```
-
-**No-ticket-ID sub-flow.** When BRANCH_FORMAT_RULE requires a ticket prefix AND `TICKET_ID_IN_SCOPE` is empty, the agent cannot derive a conformant slug. Chain a sub-AUQ BEFORE Question 1 fires (or BEFORE the worktree command runs if Question 1 has already resolved to "New feature branch" / "Git worktree"):
-
-```
-header: "Ticket ID needed"
-question: "Branch format requires a ticket prefix (per .geniro/instructions/global.md), but no ticket ID was detected in $ARGUMENTS, spec.md, or the current branch. How do you want to proceed?"
-multiSelect: false
-options:
-  - label: "Provide ticket ID inline"
-    description: "User types the ID (e.g. ENG-123) in the next message; agent re-derives the slug and proceeds."
-  - label: "Use placeholder slug"
-    description: "Slug becomes <type>/no-ticket-<desc>. Branch is created with the placeholder; user can rename later via 'git branch -m'."
-  - label: "Cancel — I'll get a ticket first"
-    description: "Terminal. No git mutation. User exits and re-invokes /geniro:implement once a ticket exists."
-```
-
-This AUQ does NOT include a "create the ticket for me" option. /geniro:implement never creates tracker artifacts — see the anti-rationalization row covering tracker-mutation authority.
+**No-ticket-ID sub-flow.** When BRANCH_FORMAT_RULE requires a ticket prefix AND `TICKET_ID_IN_SCOPE` is empty, the agent cannot derive a conformant slug. Chain a sub-AUQ BEFORE Question 1 fires (or BEFORE the worktree command runs if Question 1 has already resolved to "New feature branch" / "Git worktree") — options: provide the ticket ID inline / use a placeholder slug (`<type>/no-ticket-<desc>`, renameable later) / cancel (terminal, no git mutation); literal template in the same reference section. This AUQ does NOT include a "create the ticket for me" option — /geniro:implement never creates tracker artifacts (see the anti-rationalization row covering tracker-mutation authority).
 
 **Question 2 — conditional on workflow_refs OR `.geniro/workflow/*.md` having an `### On task start` section:**
 
@@ -411,20 +351,7 @@ When the spec's `launch_config.tracker_status` is set (applied at Step 0g), it p
 
 If the batch exceeds 4 questions — `1` (workspace, when rules 5/6 fire) + `N` (workflow) + `1` (depth, when `--deep` is absent) > 4 — chain into a second AUQ.
 
-**Question 3 — implement depth (fired when `$ARGUMENTS` lacks `--deep`):**
-
-```
-header: "Implement depth"
-question: "How deep should the implementation analysis go?"
-multiSelect: false
-options:
-  - label: "Standard"
-    description: "One spec fact-check pass and one self-review pass."
-  - label: "Deep — 3× fact-check + multi-angle self-review"
-    description: "3× spec fact-check before editing plus a multi-angle self-review with verification escalated only where the call is contested; higher quality at higher token cost."
-```
-
-Question 3 joins the Step 0c AUQ batch whenever that AUQ fires and `--deep` is absent, and counts toward the batch-exceeds-4 chain rule above. Neither option carries `(Recommended)` — Deep is costlier, not safer; an empty answer defaults to Standard (`deep-mode: false`). Flag pre-resolution and the flag-only fallback on the auto-continue / resume paths follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2.
+**Question 3 — implement depth (fired when `$ARGUMENTS` lacks `--deep`)** (header: `"Implement depth"`) — "Standard" (one fact-check pass, one self-review pass) vs "Deep — 3× fact-check + multi-angle self-review"; literal template in the same reference section. Question 3 joins the Step 0c AUQ batch whenever that AUQ fires and `--deep` is absent, and counts toward the batch-exceeds-4 chain rule above. Neither option carries `(Recommended)` — Deep is costlier, not safer; an empty answer defaults to Standard (`deep-mode: false`). Flag pre-resolution and the flag-only fallback on the auto-continue / resume paths follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2.
 
 #### 0d — Approvals-persistence
 
@@ -492,7 +419,7 @@ Two caller-side deltas the schema file does not own:
 5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); the §Echo contract requires one observable line per file. Both are mandatory.
 6. **Load project snapshot.** `load_semantic` with default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Optional `--extras _FEATURES.md` if spec mentions feature backlog. Fingerprint drift check fires automatically; surface drift notification to user.
 7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response, TWO `Agent(...)` tool calls. Apply the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Subagent spawn template" — first prime both spawns with the related-task chain context (parent epic + sibling tasks + neighboring milestones) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at each spawn site. OMIT `model=` argument — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out). **Backgrounding when a handoff gate is pending:** when Step 0a flagged a review/debug handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF`) that carries unresolved open-questions, spawn both agents `run_in_background: true` and run the Step 12 open-questions gate (sub-steps 1-7) during their compute — procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Backgrounding when a handoff gate is pending". Otherwise — the common case, no such handoff — spawn both BLOCKING exactly as before.
-8. **Read subagent outputs — drain point.** Confirm both agents returned before reading: `Read` `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`, or resume by ID when the output file has not yet landed. When Step 7 backgrounded the agents, this drain is the first step that consumes their output — it must not proceed until both have returned (reference §"Backgrounding when a handoff gate is pending"). The codebase-explorer's `change_scope` field gates the Phase 3 adversarial-tester spawn (`trivial` → skip) and the Ship-step reflection spawn (`big` → fire). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
+8. **Read subagent outputs — drain point.** Confirm both agents returned before reading: `Read` `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md`, or resume by ID when the output file has not yet landed. When Step 7 backgrounded the agents, this drain is the first step that consumes their output — it must not proceed until both have returned (reference §"Backgrounding when a handoff gate is pending"). The codebase-explorer's `change_scope` field gates the Phase 3 adversarial-tester spawn (`trivial` → skip). Failure handling for either agent: on missing/empty output OR `Agent` tool error, one silent retry; second failure → inline-Read fallback (load top-3 exemplar files + `_CODEBASE_MAP.md` rows by Grep) with `change_scope: medium` as safe default. Emit a `diagnosis` learning with `trust: retrieved`. Echo notice to user.
 8.5. **Library reuse audit (build-vs-buy).** For each codebase-explorer `NO-ANALOGUE` component, when `change_scope` is small / medium / big (skip trivial), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` with MODE: implement — a web-research agent finds candidate libraries in the project's detected ecosystem, filters them (existence-verified against the real registry), and a message-first confirmation gate requires explicit approval before any library is adopted (persists `approvals[]` category `library_adoption`). Skip silently when there is no package manifest or no NO-ANALOGUE component; fail-open on a research/registry error.
 9. **Query past learnings.** `query_learnings --tag <inferred> --scope <task-path> --limit 5` — route per the Memory I/O §"Read" backend rule above (a declared backend redirects this to its read tool; the file is empty under `replace`). Tags may be primed by the knowledge-retrieval output. Skip if task description is too generic.
 10. **Resolve cross-layer conflicts.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if instructions / snapshot / learnings disagree.
@@ -552,7 +479,7 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
 
 1. **Read spec source** — Phase 1 resolved either a spec.md path OR wrote `## Inline Plan` to state.md body. Inline-Read the spec.md (full body) and the Codebase-Explorer "Likely-Touched Files" + "Reuse Inventory" sections.
 
-2. **Decompose into todos via TodoWrite (Phase 2 entry — before any Edit).** Author N concrete edit-tasks via TodoWrite. Each todo = one logical unit of change (e.g., "Add migration X", "Update Y controller", "Add Z test"). N typically:
+2. **Decompose into todos via TodoWrite (Phase 2 entry — before any Edit).** Author N concrete edit-tasks via TodoWrite. Each todo = one logical unit of change, sliced vertically — one behavior paired with the test that pins it (e.g., "Add migration X + test the new column round-trips", "Add expiry check to Y controller + test expired tokens get 401") — never horizontally (all production edits first, then a trailing "add tests" todo). Tests authored in bulk after the code pass on first run and discriminate nothing; pairing each behavior with its test keeps every test anchored to a change it actually observed. N typically:
    - 1-3 todos for Small scope
    - 3-10 todos for Medium scope
    - up to 15 todos for Big scope (unless already split into milestones)
@@ -573,7 +500,9 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
        e. Move to next todo
    ```
 
-   No parallel subagent fan-out for code edits. Single orchestrator owns context throughout Phase 2.
+   **Delegating a todo (bounded).** Default is inline — the orchestrator edits directly. Delegate a todo to a `general-purpose` subagent (same worktree, OMIT `model=`) only when the slice is genuinely independent: its file set overlaps no other todo's, it shares no in-flux type/contract/import with concurrently-edited code, and the prompt can carry everything the delegate needs (the todo's spec excerpt, exemplar file paths, the paired test, and the relevant code-style/conventions content inlined — a subagent inherits no orchestrator context). Good candidates: a mechanical wide edit (a rename across many call sites), an isolated leaf module, boilerplate generation. Coupled slices stay inline — splitting them across agents produces the style drift and duplicated implementations that lint/compile cannot catch. Rules: the delegate edits ONLY its named file set; on return, read its diff before marking the todo completed — the orchestrator owns every line it ships; the end-of-phase suite still runs once for the whole phase. Multiple delegates may run in parallel ONLY when their file sets are pairwise disjoint; integrate their results one at a time (invariant #9 governs the todo states, not the spawns).
+
+   **Scope discipline.** Build what the todo's slice requires and nothing beyond it — no speculative abstractions, configuration options, or generalized helpers for needs the spec doesn't name. Generality added "while we're here" is scope the user never approved, and the code-quality reviewer flags it as speculative generality in Phase 3.
 
    **Comment discipline.** Match the surrounding file's comment density and idiom. Write a comment only where the code cannot show the constraint itself — a non-obvious WHY, an invariant the types don't express, a legal header, a TODO with an issue reference. Never restate what a line does, narrate the change being made ("added X", "now handles Y"), or address the reviewer — those comments are noise the moment the diff merges, and the reviewer reads the diff, not annotations. A per-project `code-style.md` rule overrides this default where they conflict.
 
@@ -655,7 +584,7 @@ PHASE 2 (sequential, single-context):
 
 2. **Collect findings.** Reviewer-agent output schema per `agents/reviewer-agent.md` §Output Format. Adversarial-tester output schema per `agents/adversarial-tester-agent.md` §Output Schema AND authored test files on disk under the project's test directory. Cap per-dim output at ~4000 chars (invariant #4); truncate with marker on overflow.
 
-3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + severity partition + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns and set aside the minor ones per the reference's partition (they never block exit or force rounds; on loop exit the survivors persist to state.md `## Deferred Findings` via `atomic_state_write` for the step-5 disposition gate); if no actionable findings remain AND no authored adversarial tests still fail, exit to Ship; otherwise apply fixes inline (no further agent spawns), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the reviewer dims with actionable findings (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
+3. **Bounded fix loop.** Up to 3 rounds. Full pseudo-code + scope/severity partition + drop-rules for round N+1 + adversarial-as-6th-dim mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop". Summary: on each round, collect findings from the parallel spawns and partition per the reference — mechanical LOW nits in code this run authored (comment noise, naming slips, dead imports) are fixed within the round; findings tagged pre-existing are NEVER auto-fixed at any severity, because fixing code this change didn't introduce silently expands the diff past what the spec authorized — they and the remaining minor findings persist to state.md `## Deferred Findings` via `atomic_state_write` for the step-5 disposition gate, where the user decides. If no actionable findings remain AND no authored adversarial tests still fail, exit to Ship; otherwise apply the smallest fixes that resolve the findings inline (no further agent spawns, no abstractions the finding doesn't require), re-spawn `test-runner-agent` (rollback to Phase 2 if not green), increment round, then re-spawn ONLY the reviewer dims with actionable findings (and the adversarial-tester conditionally). Round 4 entry is forbidden — escalate-AUQ instead.
 
 4. **Escalation on round-3 exhaust or a not-converging signal.** Render the unresolved findings to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then fire the lean AUQ (header: `"Resolve findings"`) — worked render procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop", "Escalation at exhaust"; options:
    - A) Hand off to /geniro:debug — state.md `phase: debug-handoff` (terminal)
@@ -666,7 +595,7 @@ PHASE 2 (sequential, single-context):
 
    The Phase 2 early-escalation triggers (§PHASE 2 Step 6) apply to this fix loop too, read from the same state.md `## Errors` + `## Tool log` history: fire this AUQ before round 3 exhausts when two consecutive rounds make no forward progress (same findings survive, no new tests pass, diff unchanged), when an identical finding or identical failing test/stack-trace recurs round-over-round (a fix that does not stick), or when the run has drifted far past the codebase-explorer effort tier OR the user's spec-declared `budget` (the same scope-drift sub-signals Step 6 lists, deduped with the Phase 2 fire so one scope-drift escalation surfaces per run). State the plain-English reason in the AUQ question text — never the raw signal name.
 
-5. **Post-convergence gates — minor findings, then test quality.** First the minor-findings gate: when state.md `## Deferred Findings` is non-empty (the fix loop's persisted minor findings), render the list message-first and ask whether to fix them now or leave them listed in the ship report — canonical contract (AUQ shape, fix / leave branches, `minor_findings_disposition` persistence, boundary rules) in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Minor-findings gate"; skip silently when the section is empty or absent; ship modifiers and `launch_config.ship_mode` never pre-answer it. Then the test-quality gate: when this run authored or changed test files, surface the test audit as a visible decision before Ship per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md` — the fresh `tests` reviewer already audited the new tests against the spec (claimed-vs-asserted scope, spec-coverage, redundancy among new tests, and weak assertions per the strengthened `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`), so this step makes that audit visible rather than re-running it; skip-when-clean (a clean audit records a one-line confirmation in the ship report and asks nothing), open findings render message-first then a lean AUQ (tighten all / pick / ship as-is). Both gates are advisory and fail-open — they never block Ship on their own, never override the Ship-mode AUQ, and spawn no new agent (each consumes output already collected).
+5. **Post-convergence gates — minor findings, then test quality.** First the minor-findings gate: when state.md `## Deferred Findings` is non-empty (the fix loop's persisted minor findings), render the list message-first and ask whether to fix them now or leave them listed in the ship report — canonical contract (AUQ shape, fix / leave branches, `minor_findings_disposition` persistence, boundary rules) in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Minor-findings gate"; skip silently when the section is empty or absent; ship modifiers and `launch_config.ship_mode` never pre-answer it. Then the test-quality gate: when this run authored or changed test files, surface the test audit as a visible decision before Ship per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md` — the fresh `tests` reviewer already audited the new tests against the spec (claimed-vs-asserted scope, spec-coverage, redundancy among new tests, weak assertions, and scenery tests flagged for removal per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`), so this step makes that audit visible rather than re-running it; skip-when-clean (a clean audit records a one-line confirmation in the ship report and asks nothing), open findings render message-first then a lean AUQ (tighten all / pick / ship as-is). Both gates are advisory and fail-open — they never block Ship on their own, never override the Ship-mode AUQ, and spawn no new agent (each consumes output already collected).
 
 ### Ship sub-step
 
@@ -675,7 +604,7 @@ State.md `phase: ship` on entry.
 1. **Pre-Ship Visual Verification** — fires only when frontend files in scope AND Playwright MCP available. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Pre-Ship Visual Verification".
 2. **Commit.** Verify the live `git branch --show-current` matches the intended branch before staging — do not trust the session-start branch snapshot (stale across compaction); on mismatch, fire the branch-check `AskUserQuestion` (full procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Step 2 — Commit") rather than committing. Then stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). If `git status` shows production files modified outside that set — edits this run did not author — do NOT auto-fold them; fire an `AskUserQuestion` to confirm whether they belong in this commit before staging. Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata.
 3. **Emit learnings.** Fire this before the Ship-mode AUQ — the learning describes the change just committed and doesn't depend on the push outcome, so emitting here makes it part of finalizing the work rather than a postscript that gets dropped once the PR is open (the documented sparse-L2 cause). Emit `convention` when a ≥3-instance pattern was detected; emit `decision` if spec.md recorded a non-trivial approach choice; a clean single-pass change with neither emits nothing. Default trust = `verified`. After a successful emit, echo `Recorded learning: <summary>` to the user, and surface the promotion suggestion only for `convention` type. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Extract Learnings" plus the visibility + ordering rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
-4. **Suggest improvements (big changes only).** Only when the codebase-explorer reported `change_scope: big` — the same signal that gates the adversarial-tester — spawn `reflection-agent` **in the background** (`run_in_background: true`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" → §"Background spawn" (mode `implement`; pass the committed diff + Phase 3 findings + rule-file paths + prior declines), then fire the Ship-mode AUQ without waiting — improvement suggestions describe project rules learned from the change, are not an input to the ship decision, and blocking the ship gate on them only makes the user wait. On smaller scopes, skip this step entirely — no spawn, no echo: zero bar-passing candidates is the documented common outcome on smaller runs, so the spawn cost isn't justified below big scope. When the agent returns (the harness re-invokes the orchestrator with its candidates), surface them — already filtered through that file's §Candidate bar — via §Presentation, and echo `Reviewed for improvements: <N> candidate(s)` (skip the prompt silently when it returns none). Step 9's pre-terminal check drains the spawn (task output file or resume-by-ID) if it has not returned by then, so the echo is never dropped. Full step: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Suggest Improvements".
+4. **Durable rule mining — run `/geniro:reflect` on demand** to analyze recent sessions for durable rule candidates.
 5. **Ship-mode AUQ.** Push is draft-grade (auto) on a private feature branch with no open PR; a push to the default or a shared/protected branch — or to a feature branch that already has an open PR when this run was entered via a /geniro:review or /geniro:debug handoff (the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping) — is itself commit-grade and surfaces an explicit confirm rather than auto-approving, because that push updates a live PR (CI re-runs, reviewers see the new commits). AUQ gates commit-grade PR creation. Before firing it, on a spec-driven run annotate the AUQ's question/description text with any machine-checkable Done-Condition clause that is still unsatisfied, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` — advisory and skip-when-clean (a satisfied check proceeds silently), bound to the validator's stopping-condition ontology so free-text clauses stay human-eyeball-only, and attaching to the question/description text ONLY so the verbatim option-label allowlist below is untouched. A sibling spec-staleness advisory rides the same question text when a mid-run gate approved a material deviation from the spec's locked approach (the saved spec.md no longer matches the shipped code) — also advisory and skip-when-clean, and it never edits spec.md (see implement-reference.md §"Commit + Push + PR" for both annotations' wording). The AUQ's option labels are a verbatim allowlist — present them as written, and the "Open draft PR (Recommended)" option must always appear; never paraphrase or merge the options into a single "open PR" label. See `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" for the canonical AUQ shape and approvals-persistence protocol. Inline modifiers from $ARGUMENTS (`"don't push"`, `"draft only"`, `"ready-for-review"`, `"stop after review"`) override the AUQ deterministically; a bare "open PR"/"with PR" with no draft-vs-ready qualifier fires the AUQ rather than overriding it. A spec `launch_config.ship_mode` (read at Step 0g) pre-answers this AUQ the same way — it maps to the matching modifier (`commit-no-push` / `draft-pr` / `ready-for-review` / `stop-after-review`), so the AUQ is skipped; the commit-grade safeguards above (default / shared-branch push, or a handoff-reached open-PR update) still gate regardless of the pre-set.
 6. **Atomic `non-resumable-actions[]` update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_write`, written AFTER the side-effect succeeds. Entry schema, action enum, and timestamp sourcing: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" Step 4.
 6.5. **Resolve PR review threads (resolve handoffs only).** When the run consumed a `/geniro:resolve` handoff carrying `comment_resolutions[]` (stashed at Step 12) AND a push / PR actually landed at step 5, close the loop. Skip the whole step when no `comment_resolutions[]` was stashed (any non-resolve handoff) OR when the Ship-mode AUQ resolved to a no-push terminal (`ship-committed-only` / `self-review-only`) — with no updated PR head there is nothing to reply to or resolve, and a later push re-runs the close-the-loop. For each entry with `status: pending`:
@@ -683,13 +612,12 @@ State.md `phase: ship` on entry.
    - **Action gate.** Fire ONE AskUserQuestion ("Post N replies + resolve M threads on PR #X?") — this is a separate gate from the Ship-mode AUQ, an external write to a public surface like `gh pr create`; never auto-post.
    - **On approve,** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` write side, post each `reply_draft` and, for `resolve_after_fix: true`, resolve the thread; a `wontfix` posts the push-back reply but leaves the thread OPEN (the reviewer decides). Set `status: posted` and append a `pr-comment-posted` entry to `non-resumable-actions[]` (Step 6 schema) per posted reply. Full consumer contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields.
 7. **Update project snapshot.** If Phase 2 added a new module, `update_semantic --file codebase-map --append "..."`. Lock-guarded; rc=11 = recoverable skip.
-8. **Integration Updates / Custom post-ship steps / Cleanup.** Apply the reference.md sub-sections in order (when step 4 fired the background Suggest-Improvements spawn, its candidates surface when the agent returns and are drained at step 9):
+8. **Integration Updates / Custom post-ship steps / Cleanup.** Apply the reference.md sub-sections in order:
    1. `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Integration Updates" — worktree handling + tracker completion actions.
    2. Reference §"Custom post-ship steps" — run any user-authored `## Additional Steps` subsection from the loaded `<skill>.md` whose anchor is post-ship (e.g. `### After ship`); without this step a loaded `### After ship` block has no execution anchor and is silently dropped once Cleanup runs.
    3. Reference §"Cleanup" (single source of the `rm -f` scratch-file list and the preserve set) — deletes only transient subagent outputs; durable artifacts survive Ship. After the rm runs, echo `Cleaned up transient working files from <task-dir>` — the in-session signal the step 9 pre-terminal check looks for.
 9. **Emit the ship report, then transition.** Before the terminal transition, emit the ship report to chat — Evidence Block with what shipped, commit SHA / branch / PR URL quoted from tool output, test Verdict, review-round found/fixed summary, the test-quality audit result, deferred items; a bare status echo is not a ship report (full contract + the trailing-bookkeeping retry rule: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" Steps 5-6). Then, before writing the terminal `phase:` (`done`, or `ship-committed-only` / `self-review-only` per modifier / user pick), run one combined pre-terminal check — a terminal state written over any skipped item silently drops that step for good:
    - **Learning emit fired** — step 3's emit ran (or was correctly N/A for a clean single-pass change).
-   - **Reflection spawn drained** — when step 4 fired the background reflection spawn, its candidates were collected and echoed (`Reviewed for improvements: <N> candidate(s)`); if the agent has not returned, collect it now (its task output file or resume-by-ID) and run §Presentation before the terminal write. A run below big scope skipped step 4, so there is nothing to drain.
    - **Cleanup echoed** — step 8's `Cleaned up transient working files` echo is the signal.
 
    The SessionStart hook treats terminal states as "no resume needed".
@@ -731,7 +659,7 @@ When no ship-mode modifier is present, the ship-mode AUQ fires. Conflicting modi
 | Your reasoning | Why it's wrong |
 |---|---|
 | "/geniro:implement should ask user before each Edit — safety first." | Phase 2 Implement is the execution phase. Pre-approval lives upstream — /geniro:plan Phase 8 emits the spec.md; that spec.md IS the pre-approval. Per-Edit AUQs defeat the spec-driven autonomy this skill is designed for. |
-| "Phase 2 should fan out subagents — parallel backend/frontend agents, or one subagent per todo — to save wall-time or keep context lean." | Both are documented anti-patterns. Parallel agents editing tightly-interdependent code (shared contracts, types, imports) produce style drift, duplicated implementations, and contradictions lint/compile cannot catch; per-todo subagents only work when each todo has a truly independent spec + tests + worktree, which typical implementation slices (sharing types, imports, conventions) never have. Phase 2 uses sequential TodoWrite decomposition within a single orchestrator — same throughput on the rare truly-parallel work-unit, much higher quality on coupled ones. |
+| "Phase 2 should fan out subagents — parallel backend/frontend agents, or one subagent per todo — to save wall-time or keep context lean." | Fan-out of COUPLED work is the documented anti-pattern: parallel agents editing tightly-interdependent code (shared contracts, types, imports) produce style drift, duplicated implementations, and contradictions lint/compile cannot catch. The sanctioned form is Step 3's delegation rule — an independent, self-contained slice with a disjoint file set may be delegated, and only such slices in parallel; everything coupled stays with the single orchestrator, and the orchestrator reads every delegate's diff before accepting it. Delegation is a scoped tool for genuinely independent slices, not the default execution model. |
 | "Mark all todos in_progress at start so the orchestrator can interleave work." | Forbidden by Loop invariant #9. Single-in-progress is Claude Code's enforced Tasks API design; scattered parallel attempts hurt quality. Mark the next todo `in_progress` only after the current todo completes. |
 | "Skip TodoWrite — it's overhead; the orchestrator knows the spec already." | TodoWrite gives the user granular progress visibility. Without it, Phase 2 is a black box until tests run. With it, the user sees real-time per-unit progress. Not optional. |
 | "Re-run tests after each file Edit to catch regressions early." | Single end-of-Phase-2 test run via `test-runner-agent`. Per-file test runs explode wall-time on slow suites and burn turns inside the runner agent (one invocation per spawn). |

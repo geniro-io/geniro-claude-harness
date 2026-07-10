@@ -14,4 +14,8 @@ The agent-loop invariants every Geniro orchestrator skill upholds, regardless of
 
 **Pending-user-question check (deliberately un-numbered, like the turn-completion check).** A direct user question pending in the conversation is answered in the next assistant message — before status updates, operational gates, or new spawns. Pipeline bookkeeping never displaces a pending user question; if the full answer needs work that hasn't finished, acknowledge the question and state when the answer will come.
 
-These seven invariants, the turn-completion check, and the pending-user-question check are skill-agnostic. A skill's own SKILL.md lists any additional invariants its workflow needs.
+## Budgets — quality-first (canonical)
+
+No hard kill caps. No wall-time, total-tool-call, total-model-turn, or total-cost ceiling — the run spends whatever the quality bar needs, and user tokens are unlimited. Bounded retry loops (invariant 5) and per-output size caps (invariant 4) still apply; those bound a single step, not the run. A skill cites this doctrine and adds only its own skill-specific gate table (e.g. a reviewer per-dimension output cap, a max-hypotheses count) rather than restating the no-hard-caps rule.
+
+These seven invariants, the turn-completion check, the pending-user-question check, and the quality-first budget doctrine are skill-agnostic. A skill's own SKILL.md lists any additional invariants its workflow needs.

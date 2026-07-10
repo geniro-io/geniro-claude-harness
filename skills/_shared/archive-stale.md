@@ -94,7 +94,7 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 
 - User runs `./lib/archive-stale.sh --dry-run` first to preview, then real run.
 - SessionStart Block 5e auto-invokes `lib/archive-stale.sh` when `learnings.jsonl` exceeds the line-count threshold (`GENIRO_AUTO_ARCHIVE_THRESHOLD`, default 5000) AND the file hash changed since the last archive AND the mkdir-lock is acquired AND `memory.auto_archive_stale != false` in `.geniro/safety.json`. Hash-gating skips the run when nothing changed; the lock keeps concurrent tabs from doubling the work. Manual `--dry-run` is still the typical preview path.
-- **Manual runs must not overlap a SessionStart auto-archive.** The mkdir-lock is held by the hook (Block 5e); the helper itself does not self-lock. A manual run launched while a SessionStart auto-archive is mid-write races it (last writer wins). The atomic rename prevents corruption, but to avoid a lost update, run manually only when no fresh session is starting.
+- **Manual runs are lock-safe against a SessionStart auto-archive.** A direct `./lib/archive-stale.sh` invocation acquires the same mkdir-lock itself, so if the hook holds it the manual run no-ops with rc=3 (re-run in a moment) rather than racing a mid-write. No lost update. The only unlocked path is a caller that *sources* the helper and calls `archive_stale_learnings()` directly — that caller owns locking itself (the function never auto-locks), which is why the hook sets `GENIRO_ARCHIVE_LOCK_HELD=1` after taking the lock.
 - Compatible with `query-learnings`: queries default to excluding `deprecated: true` entries; if user wants to see archived ones, pass `--include-deprecated`.
 
 ## Known limitations

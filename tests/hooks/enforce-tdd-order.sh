@@ -115,6 +115,27 @@ expect_allow "RED: Bash read-only command (no write target) allowed" \
 write_phase GREEN
 expect_allow "GREEN: Bash heredoc into production allowed" \
   "$(run_bash "$(printf 'cat > %s/src/app.js <<EOF\nx\nEOF\n' "$GITREPO")")"
+# ===== RED: additional Bash write vectors are gated like Edits =====
+write_phase RED
+expect_block "RED: truncate on production src blocked" \
+  "$(run_bash "truncate -s 0 $GITREPO/src/app.js")"
+expect_block "RED: shred on production src blocked" \
+  "$(run_bash "shred -u $GITREPO/src/app.py")"
+expect_block "RED: install into production src blocked" \
+  "$(run_bash "install -m 644 /tmp/x $GITREPO/src/app.ts")"
+expect_block "RED: ln -sf over production src blocked" \
+  "$(run_bash "ln -sf /tmp/x $GITREPO/src/app.rb")"
+expect_allow "RED: truncate on a test file allowed" \
+  "$(run_bash "truncate -s 0 $GITREPO/src/app.test.js")"
+expect_allow "RED: shred on a scratch (non-production, /dev) allowed" \
+  "$(run_bash 'dd if=/dev/zero of=/dev/null')"
+# Spaced-tag heredoc must be recognized so its target is classified — a spaced
+# `<< EOF` into production blocks; into a test file allows.
+expect_block "RED: spaced-tag heredoc into production blocked" \
+  "$(run_bash "$(printf 'cat > %s/src/app.js << EOF\nconst x = 1;\nEOF\n' "$GITREPO")")"
+expect_allow "RED: spaced-tag heredoc into a test file allowed" \
+  "$(run_bash "$(printf 'cat > %s/src/app.test.js << EOF\ntest()\nEOF\n' "$GITREPO")")"
+
 # No TDD state file → not opted in → Bash production write allowed.
 write_phase RED
 rm -f "$STATE_FILE"

@@ -123,9 +123,9 @@ emit_learning() {
   # so scanning them is harmless. High-signal patterns only — the
   # "<verb> <prev-reference> <instruction-noun>" shape and chat-template control
   # tokens virtually never appear in genuine technical learnings, so false-reject
-  # risk is low, and a false reject only drops one best-effort learning (callers
-  # ignore emit_learning failures) — it never breaks a workflow. Shares the rc=64
-  # "input rejected" family.
+  # risk is low, and a false reject drops just one best-effort learning — the
+  # caller surfaces the non-zero return (emit-learning.md §Caller contract rule 3)
+  # but does not block the workflow on it. Shares the rc=64 "input rejected" family.
   local scan_text
   scan_text=$(printf '%s' "$input" | jq -r '[.. | strings] | join("\n")' 2>/dev/null || printf '%s' "$summary")
   if printf '%s' "$scan_text" | grep -qiE \

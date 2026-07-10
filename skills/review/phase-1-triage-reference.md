@@ -34,7 +34,7 @@ Sub-step order: **read prior approvals** (0-pre, before any detection) → **pas
 Two situations reach this sub-step, and they are NOT the same. A **compaction-resume** is an in-flight run of this skill resuming mid-phase — a non-terminal `state.md` for the current run exists; here every prior-turn pick (workspace AND depth) is re-applied without re-asking, so a compaction never loses an answer. A **fresh Round 2+ re-run** is the user invoking `/geniro:review` again — there is no in-flight `state.md` (the prior round's is terminal), only the durable `from-review-<branch>.md` handoff; this is a new user-invoked run, so its review-intent gates (depth at §11, and the re-review scope gate at §7) are ASKED again — the user chooses depth and scope per run, never inheriting them from a completed prior round. The ONE pick re-applied on BOTH is the **workspace location**: re-asking it every re-run risks the silent-relocation bug this sub-step exists to prevent (a live Round 2 run once created a worktree at a default location while the user's Round 1 pick named a different one). Read the persisted picks BEFORE passive detection (0a) and any workspace action.
 
 1. Resolve the prior state/handoff for this branch (`<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, plus the resumed `state.md` on a compaction-resume). When neither exists, this is a first run — skip to 0a with no inherited picks.
-2. Read these `approvals[]` categories: `review_workspace_setup` (workspace location/action) and `deep_mode_choice` (review depth). The workspace pick is **binding** for this run — re-applied on both a compaction-resume and a fresh re-run (anti-relocation, per above). The depth pick is binding **only on a compaction-resume**; on a fresh re-run it is prior-round context, not a decision for this run, so the §11 depth gate and the §7 re-review gate ask again rather than inheriting it across separate invocations.
+2. Read these `approvals[]` categories: `review_workspace_setup` (workspace location/action) and `deep_mode_choice` (review depth). Per the run-type distinction above: the workspace pick is **binding** on both a compaction-resume and a fresh re-run (anti-relocation); the depth pick is binding **only on a compaction-resume** — on a fresh re-run the §11 depth gate and the §7 re-review gate ask again rather than inheriting it.
 3. **Honor the recorded workspace location exactly** — re-enter the same worktree path the prior round approved; do not substitute a different location. The persisted pick names a specific tree, not just "use a worktree": re-applying it at a fresh default location is the silent-relocation failure this sub-step prevents.
 4. **Re-ask only when the recorded pick no longer applies** — the approved worktree was deleted, or the branch moved off the commit it was created from. In that case fire the workspace AUQ fresh (the Case-mismatch UX below still governs); a stale pick is re-decided, never silently swapped for a default.
 5. Narrate the inheritance and proceed by run-type. On a **compaction-resume**: narrate `Continuing the workspace and depth choices from the interrupted run: <workspace pick>, <depth pick>.`, skip the 0b AUQ branches, execute the inherited workspace action in 0d, and let §11 skip the depth question and §7 skip the re-review scope gate (all already answered this run). On a **fresh Round 2+ re-run**: narrate only `Continuing in the workspace you approved last round: <workspace pick>.`, skip the 0b workspace AUQ branches, execute the inherited workspace action in 0d — but the depth (§11) and re-review scope (§7) gates DO fire this run; never suppress them with the prior round's `deep_mode_choice`.
@@ -245,9 +245,16 @@ Render two sibling blocks in the spawn prompts of the bugs / architecture / regr
 
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. The base branch is whatever scope-anchor resolves (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files"). NEVER invoke `gh pr list` to **invent a target** — PR mode triggers ONLY on explicit PR-ref forms.
 
-Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target ARE allowed (consume a user-supplied PR ref rather than invent one).
+Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target ARE allowed.
 
-**Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Do NOT promote "Auto Mode Active" reminder into transcript framing — review has no auto mode.
+**Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Do NOT promote an "Auto Mode Active" reminder into transcript framing.
+
+**Target sanity gate (before the Phase 1.5 mechanical pre-pass).** Once scope resolves, confirm the target is actually reviewable before anything downstream consumes it:
+
+- For a branch or diff-range input, `git rev-parse <ref>` must succeed for every named ref.
+- For every input shape, the resolved diff must be non-empty.
+
+An unresolvable ref or empty diff stops the run here. Report the problem in plain English — which ref failed to resolve, or that the target resolves to zero changed lines (commonly already merged, mistyped, or anchored to the wrong base) — then write terminal `phase: aborted` with `## Termination reason: empty-or-unresolvable-target: <detail>` and spawn nothing. Failing later, inside the parallel reviewer batch, wastes every spawn at once — and reviewers handed an empty diff invent findings against code that is not there.
 
 ### 2.1 Scope-exclusion transparency
 
@@ -440,7 +447,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 
 Depth (Standard vs Deep) controls how many reviewer/verifier passes run (`deep-mode` boolean).
 
-After triage, surface the depth question via `AskUserQuestion` (do NOT print options as plain text). It fires on a user-invoked run when `$ARGUMENTS` lacks `--deep` AND depth was not already chosen THIS run — a `--deep` flag pre-resolves depth to Deep (no AUQ); a round ≥2 re-review already asked depth in the §7 re-review gate (no second prompt); a compaction-resume inherits the in-flight run's answer. It does NOT inherit a prior *completed* run's `deep_mode_choice` across a fresh re-invocation — depth is a per-run choice, so a fresh re-run always asks (via §7 on a re-review, or here on a first run). "Chosen this run" means a `deep_mode_choice` written in the CURRENT invocation (by the §7 gate or this AUQ); a value carried over from a prior completed round does NOT satisfy the skip — on a fresh re-run the orchestrator ignores the inherited `deep_mode_choice` rather than reading it as this run's answer, so the gate is never silently suppressed by stale state even if §7 did not fire.
+After triage, surface the depth question via `AskUserQuestion` (do NOT print options as plain text). It fires on a user-invoked run when `$ARGUMENTS` lacks `--deep` AND depth was not already chosen THIS run — a `--deep` flag pre-resolves depth to Deep (no AUQ); a round ≥2 re-review already asked depth in the §7 re-review gate (no second prompt); a compaction-resume inherits the in-flight run's answer. Depth is a per-run choice, so a fresh re-invocation never inherits a prior *completed* run's `deep_mode_choice` (the run-type rule is canonical in §0-pre). "Chosen this run" means a `deep_mode_choice` written in the CURRENT invocation (by the §7 gate or this AUQ) — a value carried from a prior completed round does NOT satisfy the skip, so the gate is never silently suppressed by stale state.
 
 - **Header:** "Review depth"
 - **Question:** "How deep should the review go?"
@@ -450,7 +457,7 @@ After triage, surface the depth question via `AskUserQuestion` (do NOT print opt
 
 Neither option carries a `(Recommended)` suffix — depth is a per-run pick where the alternative is only costlier, never safer (Deep authors no fix), so the user weighs cost against thoroughness each run. If the question is dismissed (empty answer), default to the cheaper value: Standard (`deep-mode: false`).
 
-Persist the pick: frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`, so the session-restore hook re-applies depth on a compaction-resume (only — a fresh `/geniro:review` re-invocation re-asks depth per §0-pre, never inheriting the prior completed run's pick). Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
+Persist the pick: frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`, so the session-restore hook re-applies depth on a compaction-resume (a fresh re-invocation re-asks depth per §0-pre). Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 
 ---
 

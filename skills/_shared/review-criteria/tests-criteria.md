@@ -6,9 +6,9 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 
 - Test Design Philosophy (canonical)
 - What to Check
-- Output Format
-- Common False Positives
+- Common false positives
 - Litmus Test (The Deletion Test)
+- Tests of the scenery — never author, flag for removal
 - Assertion completeness & spec coverage
 - Test Deletions in the Diff (Inverse Deletion Test)
 - Review Checklist
@@ -35,6 +35,7 @@ Tests reach the system through the same surfaces real callers use — public fun
 
 - **Good**: HTTP test calls `POST /api/orders` and asserts on the response.
 - **Bad**: Test imports `_calculateOrderTotal` directly and asserts on its return.
+- **Bad**: verifying through a side channel — create a user via `POST /api/users`, then assert with a raw `db.query` instead of `GET /users/<id>`; the side-channel read stays green even when the public read path is broken.
 - **Exception**: pure-function utility modules whose public API IS the function set under test — test those functions directly.
 
 If a behavior is hard to test through the public interface, the seam is wrong (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` — narrow seams over wide seams). Fix the seam, not the test framework.
@@ -55,7 +56,7 @@ Mocks fall into three tiers:
 | **Internal boundary, expensive** (case-by-case) | Mock owned-by-you modules ONLY when running them in tests is genuinely too slow / too stateful (DB, Redis, S3) — and even then, prefer in-memory test doubles or test containers | Mock the database layer in unit tests; use a real test database in integration tests |
 | **Internal collaborators, cheap** (FORBIDDEN) | Do NOT mock pure functions, internal helpers, classes you wrote and could just instantiate | Mocking `OrderCalculator` inside a test of `CheckoutService` couples the test to the wiring; refactor breaks it for no behavior change |
 
-**Smell — over-mocking**: more than 3-4 mocks per test usually means the test has been rewritten to match the implementation's structure rather than the system's behavior. Either the test is testing implementation (Rule 1 violation) or the module being tested is too coupled to its collaborators (the design is the bug — narrower seams + dependency injection at the boundary, not mocks at every internal call).
+**Smell — over-mocking**: more than 3-4 mocks per test usually means the test has been rewritten to match the implementation's structure rather than the system's behavior. Either the test is testing implementation (Rule 1 violation) or the module being tested is too coupled to its collaborators (the design is the bug — narrower seams + dependency injection at the boundary, not mocks at every internal call). At external boundaries, prefer per-operation interfaces (`api.getUser(id)`, `api.createOrder(data)`) over one generic fetcher — a generic `api.fetch(endpoint, opts)` forces conditional logic inside every mock, while per-operation functions each mock to a single shape.
 
 **Smell — verifying mock interactions**: assertions like `expect(mockUserRepo.save).toHaveBeenCalledWith(...)` test what the implementation does, not what the system produces. Replace with an assertion on the observable outcome (the saved user comes back when you GET /users/<id>; the side effect happened in the system).
 
@@ -292,11 +293,7 @@ grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
 - No tests for recovery from failure states
 - Permission/authorization gaps in tests
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Intentional coverage gaps** — Some code doesn't need comprehensive testing
 - Glue code without logic might not need tests
@@ -349,9 +346,30 @@ If the answer is yes, the test is worthless — it's testing mocks, trivial wiri
 - Tests where removing `expect` lines doesn't cause failure
 - "Smoke tests" that import a module and assert `!== undefined`
 
+## Tests of the scenery — never author, flag for removal
+
+A test earns its maintenance cost only by pinning behavior someone could regress. A test that pins the scenery — detail with no behavioral contract — breaks on every refactor and catches nothing:
+
+- **Presentational details**: CSS class names, inline styles, static markup structure, exact copy strings (unless the copy IS the spec'd behavior — e.g. a legally-required disclosure).
+- **The framework or library itself**: that React renders a component, that the router routes, that the ORM maps a column — the dependency's own suite covers that.
+- **Trivial wiring**: getters/setters with no logic, constant re-exports, pass-through calls.
+- **Duplicates of existing suite coverage**: a new test whose cause path AND outcome are already pinned by a surviving test at the same seam — the same pairwise rule as §Redundancy among newly-authored tests, extended to the existing suite. The F→P invariant's first-run-green signal usually exposes these.
+
+Never author such a test. When the diff ADDS one, flag it with an explicit removal recommendation — deleting a scenery test is a quality improvement, not a coverage loss (confirm with the Deletion Test / cause-path comparison first). Severity LOW; raise to MEDIUM when the scenery test is the ONLY test on a spec-required behavior, because then the real finding is the coverage gap it masks.
+
 ## Assertion completeness & spec coverage
 
-The Deletion Test above catches a test that asserts *nothing real*. This section catches the subtler failures: a test that asserts *less than it claims*, a behavior the spec required that *no test covers*, and *two new tests that pin the same thing*. These are the checks a careful author runs by hand after writing tests — run them on every newly-authored or modified test.
+The Deletion Test above catches a test that asserts *nothing real*. This section catches the subtler failures: a test whose expected value *is derived the way the implementation derives it*, a test that asserts *less than it claims*, a behavior the spec required that *no test covers*, and *two new tests that pin the same thing*. Run these checks on every newly-authored or modified test.
+
+### Independent expected values
+
+A test whose expected value is recomputed the way the implementation computes it passes by construction — it agrees with any implementation that shares the algorithm, including a wrong one — and the Deletion Test does not catch it. Expected values come from an independent source of truth: a known-good literal, a hand-worked example, or the spec.
+
+- **Bad**: `expect(calculateTotal(items)).toBe(items.reduce((s, i) => s + i.price, 0))` — the assertion re-derives the total with the production algorithm; both sides drift together.
+- **Bad**: a snapshot or fixture generated by running the code under test; a constant asserted against the same imported constant.
+- **Good**: `expect(calculateTotal([{price: 19.99}, {price: 22.51}])).toBe(42.50)` — the literal comes from a worked example, so a wrong algorithm produces a visible mismatch.
+
+**Red flag:** the test body imports or re-implements the production algorithm to derive `expected`.
 
 ### Claimed scope vs asserted scope
 
@@ -447,8 +465,10 @@ This is the inverse of mutation testing: instead of mutating the code to see wha
 - [ ] Test setup is clear and maintainable
 - [ ] Litmus test: deleting core logic would cause test failure
 - [ ] Each test asserts everything its name/description claims (no "tests X and Y" with only X asserted)
+- [ ] Expected values are independent of the implementation (literal / worked example / spec — not re-derived by the production algorithm)
 - [ ] Every spec-required behavior (section 9 / Done Condition / acceptance criteria) has a covering test
 - [ ] No two newly-authored tests pin the same cause path and outcome
+- [ ] No new test pins scenery (presentational detail, framework behavior, trivial wiring) or duplicates existing suite coverage — such additions are flagged for removal
 
 ## Severity Guidelines
 

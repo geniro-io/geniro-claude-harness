@@ -32,6 +32,19 @@ run_cmd() {
   echo $?
 }
 
+# Feed a raw JSON payload to the hook with jq REMOVED from PATH, to exercise the
+# jq-less data-loss fallback. FAKEBIN holds symlinks to every tool the fallback
+# needs except jq.
+FAKEBIN="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$FAKEBIN"
+for _t in cat grep sed awk tr head printf env bash sh; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$FAKEBIN/$_t"
+done
+run_cmd_nojq() {
+  printf '%s' "$1" | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+
 expect_block() {
   local label="$1" actual="$2"
   if [ "$actual" = "2" ]; then pass "$label"; else fail "$label (expected exit=2, got exit=$actual)"; fi
@@ -187,6 +200,34 @@ printf '%s\n' '{ this is not valid json' > "$TMPDIR_BASE/badjson/.geniro/safety.
 cd "$TMPDIR_BASE/badjson" || exit 1
 expect_block "malformed safety.json fails safe (force-push still blocked)" "$(run_cmd 'git push --force origin main')"
 cd "$TMPDIR_BASE" || exit 1
+
+# ===== quoted destructive flag must not slip the guard =====
+# A quoted flag/subcommand token (no internal whitespace) is unquoted before
+# matching, so smuggling --force past the guard by quoting it still blocks; a
+# quoted PROSE string with whitespace stays data.
+expect_block "quoted --force flag blocked"            "$(run_cmd 'git push origin main "--force"')"
+expect_block "quoted -f flag blocked"                 "$(run_cmd "git push origin main '-f'")"
+expect_allow "prose with quoted whitespace allowed"   "$(run_cmd 'echo "please do not git push --force"')"
+
+# ===== unbalanced apostrophes across a separator must not swallow a real op =====
+# A benign apostrophe in prose (can't / don't) must not pair across && and blank
+# the force-push sitting between the two quotes.
+expect_block "apostrophe-prose around real force-push blocked" \
+  "$(run_cmd "echo can't wait && git push --force origin main && echo don't stop")"
+expect_allow "apostrophe-prose with no destructive op allowed" \
+  "$(run_cmd "echo can't && echo won't && echo shan't")"
+
+# ===== interpreter indirection (sh -c "<payload>") must be inspected =====
+# The payload is a command to the inner shell; the guard re-runs on it.
+expect_block "sh -c force-push blocked"               "$(run_cmd 'sh -c "git push --force origin main"')"
+expect_block "bash -lc reset --hard blocked"          "$(run_cmd 'bash -lc "git reset --hard HEAD~1"')"
+expect_block "nested sh -c force-push blocked"         "$(run_cmd $'sh -c "sh -c \'git push --force\'"')"
+expect_allow "sh -c benign command allowed"           "$(run_cmd 'sh -c "echo hello world"')"
+
+# ===== jq-less data-loss fallback: coarse raw scan still blocks the worst =====
+expect_block "jqless: force-push still blocked"       "$(run_cmd_nojq '{"tool_input":{"command":"git push --force"}}')"
+expect_block "jqless: reset --hard still blocked"      "$(run_cmd_nojq '{"tool_input":{"command":"git reset --hard"}}')"
+expect_allow "jqless: benign command fails open"      "$(run_cmd_nojq '{"tool_input":{"command":"git status"}}')"
 
 echo
 echo "Tests run:    $TESTS_RUN"

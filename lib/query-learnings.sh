@@ -15,8 +15,9 @@
 #   record_access <dedup_key>
 #   → in-place increment access_count of entry matching dedup_key. Used
 #     by callers that want to feed access_weight signal into future
-#     --score-min queries. Best-effort, no lock — concurrent misses are
-#     acceptable (counter, not ledger).
+#     --score-min queries. Best-effort, lock-aware — takes the shared
+#     knowledge-rewrite mkdir lock and SKIPS the bump (rc=0) when the lock
+#     is already held; a skipped bump is acceptable (counter, not ledger).
 #
 # Exit codes:
 #   0 — query ran (may have zero matches), or record_access succeeded /
@@ -268,9 +269,10 @@ query_learnings() {
 }
 
 # Increment access_count of entry matching dedup_key. Best-effort,
-# no lock. Concurrent misses acceptable — access_count is a ranking signal,
-# not a ledger. Returns 0 on success or no-op (no log, no match), 1 on
-# write error.
+# lock-aware: takes the shared knowledge-rewrite mkdir lock and skips the bump
+# (rc=0) when it is already held — a skipped bump is acceptable (access_count
+# is a ranking signal, not a ledger). Returns 0 on success or no-op (no log,
+# no match, lock held), 1 on write error.
 record_access() {
   # Read with default-expansion so a zero-arg call under a caller's `set -u`
   # reaches the guard below and returns rc=64 instead of crashing on an unbound $1.

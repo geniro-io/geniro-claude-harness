@@ -7,8 +7,7 @@ Code style, naming conventions, documentation, consistency, and compliance with 
 ## Contents
 
 - What to Check
-- Output Format
-- Common False Positives
+- Common false positives
 - Review Checklist
 - Severity Tagging
 
@@ -213,11 +212,7 @@ grep -n "Object\|Function" file.ts
 - Missing input validation in API routes
 - Type-unsafe casts or assertions
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Single-letter vars in small scope** — OK for short lambdas/loops
 - `array.map(x => x * 2)` is acceptable

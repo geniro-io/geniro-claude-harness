@@ -5,8 +5,7 @@ Design patterns, modularity, coupling, performance, scalability, and technical d
 ## Contents
 
 - What to Check
-- Output Format
-- Common False Positives
+- Common false positives
 - Review Checklist
 - Severity Guidelines
 
@@ -72,7 +71,7 @@ A "semantic mutation" is a code change where a function / method / field / opera
 **Output guidance:**
 - Severity HIGH when callers >= 10 OR symbol is a public API / module export / shared type.
 - Severity MEDIUM when callers 4-9 AND not a public API (callers 1-3 → LOW per the step 3 rubric above).
-- Severity CRITICAL when the semantic change is fail-closed (returns null / empty / throws on what previously succeeded) AND a downstream filter / sort / dispatch / digest relies on non-null / non-empty results — the change silently DROPS data from user-visible surfaces.
+- When the semantic change is fail-closed (returns null / empty / throws on what previously succeeded) AND a downstream filter / sort / dispatch / digest relies on non-null / non-empty results — the change silently DROPS data from user-visible surfaces — that is a runtime data-loss defect, not an architecture finding. Route it to the bugs dimension (this dimension never emits CRITICAL, per the Severity Guidelines below); keep the architecture finding scoped to the blast-radius reasoning at HIGH.
 - The fix is rarely "revert" — it's "name the affected callers in the PR description, add tests asserting new semantic at each non-trivial caller, and confirm whether each caller still satisfies its own contract under the new semantic."
 
 ### 1.6. Parallel-path symmetry (mirror-gap)
@@ -342,11 +341,7 @@ This is a **static diff-inspection check only — no command execution.** Read t
 
 This check **complements** the dedicated spec-compliance dimension rather than duplicating it. In `/geniro:review`, spec-compliance runs as its own reviewer and owns the fuller Done-Condition audit (it is the canonical owner of the section-11 ontology). This subsection is the compact form that runs in review contexts which do NOT spawn a separate spec-compliance dimension (e.g., `/geniro:implement` Phase 3 self-review), so the done-signal-progress class is still caught there. In `/geniro:review`, the spec-compliance dimension and this §9 check may each independently surface the same done-condition gap as two SEPARATE findings — expected, harmless overlap, not a merge: spec-compliance anchors its finding with the `File: SPEC-COMPLIANCE` sentinel while this dimension anchors at the production code path that lacks the artifact, so the two carry different `File:line` dedup keys and never merge into one. Surface yours regardless. In `/geniro:implement` Phase 3 (no separate spec-compliance reviewer), this subsection is the only place the gap is caught.
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Pragmatic design** — Sometimes coupling is acceptable for simplicity
 - Framework integration often requires tight coupling
@@ -399,7 +394,7 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
-- **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is the rare CRITICAL path, and even then the finding is logged under the bugs or optimizations dimension that owns the runtime defect.
+- **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is a runtime defect owned by the bugs dimension, not an architecture CRITICAL.
 - **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap (per §1.7) where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist; hand-rolled crypto / auth / parsing a battle-tested library would secure (per §7.5 reinvented-wheel).
 - **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap (per §1.7) contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier); function-level complexity / deep nesting (per §4.5) on a critical path where the cognitive load raises real defect risk.
 - **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; excessive function-level nesting / cognitive load (per §4.5) on a non-critical path; documentation or PR-description nits about an architectural area.

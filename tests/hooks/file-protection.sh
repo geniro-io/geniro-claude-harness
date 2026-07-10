@@ -111,6 +111,30 @@ expect_allow "bash: bypass write-env honored"             "$(run_bash 'echo K=v 
 expect_block "bash: bypass unrelated pattern still blocks" "$(run_bash 'cp x.pem server.pem')"
 cd "$TMPDIR_BASE" || exit 1
 
+# ===== Bash branch: additional write vectors (truncate/shred/install/rsync/ln -f) =====
+expect_block "bash: truncate -s 0 .env blocked"          "$(run_bash 'truncate -s 0 .env')"
+expect_block "bash: shred server.pem blocked"            "$(run_bash 'shred -u server.pem')"
+expect_block "bash: install into credentials.json blocked" "$(run_bash 'install -m 600 src config/credentials.json')"
+expect_block "bash: rsync onto secrets.yaml blocked"     "$(run_bash 'rsync -a a.txt secrets.yaml')"
+expect_block "bash: ln -sf over .env blocked"            "$(run_bash 'ln -sf real .env')"
+# Allowed: same tools targeting non-protected paths, and ln WITHOUT -f (won't clobber).
+expect_allow "bash: truncate on a log file allowed"      "$(run_bash 'truncate -s 0 out.log')"
+expect_allow "bash: shred a scratch tmp allowed"         "$(run_bash 'shred -u scratch.tmp')"
+expect_allow "bash: rsync into a normal dir allowed"     "$(run_bash 'rsync -a src/ dest/')"
+expect_allow "bash: ln -s (no -f) allowed"               "$(run_bash 'ln -s real link')"
+# install -t DIR: the trailing token is a SOURCE (read), not the destination.
+expect_allow "bash: install -t DIR (source not flagged) allowed" "$(run_bash 'install -t config src.pem')"
+
+# ===== Bash branch: spaced-tag heredoc body is DATA (no false block) =====
+# `<< EOF` (space before the tag) must be recognized so its body is dropped —
+# else a doc heredoc mentioning `cmd > .env` would hard-block.
+expect_allow "bash: spaced-tag heredoc body mentioning > .env allowed" "$(run_bash 'cat << DOC > out.txt
+PORT=3000 > .env is just text
+DOC')"
+expect_block "bash: spaced-tag heredoc INTO .env still blocked"        "$(run_bash 'cat << DOC > .env
+K=v
+DOC')"
+
 # ===== Fail-open on missing file_path =====
 expect_allow "missing file_path → allow" "$(echo '{"tool_input": {}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
 

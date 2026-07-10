@@ -28,9 +28,13 @@ Reframing patterns:
 | "ALWAYS use atomic_state_write." | "Write state.md via `atomic_state_write` — direct `Edit`/`Write` calls bypass the state-helper enforcement hook and corrupt mid-crash." |
 | "MUST resolve approvals before continuing." | "Resolve the AUQ before continuing — empty answers indicate an upstream tool bug and must be re-asked, not auto-defaulted." |
 
-The reframed form costs ~10-15 tokens more per rule but the model can apply the underlying constraint to edge cases the original didn't anticipate. That's the point: instructions that explain reasoning generalize; instructions that shout don't.
+The reframed form costs ~10-15 tokens more per rule but the model can apply the underlying constraint to edge cases the original didn't anticipate.
 
 **Acceptable use of caps / MUST**: anti-rationalization tables, where the left cell is the rationalization the model might generate and the right cell needs to confront it bluntly. Caps in the *right* cell of an anti-rationalization row are fine when accompanied by reasoning. Caps in *normal prose* are the yellow flag.
+
+## Prompt the positive
+
+State the target behavior rather than prohibiting its opposite: "write one-line comments", not "never write verbose comments". A prohibition names the banned pattern into context and makes it more available — the model now holds "verbose comments" as an activated concept it has to steer around. Keep a prohibition only as a hard guardrail you cannot phrase positively (a data-loss or external-effect bar), and pair it with what to do instead. Anti-rationalization rows already satisfy this shape: the left cell names the drift, the right cell states the correct move.
 
 ## State what, not why (in normal prose)
 
@@ -38,13 +42,22 @@ The complement to the "explain WHY" rule above: explain reasoning when the rule 
 
 > *"State what to do rather than narrating how or why, and apply the same conciseness test you would for CLAUDE.md content. Once a skill loads, its content stays in context across turns, so every line is a recurring token cost."*
 
-Reconciliation between this rule and the previous one: explain WHY for rules the model would otherwise rationalize around (anti-patterns, escape-hatches, error semantics). State WHAT for routine procedure (file paths, command syntax, slot tables, phase ordering).
+Reconciliation between this rule and the explain-WHY rule: explain WHY for rules the model would otherwise rationalize around (anti-patterns, escape-hatches, error semantics). State WHAT for routine procedure (file paths, command syntax, slot tables, phase ordering).
 
 | Routine procedure → state what | Non-obvious rule → explain why |
 |---|---|
 | "Spawn the agent with `subagent_type: reviewer-agent`." | "Spawn the agent in parallel with the other 4 dimensions in ONE assistant response — separate turns serialize execution and double wall-time." |
 | "Read `<task-dir>/.kr-out.md`." | "OMIT `model=` at every spawn site — plugin agents declare their tier in frontmatter (`inherit`, or `sonnet` for the two mechanical carve-outs) and the runtime arg defeats the user's session-level `/model` choice." |
 | "Set `phase: ship` on entry." | (Don't write "set phase to ship because the state machine expects ..." — the state machine is documented in §State machine; the imperative is enough.) |
+
+## Assume a capable model
+
+Write instructions at the altitude of goal + constraint, not mechanics. The model already knows standard tooling, shell idioms, platform quirks, and general engineering practice — spelling those out costs tokens, goes stale, and (worse) primes the model toward one specific mechanism when a better one exists for the environment it's actually running in.
+
+- "Poll until the server responds or ~30 seconds elapse" — the model picks a loop shape that works on its platform. Don't prescribe the loop, the sleep interval, or a `timeout`-command wrapper.
+- "Bound the fetch so an offline remote can't hang the run" — not a snippet probing for `timeout` vs `gtimeout`.
+
+Detail earns its place only where the model reliably gets it wrong without it (the explain-WHY cases: anti-patterns, escape hatches, error semantics) or where the value is a project contract (exact paths, schemas, thresholds, canonical option labels). Litmus: would a competent engineer joining the project need this sentence, or just the goal? If just the goal, write just the goal.
 
 ## One default + escape hatch
 
@@ -72,7 +85,15 @@ Pick one term per concept and use it across the entire skill file. Per Anthropic
 | Subagent spawn | `spawn` | `spawn` + `invoke` + `call` + `delegate` |
 | Sub-step | `Step N.M` consistently throughout | `Step 0.5` + `Sub-step 0b` + `Phase 1 §3` for the same thing |
 
-When unsure, grep the file for the concept's synonyms and unify before commit.
+Unify a concept's synonyms before commit.
+
+## Leading words
+
+When a rule restates one quality across a phase ("fast, deterministic, low-overhead" re-explained at every step), collapse the restatement into a single concept word the model already holds from pretraining — a *tight loop*, a *tracer bullet*, a *frontier* — and repeat the word, not the sentence. The word anchors the same behavior at every occurrence for fewer tokens than the restatement, and recruits the priors the model already attaches to the concept. Reach for an existing concept first: a coined word recruits no priors and has to be re-defined at every use.
+
+| Before (quality restated per step) | After (leading word) |
+|---|---|
+| "Phase 2 checks must be fast, deterministic, and low-overhead. After each fix, re-run the checks quickly; every re-run should be cheap and produce the same result." | "Phase 2 is a tight loop: cheap, deterministic checks re-run after every fix. Keep each check inside the tight loop." |
 
 ## Lost-in-the-middle: rule placement
 

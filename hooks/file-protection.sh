@@ -154,10 +154,10 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       if (line == tag) hd = 0
       next
     }
-    match($0, /<<-?["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+    match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
       tag = substr($0, RSTART, RLENGTH)
       dash = (tag ~ /^<<-/)
-      sub(/^<<-?/, "", tag)
+      sub(/^<<-?[[:space:]]*/, "", tag)
       gsub(/["'\'']/, "", tag)
       hd = 1
       print
@@ -249,6 +249,89 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     [ -z "$tok" ] && continue
     add_candidate "${tok#of=}"
   done <<< "$(printf '%s' "$ONELINE" | grep -oE 'of=[^[:space:];|&]+' || true)"
+
+  # 6) truncate -s <size> FILE... — each FILE is emptied/rewritten. Skip the size
+  #    operand (the token after -s/--size) and a -r/--reference source.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    set -f
+    skip_next=0
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      if [ "$skip_next" = "1" ]; then skip_next=0; continue; fi
+      case "$tok" in
+        *truncate) continue ;;
+        -s|--size|-r|--reference) skip_next=1; continue ;;
+        -*) continue ;;
+      esac
+      add_candidate "$tok"
+    done
+    set +f
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])truncate[[:space:]]+[^|;&]*' || true)"
+
+  # 7) shred FILE... — destroys/overwrites each FILE in place. Skip -n/-s count
+  #    and size operands.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    set -f
+    skip_next=0
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      if [ "$skip_next" = "1" ]; then skip_next=0; continue; fi
+      case "$tok" in
+        *shred) continue ;;
+        -n|--iterations|-s|--size) skip_next=1; continue ;;
+        -*) continue ;;
+      esac
+      add_candidate "$tok"
+    done
+    set +f
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])shred[[:space:]]+[^|;&]*' || true)"
+
+  # 8) install / rsync SRC... DEST — the DEST (last non-flag token) is written,
+  #    like cp/mv; an install `-t DIR` / `--target-directory DIR` writes into DIR.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    last=""
+    tgt_dir=""
+    take_dir=0
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      if [ "$take_dir" = "1" ]; then tgt_dir="$tok"; take_dir=0; continue; fi
+      case "$tok" in
+        install|rsync|*/install|*/rsync) continue ;;
+        -t|--target-directory) take_dir=1; continue ;;
+        --target-directory=*) tgt_dir="${tok#--target-directory=}"; continue ;;
+        -*) continue ;;
+      esac
+      last="$tok"
+    done
+    set +f
+    if [ -n "$tgt_dir" ]; then
+      # install -t DIR form: DIR is the write target; trailing tokens are sources.
+      add_candidate "$tgt_dir"
+    else
+      case "$last" in ""|install|rsync|*/install|*/rsync) : ;; *) add_candidate "$last" ;; esac
+    fi
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])(install|rsync)[[:space:]]+[^|;&]*' || true)"
+
+  # 9) ln -f ... LINK — the LINK (last non-flag token) is created/overwritten
+  #    when -f/--force is present (without -f, ln refuses to clobber an existing
+  #    target). A symlink or hardlink over a protected path is a write.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    printf '%s' "$span" | grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force' || continue
+    last=""
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in ln|*/ln|-*) continue ;; esac
+      last="$tok"
+    done
+    set +f
+    case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])ln[[:space:]]+[^|;&]*' || true)"
 
   if [ -z "$CANDIDATES" ]; then
     exit 0

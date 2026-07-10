@@ -7,9 +7,9 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
 argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 ---
 
-# Actions: Custom Workflow-Helper Management
+# Actions: custom workflow-helper management
 
-3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`. Stateless.
+3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`.
 
 ## Sub-commands
 
@@ -29,7 +29,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 ## Loop invariants
 
 1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
-2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written). `run` is not preceded by a confirmation gate — invoking `/geniro:actions run <name>` authorizes the run.
+2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written). `run` has no confirmation gate (invariant 3 / Phase 5.3).
 3. Invoking authorizes execution — `run` fires the action's steps directly regardless of `risk_class` (Phase 5.3); the tool-allowlist intersection (Phase 5.4) and author-placed `[AUQ]`/`## Confirm:` checkpoints still fire.
 4. Bounded structured results — `list` renders a frontmatter-only table; the `description` field is the only free text shown and is already capped at create-validation time, so no separate body truncation applies.
 5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
@@ -38,7 +38,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 ## Budgets — quality-first
 
-`/geniro:actions` has **zero hard kill caps**. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: stateless; one action runs at a time (assumed sequential).
+`/geniro:actions` has **zero hard kill caps**. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: one action runs at a time (assumed sequential).
 
 ## ACI surface per phase
 
@@ -55,7 +55,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 **Run mode tool gating:** the effective tool surface is the intersection of the `/geniro:actions` skill's own `allowed-tools` (SKILL.md frontmatter) with the action's frontmatter `allowed-tools:` field. Phase 5.4 applies this intersection before any step runs.
 
-Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); these run with no confirmation gate per Phase 5.3 — the action author scopes them via `allowed-tools`. `risk_class` labels their blast radius for the listing / delete-warning / lint, not for a run-time prompt.
+Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); they run under the no-confirm contract (Phase 5.3), scoped by the action's `allowed-tools`. `risk_class` is a blast-radius label (listing / delete-warning / lint), not a run prompt.
 
 ## Termination case → state mapping
 
@@ -267,7 +267,7 @@ On fail: surface the specific failure (check, line, expected). The on-failure ro
 - **Entry mode `create`** (Step 5 just wrote the file from a Step 4 draft): `rm -f "$PRIMARY_ROOT"/.geniro/actions/<name>.md`. Re-run `/geniro:actions create <name>`.
 - **Entry mode `edit-in-place`** (Phase 6 OR Step 1 "Edit in place"): leave the file as the user left it. Re-run `/geniro:actions edit <name>`.
 
-Do NOT auto-fix the written file in either mode. Re-validate up to 3 retry rounds.
+On failure, report the issue and let the user fix it — auto-fixing would silently rewrite user-authored content. Re-validate up to 3 retry rounds.
 
 After all 10 checks pass, print: `Created \`.geniro/actions/<name>.md\`. Run with \`/geniro:actions run <name>\`.` When `$PRIMARY_ROOT` is not the current directory, show the resolved absolute path instead and append: "Written to the main repo checkout, so it survives if this worktree is removed."
 
@@ -481,7 +481,7 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 | L2 learnings.jsonl | not read in CRUD modes | written in run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run |
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |
-| Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD ; NOT part memory model |
+| Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD — NOT part of the memory model |
 
 Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivially because they are files on disk.
 
@@ -496,7 +496,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 | "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
 | "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
 | "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
-| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — the run-confirmation gate was deliberately removed. Invoking `/geniro:actions run <slug>` is the authorization; re-introducing an "are you sure?" AUQ contradicts that explicit choice. `risk_class` is metadata now (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
+| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; adding an "are you sure?" AUQ would re-ask a decision the user already made by invoking it. `risk_class` is metadata (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
 | "I'll re-use Phase 4 Step 6's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
@@ -506,20 +506,13 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 
 - PERSISTENT (CRUD) — `.geniro/actions/` tier; write via `atomic_state_write` with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
-- Compaction survival — actions are files on disk, so they persist across compaction
 
-## Definition of Done
+## Definition of done
 
-- [ ] Intent parsed from `$ARGUMENTS` (or default to `list`)
-- [ ] If `create`: 5-question interview completed, draft previewed and approved, file written, all 10 validation checks passed
-- [ ] If `run`: action file located and read, action steps executed inline within tool-scope intersection (no run-confirmation gate — Phase 5.3)
-- [ ] If `delete`: confirmed via AUQ before removal (high-risk warning added if applicable)
-- [ ] If `edit`: target copy resolved (canonical main-repo copy by default), absolute path printed, AUQ "Done" gate fired, Phase 4 Step 6 checks (1-10) re-run on Done, file NOT deleted on validation failure
-- [ ] If `validate`: full lint executed (10 create-gate checks + 4 validate-only rows); CRITICAL/HIGH cause non-zero exit
-- [ ] All user interactions used `AskUserQuestion`
-- [ ] `.gitignore` re-include rules added on first action created (idempotent)
-- [ ] No `{{placeholder}}` left in any written file
-- [ ] On create, file written has frontmatter `created`, `created-by: geniro:actions`, and `risk_class:` (validate enforces `risk_class:`; `created`/`created-by` are create-time stamps, not re-validated, so a hand-authored action without them still passes validate)
-- [ ] L2 `discovery` emit fired on successful run with `external-send: true`
-- [ ] Worktree fallback for `run` consulted main worktree only when local registry didn't resolve, and path confirmed via AUQ before executing
-- [ ] `create` wrote to the main repo checkout; `edit` / `delete` resolved their target per the Phase 5.0 Step 4 3-case rule (main-repo copy by default, local copy when only it exists, AUQ only when both exist and differ)
+Load-bearing exit gates — per-command mechanics live in their phase sections.
+
+- [ ] Every user interaction used `AskUserQuestion`; destructive ops (`delete`, and overwrite on `create`) confirmed via AUQ before running.
+- [ ] Writes to `.geniro/actions/` routed through `atomic_state_write` (T3 persistent-CRUD path); no `{{placeholder}}` left in any written file.
+- [ ] `create` passed all 10 validation checks (including required `risk_class:`); `validate` exited non-zero on any CRITICAL/HIGH.
+- [ ] `run` executed inline with no run-confirmation gate (Phase 5.3), within the action's tool-scope intersection; L2 `discovery` emit fired on a successful `external-send: true` run.
+- [ ] `.gitignore` re-include rules added on first action created (idempotent).

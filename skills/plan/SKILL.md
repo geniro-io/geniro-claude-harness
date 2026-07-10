@@ -7,7 +7,7 @@ model: inherit
 argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
 ---
 
-# /geniro:plan — Spec-first planning
+# /geniro:plan — spec-first planning
 
 ## Contents
 
@@ -98,7 +98,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**Turn-completion check (canonical, un-numbered).** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check: never stop on a statement of intent or an announced-but-unfired question — at every gate the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard, and an answered question is continued with the next action, never a silent stop.
+**Turn-completion check (canonical, un-numbered).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard: never stop on an announced-but-unfired question.
 
 `## Tool log` schema (selective logging): entry shape is the single source of truth in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §1.3 Echo contract — fields `ts` / `tool` / `detail` / `status` plus `summary` (Agent) or `result_ref` (Write). Each entry written via `atomic_state_write`. AUQ calls do NOT need logging — `approvals[]` is the structured record.
 
@@ -106,7 +106,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 
 ## Budgets — quality-first framing
 
-This skill has no hard kill caps. All limits are escalation gates that surface to the user, not abort triggers. User tokens are unlimited — no "task aborted: budget exhausted" failure modes.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. All limits are escalation gates that surface to the user, not abort triggers.
 
 **Quality gates (Class-B — escalate to user, do not abort):**
 
@@ -121,7 +121,6 @@ This skill has no hard kill caps. All limits are escalation gates that surface t
 - Parallel research spawns per Phase 1: 1-4 (effort-tier-scaled per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`).
 - spec.md section count: exactly 11.
 
-**Explicitly NOT capped:** wall-time, total tool calls, total model turns, total cost. Same rationale.
 **Rationale.** /geniro:plan is a **clarification-heavy** skill — its job IS to ask questions; every limit above escalates to the user instead of aborting. Question cadence per gate is defined in the phase table above and invariant 5 (Phase 3 uncapped grill with the checkpoint off-ramp; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1).
 
 ---

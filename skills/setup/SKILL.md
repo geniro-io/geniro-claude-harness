@@ -7,7 +7,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: path to template directory]"
 ---
 
-# Setup: AI-Driven Plugin Setup
+# Setup: AI-driven plugin setup
 
 4-phase loop: **Detect → Interview → Generate → Validate**. Turns an unfamiliar repository into a Geniro-ready project in one supervised run. **Singleton bootstrap** — one canonical state file at `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (no `<slug>/` subdir, no parallel runs). Supports `init` (first time) and `re-run` (refresh after stack changes). Uninstall is out of scope.
 
@@ -45,14 +45,13 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 
 ## Budgets — quality-first
 
-`/geniro:setup` has **zero hard kill caps**. Aborting mid-bootstrap leaves the project in a half-configured state.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Aborting mid-bootstrap leaves the project in a half-configured state, so this skill's own gates escalate rather than abort:
 
 | Layer | Lever | Why |
 |---|---|---|
 | **Class-B escalation gates** | 3-retry validation loop → AUQ | Validation drift after 3 rounds means structural disagreement; surface to user |
 | | Verification report truncation per the §4.1 subagent-prompt cap | Long reports inflate context without commensurate signal |
 | **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
-| **NOT capped** | Detect duration, Interview question count, total `Read`/`Bash`/`Glob` calls, total subagent spawns | Quality-first |
 
 ## ACI surface per phase
 
@@ -179,7 +178,7 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-The canonical 12-skill list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries.)
+The canonical 13-skill list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries.)
 
 ```yaml
 skill_inventory:
@@ -191,6 +190,7 @@ skill_inventory:
 - {slug: refactor, purpose: "Zero-behavior-change restructuring"}
 - {slug: onboard, purpose: "Codebase mapping"}
 - {slug: investigate, purpose: "Codebase Q&A"}
+- {slug: reflect, purpose: "on-demand session-history rule mining"}
 - {slug: instructions, purpose: "L4 rules CRUD"}
 - {slug: actions, purpose: "Workflow-helper CRUD + runner"}
 - {slug: setup, purpose: "Project bootstrap"}
@@ -204,7 +204,7 @@ Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-sim
 All-results land in state frontmatter `detected:` block. The default branch is captured via `git symbolic-ref --short refs/remotes/origin/HEAD` (fallback `git branch --show-current`) into `default_branch_candidates`, surfaced in the Phase 5 report as `Default branch: <branch> (auto-detected)`. Phase log captures one summary line:
 
 ```
-[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=12, evidence_count=14
+[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=13, evidence_count=14
 ```
 
 Transition to Phase 2.
@@ -355,7 +355,7 @@ Section merge runs **orchestrator-inline** — no subagent spawn. Rules:
 1. Preserve all user customizations.
 2. Apply factual updates from detection (e.g., new commands detected, stack changes).
 3. If conflict (same statement contradicted), surface both versions via AUQ — let user pick.
-4. Do not add geniro-specific content (skill tables, hook lists, path rules) during merge — those already live in plugin files that load automatically, so adding them to CLAUDE.md duplicates the plugin and wastes tokens on every run.
+4. Do not add geniro-specific content during merge — apply the §3.2 exclusion list.
 
 ### 3.5 Runtime directories + gitignore
 
@@ -534,7 +534,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable singleto
 
 | Layer | Read at | Write at | Notes |
 |---|---|---|---|
-| CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Contains ONLY project info (stack, commands, conventions, domain). No geniro plugin info. Preserves user customizations via orchestrator-inline merge |
+| CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Project-only content per the §3.2 exclusion list. Preserves user customizations via orchestrator-inline merge |
 | L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
@@ -552,7 +552,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable singleto
 | "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
 | "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
 
-## Definition of Done
+## Definition of done
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
 
@@ -568,8 +568,5 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — the contamination + template-residue check set the §4.1 verification subagent reads and runs (single source for the per-language wrong-token table).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
-- §Loop invariants and §Budgets (this file) — 7 loop invariants and quality-first budgets.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; verification subagent on `sonnet` (section merge runs orchestrator-inline, no separate model assignment).
-- §ACI surface per phase (this file) — per-phase ACI.
-- `/geniro:setup` adds no preference categories — `approvals[]` stays empty / one-shot (detection-confirm + onboard prompt only).

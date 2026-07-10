@@ -32,7 +32,7 @@ Callers provide three parameters in the call site:
 
 - **`SKILL_SLUG`** — kebab-case name of the invoking skill (e.g. `implement`, `debug`, `actions`). Used to compute the per-skill file path `.geniro/instructions/<SKILL_SLUG>.md`.
 - **`LOAD_TIER`** — one of:
- - `pipeline` → loads `global.md` + `memory.md` + `<SKILL_SLUG>.md` + `code-style.md`. Applies to: `implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`. `onboard` and `investigate` are promoted from `rules-only` to `pipeline` — discovery skills emit to L2/L3 and need code-style rules respected when their save-routing focused agents write to the user's tree (CLAUDE.md, ADR, etc.).
+ - `pipeline` → loads `global.md` + `memory.md` + `<SKILL_SLUG>.md` + `code-style.md`. Applies to: `implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`, `resolve`, `reflect`. `onboard` and `investigate` are promoted from `rules-only` to `pipeline` — discovery skills emit to L2/L3 and need code-style rules respected when their save-routing focused agents write to the user's tree (CLAUDE.md, ADR, etc.).
  - `rules-only` → loads `global.md` + `memory.md`. Applies to: `setup`, `instructions`, `actions`, `update`. These are operational/CRUD-on-meta skills — they manage rules rather than produce code, so the per-skill + code-style layers don't apply; `memory.md` still loads because some of them emit L2 learnings (`/geniro:setup` / `/geniro:actions`) and must honor a declared memory backend.
 - **`MODE`** — `initial-load` (Step 0) or `refresh` (phase boundary).
 
@@ -77,7 +77,7 @@ When `EXTERNAL_DIR` is non-empty, the load set reads from it as a flat layout �
 For each file in the load set, in order:
 
 1. Call the **Read** tool on the file:
- - **External dir active (`EXTERNAL_DIR` non-empty):** Read `<EXTERNAL_DIR>/<file>` (the flat layout — no `.geniro/instructions/` suffix). Step 2a does not apply in external mode; the cwd + `PRIMARY_ROOT` fallback is skipped.
+ - **External dir active (`EXTERNAL_DIR` non-empty):** Read `<EXTERNAL_DIR>/<file>` (flat layout per the base-dir resolution above — no fallback in external mode; step 2a does not apply).
  - **In-repo (no external dir):** Read `.geniro/instructions/<file>` (cwd-relative) — the cwd-first / `PRIMARY_ROOT`-fallback behavior. A configured-but-missing external dir already failed open (the probe emitted the caveat), so the loop runs here in in-repo mode.
 2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `memory.md` only). Skip step 2a.
 2a. **If Read errors with file-not-found AND no external dir is active AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
@@ -189,7 +189,7 @@ Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantic
 ## Definition of Done
 
 - [ ] The instructions base directory is resolved once per invocation before the load loop (external override `$GENIRO_INSTRUCTIONS_DIR` > `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` > in-repo default), with a leading `~` expanded to an absolute path
-- [ ] When an external instructions dir is configured and valid, every file loads from it (flat layout, no `.geniro/instructions/` suffix) and the cwd/`PRIMARY_ROOT` fallbacks are skipped; a configured-but-missing dir emits the `External instructions dir <path> not found — using in-repo instructions.` caveat and falls back to in-repo
+- [ ] When an external instructions dir is configured and valid, every file loads from it and the cwd/`PRIMARY_ROOT` fallbacks are skipped; a configured-but-missing dir fails open to in-repo with the §Echo-contract caveat
 - [ ] When cwd Read returns file-not-found AND `PRIMARY_ROOT` differs from cwd, a fallback Read against `<PRIMARY_ROOT>/.geniro/instructions/<file>` is attempted before the "No `<name>` found" echo
 - [ ] Every Read emits exactly one echo line per §Echo contract (cwd success / primary-worktree success / not-found)
 - [ ] Consumer SKILL.md files do not duplicate the producer-side Rules/Constraints/Steps semantics — that lives here only

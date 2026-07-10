@@ -6,6 +6,7 @@ This file contains templates, examples, and detailed procedures referenced by SK
 
 ## Contents
 
+- Phase 1: Step 0c AUQ templates
 - Phase 1: $ARGUMENTS semantic-parse table
 - Phase 1: Spec discovery walk-list
 - Phase 1: Subagent spawn template
@@ -20,6 +21,55 @@ This file contains templates, examples, and detailed procedures referenced by SK
 - Phase 3 — Ship sub-step
 - Phase 3 — Adjustment Routing (Big / Medium / Small)
 - Definition of Done
+
+---
+
+## Phase 1: Step 0c AUQ templates
+
+Literal question shapes for the Step 0c workspace-setup AUQ. SKILL.md §PHASE 1 Step 0c owns when each fires; these are the verbatim templates.
+
+### Question 1 — workspace (rules 5/6)
+
+```
+header: "Git workspace"
+question: "Where should /geniro:implement land its edits?"
+multiSelect: false
+options:
+  - label: "New feature branch (Recommended)"
+    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
+  - label: "Current branch"
+    description: "Pre-flight only; no git mutation. Echo 'Continuing on <branch> at <toplevel>.'"
+  - label: "Git worktree"
+    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same branch-name-format conformance as 'New feature branch'."
+```
+
+### No-ticket-ID sub-flow
+
+```
+header: "Ticket ID needed"
+question: "Branch format requires a ticket prefix (per .geniro/instructions/global.md), but no ticket ID was detected in $ARGUMENTS, spec.md, or the current branch. How do you want to proceed?"
+multiSelect: false
+options:
+  - label: "Provide ticket ID inline"
+    description: "User types the ID (e.g. ENG-123) in the next message; agent re-derives the slug and proceeds."
+  - label: "Use placeholder slug"
+    description: "Slug becomes <type>/no-ticket-<desc>. Branch is created with the placeholder; user can rename later via 'git branch -m'."
+  - label: "Cancel — I'll get a ticket first"
+    description: "Terminal. No git mutation. User exits and re-invokes /geniro:implement once a ticket exists."
+```
+
+### Question 3 — implement depth
+
+```
+header: "Implement depth"
+question: "How deep should the implementation analysis go?"
+multiSelect: false
+options:
+  - label: "Standard"
+    description: "One spec fact-check pass and one self-review pass."
+  - label: "Deep — 3× fact-check + multi-angle self-review"
+    description: "3× spec fact-check before editing plus a multi-angle self-review with verification escalated only where the call is contested; higher quality at higher token cost."
+```
 
 ---
 
@@ -264,7 +314,7 @@ A spec authored by /geniro:plan may attach an optional `verify: <command>` line 
 failed_or_refused = []                                          # collect across ALL criteria first
 for each section-9 criterion carrying a `verify:` line:         # spec-driven runs only
   if command tokens contain a ship / deploy / external-state-mutation verb:   # side-effect screen — see below
-    add {criterion, reason: "refused — side-effect"} to failed_or_refused     # never run it, never silently skip it
+    add {criterion, reason: "refused — side-effect"} to failed_or_refused     # refused — collected, not executed (screen below)
     continue                                                    # skip executing THIS command, keep collecting
   result = Bash(<verify command>)                               # orchestrator's own Bash, NOT test-runner-agent
   classify result on the SAME verdict taxonomy:
@@ -292,7 +342,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 - **Orchestrator runs it, not `test-runner-agent`.** The runner agent's single-command leaf contract is a deliberate safety boundary — its anti-rationalization forbids it orchestrating multiple commands. Phase 2 already grants the orchestrator Bash, so it runs the `verify:` strings directly. No agent-report schema change, so no lockstep cost on the agent side.
 - **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
-- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Checks failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason — never silently skipped, never executed.
+- **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Checks failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason.
 - **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly. `verify:` is a body-level field, not frontmatter, so it is independent of `geniro_schema_version` (m5-v1 .. m5-v4).
 - **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and persist the outcome to state.md `## Tool log` via `atomic_state_write`.
 
@@ -418,16 +468,34 @@ while round ≤ 3:
 
   collect findings (reviewer dim outputs + adversarial-tester findings +
                     list of authored failing tests on disk)
-  partition:
-    ACTIONABLE = severity ≥ MEDIUM, OR Decision Type routes through a user gate
-                 (PRODUCT-DECISION / INTENT-CHECK), OR an authored failing
-                 adversarial test (always a HIGH)
-    MINOR      = LOW findings with none of those properties
+  partition (scope before severity — findings carry [NEW|PRE-EXISTING] tags):
+    OUT-OF-SCOPE = any finding tagged PRE-EXISTING, at ANY severity — it concerns
+                 code this change did not introduce, so fixing it silently expands
+                 the diff past what the spec authorized. Never auto-fix; route to
+                 ## Deferred Findings (severity + "pre-existing" marker preserved)
+                 so the minor-findings gate puts the fix-or-defer call to the user.
+    ACTIONABLE = NEW findings with severity ≥ MEDIUM, OR Decision Type routes
+                 through a user gate (PRODUCT-DECISION / INTENT-CHECK), OR an
+                 authored failing adversarial test (always a HIGH)
+    NIT        = NEW LOW findings whose fix is mechanical and confined to code this
+                 run authored — comment noise, a naming slip, a dead import, a
+                 just-added scenery test flagged for removal. Fold into the CURRENT
+                 round's fix batch: self-review exists to leave the just-written
+                 code clean, and deferring a one-line nit on a line this run wrote
+                 costs the user a decision for no risk reduction. Nits never force
+                 a round and never block exit.
+    MINOR      = remaining NEW LOW findings (judgment-required, or outside the
+                 lines this run authored)
 
   if no ACTIONABLE findings AND no authored adversarial tests THAT STILL FAIL:
     break  # exit → minor-findings gate → test-quality gate → Ship sub-step
 
-  apply fixes inline (single Edit-driven sub-loop, NO further agent spawns)
+  apply ACTIONABLE fixes + NITs inline (single Edit-driven sub-loop, NO further
+    agent spawns). Each fix is the smallest change that resolves the finding at
+    its cited site — never add an abstraction, option, or generality the finding
+    does not require (speculative generality is itself a finding, not a fix); a
+    recommendation that amounts to a redesign routes to the escalation AUQ, never
+    the inline batch.
   re-spawn test-runner-agent; if Verdict != ALL_GREEN, rollback to Phase 2
   round += 1
 else:
@@ -437,7 +505,7 @@ else:
 
 **Round N+1 only re-spawns dimensions that flagged an actionable finding, and the adversarial-tester (conditionally).** Dimensions that reported nothing actionable in round N — clean, or minor-only — are NOT re-spawned: bounds cost and avoids re-litigating clean code. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache.
 
-**Minor findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving minor findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_write`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory.
+**Minor and out-of-scope findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving MINOR + OUT-OF-SCOPE findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_write`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix · a `pre-existing` marker on out-of-scope entries. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory. NITs never persist here — they were fixed in-round.
 
 **Adversarial-tester treated as the 6th dimension for fix purposes:**
 - Each authored failing test counts as a HIGH finding.
@@ -467,12 +535,14 @@ Fires once the bounded fix loop converges (clean exit OR the accepted-findings e
 
 **Skip-when-clean.** When `## Deferred Findings` is empty or absent, skip silently — the gate never fires with nothing to decide.
 
-**Message-first render.** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, emit a separate chat message listing each finding in plain English — title · `file:line` · one-line description. Call them "minor findings below the fix threshold"; severity labels and finding-ID shorthand are review-internal vocabulary that means nothing to the user.
+**Message-first render.** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, emit a separate chat message listing each finding in plain English — title · `file:line` · one-line description. Call them "minor findings below the fix threshold"; severity labels and finding-ID shorthand are review-internal vocabulary that means nothing to the user. Entries carrying the `pre-existing` marker get an explicit callout — "this one concerns code this change didn't touch; fixing it widens the change" — and a serious-severity pre-existing entry states its severity in plain English ("the review rates this one serious"), so the user can weigh an expand-scope-now decision against a follow-up task.
 
 **Lean AskUserQuestion** (header: `Minor findings`):
 
 ```
-question: "The review also flagged <N> minor findings below the fix threshold.
+question: "The review also flagged <N> findings it didn't auto-fix — minor ones
+           below the fix threshold<, and M in pre-existing code this change
+           didn't touch — omit the clause when M is 0>.
            Fix them now before shipping, or leave them listed in the ship report?"
 options:
   - label: "Leave them in the ship report (Recommended)"
@@ -504,7 +574,7 @@ The `(Recommended)` marker follows `per-finding-question.md` §Recommended-label
 
 ## Phase 3: Test-quality gate
 
-After the bounded fix loop converges (clean exit or accepted findings) and the minor-findings gate settles, and before the Ship sub-step, run the test-quality gate when this run authored or changed test files — full contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md`. It surfaces the fresh `tests`-reviewer audit of the new tests (claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, weak assertions) as a visible decision: a clean audit records a one-line ship-report confirmation and asks nothing; open findings render message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering", then a lean AskUserQuestion (header: `Test quality`) offers tighten-all / pick / ship-as-is. No new agent spawn — the gate consumes the tests-dimension output already collected in the fix loop. Advisory and fail-open: it never blocks Ship and never overrides the Ship-mode AUQ.
+After the bounded fix loop converges (clean exit or accepted findings) and the minor-findings gate settles, and before the Ship sub-step, run the test-quality gate when this run authored or changed test files — full contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-quality-gate.md`. It surfaces the fresh `tests`-reviewer audit of the new tests (claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, weak assertions, scenery tests flagged for removal) as a visible decision: a clean audit records a one-line ship-report confirmation and asks nothing; open findings render message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering", then a lean AskUserQuestion (header: `Test quality`) offers tighten-all / pick / ship-as-is. No new agent spawn — the gate consumes the tests-dimension output already collected in the fix loop. Advisory and fail-open: it never blocks Ship and never overrides the Ship-mode AUQ.
 
 ---
 
@@ -516,7 +586,7 @@ Runs only when BOTH conditions hold: (a) the Phase 2 changed-files list contains
 
 When both conditions hold, the verification is mandatory: an unreachable page — auth wall, feature flag, no running dev server, or cost concern — does NOT authorize the orchestrator to skip it silently. Surface the obstacle to the user through the step-1 dev-server choice ("Skip verification" / "Retry" / "Enter URL manually") and let the user, not a unilateral cost judgment, decide. Prompt via a STANDALONE `AskUserQuestion` with header "Smoke-test" as the ONLY question in that call — never batch it with the ship-mode AUQ. If the user picks "Yes — walk through it", execute this sequence:
 
-1. **Detect target URL.** Probe dev-server ports in order — 3000 (Next.js), 5173 (Vite), 8080 (generic), 4321 (Astro), 4200 (Angular) — via `curl -s -o /dev/null -w "%{http_code}" http://localhost:PORT`. On the first 200, fetch `/` and check the response `<title>` or a known marker matches the project's `package.json` `name`; if uncertain, `AskUserQuestion` "Detected server on :PORT — is this the project under test?" before navigating. If no port responds, walk up from the primary changed UI file to the nearest `package.json` containing a `dev`/`start`/`serve` script (monorepo layouts: `apps/<name>/package.json`, `packages/<name>/package.json`). Choose package manager by lockfile (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `bun.lockb` → bun, else npm). Run with `run_in_background: true`, record the PID, poll `GET /` until 200 or 30s timeout. On timeout, ask the user "Skip verification" / "Retry" / "Enter URL manually".
+1. **Detect target URL.** Probe dev-server ports in order — 3000 (Next.js), 5173 (Vite), 8080 (generic), 4321 (Astro), 4200 (Angular) — via `curl -s -o /dev/null -w "%{http_code}" http://localhost:PORT`. On the first 200, fetch `/` and check the response `<title>` or a known marker matches the project's `package.json` `name`; if uncertain, `AskUserQuestion` "Detected server on :PORT — is this the project under test?" before navigating. If no port responds, walk up from the primary changed UI file to the nearest `package.json` containing a `dev`/`start`/`serve` script (monorepo layouts: `apps/<name>/package.json`, `packages/<name>/package.json`). Choose package manager by lockfile (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `bun.lockb` → bun, else npm). Run with `run_in_background: true`, record the PID, poll `GET /` until 200 or ~30 seconds elapse. If the server never comes up, ask the user "Skip verification" / "Retry" / "Enter URL manually".
 
 2. **Infer the target route.** Map the primary changed UI file to a URL path: `app/<segment>/page.tsx` → `/<segment>`, `pages/<name>.tsx` → `/<name>`, `src/routes/<name>/+page.svelte` → `/<name>`. Leaf component (e.g., `components/Button.tsx`) → fall back to `/` and ask the user where it renders. Navigate with `mcp__plugin_playwright_playwright__browser_navigate`. If the navigated page is a login / auth-gate page, or the inferred route returns 4xx or redirects away from the target (a feature-flag or permission wall), do NOT snapshot and proceed against the gated page — fire the same "Skip verification" / "Retry" / "Enter URL manually" `AskUserQuestion` so the user, not a unilateral skip, decides.
 
@@ -620,16 +690,6 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 ---
 
-### Suggest Improvements (project scope only)
-
-Fires only when the codebase-explorer reported `change_scope: big`; smaller scopes skip the step entirely — no spawn, no echo (rationale at Ship step 4). When it fires: spawned as Ship step 4 **in the background** (`run_in_background: true`), then the Ship-mode AUQ fires without waiting — the candidates are not an input to the ship decision, so blocking on them only makes the user wait. The drop-vector protection (a post-deliverable step trailing the PR is the documented drop vector, same failure mode the learnings emit's ordering rule guards against) moves from synchronous-before-the-gate ordering to two anchors: the visible pre-gate spawn plus the step 9 drain-before-terminal check. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn".
-
-Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (mode `implement`): pass the committed diff + changed-file list, the Phase 3 reviewer findings, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`). The agent returns only candidates that passed the helper's §Candidate bar (each tagged `Significance: critical | general` with an `Evidence:` citation; zero candidates is the common outcome); route any `Recurrence-eligible: yes` candidate to the rule-capture offer (`/geniro:instructions create`) rather than the improvements prompt, and surface the rest via the helper's §Routing table + §Presentation. Echo `Reviewed for improvements: <N> candidate(s)`; skip the prompt silently when the agent returns none.
-
-`AskUserQuestion` is always-WAIT here. Skip findings already captured by the learnings-emit step; this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — submit a PR to the plugin repo OR edit your local plugin install directly.
-
----
-
 ### Integration Updates
 
 **Worktree:** if working in a worktree (from Phase 1 workspace decision), leave the session in it. Do NOT call `ExitWorktree` proactively — runtime already prompts on session exit to keep or remove the worktree.
@@ -644,7 +704,7 @@ Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/ski
 
 Execute any user-authored post-ship steps from the loaded L4 `<skill>.md` (`.geniro/instructions/implement.md`). Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-ship anchor is `### After ship` (`ship` is the final non-terminal phase enum value; post-ship steps run after its work completes). Run any subsection whose phase anchor is post-ship. When a step is conditioned on a PR existing and the run did not create one (ship-mode "commit only" / "no push"), skip it.
 
-Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The other plugin-defined Ship steps (Extract Learnings / Suggest Improvements / Integration Updates) cover plugin-defined work (some pre-AUQ, some post); this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
+Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The other plugin-defined Ship steps (Extract Learnings / Integration Updates) cover plugin-defined work (some pre-AUQ, some post); this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
 
 ---
 
@@ -704,7 +764,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 
 **Soft limits.** Big tweaks: after 2 rounds, suggest starting a new /geniro:implement session — fresh context provides clean separation. Medium/Small tweaks: after 3 rounds, surface a message recommending the user re-spec via `/geniro:plan`.
 
-**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). Pre-ship steps (Extract Learnings and the Suggest-Improvements background spawn) run once on first Ship entry and are NOT repeated on tweak rounds unless the tweak materially changes the learnings/improvement surface.
+**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). The Extract Learnings step runs once on first Ship entry and is NOT repeated on tweak rounds unless the tweak materially changes the learnings surface.
 
 ---
 

@@ -2,7 +2,7 @@
 
 A long-running skill that spawns a research or critic agent and then blocks idle waiting for it is running two large costs in series: the agent's compute AND (often) a user question that follows it. When the two are independent, overlap them — spawn the agent `run_in_background: true`, do the independent work while it computes, and drain the agent before the first step that consumes its output. Wall-clock collapses from `agent + other` to `max(agent, other)`.
 
-This helper is the sibling of the reflection background-spawn pattern in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn", which overlaps a deferred agent with a decision gate the agent's output does not feed. Read that section first — this helper reuses its machinery (visible-spawn anchor + drain-before-terminal + unconditional echo) and states only the delta: the overlapped work here is a **user question** or a **second independent agent**, not a gate.
+Three anchors make a background overlap safe — a visible spawn, a drain before the terminal transition, and an unconditional echo — all defined in §"The contract" below. The overlapped work is a **user question** or a **second independent agent**, never a gate the spawn's output feeds.
 
 ## Two overlap shapes
 
@@ -44,7 +44,6 @@ Overlap is safe ONLY when the branches are provably independent, not merely like
 
 ## References
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn" — the sibling pattern (anchors + drain + echo machinery this helper reuses).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Turn-completion guard" — render-then-ask for Shape A.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — registration ladder for every spawn.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — OMIT `model=`.

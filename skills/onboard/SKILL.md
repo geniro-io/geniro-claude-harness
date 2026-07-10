@@ -9,7 +9,7 @@ argument-hint: "[optional: --focus area1,area2 --depth N]"
 
 # Onboard: rapid codebase orientation
 
-2-phase loop (Discover → Map) mirroring `/geniro:implement`, `/geniro:refactor`, `/geniro:debug`. Generates a structured map that serves as a reference for the session.
+2-phase loop (Discover → Map). Generates a structured map that serves as a reference for the session.
 
 ## Arguments
 
@@ -63,7 +63,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 ## Quality-first budgets
 
-Quality-first framing: /geniro:onboard has no hard kill caps. All limits are escalation gates that surface to the user.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. All limits below are escalation gates that surface to the user.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
@@ -73,8 +73,6 @@ Quality-first framing: /geniro:onboard has no hard kill caps. All limits are esc
 - No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Claude Code internals** (not under /geniro:onboard control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
-
-**Explicitly NOT capped:** wall-time per run (big monorepo onboard may take 30+ minutes legitimately); total Read/Grep/Glob calls (scans many files); total cost per run.
 
 ---
 
@@ -295,7 +293,7 @@ Full 8-section worked example (sample TypeScript/Express project) in `${CLAUDE_P
 
 ---
 
-## Definition of Done
+## Definition of done
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the onboarding incomplete or unsafe. The 8-section map content is enforced by the §2 template, not re-listed here.
 

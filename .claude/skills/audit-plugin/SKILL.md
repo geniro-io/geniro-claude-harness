@@ -51,7 +51,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
    - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings (the action gate and cleanup apply regardless of depth).
    - A path (`skills/review`, `hooks/`, `lib/`) → restrict every dimension's scope to files under it; spawn only dimensions whose scope intersects.
    - A dimension name (`consistency`, `staleness`, `rules`, `logic`, `shell`, `simplicity`, `numbers`, `safety`) → spawn only that reviewer (plus the Phase 1 battery, which always runs).
-2. **Build the inventory** (Glob; record counts + `wc -l` totals in the state checkpoint):
+2. **Build the inventory** (record file counts + line totals in the state checkpoint):
    - Shipped: `skills/**/*.md`, `agents/*.md`, `hooks/*` + `hooks/hooks.json`, `lib/*.sh`, `settings.json`.
    - Repo-local: `.claude/rules/*.md`, `.claude/skills/**/*.md`.
    - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
@@ -61,7 +61,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 
-Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, file-size caps, TOC presence, orphan-candidate grep. Preflight external tools first (`command -v shellcheck`, `command -v jq`): a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. For each command: capture output verbatim; non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
+Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, file-size caps, TOC presence, orphan-candidate grep. Preflight external tools: a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. For each command: capture output verbatim; non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
@@ -97,7 +97,7 @@ Review ONLY your dimension; other dimensions are covered by parallel reviewers.
 {{battery summary; for D3 additionally: the candidate lists; for D7 additionally: the seed-grep output}}
 
 ### Procedure
-1. Read every file in scope relevant to your checks (Grep first to prioritize; Read before claiming).
+1. Load your markdown scope in FULL via `scripts/dump-md.sh <scope paths>` and survey from that — grep hits miss reworded coverage; grep only to pinpoint an exact known string. Read non-markdown files directly.
 2. Verify each candidate finding by Reading the exact cited lines — your `evidence` column must be a verbatim quote.
 3. Return ONLY the findings table per the output contract (≤25 rows) plus a 2-3 sentence per-dimension verdict ("healthy / debt concentrated in X").
 Do NOT fix anything. Do NOT review outside your dimension. Report only.
@@ -105,7 +105,7 @@ Do NOT fix anything. Do NOT review outside your dimension. Report only.
 ```
 
 Dimension-specific notes:
-- **D4 (rules compliance):** instruct the reviewer to Read the three `.claude/rules/*.md` files first as its rubric source (they're too long to paste).
+- **D4 (rules compliance):** instruct the reviewer to load the three `.claude/rules/*.md` files first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
 - **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
 - **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
 
@@ -121,7 +121,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 4 — Report
 
-Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/` is a gitignored local-only working area — not a `.geniro/` state path, so the Write tool is correct here and the state-helper hook does not apply; `mkdir -p design/scratch` first if it does not exist) with this structure, mirroring the established audit-report format:
+Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/` is a gitignored local-only working area — not a `.geniro/` state path, so the state-helper hook does not apply) with this structure, mirroring the established audit-report format:
 
 1. **Header** — date, scope, reviewer topology (which dimensions ran, sharding).
 2. **Health summary** — what's strong and must NOT be over-corrected (feeds the next run's do-not-flag list).
@@ -132,9 +132,11 @@ Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/`
 
 On `--quick` runs, omit sections 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead.
 
-In chat: lead with the highest-value fix, then counts per tier, then the report path. Don't paste the whole report.
+In chat, render **every** finding before the action gate — the user approves individual fixes, so each one has to be visible, low and cosmetic included. A tier count alone is not enough; a count hides the exact change a reader is being asked to authorize. Lead with the highest-value fix, then the full tier tables T0→T5 (same `# | file:line | issue | fix` rows as the report, convergence inline), then the report path. When the table set is very long, send the report file itself (so every row is scannable) AND render the decision-critical tiers (T0/T1/T2) inline — but never collapse a tier to a bare number. The set the user is about to approve and the set they can see must be the same set.
 
 ## PHASE 5 — Action gate
+
+The user must see each finding (Phase 4) before this gate — approving a fix they never read is the failure this gate guards against.
 
 Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness, ...). How should I proceed?" with options: "Fix safety + correctness now (T0-T1) (Recommended)" / "Let me pick findings" / "Report only — I'll handle fixes separately".
 
@@ -142,7 +144,7 @@ Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness,
 - **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
 - **Report only:** proceed to cleanup.
 
-**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Run `git status --short`; offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow repo commit style (`git log -5 --oneline` first); never `--no-verify` / `--amend`.
+**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow the repo's commit style; never `--no-verify` / `--amend`.
 
 ## State recovery
 
@@ -164,6 +166,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 | "Skill X mentions /geniro:learnings — stale ref, flag it." | Deleted-skill names inside the documented replacement tables (CLAUDE.md, MIGRATION.md) are documentation OF the deletion. Adjudicate candidates; don't bulk-flag grep hits. |
 | "The user said audit everything — I'll include design/ and evals/." | Out of default scope: design/ holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
+| "There are 80 findings — I'll show tier counts and link the report." | The user approves fixes finding-by-finding, so a count hides the exact edits they're authorizing. Render every finding (low included) before the gate; send the report file when the set is long, but the visible set must equal the approvable set. |
 
 ## Definition of done
 
@@ -171,6 +174,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - [ ] Selected reviewers spawned in one response; outputs collected
 - [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt)
 - [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list
+- [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked
 - [ ] State cleaned up; commit offered
 
@@ -180,3 +184,4 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - `.claude/rules/skill-authoring.md` / `skill-prose.md` / `skill-structure.md` — the D4 rubric source
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `tests/run-all.sh` + `tests/authoring/lint-skills.sh` — the D1 battery core
+- `scripts/dump-md.sh [path ...]` — full-content markdown dump (filename header + complete body per tracked file); reviewers survey their markdown scope with it instead of grep

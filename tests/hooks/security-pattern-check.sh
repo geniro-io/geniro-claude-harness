@@ -196,6 +196,16 @@ expect_allow "Bash command with no file-write target allows" \
 expect_allow "Bash empty command allows" \
   "$(jq -nc '{tool_name: "Bash", tool_input: {command: ""}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
 
+# ===== Bash branch: spaced-tag heredoc opener is recognized (body scanned) =====
+# `<< EOF` (whitespace before the tag) must be detected so the heredoc body is
+# captured and scanned at the target's extension — previously the spaced opener
+# went unrecognized and the flagged body was never scanned.
+expect_block "Bash spaced-tag heredoc eval into .py blocks" \
+  "$(run_bash "$(printf 'cat > evil.py << EOF\neval(input())\nEOF\n')")"
+# Extension scoping still holds: the same spaced heredoc into .md must NOT fire.
+expect_allow "Bash spaced-tag heredoc eval into .md NOT blocked (ext-scoped)" \
+  "$(run_bash "$(printf 'cat > notes.md << EOF\neval(input())\nEOF\n')")"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

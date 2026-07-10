@@ -1,4 +1,4 @@
-# Deep Mode Reference
+# Review deep mode — reference
 
 Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) raises **quality** — recall (find more) and precision (validate more reliably) — by multiplying the reviewer and verifier fan-out and running it inside an internal `Workflow(...)`. It does NOT raise speed: under the Workflow concurrency cap (`min(16, cores-2)` concurrent agents per workflow) the extra passes do not shrink wall-clock, they only deepen coverage at higher token cost. Two efficiency refinements keep that cost from being a flat 3× multiplier — **angle-diverse recall** (each per-dim pass searches a distinct region, not an identical re-run) and **signal-gated precision** (one verifier on the clear majority, the full 3-vote only where the call is contested). Deep mode is opt-in for exactly this reason — it is not the default.
 
@@ -91,19 +91,10 @@ const passes = await pipeline(
 return passes                                  // per-dim deduped findings (raw JSON text from agents, parsed in-script)
 ```
 
-**Vote script (Phase 4.2) — shape (signal-gated per §3):**
+**Vote script (Phase 4.2) — shape (signal-gated per §3):** the parallel first-vote → `needsEscalation` → escalate-to-3-then-`majority` skeleton is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md` §6 (the "Deep verify — signal-gated" block; `agent(prompt)` returning raw JSON, `parseVote` defensive, `majority()` treating parse-fail as abstain). Review differs only in the escalation predicate — it keys on cross-dim `convergence_count` (not the within-dim `seen_in`) and escalates a high-stakes finding only on a `refuted` first vote (not in both directions), because review reports rather than fixes:
 
 ```
-phase('Deep verify — signal-gated')
-const verdicts = await parallel(SURVIVORS.map(f => () => (async () => {
-  const first = parseVote(await agent(verifierPrompt(f, 0), { label: `verify:${f.id}:v0`, phase: 'Deep verify — signal-gated' }))
-  if (!needsEscalation(first, f)) return { id: f.id, verdict: first }       // high-confidence + agrees with upstream → accept 1 vote
-  const rest = await parallel([1,2].map(i => () =>                          // contested / high-stakes → full 3-vote majority
-    agent(verifierPrompt(f, i), { label: `verify:${f.id}:v${i}`, phase: 'Deep verify — signal-gated' })))
-  return { id: f.id, verdict: majority([first, ...rest]) }                  // majority() parses defensively; parse-fail = abstain
-})()))
-return verdicts
-// needsEscalation(first, f) = first abstained (parse-fail) OR first.confidence < 70
+// review's needsEscalation(first, f) = first abstained (parse-fail) OR first.confidence < 70
 //   OR (first.validation === 'refuted' && f.convergence_count >= 2)
 //   OR (first.validation === 'refuted' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'))
 ```

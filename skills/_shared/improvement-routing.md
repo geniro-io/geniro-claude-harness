@@ -7,10 +7,10 @@
 - §Decision logic when target is ambiguous
 - §ADR target — when to use it (sparingly)
 - §Why code rules go to `.claude/rules/`, not CLAUDE.md
-- §Reflection-agent feed — how to source candidates (agent vs inline), and when to background the agent spawn so it never blocks the final gate
+- §Reflection-agent feed — how to source candidates (agent via `/geniro:reflect` vs inline)
 - §Presentation — surface the routed suggestions one candidate at a time
 
-When a skill's end-of-flow "Suggest Improvements" step finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for skill-level "Suggest Improvements").
+When an improvement pass — `/geniro:reflect`, or a skill's inline candidate-drafting step — finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for the improvement pass).
 
 ## Candidate bar
 
@@ -60,17 +60,15 @@ At most 3 candidates per run. On overflow keep the 3 highest-significance and dr
 
 ## Decision logic when target is ambiguous
 
-Apply in order — first match wins:
+The §Routing table names the target for each discovery type; this ladder resolves only the case where a candidate could fit more than one. Apply in order — first match wins, so the priority ordering IS the tie-break:
 
-1. **Can a linter, formatter, CI check, or hook enforce it without LLM judgment?** → **Project rules/hooks**
-2. **Is it a code rule that genuinely needs file-pattern scoping (language-specific, directory-specific) — i.e., should fire only when matching files are read/written?** → **`.claude/rules/<scope>.md`** with `paths:` glob (file-scoped, Anthropic-native)
-2.5. **Is it a cross-cutting code-style / convention rule that should apply to all code-writing and all review (no file pattern)?** → **`.geniro/instructions/code-style.md`** (Geniro cross-skill scope)
-3. **Is it a quality gate / workflow step / hard constraint that should fire when a particular skill runs (not per-file)?** → **`.geniro/instructions/<skill>.md`** (skill-scoped, Geniro-specific)
-4. **Is it a project-wide command, structure fact, or compaction-surviving gate that every agent needs every turn?** → **CLAUDE.md**
-5. **Is it an architectural decision that is hard to reverse AND surprising without context AND the result of genuine trade-offs (including a refactor candidate explicitly REJECTED with rationale)?** → **ADR** (`docs/adr/` or `docs/decisions/` — see ADR rules below)
-6. **Is it a reusable technical insight (gotcha, lightweight architectural decision, surprising coupling)?** → **Knowledge** (`.geniro/knowledge/learnings.jsonl` — path resolved per `_shared/primary-worktree.md`)
-7. **Is it a user preference or correction about how to collaborate?** → **Memory** (native auto-memory)
-8. **Uncertain TARGET** → default to **Knowledge** (lowest risk, still searchable). This step resolves target ambiguity only — a candidate of uncertain WORTH already failed the §Candidate bar and never reaches the ladder, so it must not survive here as a learnings-targeted suggestion.
+1. Enforceable by a linter / formatter / CI check / hook without LLM judgment → **Project rules/hooks** (automation beats every memory-based target).
+2. Needs file-pattern scoping (fires only when matching files are read/written) → **`.claude/rules/<scope>.md`** with `paths:` glob — chosen before the broader instruction targets below.
+3. Cross-cutting code-style with no file pattern → **`.geniro/instructions/code-style.md`**; a skill-behavior gate / workflow step → **`.geniro/instructions/<skill>.md`**.
+4. Project-wide command, structure fact, or compaction-surviving gate every agent needs every turn → **CLAUDE.md**.
+5. Hard-to-reverse AND surprising-without-context AND genuine-trade-off decision (incl. a refactor candidate REJECTED with rationale) → **ADR**; any lighter reusable insight → **Knowledge**.
+6. Collaboration preference / correction → **Memory** (native auto-memory).
+7. Uncertain TARGET → default **Knowledge** (lowest risk, still searchable). Resolves target ambiguity only — a candidate of uncertain WORTH already failed the §Candidate bar and never reaches the ladder.
 
 ## ADR target — when to use it (sparingly)
 
@@ -118,7 +116,7 @@ What do we accept by choosing this? What becomes harder? What becomes easier?
 - `/geniro:investigate` save-routing step — "Save key findings to memory" gains an ADR sub-option when the finding meets all 3 criteria.
 - `/geniro:debug` — root causes traced to an undocumented architectural choice trigger an ADR proposal alongside the L2 emit.
 - `/geniro:refactor` — refactor candidates explicitly REJECTED by the user (PRODUCT-DECISION findings, escalated work) propose an ADR capturing "why we did NOT do X." 4th AUQ option fires only when ADR-eligibility criteria met (hard to reverse + surprising without context + genuine trade-offs).
-- `/geniro:implement` Phase 3 ship sub-step presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
+- `/geniro:reflect` — the on-demand improvement walk presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
 
 ## Why code rules go to `.claude/rules/`, not CLAUDE.md
 
@@ -138,37 +136,25 @@ The three are complementary, not overlapping — choose by the trigger you want 
 
 Two ways to source the improvement candidates that feed §Presentation. Match the source to how rich the change signal is:
 
-- **Reflection agent** — when the task produced a fresh diff or a finding set worth an independent read (`/implement` Phase 3, `/refactor` Phase 3, `/review` Phase 6). Spawn `${CLAUDE_PLUGIN_ROOT}/agents/reflection-agent.md` to synthesize candidates in an isolated context. An isolated read beats orchestrator-inline synthesis here: the orchestrator just authored the change, so it carries the same blind spots; a fresh agent catches durable lessons the author's own reasoning skips.
+- **Reflection agent** — `/geniro:reflect` (user-invoked, on-demand) spawns `${CLAUDE_PLUGIN_ROOT}/agents/reflection-agent.md` to synthesize candidates in an isolated context from recent work — a diff, a finding set, or session-transcript extracts. An isolated read beats inline synthesis here: the session that produced the work carries its author's blind spots; a fresh agent catches durable lessons the author's own reasoning skips.
 - **Inline** — when the orchestrator already holds the whole artifact it just authored and there is no fresh diff to discover (`/plan`'s approved spec, `/onboard`'s codebase map). Draft the candidates inline against the §Candidate bar + routing table above. A separate agent re-reading a self-authored artifact adds cost without the anti-anchoring benefit, so inline is the right call there.
 
 ### Spawn slots (reflection-agent mode)
 
-Pass the agent: **mode** (`implement` | `refactor` | `review`), **the change** (diff summary + changed files; for review, the kept findings + their diff), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns candidates that passed the §Candidate bar per its Output Format; it never writes.
+Pass the agent: **mode**, **the change** (a diff summary + changed files, a finding set + the diff it was raised against, or session-transcript extracts), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns candidates that passed the §Candidate bar per its Output Format; it never writes.
 
-### Background spawn — don't block the final decision gate
-
-Whether to spawn a reflection at all is the calling skill's contract — each caller documents its own firing condition; this section defines how a spawned reflection behaves. In a skill whose run ends at a user decision gate the reflection output does NOT feed (`/review`'s Action gate, `/implement`'s Ship-mode AUQ), spawn the reflection agent with `run_in_background: true` and do not wait on it. Fire the decision gate in the same turn — the spawn returns immediately, so the gate renders without delay. The candidates are not an input to that decision, so blocking the gate on them only makes the user wait for work the gate does not need.
-
-When the agent completes, the harness re-invokes the orchestrator with the agent's final message — no poll, no `ScheduleWakeup`, no deprecated `TaskOutput` (`Read` the task output file only as a fallback when the auto-return is missing). At that point run §Presentation + the echo. The `gate-render` hook already treats the completion `<task-notification>` as mid-turn feedback, so the per-candidate AUQs fired on return are not falsely blocked.
-
-This is safe where backgrounding a fire-and-forget shell command is not (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract": "Never run the emit as a backgrounded command"). That ban is about a shell command with no return path — a lost failure is noticed only by accident. A reflection-agent spawn is a harness-tracked task: completion re-invokes the orchestrator, the output file persists, and the agent is resumable by ID, so a missed return is detectable, not silent.
-
-**Drain before the terminal transition.** The pre-gate spawn is the visible anchor; the drain is the backstop. Before writing any terminal `phase:`, confirm the reflection returned and its echo fired. If it has not returned by terminal time, collect it now — `Read` the task output file, or resume the agent by ID — then run §Presentation + echo before the terminal write. This replaces synchronous-before-the-gate ordering with two guarantees (visible spawn + terminal drain) instead of one, so the drop vector the echo guards stays closed.
-
-**Synchronous fallback.** If the runtime ran the spawn synchronously (e.g. `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`), the candidates are already in hand when the spawn returns — run §Presentation + echo at the gate, exactly as the pre-background flow did. The protocol degrades to the original ordering with no special handling.
-
-**Skills without a final gate stay synchronous.** `/refactor` never ships — its §3.6 candidate walk IS the terminal interaction, so there is no separate gate to unblock, and its §3.5 recurrence offer must stay adjacent to §3.6 for the "never prompt twice" dedup. Run `/refactor`'s reflection synchronously. The inline source (`/plan`, `/onboard`) is orchestrator-inline work with no spawn, so backgrounding does not apply there either.
+Run the spawn synchronously. `/geniro:reflect` is on-demand — the candidate walk IS its deliverable, so there is no later decision gate the spawn could delay.
 
 ### Anchor + echo (both sources)
 
-The improvement step must be guaranteed to execute whenever its caller's fire-condition is met, and prove it fired — a step that trails off as housekeeping after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). Guarantee it by source: a **synchronous** step (the inline sources, and `/refactor`) is a named step run before the skill's finalize prompt; a **backgrounded** step (the gate-bearing agent consumers, §"Background spawn") is anchored by the visible pre-gate spawn plus the drain-before-terminal check. Either way echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired (for the background path, in the turn the agent returns). The echo is unconditional whenever the step fired, including at N=0: zero is the majority outcome, so a silent zero is indistinguishable from a dropped step. A run whose caller-side fire-condition was not met skips the step with no spawn and no echo — that skip is distinguishable from a drop because the condition is deterministic. When the candidate list is empty, skip only the §Presentation prompt — the echo still fires.
+The improvement pass must prove it fired — a step that trails off as housekeeping after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). Run it as a named step before the caller's finalize prompt, and echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired. The echo is unconditional, including at N=0: zero is the majority outcome, so a silent zero is indistinguishable from a dropped step. When the candidate list is empty, skip only the §Presentation prompt — the echo still fires.
 
 ### Coexistence with recurrence rule-capture
 
 A candidate tagged `Recurrence-eligible: yes` restates a learning already seen 3+ times — route it to the rule-capture path (the `AskUserQuestion` header "Capture as rule", hand-off to `/geniro:instructions create`), NOT to the §Presentation prompt. This avoids prompting the user twice for the same rule. Two cases:
 
-- A skill with a **standalone recurrence offer** (`/refactor` §3.6→§3.5, `/debug` §3.3) fires that offer first, then §Presentation for the remaining (non-recurrence) candidates — deduped so the same rule is never offered twice.
-- A skill with **no standalone recurrence offer** (`/implement`, `/review`) routes a `Recurrence-eligible: yes` candidate straight to `/geniro:instructions create`, and sends the rest to §Presentation.
+- A skill with a **standalone recurrence offer** (`/refactor`'s and `/debug`'s recurring-pattern rule offers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md`) fires that offer at its own site; any §Presentation walk covering the same run dedupes against it so the same rule is never offered twice.
+- A caller with **no standalone recurrence offer** (`/geniro:reflect`) routes a `Recurrence-eligible: yes` candidate straight to `/geniro:instructions create`, and sends the rest to §Presentation.
 
 ## Presentation
 
@@ -192,4 +178,4 @@ Write each approved candidate before rendering the next — for `.geniro/instruc
 
 An empty candidate list opens no `AskUserQuestion` — skip the walk entirely — but the `Reviewed for improvements: 0 candidate(s)` echo still fires (per §"Anchor + echo").
 
-Read-only skills route instead of apply — `/geniro:review` runs the same one-at-a-time render, but the per-candidate options become "Capture this rule" / "Skip this rule" / "Skip the rest", handing instruction-scoped picks to `/geniro:instructions create` and listing CLAUDE.md / `.claude/rules/` / ADR picks in chat for the user to apply (it writes no project file); see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.7.
+A read-only caller routes instead of applies — it runs the same one-at-a-time render, but the per-candidate options become "Capture this rule" / "Skip this rule" / "Skip the rest", handing instruction-scoped picks to `/geniro:instructions create` and listing CLAUDE.md / `.claude/rules/` / ADR picks in chat for the user to apply (it writes no project file).

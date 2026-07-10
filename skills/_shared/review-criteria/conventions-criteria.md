@@ -8,9 +8,8 @@ Statistical pattern inference across siblings. Flags deviations from the modal p
 - What to Check
 - What This Dimension Does NOT Cover
 - How to Detect — Worked Example
-- Output Format
 - [NEW] vs [PRE-EXISTING] Tagging
-- Common False Positives
+- Common false positives
 - Stack-Agnostic Patterns
 - Cross-PR Convention Drift (peer-PR context)
 - Review Checklist
@@ -32,8 +31,6 @@ For every pattern category checked, follow this recipe before emitting any findi
 6. **Skip ambiguous splits.** A 60/40 or three-way split means multiple valid patterns coexist — flagging would be bikeshedding. Stay silent.
 7. **Skip when N<3.** Fewer than 3 siblings makes the modal threshold unreliable. Stay silent — too few samples to call a "house style".
 8. **Cite the supporting samples.** Every emitted finding lists the sibling paths that establish the modal — a finding with no evidence paths is bikeshedding and is not emitted.
-
-The 80% threshold, the N≥3 minimum, and the skip-ambiguous rule are the load-bearing constraints. Apply them at every category — they prevent this dimension from devolving into bikeshedding.
 
 ## What to Check
 
@@ -226,12 +223,6 @@ Counter-example: same PR, but only 2 sibling components exist (`Avatar.tsx`, `Ca
 
 Counter-example: 4 of 7 siblings use named exports, 3 use default. 57% — ambiguous split, multiple valid patterns coexist. Skip silently. No finding.
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-Every finding must cite the supporting sample paths in its evidence, or it is not emitted. A finding without evidence paths is bikeshedding — the threshold is structural, not opinion.
-
 ## [NEW] vs [PRE-EXISTING] Tagging
 
 Style findings on legacy code are noise. Use the diff context pre-inlined by the orchestrator (the same field bugs and security reviewers receive) to tag every finding:
@@ -241,7 +232,7 @@ Style findings on legacy code are noise. Use the diff context pre-inlined by the
 
 Reviewers should never block a PR on [PRE-EXISTING] convention drift. If pre-existing drift dominates the file, surface it as a single informational note rather than a per-line flood. The Phase 3 §3.3 KEEP/FILTER judgment demotes [PRE-EXISTING] findings — just tag accurately.
 
-## Common False Positives
+## Common false positives
 
 1. **Greenfield / N<3 siblings** — Modal threshold unreliable. Skip silently. Do not emit findings. (See Methodology Step 7.)
 2. **Modal split (60/40 or three-way)** — Multiple valid patterns coexist. Flagging would be bikeshedding. Stay silent.

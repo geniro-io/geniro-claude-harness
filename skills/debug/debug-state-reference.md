@@ -12,7 +12,7 @@ Detail sections extracted from `skills/debug/SKILL.md` to keep the main skill bo
 6. Adversarial Mode templates — A5 spawn prompt + A6 findings template
 7. Extended examples — Intermittent Timeout + Verify Recent Changes
 8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
-9. `diagnosis` emit — canonical `emit_learning` call shape (Phase 3 §3.3)
+9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5)
 
 ---
 
@@ -77,7 +77,7 @@ Body sections (Scientific Mode):
 - `## Inputs from <producer>` (optional, T2 input consumed at Phase 1)
 - `## Symptom`
 - `## Reproduction Steps`
-- `## Feedback Loop` (Command / Expected output / Actual output / Re-run cost / Determinism)
+- `## Feedback Loop` (Command — the minimised form / Expected output / Actual output / Re-run cost / Determinism — includes any rate-raising attempt + outcome for intermittent bugs)
 - `## Hypotheses` (Hypothesis / Evidence For / Evidence Against / Status / Test Plan / Result per hypothesis)
 - `## Root Cause`
 - `## Proposed Fix`
@@ -406,9 +406,13 @@ Phase 1 (Scientific Mode) sub-step referenced from SKILL.md §1.2. Checks whethe
 
 ---
 
-## 9. `diagnosis` emit — canonical `emit_learning` call shape
+## 9. L2 emit payload shapes — canonical `emit_learning` call shapes
 
-The Phase 3 §3.3 diagnosis emit. `emit_learning` reads a single JSON object on stdin; a YAML payload exits 64, and mis-named or missing `ext` sub-fields silently drop the typed extension. Mirror this shape exactly — the field names below match the helper contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Example callers, including the `diagnosis`-required `ext.{symptom, root_cause, fix}`:
+`emit_learning` reads a single JSON object on stdin; a YAML payload exits 64, and mis-named or missing `ext` sub-fields silently drop the typed extension. Mirror the shapes below exactly — the field names match the helper contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Example callers.
+
+### `diagnosis` (Phase 3 §3.3)
+
+Required `ext.{symptom, root_cause, fix}`:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
@@ -430,3 +434,25 @@ EOF
 ```
 
 Substitute the run's real values: `scope` = the affected file/module path glob; `summary` = the one-line root-cause statement; `tags` inferred from affected files + hypothesis category; `ext.symptom` / `ext.root_cause` / `ext.fix` = the confirmed observation, isolated cause, and proposed patch. After a `rc=0` return, echo `Recorded learning: <summary>` per the helper's §Caller contract — the helper writes silently, so the echo is the only in-session signal it ran. On a non-zero return, surface the plain-English failure line (rc=64 missing field / 68 oversized / 69 write-failed) rather than swallowing it.
+
+### `discarded_hypothesis` (Phase 1 §1.5)
+
+Same invocation form (`source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"` + heredoc). Required `ext.{hypothesis, evidence_against, tested_by}`:
+
+```json
+{
+  "producer": "/geniro:debug",
+  "scope": "services/payments/refunds.py",
+  "summary": "env-vars differ — eliminated (env identical local/CI)",
+  "tags": ["bug", "ci", "env-vars"],
+  "type": "discarded_hypothesis",
+  "ext": {
+    "hypothesis": "env-vars differ between local and CI",
+    "evidence_against": "diff <(env | sort) <(ssh ci env | sort) returns empty",
+    "tested_by": "manual env diff"
+  },
+  "trust": "verified"
+}
+```
+
+Substitute the run's real values: `scope` = the file/module the hypothesis targeted; `ext.evidence_against` = the captured artifact that eliminated it (per the Evidence Standard, not narrative).

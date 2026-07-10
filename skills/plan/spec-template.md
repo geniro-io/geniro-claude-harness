@@ -156,6 +156,8 @@ Body sections beyond the 11 (allowed):
 
 ## Per-section content guidance
 
+**Code snippets (any section):** a snippet belongs in a section only when it encodes a decision more precisely than prose can — a schema, type shape, state machine, or API contract — trimmed to the decision-rich parts. Keep working-demo code out of the spec: it goes stale fast, and /geniro:implement re-derives it from the cited files anyway.
+
 **Section 1 (Objective):** ONE sentence. NOT a problem statement, NOT a user story, NOT a title — a declarative goal. The problem framing belongs in the optional `## Problem & Evidence` section (PRD-mode), never in section 1. Examples:
 - ✅ "Add OAuth login to the customer portal."
 - ❌ "We need OAuth because users keep complaining about password resets." (problem statement, not objective — belongs in `## Problem & Evidence`)
@@ -198,6 +200,8 @@ The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3
 
 **Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 handoff-resolution step). Use "none" if /geniro:implement may run autonomously start-to-finish.
 
+**Section 9 (Validation):** for each criterion verified by tests, name the public seam the test enters through — the exported function, endpoint, or CLI command a real caller uses (e.g. `POST /api/orders`, `checkout(cart, payment)`). Prefer an existing seam over a new one, and the highest seam that still observes the behavior (seam vocabulary: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md`); cite prior art — a similar existing test file — when one exists. Leaving the seam unnamed defers the choice to /geniro:implement mid-build, where a wrong seam surfaces as a review finding instead of at the section-approval gate.
+
 **Section 10 (Rollback-Recovery):** "none — pure additive" is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is "none" — it auto-fails if body is empty.
 
 **Sections 4, 5, 10 for Trivial tasks:** may have body content "none — task scope precludes" with brief rationale. All 11 headers stay present even for Trivial tasks — the Phase 7 schema_completeness check parses the section headers and fails validation if one is missing; the body under a non-applicable header may be "none with rationale".
@@ -208,4 +212,6 @@ If Phase 5 milestone-mode was picked, Phase 6 emits:
 - `spec.md` — top-level with section 6 "Steps" listing milestone names as the same `- [ ] N. <milestone name>` checkboxes (not raw steps) + a body section `## Milestones` indexing the sibling files.
 - `milestone-1.md`, `milestone-2.md`, …, each with its own 11-section schema scoped to the milestone.
 
-Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md.
+Each `milestone-N.md` frontmatter MAY add `parent_spec: <task-slug>` to link back to the top-level spec.md, and MAY add `blocked_by: [<milestone numbers>]` listing the milestones that must land first — omit `blocked_by` when strict ordinal order is the real dependency. The `## Milestones` index in spec.md mirrors the `blocked_by` edges, so the user can work the frontier — any milestone whose blockers are all done — rather than only top-to-bottom.
+
+In `milestone-N.md` for N ≥ 2, pair each step's `file:line` citation with a symbol anchor (the function or type name at the cite) — earlier milestones shift line numbers before this spec is consumed, and the symbol lets /geniro:implement's spec fact-check re-resolve the reference instead of flagging it stale.

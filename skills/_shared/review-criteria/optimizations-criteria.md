@@ -6,8 +6,7 @@ Concrete, measurable performance wins on the changed lines: skip ORM hydration o
 
 - Scope Boundary — Defers to `architecture-criteria.md`
 - What to Check
-- Output Format
-- Common False Positives
+- Common false positives
 - Stack-Agnostic Patterns
 - Cross-PR Hot-Path Work (peer-PR context)
 - Review Checklist
@@ -197,11 +196,7 @@ grep -nB2 -A1 "for\|while" file.ts | grep "\.set("
 - Migration script per-row `UPDATE` instead of one `UPDATE... WHERE id IN (...)`
 - Cache warmup loop with per-key `client.set` instead of `client.mset` / pipeline
 
-## Output Format
-
-Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-
-## Common False Positives
+## Common false positives
 
 1. **Detached entity mutation** — `.lean` / `raw:true` / `HYDRATE_ARRAY` / `disableIdentityMap` returns objects that cannot be saved through the ORM. Flag mutate-then-save paths only when the path is read-only; do not flag pure-read paths that already use these mechanisms, and never recommend skipping hydration on a path that calls `.save` afterward.
 2. **defer/only/load_only N+1 footgun** — Django `.only` and SQLAlchemy `load_only` trigger an extra `SELECT` when a deferred column is later accessed. Flag deferred-then-accessed patterns; do not flag use of these on truly write-once-read-rare columns where the deferred access path is cold.
