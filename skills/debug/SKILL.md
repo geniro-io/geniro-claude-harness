@@ -184,28 +184,34 @@ A feedback loop is a fast (≤30s, ideally ≤5s), deterministic, captured signa
 **Quality bar:**
 - **Fast** — re-runs in seconds. If only loop possible takes 5 minutes, shrink scope (smaller payload, in-memory mock, skip auth).
 - **Deterministic** — same input → same observed failure (3-run signature comparison). If 3 consecutive runs produce 3 different signatures, you have a flake or two bugs — note this in state.md before continuing.
+- **Intermittent?** Raise the reproduction rate rather than chasing a clean single-shot repro — loop the trigger 100×, parallelise, add load, inject sleeps to widen timing windows; remove unrelated nondeterminism by pinning time, seeding RNG, and isolating the filesystem. A 50% failure rate is debuggable; 1% is not. Record the attempt and its outcome in `## Feedback Loop` — the §2.4 repro-infeasible escape hatch opens only after this record exists.
 - **Captured** — artifact satisfies Evidence Standard kinds 2-5 (failing assertion, log line, query result). "I see it crash" is not a captured artifact.
+- **Red on the right bug** — exit loop construction only when you can name one command, already run at least once with its invocation and captured output recorded, whose failure IS the symptom the user described — not a nearby failure. The wrong bug yields the wrong fix. Reading code to build a theory before this command exists is the tell: stop and return to loop construction.
 
 If 10 minutes pass without a working feedback loop, do NOT proceed by guessing — `AskUserQuestion` with header "Repro signal" — paste log / run command / mark intermittent + investigate without loop.
 
-Persist to state.md `## Feedback Loop` body section: Command / Expected output / Actual output / Re-run cost / Determinism.
+**Minimise.** Once the loop is red on the right bug, shrink the repro to the smallest scenario that still fails: cut inputs, config, data, and steps one at a time, re-running the loop after each cut. Done when every remaining element is load-bearing — removing any one turns the loop green. A minimal repro shrinks the §1.4 hypothesis space and converts into the §2.4 reproduction test with little rework.
+
+Persist to state.md `## Feedback Loop` body section: Command (the minimised form) / Expected output / Actual output / Re-run cost / Determinism (including any rate-raising attempt + outcome for intermittent bugs).
 
 > **NOT the reproduction test.** The reproduction test is a unit/integration test in the project framework that ships with the fix as the regression guard. The feedback loop is a fast-iteration scratch signal so you can move quickly. The test STAYS on disk; the scratch signal is reverted at Cleanup.
 
 ### 1.4 Hypothesize
 
-Based on Observation + Feedback Loop output, form **2-3 competing hypotheses**. Each must be testable against the feedback loop — each hypothesis test toggles one variable, re-runs the loop, and observes whether the captured signature changes.
+Based on Observation + Feedback Loop output, form **2-3 competing hypotheses**. Each must be testable against the feedback loop — each hypothesis test toggles one variable, re-runs the loop, and observes whether the captured signature changes. State each hypothesis as a falsifiable prediction — "if <X> is the cause, then <toggling Y> changes the captured signature in <way Z>". A hypothesis whose prediction you cannot state is a vibe, not a hypothesis — sharpen it or discard it.
 
 **Consider infrastructure causes alongside code causes** per § Infrastructure Investigation below. If symptoms include timeouts, intermittent failures, or environment-only manifestation, form at least one infrastructure hypothesis. **Deep-mode branch (`deep-mode: true`):** generate the hypothesis set via a 3× independent fan-out inside an internal `Workflow(...)`, then UNION + DEDUP (dedup key = hypothesis mechanism + targeted file/module) into one candidate set before the §1.5 test loop consumes it; the §1.5 testing stays orchestrator-inline (recall multiplies generation, not testing). Per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` §2; fail-safe to the single-pass synthesis below if the workflow errors.
 
 Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypothesis / Evidence For / Evidence Against / Status: pending → testing → confirmed | rejected | inconclusive / Test Plan / Result — per the body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2).
+
+**Render the ranked hypothesis list to chat before testing begins** — plain narration, NOT a gate: do not fire AskUserQuestion and do not block for a response. The user often re-ranks the list instantly from domain knowledge or names a hypothesis already ruled out, and a correction that arrives before the first test costs nothing.
 
 > **Inconclusive** means the test could not distinguish whether the hypothesis is true or false. Common causes: (1) test environment differs from production, (2) bug is intermittent and didn't manifest, (3) test was too coarse, (4) multiple interacting causes mask effects. Inconclusive is NOT a rejection — you need a better test or more data.
 
 ### 1.5 Test each hypothesis + missing-data gate
 
 - Design a minimal test per hypothesis. The test must produce a captured artifact per Evidence Standard kind 2-5.
-- Add logging, breakpoints, or unit tests to gather evidence.
+- Add logging, breakpoints, or unit tests to gather evidence. Tag every debug log line with one unique per-run prefix (e.g. `[DBG-a4f2]`) — §3.5 cleanup then reduces to a single grep, and no untagged straggler survives into the escalated diff. For performance symptoms, logs are the wrong instrument: capture a baseline measurement first (timing harness, profiler, query plan — § Isolation Techniques) and test hypotheses against the number.
 - Do NOT implement a fix yet — you're gathering data.
 - **Missing-data gate:** if testing requires data the orchestrator's tools cannot reach (production logs, runtime state, third-party API responses, DB rows behind credentials, screenshots), do NOT mark the hypothesis inconclusive by default. `AskUserQuestion` with header "Missing data" — 2-4 concrete options for the specific artifact needed. When the user picks "I don't have it" or "Skip this hypothesis", persist a structured `open_questions[]` entry to state.md frontmatter with `source: phase-1-missing-data-gate`, `question: <verbatim missing-data prompt>`, `related_hypotheses: [<H-ID>]`, `status: unresolved`. The Phase 3 §3.0 Pre-gate surfaces it again before the escalation AUQ — sometimes the user discovers the missing artifact after the investigation completes and wants to amend.
 - "Paste the failing log line at the time of the error" / "Paste the request body that triggered the error" / "I don't have it — mark inconclusive"
@@ -213,21 +219,7 @@ Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypo
 - "Provide a screenshot of the broken state" / "I don't have it — skip"
 - Record results: confirmed / rejected / inconclusive. Every Result: field MUST cite an artifact per Evidence Standard. "Confirmed" with narrative-only Result is rejected.
 
-**L2 emit on REJECTED:** For each hypothesis transitioning to `Status: rejected` (eliminated by a test that produced contradicting evidence), call `emit-learning` with type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections in one Phase 1 = multiple emits).
-
-Example payload:
-```json
-{
-"producer": "/geniro:debug", "scope": "services/payments/refunds.py",
-"summary": "env-vars differ — eliminated (env identical local/CI)",
-"tags": ["bug", "ci", "env-vars"], "type": "discarded_hypothesis",
-"ext": {
-"hypothesis": "env-vars differ between local and CI",
-"evidence_against": "diff <(env | sort) <(ssh ci env | sort) returns empty",
-"tested_by": "manual env diff"
-}, "trust": "verified"
-}
-```
+**L2 emit on REJECTED:** For each hypothesis transitioning to `Status: rejected` (eliminated by a test that produced contradicting evidence), call `emit-learning` with type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections in one Phase 1 = multiple emits). Canonical payload shape: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9.
 
 **Sliding-window cap:** keep at most 5 latest `discarded_hypothesis` entries per `(producer, scope)`. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; if ≥5, mark the oldest matching entry `deprecated: true` BEFORE appending the new one. This field-flip is a mutation of `.geniro/knowledge/learnings.jsonl`, which the state-helper enforcement hook guards — perform it through the atomic-write path (rewrite the file via `atomic_state_write`, not a direct `Edit`/`Write`), and rely on the `enforce-state-helper` allow-pattern in `.geniro/safety.json` only if the atomic path is unavailable. Prevents discarded-hypothesis chatter from drowning out `diagnosis` entries at retrieval time.
 
@@ -307,13 +299,15 @@ Persist to state.md `## Proposed Fix` body section.
 
 **Author the reproduction as a unit/integration test in the project's test framework**, placed at the project's normal test path next to the source it covers. Detect framework + naming convention from CLAUDE.md Essential Commands + an exemplar test file. Scripts / curl / ad-hoc queries are NOT acceptable substitutes — they get deleted at Cleanup and leave no regression guard.
 
+**Seam correctness.** Author the test at a seam that exercises the bug pattern as it actually occurred — a single-caller unit test for a multi-caller interaction bug passes without guarding the regression and buys false confidence. When no correct seam exists, that absence is itself a finding: record it in the findings template's "Special handling" field so the consumer knows the regression is not locked down.
+
 **Test name + comments rule.** The reproduction test name AND any comments inside the test describe the bug behavior — the input, condition, or observable failure — never the hypothesis number from `## Hypotheses` or any other thread-local label. Tags like `Bug A/B/C`, `Hypothesis 1/2`, `Test 1`, `Case X`, `Issue #N from this run`, `regression from review run`, `found by review-gate`, or `confirmed by this <skill> run` are meaningless once the investigation ends. Prefer `cacheKey omits userId so role change leaves stale cached profile` over `Bug C`.
 
 **F→P invariant.** Pre-fix: run the authored test ≥2× and confirm the SAME failure signature both times (same exception type + same failing assertion). Two divergent failures are NOT confirmation — investigate flakiness or two bugs before continuing.
 
 **Verify the proposed fix — monkey-patch in the test by default; production-source edits are an explicit escape hatch.** Apply the patch locally as a monkey-patch inside the authored test file (mock, fixture, test-local shim, or a throwaway helper imported only by the test). Re-run the authored test ≥2× post-fix and confirm the failure DISAPPEARS both times. If the bug genuinely cannot be verified without editing production source (hard-to-mock chain — DI container, framework hook, native module, generated code), list every touched production file under "Verification edits to revert:" in the findings, confirm each is reverted before escalation, and re-run `git diff` to prove the working tree contains only the reproduction test. **Deep-mode branch (`deep-mode: true`):** give the fix→test judgment 3 INDEPENDENT verifiers and take a majority vote (does the monkey-patched fix genuinely turn the F→P test red→green, AND is the test a strong regression guard, not too weak); the `adversarial-tester-agent` stays a SINGLE spawn even in deep mode. Per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` §3 (abstain/quorum rules, the native-precision rationale, fail-safe to the single-pass monkey-patch verify above).
 
-**Escape hatch — non-deterministic bugs only.** If the bug is genuinely non-reproducible at the test layer (race conditions only seen under load, environment-only failures, UI flake), render the investigation context to chat first, then fire the lean `AskUserQuestion` — both per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored):
+**Escape hatch — non-deterministic bugs only, after rate-raising.** Available only after the §1.3 rate-raising attempt was made and its outcome recorded in `## Feedback Loop` — a bug never looped, parallelised, or load-tested is not yet "non-reproducible". If the bug genuinely cannot be reproduced at the test layer even at a raised rate (race conditions only seen under load, environment-only failures, UI flake), render the investigation context to chat first, then fire the lean `AskUserQuestion` — both per the canonical shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored):
 - `header: "Repro infeasible"`
 - `question`: plain-English root-cause title + `path:lines` (or "unknown" if not isolated)
 - Options: regression-guard alternatives — "Add runtime assertion" / "Author fuzz seed" / "Add monitor/alert" / "Skip regression guard" (description carries one-line trade-off)
@@ -408,7 +402,7 @@ Present a human-readable findings summary before the escalation question fires �
 
 **Reproduction test:** [<path>, <F→P status — example: "verified red on current code; verified green under throwaway patch"> — OR — "escape hatch: <alternative guard with rationale>"]
 
-**⚠️ Special handling:** [codegen, migrations, schema changes, env/config updates — or "none"]
+**⚠️ Special handling:** [codegen, migrations, schema changes, env/config updates, no correct test seam — regression not locked down (§2.4) — or "none"]
 
 **⚠️ Stall-flagged?** [omit if stall gate did NOT fire; if it did: "Yes — cause not fully isolated; <component> identified as missing. Receiving skill should treat this as a starting point, not a closed investigation."]
 
@@ -455,6 +449,7 @@ After L2 emit, follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 | New/changed commands discovered during debugging | `CLAUDE.md` (Essential Commands section) | L3 semantic |
 | Non-obvious debugging insights / workarounds | `.geniro/knowledge/learnings.jsonl` (via `emit-learning`) | L2 episodic |
 | Skill-behavior quality gates / workflow steps user enforced manually | `.geniro/instructions/debug.md` or `.geniro/instructions/global.md` | L4 procedural |
+| Architecture prevented locking the bug down — no test seam, tangled callers, hidden coupling (ask "what would have prevented this bug?" after the §3.3 diagnosis emit) | Improvement candidate routed to `/geniro:plan` (design change) or `/geniro:refactor` (decoupling) | L3 semantic / L4 procedural |
 
 Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 
@@ -463,7 +458,7 @@ Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
 After Phase 3 completes (escalated, accepted, or user-handles):
 
 - **Scientific-method mode only:** `rm -rf .geniro/state/debug/<slug>/` for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any experiment artifact written under it (§2.3 permits scratch there) goes with `state.md`; nothing under `.geniro/state/debug/<slug>/` is read after the run, and the migration sweep does not scan `.geniro/state/`, so a leftover there would have no backstop. Its useful content is already saved (root cause, repro, hypotheses-tested-and-rejected, accepted limitations) via L2 emit + the persisted handoff at `.geniro/state/handoff/`. Do NOT delete sibling slugs from concurrent debug sessions on other branches.
-- **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. The reproduction test (authored at project's normal test path) STAYS on disk — it ships with the fix as the regression guard.
+- **Scientific-method mode only:** Remove debug scripts, scratch reproductions, the feedback-loop scratch signal, and ad-hoc curl/query files created during investigation. Grep the run's debug-log prefix (§1.5, e.g. `[DBG-a4f2]`) across the worktree and confirm zero hits before declaring cleanup done. The reproduction test (authored at project's normal test path) STAYS on disk — it ships with the fix as the regression guard.
 - **Scientific-method mode only:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` must remain on disk as the escalation handoff channel, so do not delete it. Stays until next debug run overwrites it (single file per branch).
 - Kill any background processes started during investigation (dev servers, watchers, profilers).
 - **Adversarial mode:** `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` may remain as audit trail; authored test files stay on disk (unlike scientific-method experiments which get reverted).

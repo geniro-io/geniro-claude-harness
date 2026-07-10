@@ -552,7 +552,7 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
 
 1. **Read spec source** — Phase 1 resolved either a spec.md path OR wrote `## Inline Plan` to state.md body. Inline-Read the spec.md (full body) and the Codebase-Explorer "Likely-Touched Files" + "Reuse Inventory" sections.
 
-2. **Decompose into todos via TodoWrite (Phase 2 entry — before any Edit).** Author N concrete edit-tasks via TodoWrite. Each todo = one logical unit of change (e.g., "Add migration X", "Update Y controller", "Add Z test"). N typically:
+2. **Decompose into todos via TodoWrite (Phase 2 entry — before any Edit).** Author N concrete edit-tasks via TodoWrite. Each todo = one logical unit of change, sliced vertically — one behavior paired with the test that pins it (e.g., "Add migration X + test the new column round-trips", "Add expiry check to Y controller + test expired tokens get 401") — never horizontally (all production edits first, then a trailing "add tests" todo). Tests authored in bulk after the code pass on first run and discriminate nothing; pairing each behavior with its test keeps every test anchored to a change it actually observed. N typically:
    - 1-3 todos for Small scope
    - 3-10 todos for Medium scope
    - up to 15 todos for Big scope (unless already split into milestones)
@@ -572,8 +572,6 @@ No custom-instructions or project-snapshot refresh at Phase 2 entry — both rem
        d. Mark todo completed via TodoWrite
        e. Move to next todo
    ```
-
-   No parallel subagent fan-out for code edits. Single orchestrator owns context throughout Phase 2.
 
    **Comment discipline.** Match the surrounding file's comment density and idiom. Write a comment only where the code cannot show the constraint itself — a non-obvious WHY, an invariant the types don't express, a legal header, a TODO with an issue reference. Never restate what a line does, narrate the change being made ("added X", "now handles Y"), or address the reviewer — those comments are noise the moment the diff merges, and the reviewer reads the diff, not annotations. A per-project `code-style.md` rule overrides this default where they conflict.
 
