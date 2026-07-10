@@ -22,6 +22,22 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RS="$REPO_ROOT/evals/run-suite.sh"
 SUITE="$REPO_ROOT/evals/suites/plan/evals.json"
 
+# The loop tests need the pinned judge prompts from the evals/vendor/skills submodule.
+# A clone made without --recurse-submodules lacks them and every loop test dies rc=65 at
+# the pre-flight guard — an environment gap, not a code defect. Try a one-shot init; if
+# the submodule still isn't there (offline / restricted network), skip the suite OUTSIDE
+# CI with one clear line. In CI the checkout is submodules:true, so a missing submodule
+# there is a real misconfiguration and must stay a hard failure.
+VENDOR_PROBE="$REPO_ROOT/evals/vendor/skills/skills/skill-creator/agents/comparator.md"
+if [ ! -f "$VENDOR_PROBE" ]; then
+  git -C "$REPO_ROOT" submodule update --init evals/vendor/skills >/dev/null 2>&1 || true
+fi
+if [ ! -f "$VENDOR_PROBE" ] && [ -z "${CI:-}" ]; then
+  echo "SKIP: evals/vendor/skills submodule not checked out and auto-init failed —"
+  echo "      run: git submodule update --init evals/vendor/skills"
+  exit 0
+fi
+
 TMPDIR_BASE="$(cd "$(mktemp -d)" && pwd -P)"
 ORIGINAL_PWD="$PWD"
 trap 'cd "$ORIGINAL_PWD"; rm -rf "$TMPDIR_BASE"' EXIT
