@@ -115,7 +115,7 @@ For `needs-clarification` items only (skip the phase when none). Each ambiguous 
 
 ## Task execution entry / state recovery
 
-State file: `.geniro/state/resolve/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules). On entry, `Glob` for it; if present, run the helper § Consumer contract and resume from the next incomplete phase. Validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before resuming. Write each phase transition through `atomic_state_write` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`); a terminal phase (`done`/`aborted`) is final.
+State file: `.geniro/state/resolve/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules). On entry, `Glob` for it; if present, run the helper § Consumer contract and resume from the next incomplete phase. Validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before resuming. Write each phase transition through `atomic_state_write` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`); a terminal phase (`done`/`aborted`) is final. Unlike the other within-skill skills, `/resolve` does NOT `rm -rf` its slug dir at terminal exit — the `spec.md` it produces is the deliverable `/geniro:implement` consumes, so the dir is retained past terminal (as `/plan` retains its planning task-dir).
 
 ## Anti-rationalization
 
