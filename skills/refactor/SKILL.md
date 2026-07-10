@@ -424,25 +424,9 @@ At Phase 3 exit:
 
 **Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
 
-### 3.6 Suggest improvements (project scope only, routes)
+Rule/improvement mining moved to `/geniro:reflect` — run it on demand to analyze recent sessions for durable rule candidates.
 
-Runs after the §3.5 emit + recurrence offer. Source the improvement candidates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed":
-
-- **Medium and Big** (the tiers where §3.2 reviewers ran) — spawn `reflection-agent` (mode `refactor`): pass the working-tree diff, the §3.3 findings + disposition, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope refactor/<scope>`).
-- **Trivial and Small** — no reviewer batch ran and the diff is small; draft candidates inline against the §Candidate bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` (four gates + significance floor + cap; zero candidates is the common outcome), then the routing table below, rather than spawning an agent.
-
-Route any `Recurrence-eligible: yes` candidate to the §3.5 rule-capture offer (deduped against what §3.5 already offered) so the user is never prompted twice for the same rule; surface the remaining candidates via the helper's §Routing table + §Presentation. Echo `Reviewed for improvements: <N> candidate(s)` even at zero — only the prompt is skipped when none. Refactor runs typically surface:
-
-| Insight category | Target | layer |
-|---|---|---|
-| Undocumented coding conventions / style patterns discovered during refactor | `.claude/rules/<scope>.md` with `paths:` glob frontmatter | L4 procedural |
-| Surprising coupling between modules revealed during execution | `.geniro/knowledge/learnings.jsonl` (typically already covered by discovery emit) | L2 episodic |
-| Patterns that should be auto-enforced | Project rules/hooks (out of plugin scope — point user to project tooling) | — |
-| Skill-behavior constraints the user enforced manually during refactor | `.geniro/instructions/refactor.md` or `.geniro/instructions/global.md` | L4 procedural |
-
-Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
-
-### 3.7 Cleanup
+### 3.6 Cleanup
 
 After Phase 3 completes:
 

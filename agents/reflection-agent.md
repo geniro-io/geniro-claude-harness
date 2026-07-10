@@ -1,6 +1,6 @@
 ---
 name: reflection-agent
-description: "Post-task improvement synthesizer. Use after a task's work settles (/implement Phase 3, /refactor Phase 3, /review Phase 6) to extract durable project-rule candidates from the change — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
+description: "Post-task improvement synthesizer. Spawned by /geniro:reflect (user-invoked, on-demand) to extract durable project-rule candidates from recent work — a diff, a finding set, or session-transcript extracts — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
 maxTurns: 50

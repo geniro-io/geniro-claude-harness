@@ -690,16 +690,6 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 ---
 
-### Suggest Improvements (project scope only)
-
-Fires only when the codebase-explorer reported `change_scope: big`; smaller scopes skip the step entirely — no spawn, no echo (rationale at Ship step 4). When it fires: spawned as Ship step 4 **in the background** (`run_in_background: true`), then the Ship-mode AUQ fires without waiting — the candidates are not an input to the ship decision, so blocking on them only makes the user wait. The drop-vector protection (a post-deliverable step trailing the PR is the documented drop vector, same failure mode the learnings emit's ordering rule guards against) moves from synchronous-before-the-gate ordering to two anchors: the visible pre-gate spawn plus the step 9 drain-before-terminal check. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn".
-
-Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" (mode `implement`): pass the committed diff + changed-file list, the Phase 3 reviewer findings, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`). The agent returns only candidates that passed the helper's §Candidate bar (each tagged `Significance: critical | general` with an `Evidence:` citation; zero candidates is the common outcome); route any `Recurrence-eligible: yes` candidate to the rule-capture offer (`/geniro:instructions create`) rather than the improvements prompt, and surface the rest via the helper's §Routing table + §Presentation. Echo `Reviewed for improvements: <N> candidate(s)`; skip the prompt silently when the agent returns none.
-
-`AskUserQuestion` is always-WAIT here. Skip findings already captured by the learnings-emit step; this step focuses on **structural improvements** (where the project records the rule) rather than knowledge capture. Plugin-file improvements (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope — submit a PR to the plugin repo OR edit your local plugin install directly.
-
----
-
 ### Integration Updates
 
 **Worktree:** if working in a worktree (from Phase 1 workspace decision), leave the session in it. Do NOT call `ExitWorktree` proactively — runtime already prompts on session exit to keep or remove the worktree.
@@ -714,7 +704,7 @@ Spawn `reflection-agent` to synthesize candidates per `${CLAUDE_PLUGIN_ROOT}/ski
 
 Execute any user-authored post-ship steps from the loaded L4 `<skill>.md` (`.geniro/instructions/implement.md`). Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-ship anchor is `### After ship` (`ship` is the final non-terminal phase enum value; post-ship steps run after its work completes). Run any subsection whose phase anchor is post-ship. When a step is conditioned on a PR existing and the run did not create one (ship-mode "commit only" / "no push"), skip it.
 
-Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The other plugin-defined Ship steps (Extract Learnings / Suggest Improvements / Integration Updates) cover plugin-defined work (some pre-AUQ, some post); this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
+Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes (e.g. "ask the user whether to create a preview environment, then invoke the project's `/preview` skill and append the URLs to the PR description"). The other plugin-defined Ship steps (Extract Learnings / Integration Updates) cover plugin-defined work (some pre-AUQ, some post); this step covers user-defined post-ship work. Integration Updates reads `.geniro/workflow/*.md` (tracker integrations) — a different channel — so without this step a `### After ship` block in `.geniro/instructions/implement.md` never fires.
 
 ---
 
@@ -774,7 +764,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 
 **Soft limits.** Big tweaks: after 2 rounds, suggest starting a new /geniro:implement session — fresh context provides clean separation. Medium/Small tweaks: after 3 rounds, surface a message recommending the user re-spec via `/geniro:plan`.
 
-**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). Pre-ship steps (Extract Learnings and the Suggest-Improvements background spawn) run once on first Ship entry and are NOT repeated on tweak rounds unless the tweak materially changes the learnings/improvement surface.
+**Loop target.** After any tweak, loop back to the Ship sub-step (Phase 3). The Extract Learnings step runs once on first Ship entry and is NOT repeated on tweak rounds unless the tweak materially changes the learnings surface.
 
 ---
 

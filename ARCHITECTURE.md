@@ -188,7 +188,7 @@ Every flag and modifier that pre-sets an interactive question across `/plan`, `/
 3 phases: Plan → Apply → Verify. Zero-behavior-change guarantee.
 
 - Adopts canonical 4-tier effort-scaling (Trivial/Small/Medium/Big).
-- Core smell-detection and per-step execution run orchestrator-inline; Phase-3 review (`reviewer-agent` + `reflection-agent`), on-demand `codebase-research-agent`, and the conditional backend-learnings read (`knowledge-retrieval-agent`, `SCOPE: learnings-backend`, only under a declared `## Memory Backend` block) use dedicated subagents.
+- Core smell-detection and per-step execution run orchestrator-inline; Phase-3 review (`reviewer-agent`), on-demand `codebase-research-agent`, and the conditional backend-learnings read (`knowledge-retrieval-agent`, `SCOPE: learnings-backend`, only under a declared `## Memory Backend` block) use dedicated subagents.
 - Blocked-step protocol: max 3 retries per step → mark BLOCKED and continue; >=30% blocked → escalation AUQ.
 - PRODUCT-DECISION findings escalate to `/implement` via AUQ (always-wait, 4-option ADR-aware).
 - NEVER ships code — diff is the deliverable.
@@ -269,10 +269,15 @@ Three additional L2 entry types + score-based query ranking.
 Long-running skills overlap a background research/critic spawn's wait with provably-independent work instead of blocking idle, per `skills/_shared/idle-overlap.md`. Wall-clock collapses from `agent + other` to `max(agent, other)`.
 
 - Two shapes: **A** — spawn the agent(s) `run_in_background: true` and, during the wait, fire a user question whose answer does not depend on the agent's output (the user reasons while the agent computes); **B** — co-fire mutually-independent agents that feed the same gate in one response.
-- Eligibility is strict: provably independent (dependency-DAG regime), never speculative; agent spawns only, never a fire-and-forget shell command. The contract reuses the reflection background-spawn anchors — visible spawn + drain-before-dependent-step + reconcile-against-live-state at the drain + unconditional echo.
-- Reflection spawns are conditional: `/review` §3.7 fires only when the finalized report keeps ≥3 findings; `/implement` fires only when codebase-explorer `change_scope` is big; `/refactor`'s synchronous spawn is unchanged. Whenever a background reflection fires, the anchors contract above governs it.
+- Eligibility is strict: provably independent (dependency-DAG regime), never speculative; agent spawns only, never a fire-and-forget shell command. The contract's anchors: visible spawn + drain-before-dependent-step + reconcile-against-live-state at the drain + unconditional echo.
 - Applied: `/plan` Phase 1 explore ↔ code-independent grill questions (Shape A); `/implement` Phase 1 knowledge-retrieval / codebase-explorer ↔ review/debug handoff open-questions (Shape A, handoff runs only — the common no-handoff run is unchanged). Shape B remains available wherever mutually-independent agents feed one gate.
 - Forbidden past Edit/Write-gating gates, Always-WAIT safety gates, and reviewer/verifier batches whose output feeds the gate — those stay synchronous.
+
+---
+
+## On-demand improvement mining (/reflect)
+
+Post-task project-rule mining is user-invoked, not ambient. `/geniro:reflect` spawns the read-only `reflection-agent` on demand over recent work — a diff, a finding set, or session-transcript extracts — and walks surviving candidates per `skills/_shared/improvement-routing.md` (§Candidate bar → §Routing table → §Presentation). `/implement`, `/review`, and `/refactor` no longer auto-spawn the agent after a run settles (the background-spawn/drain machinery that ordering required is retired); `/plan` and `/onboard` keep their inline candidate-drafting steps.
 
 ---
 

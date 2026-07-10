@@ -14,7 +14,6 @@ State.md `phase: action-gate` during this phase.
 - §2.6 — Handoff file template (written in Phase 5.1)
 - §3 — Step 0: open-decision per PRODUCT-DECISION finding (Invariant B initial flip)
 - §3.5 — Finalize report (draft → final) before the handoff is offered
-- §3.7 — Suggest improvements (reflection, read-only)
 - §4 — Action gate (consolidated decision)
 - §4.6 — Include-deferred gate (chained after the "/geniro:implement findings" pick)
 - §5 — Round-N escalation
@@ -335,26 +334,6 @@ The handoff written in Phase 5.1 carries `report_status: draft`. After §2.5 (Pr
 This is a re-verify-plus-one-field-flip, NOT a re-bake — the per-finding decisions already persisted in §3 step 4. The field exists so the §4 Action gate's handoff option and the §7.0 public-post guard can assert the report is no longer provisional: a report still at `draft` means a decision gate did not clear, and the handoff would route an un-finalized report. Keep this step — stripping it silently re-opens the handoff-offered-before-decisions-land failure mode.
 
 No AUQ fires here — finalize is silent. The user already answered the decision gates; a separate "finalize?" confirmation would be friction without new information.
-
----
-
-## 3.7 Suggest improvements (reflection, read-only)
-
-Spawns after §3.5 finalize and runs **concurrently with the §4 Action gate** — only when Phase 6 fires (a zero-actionable-findings run skips Phase 6 entirely per §1, and this step with it) AND the finalized report keeps ≥3 findings. Below that threshold there is too little signal to reflect on: skip the spawn and its echo entirely — no `Reviewed for improvements` line fires on a smaller report. When the step fires, steps 1-4 below apply unchanged. The reflection output is never an input to the Action decision, so it must not make the user wait: spawn it in the background, fire the Action gate immediately, and surface candidates when the agent returns (full protocol: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Background spawn"). /geniro:review is a read-only reporter: this step proposes project-rule updates but never writes a project file itself. The review diff is the strongest rule-discovery surface in the plugin — a convention violated across ≥3 findings is exactly the signal that should become a project rule (mirroring the ≥3-instance convention threshold; fewer is a one-off, not a rule candidate).
-
-1. **Spawn the reflection agent in the background (read-only).** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Reflection-agent feed" → §"Background spawn", spawn `reflection-agent` (mode `review`) with `run_in_background: true` via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (OMIT `model=`), then proceed to §4 without waiting. Pass: the kept findings (the same `## Findings` set the handoff carries), the diff they were raised against, the rule-file paths to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and prior declines (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope review/<branch>`).
-
-2. **Collect when the agent returns.** The harness re-invokes the orchestrator with the agent's candidates after the Action-gate decision has landed. Zero candidates: skip the AUQ only, but still echo `Reviewed for improvements: 0 candidate(s)` — the echo is unconditional per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Anchor + echo"; a silent zero is indistinguishable from a dropped step.
-
-3. **Surface candidates one at a time.** The agent returns only candidates that passed the §Candidate bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`. Walk them per that helper's §Presentation — one self-contained chat render per candidate (what the rule says / where it lands / why, with its `Significance:` tag and `Evidence:` citation; frame a `Dedupe: UPDATE <file:line>` verdict as amending the existing rule at that location, not a new sibling), then its own lean `AskUserQuestion`. Because /geniro:review never mutates project files, the per-candidate options route rather than apply:
-   - **"Capture this rule"** — hand an instruction-scoped pick (`.geniro/instructions/*`, `code-style.md`) to `/geniro:instructions create`; list a CLAUDE.md / `.claude/rules/` / ADR pick in chat for the user to apply manually or carry into `/geniro:implement`. /geniro:review writes none of them.
-   - **"Skip this rule"** — decline just this candidate; continue to the next.
-   - **"Skip the rest"** — decline this candidate and all remaining ones.
-   A `Recurrence-eligible: yes` candidate routes to `/geniro:instructions create` directly — it restates a rule already seen 3+ times.
-
-4. **Echo + log.** Echo `Reviewed for improvements: <N> candidate(s)`. On Skip or an explicit decline, log via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`; scope `review/<branch>`, category `improvement_candidate`) so the same suggestion does not re-surface next round.
-
-Advisory and non-blocking by construction: the background spawn lets the Action gate fire without waiting, and a spawn failure (or a runtime with background tasks disabled) fails open — collect synchronously instead, or skip with a one-line notice. **Drain before leaving Phase 6:** before any terminal transition — `Skip — keep findings on disk`, `/geniro:implement findings`, the Post-draft-then-cleanup path, or a round-N `escalate`/`abort` — and before a non-terminal `Continue rounds (re-review)` re-entry into Phase 1, if the agent has not returned, collect it first (`Read` the task output file or resume by ID) so the §Presentation walk + echo run before the transition. A terminal transition must not drop the reflection, and re-entering Phase 1 without draining would spawn a second reflection over an uncollected one.
 
 ---
 
