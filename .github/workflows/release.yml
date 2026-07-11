@@ -110,8 +110,11 @@ jobs:
         if: steps.bump.outputs.bump != 'none'
         run: |
           NEW_VERSION="${{ steps.next.outputs.version }}"
-          jq --arg v "$NEW_VERSION" '.version = $v' .claude-plugin/plugin.json > tmp.json
-          mv tmp.json .claude-plugin/plugin.json
+          # Both runtime manifests carry the same version — bump them in lockstep.
+          for manifest in .claude-plugin/plugin.json .cursor-plugin/plugin.json; do
+            jq --arg v "$NEW_VERSION" '.version = $v' "$manifest" > tmp.json
+            mv tmp.json "$manifest"
+          done
 
       - name: Commit version bump
         id: bumpcommit
@@ -120,7 +123,7 @@ jobs:
           NEW_VERSION="${{ steps.next.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude-plugin/plugin.json
+          git add .claude-plugin/plugin.json .cursor-plugin/plugin.json
           # [skip ci] keeps this bot commit from re-triggering the workflow.
           # Without it the patch default would treat the release commit as a
           # bump-worthy push and loop indefinitely.

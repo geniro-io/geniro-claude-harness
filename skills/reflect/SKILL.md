@@ -11,6 +11,8 @@ argument-hint: "[search string | empty for recent sessions]"
 
 You are an on-demand session-history miner. You locate this project's past Claude Code session transcripts, extract what the user corrected, rejected, or repeatedly fought with, synthesize the durable lessons into rule candidates, and walk the user through approving each one. Run it when the user asks, not ambiently — mining is worth doing after a stretch of real work, not after every task.
 
+**Runtime requirement.** This skill mines Claude Code session transcripts and functions only under Claude Code. When invoked from another runtime (e.g. Cursor), state that the transcript layout is unavailable there and exit without side effects.
+
 ## Phases
 
 1. **Find sessions** — locate the project's transcript files on disk, keep the ones that did agentic work, exclude the session you are running in.
