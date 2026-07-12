@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      { "command": "./cursor/hooks/claude-hook-shim.sh block-dangerous-git.sh", "timeout": 10 },
+      { "command": "./cursor/hooks/claude-hook-shim.sh block-geniro-deletion.sh", "timeout": 10 },
+      { "command": "./cursor/hooks/claude-hook-shim.sh file-protection.sh", "timeout": 10 },
+      { "command": "./cursor/hooks/claude-hook-shim.sh enforce-state-helper.sh", "timeout": 10 },
+      { "command": "./cursor/hooks/claude-hook-shim.sh enforce-tdd-order.sh", "timeout": 10 },
+      { "command": "./cursor/hooks/claude-hook-shim.sh security-pattern-check.sh", "timeout": 10 }
+    ],
+    "preToolUse": [
+      { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "command": "./cursor/hooks/claude-hook-shim.sh file-protection.sh", "timeout": 10 },
+      { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "command": "./cursor/hooks/claude-hook-shim.sh enforce-tdd-order.sh", "timeout": 10 },
+      { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "command": "./cursor/hooks/claude-hook-shim.sh enforce-state-helper.sh", "timeout": 10 },
+      { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "command": "./cursor/hooks/claude-hook-shim.sh security-pattern-check.sh", "timeout": 10 }
+    ],
+    "sessionStart": [
+      { "command": "./cursor/hooks/claude-hook-shim.sh session-start-restore.sh", "timeout": 15 }
+    ]
+  }
+}

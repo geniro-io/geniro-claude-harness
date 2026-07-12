@@ -316,6 +316,10 @@ claude plugin update geniro-claude-plugin@geniro-claude-harness
 
 Or run `/geniro:update` inside Claude Code — preserves user content, walks any breaking changes in MIGRATION.md, and emits a restart-session warning. The status line shows an arrow when updates are available.
 
+## Using with Cursor
+
+The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 7 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro-claude-plugin` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
+
 ## Plugin Structure
 
 ```
@@ -345,6 +349,11 @@ geniro-claude-plugin/
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer
 │   └── *.sh                     # Safety hook scripts
+├── .cursor-plugin/plugin.json   # Cursor manifest (shares skills/, points at cursor/)
+├── cursor/                      # Cursor runtime port
+│   ├── agents/                  # generated Cursor-format agents (scripts/build-cursor-agents.sh)
+│   ├── hooks.json               # Cursor hook wiring (camelCase events)
+│   └── hooks/claude-hook-shim.sh# Cursor→Claude hook I/O adapter
 ├── ARCHITECTURE.md              # Consolidated design decisions (state/memory/skills)
 ├── CLAUDE.md                    # Plugin instructions (auto-loaded)
 └── MIGRATION.md                 # Per-release breaking-change notes (consumed by /update)

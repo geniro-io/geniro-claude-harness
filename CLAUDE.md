@@ -188,6 +188,16 @@ To check what's available in your environment, look for `mcp__plugin_playwright_
 
 The plugin agents also carry a broad `mcp__*` grant so a project-configured **code-index** or **memory-backend** MCP (e.g. a graph/search service) is reachable from a subagent without naming the server in the plugin — see §Memory Layers for the memory-backend routing. That grant is read-only by contract: agents are instructed (via the inlined untrusted-content defense) to use MCP for read-only intelligence and never call an egress or mutating MCP tool.
 
+## Cursor runtime port
+
+The repo is a dual-runtime plugin. `.cursor-plugin/plugin.json` packages it for Cursor: `"skills"` points at the shared `skills/` (Cursor reads the same SKILL.md files; Claude-specific frontmatter fields are ignored there), `"agents"` at `cursor/agents/`, `"hooks"` at `cursor/hooks.json`. Claude Code's own discovery (`agents/`, `hooks/hooks.json`) is untouched — each runtime reads only its manifest.
+
+Maintenance contract:
+- `cursor/agents/*.md` are **generated** from `agents/*.md` by `scripts/build-cursor-agents.sh` (drops `tools`/`maxTurns`, forces `model: inherit`, sets `readonly` from the agent's write contract). After any `agents/*.md` edit, re-run the script and commit both; `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift.
+- `cursor/hooks.json` wires the hook scripts through `cursor/hooks/claude-hook-shim.sh`, which translates Cursor hook I/O (camelCase events, `{command, cwd}` payloads, `{"permission":"deny"}` responses) to the Claude Code dialect the scripts in `hooks/` speak. When adding a hook, wire it there only if its event maps cleanly (translation map at the top of the shim); the gate-render, evidence-stop, and update-check hooks are deliberately not wired.
+- Each SKILL.md carries a runtime-portability preamble (plugin-root resolution when `${CLAUDE_PLUGIN_ROOT}` is unset) pointing to `skills/_shared/runtime-portability.md` — keep the preamble intact when restructuring a skill's top section, and keep `/reflect` + `/update` marked as Claude-Code-only there.
+- The release workflow bumps `version` in both manifests in lockstep.
+
 ## Editing plugin content — full reads, not grep
 
 When the user asks to improve, review, or modify this plugin's skills/agents/rules, load the relevant files in FULL first by running:

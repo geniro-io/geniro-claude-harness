@@ -11,6 +11,8 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes] [-
 
 Use this skill to systematically debug complex issues. Replaces guessing with evidence gathering and hypothesis testing across 3 phases.
 
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
+
 **Detailed contracts:**
 - Infrastructure-cause guidance — see § Infrastructure investigation below
 - Isolation techniques (binary search / git bisect / profiling) — see § Isolation techniques below
