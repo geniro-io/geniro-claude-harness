@@ -11,7 +11,9 @@
 #
 # Edit/Write/MultiEdit branch: checks .tool_input.file_path.
 # Bash branch: catches shell-side writes the file-tool matcher never sees —
-# redirection (>, >>, >|), tee, in-place sed (-i), cp/mv destinations, dd of=.
+# redirection (>, >>, >|), tee, in-place sed (-i), cp/mv destinations, dd of=,
+# and interpreter-mediated writes (python/node/perl/ruby opening a state file
+# for writing, including from a heredoc body).
 # Reads (cat/grep) stay allowed. Commands invoking the sanctioned helpers
 # (atomic_state_write / atomic_state_append) are allowed — they write via their
 # own mktemp + mv. Paths under .geniro/state/tdd/ are exempt: the TDD-order
@@ -375,6 +377,99 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     set +f
     case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])ln[[:space:]]+[^|;&]*' || true)"
+
+  # 10) Interpreter-mediated writes: python/node/perl/ruby opening a state file
+  #     for writing. Vectors 1-9 read $ONELINE, whose heredoc bodies were dropped
+  #     as data — and an interpreter's file write is not shell syntax anywhere, so
+  #     `python3 - "$S" <<'PY' … open(p,'w').write(b) … PY` reaches the filesystem
+  #     completely unchecked. This vector therefore scans the RAW $COMMAND.
+  #     It fires only on the conjunction interpreter + write-mode file op + state
+  #     path, so a read-only interpreter call stays allowed. When every write op
+  #     names a quoted literal and none of those literals is a state path, the
+  #     script provably writes elsewhere and the vector skips; a write op whose
+  #     target is a variable is unresolvable here, so a state path anywhere in the
+  #     command is treated as its target.
+  if printf '%s' "$COMMAND" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|perl|ruby|php)([[:space:]]|$)'; then
+    _interp_eligible=0
+    # Quote class tolerating a shell backslash-escape (`open(\"x\", \"w\")` is how
+    # a double-quoted -c argument reaches us).
+    _q="\\\\?[\"']"
+
+    # Write op with an unresolvable (non-literal) target — the real-world shape.
+    # A target is non-literal when it is not a quoted string — a bare identifier,
+    # or a shell-escaped variable (`fopen(\$f, "w")` is how a variable survives a
+    # double-quoted -c/-r script), so a backslash counts as non-literal unless it
+    # is escaping the opening quote of a real literal.
+    _nonlit="(\\\\[^\"']|[^\\\\\"'[:space:])])"
+    if printf '%s' "$COMMAND" | grep -qE "open\([[:space:]]*${_nonlit}[^)]*,[[:space:]]*${_q}[waxWAX>]|open\([^)]*mode[[:space:]]*=[[:space:]]*${_q}[wax]|write_text\(|(writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|File\.open|IO\.write)\([[:space:]]*${_nonlit}"; then
+      _interp_eligible=1
+    fi
+
+    # In-place interpreter edit (perl -pi -e, ruby -i, perl -i.bak) — the target
+    # is the file operand on the command line, which the state-path scan below
+    # resolves. The flag must end at a word or suffix boundary so an unrelated
+    # long option (`ruby -version`) does not read as `-i`.
+    if printf '%s' "$COMMAND" | grep -qE '(^|[|;&[:space:]]|/)(perl|ruby)[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*-[a-zA-Z]*i([[:space:].]|$)'; then
+      _interp_eligible=1
+    fi
+
+    # Write op naming a quoted literal that is itself a state path.
+    if [ "$_interp_eligible" = "0" ]; then
+      while IFS= read -r _lit; do
+        [ -z "$_lit" ] && continue
+        # A quoted target carrying a shell expansion (`open('$S','w')`) only looks
+        # literal. Resolve each variable against its assignment in the same
+        # command — the shape that writes state files assigns the path right
+        # there (`S=.geniro/planning/x/state.md; python3 …`). A variable with no
+        # visible assignment stays unresolvable, so any state path in the command
+        # is treated as its target.
+        case "$_lit" in
+          *'`'*) _interp_eligible=1; break ;;
+          *'$'*)
+            _resolved="$_lit"
+            while IFS= read -r _ref; do
+              [ -z "$_ref" ] && continue
+              _vn="${_ref#\$}"; _vn="${_vn#\{}"; _vn="${_vn%\}}"
+              _val=$(printf '%s' "$COMMAND" \
+                | grep -oE "(^|[[:space:];&|])${_vn}=[^[:space:];&|\"']+" \
+                | tail -1 | sed -E 's/^[^=]*=//' || true)
+              if [ -z "$_val" ]; then _resolved=""; break; fi
+              _resolved=$(printf '%s' "$_resolved" | sed "s|[\$]{${_vn}}|${_val}|g; s|[\$]${_vn}|${_val}|g")
+            done <<< "$(printf '%s' "$_lit" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' || true)"
+            if [ -z "$_resolved" ] || matches_state_path "$_resolved"; then
+              _interp_eligible=1
+              break
+            fi
+            ;;
+          *)
+            if matches_state_path "$_lit"; then
+              _interp_eligible=1
+              break
+            fi
+            ;;
+        esac
+      done <<< "$(
+        {
+          # open()/File.open() count only with a write mode in the second arg —
+          # `open('<state>')` is a read and must stay allowed.
+          printf '%s' "$COMMAND" \
+            | grep -oE "(open|File\.open)\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*,[[:space:]]*${_q}[waxWAX>]" \
+            | sed -E "s/^[^(]*\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
+          # These write unconditionally, so their first argument is the target.
+          printf '%s' "$COMMAND" \
+            | grep -oE "(write_text|writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|IO\.write)\([[:space:]]*${_q}[^\\\\\"']+${_q}" \
+            | sed -E "s/^[^(]*\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
+        } 2>/dev/null || true
+      )"
+    fi
+
+    if [ "$_interp_eligible" = "1" ]; then
+      while IFS= read -r tok; do
+        [ -z "$tok" ] && continue
+        add_candidate "$tok"
+      done <<< "$(printf '%s' "$COMMAND" | grep -oE "[^[:space:]\"'=(),;|&<>]*\.geniro/[^[:space:]\"'(),;|&<>]*" || true)"
+    fi
+  fi
 
   if [ -z "$CANDIDATES" ]; then
     exit 0

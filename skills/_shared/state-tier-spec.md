@@ -141,6 +141,8 @@ approvals:
 
 Each entry is `{action, completed-at, <action-specific-fields>}`, where `completed-at` is a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) interpolated in the same write call, never model-supplied (per `atomic-state-write.md` §Timestamp sourcing). The `action` value is one of a fixed enum so the SessionStart restore hook (`hooks/session-start-restore.sh`) can render a per-action resume warning — producers emit the literal string and the hook string-matches it. This table is the single source; add a new value here and to the hook's renderer in lockstep.
 
+**Entries record actions that completed.** An action that was skipped, refused, or failed never becomes an entry, and the enum is never extended to describe one (`git-commit-skipped` and the like). The restore hook renders every entry as something irreversible that already happened out in the world, so an entry describing a non-event tells the resumed session the opposite of the truth — and lands in the hook's unknown-action fallback while doing it. A skipped or failed action belongs in the state file's `## Errors` body section.
+
 | `action` | Emitted by | Action-specific fields |
 |---|---|---|
 | `git-push` | `/geniro:implement` | `target`, `ref` |

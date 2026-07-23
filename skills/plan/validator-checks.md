@@ -154,3 +154,5 @@ These sub-checks run on m5-v2 OR m5-v3 OR m5-v4 specs, guarded by key-presence (
 ## Check API contract
 
 The check API contract (`(check_id, status, finding_text, fix_hint)`) is fixed regardless of how the checks are executed — inline orchestrator-side logic (the default, since the orchestrator already parses spec.md and state.md) or a dedicated script.
+
+`status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in table order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally ("13/13 clean") is not a validator result: it reads the same whether all thirteen ran or five did, which is exactly how a partial pass reaches the user looking like a complete one.

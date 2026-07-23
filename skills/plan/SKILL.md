@@ -31,9 +31,9 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 - spec.md at `.geniro/planning/<task-slug>/spec.md` with the fixed 11-section schema, goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
-- `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6.
+- `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6; skipped, with the spec left on disk, when the project ignores `.geniro/planning/` (the default `.gitignore` does).
 - Phase 8.7 executes any user-authored `### After user-approve` steps loaded from `.geniro/instructions/plan.md` — the generic extension point for project-specific post-plan work (e.g. duplicating the approved plan into an OpenSpec change via the project's own tooling). The plugin stays tool-agnostic; the procedure lives in the project's instruction file.
-- Phase 9 handoff — prints the milestone-aware `/geniro:implement <path>` command (no question — the spec is already saved and committed at Phase 8).
+- Phase 9 handoff — prints the milestone-aware `/geniro:implement <path>` command (no question — the spec is already saved, and committed at Phase 8 wherever the planning dir is tracked).
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
