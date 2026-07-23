@@ -12,7 +12,7 @@ This repository is a dual-runtime plugin: `.claude-plugin/plugin.json` packages 
 
 **As a Cursor plugin (recommended)** — full experience: skills + subagents + safety hooks.
 
-1. Symlink or copy this repository to `~/.cursor/plugins/local/geniro-claude-plugin` (symlink keeps it on the latest checkout), or import the repo through **Dashboard → Plugins → Team Marketplaces**.
+1. Symlink or copy this repository to `~/.cursor/plugins/local/geniro` (symlink keeps it on the latest checkout), or import the repo through **Dashboard → Plugins → Team Marketplaces**.
 2. Restart Cursor. Skills appear in the `/` picker under their directory names (`plan`, `implement`, `review`, ...); subagents (`reviewer-agent`, `codebase-explorer-agent`, ...) become Task-tool targets.
 
 **Via the Claude Code compatibility toggle** — skills only, no hooks or agents.

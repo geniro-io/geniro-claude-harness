@@ -58,4 +58,4 @@ No context is auto-injected on resume. When asked to resume or continue a task, 
 
 ## Skill and agent naming
 
-The `name: geniro:<slug>` frontmatter is Claude Code plugin-command syntax. Other runtimes surface each skill under its directory name (`plan`, `implement`, `review`, ...). Cross-references written as `/geniro:<slug>` mean "the skill in `skills/<slug>/`".
+Each skill's `name:` frontmatter is the bare slug. Claude Code prefixes it with the plugin name, so commands surface as `/geniro:<slug>`. Other runtimes surface each skill under its directory name (`plan`, `implement`, `review`, ...). Cross-references written as `/geniro:<slug>` mean "the skill in `skills/<slug>/`".

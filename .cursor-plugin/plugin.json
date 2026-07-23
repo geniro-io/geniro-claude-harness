@@ -1,5 +1,5 @@
 {
-  "name": "geniro-claude-plugin",
+  "name": "geniro",
   "displayName": "Geniro",
   "description": "Production-grade agent harness: spec-first planning, multi-agent implement/review/debug skills, and safety guardrails. Cursor packaging of the Geniro plugin — shares skills/ with the Claude Code plugin; agents and hooks are Cursor-format ports under cursor/.",
   "version": "4.1.0",

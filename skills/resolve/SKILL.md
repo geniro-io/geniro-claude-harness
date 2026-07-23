@@ -1,5 +1,5 @@
 ---
-name: geniro:resolve
+name: resolve
 description: "Use when an open pull request has unresolved review comments (human or bot) and/or failing CI checks and you want them triaged into a fix plan rather than fixed by hand. Reads each unresolved thread + failing check, verifies and reproduces it against the code, asks you about the ambiguous ones, then writes a comment-keyed spec.md + a handoff for /geniro:implement — which applies the fixes and, at ship, posts the drafted replies and resolves the threads. Read-only: never edits code or posts to the PR itself. Skip for producing a fresh review of a diff (use /geniro:review) or fixing a located bug with no PR feedback (use /geniro:debug or /geniro:implement)."
 context: main
 model: inherit

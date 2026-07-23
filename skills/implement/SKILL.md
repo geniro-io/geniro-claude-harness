@@ -1,5 +1,5 @@
 ---
-name: geniro:implement
+name: implement
 description: "Use when shipping a new feature, endpoint, page, or significant change against a spec.md / plan.md (from /geniro:plan) OR a raw inline task description. 3-phase autonomous loop: Analyze → Implement → Self-review-and-Ship. Optional --deep deepens two phases — a multi-angle self-review with verification escalated only where the call is contested, and a 3× fact-check of the spec's cited claims before editing (higher quality, higher cost)."
 context: main
 model: inherit

@@ -8,8 +8,20 @@ Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
 ```bash
 claude plugin marketplace add geniro-io/geniro-claude-harness
-claude plugin install geniro-claude-plugin --scope user
+claude plugin install geniro --scope user
 ```
+
+### Upgrading from v4.x — reinstall required
+
+v5.0.0 renames the plugin `geniro-claude-plugin` → `geniro`, so commands render as `/geniro:plan` instead of the doubled `/geniro-claude-plugin:geniro:plan`. `claude plugin update` resolves ids exactly and cannot migrate across a rename, so an existing install needs replacing once:
+
+```bash
+claude plugin uninstall geniro-claude-plugin@geniro-claude-harness
+claude plugin marketplace update geniro-claude-harness
+claude plugin install geniro@geniro-claude-harness --scope user
+```
+
+Restart the session afterward. Project files under `.geniro/` — instructions, actions, planning artifacts, learnings — are untouched.
 
 `--scope user` installs the plugin globally so it's available in every directory (this is the default, but pinning it keeps the install global). Avoid `--scope project` for the plugin itself — a project-scoped install loads only inside that one project, and on the next update it can shadow the global install record and make the plugin disappear from your other directories. To share the marketplace with teammates instead, use the project-scoped marketplace config below — not a project-scoped plugin install.
 
@@ -311,19 +323,19 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 The plugin auto-updates via the Claude Code marketplace. To manually update:
 
 ```bash
-claude plugin update geniro-claude-plugin@geniro-claude-harness
+claude plugin update geniro@geniro-claude-harness
 ```
 
 Or run `/geniro:update` inside Claude Code — preserves user content, walks any breaking changes in MIGRATION.md, and emits a restart-session warning. The status line shows an arrow when updates are available.
 
 ## Using with Cursor
 
-The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 7 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro-claude-plugin` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
+The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 7 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
 
 ## Plugin Structure
 
 ```
-geniro-claude-plugin/
+geniro/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # Marketplace manifest (plugin source entry)

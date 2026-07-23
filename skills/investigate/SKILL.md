@@ -1,5 +1,5 @@
 ---
-name: geniro:investigate
+name: investigate
 description: "Use when answering deep codebase questions that need evidence — repo structure, code behavior, git history, or internet sources. Parallel research agents produce cited answers. Skip for bug fixes (/geniro:debug) or codebase mapping (/geniro:onboard)."
 context: main
 model: inherit

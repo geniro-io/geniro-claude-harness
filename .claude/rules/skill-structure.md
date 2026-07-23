@@ -30,7 +30,7 @@ Sources for every number below: Anthropic [Skill best-practices](https://platfor
 
 ```yaml
 ---
-name: geniro:<slug>               # gerund form or noun; lowercase + numbers + hyphens; ≤64 chars
+name: <slug>                       # bare slug — Claude Code prefixes it with the plugin name (`geniro`)
 description: "Use when ..."        # third-person, what + when, slightly pushy, ≤1024 chars, no XML
 context: main                      # or fork (for subagent-isolation skills)
 model: inherit                     # default; per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md

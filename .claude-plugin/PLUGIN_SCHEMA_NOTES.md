@@ -37,7 +37,7 @@ Geniro's `plugin.json` (verbatim shape):
 
 ```json
 {
-  "name": "geniro-claude-plugin",
+  "name": "geniro",
   "description": "...",
   "version": "<semver>",
   "author": { "name": "Geniro", "email": "hello@geniro.io" },
@@ -69,7 +69,7 @@ Geniro's `marketplace.json` (verbatim shape):
   "owner": { "name": "Geniro", "email": "hello@geniro.io" },
   "plugins": [
     {
-      "name": "geniro-claude-plugin",
+      "name": "geniro",
       "description": "...",
       "source": "./",
       "category": "development"
@@ -80,10 +80,10 @@ Geniro's `marketplace.json` (verbatim shape):
 
 | Field | Required? | Type | Rule | Symptom if wrong |
 |---|---|---|---|---|
-| `name` | Required | string | Marketplace identifier (`geniro-claude-harness`) — distinct from the plugin's own `name`. This is the marketplace, not the plugin. | Wrong name → `claude plugin update geniro-claude-plugin@geniro-claude-harness` can't locate the marketplace. |
+| `name` | Required | string | Marketplace identifier (`geniro-claude-harness`) — distinct from the plugin's own `name`. This is the marketplace, not the plugin. | Wrong name → `claude plugin update geniro@geniro-claude-harness` can't locate the marketplace. |
 | `owner` | Optional | object | Object with `name` (+ optional `email`), same object-not-string rule as `plugin.json` `author`. | String instead of object → validation error. |
 | `plugins` | Required | array | Must be a JSON array of plugin entries, even with one plugin. | A single object instead of an array → schema failure. |
-| `plugins[].name` | Required | string | Must equal `plugin.json` `name` (`geniro-claude-plugin`). | Mismatch → marketplace lists a plugin the installer can't map to the manifest. |
+| `plugins[].name` | Required | string | Must equal `plugin.json` `name` (`geniro`). | Mismatch → marketplace lists a plugin the installer can't map to the manifest. |
 | `plugins[].source` | Required | string | `"./"` — the plugin lives at the repo root (the manifest dir's parent). | Wrong source path → install fetches the wrong directory or fails. |
 | `plugins[].description` | Optional | string | Listing blurb. | None. |
 | `plugins[].category` | Optional | string | Marketplace category (`development`). | None. |
@@ -122,7 +122,7 @@ Geniro ships **no MCP servers of its own** and has **no `.mcp.json`** in the rep
 Before committing a change to either manifest:
 
 1. **JSON validity** — `jq -e . .claude-plugin/plugin.json` and `jq -e . .claude-plugin/marketplace.json` both exit 0. A trailing comma or unquoted key fails install outright.
-2. **Names match** — `plugin.json` `name` == `marketplace.json` `plugins[0].name` == `geniro-claude-plugin`.
+2. **Names match** — `plugin.json` `name` == `marketplace.json` `plugins[0].name` == `geniro`.
 3. **Arrays are arrays** — `keywords` and `plugins` are `[...]`; `author` and `owner` are `{...}`. No string-where-array (or string-where-object) regressions.
 4. **No component fields crept into `plugin.json`** — `grep -E '"(hooks|agents|skills|commands|statusLine)"' .claude-plugin/plugin.json` returns nothing; components stay in their convention directories.
 5. **`mcpServers`** — still absent (or, only if a validator now demands it, an empty object `{}`).

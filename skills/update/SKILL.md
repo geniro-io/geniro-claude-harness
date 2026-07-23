@@ -1,6 +1,6 @@
 ---
-name: geniro:update
-description: "Use when the status line shows a plugin update is available, or to manually pull the latest geniro-claude-plugin version. Verifies plugin integrity, ensures user-authored .geniro/instructions/ and .geniro/actions/ survived intact, and walks any breaking changes in MIGRATION.md."
+name: update
+description: "Use when the status line shows a plugin update is available, or to manually pull the latest Geniro plugin version. Verifies plugin integrity, ensures user-authored .geniro/instructions/ and .geniro/actions/ survived intact, and walks any breaking changes in MIGRATION.md."
 context: main
 model: inherit
 allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep]
@@ -48,7 +48,8 @@ External sends: not in `/geniro:update` ACI ever.
 | Cause | Message |
 |---|---|
 | Network error after 4 retries | `aborted: network error during plugin marketplace update after 4 retries` |
-| Update succeeded but registry missing entry | `aborted: registry missing geniro-claude-plugin entry — see ~/.claude/plugins/installed_plugins.json` |
+| Install recorded under the pre-v5.0.0 plugin id | `aborted: plugin renamed — reinstall required` (Phase 1 Step 1.5 prints the reinstall commands) |
+| Update succeeded but registry missing entry | `aborted: registry missing the geniro plugin entry — see ~/.claude/plugins/installed_plugins.json` |
 | Hash-check failed | `aborted: plugin integrity check failed — missing file(s) or manifest hash mismatch on <file>` |
 | User-content tampering detected | AUQ surfaces; user picks Continue or Abort |
 | MIGRATION.md walked successfully | `done` |
@@ -71,6 +72,37 @@ if [ "$CURRENT_VERSION" = "unknown" ]; then
 echo "ERROR: cannot read current plugin version from plugin.json — abort." >&2
 exit 1
 fi
+```
+
+### Step 1.5 — Legacy install-id check
+
+The plugin was renamed `geniro-claude-plugin` → `geniro` in v5.0.0. An install still recorded under the old id cannot be updated in place — `claude plugin update` resolves ids exactly, and the old id no longer exists in the marketplace. Detect it before spending a network round-trip on a command that cannot succeed:
+
+```bash
+CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+LEGACY=$(python3 -c "
+import json
+try:
+    d = json.load(open('$CLAUDE_USER_DIR/plugins/installed_plugins.json'))
+    print('yes' if any(k.startswith('geniro-claude-plugin@') for k in d.get('plugins', {})) else 'no')
+except Exception:
+    print('no')
+")
+```
+
+When `LEGACY=yes`, print the reinstall block below verbatim and terminate with `aborted: plugin renamed — reinstall required` (Termination case: legacy install id). Do not attempt the update, and do not run the reinstall yourself — it uninstalls the plugin currently executing this skill, so the user runs it:
+
+```
+The plugin was renamed geniro-claude-plugin → geniro. Update in place is not
+possible across an id change. Run these three commands, then restart the session:
+
+  claude plugin uninstall geniro-claude-plugin@geniro-claude-harness
+  claude plugin marketplace update geniro-claude-harness
+  claude plugin install geniro@geniro-claude-harness --scope user
+
+Your project files under .geniro/ are untouched — instructions, actions,
+planning artifacts, and learnings all survive the reinstall.
+Commands change from /geniro-claude-plugin:geniro:<skill> to /geniro:<skill>.
 ```
 
 ### Step 2 — Resolve `$CLAUDE_USER_DIR`, `$PRIMARY_ROOT`, and snapshot user content
@@ -101,7 +133,7 @@ printf '%s\n' "$USER_SNAPSHOT" > "/tmp/geniro-user-snapshot.${_gu_hash}.txt"
 
 Use `AskUserQuestion`:
 
-- **Question:** `Update geniro-claude-plugin? Current version: v<CURRENT_VERSION>. This will run marketplace + plugin update, verify integrity, and walk MIGRATION.md.`
+- **Question:** `Update the Geniro plugin? Current version: v<CURRENT_VERSION>. This will run marketplace + plugin update, verify integrity, and walk MIGRATION.md.`
 - **Options:**
 - `Confirm update` — Run the update flow (Recommended)
 - `Cancel` — Exit without updating
@@ -117,7 +149,7 @@ If `--dry-run` was passed in `$ARGUMENTS`, **skip the AUQ entirely** and instead
 Run the marketplace update, then the plugin update, each retried up to 4× on network error with 2s / 4s / 8s / 16s backoff between attempts; abort with a non-zero exit if either still fails after the 4th attempt (Termination case: network error after 4 retries):
 
 1. `claude plugin marketplace update geniro-claude-harness`
-2. `claude plugin update geniro-claude-plugin@geniro-claude-harness --scope user`
+2. `claude plugin update geniro@geniro-claude-harness --scope user`
 
 Pass `--scope user` explicitly. The plugin is meant to be available in every directory, which is the user (global) scope — the install record that the global `enabledPlugins` entry in `settings.json` resolves against. Updating without the flag lets the CLI target whichever scope matches the current working directory; when a project-scoped install record exists for the cwd, the user-scope record gets dropped and the plugin then loads only in that one project (it disappears everywhere else). Pinning the scope keeps the global install authoritative.
 
@@ -133,7 +165,7 @@ HAS_USER_SCOPE=$(python3 -c "
 import json
 try:
     d = json.load(open('$REGISTRY'))
-    entry = d['plugins'].get('geniro-claude-plugin@geniro-claude-harness', [])
+    entry = d['plugins'].get('geniro@geniro-claude-harness', [])
     print('yes' if any(e.get('scope') == 'user' for e in entry) else 'no')
 except Exception:
     print('unknown')
@@ -141,7 +173,7 @@ except Exception:
 
 if [ "$HAS_USER_SCOPE" = "no" ]; then
   echo "[repair] no global install record found — restoring user-scope install so the plugin loads in every directory." >&2
-  claude plugin install geniro-claude-plugin@geniro-claude-harness --scope user 2>&1 | tee /tmp/geniro-plugin-repair.log || true
+  claude plugin install geniro@geniro-claude-harness --scope user 2>&1 | tee /tmp/geniro-plugin-repair.log || true
 fi
 ```
 
@@ -160,7 +192,7 @@ PLUGIN_PATH=$(python3 -c "
 import json, sys
 try:
 d = json.load(open('$REGISTRY'))
-entry = d['plugins'].get('geniro-claude-plugin@geniro-claude-harness', [])
+entry = d['plugins'].get('geniro@geniro-claude-harness', [])
 # Prefer the user-scope (global) install — the one this skill keeps authoritative.
 # Fall back to the first record only if no user-scope entry exists.
 chosen = next((e for e in entry if e.get('scope') == 'user'), entry[0] if entry else None)
@@ -171,7 +203,7 @@ sys.exit(1)
 ")
 
 if [ -z "$PLUGIN_PATH" ]; then
-echo "ERROR: registry parsed but no entry for geniro-claude-plugin — abort." >&2
+echo "ERROR: registry parsed but no entry for the geniro plugin — abort." >&2
 exit 1
 fi
 

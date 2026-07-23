@@ -125,7 +125,7 @@ For each cluster:
 
 After loop:
   Send ALL spawn calls in ONE assistant response (parallel).
-  - Use `Agent(subagent_type="geniro-claude-plugin:reviewer-agent", ...)` per the ladder in
+  - Use `Agent(subagent_type="geniro:reviewer-agent", ...)` per the ladder in
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
   - OMIT `model=` (orchestrator tier inherits via frontmatter `model: inherit`) per
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.

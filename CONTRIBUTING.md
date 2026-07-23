@@ -15,7 +15,7 @@ Thank you for your interest in contributing! This project aims to provide the be
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/my-improvement`)
 3. Make your changes
-4. Test by installing the plugin into a real project — via the marketplace (`claude plugin install geniro-claude-plugin@geniro-claude-harness`) or a local-path marketplace add — and running `/geniro:setup`
+4. Test by installing the plugin into a real project — via the marketplace (`claude plugin install geniro@geniro-claude-harness`) or a local-path marketplace add — and running `/geniro:setup`
 5. Commit with clear messages
 6. Push and open a Pull Request
 

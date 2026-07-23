@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-Consolidated reference of design decisions that govern how skills, hooks, helpers, and state files work in the geniro-claude-plugin. Each section distills one milestone's key rulings; historical rationale and proposal tracking have been removed.
+Consolidated reference of design decisions that govern how skills, hooks, helpers, and state files work in the Geniro plugin. Each section distills one milestone's key rulings; historical rationale and proposal tracking have been removed.
 
 ---
 

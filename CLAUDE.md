@@ -137,9 +137,9 @@ When a load-* helper detects layers disagreeing, the calling skill prints a noti
 
 ## Custom Agent Invocation
 
-When a skill spawns a plugin-defined agent (`reviewer-agent`, `adversarial-tester-agent`, `reflection-agent`) via the `Agent(subagent_type="<name>", ...)` tool, the registered form varies by runtime: interactive Claude Code with the plugin marketplace-installed registers agents under `geniro-claude-plugin:<agent>`; vendored / harness installs register them under bare `<agent>`; Claude Code SDK / cloud runners do not register them at all and the call hard-errors with `Agent type '<name>' not found. Available agents: …`.
+When a skill spawns a plugin-defined agent (`reviewer-agent`, `adversarial-tester-agent`, `reflection-agent`) via the `Agent(subagent_type="<name>", ...)` tool, the registered form varies by runtime: interactive Claude Code with the plugin marketplace-installed registers agents under `geniro:<agent>`; vendored / harness installs register them under bare `<agent>`; Claude Code SDK / cloud runners do not register them at all and the call hard-errors with `Agent type '<name>' not found. Available agents: …`.
 
-**Apply the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every plugin-agent spawn site.** The ladder: try `Agent(subagent_type="geniro-claude-plugin:<agent>", ...)` first; on "not found", retry with bare `Agent(subagent_type="<agent>", ...)`; on "not found" again, fall back to `Agent(subagent_type="general-purpose", ...)` with the agent's `.md` body (frontmatter stripped) prepended to the prompt. Cache the resolved rung for the rest of the session — registration is fixed at session init. This is the agent-registration layer; it is independent of the MCP-tool degradation noted in the Optional MCP Dependencies section below.
+**Apply the runtime-degradation rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every plugin-agent spawn site.** The ladder: try `Agent(subagent_type="geniro:<agent>", ...)` first; on "not found", retry with bare `Agent(subagent_type="<agent>", ...)`; on "not found" again, fall back to `Agent(subagent_type="general-purpose", ...)` with the agent's `.md` body (frontmatter stripped) prepended to the prompt. Cache the resolved rung for the rest of the session — registration is fixed at session init. This is the agent-registration layer; it is independent of the MCP-tool degradation noted in the Optional MCP Dependencies section below.
 
 ## Safety Hooks (Active)
 
@@ -228,5 +228,5 @@ The runner discovers and executes every `tests/**/*.sh` suite — the `lib/` hel
 
 This plugin updates automatically via the Claude Code marketplace. To manually check:
 ```
-claude plugin update geniro-claude-plugin@geniro-claude-harness
+claude plugin update geniro@geniro-claude-harness
 ```

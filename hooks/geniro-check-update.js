@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // geniro-check-update.js — SessionStart hook
-// Checks if a newer version of geniro-claude-plugin is available.
+// Checks if a newer version of the Geniro plugin is available.
 // Runs as a detached background process to avoid blocking session start.
 
 const { execSync, spawn } = require('child_process');

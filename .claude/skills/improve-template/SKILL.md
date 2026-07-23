@@ -1,6 +1,6 @@
 ---
 name: improve-template
-description: "Use when modifying the geniro-claude-plugin itself — fix a Geniro skill, agent, hook, or ARCHITECTURE.md. Researches via parallel agents (codebase + ARCHITECTURE.md + internet), presents evidence, implements after approval. Skip for general codebase Q&A (/geniro:investigate) or app-code bugs (/geniro:debug)."
+description: "Use when modifying the Geniro plugin itself — fix a Geniro skill, agent, hook, or ARCHITECTURE.md. Researches via parallel agents (codebase + ARCHITECTURE.md + internet), presents evidence, implements after approval. Skip for general codebase Q&A (/geniro:investigate) or app-code bugs (/geniro:debug)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, WebFetch]
@@ -9,7 +9,7 @@ argument-hint: "<issue description or area to improve>"
 
 # /improve-template — Template Investigation & Fix Pipeline
 
-You are the orchestrator for investigating and fixing issues in the geniro-claude-plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You NEVER implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
+You are the orchestrator for investigating and fixing issues in the Geniro plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You NEVER implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
 **Template path:** (repo root — skills/, agents/, hooks/)
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
@@ -382,7 +382,7 @@ MUST be a fresh agent — never reuse implementation agents (avoids anchoring bi
 ```
 Agent(prompt="""
 ## Task: Independent Review of Template Changes
-Review changes made to the geniro-claude-plugin template. You were NOT involved in
+Review changes made to the Geniro plugin template. You were NOT involved in
 researching or implementing these changes — review with fresh eyes.
 
 ### Changes made:

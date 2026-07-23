@@ -117,10 +117,10 @@ Each spawn follows SKILL.md §Subagent Spawn Contract. Replace every `{{placehol
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
-The Codebase Analyst spawn IS the plugin's `codebase-research-agent`. Register via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body); OMIT `model=` so the orchestrator's session tier propagates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
+The Codebase Analyst spawn IS the plugin's `codebase-research-agent`. Register via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro:codebase-research-agent` → bare → general-purpose-with-body); OMIT `model=` so the orchestrator's session tier propagates per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
 ```
-Agent(subagent_type="geniro-claude-plugin:codebase-research-agent",
+Agent(subagent_type="geniro:codebase-research-agent",
       description="Investigate: codebase analysis",
       prompt="""
 RESEARCH_QUESTION: {{user's question — complete sentence}}

@@ -1,5 +1,5 @@
 ---
-name: geniro:setup
+name: setup
 description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, generates a project-specific CLAUDE.md (stack, commands, conventions, domain), and validates it. Re-run mode runs a migration sweep. Singleton bootstrap."
 context: main
 model: inherit

@@ -64,8 +64,8 @@ trap 'rm -f "$valid_agents"' EXIT
 { for f in agents/*.md; do basename "$f" .md; done; printf '%s\n' general-purpose Explore Plan statusline-setup; } \
   | sort -u > "$valid_agents"
 unknown=0
-spawns=$(grep -rhoE 'subagent_type[=:][[:space:]]*"?(geniro-claude-plugin:)?[A-Za-z0-9_:-]+' skills agents 2>/dev/null \
-  | sed -E 's/.*subagent_type[=:][[:space:]]*"?//; s/^geniro-claude-plugin://' | grep -v '^$' | sort -u)
+spawns=$(grep -rhoE 'subagent_type[=:][[:space:]]*"?(geniro:)?[A-Za-z0-9_:-]+' skills agents 2>/dev/null \
+  | sed -E 's/.*subagent_type[=:][[:space:]]*"?//; s/^geniro://' | grep -v '^$' | sort -u)
 while IFS= read -r s; do
   [ -z "$s" ] && continue
   if ! grep -qxF "$s" "$valid_agents"; then report_fail "unknown subagent_type spawn: '$s' (no agents/$s.md and not a known builtin)"; unknown=$((unknown + 1)); fi

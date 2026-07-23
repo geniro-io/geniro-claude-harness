@@ -1,5 +1,5 @@
 ---
-name: geniro:actions
+name: actions
 description: "Use when scaffolding a reusable workflow-helper (Slack/PR/release automations) or invoking a previously-created action. Stored at .geniro/actions/. Run-mode executes the action directly — invoking it is the authorization, so no confirmation is asked. Skip for editing core Geniro skills — edit the plugin repo directly."
 context: main
 model: inherit

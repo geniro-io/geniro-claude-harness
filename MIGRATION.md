@@ -8,6 +8,32 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ---
 
+## v5.0.0
+
+### Plugin renamed `geniro-claude-plugin` → `geniro` — reinstall under the new name
+
+Claude Code namespaces plugin-provided skills as `/<plugin-name>:<skill-name>`. Because each skill's frontmatter also carried a hand-written `geniro:` prefix, commands rendered doubled: `/geniro-claude-plugin:geniro:plan`. The plugin manifest name is now `geniro` and the frontmatter prefix is dropped, so commands render as `/geniro:plan` — the form every doc already used.
+
+Agent registration follows the plugin name, so the marketplace-install spawn prefix is now `geniro:<agent>` (e.g. `geniro:reviewer-agent`). The spawn ladder in `skills/_shared/spawn-agent.md` is unchanged otherwise — prefixed → bare → `general-purpose` with the agent body inlined.
+
+**Action required:** Reinstall under the new plugin id. The old id no longer resolves, so `/geniro:update` cannot migrate the install itself:
+
+```bash
+claude plugin uninstall geniro-claude-plugin@geniro-claude-harness
+claude plugin marketplace update geniro-claude-harness
+claude plugin install geniro@geniro-claude-harness --scope user
+```
+
+Restart the session afterward. No project state under `.geniro/` changes — instructions, actions, planning artifacts, and learnings are untouched.
+
+**Auto-detect:** `grep -l "geniro-claude-plugin@geniro-claude-harness" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json" 2>/dev/null`
+
+**Auto-fix:** Manual-only — the uninstall/install pair above mutates the global plugin registry and must be run by the user.
+
+**Severity:** HIGH — until reinstalled, the plugin's commands still resolve under the old doubled names and `claude plugin update` cannot find the new id.
+
+---
+
 ## v2.78.0
 
 ### Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead

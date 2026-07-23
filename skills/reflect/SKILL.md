@@ -1,5 +1,5 @@
 ---
-name: geniro:reflect
+name: reflect
 description: "Use when the user wants to turn recent session experience into project rules, or asks what should be learned from the last sessions. Mines past Claude Code session transcripts for durable rule and improvement candidates — recurring user corrections, rejected suggestions, repeated friction — and routes approved candidates to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / learnings. Pass a search string to mine the sessions that mention it; empty picks the most recent working sessions. Skip for questions about the codebase itself (/geniro:investigate) or reviewing a pending diff (/geniro:review)."
 context: main
 model: inherit

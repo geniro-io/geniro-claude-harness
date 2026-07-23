@@ -15,7 +15,7 @@ Canonical rule for invoking the plugin's custom agents (`reviewer-agent`, `adver
 
 The plugin defines several custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.md`. Whether they are registered as invokable `subagent_type` values — and under what name — depends on the runtime:
 
-| Runtime | Agents registered? | Resolvable as `<agent>`? | Resolvable as `geniro-claude-plugin:<agent>`? |
+| Runtime | Agents registered? | Resolvable as `<agent>`? | Resolvable as `geniro:<agent>`? |
 |---|---|---|---|
 | Interactive Claude Code with plugin marketplace-installed | Yes, under plugin namespace | **No** | **Yes** |
 | Vendored / harness install (agents copied to `.claude/agents/geniro-*.md`, YAML `name:` unchanged) | Yes, under bare YAML name | **Yes** | No |
@@ -23,7 +23,7 @@ The plugin defines several custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.m
 
 When the agent is not registered under the form you try, the call fails with: `Agent type 'X' not found. Available agents: …`. There is **no silent fallback**. Skills that don't handle this break in one or more runtimes.
 
-The "Available agents" list in that error is the ground truth for what works — when in doubt, read it. In interactive-plugin mode you will see `geniro-claude-plugin:reviewer-agent` listed (not bare `reviewer-agent`); in vendored mode you will see bare names; in SDK/harness you will see neither.
+The "Available agents" list in that error is the ground truth for what works — when in doubt, read it. In interactive-plugin mode you will see `geniro:reviewer-agent` listed (not bare `reviewer-agent`); in vendored mode you will see bare names; in SDK/harness you will see neither.
 
 ## The rule
 
@@ -31,9 +31,9 @@ The "Available agents" list in that error is the ground truth for what works —
 
 When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
-1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro-claude-plugin:<agent>", description="...", prompt="...")`. **OMIT the `model=` argument** — the agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`); pass `model=` only for an explicit non-inherit override (rare — user-authored custom reviewers with a declared tier). This step is the happy path on interactive Claude Code with the plugin marketplace-installed.
+1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro:<agent>", description="...", prompt="...")`. **OMIT the `model=` argument** — the agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`); pass `model=` only for an explicit non-inherit override (rare — user-authored custom reviewers with a declared tier). This step is the happy path on interactive Claude Code with the plugin marketplace-installed.
 
-2. **If — and only if — the call returns `Agent type 'geniro-claude-plugin:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)` (same `model=` policy — OMIT by default). This is the form registered in vendored / harness installs (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
+2. **If — and only if — the call returns `Agent type 'geniro:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)` (same `model=` policy — OMIT by default). This is the form registered in vendored / harness installs (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
 
 3. **If the bare-name attempt also returns "not found"**, re-attempt as:
 
@@ -63,7 +63,7 @@ Caller skills that hardcode a tier (the two sanctioned sites in `model-tiering.m
 
 ## Why prefixed-first
 
-Plugin namespacing (`geniro-claude-plugin:reviewer-agent`) is the form Claude Code registers when the plugin is marketplace-installed — the "Available agents" error list shows the prefixed names in that runtime. Trying bare names first wastes one "not found" round-trip in the happy path.
+Plugin namespacing (`geniro:reviewer-agent`) is the form Claude Code registers when the plugin is marketplace-installed — the "Available agents" error list shows the prefixed names in that runtime. Trying bare names first wastes one "not found" round-trip in the happy path.
 
 ## Worked example
 
@@ -78,7 +78,7 @@ CRITERIA: [content of bugs-criteria.md]
 
 Step 1 — prefixed (interactive plugin-marketplace mode, happy path):
 ```
-Agent(subagent_type="geniro-claude-plugin:reviewer-agent", prompt="""
+Agent(subagent_type="geniro:reviewer-agent", prompt="""
 DIMENSION: bugs
 CRITERIA: [content of bugs-criteria.md]
 …
@@ -116,7 +116,7 @@ Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full to
 |---|---|
 | "I'll try bare names first because that's what the skill files have written" | Skills are written with bare names as the canonical "agent identity" notation. The orchestrator interprets that identity and applies the ladder — skills are not literal call strings. Bare-first wastes a `not found` round-trip in the happy path. |
 | "I'll skip the prefixed attempt because we're definitely in vendored mode" | You cannot reliably tell at spawn time. Walk the ladder once at first spawn and cache the result for the session. The cost of one extra `not found` per session is negligible; the cost of guessing wrong is N wasted spawns. |
-| "I'll prefix as `<some-other-plugin>:<agent>` — the prefix is the plugin name" | The prefix is the *installed* plugin namespace. For this plugin it is exactly `geniro-claude-plugin` (matches `.claude-plugin/plugin.json`'s name field). Do not invent prefixes. |
+| "I'll prefix as `<some-other-plugin>:<agent>` — the prefix is the plugin name" | The prefix is the *installed* plugin namespace. For this plugin it is exactly `geniro` (matches `.claude-plugin/plugin.json`'s name field). Do not invent prefixes. |
 | "The first attempt failed — I should retry the same form just to be sure" | Plugin registration is fixed at session init. The cache does NOT carry across sessions, but it absolutely holds within a session; re-attempting wastes a call. Re-walk at next session's first spawn. |
 | "The agent body is long — I'll summarize it before inlining at step 3" | The agent's system prompt is the contract. Summarizing changes the contract. Inline the body verbatim (frontmatter stripped). |
 | "Read-only agents like reviewer-agent shouldn't run as general-purpose at step 3 because they could now Edit files" | Correct hazard, wrong mitigation. The mitigation is an explicit instruction inside the inlined prompt — most agent files already say "Do not Edit/Write/Bash apart from read-only commands." If yours doesn't, add it before falling back. |

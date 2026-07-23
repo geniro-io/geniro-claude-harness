@@ -22,12 +22,12 @@ Satisfy the checklist on every Agent() spawn. A bare-prompt spawn forces the age
 
 The plugin's `codebase-research-agent` (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md`) is the default for codebase research that would otherwise flood the orchestrator's context — mapping subsystems, tracing flows, locating definitions, summarizing behavior. It inherits the orchestrator's model tier (so on an Opus session the research runs Opus, where the built-in `Explore` subagent would have been pinned to Haiku 4.5) and as a plugin-defined custom agent it sidesteps [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) (MCP-overflow → `0 tool uses` on hosts with many MCP servers).
 
-Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro-claude-plugin:codebase-research-agent` → bare → general-purpose-with-body) and OMIT `model=` so the orchestrator's session tier propagates. Pre-inline the slots from the agent's Input Contract (3 required: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `OUTPUT_PATH`; 3 optional: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS`). `OUTPUT_PATH` convention: `.geniro/planning/<task-slug>/.research-out.md` (default) OR `.geniro/planning/<task-slug>/.research-<facet>.md` (when running multiple facets in parallel — `/geniro:plan` Phase 1 pattern). See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
+Call via the runtime-degradation ladder at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro:codebase-research-agent` → bare → general-purpose-with-body) and OMIT `model=` so the orchestrator's session tier propagates. Pre-inline the slots from the agent's Input Contract (3 required: `RESEARCH_QUESTION` / `DELIVERABLE_SHAPE` / `OUTPUT_PATH`; 3 optional: `SCOPE_HINT` / `PRE_INLINED_CONTEXT` / `THOROUGHNESS`). `OUTPUT_PATH` convention: `.geniro/planning/<task-slug>/.research-out.md` (default) OR `.geniro/planning/<task-slug>/.research-<facet>.md` (when running multiple facets in parallel — `/geniro:plan` Phase 1 pattern). See `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` for the full contract and worked `DELIVERABLE_SHAPE` examples.
 
 Concrete call shape (step 1 of the spawn-agent ladder; substitute slot values):
 
 ```
-Agent(subagent_type="geniro-claude-plugin:codebase-research-agent",
+Agent(subagent_type="geniro:codebase-research-agent",
       description="<5-10 word task summary>",
       prompt="""
 RESEARCH_QUESTION: <complete-sentence question>
@@ -97,4 +97,4 @@ A spawn site correctly applies the checklist when:
 - [ ] disallowedTools is set when the agent's contract is read-only; the constraint is also restated in-prompt.
 - [ ] Output schema is pinned with a one-example block showing the literal shape.
 - [ ] Model tier follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`: plugin-defined agents OMIT `model=` (inherit orchestrator tier); `model=` is passed explicitly only for general-purpose spawns where tier is the contract and for custom reviewers that declared `model:` in frontmatter.
-- [ ] The spawn obeys `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` runtime-degradation rule (prefixed `geniro-claude-plugin:<agent>` first, then bare `<agent>` on "not found", then general-purpose with body-prepended on second "not found"; cache the resolved rung for the session).
+- [ ] The spawn obeys `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` runtime-degradation rule (prefixed `geniro:<agent>` first, then bare `<agent>` on "not found", then general-purpose with body-prepended on second "not found"; cache the resolved rung for the session).
