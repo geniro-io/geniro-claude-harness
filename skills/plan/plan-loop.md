@@ -439,7 +439,7 @@ emit_rejection_if_signal \
  "<recommended approach label>" "<picked label>" "<recommended label>"
 ```
 
-Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op.
+Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op. A free-text answer overriding the question is a divergent pick like any other and fires the signal. After a fired signal, echo `Recorded learning: <summary>` — the same echo §8.5 makes, so a skipped emit shows up as a missing line instead of leaving no trace at all.
 
 **Read side:** Phase 1 query-learnings on /geniro:plan entry already runs once. Extend its consumers to surface entries with `type=user_rejected_suggestion AND tags includes 'approach_choice'` matching the current topic — display as "User previously rejected <suggestion> on <ts>" so the orchestrator can re-rank or omit the rejected approach from AUQ.
 
@@ -597,7 +597,7 @@ Phase 7 uses a **deterministic validator** — script-checkable rules executed o
 
 ### 7.2 Validator checks
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` for the canonical check definitions. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set in sequence.
+See `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` for the canonical check definitions. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set in sequence and report per check, not as a tally, per that file's §Check API contract.
 
 ### 7.3 Hard-fail handling
 
@@ -654,7 +654,7 @@ Phase 8 closes the loop with a final whole-spec approval. Apply the Gate present
 
 **Artifact — mirror the final decision** (guard per §1.5 Artifact call sites): before the final-approval AUQ, `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: approval and the pending decision with full per-option detail + the supporting deep-dive content now available`.
 
-1. **Render the spec summary to a chat message in the Visual rendering language** (Gate presentation contract) — the progress tracker with every prior stop `✔` and `● Final approval`, a one-sentence opener restating the Objective in plain English, then an at-a-glance digest: scope summary (sections 2-3, reusing the in/out scope map), Approval Points (section 8 — where the user will be asked mid-build), Risk class auto-computed from section 5 + section 7 with a one-line why, Rollback (section 10, one line), Done Condition (section 11 rendered as a `☐` checklist — one box per observable signal), touched-file glob count, approval-expiration notice. Include the concrete examples already authored per section so the user reviews the real plan, not a label list.
+1. **Render the spec summary to a chat message in the Visual rendering language** (Gate presentation contract) — the progress tracker with every prior stop `✔` and `● Final approval`, a one-sentence opener restating the Objective in plain English, then an at-a-glance digest: scope summary (sections 2-3, reusing the in/out scope map), Approval Points (section 8 — where the user will be asked mid-build), Risk class auto-computed from section 5 + section 7 with a one-line why, Rollback (section 10, one line), Done Condition (section 11 rendered as a `☐` checklist — one box per observable signal), touched-file glob count, approval-expiration notice, and what approving does with the file — commits it, or saves it on disk only when the project ignores the planning directory (resolve via the §8.4 step 3 check so the user learns this before approving, not after). Include the concrete examples already authored per section so the user reviews the real plan, not a label list.
 
 2. **Fire ONE lean AUQ** — header "Approve spec"; `question` a one-line recap pointing at the message above; options: "Approve — commit the plan" (Recommended) / "Request changes — I'll describe" / "Abort — discard spec". Full literal message + AUQ template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5.
 
@@ -689,10 +689,10 @@ On user picks "Approve":
 
 1. **Persist approval** to `approvals[]` with category `final_approve`.
 2. **Flip spec.md `lifecycle: draft` → `lifecycle: approved`** in spec.md frontmatter via a fresh `atomic_state_write` that rewrites the whole spec (idempotent regeneration — the fields changing are `lifecycle:`, plus the `launch_config:` block + `geniro_schema_version: m5-v4` when §8.3.5 captured one; an in-place `Edit` is hard-blocked by the `enforce-state-helper` hook on `.geniro/planning/**`). Per design-doc lifecycle marker. **Fold the launch-config write into this SAME rewrite — zero extra writes:** when §8.3.5 produced a `launch_config:` block (whether from passed modifiers or the interactive opt-in), write it into the spec frontmatter and set `geniro_schema_version: m5-v4` (additive-optional per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Version & backward-compat"; the m5-v3/m5-v2/m5-v1 chain-enrichment version rule of §6.1 still applies when no launch_config was captured). When §8.3.5 wrote no block (user picked "No" in the opt-in path), leave the spec's version and frontmatter unchanged — only `lifecycle:` flips. Before committing the rewrite, run the `launch_config_consistency` enum assertions inline on the composed block — `workspace` / `deep_mode` / `branch_freshness` / `ship_mode`, plus `tracker_status` when present, each within its enum per `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` check 13. The Phase 7 validator passes ran BEFORE this write, so this inline assertion is the only enum check that sees the block in this run. On an out-of-enum value, discard the §8.3.5 capture with a one-line notice ("launch-config capture discarded — `<key>` was '<value>', not a valid setting; /geniro:implement will ask its setup questions interactively") and write the spec without the block rather than committing an invalid one.
-3. **`git commit`** fires HERE (NOT in Phase 6):
- - `git add .geniro/planning/<slug>/spec.md` + every sibling `milestone-N.md`
- - `git commit -m "plan: <task-slug> — <one-line summary from section 1 Objective>"`
-4. **Append to `non-resumable-actions[]`**
+3. **`git commit`** fires HERE (NOT in Phase 6). Resolve first whether the task-dir is tracked at all — `git check-ignore -q .geniro/planning/<slug>/spec.md`. The default plugin `.gitignore` ignores `.geniro/*` and negates only `workflow/`, `instructions/`, and `actions/` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`), so on a default setup the planning dir is deliberately untracked and there is nothing to commit.
+ - **Tracked** — `git add .geniro/planning/<slug>/spec.md` + every sibling `milestone-N.md`, then `git commit -m "plan: <task-slug> — <one-line summary from section 1 Objective>"`.
+ - **Ignored** — skip the commit and continue to Phase 9; the spec on disk is the deliverable either way. Never `git add -f` a `.geniro/` path: force-adding it makes the file visible in IDE source-control panels, where a single "discard all changes" click deletes user-authored content. Record the skip as an `## Errors` body line (not a `non-resumable-actions[]` entry — nothing irreversible happened, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`), and tell the user in one plain-English line that the plan is saved at `<path>` but not committed because the project ignores that directory, and that tracking it takes a `.gitignore` negation for `.geniro/planning/`.
+4. **Append to `non-resumable-actions[]`** — only on the tracked branch, where a commit actually happened:
  ```yaml
  non-resumable-actions:
  - action: git-commit
@@ -703,7 +703,7 @@ On user picks "Approve":
 5. **Finalize the visual plan artifact** (guard per §1.5 Artifact call sites): revise the page to its approved state — status badge to approved, every tracker stop done: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: approval and the content just produced`.
 6. **Transition to Phase 9** (`phase: handoff`).
 
-If commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), surface a structured error to user — do NOT proceed to Phase 9 with a stale state. Fall back to escalation with the error inlined.
+If the commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), surface a structured error to user — do NOT proceed to Phase 9 with a stale state. Fall back to escalation with the error inlined. An ignored task-dir is not a failure: it takes the step 3 Ignored branch and continues to Phase 9 normally.
 
 ### 8.5 L2 emit (conditional)
 
@@ -742,7 +742,7 @@ State.md `phase: handoff` during this phase. Non-interactive — no AskUserQuest
 ### 9.1 Print next-step command
 
 1. **Determine the target path.** For milestone-sliced specs (Phase 5 milestone-mode fired): `.geniro/planning/<slug>/milestone-1.md`. Otherwise: `.geniro/planning/<slug>/spec.md`.
-2. **Print a short closing message** stating the plan is saved and committed, plus the next-step command — e.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md`. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
+2. **Print a short closing message** stating where the plan is saved — and that it is committed, when §8.4 step 3 took the tracked branch — plus the next-step command. E.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md`. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
 
 ### 9.2 Clean up transient working files
 
@@ -779,11 +779,11 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 - [ ] Phase 5 milestone-mode AUQ fired if Big-task detected.
 - [ ] Phase 6 wrote spec.md to `.geniro/planning/<slug>/spec.md` with all three design-doc markers; `workflow_refs[]` copied from state.md when present; `geniro_schema_version: m5-v3` when chain-enriched, else `m5-v2` when `workflow_refs[]` is present; `## Problem & Evidence` written from state.md `## Problem Framing` ONLY when `prd_mode: true` (omitted on normal specs).
 - [ ] Phase 6 did NOT auto-commit.
-- [ ] Phase 7 mechanical validator ran the full check set defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
+- [ ] Phase 7 mechanical validator ran the full check set defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` and reported one `status` line per check rather than a tally, with any unexecuted check marked `skip`; hard-fail surfaced findings to `## Open Questions`; max 3 auto-revision rounds respected.
 - [ ] Phase 7.5 spec challenge ran when its gate fired (effort tier Big OR `deep-mode: true`) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` (MODE: plan); on standard Trivial/Small/Medium runs it was skipped and the loop transitioned validator → `phase: user-approve` directly; `keep-with-modifications` folded must-fixes through the Phase 6 re-author + Phase 7 re-validate loop; `re-plan` re-entered Phase 4; helper/spawn failure logged to `## Errors` and proceeded to Phase 8 (advisory, fail-open).
 - [ ] Phase 8 rendered the spec summary to a chat message in the Visual rendering language (all-prior-stops-✔ tracker + one-sentence opener + at-a-glance digest with done-condition checklist + concrete examples), then fired ONE lean AUQ; user picked one of 3 options; max 3 user-revision rounds respected.
 - [ ] After Phase 8 Approve, the §8.3.5 launch-config step ran (flag-driven pre-fill or interactive opt-in); a captured block was persisted to `approvals[]` category `launch_config` and written with `geniro_schema_version: m5-v4` inside the §8.4 lifecycle-flip rewrite; on decline, no block was written and the version was unchanged.
-- [ ] On Phase 8 Approve: `git commit` fired; `non-resumable-actions[]` updated; L2 `decision` emit conditional fired.
+- [ ] On Phase 8 Approve: `git commit` fired and `non-resumable-actions[]` was updated — or, when `git check-ignore` showed the planning dir untracked, the commit was skipped, the skip recorded in `## Errors`, and the user told the plan lives on disk; L2 `decision` emit conditional fired.
 - [ ] Phase 8.7 executed any user-authored `### After user-approve` subsection loaded from `.geniro/instructions/plan.md` (the generic custom-post-approval anchor, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract); skipped silently when none was loaded.
 - [ ] Phase 9 printed the milestone-aware `/geniro:implement <path>` command and wrote terminal `phase: done`.
 - [ ] Phase 9 ran `clean_task_transients` against the planning task-dir before the terminal `phase:` write (`done` and `aborted`), removing this run's `.research-*.md` / `.spec-challenge-out.md` / `notes.md` scratch while preserving `spec.md` / `state.md` / `plan-*.md` / `milestone-*.md`.

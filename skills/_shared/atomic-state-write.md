@@ -5,6 +5,7 @@
 - §When to use — tier → helper table
 - §API — `atomic_state_write` / `atomic_state_append` signatures + exit codes
 - §Timestamp sourcing — time-bearing fields come from a live clock read
+- §Read-modify-write — changing a field in an existing state file
 - §Caller-side mtime check — optimistic-concurrency for T3 CRUD files
 - §Known limitations — symlinks, append race
 - §What this helper does NOT do — validation, locking, rollback, retry
@@ -110,6 +111,34 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 | 65 | `mkdir -p` failed |
 | 68 | Content exceeds 4094 bytes (content + 2-byte framing would exceed the 4096-byte ceiling) |
 | 69 | Append failed |
+
+---
+
+## Read-modify-write
+
+Changing one field in an existing state file is still a whole-file write through the helper: read the current content, transform it, pipe the result in. The transform prints to stdout and never touches the target.
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
+S=".geniro/planning/<task-dir>/state.md"
+
+python3 - "$S" <<'PY' | atomic_state_write "$S"
+import sys
+b = open(sys.argv[1]).read()
+b = b.replace("phase: validate", "phase: user-approve", 1)
+sys.stdout.write(b)
+PY
+```
+
+Editing the file in place instead — `sed -i`, an interpreter's `open(p,'w')`, an `Edit` call — is the truncate-and-rewrite this helper exists to replace, and it stays unsafe when a later `atomic_state_write` re-writes the result: by then the unprotected write already happened, so the helper copies damage rather than preventing it. The `enforce-state-helper.sh` hook blocks the in-place shape from a heredoc body too, since that is where it hides from shell-syntax scanning.
+
+When a step genuinely needs the new content staged on disk before the write, name the temp file with `mktemp`. A fixed path is shared by every session on the machine, so two concurrent runs stage into the same file and one writes the other's state into its own:
+
+```bash
+tmp=$(mktemp) && trap 'rm -f "$tmp"' EXIT
+render_new_content > "$tmp"
+atomic_state_write "$S" < "$tmp"
+```
 
 ---
 

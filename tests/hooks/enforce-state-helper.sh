@@ -168,6 +168,56 @@ expect_allow "verify-cache mktemp temp form is exempt" \
 expect_allow "bash: redirect into verify-cache.json is exempt" \
   "$(rc_bash 'echo x > .geniro/planning/task-dir/.verify-cache.json')"
 
+# ===== Bash branch: interpreter-mediated writes (vector 10) =====
+# A script writing the file is not shell syntax, and a heredoc body is scrubbed
+# as data before vectors 1-9 run — so `python3 - "$S" <<'PY' … open(p,'w') … PY`
+# reached the filesystem unchecked. Observed in the wild across 15 state writes
+# whose trailing atomic_state_write call re-wrote already-mutated content.
+expect_block "bash: python heredoc in-place write to spec.md blocks" \
+  "$(rc_bash 'S=.geniro/planning/cls/spec.md; python3 - "$S" <<'"'"'PY'"'"'
+p=sys.argv[1]; b=open(p).read()
+open(p,"w").write(b)
+PY
+cp "$S" /tmp/x && atomic_state_write "$S" < /tmp/x')"
+expect_block "bash: python -c in-place write via \$S blocks" \
+  "$(rc_bash 'S=.geniro/planning/x/state.md; python3 -c "b=open('"'"'$S'"'"').read();open('"'"'$S'"'"','"'"'w'"'"').write(b)"')"
+expect_block "bash: python write to a literal state path blocks" \
+  "$(rc_bash 'python3 -c "open(\".geniro/planning/x/state.md\", \"w\").write(s)"')"
+expect_block "bash: node writeFileSync with variable target blocks" \
+  "$(rc_bash 'P=.geniro/planning/x/state.md; node -e "fs.writeFileSync(p, out)"')"
+expect_block "bash: perl -pi in-place edit of a state file blocks" \
+  "$(rc_bash 'perl -pi -e "s/a/b/" .geniro/planning/x/spec.md')"
+expect_block "bash: python append to learnings.jsonl blocks" \
+  "$(rc_bash 'S=.geniro/knowledge/learnings.jsonl; python3 -c "open('"'"'$S'"'"','"'"'a'"'"').write(l)"')"
+expect_block "bash: write target variable with no visible assignment blocks" \
+  "$(rc_bash 'python3 -c "open('"'"'$OUT'"'"','"'"'w'"'"').write(b)"; cat .geniro/planning/x/spec.md')"
+# Reads and provable non-state writes stay allowed — the vector fires only on
+# interpreter + write-mode op + state path together.
+expect_allow "bash: read-only python over a state file allowed" \
+  "$(rc_bash 'S=.geniro/planning/x/spec.md; python3 -c "print(open('"'"'$S'"'"').read())"')"
+expect_allow "bash: read-only python over a literal state path allowed" \
+  "$(rc_bash 'python3 -c "print(open(\".geniro/planning/x/spec.md\").read())"')"
+expect_allow "bash: python writing an assigned non-state path allowed" \
+  "$(rc_bash 'T=/tmp/out.md; python3 -c "open('"'"'$T'"'"','"'"'w'"'"').write(x)"; cat .geniro/planning/x/spec.md')"
+expect_allow "bash: python rendering to stdout piped into the helper allowed" \
+  "$(rc_bash 'S=.geniro/planning/x/state.md; python3 render.py | atomic_state_write "$S"')"
+expect_allow "bash: interpreter write to a transient .research file allowed" \
+  "$(rc_bash 'python3 -c "open(\".geniro/planning/x/.research-api.md\",\"w\").write(b)"')"
+expect_allow "bash: interpreter write under state/tdd/ allowed" \
+  "$(rc_bash 'python3 -c "open(\".geniro/state/tdd/state-x.md\",\"w\").write(b)"')"
+expect_allow "bash: grep whose pattern names an interpreter allowed" \
+  "$(rc_bash 'grep -rn "python" .geniro/planning/x/spec.md')"
+# A variable escaped to survive a double-quoted -c/-r script is still a variable.
+expect_block "bash: escaped-dollar write target blocks" \
+  "$(rc_bash 'S=.geniro/planning/x/state.md; python3 -c "open(\$p,\"w\").write(b)"')"
+expect_block "bash: php file_put_contents to a state path blocks" \
+  "$(rc_bash 'php -r "file_put_contents(\".geniro/planning/x/state.md\", \$b);"')"
+expect_block "bash: perl -i.bak in-place on a state file blocks" \
+  "$(rc_bash 'perl -i.bak -pe "s/a/b/" .geniro/planning/x/spec.md')"
+# `-version` ends in no in-place flag — a long option must not read as `-i`.
+expect_allow "bash: ruby -version beside a state path allowed" \
+  "$(rc_bash 'ruby -version; cat .geniro/planning/x/spec.md')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]
