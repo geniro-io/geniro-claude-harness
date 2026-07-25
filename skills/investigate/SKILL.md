@@ -198,7 +198,7 @@ For each claim, run the matching check yourself:
 | Commit / blame | Run `git show <hash>` or `git blame -L <range> <file>`, compare |
 | External fact (library version, API behavior) | Re-fetch the source URL or re-search; compare wording |
 
-A claim is **verified** when the orchestrator's own re-run matches the agent's report. A claim is **unverified** when the orchestrator cannot reproduce the agent's report OR cannot run the check at all (no DB access, no service access, no credentials, no logs).
+A claim is **verified** when the orchestrator's own re-run matches the agent's report. A claim is **unverified** when the orchestrator cannot reproduce the agent's report OR ran the check and it failed to complete (no DB access, no service access, no credentials, no logs — cite the failure). An untried check is not an unverified claim: run it first.
 
 #### Route unverified claims
 
@@ -279,6 +279,8 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text) with header
 Before writing to a single store, classify each finding to its proper destination per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`, then surface them one at a time per the per-finding walk below:
 
 Every save-routing Agent spawn below follows §Subagent Spawn Contract (they spawn as `general-purpose` directly).
+
+Anything routed to Claude Code's native memory — by route 3's auto-memory path or route 4 — carries its qualifier in the text: that store has no `trust` field, so a root cause with no captured artifact behind it is written as suspected, naming what would confirm it. Memory outlives the session, and a confidently-worded wrong diagnosis misdirects every later session that recalls it.
 
 1. **Domain-vocabulary findings** — the investigation surfaced a new domain entity, role, or business-rule term that wasn't in CLAUDE.md's Domain Context. Examples: "the codebase calls X a `Tenant` but production calls it a `Workspace`" / "there's a hidden `BillingAccount` entity that wraps `Subscription`+`PaymentMethod`+`Invoice`."
 - Route: **CLAUDE.md** "Domain Context" section.

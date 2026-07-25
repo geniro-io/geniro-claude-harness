@@ -765,6 +765,7 @@ Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery tre
 
 `/geniro:plan` run is complete when:
 
+- [ ] Any pre-existing state.md was pre-flighted with `validate_state_file` before resuming from its `phase:` value, and a failed validation opened the recovery question rather than resuming; a fresh run found no state.md and had no validation to run.
 - [ ] Phase 0 mode detection ran via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`; mode is IDEA or DESIGN_DOC; CODE_REFERENCE errored with corrective hint.
 - [ ] state.md created at `.geniro/planning/<slug>/state.md` via `atomic_state_write` with frontmatter.
 - [ ] Phase 0.5 problem-discovery interview ran ONLY when `--prd` was passed (`prd_mode: true`); six dimensions captured (problem / evidence / target user + job / hypothesis / success metrics / MoSCoW), each persisted to `approvals[]` (`prd_<dim>`) + synthesized to state.md `## Problem Framing`; skipped silently when `--prd` absent (no behavior change).

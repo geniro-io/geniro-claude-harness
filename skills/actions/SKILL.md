@@ -32,7 +32,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
 2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written). `run` has no confirmation gate (invariant 3 / Phase 5.3).
-3. Invoking authorizes execution — `run` fires the action's steps directly regardless of `risk_class` (Phase 5.3); the tool-allowlist intersection (Phase 5.4) and author-placed `[AUQ]`/`## Confirm:` checkpoints still fire.
+3. Invoking authorizes execution — `run` fires the action's steps directly regardless of `risk_class` (Phase 5.3); the tool-allowlist intersection (Phase 5.4), the one-time scope checkpoint when the run edits outside what the action declares (Phase 5.4), and author-placed `[AUQ]`/`## Confirm:` checkpoints still fire.
 4. Bounded structured results — `list` renders a frontmatter-only table; the `description` field is the only free text shown and is already capped at create-validation time, so no separate body truncation applies.
 5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
 6. Observations not assumed success — each step in `run` mode checks return status; failed step transitions to `failed` with step number captured.
@@ -55,7 +55,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 | `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
-**Run mode tool gating:** the effective tool surface is the intersection of the `/geniro:actions` skill's own `allowed-tools` (SKILL.md frontmatter) with the action's frontmatter `allowed-tools:` field. Phase 5.4 applies this intersection before any step runs.
+**Run mode tool gating:** Phase 5.4 intersects the action's frontmatter `allowed-tools:` with this skill's own before any step runs.
 
 Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); they run under the no-confirm contract (Phase 5.3), scoped by the action's `allowed-tools`. `risk_class` is a blast-radius label (listing / delete-warning / lint), not a run prompt.
 
@@ -63,7 +63,8 @@ Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); 
 
 | Cause | Message format |
 |---|---|
-| User cancelled at any AUQ | `aborted: user cancelled at <step>` |
+| User cancelled at any AUQ (other than the scope checkpoint's stop pick — next row) | `aborted: user cancelled at <step>` |
+| Scope checkpoint (Phase 5.4) — user picked "Stop here, keep what's changed" | `aborted: stopped at scope checkpoint after step <N>`; edits stay in place and the Phase 5.5 summary, with its `/geniro:review` recommendation, prints before the transition |
 | Slug resolution failed after 3 AUQ retries | `aborted: slug unresolved after 3 AUQ rounds` |
 | Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
@@ -325,13 +326,13 @@ Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`,
 
 ### Phase 5.3: No run-confirmation gate
 
-`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 5.4. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 7), the validate lint rules (Phase 8), and the L2 learning tag (Phase 5.5) — it never gates execution.
+`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 5.4. Scope of that authorization: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 7), the validate lint rules (Phase 8), and the L2 learning tag (Phase 5.5) — it never gates execution.
 
-The remaining WAIT points in run mode are operational, not confirmational, and stay in place: the cross-worktree confirmation (Phase 5.0 Step 2 — answers "use the copy from another worktree?"), the free-text picker (Phase 5.0 Step 3 — answers "which action?"), the tool-scope gap AUQ (Phase 5.4 — fires only when a step needs a tool outside the allowlist intersection), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body. None of these is an "are you sure you want to run this?" prompt.
+The remaining WAIT points in run mode are not "are you sure you want to run this?" prompts, and stay in place: the cross-worktree confirmation (Phase 5.0 Step 2 — "use the copy from another worktree?"), the free-text picker (Phase 5.0 Step 3 — "which action?"), the tool-scope gap AUQ (Phase 5.4 — a step needs a tool outside the allowlist intersection), the scope checkpoint (Phase 5.4 — the run edited outside what the action declares), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body.
 
 ### Phase 5.4: Execute inline (tool-scope intersection)
 
-Follow the action body's numbered steps directly. The orchestrator is the runtime — no subagent dispatch; Phase 5 runs inline. Pass extra positional `$ARGUMENTS` (after the action name) as input context under a "User-supplied input" heading.
+Follow the action body's numbered steps directly, inline in the orchestrator (invariant 1). Pass extra positional `$ARGUMENTS` (after the action name) as input context under a "User-supplied input" heading.
 
 **Tool-scope contract.** BEFORE running any step, intersect the action's frontmatter `allowed-tools` with the orchestrator's own `allowed-tools` ONCE and identify any step whose required tools fall outside the intersection. If gaps exist, surface them in a single AUQ before execution begins:
 
@@ -339,6 +340,17 @@ Follow the action body's numbered steps directly. The orchestrator is the runtim
 - **Options:** `Skip the affected steps and run the rest` / `Cancel the run`
 
 If no gaps, proceed without asking. Do not call any tool the action did not declare in `allowed-tools` — the intersection is the action author's stated tool budget. Do not re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
+
+**Scope checkpoint.** The action's own `## Steps` declare where its work belongs. Track what the run edits (the same changed-file list Phase 5.5 reports) and pause once — the first time the run edits production files outside the areas those steps name:
+
+- **Question:** "This run has changed <N> files, including <the areas the action's steps don't mention>. How should I continue?"
+- **Options:** `Keep going` / `Show me the diff first` / `Stop here, keep what's changed`
+
+`Show me the diff first` renders the diff and re-fires this same question, so the user decides with the diff in view — the one-pause cap counts triggers, not re-renders. `Stop here, keep what's changed` halts execution with the edits left in place and goes to Phase 5.5: print the wrap-up summary, including its `/geniro:review` recommendation, before the terminal transition — the run that most needs an independent look is the one that must not exit silently.
+
+One such trigger per run at most, and it is declaration-relative — what the action names versus what the run touched. The count is reported, never the trigger; no number of edits fires this on its own.
+
+This is not a re-authorization: invoking the action authorized the run and Phase 5.3 stands, so the checkpoint never re-asks whether to run it. It reports an outcome the user could not have known at invocation — the work outgrew what the action describes. New information, new decision. That is what earns the interruption, and why there is exactly one: a second prompt gets less attention than the first, not more.
 
 **Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
 
@@ -356,6 +368,8 @@ Steps skipped: <list, or "none">
 Files changed: <list, or "none">
 External calls: <list, or "none">
 ```
+
+When the scope checkpoint fired (Phase 5.4), close the summary by recommending an independent look at the diff: "This run went past what the action describes — `/geniro:review` reviews the diff before you push." Recommend it, never run it — `/geniro:actions` spawns no subagent and calls no other skill (invariant 1); the user decides whether to run it.
 
 **L2 emit on successful external-send run:** if the action's frontmatter declared `external-send: true` AND run succeeded, emit one L2 `discovery` row
 
@@ -499,6 +513,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 | "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
 | "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
 | "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; adding an "are you sure?" AUQ would re-ask a decision the user already made by invoking it. `risk_class` is metadata (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
+| "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
 | "I'll re-use Phase 4 Step 6's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
@@ -516,5 +531,5 @@ Load-bearing exit gates — per-command mechanics live in their phase sections.
 - [ ] Every user interaction used `AskUserQuestion`; destructive ops (`delete`, and overwrite on `create`) confirmed via AUQ before running.
 - [ ] Writes to `.geniro/actions/` routed through `atomic_state_write` (T3 persistent-CRUD path); no `{{placeholder}}` left in any written file.
 - [ ] `create` passed all 10 validation checks (including required `risk_class:`); `validate` exited non-zero on any CRITICAL/HIGH.
-- [ ] `run` executed inline with no run-confirmation gate (Phase 5.3), within the action's tool-scope intersection; L2 `discovery` emit fired on a successful `external-send: true` run.
+- [ ] `run` executed inline with no run-confirmation gate (Phase 5.3), within the action's tool-scope intersection; the scope checkpoint fired (once) if the run edited outside what the action declares; L2 `discovery` emit fired on a successful `external-send: true` run.
 - [ ] `.gitignore` re-include rules added on first action created (idempotent).

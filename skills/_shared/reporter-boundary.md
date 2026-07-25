@@ -2,7 +2,7 @@
 
 Canonical contract for Reporter-class skills: running under a dynamic `Workflow(...)`, ultracode, or any elevated-effort mode does NOT relax the skill's read-only contract. A workflow is an execution wrapper that parallelizes the subagent fan-out — it is not a contract override.
 
-Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:investigate`.
+Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:investigate`, `/geniro:resolve`.
 
 ## The four invariants that bind identically inside a Workflow run
 
@@ -16,13 +16,13 @@ A Reporter-class skill produces findings, not changes. Inside every workflow ste
 
 The skill's documented on-disk deliverable (handoff file, reproduction test, or working-tree diff) and its sanctioned side-effects (for example, `/geniro:review` posting a PENDING PR review) are the ONLY outputs. That review side-effect is bounded: `/geniro:review` posts a PENDING draft only, after the explicit action-gate pick, and never publishes/submits the review it creates (never the `reviews/<id>/events` endpoint) — submitting fires notifications to the PR author and is the user's own github.com action, across all rounds. The action gate always fires before posting, and chat text ("submit it yourself") never substitutes for it. Route fixes to `/geniro:implement` — never apply them in-skill.
 
-**Carve-out — authored-test push (`/geniro:review` only).** `/geniro:review` may commit + push ONLY the failing tests it authored to the reviewed branch, because authored tests are evidence, not a fix. The carve-out is triple-scoped: only files listed in the handoff `## Authored Tests`, only tests authored by `adversarial-tester-agent`, and only after the explicit "Commit + push" pick in the Phase 6 Failing-tests gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6). It applies to `/geniro:review` ONLY — `/geniro:debug`, `/geniro:refactor`, and `/geniro:investigate` have no failing-tests gate and no authored-test push, so they read this carve-out as inapplicable, not as a general push license. A fix never rides along with the tests on that push.
+**Carve-out — authored-test push (`/geniro:review` only).** `/geniro:review` may commit + push ONLY the failing tests it authored to the reviewed branch, because authored tests are evidence, not a fix. The carve-out is triple-scoped: only files listed in the handoff `## Authored Tests`, only tests authored by `adversarial-tester-agent`, and only after the explicit "Commit + push" pick in the Phase 6 Failing-tests gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6). It applies to `/geniro:review` ONLY — `/geniro:debug`, `/geniro:refactor`, `/geniro:investigate`, and `/geniro:resolve` have no failing-tests gate and no authored-test push, so they read this carve-out as inapplicable, not as a general push license. A fix never rides along with the tests on that push.
 
 ### 2. Canonical action gate
 
-The skill's documented `AskUserQuestion` options are an allowlist. Do not substitute an ad-hoc question — no "apply the fix now", no "add the test now", no "what next?". If the user asks mid-run for a fix to be applied, surface that this exceeds the skill's reporter scope and offer to hand off to `/geniro:implement`. Do not silently become a fixer.
+The skill's documented `AskUserQuestion` options are an allowlist. Do not substitute an ad-hoc question — no "apply the fix now", no "add the test now", no "what next?". **State the boundary as a routing choice and name the route in the same message.** A reporter's read-only contract is a scope boundary the user crosses by routing the work onward, not a limit on what the agent can do — so describe it that way wherever it surfaces: mid-run when the user asks for a fix, and unprompted in the report. "These fixes are ready to apply — `/geniro:implement <handoff-path>` applies them" leaves the user with a next move; "I am read-only and cannot apply them" reads as final, and the user stops asking for as long as they believe it. Offering the route is what keeps the boundary intact: the reporter routes the work, it never becomes the fixer.
 
-Routing findings to `/geniro:implement` hands off work to fix, not authority to ship. The action-gate pick ("/geniro:implement findings") authorizes /geniro:implement to apply the fixes; /geniro:implement still runs its own ship gate before any commit or push. A Reporter's action-gate selection never pre-authorizes the downstream push — an "apply the findings" approval is not ship consent.
+Routing findings to `/geniro:implement` hands off work to fix, not authority to ship. The action-gate pick ("/geniro:implement findings") authorizes /geniro:implement to apply the fixes; /geniro:implement still runs its own ship gate before any commit or push. A Reporter's action-gate selection never pre-authorizes the downstream push — an "apply the findings" approval is not ship consent. The general rule this follows is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`.
 
 ### 3. State writes via atomic_state_write
 
