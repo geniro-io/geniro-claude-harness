@@ -46,9 +46,13 @@ What counts as an artifact:
 | 4 | Query result against the actual datastore | `SELECT count(*) FROM sessions WHERE user_id=42 → 0 rows` |
 | 5 | User-provided artifact (screenshot, log paste, captured request body, env-var dump) | user pastes the request body that triggered the bug |
 
-Reasoning, "the symptom matches", "the agent reported PASS", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only a captured artifact (kind 1, 3, or 4) confirms causation.
+Reasoning, "the symptom matches", "the agent reported PASS", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only a captured artifact (kind 1, 3, or 4) confirms causation. An artifact showing that every failing case shares an attribute establishes a discriminator, not a cause; before that reading reaches a deliverable, run the one probe whose result differs depending on which reading is true.
 
-A passing-test claim adds one requirement on top of kind 1: the tail must show a non-zero observed test count (e.g. "N passed", "N tests", "N collected"), not just exit code 0. vitest, jest, and pytest exit 0 when zero test files match ("No test files found" / "no tests ran"), so a green exit with no collected tests is a false-green for a *passing* claim. Capture the run summary line carrying the count, not the exit code alone.
+**A negative result is evidence only after the probe is shown able to return a positive.** Before reporting "there is no X" or "that window is clean", run the same probe against a case that must match — a known-present value, a time range with known activity — and cite that positive alongside the empty result. Without it, an empty result establishes that the probe found nothing, not that nothing is there.
+
+A passing-test claim serves the same underlying requirement — show that the probe fired — and adds one condition on top of kind 1: the tail must show a non-zero observed test count (e.g. "N passed", "N tests", "N collected"), not just exit code 0. vitest, jest, and pytest exit 0 when zero test files match ("No test files found" / "no tests ran"), so a green exit with no collected tests is a false-green for a *passing* claim — the count is what shows the probe fired. Capture the run summary line carrying the count, not the exit code alone.
+
+**A limit on your own reach is a claim and carries the same artifact requirement.** Attempt the read once with the tools you have and cite the failure before routing it to the user — the missing-data gates open on a failed attempt, not on an assumption, and the environment this session can reach — the repo, its logs, its configured services — is yours to probe before declaring the data out of reach.
 
 ## Forbidden phrases
 
@@ -59,7 +63,7 @@ The `Stop` hook (`require-evidence-on-completion.sh`) scans final responses for 
 
 Replace with the captured Evidence Block + a one-line summary that cites the exit code and tail.
 
-**Scope the claim when the artifact has open items.** When the thing a completion claim describes carries an open checklist or unresolved items, scope the claim to what was actually verified — e.g. "all HIGH-severity cells verified live; 13 lower-severity items tracked in the checklist" — rather than claiming the whole. An unscoped "verification is complete" over open items is a forbidden phrase even with an Evidence Block attached: the evidence covers the verified subset, so an "all complete" claim outruns its own proof. The Evidence Block establishes what was checked; the claim must not assert more than that.
+**Scope the claim to what the command covered.** State a check claim at the width of the command that produced it — a vet run over two packages supports "vet passes on the logger package and one service", not "vet passes"; an artifact covering the verified subset of an open checklist supports "all HIGH-severity cells verified live; 13 lower-severity items tracked", not "verification is complete". The claim keeps that width in every artifact it lands in: chat, ship report, commit message, PR body. A claim wider than its Evidence Block outruns its own proof, and a reader of the PR cannot see which command ran — an unscoped claim is a forbidden phrase even with an Evidence Block attached.
 
 Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, but the hook does NOT scan them — they produced too many false positives on benign sentences ("Should I run tests?"). Treat them as authoring guidance, not an enforced gate.
 
@@ -85,6 +89,6 @@ A consumer skill correctly applies the Evidence Standard when:
 - [ ] Every completion claim ("done", "passing", "validated", "shipped", "ready to ship") in orchestrator output is followed by an Evidence Block in the same message.
 - [ ] Every CRITICAL/HIGH reviewer-agent finding carries an Evidence Block at emit-time (relevance-filter drops findings missing it).
 - [ ] No forbidden-phrase token appears in final output without an accompanying Evidence Block.
-- [ ] When the artifact carries open or unresolved items, the completion claim is scoped to the verified subset — no unscoped "complete" over an open checklist, even with an Evidence Block attached.
+- [ ] Every check claim states the surface its command actually covered — no unscoped "complete" over an open checklist — and, when the run commits or opens a PR, reaches the commit message and PR body at that same width.
 - [ ] Cross-phase PASS carries cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` and verify no intervening mutation.
 - [ ] Evidence is captured in the current message — no stale artifacts, no reasoning-only claims.

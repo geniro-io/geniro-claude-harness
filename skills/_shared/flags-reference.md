@@ -59,7 +59,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 
 ## Non-suppressible safety gates
 
-These gates fire on a real triggering event regardless of any flag, modifier, or `launch_config` pre-set. Setup is presettable because the answer is known at invocation time and the action is reversible; a safety gate is not, because each one protects an irreversible or scope-expanding action whose trigger the plan cannot foresee — so a pre-set is not informed consent for it. The full doctrine is in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety".
+These gates fire on a real triggering event regardless of any flag, modifier, or `launch_config` pre-set. Setup is presettable because the answer is known at invocation time and the action is reversible; a safety gate is not, because each one protects an irreversible or scope-expanding action whose trigger the plan cannot foresee — so a pre-set is not informed consent for it. The full doctrine is in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety"; the general rule on how far any approval reaches is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`.
 
 - **New-dependency adoption** — adopting a new external library always asks before any dependency is added.
 - **Runaway-scope / budget escalation** — a diff that crosses the spec's declared file/line budget stops for the user.
