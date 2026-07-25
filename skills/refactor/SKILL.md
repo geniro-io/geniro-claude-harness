@@ -61,26 +61,26 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 **Quality gates (escalate to user, do not abort):**
 
-| Gate | Cap | Where | Past threshold |
-|---|---|---|---|
-| Per-step retry (orchestrator-inline Blocked Step Protocol) | 3 | | Mark BLOCKED, continue to next step |
-| Session-level blocked ratio | 30% (post-rejection denominator) | | AUQ — keep what worked & escalate / revert / force-continue. User picks. |
-| Phase 3 fix-loop | 1 round | | Re-spawn reviewer once; if still failing, AUQ (escalate / accept / abort). |
-| Reviewer output size | ~4000 chars per dim | invariant #4 | Truncation with marker. |
+| Gate | Cap | Past threshold |
+|---|---|---|
+| Per-step retry (orchestrator-inline Blocked Step Protocol) | 3 | Mark BLOCKED, continue to next step |
+| Session-level blocked ratio | 30% (post-rejection denominator) | AUQ — keep what worked & escalate / revert / force-continue. User picks. |
+| Phase 3 fix-loop | 1 round | Re-spawn reviewer once; if still failing, AUQ (escalate / accept / abort). |
+| Reviewer output size | ~4000 chars per dim | Truncation with marker (invariant #4). |
 
 **Architecture constraints (design intent, not budget):**
 
-| Constraint | Value | Source |
-|---|---|---|
-| Parallel reviewer spawns | 1 independent + N custom reviewers | |
-| Smell-detection rounds | 1 (orchestrator-inline) | |
-| Smell-evidence filter rounds | 1 (Medium+ only) | |
+| Constraint | Value |
+|---|---|
+| Parallel reviewer spawns | 1 independent + N custom reviewers |
+| Smell-detection rounds | 1 (orchestrator-inline) |
+| Smell-evidence filter rounds | 1 (Medium+ only) |
 
 ---
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (reviewer-agent, custom reviewers), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (registration ladder: `geniro:<agent>` → bare `<agent>` → `general-purpose` with body inlined). Cache the resolved rung for the rest of the session.
+OMIT `model=` at every plugin-agent spawn site, per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Spawn plugin-defined subagents (reviewer-agent, custom reviewers) through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` → bare `<agent>` → `general-purpose` with body inlined); cache the resolved rung for the rest of the session.
 
 Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies the six pre-inlined fields, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
@@ -94,7 +94,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 If any delegated agent fails (timeout, error, empty/garbage result): retry once with the same prompt. If the retry also fails:
 - **Smell detection and smell evidence** run orchestrator-inline and cannot fail separately — failures bubble up as normal orchestrator errors (Read / Grep / Glob unavailable would halt the skill).
-- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue (the ≥30% blocked → AUQ gate fires in Phase 2 §2.3). Catastrophic Edit failures (filesystem error) → revert the refactor's changes (`git restore --source=HEAD -- <each path from git diff --name-only>` per §Git Constraint; with user confirmation) and escalate to user with failure context.
+- **Per-step execution** failures: do NOT silently skip. If a step's Blocked Step Protocol exhausts 3 retries, revert that step and continue (the ≥30% blocked → AUQ gate fires in Phase 2 §2.3). Catastrophic Edit failures (filesystem error) → revert the refactor's changes per §Git Constraint (with user confirmation) and escalate to user with failure context.
 - **Phase 3 reviewer-agent:** note the failure in the completion summary and proceed (fail-open); warn the user that independent review did not complete.
 
 ---
@@ -421,12 +421,9 @@ At Phase 3 exit:
 - **`emit-learning`** — called by /geniro:refactor for two emit types per canonical contract:
 - **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /geniro:refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified`.
 - **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
-- **NOT emitted :** `diagnosis` (/geniro:debug owns); `convention` (/geniro:implement self-review owns); `decision` (/geniro:plan owns).
 - **Echo + ordering:** after a successful emit, echo `Recorded learning: <summary>` to the user, and fire the emit before declaring Phase 3 done — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". A silent emit trailing the phase's done declaration is the documented drop vector.
 
 **Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
-
-For durable rule mining, run `/geniro:reflect` on demand to analyze recent sessions for durable rule candidates.
 
 ### 3.6 Cleanup
 
@@ -504,7 +501,7 @@ Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level
 
 ---
 
-## Definition of Done
+## Definition of done
 
 These are the load-bearing exit gates and safety invariants — the checks that, if skipped, break the zero-behavior-change guarantee or the no-ship boundary. Per-phase mechanics (tier classification, smell detection, plan building) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
 

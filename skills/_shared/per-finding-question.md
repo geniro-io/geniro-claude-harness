@@ -54,7 +54,7 @@ Every gate under this contract follows a two-step shape — **render the finding
 
 **Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a reviewer phrase like "relies on the implicit entity-default @Filter at the 3 call sites" must be spelled out — which code paths, what the default does, why the reliance is in question — never echoed verbatim into the question. No term may appear in the `question` or any option that was not explained in the chat block first.
 
-Why this shape: `AskUserQuestion` renders `preview` as a narrow monospace side-box that hard-truncates long content with no scroll, and is often absent entirely in an interactive session. A finding body placed there is unreadable or invisible — so the body lives in the chat message, which has full width, and the lean question captures only the decision.
+Why this shape: the `preview` side-box cannot carry a finding body — the reason is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. The body lives in the chat message; the lean question captures only the decision.
 
 **Resume paths render too.** The separate-message rule holds after a compaction, wakeup, or workflow-completion continuation. Treat a wakeup or self-prompt's embedded premises as claims, not facts — verify against the visible transcript/state, then author the render fresh if it is not there. The pre-compaction message is gone from the user's live view even when state.md records that the gate was reached.
 
@@ -114,7 +114,7 @@ A finding's option set MAY include a **"Challenge this finding"** option — a r
 
 ### Scrub before the AUQ fires (hard)
 
-The plain-English rule (§ Message-first rendering self-containment rule) is otherwise advisory — when the orchestrator builds the question and option fields from a finding's structured fields, it naturally echoes internal shorthand into them, so the rule leaks under drift (`PRODUCT-DECISION` reached an `AskUserQuestion` option field in a real session). Pair the advisory rule with a mechanical scrub at the question boundary, mirroring the PR-comment boundary's scrub in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.5 ("scrub before POST"): before firing ANY finding-gate `AskUserQuestion`, scan every string that will render — `question`, `header`, each option `label`, each option `description`, each `preview` — against the forbidden-token set:
+The plain-English rule (§ Message-first rendering self-containment rule) is otherwise advisory — when the orchestrator builds the question and option fields from a finding's structured fields, it naturally echoes internal shorthand into them, so the rule leaks under drift — a decision-type tag like `PRODUCT-DECISION` lands in an option field because it was the field's value upstream, and nothing between the finding and the question converts it. Pair the advisory rule with a mechanical scrub at the question boundary, mirroring the PR-comment boundary's scrub in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.5 ("scrub before POST"): before firing ANY finding-gate `AskUserQuestion`, scan every string that will render — `question`, `header`, each option `label`, each option `description`, each `preview` — against the forbidden-token set:
 
 - Decision-type tags: `PRODUCT-DECISION`, `FIX-NOW`, `TESTABLE`, `INTENT-CHECK`.
 - Internal finding IDs: `M1` / `M1b` / `L5`-style `<letter><digit>` handles.

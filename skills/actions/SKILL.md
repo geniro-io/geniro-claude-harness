@@ -9,7 +9,7 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 
 # Actions: custom workflow-helper management
 
-3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`.
+Stateless loop: **Parse → Execute → Done**. Execute branches into one of six sub-command sections (Phases 3-8 below), so a run passes through Phase 1, Phase 2, exactly one of Phases 3-8, and the terminal report. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
@@ -20,7 +20,7 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 | `list` | show, view, ls, current | Print the table of installed actions |
 | `create` | new, scaffold, make, add | Interview-driven scaffold for a new action |
 | `edit` | change, modify, update, tweak, adjust | Open an existing action for external editing, then re-validate |
-| `run` | invoke, exec, execute, do | Read an action file and follow its steps inline (no confirmation — invoking the action is the authorization) |
+| `run` | invoke, exec, execute, do | Read an action file and follow its steps inline (no run-confirmation gate — Phase 5.3) |
 | `delete` | remove, rm, drop | Remove an action file (with confirmation) |
 | `validate` | check, lint | Lint frontmatter and body against the rule set |
 
@@ -48,7 +48,7 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
 | `execute` (list) | `Read`, `Glob`, `Bash(ls...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
-| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p "$PRIMARY_ROOT"/.geniro/actions/, grep, echo >> "$PRIMARY_ROOT"/.gitignore, sed -i, rm -f "$PRIMARY_ROOT"/.gitignore.bak, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
+| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p "$PRIMARY_ROOT"/.geniro/actions/, the .gitignore re-include procedure, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
 | `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
 | `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
 | `execute` (run) | **Intersection of /geniro:actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
@@ -180,17 +180,11 @@ On **Cancel**: stop.
 
 ```bash
 mkdir -p "$PRIMARY_ROOT"/.geniro/actions
-
-# Remove bare `.geniro/` if present — it would block negation patterns below.
-sed -i.bak '/^\.geniro\/$/d' "$PRIMARY_ROOT"/.gitignore 2>/dev/null && rm -f "$PRIMARY_ROOT"/.gitignore.bak
-
-grep -q "^\.geniro/\*$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo ".geniro/*" >> "$PRIMARY_ROOT"/.gitignore
-grep -q "^\!\.geniro/$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo "!.geniro/" >> "$PRIMARY_ROOT"/.gitignore
-grep -q "^\!\.geniro/actions/$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo "!.geniro/actions/" >> "$PRIMARY_ROOT"/.gitignore
-grep -q "^\!\.geniro/actions/\*\*$" "$PRIMARY_ROOT"/.gitignore 2>/dev/null || echo "!.geniro/actions/**" >> "$PRIMARY_ROOT"/.gitignore
 ```
 
-This default keeps `.geniro/actions/` committed (team-shareable). The negation edits target `"$PRIMARY_ROOT"/.gitignore` — the negation must live where the action file is written. Users who want their actions ignored can manually remove the `!.geniro/actions/` lines.
+Then apply the `.gitignore` re-include procedure in `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` §3.5 — the single copy of this idiom — with `actions` as the directory that must stay committed (`for d in actions`). It drops a bare `.geniro/` line if present (that line would ignore the whole tree and defeat every negation), then idempotently appends `.geniro/*`, `!.geniro/`, `!.geniro/actions/`, and `!.geniro/actions/**`.
+
+This default keeps `.geniro/actions/` committed (team-shareable). The negation must live in `"$PRIMARY_ROOT"/.gitignore`, beside where the action file is written. Users who want their actions ignored remove the two `!.geniro/actions/` lines by hand.
 
 **Hook reminder:** the `.geniro/` deletion guard hook blocks `git add -f` on `.geniro/` paths — the correct path is `.gitignore` negation (above), never `git add -f`. Force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click becomes a one-click data-loss vector.
 
@@ -210,7 +204,7 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 **Q4 — Test cases (optional):** "Include a brief 'how to test it' note?"
 - `Yes — add 1–2 test cases`, `Skip`
 
-**Q5 — Risk class:** "What is the risk class for this action?" (`risk_class` labels the action's blast radius for the listing, the delete-confirmation warning, and lint — it does not add a run-time confirmation; an action the user invoked is never re-confirmed.)
+**Q5 — Risk class:** "What is the risk class for this action?" (`risk_class` labels blast radius for the listing, the delete warning, and lint; it is not a run gate — Phase 5.3.)
 - `low` — Pure read operations: read files, list dirs, aggregate data, display info. No network, no file mutation outside cwd.
 - `medium` — Local file mutation, git commit (no push), tests with side effects (DB seed, integration test). External reads (HTTP GET).
 - `high` — External sends (Slack/PR/email), git push, npm publish, docker push, cloud mutations, file deletion outside `.geniro/`.
@@ -227,7 +221,7 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, then synthesize a concrete action body by filling in answers from Step 3:
 
 - Frontmatter `name` = the kebab-case slug.
-- Frontmatter `description` must start with "Use when" and reflect Q2's trigger context (≤250 chars).
+- Frontmatter `description` reflects Q2's trigger context and follows the description rule in the template's §Authoring rules.
 - Frontmatter `risk_class:` = Q5's answer (REQUIRED).
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
@@ -348,9 +342,7 @@ If no gaps, proceed without asking. Do not call any tool the action did not decl
 
 `Show me the diff first` renders the diff and re-fires this same question, so the user decides with the diff in view — the one-pause cap counts triggers, not re-renders. `Stop here, keep what's changed` halts execution with the edits left in place and goes to Phase 5.5: print the wrap-up summary, including its `/geniro:review` recommendation, before the terminal transition — the run that most needs an independent look is the one that must not exit silently.
 
-One such trigger per run at most, and it is declaration-relative — what the action names versus what the run touched. The count is reported, never the trigger; no number of edits fires this on its own.
-
-This is not a re-authorization: invoking the action authorized the run and Phase 5.3 stands, so the checkpoint never re-asks whether to run it. It reports an outcome the user could not have known at invocation — the work outgrew what the action describes. New information, new decision. That is what earns the interruption, and why there is exactly one: a second prompt gets less attention than the first, not more.
+One such trigger per run at most, and it is declaration-relative — what the action names versus what the run touched. The count is reported, never the trigger; no number of edits fires this on its own. Phase 5.3 still stands: this pause reports new information rather than re-asking a settled decision. Exactly one, because a second prompt gets less attention than the first, not more.
 
 **Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
 
@@ -457,14 +449,13 @@ When validating all actions (no `<slug>` provided), build the registry per Phase
 
 If `<slug>` provided: resolve via Phase 5.0 (Steps 1-3) to get `<resolved-path>` and `<source>`, then validate only that single file. Else validate the deduped union from the dual-glob above. Read-only; never mutates.
 
-### Step 2 — Lint rule set (shared with `/geniro:instructions validate review-extra`)
+### Step 2 — Lint rule set
 
 Run the 10 create-gate checks (Phase 4 Step 6 table, same severities), plus these validate-only rows:
 
 | Check | Severity |
 |---|---|
-| `description:` mentions adjacent terms | LOW |
-| `description:` includes boundary clause ("Skip for...") | LOW |
+| `description:` passes the three §Description quality rules in `/geniro:instructions` Mode: validate Step 2 — that table is the shared source for these rows and their severity | LOW |
 | `allowed-tools:` field present (if action mutates) | LOW |
 | No references to dropped skills in body | HIGH |
 

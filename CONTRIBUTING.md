@@ -16,8 +16,31 @@ Thank you for your interest in contributing! This project aims to provide the be
 2. Create a feature branch (`git checkout -b feature/my-improvement`)
 3. Make your changes
 4. Test by installing the plugin into a real project — via the marketplace (`claude plugin install geniro@geniro-claude-harness`) or a local-path marketplace add — and running `/geniro:setup`
-5. Commit with clear messages
-6. Push and open a Pull Request
+5. Run the checks below so CI comes back green
+6. Commit with clear messages
+7. Push and open a Pull Request
+
+### Before you push
+
+CI runs the same three things. Running them locally first is the difference between a green PR and a red one.
+
+```bash
+# 1. Fetch the pinned judge prompts. The eval suites read evals/vendor/skills;
+#    without the submodule every comparison degrades to a no-winner tie.
+git submodule update --init
+
+# 2. Regenerate the Cursor agent copies — REQUIRED after any agents/*.md edit.
+#    cursor/agents/*.md are generated, never hand-written. CI
+#    (tests/cursor/build-agents-fresh.sh) hard-fails on drift, so commit
+#    agents/*.md and cursor/agents/*.md together.
+bash scripts/build-cursor-agents.sh
+
+# 3. Run every shell test suite (helpers, safety hooks, authoring lint).
+#    Exits non-zero if any suite fails — this is the CI gate.
+bash tests/run-all.sh
+```
+
+`jq` is a hard dependency of the suites. CI additionally runs ShellCheck at error severity over the shell scripts in `lib`, `hooks`, `tests`, `evals`, `cursor`, and `scripts`.
 
 ### What to Contribute
 

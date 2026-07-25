@@ -69,23 +69,23 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 **Architecture constraints (design intent, not budget):**
 
-| Constraint | Value | Source |
-|---|---|---|
-| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `adversarial-tester-agent` (adversarial mode only) | |
-| Reproduction-test framework | Project's native (detected from CLAUDE.md Essential Commands) | |
+| Constraint | Value |
+|---|---|
+| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `adversarial-tester-agent` (adversarial mode only) |
+| Reproduction-test framework | Project's native (detected from CLAUDE.md Essential Commands) |
 
 ---
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every plugin-agent spawn site — the agent's `model: inherit` frontmatter propagates the orchestrator's session tier (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). For plugin-defined subagents (adversarial-tester), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — registration ladder (`geniro:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined). Cache the resolved rung for the rest of the session.
+OMIT `model=` at every plugin-agent spawn site, per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Spawn plugin-defined subagents through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined); cache the resolved rung for the rest of the session.
 
-Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt MUST satisfy the six pre-inlined fields.
+Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies the six pre-inlined fields, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
-| Spawn | Tier | Why |
-|---|---|---|
-| `codebase-research-agent` | inherit (OMIT `model=`) | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant #8). Inherits orchestrator tier so research runs at Opus on an Opus session. Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
-| `adversarial-tester-agent` | inherit (OMIT `model=`) | Reasoning-grade test authoring. Matches the canonical rule in `model-tiering.md` and call sites in `/geniro:review` Phase 4.3, `/geniro:implement` Phase 3. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
+| Spawn | When |
+|---|---|
+| `codebase-research-agent` | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant #8). Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
+| `adversarial-tester-agent` | Adversarial mode test authoring. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 ---
 
@@ -101,7 +101,7 @@ When evidence for a hypothesis looks out of reach (no DB access, no production l
 
 ## Universal rule: all choice questions use AskUserQuestion
 
-Every user-facing choice in this skill — including ad-hoc gates not explicitly enumerated below — goes through the `AskUserQuestion` tool. Inlining `(A)... or (B)...` in chat skips the structured-answer record the resume hook reads back, so the choice is lost on compaction. The enumerated gates are examples, not an exhaustive list. If you're about to type `(A)... or (B)...` in chat, stop and call the tool instead.
+Route every user-facing choice in this skill through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — an inline `(A)... or (B)...` in chat leaves no structured answer for the resume hook to read back, so the choice is lost on compaction. The enumerated gates are examples, not an exhaustive list.
 
 ---
 
@@ -214,9 +214,7 @@ Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypo
 - Add logging, breakpoints, or unit tests to gather evidence. Tag every debug log line with one unique per-run prefix (e.g. `[DBG-a4f2]`) — §3.5 cleanup then reduces to a single grep, and no untagged straggler survives into the escalated diff. For performance symptoms, logs are the wrong instrument: capture a baseline measurement first (timing harness, profiler, query plan — § Isolation techniques) and test hypotheses against the number.
 - Do NOT implement a fix yet — you're gathering data.
 - **Missing-data gate:** when a probe you actually ran failed to reach the data the test requires (production logs, runtime state, third-party API responses, DB rows behind credentials, screenshots), do NOT mark the hypothesis inconclusive by default. `AskUserQuestion` with header "Missing data" — 2-4 concrete options for the specific artifact needed. When the user picks "I don't have it" or "Skip this hypothesis", persist a structured `open_questions[]` entry to state.md frontmatter with `source: phase-1-missing-data-gate`, `question: <verbatim missing-data prompt>`, `related_hypotheses: [<H-ID>]`, `status: unresolved`. The Phase 3 §3.0 Pre-gate surfaces it again before the escalation AUQ — sometimes the user discovers the missing artifact after the investigation completes and wants to amend.
-- "Paste the failing log line at the time of the error" / "Paste the request body that triggered the error" / "I don't have it — mark inconclusive"
-- "Run this query against the production DB and paste the result: `<query>`" / "I can't run that query" / "Skip this hypothesis"
-- "Provide a screenshot of the broken state" / "I don't have it — skip"
+- Example option set: "Paste the failing log line at the time of the error" / "Paste the request body that triggered the error" / "I don't have it — mark inconclusive"
 - Record results: confirmed / rejected / inconclusive. Every Result: field MUST cite an artifact per Evidence Standard. "Confirmed" with narrative-only Result is rejected.
 
 **L2 emit on REJECTED:** For each hypothesis transitioning to `Status: rejected` (eliminated by a test that produced contradicting evidence), call `emit-learning` with type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections in one Phase 1 = multiple emits). Canonical payload shape: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9.
@@ -434,7 +432,6 @@ At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnos
 - **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical `emit_learning` call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` to the user — the helper writes silently, so the echo is the only in-session signal the diagnosis was captured.
 - **`discarded_hypothesis`** — fires per-rejection during Phase 1; payload schema, cap, and emit logic in §1.5.
 - **`retry_failure_sequence`** — fires at Phase 2 exit when `fix_attempts >= 2`; payload schema and emit logic in §2.5.
-- **NOT emitted :** `pitfall` (/geniro:refactor + /geniro:review own), `convention` (/geniro:implement self-review owns), `decision` (/geniro:plan owns), `discovery` (/geniro:refactor + /geniro:onboard + /geniro:investigate own).
 
 - **Offer to capture a recurring diagnosis as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: diagnosis`, the debug scope routing (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks), and rejection args `"/geniro:debug" "debug/<scope>" "promote_diagnosis_to_rule"`. The helper reads the just-emitted diagnosis's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
 
@@ -543,11 +540,13 @@ T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `de
 **Phase 1 (Investigate):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, read-only `gh pr list` / `gh pr view` / `gh pr diff` for the §1.2 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
+- Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant #8); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
 - Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching without user confirmation.
 
 **Phase 2 (Propose):**
 - Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs).
 - Allowed: Edit / Write for reproduction test authoring + experimental monkey-patches.
+- Allowed: `Workflow(...)` for the deep-mode 3-verifier majority vote (§2.4, `deep-mode: true` only). No Agent spawns.
 - Explicitly blocked: production-source Edit/Write outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
@@ -615,7 +614,7 @@ Binary search / git bisect / profiling — full procedure + per-language profile
 
 ---
 
-## Definition of Done
+## Definition of done
 
 These are the load-bearing exit gates and safety invariants for the mode that ran — the checks that, if skipped, make the investigation unsound or the no-ship boundary unsafe. Per-phase mechanics (context loading, hypothesis recording, feedback-loop construction) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
 

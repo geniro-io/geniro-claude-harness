@@ -1,17 +1,17 @@
 # Review deep mode — reference
 
-Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) raises **quality** — recall (find more) and precision (validate more reliably) — by multiplying the reviewer and verifier fan-out and running it inside an internal `Workflow(...)`. It does NOT raise speed: under the Workflow concurrency cap (`min(16, cores-2)` concurrent agents per workflow) the extra passes do not shrink wall-clock, they only deepen coverage at higher token cost. Two efficiency refinements keep that cost from being a flat 3× multiplier — **angle-diverse recall** (each per-dim pass searches a distinct region, not an identical re-run) and **signal-gated precision** (one verifier on the clear majority, the full 3-vote only where the call is contested). Deep mode is opt-in for exactly this reason — it is not the default.
+**Cross-skill common contract.** The activation pattern, the mandatory Workflow mitigations, the fail-safe ladder, the boundary-preservation rules, and the shared anti-rationalization live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` — read it first. This file covers only what `/geniro:review` deepens.
+
+Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) multiplies the reviewer and verifier fan-out inside an internal `Workflow(...)`: a thoroughness lever, never a latency one. Two refinements keep its cost off a flat 3× multiplier — **angle-diverse recall** (each per-dim pass searches a distinct region rather than re-running one identical prompt) and **signal-gated precision** (one verifier on the clear majority, the full 3-vote only where the call is contested).
 
 Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verifier passes run and how their results aggregate — it does NOT change the Reporter boundary, the posted-set semantics, the action-gate options, or the `atomic_state_write` contract.
-
-**Cross-skill common contract.** The rules `/geniro:review`, `/geniro:plan`, and `/geniro:implement` share — the activation pattern, the mandatory Workflow mitigations, the fail-safe ladder, and the boundary-preservation rules — are canonicalized in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md`. This file keeps its review-specific layers (§2 recall, §3 precision) inline; where it overlaps the shared contract (§4 mitigations, §6 fail-safe, §9 anti-rationalization), the shared file is the canonical statement.
 
 ## Contents
 
 - §1 — Activation + state
 - §2 — Recall layer (Phase 2: 3 angle-diverse reviewer passes per dimension)
 - §3 — Precision layer (Phase 4.2: signal-gated majority verification)
-- §4 — The Workflow scripts (shape + mandatory mitigations)
+- §4 — The Workflow scripts (shape)
 - §5 — Convergence-dedup rule (load-bearing)
 - §6 — Fail-safe ladder
 - §7 — Reporter-contract preservation inside the workflow
@@ -72,9 +72,9 @@ When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no ti
 
 ---
 
-## 4. The Workflow scripts (shape + mandatory mitigations)
+## 4. The Workflow scripts (shape)
 
-Deep mode invokes the Workflow tool from inside the skill — sanctioned because the skill body instructs it (the Workflow opt-in rule covers "a skill whose instructions tell you to call Workflow"). Two fan-outs: the Phase 2 recall script and the Phase 4.2 vote script (may be one script with two phases, or two calls).
+Two fan-outs: the Phase 2 recall script and the Phase 4.2 vote script (may be one script with two phases, or two calls). **Apply every mandatory Workflow mitigation in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at both fan-outs** — raw JSON over `agent({schema})`, the boundary re-asserted in every prompt, path constants outside template literals, `model=` omitted, the registration ladder, no `run_in_background`. Each one prevents an observed failure; read them before writing the script.
 
 **Recall script (Phase 2) — shape:**
 
@@ -99,15 +99,6 @@ return passes                                  // per-dim deduped findings (raw 
 //   OR (first.validation === 'refuted' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'))
 ```
 
-**Mandatory mitigations** — canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4; every deep workflow MUST observe all of them. The review-specific application of each is noted below:
-
-1. **Raw JSON, not schema.** Use `agent(prompt)` returning raw JSON text and parse it defensively in-script — NEVER `agent({schema})`. The dynamic-Workflow StructuredOutput tool-call drops roughly two-thirds of the time on long / converged agents; a schema-typed vote would silently lose votes. A parse failure is an **abstention**, never a refute.
-2. **Re-assert the Reporter contract in every agent prompt.** Each reviewer/verifier prompt restates: read-only; no `Edit`/`Write`; no `git` mutation; no state writes (the orchestrator owns all `atomic_state_write`). The workflow parallelizes the fan-out, not the contract — see §7 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-3. **Path constants outside template literals.** A bare `${CLAUDE_PLUGIN_ROOT}` (or any `${...}`) inside a workflow backtick template literal is interpreted as JS interpolation and crashes the script. Build path/context strings as plain constants BEFORE the literal, or reference plugin files by repo-relative path inside prompts.
-4. **OMIT `model=` at every spawn.** Reviewers/verifiers inherit the orchestrator tier (`model: inherit`). Never tier-pin voters to control cost — that defeats the user's session `/model` choice and is exactly the failure mode the model-tiering doctrine prevents.
-5. **Agent registration.** The `spawn-agent.md` prefixed→bare→general-purpose retry ladder is awkward inside a single `agent({agentType})` call. Resolve by either (a) passing the session-resolved registration rung as `agentType`, or (b) spawning `general-purpose` with the `reviewer-agent` body (frontmatter stripped) + criteria inlined into the prompt — the most runtime-robust option. If agent registration fails inside the workflow runtime, fail-safe to the non-workflow single-pass path (§6).
-6. **No `run_in_background` on the Workflow call.** The Workflow tool has no `run_in_background` parameter — workflows always run in the background. That parameter belongs to `Bash`/`Agent`; passing it to the Workflow call fails with a schema error and the deep stage never starts. Omit it.
-
 ---
 
 ## 5. Convergence-dedup rule (load-bearing)
@@ -122,22 +113,14 @@ Intra-dim dedup match: same file + overlapping line range + same defect class. W
 
 ## 6. Fail-safe ladder
 
-Current single-pass behavior is the **floor** — deep mode is never weaker than standard. Degrade in order:
-
-1. **Workflow errors / returns unparseable aggregate / agent registration fails** → fall back to the standard single-pass Phase 2 batch (or single-pass Phase 4.2 verifier). Surface a plain-English `## Caveats` note — `Deep review couldn't run the extra passes for the <reviewing|verifying> step — fell back to a single pass.` (map the `llm-spawn` phase → "reviewing", `stratify` → "verifying"); keep the storage enum only in the `## Errors` body entry (`phase: <llm-spawn|stratify>`, `error: deep-workflow-failed`, `consequence: single-pass-fallback`).
-2. **Per-finding vote quorum fails** (≥2 verifiers abstained) → single fresh single-pass verifier for that finding (§3).
-3. **A single angle pass within a dimension fails** → the dimension still returns the union of the surviving angle passes (2 or 1); note the reduced angle count in `## Caveats`. Never drop the dimension.
-
-Fail-safe is silent-degrade-with-a-caveat, never a hard stop — a review that ran shallower than requested is still a valid review.
+Degrade per the three rungs in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5 — single-pass is the floor, degrade with a caveat, never a hard stop. Read it before handling a failure. Review's instantiation of rung 1: the `## Caveats` note reads `Deep review couldn't run the extra passes for the <reviewing|verifying> step — fell back to a single pass.` (map the `llm-spawn` phase → "reviewing", `stratify` → "verifying"), and the storage enum stays in the `## Errors` body entry (`phase: <llm-spawn|stratify>`, `error: deep-workflow-failed`, `consequence: single-pass-fallback`). Rung 3 applies per angle pass: a dimension whose angle pass fails still returns the union of the surviving passes — never drop the dimension.
 
 ---
 
 ## 7. Reporter-contract preservation inside the workflow
 
-A workflow wrapper makes the model treat the workflow as authority and the skill body as advisory — the contract then evaporates (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`). Inside the deep workflow, ALL of these still bind, re-asserted in each step:
+Every skill invariant binds inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — read-only agents, orchestrator-owned `atomic_state_write`, unchanged gates, no ship. Review's two specifics:
 
-- **Reporter boundary** — reviewers/verifiers are read-only; no `Edit`/`Write`/`git`/`gh` mutation. The workflow produces findings + verdicts, nothing else.
-- **Atomic state writes** — the orchestrator (NOT the workflow agents) owns every `atomic_state_write` to state.md and the handoff. Workflow agents return data; they never write `.geniro/` state.
 - **Action gate** — deep mode does not add or change the action-gate chain. The canonical 4 option labels bind unchanged, their chained sub-gates (the Post-mode drill, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.2; the include-deferred gate, §4.6) are part of the canonical chain rather than deep-mode variants, and the `report_status: final` precondition (§3.5 of the same reference) binds unchanged.
 - **No-ship** — deep mode never pushes or fixes. The authored-test push carve-out (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1) is the only sanctioned write, and it is independent of deep mode.
 
@@ -157,14 +140,9 @@ A workflow wrapper makes the model treat the workflow as authority and the skill
 
 ## 9. Anti-rationalization
 
+The cross-skill rows — deep-mode-is-not-speed, the workflow wrapper does not suspend the contract, `agent({schema})` output, abstentions never demote, workflow error means degrade not abort, tier-pinning the voters, identical repeat passes — are in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §7 and bind here too. Review-specific:
+
 | Your reasoning | Why it's wrong |
 |---|---|
-| "The deep passes run in parallel, so the review finishes faster." | Parallelism does not reduce wall-clock under the `min(16, cores-2)` cap — the extra agents fill the same concurrency waves (no speedup) or spill into more waves (slowdown). Deep mode is a thoroughness lever, NOT a latency lever. Sell it as quality, never speed. |
 | "Three angle passes of the bugs dim all found it — that's convergence_count 3, admit it past the gate." | The 3 angle passes of ONE dimension agreeing is that dimension agreeing with itself, not cross-dim convergence. Dedup intra-dim BEFORE computing cross-dim convergence (§5), or deep mode games its own Phase 4.1 gate. |
-| "Re-run each dimension's reviewer prompt 3× identically — that's the recall lever." | Identical passes only scatter by sampling temperature: high overlap, heavy dedup churn, low marginal recall per pass. Scope each pass to a distinct angle (common-path / boundaries-and-errors / interaction) so each buys new territory at the same cost; cross-angle agreement is also a stronger within-dim signal than identical clones (§2). |
 | "Run one verifier per survivor in deep mode — the §4.1 gate already vetted them, that saves the most tokens." | The single-vote path is gated by signal, not blanket (§3): a first vote with `confidence < 70`, a `refuted` of a finding with `convergence_count >= 2`, or any `refuted` of a CRITICAL/HIGH finding escalates to the full 3. Blanket single-vote re-opens the single-hallucination flip the majority prevents. |
-| "I'm inside a Workflow now, so the no-Edit / no-push boundary is just guidance." | The workflow parallelizes the fan-out, not the contract. Every Reporter invariant binds inside every workflow step (§7). The contract evaporating under the wrapper is the documented failure this rule prevents. |
-| "Use agent({schema}) for the votes — structured output is cleaner." | The StructuredOutput tool-call drops ~⅔ of the time on long/converged agents, silently losing votes. Return raw JSON text and parse defensively; a parse failure is an abstention, not a refute. |
-| "Two verifiers abstained (parse-failed) and one refuted — that's a majority to drop." | Abstentions count toward neither side. One refute out of one parseable vote is NOT a majority — quorum failed, so fail-safe to a single fresh single-pass verifier. Never demote a finding on abstentions. |
-| "Deep workflow errored — abort the review." | Current single-pass behavior is the floor. A workflow failure degrades to single-pass with a `## Caveats` note, never a hard stop (§6). A shallower-than-requested review is still valid. |
-| "Pin the voters to a cheaper tier to control deep mode's cost." | OMIT `model=` — voters inherit the orchestrator tier. Tier-pinning defeats the user's session `/model` choice; the cost knob is the opt-in flag itself, not a silent downgrade of the agents. |

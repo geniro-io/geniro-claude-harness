@@ -210,6 +210,18 @@ expect_allow "bash: grep whose pattern names an interpreter allowed" \
 # A variable escaped to survive a double-quoted -c/-r script is still a variable.
 expect_block "bash: escaped-dollar write target blocks" \
   "$(rc_bash 'S=.geniro/planning/x/state.md; python3 -c "open(\$p,\"w\").write(b)"')"
+# awk redirects `print` from inside its program string, which vector 1 blanks as
+# data — so the same conjunction has to be checked on the raw command.
+expect_block "bash: awk print redirected into a state file blocks" \
+  "$(rc_bash 'awk '"'"'BEGIN{print "x" > ".geniro/planning/x/state.md"}'"'"'')"
+expect_block "bash: awk printf appended to learnings.jsonl blocks" \
+  "$(rc_bash 'awk '"'"'BEGIN{printf "x" >> ".geniro/knowledge/learnings.jsonl"}'"'"' in.txt')"
+expect_allow "bash: awk reading a state file allowed" \
+  "$(rc_bash 'awk '"'"'/phase/{print}'"'"' .geniro/planning/x/state.md')"
+expect_allow "bash: awk numeric comparison over a state file allowed" \
+  "$(rc_bash 'awk '"'"'{print (a > b) ? 1 : 2}'"'"' .geniro/planning/x/state.md')"
+expect_allow "bash: awk writing outside .geniro allowed" \
+  "$(rc_bash 'awk '"'"'BEGIN{print "x" > "/tmp/out.md"}'"'"' && cat .geniro/planning/x/spec.md')"
 expect_block "bash: php file_put_contents to a state path blocks" \
   "$(rc_bash 'php -r "file_put_contents(\".geniro/planning/x/state.md\", \$b);"')"
 expect_block "bash: perl -i.bak in-place on a state file blocks" \
@@ -217,6 +229,30 @@ expect_block "bash: perl -i.bak in-place on a state file blocks" \
 # `-version` ends in no in-place flag — a long option must not read as `-i`.
 expect_allow "bash: ruby -version beside a state path allowed" \
   "$(rc_bash 'ruby -version; cat .geniro/planning/x/spec.md')"
+
+# ===== Bash branch: interpreter indirection must be inspected =====
+# `sh -c "<payload>"` and `eval "<payload>"` hand <payload> to a shell as a
+# COMMAND, so the guard extracts it before the quote scrub and re-runs on it.
+expect_block "bash: sh -c redirect into a state path blocks" \
+  "$(rc_bash 'sh -c "echo x > .geniro/planning/task/state.md"')"
+expect_block "bash: bash -lc tee into a state path blocks" \
+  "$(rc_bash "bash -lc 'echo x | tee .geniro/planning/task/state.md'")"
+expect_block "bash: eval redirect into a state path blocks" \
+  "$(rc_bash 'eval "echo x > .geniro/planning/task/state.md"')"
+expect_block "bash: eval nested in sh -c blocks" \
+  "$(rc_bash $'sh -c "eval \'echo x > .geniro/planning/task/state.md\'"')"
+# No false positives: benign payloads, a helper call inside the payload, and the
+# dangerous form MENTIONED as data.
+expect_allow "bash: sh -c benign command allowed" \
+  "$(rc_bash 'sh -c "echo hello"')"
+expect_allow "bash: eval benign command allowed" \
+  "$(rc_bash 'eval "echo hello"')"
+expect_allow "bash: eval ssh-agent idiom allowed" \
+  "$(rc_bash 'eval "$(ssh-agent -s)"')"
+expect_allow "bash: sh -c invoking the sanctioned helper allowed" \
+  "$(rc_bash 'sh -c "atomic_state_write .geniro/planning/task/state.md"')"
+expect_allow "bash: prose mentioning eval write to a state path allowed" \
+  "$(rc_bash 'echo "never run eval echo x > .geniro/planning/task/state.md here"')"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

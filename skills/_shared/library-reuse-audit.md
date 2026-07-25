@@ -2,7 +2,7 @@
 
 Canonical procedure for "before hand-writing code, check whether a maintained EXTERNAL library already solves it." Defined ONCE here; referenced by `/geniro:plan` (approach design), `/geniro:implement` (candidate research + adoption gate), and `/geniro:review` (reinvented-wheel finding). This is the external-registry counterpart to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`, which covers in-repo reuse.
 
-The two are a funnel, never a parallel duplicate: the in-repo audit asks "does THIS repo already solve it?"; this audit asks "does an established EXTERNAL package already solve it?" — and this fires only after an in-repo `NO-ANALOGUE` result, so a hand-written candidate is checked against the repo first, then the ecosystem.
+The two are a funnel, never a parallel duplicate: this audit fires only after an in-repo `NO-ANALOGUE` result, so a hand-written candidate is checked against the repo first, then the ecosystem.
 
 ## Contents
 
@@ -127,8 +127,6 @@ The existence check in Step 3 Stage 0 is mandatory, not optional polish. Languag
 | Looks at | `utils/ lib/ shared/` via the project's code search | npm / PyPI / crates / Maven / Go / RubyGems |
 | Fires | any reuse smell | only after an in-repo `NO-ANALOGUE` result |
 | Outcome | reuse-as-is / extend-existing / no-analogue | adopt-library / keep-hand-written |
-
-One-sentence rule: the in-repo audit asks "does this repo already solve it?"; this audit asks "does the ecosystem already solve it?" — sequential, never parallel.
 
 ## Anti-rationalization
 

@@ -40,7 +40,7 @@ Each key pre-answers exactly one existing `/implement` setup question:
 | `deep_mode` | `true` \| `false` | The Standard/Deep depth chooser; `true` is equivalent to passing `--deep`. |
 | `branch_freshness` | `merge` \| `rebase` \| `skip` | The strategy when the branch is behind the default branch. |
 | `ship_mode` | `commit-no-push` \| `draft-pr` \| `ready-for-review` \| `stop-after-review` | The Ship-gate behavior — maps to the four sanctioned Ship modifiers. |
-| `tracker_status` | `move-to-in-progress` \| `leave-unchanged` | `/geniro:implement` Step 0 workflow-status question ("Move to In Progress?"). Written only when the spec carries a linked tracker ticket (`workflow_refs[]` non-empty); absent ⇒ `/implement` asks it interactively. |
+| `tracker_status` | `move-to-in-progress` \| `leave-unchanged` | `/geniro:implement` Step 0 workflow-status question ("Move to In Progress?"). Written only when the spec carries a linked tracker ticket (`workflow_refs[]` non-empty). |
 
 ## Field semantics
 
@@ -89,9 +89,9 @@ Why these stay interactive: each protects an irreversible or scope-expanding act
 Bump `geniro_schema_version` to `m5-v4` when `launch_config` is present. Backward-compat is the load-bearing rule, mirroring the `workflow_refs[]` m5-v* rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`:
 
 - `m5-v1` (legacy, no `workflow_refs` / no `launch_config`), `m5-v2`, `m5-v3` (chain-enrichment fields), and `m5-v4` (`launch_config` present) are ALL valid downstream.
-- Every reader that accepts `m5-v1` / `m5-v2` / `m5-v3` must also accept `m5-v4` and treat an absent `launch_config` as "ask interactively." The `launch_config` additions are purely additive and optional, so a reader rejecting an `m5-v4` value would lose the structured pre-set and fall back to interactive setup — never a hard error.
+- Every reader that accepts `m5-v1` / `m5-v2` / `m5-v3` must also accept `m5-v4`. The `launch_config` additions are purely additive and optional, so a reader rejecting an `m5-v4` value would lose the structured pre-set and fall back to interactive setup — never a hard error.
 - A spec at `m5-v4` may still carry `launch_config` as the only m5-v4-distinguishing block; the chain-enrichment fields remain orthogonal and optional.
-- Adding a key to the `launch_config` block (e.g. `tracker_status`) is a further additive-optional change WITHIN `m5-v4` — it does NOT bump the version, because every reader that accepts `m5-v4` already treats an absent or unknown `launch_config` key as "ask interactively." Do not bump to a new version for a new launch_config key.
+- Adding a key to the `launch_config` block (e.g. `tracker_status`) is a further additive-optional change WITHIN `m5-v4` — it does NOT bump the version, because an absent or unknown key already falls through to the interactive question (§When this applies). Do not bump to a new version for a new launch_config key.
 
 ## Producer / consumer contract
 

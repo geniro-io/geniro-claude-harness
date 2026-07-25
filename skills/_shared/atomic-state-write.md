@@ -199,7 +199,6 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 - **No locking.** T1 path-scoping and T3 mtime check are the concurrency model. No `flock`, no `.lock` files.
 - **No rollback / backup.** Atomicity guarantees no partial writes; recovery is via skill re-run (T1/T2) or `git checkout` (T3 user content).
 - **No retry on transient errors.** Caller decides.
-- **No empty-file write via empty stdin.** Empty stdin is a deliberate no-op (rationale in §API). To write a genuinely empty file, `echo ""` or `truncate -s 0` the target directly.
 
 ---
 

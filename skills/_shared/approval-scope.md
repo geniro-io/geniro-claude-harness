@@ -12,7 +12,7 @@ Canonical rule for how far a user's approval reaches. Referenced from `${CLAUDE_
 
 **An instruction naming one outward action authorizes that action, plus whatever its effect already contains.** "Merge to develop" authorizes the merge, and a still-pending push of the branch that merge consumes rides along — landing that code on `develop` is the larger effect, so gating the smaller enabling step would re-ask for less than the user just granted. Containment reaches forward only: an outward action already taken was unapproved when it ran, and a later instruction does not reach back to cover it. An outward action whose effect is NOT already contained in the approved one carries its own approval: a second push after the merge, a release tag, an outward post, a deploy trigger — each inside the same task and the same turn.
 
-**An under-specified instruction re-opens the gate rather than expanding to fill it.** A bare "open PR" with no draft-versus-ready qualifier fires the ship-mode gate rather than overriding it (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Step 3 — Ship-mode AUQ"). Missing detail is a question, not a blank to fill with the widest reading.
+**An under-specified instruction re-opens the gate rather than expanding to fill it.** A bare "open PR" with no draft-versus-ready qualifier fires the ship-mode gate rather than overriding it (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Step 4 — Ship-mode AUQ"). Missing detail is a question, not a blank to fill with the widest reading.
 
 **Measure each outward action against its own approval, never against accumulated trust.** Approval does not compound across a session — three granted gates do not make the fourth implicit.
 

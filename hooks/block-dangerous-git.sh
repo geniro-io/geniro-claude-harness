@@ -67,21 +67,47 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
   { print }
 ')
 
-# Interpreter indirection: `sh -c "<payload>"` (or bash/zsh/dash -lc, ...) runs
-# <payload> as a command, but the quote-scrub below would treat it as data and
-# miss a destructive op inside it. Extract each -c payload from the heredoc-
-# scrubbed command and re-run THIS guard on it (unblanked); a block inside
-# propagates out. Nested interpreters terminate because each payload is shorter.
+# Interpreter indirection: `sh -c "<payload>"` (or bash/zsh/dash -lc, ...) and
+# `eval "<payload>"` run <payload> as a command, but the quote-scrub below would
+# treat it as data and miss a destructive op inside it. Extraction is
+# single-sourced in lib/write-vectors.sh; the inline fallback keeps the guard
+# recursing on a vendored install shipping hooks/ without lib/ — a missing
+# helper must never make this guard fail open.
+_geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+if [ -f "$_geniro_wv_helper" ]; then
+  # shellcheck source=/dev/null
+  source "$_geniro_wv_helper" 2>/dev/null || true
+fi
+if ! command -v _geniro_extract_inner_payloads >/dev/null 2>&1; then
+  _geniro_extract_inner_payloads() {
+    local cmd="${1:-}"
+    if [ -z "$cmd" ]; then return 0; fi
+    local _m _pl
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?eval[[:space:]]+//')
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+    return 0
+  }
+fi
+
+# Re-run THIS guard on each extracted payload (unblanked); a block inside
+# propagates out. Nested indirection terminates because each payload is
+# strictly shorter than the command it came from.
 _geniro_self="${BASH_SOURCE[0]:-$0}"
-INNER_PAYLOADS=$(printf '%s\n' "$SCRUBBED" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)
+INNER_PAYLOADS=$(_geniro_extract_inner_payloads "$SCRUBBED")
 if [ -n "$INNER_PAYLOADS" ]; then
-  while IFS= read -r _m; do
-    [ -z "$_m" ] && continue
-    _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
-    _pl="${_pl#\"}"; _pl="${_pl%\"}"
-    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+  while IFS= read -r _pl; do
     [ -z "$_pl" ] && continue
-    if ! printf '%s' "$_pl" | jq -Rs '{tool_input: {command: .}}' | bash "$_geniro_self"; then
+    if ! printf '%s' "$_pl" | jq -Rs '{tool_name: "Bash", tool_input: {command: .}}' | bash "$_geniro_self"; then
       exit 2
     fi
   done <<< "$INNER_PAYLOADS"

@@ -158,7 +158,7 @@ A candidate tagged `Recurrence-eligible: yes` restates a learning already seen 3
 
 ## Presentation
 
-Surface candidates **one at a time** in the shared visual gate language (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Visual rendering language"; the two-step render-then-question shape and render-exists check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering). A rule is a permanent tax on every future session (§Candidate bar), so the user has to see exactly what each rule says, where it lands, and what incident justifies it before approving — a single bundled "apply all" prompt hides that detail and trains the user to rubber-stamp or dismiss the whole batch.
+Surface candidates **one at a time** in the shared visual gate language (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Visual rendering language"; the two-step render-then-question shape and render-exists check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering). The user has to see exactly what each rule says, where it lands, and what incident justifies it before approving — a single bundled "apply all" prompt hides that detail and trains the user to rubber-stamp or dismiss the whole batch.
 
 Draft each candidate as `target / file / change / why`, then walk them in descending `Significance` order (the §Candidate bar caps the walk at 3). For each candidate, render a self-contained chat message, then fire its own lean `AskUserQuestion`:
 

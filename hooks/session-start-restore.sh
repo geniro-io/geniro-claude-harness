@@ -865,7 +865,12 @@ if [ -f "$_learnings_log" ]; then
         # 600s), the same env knob update-semantic.sh (_US_STALE_LOCK_SECS) and
         # archive-stale.sh honor for this same .archive-stale.lock, so a retuned
         # window stays consistent across all reclaimers.
-        if [ "$_lock_age" -gt "${GENIRO_LOCK_RECLAIM_SECS:-600}" ]; then
+        # Sanitized before the integer test, like the other numeric knobs in this
+        # hook: a non-numeric override makes `[ -gt ]` error and evaluate false,
+        # leaving an orphaned lock to block auto-archive until it is cleared by hand.
+        _lock_reclaim_secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
+        case "$_lock_reclaim_secs" in ''|*[!0-9]*) _lock_reclaim_secs=600 ;; esac
+        if [ "$_lock_age" -gt "$_lock_reclaim_secs" ]; then
           rmdir "$_lock_dir" 2>/dev/null
         fi
       fi

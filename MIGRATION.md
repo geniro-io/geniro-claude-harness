@@ -114,6 +114,8 @@ grep -rn "guidelines\|rules-compliance" .geniro/instructions/ 2>/dev/null
 
 ### Reflection improvement suggestions now fire only on substantial runs
 
+> **Superseded — historical record only.** The automatic spawn this entry narrows was removed wholesale by *"Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead"* (above). Nothing described below still fires; run `/geniro:reflect` on demand instead. No action.
+
 The post-task `reflection-agent` spawn — which proposes project-rule improvement candidates after a run settles — is now conditional: `/geniro:review` spawns it only when the finalized report keeps 3 or more findings, and `/geniro:implement` only when the change scope is big. When it fires, behavior is unchanged (background spawn, candidates drained before the run exits). `/geniro:refactor`'s synchronous reflection spawn is unchanged.
 
 **Action required:** None — small runs simply skip the improvement-suggestion pass.
@@ -305,6 +307,8 @@ grep -l "Validation: unverified" .geniro/state/handoff/from-review-*.md 2>/dev/n
 The v3 release lands the /implement 3-phase rewrite, MANDATORY /review spawn list with pre/post-spawn verification gates, /plan workflow_refs[] tracker linkage (m5-v2 schema), per-section AUQ `preview` field with restored Phase 2 Visual Companion, structured `open_questions[]` in T2 handoffs with a 3-gate safety chain, T1/T1.5 state tier split for Ship-cleanup preservation, and universal `model: inherit` for all plugin subagents. Seven changes need user attention; auto-fix is provided where mechanical, manual review is called out where judgment is needed.
 
 ### Post-task improvement suggestions now fire across implement / refactor / review / plan / onboard
+
+> **Superseded — historical record only.** The automatic `/implement`, `/refactor`, and `/review` spawns this entry added were removed by *"Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead"* (in the v2.78.0 section), which also retires the trailing "Improvements" prompt in those three skills; `/geniro:reflect` covers that work on demand. Only `/plan`'s and `/onboard`'s inline candidate-drafting steps still ship. No action.
 
 A new read-only `reflection-agent` (with inline equivalents in /plan and /onboard) synthesizes durable project-rule improvement candidates at the end of a task and offers to route them to CLAUDE.md / `.claude/rules/` / `.geniro/instructions/` / ADR. `/implement` Phase 3 moves its "Suggest Improvements" step ahead of the Ship-mode prompt (previously a post-PR trailing step that got dropped on wrap-up); `/review`, `/plan`, and `/onboard` gain the step for the first time. The user approves before anything is written — instruction-scoped rules hand off to `/geniro:instructions create`; declines are logged so they do not re-surface.
 

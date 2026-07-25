@@ -34,8 +34,14 @@ Within `m6-v2`/`v3`, a producer that verified only HIGH findings emits verificat
 
 /geniro:review does not apply fixes. The Phase 6 handoff message never includes "I'll fix these now" language. The fix path routes to /geniro:implement (manual, or via the Phase 6 handoff line).
 
-**Skip Phase 6 entirely when:**
-- Zero actionable findings remain (CRITICAL + HIGH + MEDIUM all zero after Phase 4.2).
+**Skip Phase 6 entirely only when the review produced nothing to decide** — ALL FOUR hold:
+
+- Zero kept findings remain in `## Findings` after Phase 4.2 (at any severity, not only CRITICAL / HIGH / MEDIUM).
+- Zero `Decision Type: PRODUCT-DECISION` findings — a Path-B LOW is still the user's call and still needs the §3 open-decision gate.
+- `## Deferred — sub-threshold` is empty — otherwise the §4.6 include-deferred gate has entries to offer.
+- `## Authored Tests` is empty — otherwise the §6 Failing-tests gate has a commit policy to settle.
+
+Severity alone does not decide this. An all-LOW review still carries decisions: the open-decision gate for a LOW product-decision, the Post option (which §4 keeps present for a finding of any severity), and the include-deferred gate that exists precisely for sub-threshold entries. Skipping on "no CRITICAL / HIGH / MEDIUM" exits before all three.
 
 ---
 
@@ -169,7 +175,7 @@ open_questions:                       # MUST be present; MAY be empty []
 - Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1 (a `/geniro:review`-only path; omitted when the review covered the whole PR)
 - Round: <N>
 - Risk-tier: <standard|high>
-- Dimensions spawned: [<the ACTUAL set — dimensions with a recorded structured reviewer result (the `actual` set from `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.0 post-spawn verification), naming any declared-but-skipped dimension with its skip reason; never sourced from the SKILL.md dimension grid>]
+- Dimensions spawned: [<the `actual` set per §"Dimensions spawned — `declared` vs `actual`" below, naming any declared-but-missing dimension with its skip reason>]
 - Mechanical pre-pass: [lint:N, schema:M, secrets:K]
 - Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
 - Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; repeats stay in `## Findings` per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7)
@@ -246,6 +252,15 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 
 ---
 
+**Dimensions spawned — `declared` vs `actual`.** Two dimension sets exist during a review run, and the Summary line records the second:
+
+- **`declared`** — the dimension set the producer committed to BEFORE firing the parallel reviewer batch, persisted to frontmatter as `spawn_dims_declared` (with `spawn_dims_count` as its length). It is the intent.
+- **`actual`** — the dimensions that came back with a recorded structured reviewer result. It is the outcome.
+
+`Dimensions spawned:` carries `actual`, never `declared`, and names each dimension in `declared − actual` with its skip reason. Sourcing the line from the producer's dimension grid (the table that says which dimensions *should* fire for this run) reports intent as outcome — the exact drift the producer's post-spawn declared-vs-actual gate exists to catch, re-introduced one layer down in the artifact a downstream consumer reads.
+
+---
+
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff. Every finding — including an unchanged repeat from a prior round — lives under the handoff's `## Findings` body:
 
 ```markdown
@@ -277,7 +292,7 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 
 The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 4 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
 
-**Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every kept finding (CRITICAL / HIGH / MEDIUM) that lands in `## Findings`. Phase 4.2 produces one verify-finding verdict per §4.1 survivor regardless of severity (verifier spawns cluster up to 3 same-file findings); verdicts of `validation: refuted` are filtered before reaching the handoff, so any finding present here carries `Validation: confirmed`, `Validation: clarified`, or — when the verifier failed to spawn after retry — the orchestrator-assigned `Validation: unverified` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5). `unverified` is a legal present value meaning the verifier never ran: consumers keep the finding, treat it as NOT postable (excluded from the §7.1 post set), and surface a one-line warning that it was not independently verified. The fields are ABSENT on LOW findings — including a LOW `PRODUCT-DECISION` admitted via §4.1 Path B (decision-type) — because no LOW finding enters the Phase 4.2 verifier (§4.2 runs on Path-A survivors, `severity >= MEDIUM`). A Path-B LOW `PRODUCT-DECISION` still carries `step0_status: pending` (it IS a PRODUCT-DECISION, so the §3 open-decision gate fires for it) but no `Validation`/verification fields. When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions. A `[USER-ELECTED]` promotion out of `## Deferred — sub-threshold` (§4.6) follows the same rules: a promoted LOW carries no verification fields; a promoted evidence-less MEDIUM carries all four fields on the finding-verification.md §4.5 spawn-failure convention — `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "user-elected promotion — verifier never ran"`, `Recommended-action:` mirroring its original Decision Type — because the verifier never ran for a deferred entry and user election does not verify it; an accounted state excluded from the §7.1 post set like any other `unverified` finding.
+**Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every kept finding (CRITICAL / HIGH / MEDIUM) that lands in `## Findings`. Phase 4.2 produces one verify-finding verdict per §4.1 survivor regardless of severity (verifier spawns cluster up to 3 same-file findings); verdicts of `validation: refuted` are filtered before reaching the handoff, so any finding present here carries `Validation: confirmed`, `Validation: clarified`, or — when the verifier failed to spawn after retry — the orchestrator-assigned `Validation: unverified` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5). `unverified` is a legal present value meaning the verifier never ran: consumers keep the finding, treat it as NOT postable (excluded from the §7.1 post set), and surface a one-line warning that it was not independently verified. The fields are ABSENT on LOW findings — including a LOW `PRODUCT-DECISION` admitted via §4.1 Path B (decision-type) — because no LOW finding enters the Phase 4.2 verifier (§4.2 runs on every kept CRITICAL / HIGH / MEDIUM finding, admitted by Path A or Path B; LOW is the only severity it skips). A Path-B LOW `PRODUCT-DECISION` still carries `step0_status: pending` (it IS a PRODUCT-DECISION, so the §3 open-decision gate fires for it) but no `Validation`/verification fields. When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions. A `[USER-ELECTED]` promotion out of `## Deferred — sub-threshold` (§4.6) follows the same rules: a promoted LOW carries no verification fields; a promoted evidence-less MEDIUM carries all four fields on the finding-verification.md §4.5 spawn-failure convention — `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "user-elected promotion — verifier never ran"`, `Recommended-action:` mirroring its original Decision Type — because the verifier never ran for a deferred entry and user election does not verify it; an accounted state excluded from the §7.1 post set like any other `unverified` finding.
 
 **Verification fields — back-compat for legacy handoffs.** Two legacy cases produce findings without the four verification fields:
 1. `m6-v1` (pre-Phase-4.2) writers — no findings carry verification fields at any severity.
@@ -461,11 +476,11 @@ Persist user pick to `approvals[]` with category `failing_tests_commit_policy`, 
 When user picked "Post" in the Action gate:
 
 1. If `## Authored Tests` is non-empty: fire Failing-tests gate FIRST (push lands before `gh api` POST).
-2. Continue with Steps 1.5-6 below.
+2. Continue with §7.0-§7.8 below.
 
-When Action != Post or Post option was omitted, skip Steps 1.5-6 and proceed to Failing-tests (when applicable) and cleanup.
+When Action != Post or Post option was omitted, skip §7.0-§7.8 and proceed to Failing-tests (when applicable) and cleanup.
 
-### 7.0 Step 0 — Unresolved-ambiguity guard (fail-closed)
+### 7.0 Unresolved-ambiguity guard (fail-closed)
 
 This re-read is a mandatory, explicit step that fires in the window between the Action gate's "Post" pick and the first `gh api POST /reviews` call — never earlier (an Action-gate-time read can go stale before POST) and never assumed-already-done. It is its own Bash read of the handoff; a Post drill that reaches §7.4 without a §7.0 read of state.md in that window has skipped the guard.
 
@@ -499,7 +514,7 @@ This §7.0 check is the fail-closed second line of defense for ALL FOUR invarian
 
 The four invariants are independent (different arrays, different gates, different producer phases), so the guard must check all four — checking only some leaves the remaining paths uncovered.
 
-### 7.1 Step 1.5 — Already-on-PR dedup (post-set filter)
+### 7.1 Already-on-PR dedup (post-set filter)
 
 The post-drill's eligible-finding set is every unposted finding across `## Findings` (kept CRITICAL / HIGH / MEDIUM — including unchanged repeats from prior rounds — plus any LOW `PRODUCT-DECISION` admitted via §4.1 Path B; a `[USER-ELECTED]` promotion sitting in `## Findings` from a §4.6 include is an ordinary eligible unposted finding on a later Post — a promoted LOW carries no verification fields per the presence rules, which is not an exclusion reason) AND `## Deferred — sub-threshold` (awareness items — LOW plus any severity that failed every §4.1 admission signal) — once the user has chosen to post, severity no longer gates postability, and any exclusion is surfaced (`## Filtered` `reason:`, or `Validation: unverified` kept-in-place) like every other finding's. This step removes from the post set findings that already exist on the PR, so the user isn't asked to re-raise what's already there.
 
@@ -517,13 +532,13 @@ Also exclude any finding carrying `post-disposition: no-action` (set by the §3 
 
 Also exclude any finding carrying `Validation: unverified` (orchestrator-assigned at Phase 4.2 when the verifier failed to spawn — finding-verification.md §4.5): it stays in `## Findings` rather than moving to `## Filtered` — fail-open keeps it in the report — and the `Validation: unverified` field itself is the recorded reason for its absence from the post. Never place it in the inline `comments[]` or the body; surface the one-line warning ("N findings withheld from the post — the verifier never ran for them"), echoing the report's `## Caveats` note. Nothing lands on a public PR without an independent verification pass.
 
-The Step 2 granularity AUQ and Step 3 per-finding gate count only non-excluded findings.
+The §7.2 granularity AUQ and §7.3 per-finding gate count only non-excluded findings.
 
-When Step 1.5 empties the post set, fall back to Skip semantics — do not call `gh api` POST; surface `All eligible findings were excluded (already on the PR, kept-off-PR, no action needed, or unverified) — nothing drafted on PR` once in chat.
+When §7.1 empties the post set, fall back to Skip semantics — do not call `gh api` POST; surface `All eligible findings were excluded (already on the PR, kept-off-PR, no action needed, or unverified) — nothing drafted on PR` once in chat.
 
 Every kept finding posts, apart from these exclusions. The test-confirmation gate never filters the posted finding set — when it authored failing tests, each `[CONFIRMED-BY-TEST]` finding gains a `**Failing test:** \`<path>\`` line (per §7.5), but no finding is ever removed from the post set.
 
-### 7.2 Step 2 — Granularity gate
+### 7.2 Granularity gate
 
 **Non-skippable whenever the post set would exclude any finding.** Once the user picks "Post", severity does not gate postability — every eligible finding (CRITICAL / HIGH / MEDIUM / LOW / deferred) is in the post set unless it leaves via an accounted path: a user pick in this gate (or its §7.3 follow-up), a §7.1 dedup exclusion that wrote a `## Filtered` `reason:`, a §7.1 disposition exclusion (`post-disposition: off-pr` or `no-action`), or a §7.1 verification exclusion (`Validation: unverified` — the field itself is the recorded reason). There is no other path. The orchestrator never narrows the post set at §7.4 payload time on its own judgment — an unaccounted exclusion (a finding silently dropped with no user pick and no recorded reason) is the failure this gate prevents. So this AUQ fires whenever the §7.1-filtered eligible set is non-empty; it is skipped only when §7.1 already emptied the set (handled above — Skip semantics).
 
@@ -536,9 +551,9 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 **Definition of Done (§7.2 gate):** every finding in the §7.1-filtered eligible set either posts, or carries a recorded reason for its absence — a user "Skip this finding" / "Stop posting" pick from §7.3, a §7.1 `## Filtered` `reason:`, `post-disposition: off-pr`, `post-disposition: no-action`, or `Validation: unverified`. A finding excluded with none of these is an unaccounted drop; do not POST until it is accounted.
 
-### 7.3 Step 3 — Per-finding gate
+### 7.3 Per-finding gate
 
-Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by Step 1.5 when applicable — the test-confirmation gate applies no filter of its own). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
+Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by §7.1 when applicable — the test-confirmation gate applies no filter of its own). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
 - **Chat render (first):** render the finding to chat per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — a self-contained block instantiating that template. The posting loop over ≥2 eligible findings is a decision queue, so each render opens with the tracker (`✔ Decision 1 — <short tag> · ● Decision 2 of N — <short tag> · ○ …`; the denominator is the eligible-finding count after the §7.1 filter). The user decides whether to post from an explained finding, not a side-box snippet.
@@ -556,7 +571,7 @@ Full explanation above. Post this finding to the PR as an inline comment, or ski
 
 After loop completes (or user picked "Stop posting"), aggregated post set is the union of "Post" picks. If empty, treat as Skip and proceed without firing `gh api` POST.
 
-### 7.4 Step 4 — Post via the GitHub reviews API
+### 7.4 Post via the GitHub reviews API
 
 Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url`. Pass snapshotted `pr-head-sha` as `commit_id` — but see head-SHA freshness rule. ONE `gh api` call posts the entire review.
 
@@ -632,7 +647,7 @@ The reviewer-agent's `description:` and `recommendation:` fields go into the bod
 
 **Enforcement — scrub before POST (hard).** §7.5 is otherwise advisory — an orchestrator naturally echoes its own finding handle (`**M1b …`), skill branding (`## /geniro:review …`), or a `handoff`/state-path reference into the composed title and summary, so the rules leak under drift. Before the `gh api POST /reviews`, scan the assembled top-level `body` and every `comments[].body` against the MUST-NOT set above; on a hit in orchestrator-composed text (comment title, summary header, section prose) strip or rewrite it and re-scan until clean — never POST a body that still matches. Match only the orchestrator-prepended title/prefix and the summary/section framing — never the verbatim `description:`/`recommendation:` segment a finding carries (a reviewer that legitimately writes "the `L2` cache" or names a code symbol `M1` stands; the leak vector is a handle in the *title slot*, `**M1b — …`, not a token mid-sentence). The lone exception is the internal knowledge-base cross-reference class (`incident N` / `learning X.Y.Z`, and a `B.x.y` token in that incident/learning context per the bullet above): scrub it wherever it appears, INCLUDING mid-sentence inside a reviewer's verbatim `description:`/`recommendation:` — replace the parenthetical ID with nothing (or a shareable link) and preserve the rest of the sentence. This is the external-effect-boundary analog of the §7.0 guard.
 
-### 7.6 Step 5 — Persist `[POSTED-TO-PR]` markers
+### 7.6 Persist `[POSTED-TO-PR]` markers
 
 Parse POST response to extract review's `id` field. Second call to derive per-comment URLs:
 
@@ -660,7 +675,7 @@ Drafted <P> of <K> findings (<K1> kept, <K2> minor) as a pending review on <pr-u
 
 `<K>` counts every finding eligible for the post set (§7.1) — `<K1>` counts `## Findings` entries (kept CRITICAL / HIGH / MEDIUM, plus Path-B LOW `PRODUCT-DECISION`s and `[USER-ELECTED]` promotions) plus `<K2>` counts `## Deferred — sub-threshold` entries, so `<K1>` + `<K2>` always sums to `<K>` over the §7.1 eligible set (counting only kept findings would undercount posted deferred entries). Omit the parenthetical split when `<K2>` is zero. `<W>` spans the same eligible set, so the withheld-reason breakdown covers kept and minor exclusions alike.
 
-### 7.7 Step 6 — Posting-failure semantics
+### 7.7 Posting-failure semantics
 
 If the `gh api` call fails (non-zero exit, HTTP error, missing scopes, secondary rate limit): surface the error verbatim to the user and stop — do not retry, do not fall back, do not bypass with `--no-verify`-style flags, do not silently downgrade to top-level `gh pr comment`. No partial state is written: leave per-finding `[POSTED-TO-PR]` tags off entirely so user can re-run cleanly after fixing the underlying issue. Mirrors fail-closed semantics.
 

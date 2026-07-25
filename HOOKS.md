@@ -4,14 +4,34 @@ Production-grade hooks for the geniro plugin. All hooks follow best practices fr
 
 ## Configuration overview
 
-Hook configuration is **split** across two files:
+Hook configuration is **split** across three files:
 
 | File | Purpose |
 |---|---|
-| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, Stop, SessionStart). Pointed to by [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `hooks` field. |
+| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, Stop, SessionStart) for Claude Code. Pointed to by [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `hooks` field. |
 | [`settings.json`](settings.json) (root) | Defines the `statusLine` command. The status line is NOT a Claude Code hook — it's a separate display feature. Plugin-shipped `settings.json` cannot grant permissions (Claude Code ignores a `permissions` block here) — permission rules belong in the consumer's own user/project settings. |
+| [`cursor/hooks.json`](cursor/hooks.json) | Registers the same hook scripts for the Cursor runtime. Pointed to by [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json) `hooks` field. Every entry runs through the shim (below) rather than calling `hooks/*.sh` directly. |
 
 The status messages set on each `hooks.json` entry (e.g. `"Checking for destructive git operations..."`) appear as spinner text while the hook runs.
+
+### Cursor wiring (`cursor/hooks.json` → the shim)
+
+Cursor speaks a different hook dialect, so its manifest points every entry at [`cursor/hooks/claude-hook-shim.sh`](cursor/hooks/claude-hook-shim.sh), which takes a script basename from `hooks/` and translates in both directions — one script set, two runtimes, no fork:
+
+| Direction | Claude Code dialect | Cursor dialect |
+|---|---|---|
+| Event names | `PreToolUse` with a `Bash` matcher / a file-tool matcher; `SessionStart` | `beforeShellExecution` / `preToolUse` / `sessionStart` (camelCase) |
+| Stdin payload | `{tool_name, tool_input, cwd}` | `{command, cwd}` for shell events; `tool_input` with alias keys for file events — path (`path` / `target_file`) normalized to `file_path`, **and content (`contents` / `code_edit` / `new_string` / `new_source`) normalized to `content`** |
+| Working directory | guards walk up from `$PWD` | the shim `cd`s into the payload's `cwd` first, so the walk-up lands in the project the action targets |
+| Block signal | `exit 2` + reason on stderr | `{"permission":"deny","agent_message":"<reason>"}` + exit 0, so the reason reaches the Cursor agent |
+| Session context | `hookSpecificOutput.additionalContext` | `additional_context` |
+| Degraded mode | loud stderr notice when `jq` is missing | same notice via the event's message key (`agent_message` / `additional_context`) — never silent, and never with a `permission` key, so it cannot vote "allow" over another hook's deny |
+
+Both alias folds are load-bearing. Normalizing only the path key is a silent bypass: a content-reading guard such as the security pattern scan receives an empty field and exits 0 on a payload it would otherwise deny. Likewise, building a `cwd` field without moving into it leaves every guard inspecting the wrong tree. `tests/cursor/hook-shim.sh` covers each alias spelling and both directions — extend it when the translation map changes.
+
+Wired for Cursor: the destructive-git guard, the `.geniro/` deletion guard, protected-file writes, state-helper enforcement, TDD-order enforcement, and the security pattern scan (all six on both shell and file-write events), plus session-start restore.
+
+**Deliberately not wired for Cursor** — the runtime has no compatible slot, so the conventions apply as instructions per [`skills/_shared/runtime-portability.md`](skills/_shared/runtime-portability.md) instead: the gate-render guard (`AskUserQuestion` has no hook event), the evidence-on-completion reminder (no `Stop` event), and the marketplace update check (Claude Code's `claude plugin` registry only). Add a new hook to `cursor/hooks.json` only when its event maps cleanly onto the translation map at the top of the shim.
 
 ## Hook scripts
 

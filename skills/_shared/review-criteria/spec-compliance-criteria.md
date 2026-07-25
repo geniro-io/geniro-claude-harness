@@ -198,10 +198,10 @@ The spec's section 11 (Done Condition) names an observable signal that defines c
 
 **Skip when not schema-aware mode** (no section 11 anchor). Per the prose fallback (top of file), this check fires only when `geniro_kind: design-doc` frontmatter is present.
 
-**schema cite:** section 11 (Done Condition) — the canonical completion criterion. Cross-check the /geniro:plan validator check #9 (`stopping_condition`) — the spec validator that ensured section 11 has a concrete observable signal.
+**schema cite:** section 11 (Done Condition) — the canonical completion criterion, already screened at spec-authoring time for a concrete observable signal.
 
 **How to detect:**
-- Parse section 11 body. Extract the observable signal (regex match against ontology: `\b(tests? (pass|green))\b`, `\b(PR (approved|merged))\b`, `\b(telemetry|metric|log)\s+shows\b`, `\b(shipped|released)\s+to\b`, `\b(observable|verified|confirmed)\b`).
+- Parse section 11 body. Extract the observable signal by matching it against the stopping-condition ontology in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` §"Stopping-condition ontology" — the canonical signal-shape set; do not restate the patterns here, so this check and the ship-time annotation classify a clause identically.
 - For test-based signals: check the diff's test files for new/updated assertions matching the named test set OR check CI status (out of scope here — surface as informational note).
 - For telemetry/log signals: check the diff for metric or log emission at the named boundary (cross-reference check #9 above).
 - For approval-based signals: check the PR body / state for the named approver's review status.
@@ -280,4 +280,4 @@ Spec-compliance findings have no `path:lines`. Emit each finding with:
 - All other reviewer-agent output fields per the standard template (Severity, Cause, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
 - `Evidence:` quotes the relevant fragment of the plan verbatim (with a brief surrounding marker — e.g., "plan section: `## Acceptance criteria`, AC3: `…`") AND names the missing artifact in the diff (e.g., "no file under `migrations/` in the changed-files list").
 
-The Phase 6 Post drill's Step 4 composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4) detects the `File: SPEC-COMPLIANCE` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST under a `## Spec Compliance` section, NOT into the inline `comments[]` array (which requires a path-anchored line).
+The Phase 6 Post drill's comment composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4) detects the `File: SPEC-COMPLIANCE` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST under a `## Spec Compliance` section, NOT into the inline `comments[]` array (which requires a path-anchored line).

@@ -92,7 +92,7 @@ For each VALID file:
 After Step 5 filtering, count the surviving reviewers:
 
 - If count > 10, abort the helper with a hard error. Print: `[load-custom-reviewers] hard cap exceeded — <N> active reviewers after path filter; limit is 10. Delete or scope down some files in .geniro/instructions/review-extra/`. The consumer skill MUST propagate this as a fatal error to the user — no review proceeds with >10 custom reviewers active.
-- If count > 6, print a soft warning: `[load-custom-reviewers] <N> custom reviewers active — 4-6 dimensions per parallel batch is the sweet spot; consider scoping some with paths: globs to reduce the per-run count.` Continue.
+- If count > 6, print a soft warning: `[load-custom-reviewers] <N> custom reviewers active on top of the built-in dimensions — past about 6 customs the extra per-run cost outpaces the coverage they add; consider scoping some with paths: globs so each fires only on the diffs it applies to.` Continue. The threshold counts CUSTOM reviewers only — the built-in dimensions always fire, so a batch is never as small as the custom count alone.
 
 ### Step 7: Build spawn-specs
 

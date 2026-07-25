@@ -209,9 +209,9 @@ Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatena
 
 ### 1.1 Existing PR review ingest (formal reviews + inline bot comments)
 
-The thread-state fetch above reads thread STATE (`isResolved`/`isOutdated`/`path`/`line`) for dedup only — it never reads comment BODIES. Automated reviewers (CodeRabbit, Greptile, Sourcery, and other bots) post findings as review-thread comments; a real incident had /geniro:review declare a PR "CLEAN — ship-ready" while CodeRabbit had already flagged a Major bug in scope. Fetch those bodies so they reach the LLM reviewers as prior-context.
+The thread-state fetch above reads thread STATE (`isResolved`/`isOutdated`/`path`/`line`) for dedup only — it never reads comment BODIES. Automated reviewers (CodeRabbit, Greptile, Sourcery, and other bots) post findings only in thread BODIES, so a review that reads thread state alone can declare a PR clean while a bot-flagged bug sits unread in scope. Fetch those bodies so they reach the LLM reviewers as prior-context.
 
-Two distinct surfaces carry prior findings: (a) the top-level **formal review** (`reviews(){ state body author }` — APPROVED / CHANGES_REQUESTED / COMMENTED with a summary body, posted by humans AND bots), and (b) **inline review-thread comments** (anchored to `path:line`, mostly bots). A real incident had a run address only the failing-CI commit and inline comments while a teammate's posted formal review — carrying two advisory findings beyond the inline ones — went unread. Read BOTH so neither surface is silently dropped.
+Two distinct surfaces carry prior findings: (a) the top-level **formal review** (`reviews(){ state body author }` — APPROVED / CHANGES_REQUESTED / COMMENTED with a summary body, posted by humans AND bots), and (b) **inline review-thread comments** (anchored to `path:line`, mostly bots). The two surfaces are queried separately and neither implies the other — a human reviewer's summary findings live only in the formal-review body and are invisible to an inline-comment query. Read BOTH so neither surface is silently dropped.
 
 For a target PR ref (skip entirely when `INPUT_SHAPE != pr-ref` — a branch / diff / file-path input has no PR to query), extend the thread-state GraphQL to also select comment author + body, OR run a second `gh` call. MCP-preferred path: the `mcp__github__pull_request_read` payload already carries thread comments — read `comments[].author.login` + `comments[].body` from each `reviewThreads[]` node, and the formal reviews too — read `reviews[].state` + `reviews[].body` + `reviews[].author.login`. Fallback GraphQL:
 
@@ -243,7 +243,7 @@ Render two sibling blocks in the spawn prompts of the bugs / architecture / regr
 
 ## 2. Scope resolution
 
-Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. The base branch is whatever scope-anchor resolves (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files"). NEVER invoke `gh pr list` to **invent a target** — PR mode triggers ONLY on explicit PR-ref forms.
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. The base branch is whatever scope-anchor resolves (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files"). Resolve the target from the explicit PR ref the user gave; discovering one via `gh pr list` reviews a diff the user never asked about, so PR mode triggers on explicit PR-ref forms only.
 
 Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target ARE allowed.
 

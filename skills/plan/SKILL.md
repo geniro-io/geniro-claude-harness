@@ -2,8 +2,8 @@
 name: plan
 description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → grill (decision-tree clarification) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly. Optional --deep deepens the analysis — a wider approach search plus a 3-vote majority verification of the spec's cited claims (higher quality, higher cost). Optional --artifact builds a live, auto-updating visual artifact of the plan as it develops."
 context: main
-allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, Workflow]
 model: inherit
+allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, Workflow]
 argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
 ---
 
@@ -203,7 +203,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) | All mutations |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish (when artifact mode is on, via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) | Edit / Write outside state.md |
+| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish (when artifact mode is on, via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` — deliberately absent from the frontmatter `allowed-tools`, so the first publish raises the one-time consent prompt for publishing to `claude.ai` — per that helper's § Availability detection & create, let it fire rather than pre-allowing the tool) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn, OMIT `model=` — inherits orchestrator tier per `ui-preview-gate.md`) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns — OMIT `model=`) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only — OMIT `model=`) | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) | Edit / direct Write / mutating Bash |
@@ -222,7 +222,7 @@ Full Phase 1 entry inventory + per-phase write sites. See `${CLAUDE_PLUGIN_ROOT}
 
 0. **Check for existing state.md.** Glob `.geniro/planning/*/state.md` for a file matching the resolved task slug:
 - **No state.md** → fresh run. Proceed to Phase 0.
-- **state.md exists, phase in non-terminal set** → resume from `phase:` value. the SessionStart hook re-injects context.
+- **state.md exists, phase in non-terminal set** → resume from `phase:` value. The SessionStart hook re-injects context.
 - **state.md exists, phase in terminal set** (`done` / `aborted`) → task complete. Surface terminal state to user; if $ARGUMENTS carries a new topic, derive a new slug, fresh run.
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.

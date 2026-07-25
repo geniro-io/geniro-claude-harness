@@ -51,6 +51,7 @@ query($owner:String!,$repo:String!,$number:Int!){
 - Per thread, capture: `thread_id` (the `id` — a `PRRT_…` node id), `comment_id` (the FIRST comment's `databaseId` — the reply anchor), `author`, `path`, `line`, and the concatenated comment bodies (the thread conversation).
 - `reviews[]` with `state: CHANGES_REQUESTED` carry a summary `body` not tied to a thread — surface them as context items (no `thread_id`; they cannot be resolved via API, only the author dismisses a formal review).
 - Paginate on `pageInfo.hasNextPage` (typical PR: 1-3 calls).
+- **Page sizes.** `reviewThreads(first:100)` is the API's per-page maximum and is paginated above, so no thread is lost. The two nested connections are NOT paginated and therefore truncate: `comments(first:20)` takes a thread's first 20 comments — the reply anchor plus the conversation the triage reads — and drops the tail of a longer thread; `reviews(first:50)` takes the first 50 formal reviews and drops the newest ones on a PR carrying more. Both bounds sit far above a typical PR; when one is actually hit, add `pageInfo`-driven pagination on that connection rather than raising the number — 100 is the API ceiling.
 
 ## 3. Read side: failing CI checks
 

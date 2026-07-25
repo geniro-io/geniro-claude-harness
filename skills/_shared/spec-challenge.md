@@ -6,7 +6,7 @@ An adversarial verification pass, invoked per the calling skill's contract, that
 
 ## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit), /geniro:resolve (MODE: plan over its produced spec)
 
-`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, when its Big-tier-or-deep gate fires. `/geniro:implement` invokes in Phase 1 after research and before the first Edit/Write, on every spec-driven run. `/geniro:resolve` invokes over the spec it emits, before handoff. Each caller passes `MODE`; the rest of the contract is identical. Whether to invoke at all is the calling skill's contract; once invoked, the helper never tier-skips internally.
+`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, when its Big-tier-or-deep gate fires. `/geniro:implement` invokes in Phase 1 after research and before the first Edit/Write, on every spec-driven run. `/geniro:resolve` invokes over the spec it emits, before handoff. Each caller passes `MODE`; the rest of the contract is identical.
 
 ## Contents
 
@@ -66,7 +66,7 @@ Read `SPEC_PATH` fully. Build the verifiable-claim set from the three places a s
 1. **Section 6 (Steps).** Each step cites ≥1 `file:line` reference (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` — Phase 7 validator check #3 enforces this). Each citation is a claim: "the thing this step describes lives at this file:line and behaves as stated." Meta-steps without a citation (e.g. "create a new branch") carry no factual claim — skip them.
 2. **Section 4 (Assumptions).** Each assumption is an explicit factual predicate about the codebase or environment ("the `users` table has a `deleted_at` column", "the job runs at most once per minute"). Each is a claim.
 3. **Frontmatter `budget` and `effort_tier`.** These are estimate-claims (write volume, time budget, row counts, tier sizing). A miscounted estimate — one off by an order of magnitude — is a defect class this pass exists to catch, so estimate-claims enter the set.
-4. **Frontmatter `workflow_refs[]` linked-ticket constraints.** When the spec frontmatter carries `workflow_refs[]` (linked tracker tickets — `/geniro:implement` fetches their bodies at workspace setup, before any edit), the ticket bodies' explicit constraints are first-class fact-check inputs: locked decision tables, role / permission matrices, and "do not change X" statements. Each such constraint is a claim about what the planned change must respect, verified against the planned change here BEFORE the first edit. A real session pushed a change that contradicted a constraint documented in a linked ticket because the ticket was first read only after the push — pulling these constraints into the claim set closes that gap.
+4. **Frontmatter `workflow_refs[]` linked-ticket constraints.** When the spec frontmatter carries `workflow_refs[]` (linked tracker tickets — `/geniro:implement` fetches their bodies at workspace setup, before any edit), the ticket bodies' explicit constraints are first-class fact-check inputs: locked decision tables, role / permission matrices, and "do not change X" statements. Each such constraint is a claim about what the planned change must respect, verified against the planned change here BEFORE the first edit. A ticket read only after the push cannot stop a change that contradicts it — by then the contradiction has shipped. Pulling the constraints into the claim set moves that read to the one point where it can still change the outcome.
 
 Record each claim with its source location and the literal asserted fact. This bounded set is the input to §4 — one verifier per claim, no more. Verifier count scales to the claim count, mirroring how `/geniro:review` verifies every survivor over a pre-bounded survivor set.
 
@@ -204,7 +204,6 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 
 ## 11. Definition of Done
 
-- [ ] Once invoked, the helper runs to completion regardless of `EFFORT_TIER` — the invocation decision belongs to the caller.
 - [ ] Stage A extracts claims from Section 6 citations, Section 4 assumptions, frontmatter `budget`/`effort_tier`, and (when present) frontmatter `workflow_refs[]` linked-ticket constraints.
 - [ ] Stage B spawns exactly one verifier per cited claim, all in ONE assistant response, via the spawn-agent ladder with `model=` omitted.
 - [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.

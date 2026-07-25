@@ -34,6 +34,13 @@ for src in "$REPO_ROOT"/agents/*.md; do
   base="$(basename "$src")"
   name="${base%.md}"
 
+  # agents/<name>-reference.md files are body companions of an agent (per
+  # .claude/rules/skill-structure.md §File-size limits), not agents themselves:
+  # they carry no frontmatter and nothing spawns them. The agent body cites them
+  # via ${CLAUDE_PLUGIN_ROOT}, which resolves in both runtimes, so they are not
+  # packaged as Cursor subagents.
+  case "$name" in *-reference) continue ;; esac
+
   # Frontmatter = lines between the first two --- fences; body = the rest.
   description_line="$(awk '/^---$/{c++; next} c==1 && /^description:/' "$src")"
   if [ -z "$description_line" ]; then

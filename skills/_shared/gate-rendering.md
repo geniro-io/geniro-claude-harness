@@ -8,6 +8,7 @@ This file is the single source of truth for the visual language. Calling contrac
 
 - When this applies — which gates render in this language
 - Visual rendering language — the five elements every gate message carries
+- Plan-unit visual map — visual shape per spec section
 - Turn-completion guard — the render is not a gate until the question has fired; render-before-question is mechanically enforced
 - Explain-further option — the reading-aid option pattern
 - Lean-question conventions — generic AskUserQuestion conventions for the lean question
@@ -35,7 +36,7 @@ Every gate message in this language carries five elements, so the user always kn
   Derive the denominator from already-persisted state — the kept-finding set, the open-questions list, the queued gate items. The tracker is presentation-only: never add a state-file field to carry it. Render the tracker only when the queue holds ≥2 decisions — a one-stop tracker is noise, not orientation.
 - **One-sentence opener.** Immediately after the tracker (or as the first line when no tracker renders), one plain-English sentence stating what this gate decides: `**In one sentence:** we're deciding whether the export filter silently dropping archived rows is intended.`
 - **Friendly digest blocks.** Explain each unit conversationally, not as a labeled ADR form: a lead sentence stating what is happening or what will be done, then `**Why:**` or `**Why it matters:**` (the reason in plain words, evidence cite in parentheses), an optional `**How it gets built:**`-style line when an action plan exists, and `**You'll see:**` (the observable outcome) when one exists. The calling contract maps its structured fields onto these slots — the slots are the language; the field plumbing stays with the caller.
-- **A visual per unit.** Every unit — spec section, approach, finding, investigation result — carries a visual. The shape comes from the calling contract's map: plan units per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example + visual per section type"; findings and investigation results per per-finding-question.md §Finding-type visual map. The visuals are the load-bearing comprehension aid for a user skimming the gate; render plain text instead only when a unit genuinely has nothing to map.
+- **A visual per unit.** Every unit — spec section, approach, finding, investigation result — carries a visual. The shape comes from its type: plan units per §Plan-unit visual map below; findings and investigation results per per-finding-question.md §Finding-type visual map. The visuals are the load-bearing comprehension aid for a user skimming the gate; render plain text instead only when a unit genuinely has nothing to map.
 - **Light icons on headings** — one per heading (e.g. 🎯 🧭 📦 🚫 ⚠️ 🧪 ↩️ ✅ 🔍) to make the message scannable at a glance.
 
 Close every render against the plain-English bar: a user with no plugin internals loaded must be able to act on every line. Translate author-facing identifiers into plain English (`PRODUCT-DECISION` → "needs your decision", `T2` → "handoff"), drop internal phase / step numbers, keep evidence cites as `path:lines`.
@@ -67,6 +68,25 @@ request ──▸ buildQuery() ──▸ WHERE archived=false ──▸ archived
 
 The lean question that follows carries only the title, the `path:lines`, and the option selectors.
 
+## Plan-unit visual map
+
+The visual shape per spec section, for a `/geniro:plan` section-approval gate. Three sections carry the centerpiece visual of their cluster — the scope map, the data-flow diagram, and the done-condition checklist; the rest are lighter.
+
+| Section | Visual shape |
+|---|---|
+| 1. Objective | None beyond the `**You'll see:**` line — the behavior sentence is the anchor |
+| 2-3. Scope (Included / Excluded) | The in/out scope map: two boxed columns, `+` new file / `~` edited file / `x` excluded (cluster centerpiece) |
+| 4. Assumptions | Plain cited bullets — invariants don't diagram well |
+| 5. Risks | Mini-table: risk · symptom you'd see · severity |
+| 6. Steps | ASCII data-flow diagram (cluster centerpiece — render it even when the section's concrete example is pseudocode) |
+| 7. Tools Required | One-line list |
+| 8. Approval Points | A gate timeline: `build ▸ [ask: X] ▸ build ▸ [ask: Y] ▸ ship` |
+| 9. Validation | Checklist of test names: `☐ it('rejects negative quantity')` |
+| 10. Rollback-Recovery | The revert command or feature-flag toggle in a code span |
+| 11. Done Condition | `☐` checklist, one box per observable signal (cluster centerpiece) |
+
+`/geniro:plan` pairs each visual with a concrete example of the section's content; that example set is the calling contract's own (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md`), while the visual shapes above are shared language.
+
 ## Turn-completion guard
 
 The two-step shape leaves a seam between its steps: the render is emitted as its own message, and the lean question follows. A gate is not rendered until the question has actually fired — close the seam in the same pass:
@@ -96,7 +116,7 @@ The lean `AskUserQuestion` that follows the render obeys these conventions at ev
 - **Single-select** unless the gate is explicitly multi-select (e.g. a pick loop).
 - **Never auto-default on an empty answer.** An empty answer indicates an upstream tool bug, not a user choice — re-ask. Only a repeated *empty-answer* loop (the tool keeps returning nothing) justifies falling back to a plain-text question in chat. A `gate-render` block (`exit 2`) is neither an empty answer nor a tool failure — recover it per §Turn-completion guard (render, then re-fire the same `AskUserQuestion`), never with the plain-text fallback.
 - **≤4 options per call**, chaining a follow-up question per per-finding-question.md §Cap-extension when more exist; never drop or merge options to fit one call.
-- **`preview` stays empty or a one-line recap.** The chat message is the rendering surface; the `preview` side-box hard-truncates long content and is often absent in an interactive session.
+- **`preview` stays empty or a one-line recap.** The chat message is the rendering surface: `AskUserQuestion` renders `preview` as a narrow monospace side-box that hard-truncates long content with no scroll, and it is often absent entirely in an interactive session — a body placed there is unreadable or invisible, so the body stays in the chat message, which has full width, and the lean question captures only the decision.
 
 ## Why this exists
 

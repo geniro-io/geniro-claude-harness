@@ -5,12 +5,17 @@
 #
 # Edit/Write/MultiEdit branch: checks .tool_input.file_path.
 # Bash branch: catches shell-side writes the file-tool matcher never sees —
-# redirection (>, >>, >|), tee, in-place sed (-i), cp/mv destinations, dd of=.
+# redirection (>, >>, >|), tee, in-place sed (-i), cp/mv destinations, dd of=,
+# and interpreter-mediated writes (python/node/perl/ruby/php opening a protected
+# file for writing, an awk program redirecting `print` into one).
 # Read-only access to protected files (cat/grep/cp FROM them) stays allowed.
 # Heredoc bodies and quoted string literals are scrubbed before extraction
 # (they are data, not syntax) — a deliberately QUOTED redirect target
 # (`> ".env"`) is therefore a documented miss, accepted to avoid hard-blocking
-# benign commands that merely mention protected names in strings.
+# benign commands that merely mention protected names in strings. The one
+# quoted position that IS syntax is an interpreter payload (`sh -c "..."`,
+# `eval "..."`): those are extracted before the scrub and this guard re-runs on
+# each one.
 #
 # Per-project allowlist: .geniro/safety.json (in cwd or any ancestor) can opt out
 # of specific patterns by listing pattern IDs in the "allow_patterns" array.
@@ -165,6 +170,73 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     }
     { print }
   ')
+
+  # Interpreter indirection: `sh -c "<payload>"` (or bash/zsh/dash -lc, ...) and
+  # `eval "<payload>"` run <payload> as a command, but the quote-scrub below
+  # would treat it as data and miss a write into a protected path inside it.
+  # Extraction is single-sourced in lib/write-vectors.sh; the inline fallback
+  # keeps the guard recursing on a vendored install shipping hooks/ without
+  # lib/ — a missing helper must never make this guard fail open.
+  _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+  if [ -f "$_geniro_wv_helper" ]; then
+    # shellcheck source=/dev/null
+    source "$_geniro_wv_helper" 2>/dev/null || true
+  fi
+  if ! command -v _geniro_extract_inner_payloads >/dev/null 2>&1; then
+    _geniro_extract_inner_payloads() {
+      local cmd="${1:-}"
+      if [ -z "$cmd" ]; then return 0; fi
+      local _m _pl
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+        _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?eval[[:space:]]+//')
+        _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+      return 0
+    }
+  fi
+  if ! command -v _geniro_interp_write_targets >/dev/null 2>&1; then
+    # Degraded stand-in on a vendored install: literal targets only (no variable
+    # resolution), rc=10 for every other write op so the caller still scans.
+    _geniro_interp_write_targets() {
+      local c="${1:-}" q="\\\\?[\"']"
+      printf '%s' "$c" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|perl|ruby|php|awk|gawk|mawk)([[:space:]]|$)' || return 0
+      printf '%s' "$c" | grep -oE "(open|fopen|File\.open)\([[:space:]]*${q}[^\\\\\"']+${q}[[:space:]]*,[[:space:]]*${q}[waxWAX>]|(writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|IO\.write)\([[:space:]]*${q}[^\\\\\"']+${q}|(print|printf)[^;}]*>{1,2}[[:space:]]*${q}[^\\\\\"']+${q}" 2>/dev/null \
+        | sed -E "s/^.*[(>][[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//" || true
+      if printf '%s' "$c" | grep -qE "open\([^)]*,[[:space:]]*${q}[waxWAX>]|(write_text|write_bytes|writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|IO\.write)\("; then
+        return 10
+      fi
+      return 0
+    }
+  fi
+  if ! command -v _geniro_wv_path_tokens >/dev/null 2>&1; then
+    _geniro_wv_path_tokens() {
+      printf '%s' "${1:-}" | grep -oE '[^[:space:]"'\''`=(),;|&<>{}]+' 2>/dev/null \
+        | grep -E '/|\.[A-Za-z0-9]{1,6}$' 2>/dev/null | grep -vE '^-' 2>/dev/null || true
+      return 0
+    }
+  fi
+
+  # Re-run THIS guard on each extracted payload (unblanked); a block inside
+  # propagates out. Nested indirection terminates because each payload is
+  # strictly shorter than the command it came from.
+  _geniro_self="${BASH_SOURCE[0]:-$0}"
+  INNER_PAYLOADS=$(_geniro_extract_inner_payloads "$SCRUBBED")
+  if [ -n "$INNER_PAYLOADS" ]; then
+    while IFS= read -r _pl; do
+      [ -z "$_pl" ] && continue
+      if ! printf '%s' "$_pl" | jq -Rs '{tool_name: "Bash", tool_input: {command: .}}' | bash "$_geniro_self"; then
+        exit 2
+      fi
+    done <<< "$INNER_PAYLOADS"
+  fi
 
   # Join backslash-newline continuations, then collapse newlines (mirrors
   # block-dangerous-git.sh) so multi-line commands can't split a write apart.
@@ -332,6 +404,33 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     set +f
     case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])ln[[:space:]]+[^|;&]*' || true)"
+
+  # 10) Interpreter-mediated writes: python/node/perl/ruby/php opening a file for
+  #     writing, or an awk program redirecting `print` into one. Vectors 1-9 read
+  #     $ONELINE, whose heredoc bodies and quoted literals were blanked as data —
+  #     and an interpreter's file write is not shell syntax anywhere, so
+  #     `python3 -c "open('.env','w').write(k)"` reaches the filesystem
+  #     unchecked. This vector therefore scans the RAW $COMMAND, and fires only
+  #     on the conjunction interpreter + write op + target, so a read-only
+  #     interpreter call stays allowed. Contract: lib/write-vectors.sh.
+  _iw_unresolved=0
+  _iw_targets=$(_geniro_interp_write_targets "$COMMAND") || _iw_unresolved=1
+  if [ -n "$_iw_targets" ]; then
+    while IFS= read -r tok; do
+      [ -z "$tok" ] && continue
+      add_candidate "$tok"
+    done <<< "$_iw_targets"
+  fi
+  if [ "$_iw_unresolved" = "1" ]; then
+    # The write target is a variable or expression (`open(p,'w')`), unresolvable
+    # from the command text. Fall back to every path-shaped token in it: the
+    # protected patterns are distinctive filenames, so a token that is not one of
+    # them costs nothing, while `p='.env'; open(p,'w')` still lands.
+    while IFS= read -r tok; do
+      [ -z "$tok" ] && continue
+      add_candidate "$tok"
+    done <<< "$(_geniro_wv_path_tokens "$COMMAND")"
+  fi
 
   if [ -z "$CANDIDATES" ]; then
     exit 0

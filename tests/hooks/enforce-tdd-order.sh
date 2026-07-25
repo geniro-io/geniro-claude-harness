@@ -136,6 +136,59 @@ expect_block "RED: spaced-tag heredoc into production blocked" \
 expect_allow "RED: spaced-tag heredoc into a test file allowed" \
   "$(run_bash "$(printf 'cat > %s/src/app.test.js << EOF\ntest()\nEOF\n' "$GITREPO")")"
 
+# ===== Interpreter indirection must be inspected =====
+# `sh -c "<payload>"` and `eval "<payload>"` hand <payload> to a shell as a
+# COMMAND, so the gate extracts it before the quote scrub and re-runs on it.
+expect_block "RED: sh -c write into production blocked" \
+  "$(run_bash "sh -c \"echo x > $GITREPO/src/app.js\"")"
+expect_block "RED: bash -lc tee into production blocked" \
+  "$(run_bash "bash -lc 'echo x | tee $GITREPO/src/app.js'")"
+expect_block "RED: eval write into production blocked" \
+  "$(run_bash "eval \"echo x > $GITREPO/src/app.js\"")"
+expect_block "RED: eval nested in sh -c blocked" \
+  "$(run_bash "sh -c \"eval 'echo x > $GITREPO/src/app.js'\"")"
+# No false positives: benign payloads, a test-file target, and the dangerous
+# form MENTIONED as data.
+expect_allow "RED: sh -c benign command allowed" \
+  "$(run_bash 'sh -c "echo hello"')"
+expect_allow "RED: eval benign command allowed" \
+  "$(run_bash 'eval "echo hello"')"
+expect_allow "RED: eval ssh-agent idiom allowed" \
+  "$(run_bash 'eval "$(ssh-agent -s)"')"
+expect_allow "RED: eval write into a test file allowed" \
+  "$(run_bash "eval \"echo x > $GITREPO/src/app.test.js\"")"
+expect_allow "RED: prose mentioning eval write to production allowed" \
+  "$(run_bash "echo \"never run eval echo x > $GITREPO/src/app.js here\"")"
+
+# ===== Bash branch: interpreter-mediated writes during RED =====
+# An interpreter's file write is never shell syntax, so the redirect/tee/sed
+# vectors never see it. The same test-vs-production classification applies to
+# the target the script names.
+expect_block "RED: python3 open(app.js,'w') blocked" \
+  "$(run_bash "python3 -c \"open('src/app.js','w').write('x')\"")"
+expect_block "RED: node writeFileSync(app.ts) blocked" \
+  "$(run_bash "node -e \"require('fs').writeFileSync('src/app.ts','x')\"")"
+expect_block "RED: ruby File.write(app.rb) blocked" \
+  "$(run_bash "ruby -e \"File.write('src/app.rb','x')\"")"
+expect_block "RED: awk print redirected into app.js blocked" \
+  "$(run_bash "awk 'BEGIN{print \"x\" > \"src/app.js\"}'")"
+# Test files stay writable during RED — that is the phase's whole point.
+expect_allow "RED: python3 writing a test file allowed" \
+  "$(run_bash "python3 -c \"open('src/app.test.js','w').write('x')\"")"
+expect_allow "RED: awk print redirected into a test file allowed" \
+  "$(run_bash "awk 'BEGIN{print \"x\" > \"tests/app_spec.py\"}'")"
+# Read-only interpreter calls are untouched.
+expect_allow "RED: python3 reading production source allowed" \
+  "$(run_bash "python3 -c \"print(open('src/app.js').read())\"")"
+expect_allow "RED: node console.log allowed" \
+  "$(run_bash "node -e \"console.log(1+1)\"")"
+expect_allow "RED: awk printing a field allowed" \
+  "$(run_bash "awk '{print \$1}' src/app.js")"
+expect_allow "RED: awk numeric compare allowed" \
+  "$(run_bash "awk '{print (a > b) ? 1 : 2}' src/app.js")"
+expect_allow "RED: running a python script allowed" \
+  "$(run_bash 'python3 manage.py migrate')"
+
 # No TDD state file → not opted in → Bash production write allowed.
 write_phase RED
 rm -f "$STATE_FILE"
