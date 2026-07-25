@@ -5,9 +5,13 @@
 # Edit/Write/MultiEdit branch: checks .tool_input.file_path.
 # Bash branch: catches shell-side authoring the file-tool matcher never sees —
 # a `cat > app.js <<EOF`, `printf ... > app.py`, `tee app.ts`, `sed -i`, `cp`/`mv`,
-# or `dd of=` write. It extracts the write TARGET the same way file-protection.sh
+# `dd of=`, or interpreter-mediated (`python3 -c "open('app.js','w')…"`,
+# `awk 'BEGIN{print s > "app.js"}'`) write.
+# It extracts the write TARGET the same way file-protection.sh
 # does and runs the SAME test-vs-production classification on it, so a heredoc into
-# production code during RED is gated exactly like a direct Write. Pseudo-devices
+# production code during RED is gated exactly like a direct Write. A write hidden
+# behind shell indirection (`sh -c "..."` / `eval "..."`) is extracted before the
+# quote scrub and the gate re-runs on that payload. Pseudo-devices
 # (/dev/*) and .geniro/ state paths are not production source and are skipped — the
 # TDD orchestrator writes its own RED-phase state file under .geniro/state/tdd/ via
 # a Bash mktemp + mv (tdd-cycle.md §State file contract), and blocking that would
@@ -222,6 +226,63 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     { print }
   ')
 
+  # Interpreter indirection: `sh -c "<payload>"` (or bash/zsh/dash -lc, ...) and
+  # `eval "<payload>"` run <payload> as a command, but the quote-scrub below
+  # would treat it as data and miss a production-code write inside it.
+  # Extraction is single-sourced in lib/write-vectors.sh; the inline fallback
+  # keeps the gate recursing on a vendored install shipping hooks/ without
+  # lib/ — a missing helper must never make this gate fail open.
+  _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+  if [ -f "$_geniro_wv_helper" ]; then
+    # shellcheck source=/dev/null
+    source "$_geniro_wv_helper" 2>/dev/null || true
+  fi
+  if ! command -v _geniro_extract_inner_payloads >/dev/null 2>&1; then
+    _geniro_extract_inner_payloads() {
+      local cmd="${1:-}"
+      if [ -z "$cmd" ]; then return 0; fi
+      local _m _pl
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+        _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?eval[[:space:]]+//')
+        _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+      return 0
+    }
+  fi
+  if ! command -v _geniro_interp_write_targets >/dev/null 2>&1; then
+    # Degraded stand-in on a vendored install: literal targets only (no variable
+    # resolution). The gate consumes literals only, so the rc is unused here.
+    _geniro_interp_write_targets() {
+      local c="${1:-}" q="\\\\?[\"']"
+      printf '%s' "$c" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|perl|ruby|php|awk|gawk|mawk)([[:space:]]|$)' || return 0
+      printf '%s' "$c" | grep -oE "(open|fopen|File\.open)\([[:space:]]*${q}[^\\\\\"']+${q}[[:space:]]*,[[:space:]]*${q}[waxWAX>]|(writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|IO\.write)\([[:space:]]*${q}[^\\\\\"']+${q}|(print|printf)[^;}]*>{1,2}[[:space:]]*${q}[^\\\\\"']+${q}" 2>/dev/null \
+        | sed -E "s/^.*[(>][[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//" || true
+      return 0
+    }
+  fi
+
+  # Re-run THIS gate on each extracted payload (unblanked); a block inside
+  # propagates out. Nested indirection terminates because each payload is
+  # strictly shorter than the command it came from.
+  _geniro_self="${BASH_SOURCE[0]:-$0}"
+  INNER_PAYLOADS=$(_geniro_extract_inner_payloads "$SCRUBBED")
+  if [ -n "$INNER_PAYLOADS" ]; then
+    while IFS= read -r _pl; do
+      [ -z "$_pl" ] && continue
+      if ! printf '%s' "$_pl" | jq -Rs '{tool_name: "Bash", tool_input: {command: .}}' | bash "$_geniro_self"; then
+        exit 2
+      fi
+    done <<< "$INNER_PAYLOADS"
+  fi
+
   JOINED="${SCRUBBED//\\$'\n'/ }"
   ONELINE="${JOINED//$'\n'/ }"
 
@@ -378,6 +439,23 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     set +f
     case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])ln[[:space:]]+[^|;&]*' || true)"
+
+  # 10) Interpreter-mediated writes: python/node/perl/ruby/php opening a file for
+  #     writing, or an awk program redirecting `print` into one. Vectors 1-9 read
+  #     $ONELINE, whose heredoc bodies and quoted literals were blanked as data —
+  #     and an interpreter's file write is not shell syntax anywhere, so
+  #     `python3 -c "open('src/app.js','w').write(s)"` authored production code
+  #     during RED completely unchecked. Contract: lib/write-vectors.sh.
+  #
+  #     Only targets the scan resolves to a literal are gated. This gate classifies
+  #     EVERY path as production unless it looks like a test, so falling back to
+  #     the path-shaped tokens of a command whose target is a variable would block
+  #     on an incidental filename — and a false RED-phase block stalls the cycle
+  #     the same way a missed write corrupts it.
+  while IFS= read -r tok; do
+    [ -z "$tok" ] && continue
+    add_candidate "$tok"
+  done <<< "$(_geniro_interp_write_targets "$COMMAND" || true)"
 
   if [ -z "$CANDIDATES" ]; then
     exit 0

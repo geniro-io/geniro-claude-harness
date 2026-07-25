@@ -18,7 +18,7 @@ Each `workflow_refs[]` entry:
 | `parent_ref.status` | no (m5-v3) | Parent epic status at chain-fetch time. |
 | `parent_ref.scope` | no (m5-v3) | Short epic scope sentence, ≤280 chars, trimmed at a sentence boundary. |
 | `siblings` | no (m5-v3) | Depth-1 sibling sub-tasks under the same parent — list of `{issue_id (required), title (optional), status (optional)}`. ≤8 entries, block ≤~1200 chars; omit the key when there are none. Primes the related-task chain context. |
-| `chain_fetched_at` | no (m5-v3) | ISO-8601 UTC. When the related-task chain enrichment was fetched — staleness-checked INDEPENDENTLY of `fetched_at` (/geniro:implement re-fetches the chain if > 1 hour old). |
+| `chain_fetched_at` | no (m5-v3) | ISO-8601 UTC. When the related-task chain enrichment was fetched — staleness-checked against the same window as `fetched_at`, but INDEPENDENTLY of it (/geniro:implement re-fetches the chain alone when this stamp is stale). |
 
 ## Schema-version compatibility
 

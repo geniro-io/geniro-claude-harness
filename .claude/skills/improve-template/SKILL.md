@@ -11,12 +11,12 @@ argument-hint: "<issue description or area to improve>"
 
 You are the orchestrator for investigating and fixing issues in the Geniro plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You NEVER implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
-**Template path:** (repo root — skills/, agents/, hooks/)
+**Template path:** (repo root — skills/, agents/, hooks/, lib/, scripts/, cursor/)
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
 
 ## Subagent Model Tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`: spawn sites OMIT `model=` so every subagent inherits the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off; a skill-side hardcode (e.g. forcing opus from a Sonnet session) overrides that choice silently. For plugin-defined subagents (`reviewer-agent`, `adversarial-tester-agent` — 2 agents post-rationalization), also follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare-name first; on `Agent type '<name>' not found`, degrade to `general-purpose` with the agent body inlined (frontmatter stripped).
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`: spawn sites OMIT `model=` so every subagent inherits the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off; a skill-side hardcode (e.g. forcing opus from a Sonnet session) overrides that choice silently. For plugin-defined subagents (the agents under `${CLAUDE_PLUGIN_ROOT}/agents/`), also follow the ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
 
 **Skill-specific mapping:**
 
@@ -170,10 +170,10 @@ Agent(prompt="""
 Explore the current state of the template files related to:
 {{issue description from Step 1}}
 
-Template root: repo root (skills/, agents/, hooks/)
+Template root: repo root (skills/, agents/, hooks/, lib/, scripts/, cursor/)
 
 Exploration strategy:
-1. Identify which files are affected (skills, agents, hooks)
+1. Identify which files are affected (skills, agents, hooks, lib helpers, build scripts, the Cursor port under cursor/)
 2. Read each affected file fully
 3. Identify current patterns, gaps, and inconsistencies
 4. Check cross-references (does file A reference file B correctly? Are paths valid?)
@@ -364,7 +364,8 @@ Orchestrator runs these checks directly (no subagent). All must pass before Phas
 4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
 5. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
 6. **Description-format checks (6 sub-checks):** apply when any changed SKILL.md's YAML `description:` field was added or modified; full procedure in the "Description-format validator" section below. Items: length ≤1024 chars (warning), third person (warning), "Use when" trigger clause (warning), "Skip for" anti-trigger clause (note), no `{{placeholder}}` residue (blocker), valid YAML frontmatter (blocker, overlaps with check #4 — counts once).
-7. **README/docs sync (when changes touch user-facing surface):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md` since it carries the skills-table row. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
+7. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md` since it carries the skills-table row. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
+   **Generated Cursor agents:** when the change edited any `agents/*.md`, run `scripts/build-cursor-agents.sh` and include the regenerated `cursor/agents/*.md` in the same change set — `cursor/agents/` is generated from `agents/`, and `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift between them. Never hand-edit `cursor/agents/`; re-run the script instead of routing this to the fix agent.
 8. **Compaction & redundancy (added text):** scan the lines this change ADDED for weight without payload — a restatement of an instruction already in the file, a re-explanation of standard tool or model behavior, or a hedge with no condition. Propose a tightening only when it fully preserves meaning and behavior — the bar is zero degradation; never trade away a load-bearing nuance, edge case, or behavioral condition to save tokens (the `description` field is out of scope here — the Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
 
 If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#6 sub-items 1-4, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.

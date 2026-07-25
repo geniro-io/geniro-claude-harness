@@ -247,7 +247,12 @@ if [ "$_as_direct" = "1" ]; then
       _as_lock_mtime=$(stat -c %Y "$_as_lock" 2>/dev/null || stat -f %m "$_as_lock" 2>/dev/null || echo 0)
       # Shared reclaim window — override via GENIRO_LOCK_RECLAIM_SECS (default 600s);
       # archive-stale.sh + query-learnings.sh reclaim the SAME lock and must agree.
-      if [ $(( $(date +%s) - _as_lock_mtime )) -gt "${GENIRO_LOCK_RECLAIM_SECS:-600}" ]; then
+      # Sanitized before the integer test: a non-numeric override makes `[ -gt ]`
+      # error and evaluate false, so an abandoned lock is never reclaimed and every
+      # subsequent write wedges. Same guard the numeric knobs elsewhere carry.
+      _as_reclaim_secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
+      case "$_as_reclaim_secs" in ''|*[!0-9]*) _as_reclaim_secs=600 ;; esac
+      if [ $(( $(date +%s) - _as_lock_mtime )) -gt "$_as_reclaim_secs" ]; then
         rmdir "$_as_lock" 2>/dev/null
       fi
     fi

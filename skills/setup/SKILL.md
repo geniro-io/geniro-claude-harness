@@ -27,11 +27,11 @@ CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 ## Subagent model tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — one of the two documented hardcode carve-outs (`model=sonnet`, justified inline at §4.1 by its read-only tool floor).
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — a documented hardcode carve-out (`model=sonnet`, justified inline at §4.1).
 
 | Spawn | Tier | Why |
 |---|---|---|
-| Verification subagent (validate generated CLAUDE.md against codebase) | `sonnet` | Reads files, checks claims — reasoning but bounded |
+| Verification subagent (validate generated CLAUDE.md against codebase) | `sonnet` | Mechanical check-and-report: runs a fixed check list and emits PASS/DRIFT lines the orchestrator re-decides from, so its output does not scale with orchestrator tier |
 
 ## Loop invariants
 
@@ -119,20 +119,7 @@ Surface in `## Phase log` as `Prior /geniro:setup runs: N (last: <timestamp>, st
 
 ### 1.3 Locate plugin source
 
-```bash
-TEMPLATE_DIR="${CLAUDE_PLUGIN_ROOT}"
-if [ -z "$TEMPLATE_DIR" ] || [ ! -d "$TEMPLATE_DIR/agents" ]; then
-if [ -n "$ARGUMENTS" ] && [ -d "$ARGUMENTS/agents" ]; then
-TEMPLATE_DIR="$ARGUMENTS"
-else
-echo "ERROR: cannot locate plugin source. \${CLAUDE_PLUGIN_ROOT} unset and no \$ARGUMENTS fallback." >&2
-# → Phase Failed, ## Errors row
-exit 1
-fi
-fi
-```
-
-Resolved path written to state frontmatter `template_dir:`.
+Set `TEMPLATE_DIR` to `${CLAUDE_PLUGIN_ROOT}`, falling back to `$ARGUMENTS` when that is unset or does not look like a plugin root. Test the candidate by the presence of an `agents/` directory inside it — a path that merely exists proves nothing, and a wrong `TEMPLATE_DIR` surfaces much later as missing templates mid-generation. When neither candidate passes, transition to Phase Failed with an `## Errors` row rather than continuing on a guess. Write the resolved path to state frontmatter `template_dir:`.
 
 ### 1.4 Codebase scan (Evidence Block standard)
 
@@ -180,7 +167,7 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-The canonical 13-skill list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries.)
+The canonical list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries — every subdirectory except `_shared` is a skill.)
 
 ```yaml
 skill_inventory:
@@ -199,14 +186,14 @@ skill_inventory:
 - {slug: update, purpose: "Plugin update + integrity check"}
 ```
 
-Keep the 8 deleted skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) out of generated CLAUDE.md — they no longer exist as live skills, so listing them points the user at commands that do not run.
+`skill_inventory` is the source of truth for which skills exist. Name a skill anywhere this run produces user-facing text (the Phase 5 report's next-step suggestions, any generated content) only if it appears in that block — a slug drawn from anywhere else points the user at a command that does not run.
 
 ### 1.6 Detect output
 
 All-results land in state frontmatter `detected:` block. The default branch is captured via `git symbolic-ref --short refs/remotes/origin/HEAD` (fallback `git branch --show-current`) into `default_branch_candidates`, surfaced in the Phase 5 report as `Default branch: <branch> (auto-detected)`. Phase log captures one summary line:
 
 ```
-[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=13, evidence_count=14
+[<timestamp>] detect complete — stack=node/npm, lang=node, pkg_mgr=npm, has_tests=true (jest), skill_inventory=<count from §1.5>, evidence_count=14
 ```
 
 Transition to Phase 2.
@@ -309,7 +296,7 @@ If `mode == re-run`:
 1. Read existing `CLAUDE.md`.
 2. Identify project-specific sections (Tech Stack, Commands, Conventions, Domain Context).
 3. For each: merge detected updates into existing content via orchestrator-inline merge (preserve user edits + update facts).
-4. If existing CLAUDE.md contains legacy geniro-specific sections (skill table, path rules, hooks, updating) from a prior `/geniro:setup` version — **remove them silently**. They're plugin noise.
+4. If existing CLAUDE.md carries anything on the §3.2 exclusion list from a prior `/geniro:setup` version — **remove it silently**. It is plugin noise the plugin already loads on its own.
 5. Display merged diff to user; AUQ if diff is non-trivial.
 
 If `mode == init`, skip the pre-write audit and proceed to §3.2.
@@ -329,7 +316,7 @@ Generated CLAUDE.md sections:
 | Project Conventions | Naming, patterns, code style rules | `.editorconfig`, ESLint/Prettier config, `CONTRIBUTING.md` |
 | Domain Context | Key entities, API patterns, business terms | Project docs, API specs, `.env.example` variable names |
 
-**What does NOT go in CLAUDE.md:**
+**What does NOT go in CLAUDE.md** (the single enumeration — §3.1, §3.4, §4.1, and the Definition of done all resolve to this list):
 - Geniro skill table (already in plugin SKILL.md files)
 - Path rules / `~` expansion warning (already in plugin CLAUDE.md)
 - Safety hooks summary or allowlist (already in plugin hooks/)
@@ -367,18 +354,28 @@ Recompute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skil
 # workflow/ + instructions/ are cross-session → primary worktree. planning/ is task-local (cwd).
 # knowledge/ is cross-session too, but its writers self-route to the repo root via lib/repo-root.sh — this cwd mkdir is only a convenience.
 mkdir -p "$PRIMARY_ROOT"/.geniro/workflow "$PRIMARY_ROOT"/.geniro/instructions .geniro/planning .geniro/knowledge
+```
 
-# .gitignore — the primary worktree's copy, beside the negated content; only write if it exists (never create from scratch)
+#### `.gitignore` re-include procedure
+
+The canonical procedure for keeping a `.geniro/` subdirectory committed while the rest of the tree stays ignored. `/geniro:actions` runs this same procedure for `.geniro/actions/` — edit it here, not in a second copy. Substitute the directories that must stay committed for the `for d in ...` list; everything else is invariant. It targets the primary worktree's `.gitignore`, beside the content being negated, and writes only when that file already exists — creating one from scratch would start ignoring files the project deliberately tracks.
+
+```bash
 GI="$PRIMARY_ROOT/.gitignore"
 if [ -f "$GI" ]; then
-grep -q "^\.geniro/\*$" "$GI" 2>/dev/null || echo ".geniro/*" >> "$GI"
-grep -q "^\!\.geniro/$" "$GI" 2>/dev/null || echo "!.geniro/" >> "$GI"
-grep -q "^\!\.geniro/workflow/$" "$GI" 2>/dev/null || echo "!.geniro/workflow/" >> "$GI"
-grep -q "^\!\.geniro/workflow/\*\*$" "$GI" 2>/dev/null || echo "!.geniro/workflow/**" >> "$GI"
-grep -q "^\!\.geniro/instructions/$" "$GI" 2>/dev/null || echo "!.geniro/instructions/" >> "$GI"
-grep -q "^\!\.geniro/instructions/\*\*$" "$GI" 2>/dev/null || echo "!.geniro/instructions/**" >> "$GI"
+  # A bare `.geniro/` line ignores the whole tree and defeats every negation below — drop it first.
+  sed -i.bak '/^\.geniro\/$/d' "$GI" && rm -f "$GI.bak"
+  add_line() { grep -qxF "$1" "$GI" 2>/dev/null || printf '%s\n' "$1" >> "$GI"; }
+  add_line ".geniro/*"
+  add_line "!.geniro/"
+  for d in workflow instructions; do
+    add_line "!.geniro/$d/"
+    add_line "!.geniro/$d/**"
+  done
 fi
 ```
+
+Each line is appended only when absent, so re-runs are idempotent. A user who wants one of these directories ignored deletes its two `!` lines by hand.
 
 ### 3.6 Install statusline
 
@@ -399,9 +396,13 @@ Transition to Phase 4.
 
 ```
 Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the spawn-agent.md ladder applies only if promoted to a plugin-defined agent
-model="sonnet", # hardcode carve-out: read-only tool budget (no Write/Edit) IS the safety floor, per _shared/model-tiering.md
-tools=["Read", "Bash", "Glob", "Grep"], # NO Write/Edit per §ACI
+model="sonnet", # hardcode carve-out per _shared/model-tiering.md: mechanical check-and-report — a fixed check list in, PASS/DRIFT lines out, and the orchestrator re-decides from those lines, so output quality does not scale with orchestrator tier
 prompt="""
+You are a READ-ONLY verifier. Do not create, edit, or delete any file, and run no mutating
+shell command — report DRIFT items and let the orchestrator regenerate the affected sections.
+An edit from here would overwrite content the orchestrator is about to rewrite from the
+detected project facts. Read, read-only Bash, Glob, and Grep are the whole job.
+
 Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
 
 First, Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md and run every check it
@@ -412,7 +413,9 @@ wrong-token table that catches stack drift this inline list cannot.
 Then run these additional checks:
 1. Every command in the `## Commands` section runs locally (try `bash -n` syntax check; do not execute).
 2. Every claimed file path in `## Tech Stack` exists.
-3. No geniro-specific content: no skill tables, no path rules about `~`, no hooks summary, no MCP tables, no `/geniro:update` instructions. CLAUDE.md is project-only.
+3. No Geniro-plugin content. Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md §3.2 "What does
+   NOT go in CLAUDE.md" — that list is the single source — and report every item on it that
+   appears in the generated file. CLAUDE.md is project-only.
 4. Template variable residue grep: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`.
 5. No `<!-- geniro-setup-managed -->` or `<!-- geniro-setup-end -->` markers (legacy — CLAUDE.md is user-owned).
 
@@ -420,8 +423,6 @@ Output a markdown report:
 ## PASS items (one per line)
 ## DRIFT items (one per line with file:line)
 
-Tools allowed: Read, Bash (read-only), Glob, Grep. Do NOT mutate any file — report DRIFT items;
-the orchestrator regenerates affected sections.
 Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT).
 
 Anchor: stay within current cwd; verify with `pwd && git branch --show-current` on first Bash call.
@@ -505,14 +506,7 @@ On "Map codebase now" → print `Running /geniro:onboard...` and invoke the onbo
 
 ### 5.3 State file cleanup
 
-Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`:
-
-```bash
-rm -f "$PRIMARY_ROOT/.geniro/state/setup/state.md"
-rmdir "$PRIMARY_ROOT/.geniro/state/setup/" 2>/dev/null
-```
-
-This is the **only** Geniro state file deleted on success — `/geniro:setup` is a singleton bootstrap and the state file has zero value once DONE.
+Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`, then remove the now-empty `state/setup/` directory (ignore the failure when it is not empty). This is the **only** Geniro state file deleted on success — the named exception recorded in §State file schema.
 
 **Exception:** if `mode == re-run` AND user opted for `accept-with-warnings` at round 4, the state file is **kept** with `phase: done` and `## Open Questions` populated — surfaces for the next re-run.
 
@@ -530,7 +524,7 @@ Only emitted when `mode == re-run` AND the current `.claude-plugin/plugin.json` 
 
 ## State file schema
 
-Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable singleton; deleted at Phase Done). Full frontmatter + body-section schema: `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-state-reference.md` — read it before every state write.
+Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1.5 tier, with one deliberate, named exception to that tier's survives-past-ship rule: `/geniro:setup` deletes the file at Phase Done (§5.3). Bootstrap state describes a one-shot run that is over — no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. The exception is scoped to this one path; every other T1.5 file survives. Full frontmatter + body-section schema: `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-state-reference.md` — read it before every state write.
 
 ## Memory I/O
 
@@ -546,11 +540,11 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable singleto
 | Reasoning | Why it's wrong |
 |---|---|
 | "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
-| "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md,.cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
+| "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
 | "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
 | "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
 | "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
-| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Plugin info lives in plugin files and is loaded automatically. Adding it to CLAUDE.md wastes tokens on every run. |
+| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the §3.2 exclusion list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |
 | "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
 | "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
 
@@ -558,7 +552,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable singleto
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
 
-- [ ] Generated CLAUDE.md contains ZERO geniro-specific content (no skill tables, no path rules, no hooks, no updating instructions)
+- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on the §3.2 exclusion list checked and absent
 - [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
@@ -567,7 +561,7 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 
 ## Cross-references
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file, deleted at Phase Done per the named exception in §State file schema) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — the contamination + template-residue check set the §4.1 verification subagent reads and runs (single source for the per-language wrong-token table).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.

@@ -131,7 +131,7 @@ Do NOT write "since Phase 1" at refresh sites. Some skills (e.g. `debug`) use st
 
 ## Producer contract
 
-The instruction files this helper loads have a fixed schema (defined authoritatively in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md` § File Structure):
+The four files this helper loads (`global.md`, `memory.md`, `<SKILL_SLUG>.md`, `code-style.md`) have the fixed schema below, canonical here — this is their runtime reader, so the schema the reader applies is the one that is real; an authoring-side schema the loader does not apply is dead. The `/geniro:instructions` CRUD skill authors against it. (Custom-reviewer files under `review-extra/` are a different shape with their own reader — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`.)
 
 ```markdown
 # Custom Instructions

@@ -135,6 +135,45 @@ expect_block "bash: spaced-tag heredoc INTO .env still blocked"        "$(run_ba
 K=v
 DOC')"
 
+# ===== Bash branch: interpreter indirection must be inspected =====
+# `sh -c "<payload>"` and `eval "<payload>"` hand <payload> to a shell as a
+# COMMAND, so the guard extracts it before the quote scrub and re-runs on it.
+expect_block "bash: sh -c redirect into .env blocked"    "$(run_bash 'sh -c "echo K=v > .env"')"
+expect_block "bash: bash -lc tee into .env blocked"      "$(run_bash "bash -lc 'echo K=v | tee .env'")"
+expect_block "bash: eval redirect into .env blocked"     "$(run_bash 'eval "echo K=v > .env"')"
+expect_block "bash: eval cp onto a lockfile blocked"     "$(run_bash "eval 'cp new.json package-lock.json'")"
+expect_block "bash: eval nested in sh -c blocked"        "$(run_bash $'sh -c "eval \'echo K=v > .env\'"')"
+# No false positives: benign payloads, and the dangerous form MENTIONED as data.
+expect_allow "bash: sh -c benign command allowed"        "$(run_bash 'sh -c "echo hello"')"
+expect_allow "bash: eval benign command allowed"         "$(run_bash 'eval "echo hello"')"
+expect_allow "bash: eval ssh-agent idiom allowed"        "$(run_bash 'eval "$(ssh-agent -s)"')"
+expect_allow "bash: prose mentioning eval write to .env allowed" \
+  "$(run_bash 'echo "never run eval echo K=v > .env here"')"
+
+# ===== Bash branch: interpreter-mediated writes =====
+# An interpreter's file write is never shell syntax, so the redirection/tee/sed
+# vectors above never see it. The guard scans the raw command for the
+# conjunction interpreter + write op + protected target.
+expect_block "bash: python3 -c open(.env,'w') blocked"   "$(run_bash "python3 -c \"open('.env','w').write('K=v')\"")"
+expect_block "bash: python3 pathlib write_text blocked"  "$(run_bash "python3 -c \"from pathlib import Path; Path('.env').write_text('K=v')\"")"
+expect_block "bash: node writeFileSync(.env) blocked"    "$(run_bash "node -e \"require('fs').writeFileSync('.env','K=v')\"")"
+expect_block "bash: node appendFileSync onto a key blocked" "$(run_bash "node -e \"require('fs').appendFileSync('server.key','x')\"")"
+expect_block "bash: perl 3-arg open onto .env blocked"   "$(run_bash "perl -e 'open(F, \">\", \".env\"); print F \"K=v\";'")"
+expect_block "bash: ruby File.write onto a lockfile blocked" "$(run_bash "ruby -e \"File.write('package-lock.json','{}')\"")"
+expect_block "bash: php file_put_contents onto .env blocked" "$(run_bash "php -r \"file_put_contents('.env','K=v');\"")"
+expect_block "bash: awk print redirected into .env blocked"  "$(run_bash "awk 'BEGIN{print \"K=v\" > \".env\"}'")"
+expect_block "bash: awk printf appended to a .pem blocked"   "$(run_bash "awk 'BEGIN{printf \"x\" >> \"cert.pem\"}'")"
+expect_block "bash: python var target resolved to .env blocked" "$(run_bash "F=.env; python3 -c \"open('\$F','w').write('K=v')\"")"
+expect_block "bash: python unresolvable target near .env blocked" "$(run_bash "python3 -c \"p='.env'; open(p,'w').write('K=v')\"")"
+# No false positives: read-only interpreter calls, and writes elsewhere.
+expect_allow "bash: python3 reading .env allowed"        "$(run_bash "python3 -c \"print(open('.env').read())\"")"
+expect_allow "bash: node console.log allowed"           "$(run_bash "node -e \"console.log(1+1)\"")"
+expect_allow "bash: awk printing a field allowed"       "$(run_bash "awk '{print \$1}' .env")"
+expect_allow "bash: awk numeric compare allowed"        "$(run_bash "awk '{print (a > b) ? 1 : 2}' .env")"
+expect_allow "bash: python writing a normal file allowed" "$(run_bash "python3 -c \"open('out.txt','w').write('x')\"")"
+expect_allow "bash: running a python script allowed"    "$(run_bash 'python3 manage.py migrate')"
+expect_allow "bash: node reading .env allowed"          "$(run_bash "node -e \"console.log(require('fs').readFileSync('.env','utf8'))\"")"
+
 # ===== Fail-open on missing file_path =====
 expect_allow "missing file_path → allow" "$(echo '{"tool_input": {}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
 

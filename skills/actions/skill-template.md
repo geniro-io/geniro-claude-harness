@@ -7,7 +7,7 @@ This file is the canonical template for a `/geniro:actions create` output. The p
 | Variable | Source | Example |
 |---|---|---|
 | `{{name}}` | user-provided action name (kebab-case, ≤64 chars) | `pr-notify-slack` |
-| `{{description}}` | derived from interview Q1 + Q2; starts with "Use when" and stays ≤250 chars; optional terminal "Skip for …" clause (≤4 categorical items) only when an adjacent action exists | `Use when a PR is opened and you want to summarize it in #eng-reviews. Skip for force-pushed branches.` |
+| `{{description}}` | derived from interview Q1 + Q2, shaped by §Authoring rules below | `Use when a PR is opened and you want to summarize it in #eng-reviews. Skip for force-pushed branches.` |
 | `{{model}}` | inferred from complexity; default `inherit` | `inherit` |
 | `{{allowed_tools}}` | derived from Q3 (output/side-effects) | `[Read, Bash(gh *), AskUserQuestion]` |
 | `{{argument_hint}}` | derived from interview; describe expected positional args | `[pr_number]` |
@@ -65,11 +65,11 @@ created-by: geniro:actions
 
 ## Authoring rules (applied during synthesis)
 
-- **Description** starts with "Use when …". A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions. Keep total length ≤250 chars.
+- **Description** — the canonical rule for `{{description}}`: starts with "Use when …", total length ≤250 chars. A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions.
 - **Steps** are numbered and concrete. Each step names the tool or shell command (e.g., "Run `gh pr view {{argument}} --json title,body`"), not vague verbs ("look at the PR").
 - **One-level deep**: if a step needs sub-detail, inline it; do NOT chain to another `.md` file. Claude's partial reads can miss content nested through references.
 - **Secrets**: never inline tokens. Reference env vars (e.g., `$SLACK_BOT_TOKEN`). The Geniro file-protection hook blocks `.env`/`*.key`/`*.pem` writes.
-- **Side effects**: if the action writes to external systems (Slack, GitHub, files outside `.geniro/`), the action's `description` SHOULD mention this so the user knows what side effects to expect when they run it. Running an action is not re-confirmed — invoking it is the authorization.
+- **Side effects**: if the action writes to external systems (Slack, GitHub, files outside `.geniro/`), the action's `description` SHOULD name them — a run is not re-confirmed (`/geniro:actions` Phase 5.3), so the description is where the user learns what to expect.
 
 ## Where the template is read from
 

@@ -55,11 +55,11 @@ jobs:
       # correctness bugs (syntax errors, undefined behavior), never on stylistic
       # nits — so it ships green and stays meaningful.
       - name: ShellCheck (error severity — gating)
-        run: shellcheck --severity=error $(find lib hooks tests evals -name '*.sh' -type f)
+        run: shellcheck --severity=error $(find lib hooks tests evals cursor scripts -name '*.sh' -type f)
 
       # Warning-severity is advisory for now (the existing scripts carry a small
       # backlog of style warnings). Surfaced in the log so the backlog is
       # visible; mirrors the warn-before-block path the safety hooks use.
       - name: ShellCheck (warning severity — advisory)
         continue-on-error: true
-        run: shellcheck --severity=warning $(find lib hooks tests evals -name '*.sh' -type f)
+        run: shellcheck --severity=warning $(find lib hooks tests evals cursor scripts -name '*.sh' -type f)

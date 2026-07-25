@@ -59,8 +59,6 @@ The L2 helpers (`emit-learning.sh` / `query-learnings.sh`) are shell — shell c
 | `mirror` | `emit_learning` (file append, redacts internally) AND `redact-secrets.sh` → backend write | merge file + backend results (dedup by `dedup_key`, backend-first) |
 | `replace` | `redact-secrets.sh` → backend write only; `emit_learning` is NOT called (it always appends, so calling it would write the file) | backend query only |
 
-Default when `mode` is omitted is `mirror` — never silently lose the local audit trail.
-
 ## 6. Fail-open
 
 A backend error never blocks the run or the learning.

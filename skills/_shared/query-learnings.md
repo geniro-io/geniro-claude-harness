@@ -77,6 +77,8 @@ access_weight    = 1.0 + log10(1 + access_count)
 recurrence_weight = 1.0 + ln(max(recurrence_count, 1))
 ```
 
+The four weight definitions and the τ default are single-sourced in `lib/score-formula.sh` (`GENIRO_SCORE_JQ_DEFS`, `GENIRO_DECAY_TAU_DAYS_DEFAULT`), which both this ranker and `archive-stale` source so they cannot drift; the block above documents what they compute.
+
 Defaults: missing `ts` or unparseable → `recency_decay = 0.5` (mid-range); missing `trust` → `inferred`; missing `access_count` → 0; missing `recurrence_count` → 1. `_score` is internal — stripped before output.
 
 **Recurrence is dampened on purpose.** `recurrence_count` (how many times a learning has recurred — see `emit-learning.md`) feeds the score through a natural-log curve, so a frequently-repeated learning ranks higher without swamping recency and trust: count 1 → factor 1.0, 2 → ~1.69, 5 → ~2.61, 20 → ~4.0. A count of 1 (or an absent field, treated as 1) yields factor 1.0, i.e. no change — entries written before this field existed score exactly as they did before.

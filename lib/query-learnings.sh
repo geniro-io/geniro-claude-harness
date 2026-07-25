@@ -307,7 +307,11 @@ record_access() {
   if [ -d "$lock" ]; then
     local lock_mtime
     lock_mtime=$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null || echo 0)
-    if [ $(( $(date +%s) - lock_mtime )) -gt "${GENIRO_LOCK_RECLAIM_SECS:-600}" ]; then
+    # Sanitized before the integer test: a non-numeric override makes `[ -gt ]`
+    # error and evaluate false, permanently disabling stale-lock reclaim.
+    local _ql_reclaim_secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
+    case "$_ql_reclaim_secs" in ''|*[!0-9]*) _ql_reclaim_secs=600 ;; esac
+    if [ $(( $(date +%s) - lock_mtime )) -gt "$_ql_reclaim_secs" ]; then
       rmdir "$lock" 2>/dev/null
     fi
   fi

@@ -8,15 +8,17 @@ Consumer: `/geniro:implement` (Phase 3 Ship sub-step, before the ship-mode quest
 
 Spec-driven runs only. When the run resolved a real `spec.md`, parse its section 11 (Done Condition). When there is no spec (inline-task fallback), there is no section 11 — skip entirely.
 
-## Clause classification
+## Stopping-condition ontology
 
-A section-11 clause is **machine-checkable** when it matches the validator's stopping-condition ontology — defined in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` §9 `stopping_condition` (the spec-time gate); `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §10 and this helper reference it. Do not re-define the regex set. The ontology covers these signal shapes:
+Canonical here. A section-11 clause is **machine-checkable** when it matches one of these observable-signal shapes:
 
-- tests pass / green
-- PR approved / merged
-- telemetry / metric / log shows ...
-- shipped / released to ...
-- observable / verified / confirmed
+- **tests pass / green** — `\b(tests? (pass|green))\b`
+- **PR approved / merged** — `\b(PR (approved|merged))\b`
+- **telemetry / metric / log shows …** — `\b(telemetry|metric|log)\s+shows\b`
+- **shipped / released to …** — `\b(shipped|released)\s+to\b`
+- **observable / verified / confirmed** — `\b(observable|verified|confirmed)\b`
+
+Two consumers apply this set and follow any change made here: `/geniro:plan`'s spec-time validator gate (`stopping_condition`, which rejects a section 11 matching nothing) and the spec-compliance review criteria (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md`). Keep them citing this list rather than restating a second regex set — a spec that passed the spec-time gate must classify identically at ship time, and two copies of a regex set drift.
 
 A clause that matches **none** of these is free-text. Free-text clauses stay human-eyeball-only — never auto-graded. This is the guard against false-nags: a vague or narrative completion criterion the orchestrator cannot ground against evidence is left for the user's own eyes, not flagged as unmet.
 

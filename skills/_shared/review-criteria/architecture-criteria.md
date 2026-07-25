@@ -295,7 +295,7 @@ Hand-written code that materially reimplements what a maintained, widely-adopted
 - Hand-written crypto / auth / password hashing / token verification of any kind — the strongest case; the "never roll your own crypto" consensus is near-absolute because a single subtle change breaks an otherwise-secure algorithm.
 - A non-trivial, standardized problem (timezones, unicode, parsing) reimplemented inline.
 
-**Finding shape:** tag `[PRODUCT-DECISION]` — adopting a library is the user's call, so it surfaces regardless of severity. Carry an `Options:` block (adopt a library / keep hand-written / extract an in-repo helper). Severity MEDIUM typical; HIGH only when the hand-written code carries real correctness or security risk a battle-tested library would remove; never CRITICAL (a runtime defect in the hand-rolled code is owned by the bugs / security dimension). The candidate-research half — which packages, with links and health signals — belongs to `/geniro:implement`; the reviewer points the direction. Full procedure: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: review.
+**Finding shape:** tag `[PRODUCT-DECISION]` — adopting a library is the user's call, so it surfaces regardless of severity. Severity MEDIUM typical; HIGH only when the hand-written code carries real correctness or security risk a battle-tested library would remove; never CRITICAL (a runtime defect in the hand-rolled code is owned by the bugs / security dimension). Name the library *category* that covers the code, never a specific package — candidate research is `/geniro:implement`'s half. Full shape: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: review.
 
 ### 8. Testing Architecture
 - Code designed to be difficult to test

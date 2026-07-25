@@ -93,7 +93,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 
 ### Model tier symmetry
 
-Every plugin subagent inherits your orchestrator's model tier by default. If you're running Claude Code on Opus, your code reviewers run on Opus. If you're on Sonnet for cost control, your reasoning subagents run on Sonnet. You set the tier once at session start with `/model`; the plugin doesn't second-guess. The carve-outs are explicit safety/cost contracts documented in `skills/_shared/model-tiering.md`: the `test-runner-agent` and `knowledge-retrieval-agent` pin Sonnet (purely mechanical work), the `/geniro:setup` verification subagent pins Sonnet under a NO-Write/Edit tool budget, and the `/geniro:implement` documentation-patcher pins Haiku to mechanically rewrite stale doc references.
+Every plugin subagent inherits your orchestrator's model tier by default. If you're running Claude Code on Opus, your code reviewers run on Opus. If you're on Sonnet for cost control, your reasoning subagents run on Sonnet. You set the tier once at session start with `/model`; the plugin doesn't second-guess. The carve-outs are explicit safety/cost contracts documented in `skills/_shared/model-tiering.md`: the `test-runner-agent` and `knowledge-retrieval-agent` pin Sonnet (purely mechanical work), and the `/geniro:setup` verification subagent pins Sonnet under a NO-Write/Edit tool budget.
 
 ### Typical workflow
 
@@ -241,7 +241,7 @@ On-demand session-history miner. Locates the project's past Claude Code session 
 
 ### `/geniro:instructions` — Custom instruction management
 
-3-phase stateless CRUD (parse → execute → done) over `.geniro/instructions/`. 5 operations: list / create / edit / validate / delete. 11-scope set: `global`, `code-style`, `memory`, `review-extra/<slug>`, and per-skill (`implement`, `plan`, `review`, `debug`, `refactor`, `onboard`, `investigate`). `validate` mode: structural + reference + per-scope lint with CRITICAL/HIGH/MEDIUM/LOW severities; catches refs to dropped skills and outdated phase names.
+3-phase stateless CRUD (parse → execute → done) over `.geniro/instructions/`. 5 operations: list / create / edit / validate / delete. 13-scope set: `global`, `code-style`, `memory`, `review-extra/<slug>`, and per-skill (`implement`, `plan`, `review`, `resolve`, `debug`, `refactor`, `onboard`, `investigate`, `reflect`). `validate` mode: structural + reference + per-scope lint with CRITICAL/HIGH/MEDIUM/LOW severities; catches refs to dropped skills and outdated phase names.
 
 ```
 /geniro:instructions list
@@ -289,7 +289,7 @@ Full catalog — every flag, the values it takes, and the question it skips — 
 
 ## Skills deleted
 
-The current 12-skill set absorbed or dropped 8 earlier skills:
+The current skill set absorbed or dropped 8 earlier skills:
 
 | Deleted | Replacement |
 |---|---|
@@ -313,9 +313,9 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/`, `git worktree remove`, `git add -f` on `.geniro/` paths |
 | **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions set + CLAUDE.md so context survives compaction |
 | **Evidence-on-completion** | `Stop` hook (warn-only) — scans last assistant message for completion phrases that lack an Evidence Block |
-| **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files |
+| **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files, including shell-side writes |
 | **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
-| **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block) — regex scan of edit content for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
+| **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — regex scan of edit content and shell commands for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
 | **Gate-render enforcement** | PreToolUse `AskUserQuestion` (hard-block) — blocks a question that references content "above" OR carries finding-gate evidence shorthand (a PRODUCT-DECISION tag, convergence wording, or a finding-ID like `F5`/`M1b`) when no visible message precedes it in the turn, so decision gates can't fire blind |
 
 ## Updating
@@ -361,6 +361,9 @@ geniro/
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer
 │   └── *.sh                     # Safety hook scripts
+├── lib/                         # shell helpers the skills and hooks source
+│                                # (atomic-state-write, validate-state-file,
+│                                # emit/query-learnings, load/update-semantic, ...)
 ├── .cursor-plugin/plugin.json   # Cursor manifest (shares skills/, points at cursor/)
 ├── cursor/                      # Cursor runtime port
 │   ├── agents/                  # generated Cursor-format agents (scripts/build-cursor-agents.sh)

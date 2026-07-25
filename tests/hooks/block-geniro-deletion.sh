@@ -125,6 +125,37 @@ expect_block "find .geniro | xargs rm blocked"  "$(run_cmd 'find .geniro -type f
 expect_block "find .geniro | xargs -0 rm blocked" "$(run_cmd 'find .geniro -type f -print0 | xargs -0 rm')"
 expect_allow "find .geniro -print allowed"      "$(run_cmd 'find .geniro -name "*.md" -print')"
 expect_allow "find .geniro | xargs grep allowed" "$(run_cmd 'find .geniro -type f | xargs grep -l TODO')"
+# xargs rm loses the same content whatever produced the list — find is not required.
+expect_block "echo .geniro | xargs rm -rf blocked" "$(run_cmd 'echo .geniro | xargs rm -rf')"
+expect_block "ls .geniro/actions | xargs rm blocked" "$(run_cmd 'ls .geniro/actions | xargs rm -f')"
+expect_allow "echo .geniro | xargs wc allowed"   "$(run_cmd 'echo .geniro | xargs wc -l')"
+
+# ===== rsync --delete INTO a .geniro/ path =====
+# An empty/partial source mirrored with --delete removes everything the source
+# lacks — the same loss as deleting the directory. Same depth rules as rm.
+expect_block "rsync --delete into .geniro/ blocked"      "$(run_cmd 'rsync -a --delete /tmp/empty/ .geniro/')"
+expect_block "rsync --delete into a top-level subdir blocked" "$(run_cmd 'rsync -a --delete /tmp/empty/ .geniro/instructions/')"
+expect_block "rsync --delete-after into a subdir blocked" "$(run_cmd 'rsync -a --delete-after /tmp/empty/ .geniro/actions/')"
+expect_allow "rsync --delete into a deep task dir allowed" "$(run_cmd 'rsync -a --delete /tmp/src/ .geniro/planning/task-1/')"
+expect_allow "rsync WITHOUT --delete into a subdir allowed" "$(run_cmd 'rsync -a /tmp/src/ .geniro/instructions/')"
+expect_allow "rsync --delete FROM .geniro/ allowed"      "$(run_cmd 'rsync -a --delete .geniro/instructions/ /tmp/backup/')"
+
+# ===== interpreter-mediated deletes =====
+# A script's delete is not shell syntax, so the rm spans never see it. Same
+# depth rules: whole tree and top-level subdirs block, deep paths and per-file
+# deletes stay allowed, and a read-only script is untouched.
+expect_block "python shutil.rmtree(.geniro) blocked"     "$(run_cmd "python3 -c \"import shutil; shutil.rmtree('.geniro')\"")"
+expect_block "python rmtree of a top-level subdir blocked" "$(run_cmd "python3 -c \"import shutil; shutil.rmtree('.geniro/instructions')\"")"
+expect_block "python os.rmdir of a state subdir blocked"  "$(run_cmd "python3 -c \"import os; os.rmdir('.geniro/state/review')\"")"
+expect_block "node fs.rmSync(.geniro) blocked"           "$(run_cmd "node -e \"require('fs').rmSync('.geniro',{recursive:true})\"")"
+expect_block "ruby FileUtils.rm_rf of a subdir blocked"  "$(run_cmd "ruby -e \"FileUtils.rm_rf('.geniro/actions')\"")"
+expect_block "python rmtree with an unresolvable target blocked" "$(run_cmd "python3 -c \"import shutil; shutil.rmtree(d)\"; ls .geniro/instructions")"
+expect_allow "python rmtree of a deep task dir allowed"  "$(run_cmd "python3 -c \"import shutil; shutil.rmtree('.geniro/planning/task-1')\"")"
+expect_allow "python os.remove of a single file allowed" "$(run_cmd "python3 -c \"import os; os.remove('.geniro/planning/task/notes.md')\"")"
+expect_allow "python Path.unlink of a single file allowed" "$(run_cmd "python3 -c \"from pathlib import Path; Path('.geniro/state/x.md').unlink()\"")"
+expect_allow "python listing .geniro allowed"            "$(run_cmd "python3 -c \"import os; print(os.listdir('.geniro'))\"")"
+expect_allow "node reading a .geniro file allowed"       "$(run_cmd "node -e \"console.log(require('fs').readFileSync('.geniro/x.md','utf8'))\"")"
+expect_allow "python deleting outside .geniro allowed"   "$(run_cmd "python3 -c \"import shutil; shutil.rmtree('build')\"")"
 
 # ===== git worktree remove =====
 expect_block "git worktree remove blocked"      "$(run_cmd 'git worktree remove ../wt')"
@@ -152,6 +183,18 @@ expect_allow "empty command fails open"         "$(run_cmd '')"
 expect_allow "echo mentioning rm -rf .geniro/ allowed"      "$(run_cmd 'echo "do not rm -rf .geniro/"')"
 expect_allow "commit -m mentioning rm -rf .geniro allowed"  "$(run_cmd 'git commit -m "remove the rm -rf .geniro stuff"')"
 expect_allow "single-quoted echo of rm -rf .geniro allowed" "$(run_cmd "echo 'rm -rf .geniro'")"
+# A quoted literal carrying a BACKSLASH-ESCAPED separator is still data. The
+# escape spells a BRE alternation, not a command chain, so the whole literal has
+# to be blanked — else the tokenizer reads the search pattern as an rm operand.
+expect_allow "grep with escaped-alternation naming rm -rf allowed" \
+  "$(run_cmd 'grep -c "foo\|rm -rf .geniro/state" file.md')"
+expect_allow "single-quoted escaped-alternation naming rm -rf allowed" \
+  "$(run_cmd "grep -c 'foo\\|rm -rf .geniro/instructions' file.md")"
+expect_allow "sed with escaped-semicolon naming rm -rf allowed" \
+  "$(run_cmd 'sed -n "/rm -rf .geniro\;/p" notes.md')"
+# The escape neutralization must not hide a REAL destructive command.
+expect_block "real rm after an escaped alternation still blocks" \
+  "$(run_cmd 'grep -c "a\|b" file.md && rm -rf .geniro/instructions')"
 # A REAL rm with a quoted operand still blocks — the rm token is outside the quote.
 expect_block "real rm -rf .geniro/ (unquoted) still blocks"  "$(run_cmd 'rm -rf .geniro/')"
 expect_block "real rm -rf \".geniro/\" (quoted operand) still blocks" "$(run_cmd 'rm -rf ".geniro/"')"
@@ -198,6 +241,17 @@ cd "$TMPDIR_BASE" || exit 1
 expect_block "sh -c rm -rf .geniro blocked"        "$(run_cmd 'sh -c "rm -rf .geniro"')"
 expect_block "sh -c subdir rm blocked"             "$(run_cmd 'sh -c "rm -rf .geniro/instructions"')"
 expect_allow "sh -c benign command allowed"        "$(run_cmd 'sh -c "echo hello"')"
+
+# ===== eval indirection (eval "<payload>") must be inspected =====
+# eval hands its argument to the shell as a command, so the guard re-runs on it.
+expect_block "eval rm -rf .geniro blocked"         "$(run_cmd 'eval "rm -rf .geniro"')"
+expect_block "eval single-quoted subdir rm blocked" "$(run_cmd "eval 'rm -rf .geniro/instructions/'")"
+expect_block "eval inside sh -c blocked"           "$(run_cmd $'sh -c "eval \'rm -rf .geniro\'"')"
+expect_allow "eval benign command allowed"         "$(run_cmd 'eval "echo hello"')"
+expect_allow "eval ssh-agent idiom allowed"        "$(run_cmd 'eval "$(ssh-agent -s)"')"
+# A bulk delete MENTIONED as data (not handed to eval) must stay allowed.
+expect_allow "prose mentioning eval rm -rf .geniro/ allowed" \
+  "$(run_cmd 'echo "never run eval rm -rf .geniro/ here"')"
 
 # ===== quoted subcommand token must not slip the worktree matcher =====
 # A quoted whitespace-free subcommand ("remove") is unquoted before matching, so

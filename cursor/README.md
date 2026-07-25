@@ -21,7 +21,7 @@ If the plugin is installed in Claude Code from the marketplace, enabling **Setti
 
 ## What works in Cursor
 
-- **All 13 skills.** Each SKILL.md carries a runtime-portability preamble that resolves the plugin root when `${CLAUDE_PLUGIN_ROOT}` is unset, so the shared helpers (`skills/_shared/`) and shell libraries (`lib/`) work unchanged. Degradation contract: `skills/_shared/runtime-portability.md`.
+- **The 11 runtime-portable skills.** Each carries a runtime-portability preamble that resolves the plugin root when `${CLAUDE_PLUGIN_ROOT}` is unset, so the shared helpers (`skills/_shared/`) and shell libraries (`lib/`) work unchanged. `/reflect` and `/update` are the two exceptions — see the Claude-Code-only note below. Degradation contract: `skills/_shared/runtime-portability.md`.
 - **Safety + enforcement hooks** for shell commands and file writes: destructive-git guard, `.geniro/` deletion guard, protected-file writes, security pattern scan, state-helper enforcement, TDD-order enforcement — adapted through `cursor/hooks/claude-hook-shim.sh` (a blocked action returns `{"permission":"deny"}` with the guardrail reason).
 - **Session-start context restore.** The `sessionStart` hook re-injects the active task state and instruction-file list as `additional_context`.
 - **The 7 subagents** for the parallel review/research fan-outs, registered under their bare names.

@@ -92,7 +92,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Rule:** section 11 (Done Condition) has body content matching pattern "<observable signal>" (e.g., "all 5 acceptance tests green", "PR approved by stakeholder X", "feature ships behind flag AND telemetry shows ≥1 successful use").
 
-**Heuristic:** regex match against a small ontology of observable-signal phrases: `\b(tests? (pass|green))\b`, `\b(PR (approved|merged))\b`, `\b(telemetry|metric|log)\s+shows\b`, `\b(shipped|released)\s+to\b`, `\b(observable|verified|confirmed)\b`.
+**Heuristic:** regex match against the stopping-condition ontology in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` §"Stopping-condition ontology" — the canonical signal-shape set. Do not restate the patterns here: this spec-time check and the ship-time annotation must classify a clause identically, and a second copy is what lets them drift apart.
 
 **Fix hint on fail:** "Section 11 (Done Condition) doesn't match an observable-signal phrase. Rewrite as a concrete completion criterion (e.g., '<observable signal> AND <verification>')."
 

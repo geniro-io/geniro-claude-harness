@@ -97,7 +97,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 """)
 ```
 
-**Overflow caveat (10-test author cap).** The agent authors at most 10 tests. When the eligible set exceeds 10, the un-authored findings still post normally — test authoring is additive, never reductive — and the orchestrator surfaces a `## Caveats` note naming them: `N testable findings exceeded the 10-test author cap and post without a failing-test line.`
+**Overflow caveat (the agent's authored-test cap).** The agent authors at most the number of tests its own contract allows (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md` owns the cap). When the eligible set exceeds it, the un-authored findings still post normally — test authoring is additive, never reductive — and the orchestrator surfaces a `## Caveats` note naming them: `N testable findings exceeded the test-authoring cap and post without a failing-test line.`
 
 ---
 
@@ -130,7 +130,7 @@ For each eligible finding, correlate to the agent's report by matching its `Targ
 | `### Authored Failing Tests` (F→P-confirmed by orchestrator re-run in Step 4) | Tag finding `[CONFIRMED-BY-TEST]` in its severity section. Annotate per-finding line with `confirmed-by: <test path>`. Keep severity unchanged. |
 | `### Discarded Hypotheses` with reason "passed on current code" | DEMOTE: remove from current severity section; add to `## Filtered` with reason `test-gate-cannot-reproduce`. Tag `[CHALLENGED-BY-TEST]`. Preserve original severity in the line so user can re-elevate if they disagree. |
 | `### Inconclusive` (flaky / framework limitation) | Keep finding unchanged in its severity section. No tag. (The signal is "agent could not decide", not "finding is wrong".) |
-| No matching hypothesis at all | Keep finding unchanged. Agent did not attempt this finding (likely deprioritized below the hard cap of 10 authored tests). Orchestrator does NOT infer either way. |
+| No matching hypothesis at all | Keep finding unchanged. Agent did not attempt this finding (likely deprioritized below its authored-test cap). Orchestrator does NOT infer either way. |
 
 The demote-don't-delete rule is non-negotiable: a green test can mean (a) the bug is not real, (b) the test is wrong, or (c) the test passes for the wrong reason. None of those three is reliable enough to delete a finding on. Preserving the finding in `## Filtered` lets the user re-elevate.
 

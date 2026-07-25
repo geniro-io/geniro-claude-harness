@@ -57,6 +57,29 @@ External sends: not in `/geniro:update` ACI ever.
 | Already on latest version | `info: already on latest version (<version>)` — done |
 | Hooks/registry write blocked | `aborted: blocked by hook — see <hint>` |
 
+## User-content snapshot
+
+The one definition of the snapshot, used by Phase 1 Step 2 (baseline) and Phase 3 Step 2 (comparison). Both phases must run identical code: a second copy that drifted by one flag would make the survival diff raise a tamper alarm over content nothing touched. Shell state does not persist between Bash calls, so each phase pastes these definitions into its own call and passes the `PRIMARY_ROOT` it just re-resolved.
+
+```bash
+# One "<sha256> <mtime> <path>" line per user-authored file, sorted. $1 = PRIMARY_ROOT.
+_gu_snapshot() {
+  find "$1/.geniro/instructions" "$1/.geniro/actions" -type f -name "*.md" 2>/dev/null \
+  | sort \
+  | while IFS= read -r f; do
+      h=$({ sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null; } | cut -d' ' -f1)
+      printf '%s %s %s\n' "$h" "$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null)" "$f"
+    done
+}
+
+# Carry-forward channel between the two phases. The PRIMARY_ROOT hash in the filename keeps
+# concurrent /update sessions in different repos from clobbering each other's baseline. $1 = PRIMARY_ROOT.
+_gu_snapshot_file() {
+  printf '/tmp/geniro-user-snapshot.%s.txt' \
+    "$(printf '%s' "$1" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-12)"
+}
+```
+
 ## Phase 1 — pre-check
 
 ### Step 0 — Load custom instructions
@@ -65,14 +88,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 
 ### Step 1 — Read current version
 
-```bash
-CURRENT_VERSION=$(cat "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null \
-| python3 -c "import json,sys; print(json.load(sys.stdin).get('version','unknown'))")
-if [ "$CURRENT_VERSION" = "unknown" ]; then
-echo "ERROR: cannot read current plugin version from plugin.json — abort." >&2
-exit 1
-fi
-```
+Read `version` from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` into `CURRENT_VERSION`. Abort when it cannot be read — the already-on-latest check, the major-bump test, and the final report all compare against it, and an "unknown" baseline makes each of them silently wrong rather than absent.
 
 ### Step 1.5 — Legacy install-id check
 
@@ -107,27 +123,21 @@ Commands change from /geniro-claude-plugin:geniro:<skill> to /geniro:<skill>.
 
 ### Step 2 — Resolve `$CLAUDE_USER_DIR`, `$PRIMARY_ROOT`, and snapshot user content
 
-Resolve `PRIMARY_ROOT` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A before the snapshot. The snapshot must capture user-authored content in the primary worktree — not whichever worktree the orchestrator currently sits in. `/geniro:update` is typically run from `main`, but the safe contract is to resolve explicitly so a session running in a linked worktree compares the right tree.
+Resolve `PRIMARY_ROOT` by running the Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (single-sourced there — do not inline a copy). The snapshot must capture user-authored content in the primary worktree, not whichever worktree the orchestrator currently sits in: `/geniro:update` is typically run from `main`, but a session in a linked worktree would otherwise compare the wrong tree.
 
-Resolve `PRIMARY_ROOT` by running the Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (single-sourced there — do not inline a copy). Then snapshot:
+Then take the baseline snapshot:
 
 ```bash
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
 # PRIMARY_ROOT is set by the Mode A resolver run above.
 
-# Snapshot user-content sha256 + mtime for survival verification
-USER_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
-| sort \
-| while IFS= read -r f; do
-    h=$({ sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null; } | cut -d' ' -f1)
-    printf '%s %s %s\n' "$h" "$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null)" "$f"
-  done) || true
-# The snapshot is best-effort (a benign trailing find/read status must not read as failure); survival is verified by the Phase 3 Step 2 diff, not this exit code.
-# Persist the snapshot to a temp file — each Bash call runs in a fresh shell, so the shell variable does not survive to Phase 3 Step 2. The temp file is the carry-forward channel. The filename carries a hash of PRIMARY_ROOT so two concurrent /update sessions (different repos) never clobber each other's snapshot.
-_gu_hash=$(printf '%s' "$PRIMARY_ROOT" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-12)
-printf '%s\n' "$USER_SNAPSHOT" > "/tmp/geniro-user-snapshot.${_gu_hash}.txt"
+# --- paste the §User-content snapshot definitions here ---
+
+_gu_snapshot "$PRIMARY_ROOT" > "$(_gu_snapshot_file "$PRIMARY_ROOT")" || true
 ```
+
+The redirect is best-effort — a benign trailing `find`/read status must not read as failure. Survival is verified by the Phase 3 Step 2 diff, not by this exit code.
 
 ### Step 3 — Version-confirm AUQ
 
@@ -248,20 +258,14 @@ If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended — a hash-check failure means
 
 ### Step 2 — User-content survival check
 
-Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one or the diff is meaningless. The pre-update snapshot carries forward through the temp file `/tmp/geniro-user-snapshot.<root-hash>.txt` written in Phase 1 Step 2 (the suffix is a hash of `PRIMARY_ROOT`, so concurrent /update sessions in different repos never share a snapshot file), not through a shell variable — recompute the same suffix from the re-resolved `PRIMARY_ROOT` and read it back below.
+Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one, and must be computed by the same code, or the diff is meaningless. Paste the §User-content snapshot definitions into this call and pass the re-resolved `PRIMARY_ROOT` — that recomputes the baseline's filename and reads it back.
 
 ```bash
 # PRIMARY_ROOT is set by the Mode A resolver run above.
-# Read the pre-update snapshot back from the temp file written in Phase 1 Step 2 — same per-root suffix, computed from the re-resolved PRIMARY_ROOT.
-_gu_hash=$(printf '%s' "$PRIMARY_ROOT" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-12)
-USER_SNAPSHOT=$(cat "/tmp/geniro-user-snapshot.${_gu_hash}.txt" 2>/dev/null)
+# --- paste the §User-content snapshot definitions here ---
 
-CURRENT_SNAPSHOT=$(find "$PRIMARY_ROOT/.geniro/instructions" "$PRIMARY_ROOT/.geniro/actions" -type f -name "*.md" 2>/dev/null \
-| sort \
-| while IFS= read -r f; do
-    h=$({ sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null; } | cut -d' ' -f1)
-    printf '%s %s %s\n' "$h" "$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null)" "$f"
-  done)
+USER_SNAPSHOT=$(cat "$(_gu_snapshot_file "$PRIMARY_ROOT")" 2>/dev/null)
+CURRENT_SNAPSHOT=$(_gu_snapshot "$PRIMARY_ROOT")
 
 if [ -z "$USER_SNAPSHOT" ]; then
 echo "[info] pre-update snapshot missing or empty — skipping tamper diff (cannot compare against a baseline that was never recorded)."
@@ -289,14 +293,7 @@ This writes `update_available: false` to the cache with the new installed versio
 
 ### Step 4 — Refresh statusline stable copy (conditional)
 
-```bash
-if [ -f "$CLAUDE_USER_DIR/hooks/geniro-statusline.js" ]; then
-mkdir -p "$CLAUDE_USER_DIR/hooks"
-cp "$PLUGIN_PATH/hooks/geniro-statusline.js" "$CLAUDE_USER_DIR/hooks/geniro-statusline.js"
-fi
-```
-
-Skip if file doesn't exist (user didn't run `/geniro:setup` or has no `statusLine` settings entry). The plugin's bundled `settings.json` already exposes the statusline via `${CLAUDE_PLUGIN_ROOT}`.
+Only when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already exists, overwrite it from `$PLUGIN_PATH/hooks/geniro-statusline.js`. Its absence means the user never ran `/geniro:setup` or has no `statusLine` settings entry — creating the file there would install a statusline they never asked for. The plugin's bundled `settings.json` already exposes the statusline via `${CLAUDE_PLUGIN_ROOT}`.
 
 Transition to Phase 4.
 

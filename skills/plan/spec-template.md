@@ -33,7 +33,7 @@ lifecycle: draft # design-doc lifecycle (draft|approved|superseded)
 workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / Asana)
 - kind: linear # matches .geniro/workflow/<kind>.md filename
   issue_id: CI-303
-  url: https://linear.app/manifestlabs/issue/CI-303/...
+  url: https://linear.app/.../issue/CI-303/...
   fetched_at: 2026-05-26T10:42:13Z # ISO-8601 UTC — staleness check by downstream
   title: "Parallelize Case Radar backfill via per-user jobs"
   suggested_branch: ci-303-parallelize-case-radar-backfill-via-per-user-jobs

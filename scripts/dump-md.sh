@@ -19,12 +19,21 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
+# Collected with a read loop rather than `mapfile`, which does not exist in bash
+# 3.2 — the macOS system shell. CLAUDE.md makes this script the mandated way to
+# read plugin content before editing a skill, so a newer bash cannot be assumed
+# on PATH: under /bin/bash the mapfile form aborted with rc=127.
+files=()
 if git rev-parse --git-dir >/dev/null 2>&1; then
   # Tracked files only — skips node_modules, build output, and other ignored trees.
   # With path args, restrict to them; without, list the whole repo.
-  mapfile -t files < <(git ls-files -- "${@:-.}" | grep '\.md$' | sort -u)
+  while IFS= read -r _dm_f; do
+    [ -n "$_dm_f" ] && files+=("$_dm_f")
+  done < <(git ls-files -- "${@:-.}" | grep '\.md$' | sort -u)
 else
-  mapfile -t files < <(find "${@:-.}" -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' | sort)
+  while IFS= read -r _dm_f; do
+    [ -n "$_dm_f" ] && files+=("$_dm_f")
+  done < <(find "${@:-.}" -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' | sort)
 fi
 
 if [ "${#files[@]}" -eq 0 ]; then

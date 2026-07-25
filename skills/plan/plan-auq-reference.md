@@ -275,7 +275,7 @@ Group the 11-section schema into 3 dependency-ordered clusters. Author and gate 
 | Cluster | Plain-English name | Sections | AUQ `header` (≤12 chars) |
 |---|---|---|---|
 | 1 | Goal & scope | 1 Objective, 2 Scope-Included, 3 Scope-Excluded | "Goal & scope" |
-| 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required | "Approach" |
+| 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required | "Steps" |
 | 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition | "Safety" |
 
 The per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §5.2. This section holds the literal templates.

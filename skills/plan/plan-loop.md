@@ -260,9 +260,24 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
 
 Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring. State.md `phase: visual-companion` written before Phase 2 entry (`phase: clarify` if Phase 2 trigger doesn't fire).
 
-**Visual plan artifact — first publish.** When `artifact_mode: true`, build the live page now so it grows from the first phase: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Availability detection & create`, passing the task-dir, the plan title, and the planning-journey stops. After it returns, persist the result via `atomic_state_write` per the helper's § URL persistence — `artifact_status: live` + `artifact_url` on a returned `claude.ai` URL, or `artifact_status: unavailable` when no URL comes back (the helper shows the one-time skip notice and the later Update calls then skip). Skip this whole step when `artifact_mode` is unset.
+**Visual plan artifact — first publish.** When `artifact_mode: true`, build the live page now so it grows from the first phase: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Availability detection & create`, passing the task-dir, the plan title, and the planning-journey stops. After it returns, persist the result via `atomic_state_write` per the helper's § URL persistence; when no `claude.ai` URL comes back, record the page unavailable per its § Unavailable / skip handling — every call in the table below then skips for the rest of the run. Skip this whole step when `artifact_mode` is unset.
 
-**Artifact call sites — shared guard.** Every later artifact call in this loop (the `§ Update` / `§ Before-gate update` sites in Phases 3–8) runs only when `artifact_mode: true` AND the page is not recorded unavailable (`artifact_status` is not `unavailable`); skip silently otherwise. Each call reads the saved `artifact_url` from state.md frontmatter when present, so a resumed/compacted session revises the same page rather than creating a duplicate. At a Before-gate site the chat render stays the primary surface — the panel only mirrors the pending decision.
+**Artifact call sites — the shared rule.** Every later artifact call runs only when `artifact_mode: true` AND the page is not recorded unavailable (`artifact_status` is not `unavailable`); skip silently otherwise. Each call reads the saved `artifact_url` from state.md frontmatter when present, so a resumed/compacted session revises the same page rather than publishing a duplicate. Use the verbatim invocation string for the call's kind in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § Caller contract, passing the `PHASE:` and the content this table names. At a Before-gate site the chat render stays the primary surface — the panel only mirrors the pending decision.
+
+The sites, in loop order — a site missing from this table is an artifact update silently skipped, so keep it in lockstep with the phases below:
+
+| Site | Kind (`PHASE:`) | Content |
+|---|---|---|
+| §3.4 before the grill checkpoint question | Before-gate (`clarify`) | the pending checkpoint decision; refresh here only, never per grill question |
+| §3.4 on grill termination | Update (`clarify`) | the decision log |
+| §4.3 before the approach question | Before-gate (`approach`) | approach write-ups, stress-test evidence, data-flow diagram |
+| §4.4 after the approach pick persists | Update (`approach`) | chosen approach + considered alternatives |
+| §5.2 step 1, before each cluster gate | Before-gate (`sections`) | the cluster's section digests + steps-flow diagram |
+| §5.2 Revise path, after re-authoring | Before-gate (`sections`) | the revised sections — refresh the panel, don't blank it; the gate is being re-presented |
+| §5.2 step 5, after a cluster's picks persist | Update (`sections`) | that cluster's approved sections |
+| §6.1 after spec.md is written | Update (`spec`) | steps / validation / done conditions |
+| §8.2 before the final-approval question | Before-gate (`approval`) | the pending approval decision, per option |
+| §8.4 step 5 after approval | Update (`approval`) | approved state — status badge approved, every tracker stop done |
 
 **Skip to Phase 4 if Trivial:** when effort tier is Trivial AND research returned 0-1 findings AND topic is a narrow text-edit, Phases 2 + 3 are skipped. Write a one-line note to state.md `## Open Questions`: "Phases 2-3 skipped — trivial task, no ambiguity surfaced".
 
@@ -348,7 +363,7 @@ On compaction-resume, the SessionStart re-injector renders `approvals[]` and the
 
 There is no fixed question cap — the grill runs until the spec-shaping branches resolve. To keep it bounded, pause for a checkpoint whichever comes first: a full design branch resolves, OR ~6 questions have been asked since the last checkpoint. This is an escalation gate, not an abort — the user, not a fixed number, decides when to stop.
 
-**Artifact — mirror the checkpoint decision** (guard per §1.5 Artifact call sites): before the checkpoint AUQ, `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: clarify and the pending decision with full per-option detail + the supporting deep-dive content now available`. Refresh the panel only at this checkpoint, never per grill question.
+**Artifact** — fire the before-gate update for this site (§1.5 call-site table) before the checkpoint AUQ.
 
 At a checkpoint, render a running summary to a chat message — resolved decisions, deferred items, and the open branches still to walk — then fire ONE lean AUQ:
 - **Keep grilling** (Recommended while open branches remain) — continue the walk.
@@ -359,7 +374,7 @@ Persist each checkpoint decision to `approvals[]` category `grill_checkpoint` vi
 
 **Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. On termination, render a closing summary — resolved decisions, deferred work, and any unaddressed risks — and hold it in context: it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition). Then ask the planning-depth question (§3.2) when `--deep` is absent, and transition to Phase 4. The checkpoint and termination summary templates are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
-**Artifact — decision log** (guard per §1.5 Artifact call sites): on termination, `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: clarify and the content just produced` (the decision log).
+**Artifact** — on termination, fire the update for this site (§1.5 call-site table).
 
 ---
 
@@ -419,7 +434,7 @@ A specific package name may appear in the approach prose or the spec only when i
 
 Apply the Gate presentation contract.
 
-**Artifact — mirror the approach decision** (guard per §1.5 Artifact call sites): before the approach AUQ, `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: approach and the pending decision with full per-option detail + the supporting deep-dive content now available` — the candidate approaches' full write-ups, the stress-test evidence, and the data-flow diagram.
+**Artifact** — fire the before-gate update for this site (§1.5 call-site table) before the approach AUQ.
 
 1. **Render the approaches to a chat message in the Visual rendering language** (Gate presentation contract): open with the progress tracker (`● Approach` current) and a one-sentence opener naming the decision. For each of the 2-3 approaches: name, a plain-English 1-2 sentence summary, an ASCII data-flow / architecture diagram (5-10 lines), `What changes:` (the key new/edited files), `Trade-off:` (gain vs give-up in plain words), and the approach's `Stress-test:` verdict line from §4.2 (top risk + evidence `file:line`). Lead with the Recommended approach. Where no usable verdict exists, render the note in the verdict line's place: "stress-test unavailable" on an approach whose §4.2 critique did not return, "stress-test inconclusive" on an approach whose no-risks critique lacked its `Checked:` account.
 
@@ -457,7 +472,7 @@ Why rejected: violates new boundary established in Q3 2026 architecture review.
 
 `## Considered Alternatives` is copied to spec.md body verbatim in Phase 6. /geniro:implement reads but not gates on it.
 
-**Artifact — approach** (guard per §1.5 Artifact call sites): after the approach pick persists, `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: approach and the content just produced` (the chosen approach + the considered alternatives).
+**Artifact** — after the approach pick persists, fire the update for this site (§1.5 call-site table).
 
 ---
 
@@ -499,19 +514,19 @@ Author cluster N → render it → gate it → on approve, author cluster N+1. C
 
 Per cluster, apply the Gate presentation contract:
 
-1. **Author** the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate. Then mirror this cluster's approval decision onto the artifact before the gate (guard per §1.5 Artifact call sites): `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: sections and the pending decision with full per-option detail + the supporting deep-dive content now available` — the cluster's section digests and the steps-flow diagram.
+1. **Author** the cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + (when present) Phase 2 UI Preview as substrate. Then fire the before-gate update for this site (§1.5 call-site table) so the artifact mirrors the cluster's pending approval.
 
 2. **Render the cluster to a chat message in the Visual rendering language** (Gate presentation contract): the progress tracker (this cluster `●`, with `step N of 3`), a one-sentence opener stating what the cluster decides, the cluster-level visual (cluster 1: the in-scope/out-of-scope map; cluster 2: the steps flow diagram; cluster 3: the done-condition checklist), then one icon-headed sub-heading per section with its friendly digest block — lead sentence, `**Why:**` grounded in a Phase 1 finding `file:line` + the Phase 4 approach, `**How it gets built:**`, `**You'll see:**` — closing with the section's concrete example + visual per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example + visual per section type". A "none — task scope precludes" section is a one-line note here, not a rendered section.
 
-3. **Fire ONE lean AUQ for the cluster** — `header` = a ≤12-char chip of the cluster name ("Goal & scope" / "Approach" / "Safety"); options:
+3. **Fire ONE lean AUQ for the cluster** — `header` = a ≤12-char chip matching the cluster's journey-tracker stop ("Goal & scope" / "Steps" / "Safety"); the chip never reads "Approach", which already tags the Phase 4 decision; options:
    - **Approve all (N sections)** (Recommended) — accept every section in the cluster as rendered.
    - **Explain a section further** — opens the same section picker as Revise. For each picked section, render a deeper walkthrough message — the full evidence chain (additional `file:line` cites), an expanded or alternative diagram, edge-case behavior, and exactly what /geniro:implement will and will not touch — then re-fire this AUQ. A reading aid, not a decision (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option): it writes no `approvals[]` entry, never changes section content, and does not count toward the 3 revision rounds.
-   - **Revise specific sections** — opens a follow-up multi-select picker of the cluster's section names (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` multi-select schema). For each picked section, capture the revision (free-text), re-author it AND any same-cluster sections that depend on it, re-render the cluster message, then re-sync the page so it mirrors the re-rendered chat (guard per §1.5 Artifact call sites): `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: sections and the revised section content` — refresh the panel, don't blank it, since the cluster gate is being re-presented. Then re-fire this AUQ. Max 3 revision rounds per cluster.
+   - **Revise specific sections** — opens a follow-up multi-select picker of the cluster's section names (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` multi-select schema). For each picked section, capture the revision (free-text), re-author it AND any same-cluster sections that depend on it, re-render the cluster message, then fire the before-gate update for this Revise site (§1.5 call-site table) so the page mirrors the re-rendered chat. Then re-fire this AUQ. Max 3 revision rounds per cluster.
    - **Cancel planning** — terminal `aborted` + `## Termination reason: user-cancelled-at-phase-5`.
 
 4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). On "Approve all", append one entry per section in the cluster (`picked: approve`); on "Revise", record the revised sections distinctly (`picked: revised: <summary>`); "Explain a section further" persists nothing — only Approve/Revise picks write entries. The cluster is a presentation grouping only — no `cluster_<id>` category; per-section persistence granularity is unchanged, so compaction re-author (§6.4) and the SessionStart restore hook need no change.
 
-5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6. After a cluster's section picks persist, revise the page with that cluster's approved sections (guard per §1.5 Artifact call sites): `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: sections and the content just produced`.
+5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6. After a cluster's section picks persist, fire the update for this site (§1.5 call-site table).
 
 **Tier-scaling.** For Trivial/Small tasks, sections 4 / 5 / 10 may be "none — task scope precludes" — noted in the cluster message, never a separate decision. At Trivial tier the clusters may collapse to 1-2 gates (the progress tracker then shows the collapsed stops); the default 3-cluster grouping applies to Medium/Big.
 
@@ -567,7 +582,7 @@ After writing spec.md, append a `## Tool log` entry to state.md via `atomic_stat
  result_ref: "<bytes-count>"
 ```
 
-**Artifact — spec** (guard per §1.5 Artifact call sites): after spec.md is written, `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: spec and the content just produced` (steps / validation / done conditions).
+**Artifact** — after spec.md is written, fire the update for this site (§1.5 call-site table).
 
 ### 6.2 NO auto-commit
 
@@ -652,7 +667,7 @@ Phase 8 closes the loop with a final whole-spec approval. Apply the Gate present
 
 ### 8.2 Shape — message-first
 
-**Artifact — mirror the final decision** (guard per §1.5 Artifact call sites): before the final-approval AUQ, `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Before-gate update with PHASE: approval and the pending decision with full per-option detail + the supporting deep-dive content now available`.
+**Artifact** — fire the before-gate update for this site (§1.5 call-site table) before the final-approval AUQ.
 
 1. **Render the spec summary to a chat message in the Visual rendering language** (Gate presentation contract) — the progress tracker with every prior stop `✔` and `● Final approval`, a one-sentence opener restating the Objective in plain English, then an at-a-glance digest: scope summary (sections 2-3, reusing the in/out scope map), Approval Points (section 8 — where the user will be asked mid-build), Risk class auto-computed from section 5 + section 7 with a one-line why, Rollback (section 10, one line), Done Condition (section 11 rendered as a `☐` checklist — one box per observable signal), touched-file glob count, approval-expiration notice, and what approving does with the file — commits it, or saves it on disk only when the project ignores the planning directory (resolve via the §8.4 step 3 check so the user learns this before approving, not after). Include the concrete examples already authored per section so the user reviews the real plan, not a label list.
 
@@ -700,7 +715,7 @@ On user picks "Approve":
  commit-sha: <sha>
  files: [".geniro/planning/<slug>/spec.md"]
  ```
-5. **Finalize the visual plan artifact** (guard per §1.5 Artifact call sites): revise the page to its approved state — status badge to approved, every tracker stop done: `apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md § Update with PHASE: approval and the content just produced`.
+5. **Finalize the visual plan artifact** — fire the update for this site (§1.5 call-site table).
 6. **Transition to Phase 9** (`phase: handoff`).
 
 If the commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), surface a structured error to user — do NOT proceed to Phase 9 with a stale state. Fall back to escalation with the error inlined. An ignored task-dir is not a failure: it takes the step 3 Ignored branch and continues to Phase 9 normally.

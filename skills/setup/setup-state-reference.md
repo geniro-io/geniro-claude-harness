@@ -2,7 +2,7 @@
 
 Full state.md schema for `/geniro:setup`, extracted from SKILL.md §State file schema. Read this file when writing or validating the setup state file.
 
-Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. T1.5 tier (durable task state — singleton; deleted at Phase Done since the bootstrap state has zero value once complete).
+Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1.5 tier, with one deliberate, named exception to that tier's survives-past-ship rule: `/geniro:setup` deletes the file at Phase Done (SKILL.md §5.3). No downstream skill reads bootstrap state, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished.
 
 ## Frontmatter
 
@@ -34,7 +34,7 @@ evidence:
 - {file: package.json, line: 5, snippet: "\"name\": \"my-project\""}
 skill_inventory:
 - {slug: implement, purpose: "..."}
-#... 12 total
+# ... one entry per skill in the SKILL.md §1.5 inventory
 write_targets:
 - {path: CLAUDE.md, op: write, loc: 45}
 validate_rounds: 1

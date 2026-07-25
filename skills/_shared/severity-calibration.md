@@ -149,7 +149,7 @@ Adjustments (still apply):
 
 ## 5. Multi-signal Phase 4.1 gate
 
-The orchestrator's Phase 4.1 KEEP/DEFER decision is governed by FOUR independent signals — any one passing keeps the finding. Documented at `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.1.
+The KEEP/DEFER decision is governed by FOUR independent signals — any one passing keeps the finding. This section is the gate's canonical home; `/geniro:review` applies it at its Phase 4.1 admission step and follows any threshold changed here.
 
 ```
 KEEP IF:
@@ -162,13 +162,14 @@ KEEP IF:
       OR confidence >= 80                                                   # advisory fallback
     )
   )
-  # Path B — decision-type orthogonal (any severity; skips the §4.2 verifier)
+  # Path B — decision-type orthogonal (any severity; a LOW admitted here skips
+  #          the §4.2 verifier, a MEDIUM-or-higher still enters it)
   OR Decision Type == PRODUCT-DECISION    # the user's call, not the reviewer's — severity does not gate visibility
 ELSE DEFER to ## Deferred — sub-threshold (state.md body; off the PR and the fix list
      by default — a user pick lifts it, per review-handoff.md §7.1 / §4.6)
 ```
 
-Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence-Block drops to `## Deferred — sub-threshold` regardless of convergence or confidence score.
+Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM. Every kept finding at CRITICAL / HIGH / MEDIUM carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, so a MEDIUM admitted on convergence or a confidence score alone would be kept with nothing to re-read — it drops to `## Deferred — sub-threshold` instead.
 
 Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80). High tier (`risk-tier: high`) relaxes signal #4 to `confidence ≥ 70`. Other signals (convergence, Evidence-Block, pre-resolved) unchanged across tiers. The §4.3 test-confirmation gate affects neither §4.1 admission nor §4.2 verification — test authoring runs after the finding set is fixed and never filters it.
 
@@ -178,7 +179,9 @@ Rationale:
 - `Evidence-Block resolves` (with confidence ≥ 60 floor): a code-grounded citation is the strongest defense against false positives; the confidence floor screens out low-conviction citations.
 - Pre-resolved markers: explicit overrides preserve existing regressions-criteria signal-table semantics
 - Confidence >= 80: kept as a fallback path, no longer the primary gate
-- `Decision Type == PRODUCT-DECISION` (Path B): decision-type (who-decides) is orthogonal to severity (impact-if-wrong). A PRODUCT-DECISION is a call the reviewer cannot close, so the user must see it regardless of severity — mirroring `/geniro:refactor`'s always-WAIT PRODUCT-DECISION escalation. Path B keeps severity as scored (a LOW PRODUCT-DECISION stays LOW — admission by decision-type, NOT the severity inflation §2 forbids) and skips the §4.2 verifier (a trade-off is not a defect-to-confirm).
+- `Decision Type == PRODUCT-DECISION` (Path B): decision-type (who-decides) is orthogonal to severity (impact-if-wrong). A PRODUCT-DECISION is a call the reviewer cannot close, so the user must see it regardless of severity — mirroring `/geniro:refactor`'s always-WAIT PRODUCT-DECISION escalation. Path B keeps severity as scored (a LOW PRODUCT-DECISION stays LOW — admission by decision-type, NOT the severity inflation §2 forbids).
+
+  **Verification splits by severity on Path B.** A LOW admitted here skips the §4.2 verifier — a trade-off at LOW is not a defect-to-confirm, and it carries no verification fields into the handoff. A MEDIUM-or-higher admitted by Path B alone (no Path-A signal held) still enters §4.2, because the handoff schema makes the four verification fields mandatory on every kept CRITICAL / HIGH / MEDIUM finding (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §"Verification fields — presence rules") — a MEDIUM+ that skipped the verifier is a finding the schema cannot express. It verifies against its own `File: path:lines` anchor like any other survivor.
 
 The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor — CRITICAL, HIGH, AND MEDIUM: it actively attempts to disprove each finding rather than confirm it.
 
@@ -199,6 +202,6 @@ When a per-dim file specializes severity, it MUST cite §1 above as the canonica
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Severity levels + §Confidence Scoring — agent-side rubric pointers here
-- `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.1 — multi-signal Phase 4.1 gate consumer
+- `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §4.1 — consumer: applies the §5 gate at its admission step
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` — per-finding verifier (disproof step on every §4.1 survivor)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` — Cause taxonomy ([ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN])

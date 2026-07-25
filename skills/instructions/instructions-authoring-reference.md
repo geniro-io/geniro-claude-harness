@@ -1,17 +1,75 @@
 # Instructions — Authoring Reference
 
-Detail sections extracted from `skills/instructions/SKILL.md`: the scope-specific create scaffolds and the instruction-writing principles. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections extracted from `skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
 ## Contents
 
-1. Scope-specific scaffolds — `code-style` / `implement` / `global` / `memory`
+1. File shapes and scope-specific scaffolds — singleton / `memory` / `review-extra`, plus `code-style` / `implement` / `global` / `memory` scaffolds
 2. Writing effective instructions — rule / step / constraint principles
 3. File-size guidance
 4. What goes here vs `.claude/rules/` vs CLAUDE.md
+5. Per-skill phase enums — the `Additional Steps` anchors validate-mode accepts
 
 ---
 
-## 1. Scope-specific scaffolds
+## 1. File shapes and scope-specific scaffolds
+
+### File shapes
+
+**Singleton scopes** (`global`, `code-style`, and every per-skill scope):
+
+```markdown
+# Custom Instructions
+
+## Rules
+- Clear, single-line constraints
+
+## Additional Steps
+### After <phase-enum-value>
+<!-- Steps to run at the named phase -->
+
+## Constraints
+- Hard limits
+
+## Data Sources
+<!-- Optional. Read-only sources to cross-check load-bearing facts against. -->
+- **<label>** (confirms: <what kind of fact>) — `<read-only shell command>` OR MCP tool `<name>` OR action `<name>`
+```
+
+**`memory`** — the dedicated `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only:
+
+```markdown
+# Memory
+
+## Memory Backend
+<!-- Optional. Route agent learnings through a custom backend. Default = built-in .geniro file. The `read` tool MUST be read-only. -->
+- layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <read-only mcp tool>
+```
+
+**`review-extra/<slug>`** — YAML frontmatter plus a `# Criteria` body. Field constraints: SKILL.md §Frontmatter field reference.
+
+```yaml
+---
+slug: sql-bindings # REQUIRED; matches filename; must NOT collide with built-in dimensions
+description: All SQL queries use parameterized bindings, never string concatenation
+model: sonnet # OPTIONAL; haiku|sonnet|opus|inherit; omitted = inherit (orchestrator tier)
+paths: # OPTIONAL; list of globs; absent = always fires
+- "**/*.sql"
+- "**/dao/*.{ts,py}"
+severity-default: HIGH # OPTIONAL; default MEDIUM
+# requires-context: "Fetch the live Notion incident report (latest entry) and list its patterns." # OPTIONAL; live external data the orchestrator fetches + injects (subagents can't call MCP)
+---
+
+# Criteria
+
+What to flag:
+-...
+
+What to NOT flag:
+-...
+```
+
+### Scaffolds
 
 **`code-style.md` scaffold:**
 
@@ -50,9 +108,7 @@ Detail sections extracted from `skills/instructions/SKILL.md`: the scope-specifi
 - Maximum PR size: 500 lines changed (warn user if exceeded; do not block)
 
 ## Data Sources
-<!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
-<!-- - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."` -->
-<!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
+<!-- append the Data-Sources stub below -->
 ```
 
 **`global.md` scaffold:**
@@ -69,12 +125,16 @@ Detail sections extracted from `skills/instructions/SKILL.md`: the scope-specifi
 - (none — add project-wide hard limits here)
 
 ## Data Sources
+<!-- append the Data-Sources stub below -->
+```
+
+**Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
+
+```markdown
 <!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
 <!-- - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."` -->
 <!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
 ```
-
-Include the commented `## Data Sources` stub in the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the stub entries commented — an empty block is the safe default.
 
 **`memory.md` scaffold:**
 
@@ -141,3 +201,26 @@ The `memory.md` scaffold carries ONLY the commented `## Memory Backend` stub —
 - Compaction-surviving global gates → CLAUDE.md
 - Temporary rules → conversation context
 - Rules for skills that don't load instructions (operational skills)
+
+---
+
+## 5. Per-skill phase enums
+
+An `Additional Steps` subsection must name a real phase from the owning skill's state machine — `### After <phase>` / `### Before <phase>`, lowercase-hyphenated (subsection prose may use any case; validate normalizes). A subsection naming a phase that does not exist fails silently in the loader: the step is never reached and the user gets no error, which is why validate-mode checks it.
+
+**Maintenance:** each row below mirrors that skill's `## State machine` section in `skills/<skill>/SKILL.md`, which is the source of truth. A skill that adds or renames a phase updates its own state machine first, then this row.
+
+| Scope | Phase enum | Example subsection names |
+|---|---|---|
+| `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
+| `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) |
+| `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
+| `resolve` | `triage \| analyze \| clarify \| emit \| done \| aborted` | `After triage`, `After analyze`, `Before emit` |
+| `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
+| `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
+| `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
+| `investigate` | `classify \| investigate \| present \| present-summary-only \| present-loop \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
+| `reflect` | (stateless — no phase enum) | n/a — rules-only, no Additional Steps |
+| `global` | (no phase enum — cross-skill) | `After worktree-setup` (the only permitted anchor; fires when a skill creates a new worktree) |
+
+Free-form subsections raise `LOW`. Subsections naming a dropped phase (e.g. `After Phase 4 (Implement)`) raise `MEDIUM`.

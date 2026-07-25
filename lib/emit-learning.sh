@@ -213,21 +213,30 @@ emit_learning() {
     done
   fi
 
-  # Sanitize any UNKNOWN top-level string field. summary / body are already
-  # sanitized above; ts / dedup_key / supersedes / producer / scope / type /
-  # trust are control-plane identifiers. A caller that stashes a secret in a
-  # non-schema key (e.g. `note`, `entry`) would otherwise persist it verbatim.
-  local extra_keys_json extra_count ei
-  extra_keys_json=$(printf '%s' "$rebuilt" | jq -c \
-    '[to_entries[] | select(.value | type == "string") | .key]
-     - ["ts","dedup_key","summary","body","supersedes","producer","scope","type","trust"]')
-  extra_count=$(printf '%s' "$extra_keys_json" | jq 'length')
-  for ((ei = 0; ei < extra_count; ei++)); do
-    local ekey eval_ esan
-    ekey=$(printf '%s' "$extra_keys_json" | jq -r ".[$ei]")
-    eval_=$(printf '%s' "$rebuilt" | jq -r --arg k "$ekey" '.[$k]')
-    esan=$(printf '%s' "$eval_" | redact_secrets "$producer" "$ekey" "$dedup_key")
-    rebuilt=$(printf '%s' "$rebuilt" | jq -c --arg k "$ekey" --arg v "$esan" '.[$k] = $v')
+  # Sanitize every remaining string, at ANY depth, under a non-schema key.
+  # summary / body are sanitized above, ext.* and links.* have their own deep
+  # walks, tags[] is handled below, and ts / dedup_key / supersedes / producer /
+  # scope / type / trust are control-plane identifiers — so those roots are
+  # excluded here. Everything else is walked with `paths(strings)` rather than a
+  # top-level `type == "string"` selection: the old form matched only scalar
+  # top-level fields, so a caller stashing a secret one level down (`meta: {tok:
+  # "..."}`) persisted it verbatim into learnings.jsonl, which query_learnings
+  # then replays into context. Redaction has to reach as deep as the writer can nest.
+  local dpaths_json dpath_count di
+  dpaths_json=$(printf '%s' "$rebuilt" | jq -c \
+    '[paths(strings)
+      | select(.[0] as $k
+               | ["ts","dedup_key","summary","body","supersedes","producer",
+                  "scope","type","trust","ext","links","tags"]
+               | index($k) == null)]')
+  dpath_count=$(printf '%s' "$dpaths_json" | jq 'length')
+  for ((di = 0; di < dpath_count; di++)); do
+    local dpath_arr dval dlabel dsan
+    dpath_arr=$(printf '%s' "$dpaths_json" | jq -c ".[$di]")
+    dval=$(printf '%s' "$rebuilt" | jq -r --argjson p "$dpath_arr" 'getpath($p)')
+    dlabel=$(printf '%s' "$dpath_arr" | jq -r 'map(tostring) | join(".")')
+    dsan=$(printf '%s' "$dval" | redact_secrets "$producer" "$dlabel" "$dedup_key")
+    rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson p "$dpath_arr" --arg v "$dsan" 'setpath($p; $v)')
   done
 
   # Sanitize string elements of the tags[] array. The string-key loop above

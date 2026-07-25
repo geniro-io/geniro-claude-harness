@@ -57,8 +57,8 @@ A finding without a verifiable `file:line` + verbatim `evidence` is inadmissible
 |---|---|---|
 | Test suites | `bash tests/run-all.sh` | T1 |
 | Authoring lint | `bash tests/authoring/lint-skills.sh` (hard fails → findings; warnings → advisory findings) | T2 / T4 |
-| ShellCheck | Preflight `command -v shellcheck` (absent → "skipped: tool unavailable", never a finding). Then `find hooks lib tests -name '*.sh' -exec shellcheck -S error {} +` (errors → T1); re-run `-S warning` (advisory → T4). `find`, not `tests/**/*.sh` — `**` needs globstar and silently misses top-level files without it | T1 / T4 |
-| Deleted-skill refs | `grep -rnE 'geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)' skills/ agents/ hooks/ lib/` — matches are CANDIDATES for D3 adjudication (CLAUDE.md's deleted-skills table is a legitimate mention) | feed D3 |
+| ShellCheck | Preflight `command -v shellcheck` (absent → "skipped: tool unavailable", never a finding). Then `find hooks lib tests cursor scripts -name '*.sh' -exec shellcheck -S error {} +` (errors → T1); re-run `-S warning` (advisory → T4). Keep this path set in lockstep with `.github/workflows/ci.yml` — a path linted here but not in CI (or the reverse) is itself a finding. `find`, not `tests/**/*.sh` — `**` needs globstar and silently misses top-level files without it | T1 / T4 |
+| Deleted-skill refs | `grep -rnE 'geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)' skills/ agents/ hooks/ lib/ cursor/ scripts/` — matches are CANDIDATES for D3 adjudication (CLAUDE.md's deleted-skills table is a legitimate mention) | feed D3 |
 | hooks.json wiring | Every script referenced in `hooks/hooks.json` exists in `hooks/`; every `hooks/*.sh` + `hooks/*.js` is either registered or documented as library/manual | T1 |
 | Frontmatter fields | Every `skills/*/SKILL.md` has `name`, `description`, `context`, `model`, `allowed-tools`, `argument-hint`; description ≤1024 chars | T2 |
 | File-size caps | `wc -l`: SKILL.md >500 (advisory) / >700 (hard); `agents/*.md` >250 (advisory) / >400 (hard) | T4 / T2 |
@@ -84,7 +84,7 @@ Tier mapping: schema mismatch with behavioral impact → T1; doc drift / duplica
 
 ## D3 — Stale rules & dead references
 
-**Scope:** `skills/`, `agents/`, `.claude/rules/`, `.claude/skills/`, top-level docs. **Method:** LLM reviewer seeded with D1 candidate lists.
+**Scope:** `skills/`, `agents/`, `.claude/rules/`, `.claude/skills/`, `cursor/`, `scripts/`, top-level docs. **Method:** LLM reviewer seeded with D1 candidate lists.
 
 Checks:
 1. **Deleted-skill references** outside the documented replacement tables (adjudicate D1 candidates).
@@ -110,7 +110,7 @@ Tier mapping: hard exclusions / hard structure breaches → T2; prose-guideline 
 
 ## D5 — Logic & syntax correctness
 
-**Scope split:** 5a (markdown logic) covers `skills/`, `agents/`, `.claude/skills/`; 5b (shell logic) covers `hooks/`, `lib/`, `tests/`. Spawn as two reviewers. **Method:** LLM reviewers; every claim must survive a re-read of the cited code.
+**Scope split:** 5a (markdown logic) covers `skills/`, `agents/`, `.claude/skills/`; 5b (shell logic) covers `hooks/`, `lib/`, `tests/`, `cursor/hooks/`, `scripts/`. Spawn as two reviewers. **Method:** LLM reviewers; every claim must survive a re-read of the cited code.
 
 5a checks (markdown):
 1. **Contradictions.** Phase A states X, phase B assumes not-X; an invariant the steps violate; a budget table disagreeing with the step that enforces it.
@@ -164,7 +164,7 @@ Tier mapping: contradicting constants → T1; multi-homed / unexplained → T4; 
 
 ## D8 — Safety & test coverage
 
-**Scope:** `hooks/hooks.json`, `hooks/`, `lib/`, `tests/`, `settings.json`, plus `skills/` for check 6 only (destructive-op grep). **Method:** LLM reviewer.
+**Scope:** `hooks/hooks.json`, `hooks/`, `lib/`, `tests/`, `settings.json`, `cursor/hooks.json`, `cursor/hooks/`, plus `skills/` for check 6 only (destructive-op grep). **Method:** LLM reviewer.
 
 Checks:
 1. **Matcher coverage.** Every guard hook's `hooks.json` matcher covers ALL tools that can perform the guarded action (Edit/Write/MultiEdit/NotebookEdit; Bash variants). A guard that misses one tool is bypassable — T0.
@@ -190,3 +190,6 @@ Verified healthy by prior audit — re-flagging these is a false positive:
 - **Line caps treated as guidelines** — a 510-line SKILL.md is advisory, not a defect demanding cuts.
 - **Deleted-skill names inside CLAUDE.md's replacement table and MIGRATION.md** — documentation of the deletion, not a stale reference.
 - **Rich SKILL.md `description:` fields carrying trigger keywords + what/when** — the description is the sole signal Claude uses to select a skill, so its keywords are load-bearing; trimming them to save tokens degrades selection (a compaction pass's most common own-goal). Flag a description only for exceeding the 1024-char limit (D1) or for body drift (D2 check 2), never for verbosity.
+- **The three deliberately-unwired Cursor hooks** (gate-render, evidence-stop, update-check) — their absence from `cursor/hooks.json` is documented: those events do not map cleanly to a Cursor slot. Only a WIRED guard that fails open under the shim is a defect.
+- **`cursor/agents/*.md` divergence from `agents/*.md` in dropped fields** (`tools`, `maxTurns`, forced `model: inherit`, added `readonly`) — that is the generator's contract, not drift. Real drift is caught by `tests/cursor/build-agents-fresh.sh`; flag only what that test cannot see.
+- **`agents/<name>-reference.md` companions** — body-overflow targets prescribed by `.claude/rules/skill-structure.md`; they carry no agent frontmatter by design and are skipped by the Cursor generator.

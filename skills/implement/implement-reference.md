@@ -7,10 +7,12 @@ This file contains templates, examples, and detailed procedures referenced by SK
 ## Contents
 
 - Phase 1: Step 0c AUQ templates
+- Phase 1: Step 0 setup detail
 - Phase 1: $ARGUMENTS semantic-parse table
 - Phase 1: Spec discovery walk-list
 - Phase 1: Subagent spawn template
 - Phase 1: Library reuse audit (build-vs-buy)
+- Phase 1: Handoff round-trip write
 - Phase 2: test-runner-agent spawn template
 - Phase 2: Implement — error-handling
 - Phase 3: Self-review reviewer-agent template
@@ -73,6 +75,50 @@ options:
 
 ---
 
+## Phase 1: Step 0 setup detail
+
+The `approvals[]` entry shapes (0d), the edge-case behaviors (0f), and the spec `launch_config` field map (0g). SKILL.md §PHASE 1 Step 0 owns when each applies.
+
+### 0d — `approvals[]` entry shapes
+
+```yaml
+approvals:
+  - category: implement_workspace_setup
+    picked: "New feature branch (Recommended)"
+    timestamp: <ISO-8601>
+  - category: implement_workflow_status
+    picked: "Yes — move to In Progress"
+    timestamp: <ISO-8601>
+    workflow_file: ".geniro/workflow/linear.md"
+    transition: "Todo -> In Progress"
+    issue_id: "CI-303"
+```
+
+A choice a spec `launch_config` pre-answered (0g) carries the same shape plus `source: launch_config`, so a restored run can tell a plan-time pre-set from a choice the user made interactively.
+
+### 0f — Edge cases
+
+| Case | Behavior |
+|---|---|
+| Workflow MCP unavailable when Question 2 fires | Question 2 still fires; "Yes" answer logs warning and proceeds without MCP call. Non-blocking. |
+| Workflow file present but `### On task start` section missing | Question 2 omitted silently. |
+| User picks "Other" with custom text on Question 1 | Treat as "Current branch" semantically; no git mutation; echo custom text into state.md `## Workspace decision` body block. |
+| Several handoffs for the current branch (any mix of review / debug / resolve) | Each satisfies rule 2 of 0b. Echo every matched signal in its plain-English form; behavior otherwise identical. |
+| Stale handoff (older than the current work) | Still triggers rule 2. Emit soft notice: `"The <producer> handoff is N days old — re-run /geniro:<producer> if you want fresh findings."` |
+| `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 4 fires (worktree-mismatch AUQ) — a worktree checked out on a protected branch is itself the anomaly to surface; rule 5 requires `IN_WORKTREE == false`. |
+
+### 0g — `launch_config` field map
+
+| `launch_config` field | Pre-answers |
+|---|---|
+| `workspace` | The 0b/0c workspace question. |
+| `deep_mode` | The Step 0c Question 3 depth chooser (persisted at Step 4 like any depth pick). |
+| `branch_freshness` | The strategy used when the branch is behind the default branch. |
+| `ship_mode` | The Phase 3 Ship-mode AUQ (via the matching sanctioned Ship modifier). |
+| `tracker_status` | The Step 0c Question 2 workflow-status question ("Move to In Progress?"). |
+
+---
+
 ## Phase 1: $ARGUMENTS semantic-parse table
 
 No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 1 entry.
@@ -110,7 +156,7 @@ Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — 
 
 ### Backgrounding when a handoff gate is pending (idle-overlap)
 
-Default: spawn both agents BLOCKING and read their outputs at Step 8 — the common no-handoff run, unchanged. Engage the overlap ONLY when Step 0a flagged a review/debug handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF`) carrying unresolved open-questions: those questions are on disk and independent of the agents' output, so the Step 12 open-questions AUQ can fire while the agents compute (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`). Procedure:
+Default: spawn both agents BLOCKING and read their outputs at Step 8 — the common no-handoff run, unchanged. Engage the overlap ONLY when Step 0a flagged a review, debug, or resolve handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF` / `RESOLVE_HANDOFF`) carrying unresolved open-questions: those questions are on disk and independent of the agents' output, so the Step 12 open-questions AUQ can fire while the agents compute (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`). Procedure:
 
 1. Spawn both agents `run_in_background: true` in ONE assistant response (same template + slots below; only the background flag changes).
 2. In that same turn, run Step 12 sub-steps 1-7 — read the handoff, persist its body, parse `open_questions[]`, filter to unresolved, fire the open-questions AUQ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 (message-first render, then a lean question), and persist each answer the moment it is picked: round-trip the producer handoff to `status: resolved` (sub-step 6) and append the `review_handoff_resolution` approval to state.md (sub-step 7). Persist in the pick-turn — never defer persistence across the Step 8 drain, where large agent outputs make compaction likely and an unpersisted pick is lost and re-asked (the blocking path persists immediately after each pick; the overlap must not widen that window). These sub-steps consume the handoff and the user's answers, never the agents' output, so they are provably independent.
@@ -222,6 +268,24 @@ When ≥1 signal matches, emit: `"Spec touches <matched signals> — consider ru
 **What it does.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` with MODE: implement — that file owns the full procedure (ecosystem detection, the single web-research spawn, the existence-verify + disqualifier funnel, the message-first confirmation gate with "Keep hand-written" as the non-Recommended default, `approvals[]` category `library_adoption` persistence, decline emit, and fail-open).
 
 **Spec already names a library.** When the spec names a candidate (legitimate in a spec only when it was already in the project's manifest or the user named it), the audit re-verifies that named library — existence plus health — before confirming it, since a spec can go stale between planning and implementation.
+
+---
+
+## Phase 1: Handoff round-trip write
+
+Step 12 sub-step 6 patches ONE `open_questions[]` entry in the producer's handoff and re-emits everything else unchanged. `atomic_state_write` is a full-file overwrite, not a merge: supply the producer's ENTIRE original content, with that entry's `status` + `resolution` sub-fields as the only delta. A surgical patch, not a rewrite.
+
+The frontmatter key set varies by producer, so re-emit whichever keys the file you read actually carries — this inventory is illustrative, not exhaustive:
+
+| Producer | Keys beyond the common set |
+|---|---|
+| `review` | `pr-ref`, `pr-body`, `resolved-threads-snapshot`, `linear-task-ref`, `linear-parent-ref`, `report_status` (sub-step 3 reads this back) |
+| `debug` | `geniro_kind`, `geniro_schema_version`, `mode`, `authored_tests[]` (sub-step 9 reads this back — drop it and the F→P-test extraction finds nothing) |
+| `resolve` | `comment_resolutions[]` (sub-step 10 stashes it for the Ship "Resolve PR review threads" step), `pr-ref`, `pr-url`, `pr-head-sha` |
+
+Common to all producers: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `approvals`, `non-resumable-actions`, and the other `open_questions[]` entries. Re-emit every body section (`## Findings`, `## Authored Tests`, …) unchanged too — dropping one silently truncates producer state a downstream re-review reads back. Within the resolved entry, `id` / `source` / `question` / `related_findings` / `related_hypotheses` stay as written.
+
+Canonical schema for all of it: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
 ---
 
@@ -610,7 +674,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 **Step 2 — Commit.** Before staging, run `git branch --show-current` and verify the working tree is on the branch this run targeted (the Phase-1 Step-0 captured `CURRENT_BRANCH` / state.md `branch:` field). The session-start / state-snapshot branch field can go stale across compaction or an intervening branch switch — trust the live command, not the snapshot. On a mismatch, do NOT `git add` or `git commit`; fire an `AskUserQuestion` (header: "Branch check", question: "The working tree is on branch `<live>` but this run targeted `<expected>` — committing here would land the change on the wrong branch. How do you want to proceed?", options: "Move my commit to `<expected>` first" / "Commit on `<live>` anyway" / "Stop — let me sort the branch out"). Once the branch is confirmed, stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). Provenance guard: diff `git status --porcelain` against CHANGED_FILES; any production file modified outside that set was authored by something other than this run — fire an `AskUserQuestion` (header: "Unexpected changes", options: "Include them — I authored them elsewhere" / "Exclude — commit only my files" / "Pause and review") rather than silently folding them into this run's commit. Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata. If a workflow file specifies commit-message format (e.g., appending issue ID), follow that format.
 
-**Step 3 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
+**Step 4 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
 
 **Done-Condition annotation (spec-driven runs).** Before building the AUQ, on a run that resolved a real spec.md, parse the spec's section 11 (Done Condition) and apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md`. For each clause that is machine-checkable (matches the validator's stopping-condition ontology) AND affirmatively unsatisfied against the evidence the helper maps, prepend one plain-English line to the AUQ's question text so the user decides with their own completion criterion in view — e.g. "The spec's done-condition lists 'PR approved' — that's not true yet. Ship anyway?". This is advisory and skip-when-clean: when every machine-checkable clause is satisfied (or section 11 carries only free-text clauses), add nothing and proceed silently — the gate never fires with nothing to decide, mirroring the spec fact-check's restraint. Un-parseable / free-text clauses stay human-eyeball-only — never auto-graded, the guard against false-nags. The annotation rides the existing Ship AUQ's question text and obeys the caller-constraints canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` §"What the caller does with the result". This is the ship-time clause-grader to the static diff-check the `architecture`/spec-compliance reviewer dimension runs in Phase 3; both read section 11. Stack any Done-Condition lines with the `## Accepted Failures` / `## Accepted Findings` disclosure below — both feed the same question text.
 
@@ -628,9 +692,9 @@ Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a c
 
 The user can always type a custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back to ship-mode AUQ.
-- **"Don't push"** (via Other; semantically equivalent to the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses step 3's push, not the upstream commit.
+- **"Don't push"** (via Other; semantically equivalent to the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses this step's push, not the upstream commit.
 
-**Approvals-persistence protocol (step 3):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /geniro:review or /geniro:debug handoff (re-resolve per Step 3's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
+**Approvals-persistence protocol (step 4):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /geniro:review or /geniro:debug handoff (re-resolve per this step's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
 **L2 emit on rejection signal:** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 
@@ -642,9 +706,9 @@ emit_rejection_if_signal \
 
 `<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever ship-mode option carries the `(Recommended)` suffix — "Open draft PR" by default. Helper detects rejection signals and emits L2 entry — acceptance is a no-op.
 
-**Step 4 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`, where `action` is a literal from the enum in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum (`git-push`, `pr-created`, `pr-comment-posted`), and `completed-at` comes from `$(date -u +%Y-%m-%dT%H:%M:%SZ)` in the same write call, never model-supplied (`atomic-state-write.md` §Timestamp sourcing). Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
+**Step 5 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`, where `action` is a literal from the enum in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum (`git-push`, `pr-created`, `pr-comment-posted`), and `completed-at` comes from `$(date -u +%Y-%m-%dT%H:%M:%SZ)` in the same write call, never model-supplied (`atomic-state-write.md` §Timestamp sourcing). Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
-**Step 5 — Emit the ship report.** After the chosen ship action completes (push / PR create / commit-only) and its side-effect is recorded (step 4), emit a ship report to chat — a human-readable summary of what shipped, carrying the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. This is the run's final deliverable; the terminal `phase:` transition (step 6 below / SKILL.md Ship sub-step "State.md final transition") fires only AFTER this report is emitted — a bare status echo ("opened draft PR") is not a ship report and leaves the user without the evidence the Stop hook scans for. The report covers:
+**Step 9 — Emit the ship report.** After the chosen ship action completes (push / PR create / commit-only) and its side-effect is recorded (step 5), emit a ship report to chat — a human-readable summary of what shipped, carrying the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. This is the run's final deliverable; the terminal `phase:` transition fires only AFTER this report is emitted — a bare status echo ("opened draft PR") is not a ship report and leaves the user without the evidence the Stop hook scans for. The report covers:
 
 - **What shipped** — the files / scope changed (the CHANGED_FILES set), one line on the change.
 - **Commit + branch + PR** — commit SHA, branch name, and PR URL quoted verbatim from the actual tool output (`git rev-parse HEAD`, `git branch --show-current`, the `gh pr create` URL line) — never "git push succeeded" without the ref, per Loop invariant #6.
@@ -652,7 +716,7 @@ emit_rejection_if_signal \
 - **Review outcome — one line per review dimension, named, with its own result.** Report every dimension the self-review spawned by name with its found / fixed counts across the rounds ("bugs: 2 found, 2 fixed · security: clean · tests: 1 found, 1 deferred"), and every dimension that did NOT run by name with the reason it didn't ("adversarial edge-case tests: not run — the change was too small to warrant them"). A dimension is never omitted and never folded into a general "verified, not assumed" statement: the per-dimension form cannot be written honestly by a run that skipped the review, and that asymmetry is why it is the required shape. Self-run formatting, template-rendering, syntax, and lint checks are evidence that the change is well-formed — the build claim — and never evidence for the review claim, which only the spawned reviewer dimensions produce. Name any `## Accepted Findings` / `## Accepted Failures` carried as known limitations.
 - **Deferred** — minor findings left unfixed, read from the task state's `## Deferred Findings` section, plus anything else left for a follow-up (skipped visual verification, docs not yet patched) — or "nothing deferred".
 
-**Step 6 — Trailing bookkeeping writes must not contradict what shipped.** Post-ship bookkeeping (a memory-index update, an `atomic_state_write` of the terminal state, a tracker status transition) runs after the ship report. When such a write FAILS — e.g. an `Edit` rejected by its Read-before-Edit precondition, or a tracker MCP timeout — do not end the run leaving a record that contradicts the ship that already happened (the real failure mode: an index asserting the task is "not implemented" while the PR is open). Surface the failure in plain English, fix the precondition (Read the file, then Edit), and retry the write ONCE. If the retry also fails, say so explicitly in chat — "the project record still shows this as not-shipped; the PR is open at <url> — update the record manually" — so the user knows the bookkeeping is stale and the actual ship state is the PR, not the record.
+**Post-report bookkeeping — trailing writes must not contradict what shipped.** Post-ship bookkeeping (a memory-index update, an `atomic_state_write` of the terminal state, a tracker status transition) runs after the ship report. When such a write FAILS — e.g. an `Edit` rejected by its Read-before-Edit precondition, or a tracker MCP timeout — do not end the run leaving a record that contradicts the ship that already happened (the real failure mode: an index asserting the task is "not implemented" while the PR is open). Surface the failure in plain English, fix the precondition (Read the file, then Edit), and retry the write ONCE. If the retry also fails, say so explicitly in chat — "the project record still shows this as not-shipped; the PR is open at <url> — update the record manually" — so the user knows the bookkeeping is stale and the actual ship state is the PR, not the record.
 
 **Inline modifiers from $ARGUMENTS** (semantic parsing per Phase 1 table) override the ship-mode AUQ deterministically. A spec `launch_config.ship_mode` (read at Phase 1 Step 0g per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) pre-answers the AUQ via the same mechanism: `commit-no-push` → "don't push", `draft-pr` → "draft only", `ready-for-review` → "ready-for-review", `stop-after-review` → "stop after review". The commit-grade safeguards (default / shared-branch push, or a handoff-reached open-PR update) still gate regardless of the pre-set.
 
@@ -783,9 +847,9 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — dims with actionable findings only); exited clean OR escalated.
 - [ ] Minor-findings gate fired after the fix loop converged — or skipped silently when the task state's `## Deferred Findings` was empty — and the disposition pick was persisted to `approvals[]`.
 - [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
-- [ ] Ship report emitted to chat BEFORE the terminal `phase:` transition — Evidence Block with what shipped, commit SHA / branch / PR URL quoted from tool output, test Verdict, a named outcome for every review dimension (including each one that did not run, with its reason), deferred items (Commit + Push + PR §"Step 5").
+- [ ] Ship report emitted to chat BEFORE the terminal `phase:` transition — Evidence Block with what shipped, commit SHA / branch / PR URL quoted from tool output, test Verdict, a named outcome for every review dimension (including each one that did not run, with its reason), deferred items (Commit + Push + PR §"Step 9 — Emit the ship report").
 - [ ] Transient working files cleaned from the task-dir before the terminal `phase:` write (§Cleanup).
-- [ ] Trailing bookkeeping writes (memory index, terminal state, tracker) that failed were surfaced and retried once; if still failing, the stale record was called out in chat so it never silently contradicts the open PR (Commit + Push + PR §"Step 6").
+- [ ] Trailing bookkeeping writes (memory index, terminal state, tracker) that failed were surfaced and retried once; if still failing, the stale record was called out in chat so it never silently contradicts the open PR (Commit + Push + PR §"Post-report bookkeeping").
 - [ ] `non-resumable-actions[]` frontmatter updated for every external side-effect (`git push`, `gh pr create`).
 - [ ] Staged set matched this run's CHANGED_FILES — production files modified outside that set were confirmed via AUQ, not silently folded in; after ship, `git status` shows no unexpected leftover/duplicate copies of the shipped work.
 - [ ] Learning emit fired when triggers were met (`convention` or `decision`); promotion suggestion surfaced for `convention` emits.

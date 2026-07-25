@@ -224,6 +224,17 @@ expect_block "bash -lc reset --hard blocked"          "$(run_cmd 'bash -lc "git 
 expect_block "nested sh -c force-push blocked"         "$(run_cmd $'sh -c "sh -c \'git push --force\'"')"
 expect_allow "sh -c benign command allowed"           "$(run_cmd 'sh -c "echo hello world"')"
 
+# ===== eval indirection (eval "<payload>") must be inspected =====
+# eval hands its argument to the shell as a command, so the guard re-runs on it.
+expect_block "eval force-push blocked"                "$(run_cmd 'eval "git push --force origin main"')"
+expect_block "eval single-quoted reset --hard blocked" "$(run_cmd "eval 'git reset --hard HEAD~1'")"
+expect_block "eval inside sh -c blocked"              "$(run_cmd $'sh -c "eval \'git push --force\'"')"
+expect_allow "eval benign command allowed"            "$(run_cmd 'eval "echo hello world"')"
+expect_allow "eval ssh-agent idiom allowed"           "$(run_cmd 'eval "$(ssh-agent -s)"')"
+# A dangerous form MENTIONED as data (not handed to eval) must stay allowed.
+expect_allow "prose mentioning eval force-push allowed" \
+  "$(run_cmd 'echo "never run eval git push --force here"')"
+
 # ===== jq-less data-loss fallback: coarse raw scan still blocks the worst =====
 expect_block "jqless: force-push still blocked"       "$(run_cmd_nojq '{"tool_input":{"command":"git push --force"}}')"
 expect_block "jqless: reset --hard still blocked"      "$(run_cmd_nojq '{"tool_input":{"command":"git reset --hard"}}')"

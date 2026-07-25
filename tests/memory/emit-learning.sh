@@ -463,6 +463,32 @@ else
   fail "multibyte oversize: expected rc=68 with bytes>4096; got rc=$rc bytes=$mb_bytes"
 fi
 
+# Sanitization reaches a string at ANY depth under a non-schema key. The earlier
+# implementation selected only top-level fields whose value was a string, so a
+# secret one level down (`meta: {tok: ...}`) persisted verbatim into the log and
+# was replayed into context by query_learnings. Covers a nested object, an object
+# two levels deep, a bare string in an array, and an object inside an array.
+new_sandbox
+jq -nc '{
+  producer:"/review", scope:"x", summary:"y", tags:["bug"],
+  meta:{ tok:"AKIAIOSFODNN7EXAMPLE", deeper:{ d:"AKIAIOSFODNN7EXAMPLE" } },
+  arr:[ "AKIAIOSFODNN7EXAMPLE", { o:"AKIAIOSFODNN7EXAMPLE" } ]
+}' | emit_learning
+deep_entry=$(read_log)
+deep_leaks=$(printf '%s' "$deep_entry" | grep -c 'AKIAIOSFODNN7EXAMPLE' || true)
+if [ "$deep_leaks" -eq 0 ]; then
+  pass "deep-walk sanitization: nested object, 2-deep object, array string, and object-in-array all redacted"
+else
+  fail "deep-walk sanitization leaked a raw secret: $deep_entry"
+fi
+# The control-plane keys must survive the deep walk untouched.
+if [ "$(printf '%s' "$deep_entry" | jq -r '.producer')" = "/review" ] \
+   && [ "$(printf '%s' "$deep_entry" | jq -r '.scope')" = "x" ]; then
+  pass "deep-walk sanitization leaves control-plane keys (producer/scope) intact"
+else
+  fail "deep-walk sanitization corrupted a control-plane key: $deep_entry"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

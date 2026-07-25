@@ -12,8 +12,10 @@
 # Edit/Write/MultiEdit branch: checks .tool_input.file_path.
 # Bash branch: catches shell-side writes the file-tool matcher never sees —
 # redirection (>, >>, >|), tee, in-place sed (-i), cp/mv destinations, dd of=,
-# and interpreter-mediated writes (python/node/perl/ruby opening a state file
-# for writing, including from a heredoc body).
+# interpreter-mediated writes (python/node/perl/ruby opening a state file
+# for writing, including from a heredoc body; awk redirecting `print` into
+# one), and shell indirection
+# (`sh -c "..."` / `eval "..."` payloads, which the guard re-runs on).
 # Reads (cat/grep) stay allowed. Commands invoking the sanctioned helpers
 # (atomic_state_write / atomic_state_append) are allowed — they write via their
 # own mktemp + mv. Paths under .geniro/state/tdd/ are exempt: the TDD-order
@@ -192,6 +194,52 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     }
     { print }
   ')
+
+  # Interpreter indirection: `sh -c "<payload>"` (or bash/zsh/dash -lc, ...) and
+  # `eval "<payload>"` run <payload> as a command, but the quote-scrub below
+  # would treat it as data and miss a direct state-path write inside it.
+  # Extraction is single-sourced in lib/write-vectors.sh; the inline fallback
+  # keeps the guard recursing on a vendored install shipping hooks/ without
+  # lib/ — a missing helper must never make this guard fail open.
+  _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+  if [ -f "$_geniro_wv_helper" ]; then
+    # shellcheck source=/dev/null
+    source "$_geniro_wv_helper" 2>/dev/null || true
+  fi
+  if ! command -v _geniro_extract_inner_payloads >/dev/null 2>&1; then
+    _geniro_extract_inner_payloads() {
+      local cmd="${1:-}"
+      if [ -z "$cmd" ]; then return 0; fi
+      local _m _pl
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+        _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?eval[[:space:]]+//')
+        _pl="${_pl#\"}"; _pl="${_pl%\"}"; _pl="${_pl#\'}"; _pl="${_pl%\'}"
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+      return 0
+    }
+  fi
+
+  # Re-run THIS guard on each extracted payload (unblanked); a block inside
+  # propagates out. Nested indirection terminates because each payload is
+  # strictly shorter than the command it came from.
+  _geniro_self="${BASH_SOURCE[0]:-$0}"
+  INNER_PAYLOADS=$(_geniro_extract_inner_payloads "$SCRUBBED")
+  if [ -n "$INNER_PAYLOADS" ]; then
+    while IFS= read -r _pl; do
+      [ -z "$_pl" ] && continue
+      if ! printf '%s' "$_pl" | jq -Rs '{tool_name: "Bash", tool_input: {command: .}}' | bash "$_geniro_self"; then
+        exit 2
+      fi
+    done <<< "$INNER_PAYLOADS"
+  fi
 
   JOINED="${SCRUBBED//\\$'\n'/ }"
   ONELINE="${JOINED//$'\n'/ }"
@@ -379,7 +427,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])ln[[:space:]]+[^|;&]*' || true)"
 
   # 10) Interpreter-mediated writes: python/node/perl/ruby opening a state file
-  #     for writing. Vectors 1-9 read $ONELINE, whose heredoc bodies were dropped
+  #     for writing, or an awk program redirecting `print` into one.
+  #     Vectors 1-9 read $ONELINE, whose heredoc bodies were dropped
   #     as data — and an interpreter's file write is not shell syntax anywhere, so
   #     `python3 - "$S" <<'PY' … open(p,'w').write(b) … PY` reaches the filesystem
   #     completely unchecked. This vector therefore scans the RAW $COMMAND.
@@ -389,7 +438,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #     script provably writes elsewhere and the vector skips; a write op whose
   #     target is a variable is unresolvable here, so a state path anywhere in the
   #     command is treated as its target.
-  if printf '%s' "$COMMAND" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|perl|ruby|php)([[:space:]]|$)'; then
+  if printf '%s' "$COMMAND" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|perl|ruby|php|awk|gawk|mawk)([[:space:]]|$)'; then
     _interp_eligible=0
     # Quote class tolerating a shell backslash-escape (`open(\"x\", \"w\")` is how
     # a double-quoted -c argument reaches us).
@@ -459,6 +508,16 @@ if [ "$TOOL_NAME" = "Bash" ]; then
           printf '%s' "$COMMAND" \
             | grep -oE "(write_text|writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|IO\.write)\([[:space:]]*${_q}[^\\\\\"']+${_q}" \
             | sed -E "s/^[^(]*\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
+          # awk writes by redirecting `print`/`printf` from INSIDE its program
+          # string (`awk 'BEGIN{print "x" > "<state path>"}'`), so vector 1 blanks
+          # the redirect as data. Only a QUOTED target counts: a redirect to a
+          # bare identifier is indistinguishable from a numeric comparison
+          # (`print (a > b)`), and firing on that would block read-only awk.
+          if printf '%s' "$COMMAND" | grep -qE '(^|[|;&[:space:]]|/)(awk|gawk|mawk)([[:space:]]|$)'; then
+            printf '%s' "$COMMAND" \
+              | grep -oE "(print|printf)[^;}]*>{1,2}[[:space:]]*${_q}[^\\\\\"']+${_q}" \
+              | sed -E "s/^.*>{1,2}[[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
+          fi
         } 2>/dev/null || true
       )"
     fi

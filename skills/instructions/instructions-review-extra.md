@@ -19,7 +19,7 @@
 
 Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-11). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per SKILL.md Step 0.5).
 
-See `SKILL.md` for the load-bearing rules referenced below: validation rules (`## — Mode: validate`, `### Step 2 — Lint rule set` — the `review-extra/<slug>.md` row in the per-scope table), file structure (`## File Structure: review-extra`), count caps cross-references.
+See `SKILL.md` for the load-bearing rules referenced below: validation rules (`## — Mode: validate`, `### Step 2 — Lint rule set` — the `review-extra/<slug>.md` row in the per-scope table), file structure (`## File shapes` for the loaded instruction files, and `## Frontmatter field reference (review-extra/<slug>.md)` for this scope's own schema), count caps cross-references.
 
 ## Custom Reviewer Authoring (review-extra)
 

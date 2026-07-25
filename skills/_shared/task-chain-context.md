@@ -36,18 +36,16 @@ During research, assemble the full chain of related work — the current tracker
 
 ## 3. Half A — Tracker chain (MCP, read-only, depth-1)
 
-Resolve the related tracker chain for the primary ref. Read-only — never create, update, or comment on any tracker item. Depth-1 only: the parent epic and the epic's direct children, no recursion into grandchildren.
+Resolve the related tracker chain for the primary ref. Read-only — never create, update, or comment on any tracker item. Depth-1 only per §8 Cost bound: the parent epic and the epic's direct children.
 
 Driven by the matching `.geniro/workflow/<kind>.md` contract — read that file for the project's MCP tool names and query shape; never hardcode a tracker API. Resolve the workflow file cwd-first, primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A.
 
 Procedure:
 
 1. **Find the parent epic.** If the primary ref already carries `parent_ref`, use it. Otherwise fetch the primary issue over MCP and read its parent link. No parent → Half A = "none".
-2. **Fetch the parent.** Read the parent's `title`, `status`, and a short `scope` (the parent's description / objective, trimmed to ≤280 chars at a sentence boundary).
-3. **List the parent's children.** Fetch the parent's direct children → `siblings[]` of `{issue_id, title, status}`. Exclude the primary ref itself from the sibling list. Cap at 8 entries (the sibling block stays ≤~1200 chars); when more exist, keep the highest-priority / earliest 8 and append a final `- ... +N more` marker. Omit the siblings entirely when the parent has no other children.
+2. **Fetch the parent.** Read the parent's `title`, `status`, and a short `scope` — the parent's description / objective, trimmed at a sentence boundary to the `parent_ref.scope` cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`.
+3. **List the parent's children.** Fetch the parent's direct children → `siblings[]` of `{issue_id, title, status}`. Exclude the primary ref itself. Hold the list to the `siblings` entry + char caps in that same schema; when more exist, keep the highest-priority / earliest ones and append a final `- ... +N more` marker. Omit the siblings entirely when the parent has no other children.
 4. **Stamp `chain_fetched_at`** with the current ISO-8601 UTC time — this timestamps the chain enrichment independently of the per-ref `fetched_at`.
-
-Char caps: parent `scope` ≤280 chars (sentence-boundary trim); siblings block ≤~1200 chars / ≤8 entries.
 
 Fail-open: MCP unregistered, fetch timeout, or no parent → Half A = "none". A failed Half A never blocks Half B or the caller.
 
@@ -74,7 +72,7 @@ Render each fact by the helper's outcome:
 
 - **Confirmed** by a source → render normally (no annotation).
 - **Conflicting** across sources → surface the conflict to the user in plain English and render the fact with the conflict noted (e.g. `In Progress (conflict: prod-db shows shipped)`).
-- **Unconfirmed** — no source could corroborate it → mark it `unconfirmed` in the TASK CHAIN CONTEXT block. This extends the facts-only doctrine: today a status the fetch did not return is omitted; now a fetched status that no declared source could corroborate — when declared sources exist that should cover that fact's domain — is ALSO marked `unconfirmed` rather than presented as bare fact.
+- **Unconfirmed** — no source could corroborate it → mark it `unconfirmed` in the TASK CHAIN CONTEXT block rather than presenting it as bare fact. This is the state for a status the fetch returned but no declared source (whose domain covers it) could corroborate; a status the fetch never returned is simply omitted.
 
 Fail-open per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §6: when a *declared* source errors or fails its read-only screen, drop that source and fall back to whatever sources did return, with a one-line plain-English caveat (e.g. `Couldn't double-check the related-ticket statuses against a project data source — showing the tracker fetch as-is.`). When there is simply no `## Data Sources` block, the tracker fetch is itself the built-in source — render the statuses normally with no caveat (absence is the normal case, not a degraded one). Never block assembly. Read-only throughout — this sub-step only reads sources, never mutates a tracker, DB, or deploy state.
 
@@ -99,13 +97,7 @@ Where this fits: milestone-1 shipped; this is milestone-2; milestone-3 follows.
 
 Render only the halves that resolved — drop the epic/related-tasks lines when Half A is "none"; drop the milestones lines when Half B is "none".
 
-**Facts-only narrative.** Every status, title, and position in the block is CITED from the MCP fetch (Half A) or read from disk (Half B), then cross-checked per §4.5 — never invented or inferred. Each chain fact lands in one of three states:
-
-- **Confirmed** — a source corroborated it → rendered as a plain status word.
-- **Conflicting** — sources disagree → rendered with the conflict noted inline and surfaced to the user.
-- **Unconfirmed** — no source could corroborate it (or the fetch never returned it) → marked `unconfirmed`, not presented as a bare fact.
-
-A sibling whose status the fetch did not return is still rendered without a status word — that case is unchanged. The §4.5 addition is the third state: a fetched-but-uncorroborated status (when declared sources should cover it) is marked `unconfirmed` rather than rendered as fact. This respects the always-on-verification doctrine: a status the chain cannot ground is never fabricated.
+**Facts-only narrative.** Every status, title, and position in the block is CITED from the MCP fetch (Half A) or read from disk (Half B), never invented or inferred, and rendered by its §4.5 outcome — confirmed / conflicting / unconfirmed. A sibling whose status the fetch did not return is rendered without a status word. A status the chain cannot ground is never fabricated.
 
 ## 6. Output contract
 
@@ -119,7 +111,7 @@ The milestone half (Half B) is never persisted — it is re-derived from disk on
 ## 7. Caller persistence note
 
 - **`/geniro:plan`** merges `ENRICHED_REFS` into state.md `## Workflow Refs`, then Phase 6 copies the tracker linkage (including the chain-enrichment fields) into spec.md frontmatter. The spec's `geniro_schema_version` is set to `m5-v3` only when at least one enrichment field was written; otherwise it stays `m5-v2` (tracker linkage without enrichment) or `m5-v1` (no tracker linkage).
-- **`/geniro:implement`** does NOT persist. It reads the enriched tracker fields from the spec when present, re-derives the milestone half from disk, and refreshes the tracker half over MCP only when the spec's `chain_fetched_at` is stale (older than 1 hour) or absent — fail-open, exactly as Half A.
+- **`/geniro:implement`** does NOT persist. It reads the enriched tracker fields from the spec when present, re-derives the milestone half from disk, and refreshes the tracker half over MCP only when the spec's `chain_fetched_at` is absent or older than the staleness window in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` — fail-open, exactly as Half A.
 
 ## 8. Fail-open + cost bound + read-only + echo rule
 

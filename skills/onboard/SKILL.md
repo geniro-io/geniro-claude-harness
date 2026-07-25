@@ -111,7 +111,7 @@ Avoid loading entire repositories — bounded scan ≤50 files default.
 
 **Procedure:**
 
-1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod,.github/, src/.
+1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod, .github/, src/.
 2. **Estimate scan size** — `find . -type f | wc -l` (or platform equivalent) to count total files. When `--depth N` is set, bound traversal with `find . -maxdepth N -type f` and record `scan_depth: N` in state.md frontmatter so Phase 2 mapping honors the same bound. Skip standard ignores: `node_modules`, `.git`, `dist/`, `build/`, `target/`, `.venv`, `vendor/`, `__pycache__`.
 3. **Apply ≤50-file default cap:**
 - If total file count ≤50 OR `--focus` provided AND focus-glob hits ≤50: proceed unblocked.
@@ -124,7 +124,7 @@ Avoid loading entire repositories — bounded scan ≤50 files default.
 **Approvals-persistence:** before firing the expand-scope AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: expand_scope`. If found, use prior `picked` (typical compaction-resume scenario). The state.md `## Persisted approvals` section renders this.
 
 **Edge cases:**
-- **Empty or near-empty repo** (no source files found): terminal `routed` with suggestion "Repo appears empty. Use `/geniro:investigate` to clarify project state."
+- **Empty or near-empty repo** (no source files found): terminal `routed` with suggestion "Repo appears empty. Use `/geniro:investigate` to clarify project state." Run the §2.5 cleanup before writing this terminal phase, as with every other terminal exit.
 - **Permission errors on key directories** — log to `## Errors` body section; note gaps in final map's `## Tech Debt & Notes`.
 - **Very large repos (50,000+ files)** — auto-applies `--depth 2` AND fires the AUQ above; user picks; default to truncate.
 
@@ -206,7 +206,9 @@ After the map ships, end the onboarding report with a printed "Next steps" block
 
 ### 2.5 Cleanup
 
-State.md `phase: map` → `done`. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
+Run this before EVERY terminal `phase:` write — `done`, `map-truncated`, `routed`, and `aborted` alike, not only the happy path. The migration walk scans `.geniro/planning`, never `.geniro/state`, so a slug directory left behind by an early exit has no later sweep and persists indefinitely.
+
+State.md `phase: map` → `done` on the happy path. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
 rm -rf .geniro/state/onboard/<slug>/ 2>/dev/null || true
