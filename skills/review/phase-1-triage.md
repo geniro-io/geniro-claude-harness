@@ -1,0 +1,130 @@
+# /geniro:review — Phase 1 & Phase 1.5
+
+Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to Phase 1. The spine keeps the phase headings, the loop invariants, the anti-rationalization table, and the Definition of done — this file carries the Steps.
+
+## Contents
+
+- Phase 1 — Triage & context collect (13 steps; exit criterion at the end)
+- Phase 1.5 — Mechanical pre-pass
+  - 1.5.1 Check 1 — Lint
+  - 1.5.2 Check 2 — Schema
+  - 1.5.3 Check 3 — Secret scan
+  - 1.5.4 Custom-reviewer discovery
+  - 1.5.5 Output handling
+  - 1.5.6 Fail-handling
+  - 1.5.7 Pre-pass declaration (state.md write before Phase 2)
+
+---
+
+## Phase 1 — Triage & context collect
+
+State.md `phase: triage`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`.
+
+**Flags & presets:** `--deep`, `--plan <path>`, and the workspace modifiers are cataloged with the cross-skill flag set in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+
+Summary of what Phase 1 does:
+
+1. **Step 0 — Workspace setup** — passive context detection (IN_WORKTREE, REVIEW_HANDOFF, DEBUG_HANDOFF, IMPLEMENT_TASK_STATE, PROTECTED_BRANCH, TARGET_PR_NUMBER, IN_TARGET_WORKTREE) followed by a decision tree with auto-continue branches for in-worktree continuing-work signals. Workspace AUQ (single question — workspace decision) fires only when ambiguous. Inline modifier overrides (`worktree` / `no-worktree` / `current-branch` / `new-branch`) win deterministically. On a compaction-resume, the saved workspace and depth choices are re-applied without re-asking; on a fresh Round 2+ re-run only the workspace location is re-applied (anti-relocation) while depth and re-review scope are re-asked. The recorded workspace location is honored exactly (re-ask only if it no longer applies), so an already-approved workspace is never silently relocated. /geniro:review never mutates workflow tracker status — that is `/geniro:plan` and `/geniro:implement` territory; /geniro:review reads tracker context only (see item 5). Fires BEFORE all subsequent items so they operate on the correct working tree. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §0.
+2. **Input parsing** — resolve the review-target shape from `$ARGUMENTS` (empty / branch name / file paths / diff range / PR ref). A PR ref additionally drives the thread-state + existing-review fetch in item 4. /geniro:review always produces a review of the target — it does not process reviewer comments left on your own PR.
+3. **Scope resolution** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Resolve the review target only from explicit PR-ref forms; running `gh pr list` to invent a target reviews a PR the user never asked about. When the review scopes to fewer files than the PR shows (commonly a stacked PR, base ≠ default branch), the excluded files are surfaced as a Scope-exclusion note (which ancestor PR owns them + its findings) so "reviewed upstream" is never mistaken for "missed" — full contract `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1. A target sanity gate closes this step: an unresolvable ref or an empty resolved diff aborts with a plain-English report before any reviewer spawns — failing inside the parallel batch wastes it and invites findings against nothing (triage reference §2).
+4. **PR-ref parsing** — `gh pr diff` + `gh pr view --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels`. From the thread-state fetch (`reviewThreads[]` per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1), persist every `isResolved == true` thread's `path:line` to state.md frontmatter `resolved-threads-snapshot:` so the Phase 6 Post drill's §7.1 already-on-PR dedup can exclude findings overlapping existing PR comments. Leave `resolved-threads-snapshot: null` when no PR ref or the fetch fails (§7.1 treats absence as "no dedup"). Also fetch the existing PR review surface per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1.1 — both the formal-review summaries (CHANGES_REQUESTED / COMMENTED, human + bot) and inline review-bot comment bodies (CodeRabbit and other `[bot]` reviewers) — persist to `pr-formal-reviews-snapshot:` + `pr-bot-comments-snapshot:`, and feed both to reviewers as prior-context (§2.3).
+5. **Workflow integrations** — workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A); glob both `./.geniro/workflow/*.md` (cwd-local — uncommitted local edits win) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback). Read them, apply tracker-ID regex against `$ARGUMENTS` + `pr.title` + `pr.body`, AND when a spec.md is resolvable (via `--plan <path>`, `geniro-plan:` PR-body line, walk-up `.geniro/planning/*/spec.md`, or canonical project paths) parse its frontmatter `workflow_refs[]` and merge it with the tracker refs found in `$ARGUMENTS` and the PR body — accepted schema versions and the merge precedence are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §Spec metadata contract (the `$ARGUMENTS` reference wins on conflict because the user just typed it — the fresher signal). On Linear match with MCP available: fetch issue (+ parent epic + sibling sub-tasks). Build `LINEAR CONTEXT:` block. Persist `linear-task-ref:` + `linear-parent-ref:` to state.md frontmatter, derived from the deduplicated merged list. Read-only — /geniro:review never mutates tracker state via MCP. Fail-open if MCP unavailable.
+6. **Peer-PR scout** (PR-ref only) — sibling PRs scored by file overlap + Linear-relatedness bonus (parent-epic / sibling-sub-task matches), capped + ranked per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`; inlined into reviewer prompts (architecture + design + bugs + conventions + optimizations + spec-compliance + regressions).
+7. **Load custom instructions** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` (MODE: initial-load; scope = `review` + `global` + `code-style` — pipeline tier, 3 files).
+8. **Round-N counter** — increments; fires the round-≥3 escalation AUQ first, then (on Continue) on a round ≥2 fresh re-run the re-review gate (scope: whole PR vs only changes since last review, + depth) — always asked, never auto-decided. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7.
+9. **PLAN CONTEXT load (schema-aware).** Detection per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` Structured-section parser when `geniro_kind: design-doc` frontmatter present; prose fallback otherwise.
+10. **Risk-tier stratification** via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` 9 hard-escalation signals. Sets `risk-tier: standard | high`. Adjusts 4 downstream knobs (severity threshold / validator budget / spec-compliance default / mechanical secret-scan strict mode).
+11. **Memory layer load:** `load-semantic` MODE:refresh + `query-learnings` (top-K, K=5 default; when `memory.md` declares a `## Memory Backend` block routing `learnings`, /geniro:review's own tools can't reach the backend read tool, so it delegates that read to a scoped `knowledge-retrieval-agent` spawn — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3 and uses the returned report in place of the file query, which is empty under `mode: replace`; no block → the inline file query runs unchanged) + `resolve-conflicts`.
+12. **Size triage** — classify files Trivial / Substantive when diff >8 files or >400 LOC. Controls each reviewer's payload shape: Standard (diff as-is) vs Batched (grouped reading order — never extra spawns). Runs before the depth question so the reviewer count is known at ask time.
+13. **Mode AUQ** — review depth (Standard / Deep). Fires on a user-invoked run unless `--deep` is in `$ARGUMENTS`, the §7 re-review gate already asked depth this run, or a compaction-resume inherits it — a fresh re-run always re-asks depth (never inherits a prior completed run's pick). Persist the pick → frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`. Full chooser shape + deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §11 + `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
+
+Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, plus `deep-mode` (from the Mode AUQ pick or `--deep` parse) when that step ran; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
+
+Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr diff` / `gh pr view` / `mcp__linear__*` reads). For codebase-research side queries inside this phase (e.g., locating a pattern across the wider repo when scoring peer-PR overlap), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+
+---
+
+## Phase 1.5 — Mechanical pre-pass
+
+State.md `phase: mechanical-prepass`.
+
+Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first; LLM-spawn second with pre-pass findings as prior-context. Sequential, not parallel — LLM agents seeing prior mechanical findings produce better-targeted output.
+
+**Each check is must-attempt and lands one of two recorded outcomes** — findings written (Check 1/2 to the finding list, Check 3 tagged CRITICAL), OR a fail-open `## Errors mechanical-prepass-<id>: <reason>` entry. There is no silent third outcome — skipping a check entirely (e.g. running neither lint nor `tsc` on a TS-dominated diff) is the failure this contract closes; a check that does not apply (no lint config, no schema files) still records its outcome as a `## Errors` skip entry so the §4.0 gate can confirm it was reached. Declare the attempted set in state.md frontmatter (§1.5.7) before exiting this phase, mirroring §2.2's spawn-declaration pattern.
+
+### 1.5.1 Check 1 — Lint
+
+Probe project for existing lint config: `eslint.config.{js,mjs,cjs,ts}`, `.eslintrc*`, `pyproject.toml [tool.ruff|black|pylint]`, `Cargo.toml [lints]`, `.rubocop.yml`, etc.
+
+If detected, run the project's own lint command (`pnpm lint`, `npm run lint`, `cargo clippy`, `bundle exec rubocop`) with `--quiet` or equivalent. Capture failures as `{tool, file, line, rule, message}` tuples.
+
+### 1.5.2 Check 2 — Schema
+
+Heuristic: if changed files include TypeScript (`*.ts`, `*.tsx`), run `pnpm tsc --noEmit`. JSON schema (`*.schema.json`, `*.openapi.{json,yaml}`) — probe for `ajv` if present. Protobuf — `buf lint` for `.proto` changes. Capture failures.
+
+### 1.5.3 Check 3 — Secret scan
+
+Regex pass against changed-file content:
+
+- `AKIA[0-9A-Z]{16}` (AWS access keys)
+- `sk-[a-zA-Z0-9]{32,}` (OpenAI-style keys)
+- `-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----` (PEM markers)
+- `ghp_[a-zA-Z0-9]{36}` (GitHub personal tokens)
+
+**Risk-tier:high strict mode** adds:
+- `(?:AWS|GCP|AZURE)_(?:SECRET|ACCESS)_KEY=`
+- GCP service-account JSON markers (`"type": "service_account"`)
+- Azure SAS tokens (`?si=.+&sig=`)
+- SSH OPENSSH key patterns
+
+Findings tagged `severity: CRITICAL` (secrets are always critical).
+
+### 1.5.4 Custom-reviewer discovery
+
+**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash before invoking the helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
+
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to enumerate user-authored review dimensions in `.geniro/instructions/review-extra/<slug>.md`. The helper applies its `paths:` filter against the changed-files list, enforces the ≤10 cap, and returns spawn-specs: `{slug, dimension-label: custom:<slug>, model, criteria-content, severity-default, source-path}`.
+
+Persist the result to state.md frontmatter `custom_reviewers[]`:
+
+```yaml
+custom_reviewers:
+  - slug: manifest-incident-patterns
+    paths_matched: true               # whether the spec's `paths:` matched any changed file (`true` when no paths filter declared — always-fires)
+    model: inherit                    # frontmatter value, or `inherit` when OMITTED in the spec
+    source_path: .geniro/instructions/review-extra/manifest-incident-patterns.md
+    severity_default: HIGH
+```
+
+Phase 2 reads `custom_reviewers[]` from frontmatter — zero discovery work at Phase 2 entry (discovery lives here because Phase 1.5 already has Bash tooling primed, keeping the cognitively heavy Phase 2 spawn assembly free of it).
+
+On helper hard-cap error (>10 custom reviewers), surface the error to chat, persist `custom_reviewers: []`, and let Phase 2 fire only the built-ins. A helper batch-size *warning* is advice to the user about how many custom reviewers to keep — it never trims the batch: the §2.1 always-fire rows fire on every run regardless of how many custom reviewers discovery returned.
+
+### 1.5.5 Output handling
+
+Mechanical findings tagged `origin: mechanical:<check_id>`. Routed two ways:
+
+1. **To Phase 2 LLM reviewers as prior-context** — pasted into spawn prompts under a `## Mechanical Pre-pass Findings` section. LLM agents use those as starting points (avoid duplicating; extend with semantic understanding).
+2. **To Phase 5 persist** — included in the state.md finding list with the mechanical tag preserved.
+
+### 1.5.6 Fail-handling
+
+Each check records exactly one outcome — findings, or a `## Errors` entry. Continue to Phase 2 either way (fail-open, consistent with `gh` fail-open):
+
+- **Check failed** (process exit nonzero with no output OR command not found): write `## Errors mechanical-prepass-<check_id>: command_unavailable_or_failed`.
+- **Check not applicable** (no lint config detected for `lint`; no TS / schema / proto files in the diff for `schema`): write `## Errors mechanical-prepass-<check_id>: not_applicable` so the check still has a recorded outcome — a skip with no record is indistinguishable from never reaching the check, which is what the §4.0 declaration gate detects.
+
+Secret scan is a pure-regex pass — it cannot fail or be not-applicable, so its outcome is always its finding set (possibly empty).
+
+### 1.5.7 Pre-pass declaration (state.md write before Phase 2)
+
+Before leaving Phase 1.5, declare the attempted check set in state.md frontmatter via `atomic_state_write`, mirroring §2.2's spawn-declaration pattern:
+
+```yaml
+# frontmatter update
+mechanical_prepass_attempted: [lint, schema, secret]
+```
+
+The list names every check that ran to an outcome (findings or a `## Errors` entry). This is the observability surface the Phase 4 §4.0 verification gate asserts against — a missing declaration, or a listed check with no corresponding outcome (no findings and no `## Errors mechanical-prepass-<id>` entry), is a pre-pass contract miss the gate surfaces.
+
+---

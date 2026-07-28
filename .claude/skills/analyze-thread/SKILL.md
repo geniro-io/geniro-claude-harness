@@ -14,6 +14,8 @@ You are the orchestrator for analyzing a saved Claude conversation thread and su
 **Input:** one thread file path, a thread count, or nothing — an empty argument analyzes the last 3 work-bearing threads across every project (§Phase 1 Step 1).
 **Output:** a markdown findings report + (on user approval) a handoff at `.geniro/state/handoff/from-analyze-thread-<branch>.md` that `/improve-template` consumes.
 
+**After a compaction:** only this file's first ~5,000 tokens survive the summary — the spine (through §Definition of Done) is re-attached, the phase sections below it are not. Re-invoke `/analyze-thread` with the same argument before continuing; the §State Persistence checkpoint makes that a resume at the last completed phase, not a re-run.
+
 ---
 
 ## Phases
@@ -65,12 +67,32 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 
 1. **Read-only on the analyzed source.** The thread file and any project files it references are never mutated by this skill. Mutating skills are `/improve-template` (template fixes) and `/geniro:implement` (consumer-code fixes) — both consume the handoff this skill emits.
 2. **Mechanical before judged.** Phase 2 runs mechanical checks first because they are cheap, deterministic, and high-precision; the LLM-judge pass is then seeded with mechanical results so it does not re-discover them.
-3. **One LLM-judge spawn per thread, all spawned in ONE assistant response.** A single judge sees one thread's excerpts plus that thread's seeded mechanical findings — splitting into per-check spawns multiplies cost without improving signal (MAST showed one o1 pass at 94% accuracy / κ=0.77). In a batch, issue every thread's judge call in the same assistant turn, NOT one per turn — separate turns serialize the run and multiply wall-clock by the thread count.
+3. **One LLM-judge spawn per thread, all spawned in ONE assistant response, each carrying the taxonomy inline.** A single judge sees one thread's excerpts plus that thread's seeded mechanical findings — splitting into per-check spawns multiplies cost without improving signal (MAST showed one o1 pass at 94% accuracy / κ=0.77). In a batch, issue every thread's judge call in the same assistant turn, NOT one per turn — separate turns serialize the run and multiply wall-clock by the thread count. **This is the single rule for how the taxonomy reaches the judge:** the judge is a spawned subagent that shares none of your context and cannot be assumed to resolve `${CLAUDE_PLUGIN_ROOT}` inside its own run, so the taxonomy travels as inlined text — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run — never as a bare path it may fail to open, which would leave it judging against nothing and say so nowhere. Inline the short form only: §§1-3 detection logic, §5, §6 and §7 are orchestrator-side and would blow the 8 K seed budget.
 4. **A defect in N threads is one finding, not N.** Phase 3 merges the same check firing on the same root cause across threads into a single finding whose recurrence count is evidence of severity, not a duplicate to discard. Recurrence is the batch's whole point: one thread cannot distinguish an instruction the model happened to skip once from an instruction it skips systematically.
 5. **Never analyze this session's own log.** Its trace has no conclusion to judge, and analyzing the run that is doing the analyzing yields findings about the analysis in progress. Identify it by session id, not by timestamp (§Phase 1 Step 1) — other sessions touch their logs while merely sitting open, so an age cutoff drops finished threads and still misses nothing this rule does not already catch.
 6. **Filter before user.** Phase 3 drops REDUNDANT and FALSE-POSITIVE findings BEFORE the Phase 4 presentation. The user sees only TRUE-POSITIVE + UNCERTAIN. Filtered items appear in a separate "Filtered" section for transparency.
 7. **Per-finding AUQ for UNCERTAIN, batch AUQ for confidence-high.** Mechanical-detected with high confidence go into the default-approve bucket the user can deselect; LLM-judged with low/medium confidence each get their own AUQ.
 8. **No silent auto-default.** Empty AUQ answers indicate an upstream tool bug and must be re-asked — never auto-default to "skip".
+
+---
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I'll skip Phase 1 Step 4 metadata extraction — the user said the thread is a Geniro run" | Phase 1 Step 4 detects WHICH skill ran, not WHETHER one ran. Plugin-specific checks reference skill-name-tagged anti-rationalization tables; without the skill identity, those checks misfire on every run. |
+| "I'll batch all uncertain findings into one multiSelect AUQ to save user clicks" | Per-finding AUQ is what the user explicitly requested — they want to see evidence per finding and decide individually. MultiSelect collapses the evidence-review step, which is the point of UNCERTAIN. |
+| "The thread is small — skip the parse step, just regex the markdown" | Phase 1's normalized events list is the substrate for Phase 2's mechanical checks. Skipping parse means every check turns into a bespoke regex and the false-positive rate explodes (memory: "mechanical pre-pass" is high-precision precisely because it operates on structured events). |
+| "I'll spawn one judge per check instead of one judge for all judged checks" | MAST showed one o1 pass over the full thread + seeded taxonomy achieves 94% accuracy. Per-check spawns multiply token cost N times with no signal gain, and the judges can't cross-reference findings. |
+| "The LLM-judge already produced findings — skip the mechanical pre-pass" | Mechanical checks are deterministic and catch what the judge will miss (schema validation, retry-loop window matching, identical-prompt over-spawn). The judge needs mechanical results as context to avoid re-discovering them. |
+| "Findings_raw is 80, but they look real — present them all" | The 60-cap is a parser-sanity tripwire, not a UX preference. 80 raw findings on one thread means either the events list is malformed (Phase 1 bug) or every check is firing (taxonomy bug). Halt and have the user re-verify input. |
+| "The user said 'analyze this thread', they obviously want fixes too — I'll edit the source files directly" | Read-only is invariant #1. This skill detects; `/improve-template` fixes. Cross-skill responsibility separation is documented in CLAUDE.md `## Skill routing` — collapsing it makes the analyzer a refactorer, breaking the user's mental model. |
+| "I already know what's in `checks-reference.md` from training data — don't bother reading it" | The reference file is the source of truth; it can be edited by the user between runs. Loading it at Phase 2 entry ensures the detection logic matches the current taxonomy, not a stale snapshot. |
+| "Empty AUQ answer = user wants to skip" | Per `feedback_canonical_rules.md` and the universal AUQ rule: empty answers indicate an upstream tool bug. Re-ask. Never auto-default. |
+| "I'll give the judge the path to `checks-reference.md` instead of inlining it — saves the seed tokens" | Invariant #3 is the rule: short-form taxonomy inline. A spawned subagent shares none of your context and may not resolve `${CLAUDE_PLUGIN_ROOT}`; a path it cannot open produces a judge that reports findings against no taxonomy and never signals the degradation. Trim by leaving out the orchestrator-side sections, not by replacing the text with a path. |
+| "No argument given — I'll ask the user which thread they meant" | Every input shape resolves without a question (Phase 1 Step 1): empty means the last 3 work-bearing threads. Asking re-imposes the browse-and-paste step the batch default exists to remove, and the user who typed no argument has already told you what they want. |
+| "The newest log is the freshest data — analyze it first" | The newest log is this session's own (invariant #5): every finding it yields describes the analysis in progress rather than past work. Exclude it by session id. Do not generalize that into an age cutoff — idle open tabs touch their logs constantly, so a timestamp filter drops finished threads while adding nothing. |
+| "Three threads flagged the same check — that's the same finding twice, drop the duplicates" | Within one thread, yes. Across threads it is the strongest signal the batch produces: a defect reproduced in independent runs is systematic, not incidental. Merge into one finding carrying its recurrence count (invariant #4); dropping the extra occurrences discards exactly the evidence that justifies the fix. |
 
 ---
 
@@ -81,7 +103,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 | Threads per batch | default 3; hard cap 5 | Each thread costs its own judge spawn and its own mechanical pass. Past 5 the merged report outgrows the per-finding AUQ ladder and the wall-clock stops being worth the added recurrence signal. A count above the cap is clamped, with the clamp stated to the user |
 | Thread file size | hard cap 5 MB; warn at 1 MB | JSONL session logs can grow large; >5 MB likely a merged multi-session log that should be split first. In a batch, an oversize thread is skipped and named in the report rather than aborting the run |
 | Mechanical-check wall-clock | 30 s ceiling per thread | All Phase 2 mechanical checks are grep/jq one-liners; 30 s means the parse step produced a malformed events list — halt and report |
-| LLM-judge token budget | seed prompt ≤ 8 K tokens, thread excerpts ≤ 60 K tokens | Per thread, and each judge has its own context, so a batch does not share this budget. Excerpts are sliced to the top-3 most-suspicious sections per check, not the full thread, to fit the 200 K context with headroom |
+| LLM-judge token budget | seed prompt ≤ 8 K tokens, thread excerpts ≤ 60 K tokens | The seed is the inlined short-form taxonomy plus that thread's mechanical findings (invariant #3). Per thread, and each judge has its own context, so a batch does not share this budget. Excerpts are sliced to the top-3 most-suspicious sections per check, not the full thread, to fit the 200 K context with headroom |
 | Findings raw cap | 60 per thread | More than 60 raw findings on one thread = the parser misclassified the format; halt and ask user to re-check input. Applies per thread, not to the batch total |
 | Findings kept cap | 25 surfaced to user | Counted AFTER the Phase 3 cross-thread merge, so a defect recurring in 3 threads consumes one slot. Past 25 the AUQ ladder becomes unworkable; if more survive, sort by recurrence × severity × confidence and truncate, noting the tail count |
 
@@ -97,6 +119,27 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 | 4 Present | AskUserQuestion, Write | AUQ for the per-finding gates and the final handoff AUQ; Write for the T2 handoff file (via atomic-write helper) |
 
 Glob is permitted across phases for state-file lookup and helper resolution but is not the workhorse tool.
+
+---
+
+## Definition of Done
+
+- [ ] Phase 1 Step 1: thread set resolved from `$ARGUMENTS` with no question asked; batch mode excluded this session's own log by id and skipped oversize logs, naming the skips; count clamped to 5; resolved set echoed to the user
+- [ ] Phase 1: per thread — format detected, events list normalized, geniro-run flag set, metadata extracted
+- [ ] Phase 1 checkpoint written via `atomic_state_write`, recording the resolved set
+- [ ] Phase 2 mechanical checks all run per thread (per `checks-reference.md` §§1-3 — Mechanical checks A/B/C-class)
+- [ ] Phase 2 LLM-judge: one Agent call per thread, all issued in ONE assistant response, OMITted `model=`, short-form taxonomy inlined per invariant #3 alongside that thread's mechanical results and excerpts; any judge that returned nothing usable is noted as a mechanical-only thread
+- [ ] Phase 2 checkpoint written; every finding carries its `thread_id`; per-thread findings_raw under the 60-cap
+- [ ] Phase 3 Step 1: cross-thread merge applied; recurring defects collapsed to one finding with `threads: [...]`; recurrence raised confidence but never severity
+- [ ] Phase 3 Step 2: each finding tagged TRUE-POSITIVE / UNCERTAIN / REDUNDANT / FALSE-POSITIVE
+- [ ] Phase 3 checkpoint written; post-merge findings_kept under the 25-cap (or truncated with tail note)
+- [ ] Phase 4 Step 1: findings table printed with the Analyzed/Skipped thread list and Confirmed / Uncertain / Filtered sections
+- [ ] Phase 4 Step 2: per-finding AUQ fired for each UNCERTAIN; sequential, not batched
+- [ ] Phase 4 Step 3: final handoff-routing AUQ fired
+- [ ] Phase 4 Step 4: handoff file written via `atomic_state_write` if user chose to emit
+- [ ] Phase 4 Step 5: `/improve-template` invoked if user chose "launch now"
+- [ ] Phase 4 Step 6: state-<slug>.md cleaned up per helper § Cleanup contract
+- [ ] No mutations to the analyzed thread file or any project file outside `.geniro/state/` and `.geniro/state/handoff/`
 
 ---
 
@@ -197,7 +240,7 @@ Each mechanical hit produces a draft finding: `{thread_id, check_id, category, s
 ### Step 2: Spawn the LLM-judge
 
 ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). Pre-inline, per spawn:
-- The full canonical taxonomy from `checks-reference.md` (the check tables — short form).
+- The short-form taxonomy per invariant #3 — `checks-reference.md` §4 in full plus one line per mechanical check ID, as text in the prompt, never as a path.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
 - The top-3 most-suspicious thread excerpts per `[J]` check, sliced to keep total excerpts ≤ 60 K tokens. Suspicion ranking heuristic: events near mechanical-finding clusters, events near `AskUserQuestion` calls, events near phase-boundary narration ("Phase 3:", "shipping", "review").
 
@@ -211,7 +254,7 @@ only detect and report. The mechanical pre-pass has already found some issues;
 build on those, don't re-discover them.
 
 ### Canonical taxonomy ([M] / [J] / scope tags)
-{{taxonomy from checks-reference.md}}
+{{checks-reference.md §4 table verbatim + one line per mechanical check ID}}
 
 ### Mechanical findings already detected
 {{mechanical findings from Step 1, as a table}}
@@ -416,47 +459,6 @@ On invocation:
 4. On clean start: print "Analyzing <basename> — phase 1 of 4", or "Analyzing <N> threads — phase 1 of 4", and proceed.
 
 On resume from a checkpoint: skip completed phases, print "Resuming at phase N of 4", continue.
-
----
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "I'll skip Phase 1 Step 4 metadata extraction — the user said the thread is a Geniro run" | Phase 1 Step 4 detects WHICH skill ran, not WHETHER one ran. Plugin-specific checks reference skill-name-tagged anti-rationalization tables; without the skill identity, those checks misfire on every run. |
-| "I'll batch all uncertain findings into one multiSelect AUQ to save user clicks" | Per-finding AUQ is what the user explicitly requested — they want to see evidence per finding and decide individually. MultiSelect collapses the evidence-review step, which is the point of UNCERTAIN. |
-| "The thread is small — skip the parse step, just regex the markdown" | Phase 1's normalized events list is the substrate for Phase 2's mechanical checks. Skipping parse means every check turns into a bespoke regex and the false-positive rate explodes (memory: "mechanical pre-pass" is high-precision precisely because it operates on structured events). |
-| "I'll spawn one judge per check instead of one judge for all judged checks" | MAST showed one o1 pass over the full thread + seeded taxonomy achieves 94% accuracy. Per-check spawns multiply token cost N times with no signal gain, and the judges can't cross-reference findings. |
-| "The LLM-judge already produced findings — skip the mechanical pre-pass" | Mechanical checks are deterministic and catch what the judge will miss (schema validation, retry-loop window matching, identical-prompt over-spawn). The judge needs mechanical results as context to avoid re-discovering them. |
-| "Findings_raw is 80, but they look real — present them all" | The 60-cap is a parser-sanity tripwire, not a UX preference. 80 raw findings on one thread means either the events list is malformed (Phase 1 bug) or every check is firing (taxonomy bug). Halt and have the user re-verify input. |
-| "The user said 'analyze this thread', they obviously want fixes too — I'll edit the source files directly" | Read-only is invariant #1. This skill detects; `/improve-template` fixes. Cross-skill responsibility separation is documented in CLAUDE.md `## Available Skills` — collapsing it makes the analyzer a refactorer, breaking the user's mental model. |
-| "I already know what's in `checks-reference.md` from training data — don't bother reading it" | The reference file is the source of truth; it can be edited by the user between runs. Loading it at Phase 2 entry ensures the detection logic matches the current taxonomy, not a stale snapshot. |
-| "Empty AUQ answer = user wants to skip" | Per `feedback_canonical_rules.md` and the universal AUQ rule: empty answers indicate an upstream tool bug. Re-ask. Never auto-default. |
-| "I'll inline checks-reference.md into the judge prompt — it's short enough" | Inlining doubles the prompt for every run. Reference the file by path; the judge reads it once at spawn time. The 60 K-token excerpt budget assumes the taxonomy is loaded by reference, not inlined. |
-| "No argument given — I'll ask the user which thread they meant" | Every input shape resolves without a question (Phase 1 Step 1): empty means the last 3 work-bearing threads. Asking re-imposes the browse-and-paste step the batch default exists to remove, and the user who typed no argument has already told you what they want. |
-| "The newest log is the freshest data — analyze it first" | The newest log is this session's own (invariant #5): every finding it yields describes the analysis in progress rather than past work. Exclude it by session id. Do not generalize that into an age cutoff — idle open tabs touch their logs constantly, so a timestamp filter drops finished threads while adding nothing. |
-| "Three threads flagged the same check — that's the same finding twice, drop the duplicates" | Within one thread, yes. Across threads it is the strongest signal the batch produces: a defect reproduced in independent runs is systematic, not incidental. Merge into one finding carrying its recurrence count (invariant #4); dropping the extra occurrences discards exactly the evidence that justifies the fix. |
-
----
-
-## Definition of Done
-
-- [ ] Phase 1 Step 1: thread set resolved from `$ARGUMENTS` with no question asked; batch mode excluded this session's own log by id and skipped oversize logs, naming the skips; count clamped to 5; resolved set echoed to the user
-- [ ] Phase 1: per thread — format detected, events list normalized, geniro-run flag set, metadata extracted
-- [ ] Phase 1 checkpoint written via `atomic_state_write`, recording the resolved set
-- [ ] Phase 2 mechanical checks all run per thread (per `checks-reference.md` §§1-3 — Mechanical checks A/B/C-class)
-- [ ] Phase 2 LLM-judge: one Agent call per thread, all issued in ONE assistant response, OMITted `model=`, taxonomy + that thread's mechanical-results + excerpts pre-inlined; any judge that returned nothing usable is noted as a mechanical-only thread
-- [ ] Phase 2 checkpoint written; every finding carries its `thread_id`; per-thread findings_raw under the 60-cap
-- [ ] Phase 3 Step 1: cross-thread merge applied; recurring defects collapsed to one finding with `threads: [...]`; recurrence raised confidence but never severity
-- [ ] Phase 3 Step 2: each finding tagged TRUE-POSITIVE / UNCERTAIN / REDUNDANT / FALSE-POSITIVE
-- [ ] Phase 3 checkpoint written; post-merge findings_kept under the 25-cap (or truncated with tail note)
-- [ ] Phase 4 Step 1: findings table printed with the Analyzed/Skipped thread list and Confirmed / Uncertain / Filtered sections
-- [ ] Phase 4 Step 2: per-finding AUQ fired for each UNCERTAIN; sequential, not batched
-- [ ] Phase 4 Step 3: final handoff-routing AUQ fired
-- [ ] Phase 4 Step 4: handoff file written via `atomic_state_write` if user chose to emit
-- [ ] Phase 4 Step 5: `/improve-template` invoked if user chose "launch now"
-- [ ] Phase 4 Step 6: state-<slug>.md cleaned up per helper § Cleanup contract
-- [ ] No mutations to the analyzed thread file or any project file outside `.geniro/state/` and `.geniro/state/handoff/`
 
 ---
 

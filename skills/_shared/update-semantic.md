@@ -27,10 +27,8 @@ Exit codes:
 
 ## MODE contract
 
-Write-side helper — **no MODE parameter, compaction-immune.** Each
-invocation is a one-shot file mutation; the helper holds no context-resident
-state across calls. Skill flow decides when to re-invoke after a SessionStart
-event.
+**No MODE parameter, compaction-immune** — each invocation is a one-shot file mutation holding no
+context-resident state, so re-invoking after a SessionStart event is always safe.
 
 ## Constraints
 

@@ -11,9 +11,11 @@
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
 #   ADVISORY (warn only, exit 0 contribution) — guideline checks the maintainer
 #   reads but never auto-trims to satisfy (size targets are guidelines, not limits):
-#     4. SKILL.md word count vs the front-load budget and whole-file guideline.
+#     4. SKILL.md word count vs the front-load budget and whole-file guideline,
+#        across BOTH skill populations (shipped skills/ and internal .claude/skills/).
 #     5. Anti-rationalization tables over the 15-row guideline.
 #     6. Decaying line-number cross-references (file.md:NNN).
+#     7. Normative sentences repeated across 3+ files (say it once, in one place).
 #
 # Portability: pure POSIX-ish bash + BSD/GNU-portable grep (no -P / PCRE).
 # Cyrillic detection uses a byte-class match (UTF-8 lead bytes 0xD0/0xD1) so it
@@ -82,35 +84,53 @@ echo "=== ADVISORY checks (warn only) ==="
 #    The front-load budget is the load-bearing figure — Claude Code re-attaches only
 #    the first 5,000 tokens of a skill after compaction (~3,000 words of table-dense
 #    markdown), so anything past it is absent for the rest of a compacted session.
+#
+#    Measured over BOTH skill populations: skills/ (shipped to users) and
+#    .claude/skills/ (this repo's internal meta-skills — audit-plugin,
+#    improve-template, analyze-thread, find-threads). Claude Code loads and
+#    compacts them identically, so an unmeasured meta-skill silently drops its
+#    own user gates, anti-rationalization table and Definition of Done past the
+#    boundary — exactly the failure the check exists to surface.
 FRONTLOAD_WORDS=3000
 WHOLEFILE_WORDS=5000
-for f in skills/*/SKILL.md; do
-  [ -f "$f" ] || continue
-  n=$(wc -w < "$f" | tr -d ' ')
-  if [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
-    report_warn "$(rel "$f"): $n words (whole-file guideline <=$WHOLEFILE_WORDS)"
-  fi
-  if [ "$n" -gt "$FRONTLOAD_WORDS" ]; then
-    # Name the last H2 that still fits inside the front-load budget, so the warning
-    # says WHICH sections stop being re-attached rather than just that the file is big.
-    cut=$(awk -v lim="$FRONTLOAD_WORDS" '
-      /^## / { last = $0 }
-      { w += NF; if (w > lim && !done) { print last; done = 1 } }
-    ' "$f")
-    [ -n "$cut" ] && report_warn "$(rel "$f"): compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"
-  fi
-done
+check_skill_sizes() {
+  local f n cut
+  for f in "$@"; do
+    [ -f "$f" ] || continue
+    n=$(wc -w < "$f" | tr -d ' ')
+    if [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
+      report_warn "$(rel "$f"): $n words (whole-file guideline <=$WHOLEFILE_WORDS)"
+    fi
+    if [ "$n" -gt "$FRONTLOAD_WORDS" ]; then
+      # Name the last H2 that still fits inside the front-load budget, so the warning
+      # says WHICH sections stop being re-attached rather than just that the file is big.
+      cut=$(awk -v lim="$FRONTLOAD_WORDS" '
+        /^## / { last = $0 }
+        { w += NF; if (w > lim && !done) { print last; done = 1 } }
+      ' "$f")
+      [ -n "$cut" ] && report_warn "$(rel "$f"): compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"
+    fi
+  done
+}
+check_skill_sizes skills/*/SKILL.md .claude/skills/*/SKILL.md
 
 # Corpus shape, not per-file compliance: a median that creeps up is the signal to
 # act on, and one oversize skill among lean ones is a different problem from all of
 # them drifting together. INFO, not a warning — it never needs "fixing" on its own.
-skill_words=$(for f in skills/*/SKILL.md; do [ -f "$f" ] && wc -w < "$f"; done | tr -d ' ')
-if [ -n "$skill_words" ]; then
-  echo "INFO: SKILL.md word counts — $(printf '%s\n' "$skill_words" | sort -n | awk -v lim="$FRONTLOAD_WORDS" '
+# Reported per population: the two have different sizes and different owners, so a
+# single merged median would hide a drift in either one.
+corpus_info() {
+  local label="$1"; shift
+  local f words
+  words=$(for f in "$@"; do [ -f "$f" ] && wc -w < "$f"; done | tr -d ' ')
+  [ -n "$words" ] || return 0
+  echo "INFO: $label word counts — $(printf '%s\n' "$words" | sort -n | awk -v lim="$FRONTLOAD_WORDS" '
     {a[NR]=$1; if ($1 > lim) over++}
     END {printf "median %d, range %d-%d, %d of %d over the ~%d-word front-load budget",
          (NR%2 ? a[(NR+1)/2] : int((a[NR/2]+a[NR/2+1])/2)), a[1], a[NR], over+0, NR, lim}')"
-fi
+}
+corpus_info "skills/*/SKILL.md (shipped)" skills/*/SKILL.md
+corpus_info ".claude/skills/*/SKILL.md (internal meta-skills)" .claude/skills/*/SKILL.md
 
 # 5. Anti-rationalization tables over the 15-row guideline.
 for f in skills/*/SKILL.md; do
@@ -129,6 +149,86 @@ linerefs=$(grep -rnoE '[A-Za-z0-9_-]+\.md:[0-9]+' skills 2>/dev/null || true)
 if [ -n "$linerefs" ]; then
   count=$(printf '%s\n' "$linerefs" | grep -c . || true)
   report_warn "found $count line-number cross-reference(s) (file.md:NNN) in skills/ — prefer content anchors"
+fi
+
+# 7. The same normative sentence in 3+ files — the mechanical form of "say it
+#    once, in the right place". Redundancy across layers costs context budget
+#    twice and, when the copies drift apart, forces the model to deliberate over
+#    which one governs instead of acting. A cross-reference to the canonical file
+#    is the fix; a second copy is the defect.
+#    Advisory and deliberately blunt: it cannot tell a deliberate restatement at
+#    a load-bearing seam from an accidental copy-paste, so it reports and the
+#    maintainer judges. One WARN carries the whole cluster set (a WARN per
+#    cluster would drown the per-file warnings above), with the top offenders
+#    listed by how many files carry them.
+dup_files="$(mktemp)"
+dup_hits="$(mktemp)"
+trap 'rm -f "$dup_files" "$dup_hits"' EXIT
+find skills agents .claude/skills -type f -name '*.md' 2>/dev/null | LC_ALL=C sort > "$dup_files"
+
+# awk reads the file LIST as its input and getline-s each path, so no shell
+# word-splitting of a 100+ entry argv and no mapfile/readarray (bash 3.2).
+# Sentence split is on ". " / "! " / "? " only — never a bare "." — so file.md
+# and v1.2 stay intact. Table cell walls become sentence breaks because in this
+# corpus a rule is as often a table cell as a paragraph. Fenced code is skipped.
+LC_ALL=C awk '
+  function norm(s,   t) {
+    gsub(/`/, "", s); gsub(/\*\*/, "", s)
+    t = tolower(s)
+    gsub(/[ \t]+/, " ", t); sub(/^ +/, "", t); sub(/ +$/, "", t)
+    return t
+  }
+  # Normative force, not boilerplate: punctuation is flattened to spaces first so
+  # the keyword test is whole-word (else "per" matches inside "paper") and so both
+  # the straight and curly apostrophe in do-not contractions land on " don t ".
+  function normative(t,   p) {
+    p = " " t " "
+    gsub(/[^a-z0-9]/, " ", p)
+    gsub(/  +/, " ", p)
+    return (p ~ / (never|always|must|only|via|per) / || p ~ / do not / || p ~ / don t /)
+  }
+  {
+    path = $0; fence = 0
+    while ((getline line < path) > 0) {
+      if (line ~ /^[ \t]*```/) { fence = 1 - fence; continue }
+      if (fence) continue
+      sub(/^[ \t]*#+[ \t]*/, "", line)          # heading marker
+      sub(/^[ \t]*>[ \t]*/, "", line)           # block quote
+      sub(/^[ \t]*[-*+][ \t]+/, "", line)       # bullet
+      sub(/^[ \t]*[0-9]+\.[ \t]+/, "", line)    # ordered list
+      gsub(/\|/, ". ", line)                    # table cell wall -> sentence break
+      s = line " "
+      gsub(/[.!?] +/, "@@S@@", s)
+      n = split(s, part, "@@S@@")
+      for (i = 1; i <= n; i++) {
+        t = norm(part[i])
+        if (length(t) < 40) continue            # too short to be a real rule
+        if (!normative(t)) continue
+        if ((t SUBSEP path) in seen) continue   # count FILES, not occurrences
+        seen[t SUBSEP path] = 1
+        cnt[t]++
+        flist[t] = (t in flist) ? flist[t] ", " path : path
+      }
+    }
+    close(path)
+  }
+  END { for (k in cnt) if (cnt[k] >= 3) printf "%d\t%s\t%s\n", cnt[k], k, flist[k] }
+' "$dup_files" > "$dup_hits"
+
+dup_total=$(awk 'END {print NR + 0}' "$dup_hits")
+if [ "$dup_total" -gt 0 ]; then
+  report_warn "$dup_total normative sentence(s) repeated across 3+ files — say it once in the canonical file and cross-reference it. Top 10 by file count:"
+  LC_ALL=C sort -rn "$dup_hits" | head -10 | awk -F'\t' '
+    {
+      txt = $2
+      if (length(txt) > 100) { txt = substr(txt, 1, 100); sub(/[^ ]*$/, "", txt); txt = txt "..." }
+      n = split($3, fs, ", "); l = ""
+      for (i = 1; i <= n && i <= 4; i++) l = l (i > 1 ? ", " : "") fs[i]
+      if (n > 4) l = l ", +" (n - 4) " more"
+      printf "        %dx  \"%s\"\n             %s\n", $1, txt, l
+    }'
+else
+  echo "OK: no normative sentence repeated across 3+ files"
 fi
 
 echo

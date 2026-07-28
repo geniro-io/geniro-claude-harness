@@ -32,11 +32,9 @@ The `record_access` function has its own exit-code table in the §`record_access
 
 ## MODE contract
 
-Request/response helper — **no MODE parameter, compaction-immune.** Each
-call is a fresh query against the on-disk L2 log; the helper holds no
-context-resident state across calls. Skill flow decides when to re-query
-after a SessionStart event (e.g., `/geniro:debug` Phase 2 may re-query after
-resume if its hypothesis thread depends on prior findings).
+**No MODE parameter, compaction-immune** — every call is a fresh query against the on-disk L2 log,
+so re-querying after a SessionStart event is always safe (`/geniro:debug` Phase 2 does exactly that
+when its hypothesis thread depends on prior findings).
 
 ## Flags
 

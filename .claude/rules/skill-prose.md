@@ -91,10 +91,25 @@ Two consequences an author has to design around:
 - **A skill invoked early in a busy session can be dropped in full.** The budget fills from the most recent invocation backwards.
 
 Placement rules for a SKILL.md:
-- **Top (inside the first ~5,000 tokens):** role statement, phases overview, loop invariants, budgets, the tool surface, and the anti-rationalization table. These are the rules the model checks every turn and the ones that must survive a summary.
+- **Top (inside the first ~5,000 tokens):** role statement, phases overview, loop invariants, budgets, the tool surface, the cross-skill contract vocabulary, and the anti-rationalization table. These are the rules the model checks every turn and the ones that must survive a summary.
 - **Below that:** per-phase Steps with detail, the REFERENCE list, state recovery. Refer to these by name from the invariants at the top so the model jumps to a phase rather than scanning for it.
 
-If a critical invariant lives past the boundary, move it into the Loop invariants section and cite it by `#N` from the phase that needs it. Where a skill genuinely cannot fit its load-bearing rules in 5,000 tokens, the remedy is re-invoking it after compaction, which the same doc recommends.
+If a critical invariant lives past the boundary, move it into the Loop invariants section and cite it by `#N` from the phase that needs it.
+
+**When the top list alone exceeds the budget, split the file — don't ration it.** The placement rules above are a priority order, not a packing problem to solve inside one file. A multi-phase skill whose spine already fills 5,000 tokens has no room left for the procedure, and rationing produces the worst possible outcome: the model keeps every rule about how to behave and loses the work itself. Per Anthropic's [context-engineering guidance for Claude 5 models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models), the remedy is *"a tree of files that can be loaded at the right time"* — a spine that fits the re-attach budget, plus one file per phase that the skill Reads on entry to that phase.
+
+What belongs in each half:
+
+| Spine (survives compaction) | Phase file (read on phase entry) |
+|---|---|
+| Role, phase order, state machine, terminal states | The Steps of that phase |
+| Loop invariants and the anti-rationalization table | Per-step detail, slot tables, output templates |
+| Contract vocabulary other skills grep for (handoff field names, schema version tokens) | The procedure that produces those fields |
+| A one-line "at phase N entry, Read `<skill>/phase-N-<name>.md`" | — |
+
+Keep the `## PHASE N` heading in the spine above its pointer. External files cite phases as `<skill>/SKILL.md §Phase N`, and the heading keeps those citations resolving.
+
+Prefer this over re-invoking the skill after compaction: re-invocation re-pays the whole file to recover one phase, and depends on the model noticing it should. A phase Read is proportional and happens through control flow that already exists. Keep a re-invoke note only for skills small enough that no split is warranted.
 
 **What this rule is not founded on.** The usual citation is [Liu et al. 2024](https://aclanthology.org/2024.tacl-1.9/)'s U-shaped "lost in the middle" attention curve. Chroma's 2025 replication across current frontier models found no notable position effect on retrieval, so do not move content on the theory that the middle of a file is unreadable. Move it because the tail may not be re-attached.
 

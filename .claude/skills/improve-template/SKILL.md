@@ -13,6 +13,9 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 
 **Template path:** (repo root — skills/, agents/, hooks/, lib/, scripts/, cursor/)
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
+**Authoring rules:** `.claude/rules/skill-structure.md` (file-size limits, section ordering, reference graph) and `.claude/rules/skill-prose.md` (voice, rule placement) govern every skill / agent file this pipeline writes. §File-size limits is the single source for the word budgets, what counts as overflow, and the never-trim-load-bearing-content clause — cite that section everywhere, never restate its numbers, and give subagents the repo-relative path plus an explicit instruction to read it before editing.
+
+**After a compaction:** only this file's first ~5,000 tokens survive the summary — the spine (through §Definition of Done) is re-attached, the phase sections below it are not. Re-invoke `/improve-template` with the same argument before continuing; the §State Persistence checkpoint makes that a resume at the last completed phase, not a re-run.
 
 ## Subagent Model Tiering
 
@@ -103,6 +106,47 @@ For obvious bug fixes. The user already showed what's broken.
 4. If approved: apply the fix (directly if 1-2 lines, subagent if more)
 5. Spawn a fresh review agent (Phase 5 Step 1) to verify
 6. Skip to Phase 6
+
+---
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I'll implement this multi-file change directly" | Changes touching 3+ files or any logic go through implementation subagents. Orchestrator coordinates, agents edit. |
+| "The research is clear enough, skip cross-referencing" | Phase 2 exists because Phase 1 agents have no context about each other's findings. Cross-referencing catches contradictions and duplicates. |
+| "The user will probably approve all, skip presenting" | Phase 3 is a WAIT gate. The user MUST see evidence and approve. No assumptions. |
+| "I'll reuse the implementation agent for review" | Fresh agents avoid anchoring bias. The reviewer must NOT have seen the implementation prompt. |
+| "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
+| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
+| "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
+| "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
+| "The findings are obviously good, skip the redundancy check" | Phase 2b exists because orchestrator self-filtering inherits the researcher's framing. A fresh subagent greps the target file for existing instructions and flags over-engineering — catches what the proposer cannot see. |
+| "I'll skip internet research because the request feels local" | Wrong unless the Matrix says skip. The triggers (new skill / new pattern / external API / abstract request) override your gut feel — internal-feeling requests can still introduce new patterns. |
+| "I'll run all 3 research agents to be safe even though it's a typo fix" | The Matrix is mandatory both ways. Over-research wastes context and inflates Phase 2 with irrelevant findings the orchestrator must then filter. |
+
+---
+
+## Definition of Done
+
+These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
+
+### improve-existing-skill mode
+- [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
+- [ ] Only the research sources the Matrix selected were spawned, and the selection is in the state checkpoint
+- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md: 8 standard checks (size / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync / compaction-redundancy) plus the 6 description-format sub-checks
+- [ ] A fresh agent reviewed the changes in Phase 5 and passed them, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
+- [ ] Every changed SKILL.md was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
+- [ ] The state file is cleaned up, and commit-and-push was offered to the user rather than performed unasked
+
+### create-skill mode
+- [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
+- [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
+- [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
+- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the 6 description-format checks and checks #7 (README/CLAUDE.md/docs sync) and #8 (compaction/redundancy)
+- [ ] A fresh review agent applied the 8-item create-skill checklist and its blockers are fixed
+- [ ] The created SKILL.md was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
+- [ ] Commit-and-push was offered to the user rather than performed unasked
 
 ---
 
@@ -307,11 +351,9 @@ Apply the following approved changes:
 [specific description of what to change and why]
 
 ### Constraints
-- SKILL.md size is measured in words, not lines (`.claude/rules/skill-structure.md` § File-size
-  limits). Keep everything load-bearing inside the first ~3,000 words — that is all Claude Code
-  re-attaches after a compaction, so a rule below the line stops existing mid-session. Treat
-  ~5,000 words as the whole-file guideline. Both are guidelines: on overflow, move detail into a
-  companion reference file — never trim load-bearing content to hit a number.
+- **Size:** read `.claude/rules/skill-structure.md` § File-size limits before you edit (repo-relative
+  path, you have Read access) and apply it to every file you touch. That section is the only source
+  for the budgets and for what to do on overflow — do not restate its numbers into the file you edit.
 - Preserve existing patterns (phase structure, agent spawning syntax, anti-rationalization tables)
 - Do NOT add features beyond what was approved
 - Do NOT refactor surrounding code
@@ -339,7 +381,7 @@ Apply the following approved changes:
 ### Definition of Done
 - [ ] All approved changes applied
 - [ ] No unintended side effects on surrounding code
-- [ ] SKILL.md checked against the ~3,000-word front-load budget and the ~5,000-word whole-file guideline; overflow moved into a companion reference file, not trimmed away
+- [ ] Every changed SKILL.md checked against `.claude/rules/skill-structure.md` § File-size limits
 - [ ] Cross-references to other files still valid
 """, description="Implement: [group name]")
 ```
@@ -348,7 +390,7 @@ Apply the following approved changes:
 
 Orchestrator runs these checks directly (no subagent). All must pass before Phase 5:
 
-1. **Size:** `wc -w` on each changed SKILL.md — everything load-bearing belongs inside the first ~3,000 words, which is all Claude Code re-attaches after a compaction; ~5,000 words is the whole-file guideline (`.claude/rules/skill-structure.md` § File-size limits). Past the whole-file guideline, move detail into a companion reference file that some runs genuinely skip. Neither number blocks: `bash tests/authoring/lint-skills.sh` reports both, plus the heading the compaction boundary falls at, so read an over-target warning as "check what is load-bearing and where it sits" — never trim load-bearing content to hit a number.
+1. **Size:** `wc -w` on each changed SKILL.md, judged against `.claude/rules/skill-structure.md` § File-size limits. Neither number blocks — `bash tests/authoring/lint-skills.sh` reports both plus the heading the compaction boundary falls at, and the rules section says what to do with an over-target warning.
 2. **Outbound references:** Glob for every path/agent/skill name mentioned in changed files — all must exist
 3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
 4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
@@ -396,6 +438,12 @@ researching or implementing these changes — review with fresh eyes.
    - Are cross-references that worked before still valid?
    - Could downstream skills/agents behave differently due to these changes?
 6. **Pre-existing bugs:** While reviewing the changed files, also note any bugs, inconsistencies, or broken patterns that existed BEFORE this change. Report these separately — they are opportunities, not blockers.
+7. **Subtraction:** an improvement pass removes as well as adds (the "Assume a capable model"
+   constraint the implementers were given). Report what this diff REMOVED — deleted rows, restatements
+   collapsed into a citation, hand-holding the model derives itself, rules the change superseded. If
+   the diff is purely additive, say so in those words and judge whether that was right: a genuinely
+   new gate or phase adds without removing, but a pass that reworded an instruction while leaving the
+   detail it replaced in place has left the file heavier and more contradictory than it found it.
 
 ### For each issue found, report:
 - File and line
@@ -415,6 +463,8 @@ If no issues in either category: report "LGTM — all checks passed"
 - **Warnings:** Present to user — let them decide.
 - **Nits:** Apply if trivial, skip if subjective.
 - **LGTM:** Proceed to Step 3.
+
+**Subtraction report** (checklist item 7): carry the reviewer's answer into the Phase 6 Step 1 summary. A purely-additive pass ships only with the reviewer's justification for why nothing was removable — that line is what stops each pass from silently growing the file it was meant to improve.
 
 ### Step 3: Surface pre-existing bugs
 
@@ -460,6 +510,9 @@ Present to the user:
 
 ### Review result: [LGTM / N warnings]
 [any warnings from Phase 5]
+
+### Removed by this pass
+[what the pass subtracted, per Phase 5 checklist item 7 — or "nothing removed" plus the reviewer's justification]
 ```
 
 ### Step 2: Extract learnings to memory
@@ -531,9 +584,9 @@ your existing validation infrastructure (validation gate + relevance-filter
 1. **Spawn an author agent** (general-purpose, `model=` omitted — inherits orchestrator tier) with:
    - The full Phase A interview transcript (pre-inlined)
    - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
-   - Constraints (pre-inlined): description rules from Phase 4 validator below + the word-based size rule from `.claude/rules/skill-structure.md` § File-size limits (~3,000-word front-load budget, ~5,000-word whole-file guideline) + reference depth ≤1 hop + edit-in-place principle
+   - Constraints (pre-inlined): description rules from Phase 4 validator below + reference depth ≤1 hop + edit-in-place principle, plus an instruction to read `.claude/rules/skill-structure.md` § File-size limits for the size rule
    - 1-2 exemplar SKILL.md files closest in shape to the proposed skill (e.g., for a small command-style skill, point at `instructions/SKILL.md`; for a multi-phase pipeline, point at `refactor/SKILL.md`)
-   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. SKILL.md size is measured in words: keep everything load-bearing inside the first ~3,000 words (all that survives a compaction), and treat ~5,000 words as the whole-file guideline (per `.claude/rules/skill-structure.md`); split overflow into companion reference files (e.g., `<name>-reference.md`) rather than trimming load-bearing content — the implement skill's `implement-reference.md` is the canonical example of this split."
+   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. Read `.claude/rules/skill-structure.md` § File-size limits and size the file by it; `skills/implement/implement-reference.md` is the canonical example of the SKILL-plus-reference split it asks for."
 
 2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the new description-format checks (see "Description-format validator" below).
 
@@ -542,7 +595,7 @@ your existing validation infrastructure (validation gate + relevance-filter
 Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
 - All Phase A interview answers reflected in the SKILL.md
 - Description meets all 6 format rules (validator checks 1-6 below)
-- SKILL.md within the ~3,000-word front-load budget and the ~5,000-word whole-file guideline (`.claude/rules/skill-structure.md` § File-size limits), or overflow split into companion reference files
+- SKILL.md conforms to `.claude/rules/skill-structure.md` § File-size limits, or its overflow is split into a companion reference
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
 - No invented `${CLAUDE_PLUGIN_ROOT}/...` references (every cited path actually exists)
 - Frontmatter valid (name, description, allowed-tools, model)
@@ -578,41 +631,3 @@ Report results in the existing Phase 4 validation summary. Warnings do not block
 
 If the user interjects mid-phase: corrections/context fold into the current phase (note in checkpoint); preferences apply at the next decision point; blockers halt the phase and you ask how to proceed; new issues are noted and queued for after the current pipeline completes.
 
----
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "I'll implement this multi-file change directly" | Changes touching 3+ files or any logic go through implementation subagents. Orchestrator coordinates, agents edit. |
-| "The research is clear enough, skip cross-referencing" | Phase 2 exists because Phase 1 agents have no context about each other's findings. Cross-referencing catches contradictions and duplicates. |
-| "The user will probably approve all, skip presenting" | Phase 3 is a WAIT gate. The user MUST see evidence and approve. No assumptions. |
-| "I'll reuse the implementation agent for review" | Fresh agents avoid anchoring bias. The reviewer must NOT have seen the implementation prompt. |
-| "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
-| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
-| "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
-| "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
-| "The findings are obviously good, skip the redundancy check" | Phase 2b exists because orchestrator self-filtering inherits the researcher's framing. A fresh subagent greps the target file for existing instructions and flags over-engineering — catches what the proposer cannot see. |
-| "I'll skip internet research because the request feels local" | Wrong unless the Matrix says skip. The triggers (new skill / new pattern / external API / abstract request) override your gut feel — internal-feeling requests can still introduce new patterns. |
-| "I'll run all 3 research agents to be safe even though it's a typo fix" | The Matrix is mandatory both ways. Over-research wastes context and inflates Phase 2 with irrelevant findings the orchestrator must then filter. |
-
-## Definition of Done
-
-These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
-
-### improve-existing-skill mode
-- [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
-- [ ] Only the research sources the Matrix selected were spawned, and the selection is in the state checkpoint
-- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md: 8 standard checks (size / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync / compaction-redundancy) plus the 6 description-format sub-checks
-- [ ] A fresh agent reviewed the changes in Phase 5 and passed them
-- [ ] Every changed SKILL.md sits inside the ~3,000-word front-load budget and the ~5,000-word whole-file guideline (`.claude/rules/skill-structure.md` § File-size limits), with overflow split into companion reference files rather than trimmed
-- [ ] The state file is cleaned up, and commit-and-push was offered to the user rather than performed unasked
-
-### create-skill mode
-- [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
-- [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
-- [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
-- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the 6 description-format checks and checks #7 (README/CLAUDE.md/docs sync) and #8 (compaction/redundancy)
-- [ ] A fresh review agent applied the 8-item create-skill checklist and its blockers are fixed
-- [ ] The created SKILL.md sits inside the ~3,000-word front-load budget and the ~5,000-word whole-file guideline, with overflow split into companion reference files rather than trimmed
-- [ ] Commit-and-push was offered to the user rather than performed unasked

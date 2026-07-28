@@ -40,6 +40,17 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 ---
 
+## Definition of Done
+
+- [ ] Phase 1: `scan.py` ran across every config root; work-bearing threads kept (edited + read-only, or edited-only under `--code-only`); each row has a kind, title, true `cwd` label, date, turn count, oversize flag (and, for a query, a relevance score + snippet)
+- [ ] Phase 2 (list): rows grouped by project, newest-first, numbered once across the full set (stable on expand), capped at 10/project with "show more"; read-only rows tagged `[read-only]`
+- [ ] Phase 2 (search): flat ranked list, top 15 shown with snippets, total-matched count stated, top candidates sanity-checked against the query
+- [ ] Phase 3: free-text selection parsed and echoed; launch-confirmation AUQ fired (with a `header`)
+- [ ] Phase 3: first *launchable* pick launched as `/analyze-thread <path> --format=jsonl`; remaining launchable picks queued (each with `--format=jsonl`); oversize picks listed separately, not queued
+- [ ] No session log or any other file modified by this skill
+
+---
+
 ## Budgets & caps
 
 | Budget | Value | Why |
@@ -234,17 +245,6 @@ List any oversize picks separately under "Too large to analyze as-is (over 5 MB 
 | "I'll launch all selected threads in one `/analyze-thread` call to save round-trips." | `/analyze-thread` takes exactly one thread path per run. Launch the first and print the rest as a runnable queue. |
 | "An oversize thread is fine to queue — let the user find out." | `/analyze-thread` refuses files over its 5 MB cap, so the queued command would just fail. Flag oversize threads up front so the user can split them first. |
 | "The user wants threads worth analyzing — I'll skip the read-only review/debug runs." | The default surfaces `read-only` threads on purpose: a `/geniro:review` or `/geniro:debug` run that edited nothing is exactly what `/analyze-thread` inspects for pipeline failures. Drop them only when the user passes `--code-only`. |
-
----
-
-## Definition of Done
-
-- [ ] Phase 1: `scan.py` ran across every config root; work-bearing threads kept (edited + read-only, or edited-only under `--code-only`); each row has a kind, title, true `cwd` label, date, turn count, oversize flag (and, for a query, a relevance score + snippet)
-- [ ] Phase 2 (list): rows grouped by project, newest-first, numbered once across the full set (stable on expand), capped at 10/project with "show more"; read-only rows tagged `[read-only]`
-- [ ] Phase 2 (search): flat ranked list, top 15 shown with snippets, total-matched count stated, top candidates sanity-checked against the query
-- [ ] Phase 3: free-text selection parsed and echoed; launch-confirmation AUQ fired (with a `header`)
-- [ ] Phase 3: first *launchable* pick launched as `/analyze-thread <path> --format=jsonl`; remaining launchable picks queued (each with `--format=jsonl`); oversize picks listed separately, not queued
-- [ ] No session log or any other file modified by this skill
 
 ---
 

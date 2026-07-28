@@ -1,111 +1,38 @@
-# Plan artifact — visual design language
+# Plan artifact — house visual design language
 
-The house design language for the `/geniro:plan` visual artifact. Apply it whenever you author or substantially re-author the page — the create step AND every later per-phase update or before-gate fill that adds a section, panel, or layer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` loads this first before writing any HTML, and re-loads it on a cross-session update where it has fallen out of context). The job is a single self-contained HTML page — inline CSS, inline SVG, no external requests — that reads as if it were art-directed for *this* plan's subject, not a generic readable default. A "clean default" is the failure this file exists to prevent: it reads as templated and AI-generated. The page should look deliberate, opinionated, and specific to the system being planned.
+**Load the native `artifact-design` skill first, before any HTML.** It owns the general methodology: grounding the look in the subject, the compact color / type / layout token plan, typeface pairing, chosen neutrals, both light and dark themes, the AI-default looks not to spend a free axis on, motion restraint, and structure that encodes meaning rather than decorates. Everything below is only what that skill cannot know — which treatment this page takes, the component vocabulary later fills reuse, and the rendering rules `/geniro:plan`'s content depends on.
 
-The specific palette, type, and layout values below are illustrative: you own those choices and derive them from this plan's subject. What is required is the methodology — ground the look in the subject, avoid the generic defaults, render diagrams as SVG, and defer to the project's design system when it declares one; the exact hues, sizes, and spacing are yours to set.
+Precedence when guidance collides: the user's own words, then the project's `## Design system` tokens if CLAUDE.md declares one, then the house calls here, then the native skill's defaults.
 
-## Contents
+Apply this on the create step AND on every later per-phase update or before-gate fill that adds a section, panel, or layer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` loads it before writing any HTML, and re-loads it on a cross-session update where it has fallen out of context).
 
-- The failure this prevents — why a clean default is the wrong target
-- Ground the design in the subject — derive identity from the plan, not a stock palette
-- Two-pass method — plan a token system, critique it, build, critique again
-- Design tokens — color, type, surface, rhythm
-- The signature element — spend boldness in one place
-- Structure encodes meaning — eyebrows, numbering, state marks
-- Diagrams are the visual language — inline SVG, never an ASCII `<pre>`
-- Code & data tokens — styled token pills
-- Motion — deliberate, inline-only, reduced-motion-safe
-- Quality floor — responsive, accessible, self-contained
-- Anti-rationalization
+## Treatment — editorial, grounded in this plan
 
-## The failure this prevents
+The native skill asks you to read the request and calibrate the treatment. That read is already answered here: run its **editorial** branch. The page's whole reason to exist is to be the richest, most visual surface of the plan, so a neutral "clean readable" theme is the failure mode — it is the same look the page would carry for any plan, and it reads as templated. Derive the direction from *this* plan's subject: a telemetry surface, a billing flow, and an auth refactor should not come out looking identical.
 
-A plan artifact that uses a neutral, "clean readable" theme reads as templated — the same look the page would have for any plan. AI-generated design clusters around three recognizable defaults, and they appear regardless of subject:
+The page is a document, not a dashboard — but its status badge, progress tracker, and state marks are the operated parts, so encode their state in form as well as in words.
 
-1. Warm cream background with a high-contrast serif display and a terracotta accent.
-2. Near-black background with a single bright acid-green or vermilion accent.
-3. Broadsheet layout with hairline rules, zero border-radius, and dense newspaper columns.
+## House components
 
-All three are legitimate for *some* brief, but reaching for one by reflex spends a design choice on a default. Where the project's design system or the plan's subject pins a direction, follow it exactly. Where an axis is free, do not spend that freedom on a stock look — make a choice grounded in the subject.
-
-## Ground the design in the subject
-
-Distinctive choices come from the subject's own world — its domain, its instruments, its vocabulary. Before authoring, pin a one-line creative direction: name the subject (the system this plan changes), its audience (who reads the plan), and the page's single job (let a reader grasp the design without opening the spec). State the direction in a sentence, then derive every color and type decision from it.
-
-Defer to the project first:
-
-- If this project's `CLAUDE.md` has a `## Design system` block, adopt its tokens exactly — palette, type, spacing. The project's identity outranks any default here.
-- If there is no design-system block, derive an identity from the plan's subject and domain, using the technique sections below (§Design tokens through §Quality floor) as the checklist, not a stylesheet.
-
-A telemetry/coverage surface, a billing flow, and an auth refactor should not look identical. For a control-surface subject, skip the phosphor-green radar cliché; a deep slate ground with one warm accent fits that brief *because* it is grounded in the subject, not reached for by reflex.
-
-## Two-pass method
-
-Plan before you build, then critique before you ship. Do this in your thinking; show the user the published page, not the deliberation.
-
-1. **Plan a compact token system** — four parts:
-   - **Color** — 4–6 named hex values: a ground, one or two surface steps, hairline lines, body text, muted text, and a single vivid accent. Add semantic state hues (success / warning / info) only if the plan's content has states to mark.
-   - **Type** — at least two roles: a characterful display face used with restraint, a readable body face, and a monospace utility face for eyebrows, labels, code, and data. Set a real type scale with intentional weights and letter-spacing.
-   - **Layout** — a one-sentence layout concept and rhythm (single editorial column with a wide measure is the right register for an RFC-style plan).
-   - **Signature** — the one element the page is remembered by (see §The signature element).
-2. **Critique the plan against the brief** — ask: *would I produce this same token system for any plan?* If yes, the choice is a default; revise the part that reads generic and note what changed and why.
-3. **Build** the page from the revised tokens, deriving every value from them.
-4. **Critique again** — remove one accessory. Cut any decoration that does not serve the plan. Restraint is what separates art-directed from busy.
-
-## Design tokens
-
-- **Color.** Choose a ground derived from the subject and register — an RFC-style plan wants a calm, low-chroma field that gives diagrams and code room to read, whichever direction (dark, light, or tinted) the brief and any project design system point to. Use one vivid accent as the page's voice — apply it to the thesis word, section eyebrows, and the signature element, and almost nowhere else. Keep body text muted, headings bright. Semantic state colors (a teal for valid/covered, a magenta for stale/breaking, a violet for secondary) earn their place only when the content marks states; used everywhere they become noise.
-- **Type.** Display headings are large, tight in line-height, and heavy — the headline is the hero, not a label over a paragraph. Body sits at a comfortable reading size with generous line-height and muted color. The monospace utility face carries eyebrows (uppercase, wide letter-spacing, small, accent-or-muted), inline code, data labels, and figure captions — it is the page's "telemetry" voice and signals "this is a technical document."
-- **Surface & structure.** A faint grid or graph-paper ground (a low-opacity textured layer) gives the field texture without competing with content. Quiet dividers separate sections. Cards sit one surface-step above the ground with a subtle border and an optional top edge tinted by the card's semantic role.
-- **Rhythm.** Generous vertical space between sections; a content measure that keeps prose comfortably readable (roughly 60–75 characters per line is the typographic comfort zone — pick the exact width for your type and layout); consistent padding inside cards. Whitespace is the cheapest way to read as deliberate rather than cramped.
-
-## The signature element
-
-Spend boldness in one place. Pick a single device that embodies the plan's subject and make it the one memorable thing — a glowing connector that ties a list to its outcome, a coverage grid with a legend, an oversized thesis headline with the key word in the accent, a state-machine drawn as inline SVG. Let everything around the signature stay quiet and disciplined. A page with one strong idea and calm surroundings lands harder than one with five competing effects.
-
-## Structure encodes meaning
-
-Structural devices should encode something true about the content, not decorate it.
-
-- **Eyebrows** (a short label above a heading, styled in the Type token's mono face) name the real section — `RUNTIME · ONE CRON TICK` — and orient the reader.
-- **Numbered markers** (`01 / 02 / 03`) are right only when the content is a genuine sequence — an ordered process, a typed timeline — where order carries information. Do not number a set that has no order.
-- **State marks** encode each state distinctly and carry meaning at a glance — for example strikethrough for a retired/removed item, a dashed border for a missing/absent slot, a diagonal-stripe fill for a stale state, a solid accent for the healed/current one; choose the glyphs that fit the content. Pair any such system with a small legend so the marks are legible.
+The page is built from a small named set that every later fill reuses rather than re-invents: an **eyebrow** (mono, uppercase, wide-tracked) naming the real section above its heading — `RUNTIME · ONE CRON TICK`; a **card** one surface-step above the ground; a **code pill**; a collapsed `<details>` deep-dive layer; the header **status badge** and **progress tracker**; and a faint graph-paper **grid ground** that gives the field texture without competing with content. Spend the page's one bold move on a **signature element** that embodies the plan's subject — most often the lead data-flow diagram.
 
 ## Diagrams are the visual language
 
-Every structural relationship — data flow, component architecture, before/after, and the data layer's schema — is authored as inline `<svg>` (or an HTML/CSS box-and-connector layout when SVG would be overkill). A monospace `<pre>` ASCII tree is the chat fallback, never the artifact standard: it is exactly the flat, text-only result the artifact exists to replace, so a `<pre>` used as a diagram is a defect, not a shortcut. The full per-layer diagram contract (data-flow, architecture, before/after, the ER/typed-JSON data layer) lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § Content layers — this file owns the *look*, that file owns *which* diagrams a plan renders.
+Every structural relationship — data flow, component architecture, before/after, and the data layer's schema — is authored as inline `<svg>` (or an HTML/CSS box-and-connector layout when SVG would be overkill). Hand-author these even though the native skill steers generative graphics toward Canvas: a plan's diagrams are small, labelled, and have to stay legible and selectable. A monospace `<pre>` ASCII tree is the chat fallback, never the artifact standard — it is exactly the flat, text-only result the artifact exists to replace, so a `<pre>` used as a diagram is a defect, not a shortcut. Which diagrams a given plan renders: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § Content layers.
 
 ## Code & data tokens
 
-Render inline code and JSON examples as styled token pills, not flat `<pre>` dumps — one inline-styled `<span>` per token, colored with a conventional developer syntax palette (distinct hues for keys, strings, numbers, booleans, null, and punctuation — your exact colors, tuned to the page's accent); identifiers and constants get a subtle tinted background pill. This needs no external highlighter and stays within the content policy. Defer the palette to the project's `## Design system` tokens when CLAUDE.md declares one.
+Render inline code and JSON examples as styled token pills, not flat `<pre>` dumps — one inline-styled `<span>` per token in a conventional developer syntax palette (distinct hues for keys, strings, numbers, booleans, null, and punctuation), with identifiers and constants on a subtly tinted background pill. This needs no external highlighter, so it survives the page's content policy. The project's `## Design system` tokens win over the developer palette when CLAUDE.md declares one.
 
-## Motion
+## State marks
 
-Use motion deliberately. One orchestrated moment — a page-load reveal sequence, a scroll-triggered fade-and-rise as sections enter — lands harder than scattered effects, and over-animation is itself a tell that a page was AI-generated. A short list that serves the page:
-
-- A single entrance: sections fade and rise as they scroll into view (a small inline `IntersectionObserver` is allowed — it makes no external request).
-- A smooth `<details>` expand/collapse for the deep-dive layers.
-- At most one ambient touch on the signature element (a slow pulse on a connector dot, say) — and only if it earns its place.
-
-Respect `prefers-reduced-motion: reduce` — disable transforms and ambient loops under it. Keep all CSS and JS inline; no CDN, no external file — the page runs under a content policy that blocks every external request, so an external animation library never loads.
-
-## Quality floor
-
-Build to a floor without announcing it:
-
-- **Responsive** down to a 375px mobile width — the editorial column reflows, diagrams scale or scroll, nothing clips.
-- **Accessible** — visible keyboard focus on every interactive control, sufficient text-vs-ground contrast, real heading order.
-- **Reduced-motion** honored (above).
-- **Self-contained** — inline CSS + inline SVG + optional inline JS only; zero external requests. Keep examples representative (a few rows, a trimmed body), so the page stays under the per-response token cap and the 16 MiB rendered ceiling.
+Plan content carries states the page has to mark — retired, absent, stale, current, and the 2xx / 3xx / 4xx-5xx classes on the data layer. Give each a semantic hue held separate from the accent AND a distinct form: strikethrough for a retired item, a dashed border for an absent slot, a diagonal-stripe fill for stale, solid accent for current. Encoding both ways keeps the state readable without color, and any such system needs a small legend to be legible at all.
 
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "A clean, readable default theme is the safe choice." | A neutral default reads as templated — the same look for every plan. The page should look art-directed for this plan's subject. Pin a creative direction grounded in the subject, then derive the tokens from it. |
-| "I'll reach for a near-black background with one bright accent — it looks technical." | That is one of the three recognizable AI defaults. It's fine only when the subject or the project's `## Design system` pins it. Where the axis is free, make a choice specific to the subject instead of spending it on a stock look. |
-| "More animation makes the page feel polished." | Over-animation is a tell that a page was AI-generated. One orchestrated moment (a scroll reveal) plus a smooth `<details>` is enough; add an ambient touch only on the signature, and honor `prefers-reduced-motion`. |
-| "An ASCII `<pre>` tree shows the same structure." | A monospace tree is the flat, text-only output the artifact exists to replace. Author flow, architecture, before/after, and the data layer as inline `<svg>` or HTML/CSS box-and-connector. |
-| "Numbered `01 / 02 / 03` markers everywhere make it look structured." | Numbering encodes order — use it only when the content is a genuine sequence. On an unordered set it's decoration pretending to be meaning. |
-| "I'll spend the accent color across every heading, link, and border." | Spreading the accent flattens it. Spend boldness in one place — the thesis word, the eyebrows, and the signature — and keep everything else quiet so the accent still reads as the page's voice. |
+| "It's an internal planning doc, so the utilitarian treatment is the right read." | The page exists to be the richest surface of the plan, and a templated report is the exact outcome it was built to replace. Run the native skill's editorial branch and ground the direction in this plan's subject. |
+| "An ASCII `<pre>` tree shows the same structure." | A monospace tree is the flat, text-only output the artifact exists to replace. Author flow, architecture, before/after, and the data layer as inline `<svg>` or an HTML/CSS box-and-connector layout. |
+| "The native skill covers design, so I can skip the house file." | It cannot know this page's treatment is already decided, that structural diagrams are hand-authored SVG here, or which component classes the page's later fills must reuse — the failure shows up as a second section that looks nothing like the first. |
 | "The design language is loaded once at create, so later updates inherit it." | Each per-phase update and before-gate fill authors NEW content (a section, the decision panel, a data layer), and after a compaction or in a new session this file is out of context — a fill done without it drifts to a generic look while the rest of the page stays art-directed. Re-load this file on a cross-session update, and author every filled section, panel, and layer with the page's existing tokens and component classes. |

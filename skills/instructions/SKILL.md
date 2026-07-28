@@ -19,6 +19,8 @@ Code rules split three ways depending on **when** they should fire:
 - **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads on matching glob — fires even outside Geniro pipelines).
 - **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
 
+**After a compaction, re-invoke this skill before running a mode whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the `## — Mode:` sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a mode instead of its actual steps is how a gate gets skipped. This skill is stateless (one invocation = one transaction), so re-invoking restores the full body and the transaction restarts from Phase 1.
+
 ## Loop invariants
 
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply throughout /geniro:instructions, with three skill-specific notes (an `#N` inside a note points at that file's numbered list):
@@ -28,6 +30,29 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 3. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final user message.
 
 **Single transaction, no subagents** — `/geniro:instructions` runs entirely in the orchestrator (CRUD is too small for parallelism).
+
+## Anti-rationalization
+
+| Reasoning | Why it's wrong |
+|---|---|
+| "I'll auto-fix `validate` issues to save the user a step" | No — auto-fix would silently mutate user-authored content. `validate` reports; user fixes via `edit`. |
+| "I'll silently overwrite existing instruction file" | No — for `create` on existing, present overwrite/edit-instead/cancel via AUQ. |
+| "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name. |
+| "I'll spawn a subagent to do the freeform rule synthesis" | No — `/geniro:instructions` is a small CRUD frontend; subagents add no parallelism benefit and complicate the stateless single-transaction model. |
+| "I'll output the questions as plain text instead of `AskUserQuestion`" | No — every WAIT gate uses `AskUserQuestion`. |
+| "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the stable scope set. |
+| "I'll skip showing the scope-specific scaffold to save tokens" | No — scaffolds make the empty-file moment less confusing; they're not optional. |
+
+## Definition of done
+
+- [ ] Intent detected from freeform arguments (or default to `list`)
+- [ ] Scope(s) resolved — single or batch — within 3 AUQ retry cap
+- [ ] File operations completed successfully
+- [ ] User confirmed before any destructive operation (delete)
+- [ ] Validation checked structure, phase names, scope validity, dropped-skill refs, and description rules
+- [ ] All user interactions used `AskUserQuestion` — no plain-text questions
+- [ ] review-extra files validated against slug uniqueness, built-in collision, model/severity-default value sets, paths syntax, and count caps
+- [ ] Scope-specific scaffold shown on `create` (not skipped)
 
 ## Budgets — quality-first
 
@@ -267,7 +292,7 @@ Use `AskUserQuestion` after showing the scaffold:
 - **Question:** "Add what kind of rules?"
 - **Options (scope-tailored):** Documentation / Quality gates / Workflow steps / Free-form (Other path)
 
-Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into strong, specific rules (e.g. "make sure we test" → "Always include tests for new public functions. Run `npm test` to verify before shipping").
+Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into a specific criterion the model can weigh, per the rule-writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2 — name the command or path, and give the reason where the rule is one the model would otherwise talk itself out of (e.g. "make sure we test" → "Cover each new public function with a test; run `npm test` before shipping — CI reviews the last green run, not the working tree").
 
 ### Step 5 — Generate the file
 
@@ -478,29 +503,6 @@ Rule / step / constraint writing principles, file-size guidance, and the what-go
 ### Custom reviewer authoring (review-extra)
 
 Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`. Read before creating or editing any `.geniro/instructions/review-extra/<slug>.md`.
-
-## Anti-rationalization
-
-| Reasoning | Why it's wrong |
-|---|---|
-| "I'll auto-fix `validate` issues to save the user a step" | No — auto-fix would silently mutate user-authored content. `validate` reports; user fixes via `edit`. |
-| "I'll silently overwrite existing instruction file" | No — for `create` on existing, present overwrite/edit-instead/cancel via AUQ. |
-| "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | No — old enums fail silently in the loader. Validate-mode catches and suggests the canonical name. |
-| "I'll spawn a subagent to do the freeform rule synthesis" | No — `/geniro:instructions` is a small CRUD frontend; subagents add no parallelism benefit and complicate the stateless single-transaction model. |
-| "I'll output the questions as plain text instead of `AskUserQuestion`" | No — every WAIT gate uses `AskUserQuestion`. |
-| "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | No — scope names are fixed; pick from the stable scope set. |
-| "I'll skip showing the scope-specific scaffold to save tokens" | No — scaffolds make the empty-file moment less confusing; they're not optional. |
-
-## Definition of done
-
-- [ ] Intent detected from freeform arguments (or default to `list`)
-- [ ] Scope(s) resolved — single or batch — within 3 AUQ retry cap
-- [ ] File operations completed successfully
-- [ ] User confirmed before any destructive operation (delete)
-- [ ] Validation checked structure, phase names, scope validity, dropped-skill refs, and description rules
-- [ ] All user interactions used `AskUserQuestion` — no plain-text questions
-- [ ] review-extra files validated against slug uniqueness, built-in collision, model/severity-default value sets, paths syntax, and count caps
-- [ ] Scope-specific scaffold shown on `create` (not skipped)
 
 ## Cross-references
 

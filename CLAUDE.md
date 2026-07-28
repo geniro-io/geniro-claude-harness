@@ -2,27 +2,13 @@
 
 Production-grade Claude Code plugin: AI-driven setup, multi-agent workflows, safety hooks. One `skills/` directory ships to two runtimes, Claude Code and Cursor.
 
-## Available Skills
+## Skill routing
 
-Each skill's own frontmatter description is the routing surface Claude Code loads at discovery. This table is a map for orientation, not the contract.
+Each skill's frontmatter description is the routing surface, and Claude Code already loads them at discovery — don't restate them here. Three things those descriptions don't carry:
 
-| Skill | Purpose |
-|-------|---------|
-| `/geniro:plan` | Spec-first planning: vague idea → clarify grill → critic-tested approaches → approved 11-section `spec.md`. |
-| `/geniro:implement` | 3-phase autonomous executor (Analyze → Implement → Self-review-and-Ship), consuming a spec or an inline task. |
-| `/geniro:review` | Read-only 6-phase review of a diff, branch, or PR: parallel single-dimension reviewers, then fresh-agent verification of every survivor. Never edits code. |
-| `/geniro:resolve` | Read-only PR-feedback triage → comment-keyed `spec.md` + handoff for `/implement`, which applies the fixes and posts the replies. |
-| `/geniro:debug` | Scientific-method bug investigation → fix proposal + failing reproduction test, then handoff. Never edits production source. |
-| `/geniro:refactor` | Zero-behavior-change restructuring with per-step regression checks. Never ships — the working-tree diff is the deliverable. |
-| `/geniro:onboard` | Rapid orientation in an unfamiliar codebase → `_CODEBASE_MAP.md`. |
-| `/geniro:investigate` | Evidence-based Q&A over code, git history, and the internet. Never ships code. |
-| `/geniro:reflect` | Mines past session transcripts for durable project-rule candidates. |
-| `/geniro:instructions` | CRUD over `.geniro/instructions/` — the project-rules layer. |
-| `/geniro:actions` | CRUD + runner over `.geniro/actions/` — user-authored workflow helpers. |
-| `/geniro:setup` | Singleton bootstrap: detect the stack, interview, generate a project CLAUDE.md, verify it. |
-| `/geniro:update` | Pulls the latest plugin version with integrity checks and a per-entry `MIGRATION.md` walk. |
-
-Full per-skill descriptions, every flag, and the eight deleted skills with their replacements: `README.md`.
+- **`/geniro:implement` is the only skill that ships code.** `/geniro:plan`, `/geniro:review`, `/geniro:resolve`, and `/geniro:debug` are producers: they end at a `spec.md` and/or a handoff file that `/geniro:implement` consumes and applies.
+- **Read-only means read-only.** `/geniro:review`, `/geniro:resolve`, `/geniro:debug`, and `/geniro:investigate` never edit production source — the boundary binds at the tool level and an elevated-effort or workflow run does not relax it (`skills/_shared/reporter-boundary.md`). `/geniro:refactor` does edit, but never ships: the working-tree diff is its deliverable.
+- **Eight skills were deleted.** A name that doesn't resolve isn't necessarily a typo — check the catalogue for its replacement.
 
 ## Path Rules
 
@@ -34,49 +20,31 @@ Full per-skill descriptions, every flag, and the eight deleted skills with their
 
 ## State Files
 
-Every state file under `.geniro/` belongs to exactly one tier and must be written through the atomic-write helpers — not direct `Edit`/`Write` calls.
-
-| Tier | Paths | Helper |
-|------|-------|--------|
-| **T1 — TASK ephemeral** (transient working artifacts, targeted `rm -f` at terminal exit — Ship cleanup and every other terminal transition of the owning run) | `.geniro/planning/<task-dir>/.{kr,ce,tr,adversarial,research,spec-challenge}-out.md` (subagent OUTPUT_PATH reports) · `.geniro/planning/<task-dir>/.research-<facet>.md` (per-facet research outputs from /plan Phase 1) · `.geniro/planning/<task-dir>/notes.md` (scratch) · `.geniro/planning/<task-dir>/playwright-verify.png` (visual-verify artifacts) | `atomic_state_write` |
-| **T1.5 — TASK durable** (survives Phase Ship; design artifacts user may want to keep) | `.geniro/planning/<task-dir>/{spec,state}.md` · `.geniro/planning/<task-dir>/plan-*.md` · `.geniro/planning/<task-dir>/milestone-*.md` · `.geniro/state/<skill>/<slug>/state.md` (`/debug`, `/refactor`, `/onboard`, `/investigate`, `/resolve`) · `.geniro/state/setup/state.md` singleton (`/setup`) | `atomic_state_write` |
-| **T2 — HANDOFF** (inter-skill, overwritten by producer) | `.geniro/state/handoff/from-<producer>-<branch>.md` (carries structured `open_questions[]` for safety-gated consumer transitions) | `atomic_state_write` |
-| **T3 — PERSISTENT CRUD** | `.geniro/instructions/*` · `.geniro/actions/*` · `.geniro/workflow/*` · `.geniro/planning/_*.md` · `.geniro/docs/*` (spin-out targets) | `atomic_state_write` (caller does optimistic mtime check first) |
-| **T3 — PERSISTENT append-only** | `.geniro/knowledge/learnings.jsonl` | `atomic_state_append` |
-
-**Helper invocation** (from inside a skill's Bash call):
+Everything under `.geniro/{state,planning,knowledge,instructions,actions,workflow}/` is a state file, and every write goes through `atomic_state_write` (or `atomic_state_append` for `knowledge/*.jsonl`) — sourced per Bash call:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write ".geniro/planning/<task-dir>/state.md" <<'EOF'
----
-tier: T1
-producer: implement
-schema-version: 1
-branch: <git-branch>
-timestamp: <ISO-8601 UTC>
-phase: implement
-status: in-progress
-non-resumable-actions: []
----
-
-## Body
+atomic_state_write "<path>" <<'EOF'
 ...
 EOF
 ```
 
-Canonical schema and per-tier required fields, the terminal-exit cleanup contract, and the TDD-state carve-out: `skills/_shared/state-tier-spec.md`. Write-helper exit codes and the mtime-check pattern: `atomic-state-write.md`. Validator exit codes and the recovery prompt to open when validation fails before a resume: `validate-state-file.md`.
+**Why, and why you can't route around it.** The helper does tmp + fsync + rename; a direct write truncates-and-rewrites, so a reader hitting that window sees a partial file. The `enforce-state-helper` PreToolUse hook hard-blocks both routes to it: `Edit`/`Write`/`MultiEdit` on a state path, *and* the Bash-side equivalents — redirection, `tee`, `sed -i`, `cp`/`mv` destinations, an interpreter opening the file for writing, even inside a `sh -c` / `eval` payload. Reads stay free. The exemptions are already encoded in the hook (T1 transient subagent outputs, `.verify-cache.json`, `.geniro/state/tdd/`); a path it blocks is a path that needs the helper, not one that needs a workaround.
+
+Do not restate tier facts in this file — the copy drifts. Tier model, per-tier frontmatter, the terminal-exit cleanup contract, and the TDD carve-out are canonical in `skills/_shared/state-tier-spec.md`. Helper exit codes and the optimistic mtime-check pattern: `atomic-state-write.md`. Validator exit codes and the recovery prompt when validation fails before a resume: `validate-state-file.md`.
 
 ## Memory Layers
 
-Every persisted fact lives in exactly one of four layers. Writers know **what** to record and **where**; readers know **which layer** answers a question. Anything that doesn't fit one of these layers is by definition out of scope for the memory subsystem.
+Every fact the plugin itself persists lives in exactly one of four layers. Writers know **what** to record and **where**; readers know **which layer** answers a question.
 
 | Layer | Name | Lifespan | Routing rule (writer intent → layer) | Path |
 |-------|------|----------|---------------------------------------|------|
-| **L1** | Working | Per-task | "Right now, phase X of task Y is running." | `.geniro/planning/<task-dir>/state.md` (T1) |
+| **L1** | Working | Per-task | "Right now, phase X of task Y is running." | `.geniro/planning/<task-dir>/state.md` |
 | **L2** | Episodic | Append-only event log | "In this run we observed event X." | `.geniro/knowledge/learnings.jsonl` |
 | **L3** | Semantic | Current-state snapshot | "In this project, fact X is currently true." | `.geniro/planning/_*.md` |
 | **L4** | Procedural | Stable rules | "When doing X, always do Y." | `.geniro/instructions/*.md` |
+
+**Not a layer — Claude Code's native auto-memory.** A fifth store exists, and `/geniro:investigate` and `/geniro:reflect` deliberately route collaboration preferences to it. It is not a substitute for any layer above and does not subsume them: it is per-user and orchestrator-only — never committed, never shared with teammates, and unreadable by any spawned subagent. L4 is the committed team-shared rules layer; L2/L3 are shell-queryable, so a subagent can read them.
 
 **Cross-layer precedence (when layers disagree): L4 > L3 > L2.** L4 is user-curated explicit rules (highest trust); L3 is drift-monitored current state; L2 is historical events with the lowest cross-layer trust. L1 is task-scoped and never conflicts cross-layer.
 
@@ -111,7 +79,7 @@ bash tests/authoring/lint-skills.sh   # authoring lint (hard failures + advisory
 |---|---|
 | Safety hooks — what each one blocks, every bypass pattern ID, `.geniro/safety.json` | `HOOKS.md` |
 | Design decisions, subagent model tiering, optional MCP companions, the Cursor runtime port | `ARCHITECTURE.md` |
-| Skill catalogue with full descriptions and flags; the deleted skills and their replacements | `README.md` |
+| Skill catalogue — full descriptions, every flag, the deleted skills and their replacements | `README.md` |
 | Breaking changes and the per-entry upgrade walk | `MIGRATION.md` |
 | Agent spawn ladder (`geniro:<agent>` → bare → `general-purpose` + inlined body) | `skills/_shared/spawn-agent.md` |
 | Authoring rules for skills and agents (voice, structure, what never ships) | `.claude/rules/*.md` — path-scoped, so they load when you touch a skill or agent file |

@@ -66,10 +66,8 @@ The bookkeeping types (`retry_failure_sequence`, `discarded_hypothesis`) accumul
 
 ## MODE contract
 
-Write-side helper — **no MODE parameter, compaction-immune.** Behavior is
-identical at initial-load, refresh, and post-compaction. Skill flow decides
-when to re-invoke after a SessionStart event; the helper itself does not
-distinguish.
+**No MODE parameter, compaction-immune** — safe to re-invoke after a SessionStart event; the helper
+does not distinguish initial-load from refresh.
 
 ## Required fields
 

@@ -19,6 +19,8 @@ state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (h
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §1.
 
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — everything from Phase 1 down is gone for the rest of the session. Working from the summary's recollection of a phase instead of its actual steps is how the classified spawn set or the claim re-verification gate gets skipped. Re-invoking restores the full body; state.md `phase:` says where to resume.
+
 ## Loop invariants
 
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply (the invariant numbers below match that file), with three skill-specific notes:
@@ -27,6 +29,27 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier + save-routing focused agents), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
+
+## Anti-rationalization
+
+Check these rationalizations before drifting from the procedure.
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I already know the answer from reading the code" | You read one perspective. Parallel agents catch what you missed — git history reveals intent, internet reveals context. |
+| "I'll spawn all 3 (or add an agent the classification excluded) to be safe" | The Phase 1 Step 1 classification table is the LITERAL spawn set; irrelevant agents are net-negative — they consume tokens and their off-target findings force the synthesizer to filter noise. If the criteria look wrong for this question, revise classification — don't silently add. |
+| "Self-review is overkill for a question" | Wrong answers waste more time than the review costs. File references go stale, claims drift from evidence. |
+| "I'll spawn agents one at a time to save tokens" | Parallel agents go in ONE response — multiple Agent calls in the same assistant turn. Sequential turns waste wall-clock time for no token savings. |
+| "All three agents converge on the same claim — that's confirmed" | Convergent self-reports are still self-reports. Phase 2 Step 2 re-verify requires the orchestrator to independently re-read / re-run / re-grep before treating any agent claim as evidence. |
+| "The reasoning chain is tight, that's enough evidence" | Reasoning is hypothesis, not evidence. Only the artifact kinds (file:line snippet, captured output, log line, query result, user data) clear the Evidence Standard. |
+| "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence. Phase 3 Step 1 confidence-driven action requires verified / re-verify / ask-user / omit — there is no "ship with caveat" path. |
+| "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
+| "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
+| "Auto-promote /geniro:investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
+| "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5. Issue threads contain speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
+| "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field. Future readers (later retrieval or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
+| "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | If CLAUDE.md has a Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. Always run the check when Domain Context is present. |
+| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | The 5-step cadence is what makes /geniro:investigate evidence-disciplined; dropping it would let claims drift from evidence. Step 2.6 is the audit trail that makes JIT discipline reviewable. |
 
 ## Quality-first budgets
 
@@ -63,6 +86,49 @@ A claim is evidence-backed ONLY when it cites a canonical artifact kind. Kinds 1
 Reasoning, paraphrased agent claims, "looks consistent", convergent agent self-reports, and "I inferred from context" are NOT evidence. They are hypotheses that still need verification.
 
 If the orchestrator's tools cannot produce evidence for a load-bearing claim, the claim is unverified — DO NOT synthesize an answer around it. Use the Phase 2 Step 2 verification gate or the Phase 2 Step 3 missing-data gate (AskUserQuestion) instead.
+
+## ACI per-phase tool surface
+
+**Phase 1 (Classify+Scope):**
+- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`); WebSearch / WebFetch (rare for Phase 1 prelim).
+- Allowed Agent spawns: none yet.
+- Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
+
+**Phase 2 (Investigate+Verify):**
+- Allowed Agent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
+- Each spawned agent runs with its own tool whitelist (per the Phase 2 Step 1 spawn templates):
+- Codebase: Read / Grep / Glob / Bash (read-only); blocked: Edit / Write / NotebookEdit.
+- Git: Read / Bash (read-only git verbs); blocked: Edit / Write / mutating git.
+- Internet: WebSearch / WebFetch; blocked: Edit / Write / local Bash.
+- Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
+
+**Phase 3 (Synthesize+Review+Present):**
+- Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up + the save-routing gate) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
+- Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
+- Fresh verifier agent: Read / Grep (no Edit / Write).
+- Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` or `docs/decisions/` only). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks. The learnings save routes per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract": under a `## Memory Backend` block to the declared backend write tool (redacted; the orchestrator's own MCP call), plus the local file in `mirror` mode; with no block, through `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` via Bash — never a raw Write to the append-only `.geniro/knowledge/learnings.jsonl`, which would truncate the log and bypass secret-redaction.
+
+**Existing safety layer** applies across ALL phases (file-protection / git-guardrail / `.geniro/` deletion guard).
+
+## Git constraint
+
+Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+
+## Definition of done
+
+These are the load-bearing exit gates — the checks that, if skipped, make the answer unsound or the no-ship boundary unsafe. Per-phase mechanics (classification, scoping, agent spawns, synthesis) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
+
+- [ ] External-lookup routing offered when classification is Internet-only (Phase 1 Step 1.5); `/deep-research` suggested, never auto-invoked
+- [ ] Glossary-mismatch check executed against CLAUDE.md Domain Context (Phase 1 Step 2.5); resolved via AskUserQuestion with `approvals[]` persistence if mismatch found
+- [ ] JIT retrieval cadence applied (Phase 1 Step 2.6)
+- [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
+- [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
+- [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 3 Step 3)
+- [ ] Follow-up AUQ offered; save-routing applied per Step 4a (CLAUDE.md / ADR / learnings.jsonl / memory) NOT defaulted to a single store
+- [ ] L2 `discovery` emit fired with trust label per Step 5 trigger conditions
+- [ ] State.md cleaned up per Step 6
+
+---
 
 ## Question
 
@@ -348,70 +414,6 @@ No handoff file to delete. Chat answer is the deliverable. Persistent artifacts 
 ## State file schema
 
 T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Write via `atomic_state_write`; validate on resume via `validate_state_file`. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Termination reason / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
-
----
-
-## ACI per-phase tool surface
-
-**Phase 1 (Classify+Scope):**
-- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`); WebSearch / WebFetch (rare for Phase 1 prelim).
-- Allowed Agent spawns: none yet.
-- Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
-
-**Phase 2 (Investigate+Verify):**
-- Allowed Agent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
-- Each spawned agent runs with its own tool whitelist (per spawn template above):
-- Codebase: Read / Grep / Glob / Bash (read-only); blocked: Edit / Write / NotebookEdit.
-- Git: Read / Bash (read-only git verbs); blocked: Edit / Write / mutating git.
-- Internet: WebSearch / WebFetch; blocked: Edit / Write / local Bash.
-- Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
-
-**Phase 3 (Synthesize+Review+Present):**
-- Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up + the save-routing gate) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
-- Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
-- Fresh verifier agent: Read / Grep (no Edit / Write).
-- Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` or `docs/decisions/` only). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks. The learnings save routes per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract": under a `## Memory Backend` block to the declared backend write tool (redacted; the orchestrator's own MCP call), plus the local file in `mirror` mode; with no block, through `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` via Bash — never a raw Write to the append-only `.geniro/knowledge/learnings.jsonl`, which would truncate the log and bypass secret-redaction.
-
-**Existing safety layer** applies across ALL phases (file-protection / git-guardrail / `.geniro/` deletion guard).
-
-## Git constraint
-
-Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-
-## Anti-rationalization
-
-Check these rationalizations before drifting from the procedure.
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "I already know the answer from reading the code" | You read one perspective. Parallel agents catch what you missed — git history reveals intent, internet reveals context. |
-| "I'll spawn all 3 (or add an agent the classification excluded) to be safe" | The Phase 1 Step 1 classification table is the LITERAL spawn set; irrelevant agents are net-negative — they consume tokens and their off-target findings force the synthesizer to filter noise. If the criteria look wrong for this question, revise classification — don't silently add. |
-| "Self-review is overkill for a question" | Wrong answers waste more time than the review costs. File references go stale, claims drift from evidence. |
-| "I'll spawn agents one at a time to save tokens" | Parallel agents go in ONE response — multiple Agent calls in the same assistant turn. Sequential turns waste wall-clock time for no token savings. |
-| "All three agents converge on the same claim — that's confirmed" | Convergent self-reports are still self-reports. Phase 2 Step 2 re-verify requires the orchestrator to independently re-read / re-run / re-grep before treating any agent claim as evidence. |
-| "The reasoning chain is tight, that's enough evidence" | Reasoning is hypothesis, not evidence. Only the artifact kinds (file:line snippet, captured output, log line, query result, user data) clear the Evidence Standard. |
-| "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence. Phase 3 Step 1 confidence-driven action requires verified / re-verify / ask-user / omit — there is no "ship with caveat" path. |
-| "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
-| "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
-| "Auto-promote /geniro:investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
-| "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5. Issue threads contain speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
-| "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field. Future readers (later retrieval or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
-| "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | If CLAUDE.md has a Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. Always run the check when Domain Context is present. |
-| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | The 5-step cadence is what makes /geniro:investigate evidence-disciplined; dropping it would let claims drift from evidence. Step 2.6 is the audit trail that makes JIT discipline reviewable. |
-
-## Definition of done
-
-These are the load-bearing exit gates — the checks that, if skipped, make the answer unsound or the no-ship boundary unsafe. Per-phase mechanics (classification, scoping, agent spawns, synthesis) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
-
-- [ ] External-lookup routing offered when classification is Internet-only (Phase 1 Step 1.5); `/deep-research` suggested, never auto-invoked
-- [ ] Glossary-mismatch check executed against CLAUDE.md Domain Context (Phase 1 Step 2.5); resolved via AskUserQuestion with `approvals[]` persistence if mismatch found
-- [ ] JIT retrieval cadence applied (Phase 1 Step 2.6)
-- [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
-- [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
-- [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 3 Step 3)
-- [ ] Follow-up AUQ offered; save-routing applied per Step 4a (CLAUDE.md / ADR / learnings.jsonl / memory) NOT defaulted to a single store
-- [ ] L2 `discovery` emit fired with trust label per Step 5 trigger conditions
-- [ ] State.md cleaned up per Step 6
 
 ---
 

@@ -38,6 +38,8 @@ state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path).
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
 
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — everything from Phase 1 down is gone for the rest of the session. Rebuilding a phase from the summary's recollection instead of its actual steps is how the per-step regression gate or a HIGH-risk approval gate gets skipped. Re-invoking restores the full body; state.md `phase:` says where to resume.
+
 ---
 
 ## Loop invariants
@@ -55,6 +57,28 @@ This skill adds one invariant:
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 `## Tool log` schema: typical run produces 3-6 entries (reviewer-agent + custom reviewers + escalation entries; smell detection and per-step execution run orchestrator-inline and emit to state.md `## Plan steps` directly).
+
+---
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "This smell is too small to fix" | If the plan says fix it, fix it. Small smells compound. |
+| "I'll batch multiple transformations" | One atomic transformation at a time. Always. The per-step regression gate exists to catch behavior drift on the smallest possible unit. |
+| "Tests are passing so I'll skip the blocked step protocol" | The protocol exists for the NEXT failure. Follow it — Phase 2 §2.2 Blocked Step Protocol applies to ALL transformations regardless of prior-step success. |
+| "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. The zero-behavior-change guarantee is non-negotiable. |
+| "This duplication needs a new shared helper" | Run the Existing Abstraction Audit first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`. If a utility / service / hook already exists nearby that could absorb this duplication via a small extension, prefer extending it. Only create a new shared helper when no analogue exists OR when extending the existing one would require adding a parameter or conditional that complicates it (Rule of Three). |
+| "All detected smells are real issues" | Generic smell categories flag intentional repo patterns. Without filtering against THIS repo's conventions via Phase 1 §1.5 smell evidence + KEEP/FILTER synthesis matrix, you'll refactor code that was designed that way on purpose. |
+| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
+| "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change guarantee applies even when the in-scope behavior is buggy. |
+| "I'll hardcode `model='sonnet'` at the reviewer-agent spawn site to cap cost — the user might not realize Opus is expensive" | Forbidden. Plugin subagents inherit the orchestrator tier per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user chose Opus at session start with full knowledge of cost; overriding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that is the canonical knob. |
+| "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
+| "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Hard kill caps abort legitimate complex refactors mid-stride. The skill is quality-first — no hard kill caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
+| "Auto-promote a recorded discovery into a project rule when refactor completes." | Phase 3 §3.5 offers to capture it via `/geniro:instructions create` and only when the same pattern has recurred (`recurrence_count >= 3`) — do NOT auto-write the rule. The user authors and curates project rules; auto-promotion creates noise + drift. |
+| "The revert step needs `git checkout -- .` / `git restore .`, but the guard blocks it — I'll bypass the hook or run `git stash`." | Use the targeted form § Git Constraint allows — `git restore --source=HEAD -- <each changed path>`, listing only the paths the step touched — never the bare `.`/`*` pathspec the guard blocks, and never a bypass or `git stash`. If some other guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
+| "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
+| "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
 
 ---
 
@@ -114,6 +138,36 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 
 ---
 
+## ACI per-phase tool surface
+
+**Phase 1 (Plan):**
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline).
+- Allowed Agent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (§1.4). smell detection + smell evidence otherwise run orchestrator-inline.
+- Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
+
+**Phase 2 (Apply):**
+- Allowed Agent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
+- Orchestrator uses Edit / Write / Bash (test cmd) directly. Per-step regression runs via backpressure helper.
+- Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
+
+**Phase 3 (Verify):**
+- Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
+- Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only), focused ADR-drafting agent (if PRODUCT-DECISION ADR path picked).
+- Allowed: targeted per-file revert via `git restore --source=HEAD -- <each changed path>` — an orchestration-level revert exception to the git-write constraint; list the specific changed paths, never a bare `.`/`*` (see § Git Constraint).
+- Explicitly blocked: `git commit`, `git push`, `gh pr create`.
+
+**All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
+
+**Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard. Runtime denies stay enforced.
+
+---
+
+## Git Constraint
+
+Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert a failed transformation in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <each changed path>`, listing only the specific paths the step touched — this is an orchestration-level revert, not a version-control operation. NEVER use a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside the current step.
+
+---
+
 ## Memory I/O schedule
 
 | Phase | Helper | Direction | MODE |
@@ -127,6 +181,20 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 | Phase 3 exit | `emit-learning` | write L2 | n/a (emit types: `discovery` with `ext.{area, insight}` OR `pitfall` with `ext.{trap, mitigation}`) |
 
 `update-semantic` writes to `_CODEBASE_MAP.md` for move/rename refactors (bounded auto-incremental write). Not applicable when refactor adds modules (would be a behavioral change → escalate to `/geniro:implement`).
+
+---
+
+## Definition of done
+
+These are the load-bearing exit gates and safety invariants — the checks that, if skipped, break the zero-behavior-change guarantee or the no-ship boundary. Per-phase mechanics (tier classification, smell detection, plan building) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
+
+- [ ] Tests green before AND after the run — baseline captured (Phase 1) and final regression run captured as an Evidence Block (Phase 2 §2.4); the zero-behavior-change guarantee held
+- [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT) — refactor's zero-behavior-change guarantee means multi-path findings are NOT fixed in-skill
+- [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → "Findings remain" AUQ
+- [ ] ≥30% blocked → stuck AUQ fired (user picks; never silent abort)
+- [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
+- [ ] No `git commit` / `git push` / `gh pr create` — diff stays uncommitted (user or /geniro:implement ships)
+- [ ] Cleanup completed
 
 ---
 
@@ -441,75 +509,8 @@ T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categor
 
 ---
 
-## ACI per-phase tool surface
-
-**Phase 1 (Plan):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline).
-- Allowed Agent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (§1.4). smell detection + smell evidence otherwise run orchestrator-inline.
-- Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
-
-**Phase 2 (Apply):**
-- Allowed Agent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
-- Orchestrator uses Edit / Write / Bash (test cmd) directly. Per-step regression runs via backpressure helper.
-- Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
-
-**Phase 3 (Verify):**
-- Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
-- Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only), focused ADR-drafting agent (if PRODUCT-DECISION ADR path picked).
-- Allowed: targeted per-file revert via `git restore --source=HEAD -- <each changed path>` — an orchestration-level revert exception to the git-write constraint; list the specific changed paths, never a bare `.`/`*` (see § Git Constraint).
-- Explicitly blocked: `git commit`, `git push`, `gh pr create`.
-
-**All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
-
-**Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard. Runtime denies stay enforced.
-
----
-
-## Git Constraint
-
-Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert a failed transformation in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <each changed path>`, listing only the specific paths the step touched — this is an orchestration-level revert, not a version-control operation. NEVER use a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside the current step.
-
----
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "This smell is too small to fix" | If the plan says fix it, fix it. Small smells compound. |
-| "I'll batch multiple transformations" | One atomic transformation at a time. Always. The per-step regression gate exists to catch behavior drift on the smallest possible unit. |
-| "Tests are passing so I'll skip the blocked step protocol" | The protocol exists for the NEXT failure. Follow it — Phase 2 §2.2 Blocked Step Protocol applies to ALL transformations regardless of prior-step success. |
-| "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. The zero-behavior-change guarantee is non-negotiable. |
-| "This duplication needs a new shared helper" | Run the Existing Abstraction Audit first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`. If a utility / service / hook already exists nearby that could absorb this duplication via a small extension, prefer extending it. Only create a new shared helper when no analogue exists OR when extending the existing one would require adding a parameter or conditional that complicates it (Rule of Three). |
-| "All detected smells are real issues" | Generic smell categories flag intentional repo patterns. Without filtering against THIS repo's conventions via Phase 1 §1.5 smell evidence + KEEP/FILTER synthesis matrix, you'll refactor code that was designed that way on purpose. |
-| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
-| "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change guarantee applies even when the in-scope behavior is buggy. |
-| "I'll hardcode `model='sonnet'` at the reviewer-agent spawn site to cap cost — the user might not realize Opus is expensive" | Forbidden. Plugin subagents inherit the orchestrator tier per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user chose Opus at session start with full knowledge of cost; overriding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that is the canonical knob. |
-| "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
-| "Add a wall-time kill cap so long-running refactor sessions abort cleanly." | Hard kill caps abort legitimate complex refactors mid-stride. The skill is quality-first — no hard kill caps. ≥30% blocked gate + PRODUCT-DECISION + 1-round fix-loop gate all escalate to user via AUQ. User has agency. |
-| "Auto-promote a recorded discovery into a project rule when refactor completes." | Phase 3 §3.5 offers to capture it via `/geniro:instructions create` and only when the same pattern has recurred (`recurrence_count >= 3`) — do NOT auto-write the rule. The user authors and curates project rules; auto-promotion creates noise + drift. |
-| "The revert step needs `git checkout -- .` / `git restore .`, but the guard blocks it — I'll bypass the hook or run `git stash`." | Use the targeted form § Git Constraint allows — `git restore --source=HEAD -- <each changed path>`, listing only the paths the step touched — never the bare `.`/`*` pathspec the guard blocks, and never a bypass or `git stash`. If some other guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
-| "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
-| "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
-
----
-
 ## Task tracking
 
 Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level todos: Plan, Apply, Verify. During Phase 2, add dynamic per-step todos derived from the approved plan. Mark `in_progress` → `completed` as phases run. At most ONE todo is `in_progress` at a time.
 
 ---
-
-## Definition of done
-
-These are the load-bearing exit gates and safety invariants — the checks that, if skipped, break the zero-behavior-change guarantee or the no-ship boundary. Per-phase mechanics (tier classification, smell detection, plan building) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
-
-- [ ] Tests green before AND after the run — baseline captured (Phase 1) and final regression run captured as an Evidence Block (Phase 2 §2.4); the zero-behavior-change guarantee held
-- [ ] PRODUCT-DECISION findings escalated to /geniro:implement (always-WAIT) — refactor's zero-behavior-change guarantee means multi-path findings are NOT fixed in-skill
-- [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → "Findings remain" AUQ
-- [ ] ≥30% blocked → stuck AUQ fired (user picks; never silent abort)
-- [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
-- [ ] No `git commit` / `git push` / `gh pr create` — diff stays uncommitted (user or /geniro:implement ships)
-- [ ] Cleanup completed
-
----
-

@@ -13,6 +13,8 @@ Stateless loop: **Parse → Execute → Done**. Execute branches into one of six
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
+**After a compaction, re-invoke this skill before running a sub-command whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and reconstructing a phase from the summary's recollection instead of its actual steps is how a gate gets skipped. There is no state file here, so re-invoking is the only restore: it brings back the full body and the run re-resolves from Phase 1.
+
 ## Sub-commands
 
 | Sub-command | Aliases | Purpose |
@@ -37,6 +39,33 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 5.3); the tool-allowlist intersection (Phase 5.4), the one-time scope checkpoint when the run edits outside what the action declares (Phase 5.4), and author-placed `[AUQ]`/`## Confirm:` checkpoints still fire. `create` / `edit` / `delete` stay AUQ-gated under #3.
 4. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final message.
 
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I'll just edit a core Geniro skill instead of creating a custom action" | No — core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
+| "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 6. Silent overwrite destroys committed work. |
+| "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
+| "The five interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
+| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
+| "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
+| "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
+| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; adding an "are you sure?" AUQ would re-ask a decision the user already made by invoking it. `risk_class` is metadata (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
+| "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
+| "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
+| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
+| "I'll re-use Phase 4 Step 6's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
+| "I'm in a linked worktree, so I'll refuse to edit/delete the main repo's copy of an action" | No — the main repo checkout is the canonical home of actions (`create` writes there); refusing would break the create→edit flow from a worktree. Local branch copies stay respected at read/run time (local wins); CRUD targets the canonical copy, asking only when both copies exist and differ. |
+
+## Definition of done
+
+Load-bearing exit gates — per-command mechanics live in their phase sections.
+
+- [ ] Every user interaction used `AskUserQuestion`; destructive ops (`delete`, and overwrite on `create`) confirmed via AUQ before running.
+- [ ] Writes to `.geniro/actions/` routed through `atomic_state_write` (T3 persistent-CRUD path); no `{{placeholder}}` left in any written file.
+- [ ] `create` passed all 10 validation checks (including required `risk_class:`); `validate` exited non-zero on any CRITICAL/HIGH.
+- [ ] `run` executed inline with no run-confirmation gate (Phase 5.3), within the action's tool-scope intersection; the scope checkpoint fired (once) if the run edited outside what the action declares; L2 `discovery` emit fired on a successful `external-send: true` run.
+- [ ] `.gitignore` re-include rules added on first action created (idempotent).
 ## Budgets — quality-first
 
 No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: one action runs at a time (assumed sequential).
@@ -480,36 +509,9 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 | L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |
 | Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD — NOT part of the memory model |
 
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "I'll just edit a core Geniro skill instead of creating a custom action" | No — core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
-| "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 6. Silent overwrite destroys committed work. |
-| "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
-| "The five interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
-| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
-| "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
-| "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
-| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; adding an "are you sure?" AUQ would re-ask a decision the user already made by invoking it. `risk_class` is metadata (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
-| "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
-| "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
-| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
-| "I'll re-use Phase 4 Step 6's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
-| "I'm in a linked worktree, so I'll refuse to edit/delete the main repo's copy of an action" | No — the main repo checkout is the canonical home of actions (`create` writes there); refusing would break the create→edit flow from a worktree. Local branch copies stay respected at read/run time (local wins); CRUD targets the canonical copy, asking only when both copies exist and differ. |
-
 ## Cross-references
 
 - PERSISTENT (CRUD) — `.geniro/actions/` tier; write via `atomic_state_write` with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
 - `.gitignore` re-include — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md`, applied at Phase 4 Step 2 so `.geniro/actions/` stays committed
 
-## Definition of done
-
-Load-bearing exit gates — per-command mechanics live in their phase sections.
-
-- [ ] Every user interaction used `AskUserQuestion`; destructive ops (`delete`, and overwrite on `create`) confirmed via AUQ before running.
-- [ ] Writes to `.geniro/actions/` routed through `atomic_state_write` (T3 persistent-CRUD path); no `{{placeholder}}` left in any written file.
-- [ ] `create` passed all 10 validation checks (including required `risk_class:`); `validate` exited non-zero on any CRITICAL/HIGH.
-- [ ] `run` executed inline with no run-confirmation gate (Phase 5.3), within the action's tool-scope intersection; the scope checkpoint fired (once) if the run edited outside what the action declares; L2 `discovery` emit fired on a successful `external-send: true` run.
-- [ ] `.gitignore` re-include rules added on first action created (idempotent).

@@ -89,7 +89,7 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 ## 4. Judged checks — taxonomy seed for the LLM-judge prompt
 
-These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. The judge prompt seeds the full list below; the judge returns findings in the schema documented in SKILL.md Phase 2 Step 2.
+These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. This table is what the orchestrator inlines verbatim into each judge prompt (SKILL.md invariant #3); the judge returns findings in the schema documented in SKILL.md Phase 2 Step 2.
 
 | ID | Name | Severity | Scope | What the judge looks for |
 |---|---|---|---|---|
@@ -169,4 +169,4 @@ Sort events by suspicion descending; take top events until 60K-token budget is r
 
 - The check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
 - When `/improve-template` consumes a handoff from `/analyze-thread`, it sees finding IDs verbatim. Keep IDs stable across edits to this file; rename `name` columns freely.
-- The judge prompt loads this file at spawn time, not at skill-install time. Editing the taxonomy takes effect on the next `/analyze-thread` run with no rebuild.
+- The orchestrator reads this file at Phase 2 entry and inlines the short form into every judge prompt (SKILL.md invariant #3 — the judge is a subagent and never opens the file itself). Editing the taxonomy therefore takes effect on the next `/analyze-thread` run with no rebuild.

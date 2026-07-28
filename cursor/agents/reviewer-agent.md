@@ -82,23 +82,29 @@ For each changed file:
 4. **Score confidence** — rate each potential finding 0-100
 
 ### Step 3: Verify findings
-For each finding with confidence ≥50:
+For each candidate finding you rate 40 or above:
 
 1. **Re-read the code** — verify the finding exists in context
 2. **Check for false positives** — is this really an issue or a misread?
 3. **Check for mitigating patterns** — does surrounding code handle this case?
 4. **Adjust confidence** — increase if confirmed, decrease if ambiguous
 
-### Step 4: Filter and output
-Only output findings with confidence ≥60. When a finding's behavior is explicitly addressed by a plan decision absorbed in Step 1.5, prefix the finding title with `[ALIGNS-WITH-PLAN-<marker>]` (behavior matches the decision — usually means downgrade or drop) or `[DIVERGES-FROM-PLAN-<marker>]` (behavior contradicts the decision — verify against spec). Use the project's exact decision marker (e.g., `D-09`, `D09`, `[D09]`). Example: `[DIVERGES-FROM-PLAN-D-09] Backfill missing for existing timeline rows`.
+### Step 4: Emit findings
+Emit every finding that still scores 40 or above after Step 3's adjustment, each carrying its `Confidence:` number.
+
+Admission is not yours to decide. The orchestrator runs a multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) that weighs cross-reviewer convergence, evidence-grounding, criteria pre-resolution, and decision-type alongside your confidence — your number is one input among several, and three of the others are invisible from inside a single dimension. Withholding a mid-scored finding destroys those signals before they can fire: a defect two dimensions independently raised at 55 is admitted on convergence, and it cannot converge if you dropped it.
+
+The 40 is a noise bound on report volume, not an admission threshold — below it your own read is that the finding is more likely a misread than a defect, and each emitted block spends part of the ~4000-character report budget the real findings need. It sits below every confidence value the orchestrator's gate reads, so no confidence-scored path to admission is pre-empted here.
+
+When a finding's behavior is explicitly addressed by a plan decision absorbed in Step 1.5, prefix the finding title with `[ALIGNS-WITH-PLAN-<marker>]` (behavior matches the decision — usually means downgrade or drop) or `[DIVERGES-FROM-PLAN-<marker>]` (behavior contradicts the decision — verify against spec). Use the project's exact decision marker (e.g., `D-09`, `D09`, `[D09]`). Example: `[DIVERGES-FROM-PLAN-D-09] Backfill missing for existing timeline rows`.
 
 ## Confidence Scoring (advisory)
 
-Emit `Confidence: XX%` (0-100) — an advisory hint about your self-rated certainty, NOT the load-bearing filter. Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, LLM self-reported confidence is poorly calibrated for Claude and nearly random in production. The orchestrator's multi-signal admission gate uses convergence + evidence-grounding as primary signals, with the percentage as a fallback.
+Emit `Confidence: XX%` (0-100) — an advisory hint about your self-rated certainty, NOT the load-bearing filter (Step 4 carries the emit contract). Per the research cited in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, LLM self-reported confidence is poorly calibrated for Claude and nearly random in production.
 
 Read `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent-reference.md` §Confidence rubric before you score your first finding — it carries the score bands and the scoring adjustments that map evidence, systemic-ness, and nearby mitigations onto the number.
 
-Still rate your confidence — downstream consumers (orchestrator tie-breaking, the per-finding verifier, the user) read it. But do not inflate confidence to push a finding past a perceived threshold; if the finding is correct, the multi-signal gate will surface it via convergence or evidence-grounding even at 60-79%.
+Still rate your confidence honestly — downstream consumers (the orchestrator's gate, the per-finding verifier, the user) read it, and Step 4 emits the number rather than gating on it. Neither inflate a score to push a finding past a perceived threshold nor deflate one you are unsure of: if the finding is correct, the multi-signal gate surfaces it via convergence or evidence-grounding at a middling score, and a distorted number only degrades the one signal you own.
 
 ## Output Format
 

@@ -1,0 +1,146 @@
+# /geniro:review — Phase 3 & Phase 4
+
+Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to Phase 3. The spine keeps the phase headings, the loop invariants, the anti-rationalization table, and the Definition of done — this file carries the Steps.
+
+## Contents
+
+- Phase 3 — Filter & aggregate
+  - 3.1 Orchestrator-side dedup + convergence
+  - 3.2 Mechanical+LLM dedup
+  - 3.3 KEEP/FILTER judgment
+- Phase 4 — Stratification & test gate
+  - 4.0 Post-spawn verification gate (declared vs actual)
+  - 4.1 Multi-signal threshold filter
+  - 4.2 Per-finding empirical-reproduction verification
+  - 4.3 Failing-to-passing test-confirmation gate
+
+---
+
+## Phase 3 — Filter & aggregate
+
+State.md `phase: filter`.
+
+### 3.1 Orchestrator-side dedup + convergence
+
+The orchestrator reads all per-dimension findings (Phase 2 reviewer-agent outputs + Phase 1.5 mechanical findings) and performs dedup inline — no subagent spawn:
+
+- **Dedup key:** `path:line + finding-title` (case-insensitive title match).
+- **Convergence_count:** for each dedup'd finding, count how many reviewers + mechanical checks reported the same key. Persisted as a field on the finding (consumed by Phase 5.3 auto-emit threshold).
+- **Drop hallucinations:** findings without a real file:line correspondence (orchestrator verifies file exists and line is within bounds via Read; if not, drop with a `## Caveats` line citing the dropped finding). **Exception — sentinel-`File` findings** (`File: SPEC-COMPLIANCE` / `File: PR-METADATA`) are path-less by design: they cite a plan/PR fragment in `Evidence:`, not a code `file:line`. Do NOT drop them here — they are verified in Phase 4.2 against the diff instead (§4.2 path-less branch).
+- **Convention context:** orchestrator reads convention files when present — CONTRIBUTING.md, ADRs at `docs/adr/`, architecture docs. These inform KEEP/FILTER decisions.
+
+### 3.2 Mechanical+LLM dedup
+
+Mechanical findings (Phase 1.5) and LLM findings may overlap (e.g., lint says "unused import on line 42", bugs reviewer says "dead code on line 42"). Orchestrator-inline dedup identifies overlap by dedup key, preserves the mechanical finding (deterministic) + drops the LLM's redundant entry. Convergence_count for that finding gains +1 for the mechanical contribution.
+
+### 3.3 KEEP/FILTER judgment
+
+After dedup, the orchestrator synthesizes per finding: weighs convention-alignment, over-engineering, and pattern-frequency evidence against severity and judges KEEP / FILTER. CRITICAL findings with `safety_override=true` are always KEEP regardless of convention evidence. Pass only KEEP findings to Phase 4. FILTERED appear in the report's `## Filtered` section with reason annotation.
+
+**Intent reconciliation** runs here as part of the per-finding judgment: a finding a reviewer tagged `[ALIGNS-WITH-PLAN]` (or `[DIVERGES-FROM-PLAN]` where the plan authorized the divergence) is demoted to decision-type `[INTENT-CHECK]` rather than kept as a bug. `[PRE-EXISTING]` convention/build findings are demoted the same way. Cite the plan frontmatter or section that authorizes the divergence on the demoted finding so the user can re-elevate.
+
+No external agent to fail — dedup and judgment run in orchestrator's main context.
+
+---
+
+## Phase 4 — Stratification & test gate
+
+State.md `phase: stratify`.
+
+### 4.0 Post-spawn verification gate (declared vs actual)
+
+Before stratification fires, run two declared-vs-actual checks.
+
+**4.0a Mechanical pre-pass declaration check.** Assert state.md frontmatter `mechanical_prepass_attempted` (§1.5.7) exists and each listed check (`lint`, `schema`, `secret`) has a recorded outcome — findings on the list, or a `## Errors mechanical-prepass-<id>` entry. A missing `mechanical_prepass_attempted` declaration means the pre-pass was skipped wholesale (a TS-dominated diff that ran no lint and no `tsc` is the documented live miss); a listed check with no outcome means it was declared but never reached. Either is a contract miss: append `## Errors mechanical-prepass-incomplete: declared=<...> missing-outcome=<...>` and surface it in the Phase 6 report `## Caveats`; this is advisory (the pre-pass is fail-open by design and LLM reviewers still ran), so do NOT block — record the gap so the user knows the cheap-deterministic layer was thin this run.
+
+**4.0b Spawn-batch completeness check.** Verify the Phase 2 parallel batch actually delivered every dimension declared in §2.2, with exactly one spawn per dimension:
+
+```
+declared = state.md frontmatter spawn_dims_declared
+actual   = set of dimensions whose reviewer-agent emitted a structured result in Phase 3
+fired    = number of Agent reviewer spawns fired in Phase 2
+
+missing = declared − actual
+```
+
+`fired` must equal `spawn_dims_count` on the standard single-pass path, in both Standard and Batched payload shape; in deep mode the Workflow's 3 angle-passes per declared dimension are checked per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, not by this count. `fired` above the declared count means per-file-batch multiplication (forbidden by §2.3.2); below it means dropped dimensions. Each mismatch direction routes through its matching branch below.
+
+A `spawn_dims_declared` list that does not exist in frontmatter at this point is itself a contract miss, not a pass: §2.2 writes it BEFORE the parallel batch precisely so this gate has a baseline — if it appears only at persist time (written ~after the spawns), the gate it powers ran inert against a missing baseline. Treat an absent or first-seen-at-persist `spawn_dims_declared` as drift: append `## Errors phase-2-spawn-declaration-missing` and reconstruct `declared` from the §2.1 grid (and `spawn_dims_count` as its length) for THIS run before computing `missing`.
+
+If `missing` is non-empty, or `fired < spawn_dims_count` (under-fire — dropped dimensions):
+
+1. Append a `## Errors` body entry: `phase-2-spawn-incomplete: declared=<...> actual=<...> missing=<...> fired=<N>`.
+2. Render the round summary to chat first — declared vs returned reviewers, with the missing set in plain-English dimension names — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire a lean `AskUserQuestion` with header `"Review incomplete"`:
+   - A) `"Re-run the missing reviewers now"` — issue `Agent(...)` per missing dim; once results land, recompute `actual` and re-verify. (Recommended)
+   - B) `"Skip the missing reviewers and continue"` — append to body `## Accepted Gaps`; continue to §4.1.
+   - C) `"Abort review"` — terminal `phase: aborted`; `## Termination reason: spawn-batch-incomplete (<missing>)`.
+
+If `fired > spawn_dims_count` and `missing` is empty (over-fire — every declared dimension returned, but extra reviewer spawns fired, e.g. per-file-batch multiplication):
+
+1. Append a `## Errors` body entry: `phase-2-spawn-overfire: declared=<list> fired=<N>`.
+2. Render fired-vs-declared to chat first — how many reviewer agents ran vs how many review dimensions were declared, in plain English — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire a lean `AskUserQuestion` with header `"Extra reviewers ran"`:
+   - A) `"Continue — dedup findings across the extra spawns"` — treat the extra spawns' findings as additional §3.1 dedup inputs; continue to §4.1. (Recommended)
+   - B) `"Abort review"` — terminal `phase: aborted`; `## Termination reason: spawn-overfire`.
+
+Always-WAIT on both gates — an empty answer signals an upstream tool bug; fall back to plain text and re-ask rather than auto-defaulting, because silently skipping missing reviewers (or silently absorbing extra ones) hides a gap the user never consented to.
+
+When `missing` is empty and `fired == spawn_dims_count`, proceed directly to §4.1.
+
+### 4.1 Multi-signal threshold filter
+
+`severity ≥ MEDIUM` is necessary but NOT sufficient. A finding admitted to Phase 4 must clear one of FOUR independent signals — any one passes. Convergence + evidence-grounding are documented as more reliable than LLM self-confidence (citations: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4).
+
+KEEP rule (admit to Phase 5 stratify into `## Findings`) — a finding is kept when EITHER admission path holds. The four signal thresholds below are restated here as the operational gate; their canonical source is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 — if a threshold ever changes, that file is authoritative and this gate follows it. **Path A — severity-gated** (also admits to the Phase 4.2 verifier): `severity >= MEDIUM` AND ONE OF:
+1. `convergence_count >= 2` — finding raised by 2+ independent reviewer dims. `convergence_count` is set during §3.1 dedup.
+2. `Evidence-Block present AND properly formatted` AND `confidence >= 60` — cites a real file:line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. "Properly formatted" = Evidence-Block fence OR file:line pattern + ≥2 quoted lines — OR, for a sentinel-`File` finding (`File: SPEC-COMPLIANCE` / `File: PR-METADATA`, path-less by design), a verbatim quoted plan/PR fragment in `Evidence:` (a fenced quote or ≥2 quoted lines) standing in for the code citation these dimensions structurally lack (mechanical check at §4.1 entry on each finding's `Evidence:` field; false on missing; orchestrator does NOT re-read the cited file — Phase 4.2 verifier handles that for every §4.1 survivor).
+3. Pre-resolved override marker — tagged by a criteria file as pre-resolved priority (e.g., `regressions-criteria.md` signal-table-flagged HIGH).
+4. `confidence >= 80` — advisory fallback for findings without convergence or evidence. High tier (`risk-tier: high`) relaxes this to `confidence >= 70`; other signals unchanged.
+
+Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM — Loop Invariant #6 mandates Evidence at CRITICAL / HIGH / MEDIUM, so a MEDIUM without Evidence drops to `## Deferred — sub-threshold` regardless of convergence or confidence score. A sentinel-`File` MEDIUM finding (spec-compliance / pr-metadata) satisfies signal #2 via the quoted plan/PR-fragment form above, so it reaches the Phase 4.2 path-less verifier rather than being deferred.
+
+**Path B — decision-type orthogonal** (`Decision Type == PRODUCT-DECISION`, any severity): keep it regardless of severity — admission by decision-type, NOT severity inflation; severity stays as scored (rationale: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 Path B). Every Path-B finding lands in `## Findings` with its `File: path:lines` anchor — so the §3 open-decision gate fires and, on a Post, it inline-comments to its line — carrying `step0_status: pending`. Verification then splits by severity:
+
+- **LOW** — skips the Phase 4.2 verifier and carries no `Validation`/verification fields (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` § Verification fields — presence rules).
+- **MEDIUM or higher** — enters Phase 4.2 even when Path B alone admitted it (no Path-A signal held). The handoff schema makes the four verification fields mandatory on every kept CRITICAL / HIGH / MEDIUM finding, so a MEDIUM+ that skipped the verifier is a finding the schema cannot express. It verifies against its `File: path:lines` anchor like any other survivor; when the verifier cannot run — no re-readable citation, or a spawn failure after retry — the orchestrator assigns `Validation: unverified` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5: kept in the report, excluded from the PR post set, surfaced under `## Caveats`.
+
+DEFER rule (write to `## Deferred — sub-threshold` per the deferred-entry schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6): deferred entries are excluded from PR comments and the fix list BY DEFAULT, with two user-elected exits — the Post drill (review-handoff.md §7) and the include-deferred gate (review-handoff.md §4.6) — and they never populate `open_questions[]`. Severity conditions:
+- `severity < MEDIUM` AND `Decision Type != PRODUCT-DECISION` — deferred per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5. (A LOW `PRODUCT-DECISION` is kept via Path B above, never deferred.)
+- `severity >= MEDIUM` that fails ALL FOUR signals above.
+
+The admission gate is unchanged for repeat findings — an unchanged repeat is still ADMITTED; its `repeat-of-prior-round` marker feeds presentation only, never admission (full contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 Repeat-finding presentation).
+
+### 4.2 Per-finding empirical-reproduction verification
+
+Every kept CRITICAL / HIGH / MEDIUM finding from Phase 4.1 — each Path-A survivor, plus any Path-B `PRODUCT-DECISION` at those severities — is verified by a fresh `reviewer-agent` verify-finding spawn — in standard mode, survivors citing the same file share one spawn (up to 3 findings per cluster; solo and sentinel-`File` findings spawn singly), all clusters fired as a parallel batch in a single assistant turn, with one independent verdict per finding. No tier-scaling, no severity-scaling — every finding kept at these severities is verified regardless of `risk-tier`. When `deep-mode: true`, each survivor gets a signal-gated verification — one verifier, escalating to a 3-vote majority only where the call is contested or high-stakes; escalation triggers, abstain rule, and quorum fail-safe are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3 (the per-verifier contract is unchanged — only the vote count differs). A LOW `PRODUCT-DECISION` admitted by §4.1 Path B alone carries no Evidence-Block to re-read and routes to the §3 open-decision gate rather than defect-confirmation — so it skips this step; a Path-B admission at MEDIUM or higher is verified here like any other survivor (§4.1 Path B). The §4.1 multi-signal gate already constrains the Path-A survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM per §4.1; Loop Invariant #6 mandates Evidence at every kept severity), so every code-anchored survivor has a concrete file:line for the verifier to re-read; a Path-B MEDIUM+ may carry only its `File: path:lines` anchor, which the verifier reads the same way. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice — see the path-less branch below.
+
+For each cluster, the orchestrator reads the cited file once (each member's slice window) plus caller and test-dir grep context at the caps defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 (the canonical home for the slice/grep sizes — not restated here so they cannot drift), then composes a verify-finding spawn carrying ONLY the cluster's finding bodies + shared slice + grep outputs (NOT the full reviewer bundle — isolation from the originating reviewer's framing prevents anchoring). All verifier spawns fire in ONE assistant response using the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). In that SAME response — welded like the §2.3.1 spawn echo, never a separate turn — emit:
+
+> Verifying <F> findings with <S> independent checks (grouped by file).
+
+**Path-less sentinel findings (`File: SPEC-COMPLIANCE` / `File: PR-METADATA`).** No code `path:line`, so no code slice — the orchestrator composes the verify-finding spawn from the finding body (its `Evidence:` quotes the spec/PR fragment verbatim), the PR's changed-file list, and any real code `file:line` embedded in the Evidence; the verifier confirms/refutes against the diff and the cited fragment. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2.
+
+Each verifier emits: `validation: confirmed | refuted | clarified`, `recommended_action: fix-now | testable | product-decision | intent-check | drop`, `confidence: 1-5`, `evidence: "<file:line quote>"`.
+
+Aggregation:
+- `refuted` findings move to `## Filtered`. Do NOT propagate to §4.3 F→P gate, Phase 5 stratify, or T2 handoff.
+- `clarified` findings keep severity but update `decision-type` to the verifier's `recommended_action`; verifier confidence and evidence append to the finding body.
+- `confirmed` findings retain decision-type; verifier confidence and evidence append.
+- A verifier that fails to spawn or returns nothing parseable (after the registration ladder + one retry) → the finding takes `Validation: unverified` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5 — kept in the report (fail-open), excluded from the PR post set, surfaced under `## Caveats`.
+
+A `refuted` verdict on a CRITICAL is high-impact (the finding drops out of the handoff entirely). The verifier contract requires a literal quote from the cited file showing the defect is NOT present (paraphrased "looks fine" is insufficient). See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §6 for the anti-sycophancy guard.
+
+Full prompt template, isolated-context contract, anti-sycophancy guard, and worked examples: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md`.
+
+### 4.3 Failing-to-passing test-confirmation gate
+
+**Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md`.
+
+Summary:
+- Filter findings by decision-type per the runtime-behavior classification rule.
+- **Mandatory user-approval gate before any `adversarial-tester-agent` spawn.** Do not spawn without approval — the gate is the load-bearing safety property, since an unapproved spawn authors tests the user never asked for. Persist to `approvals[]` with category `test_gate_choice`.
+- The gate fires whenever eligible findings exist — never bypassed, never deferred to end-of-run. When the eligible set is empty, Phase 4.3 is skipped entirely with no AUQ.
+- Spawn ONE adversarial-tester-agent with eligible findings as hypothesis seeds. Orchestrator's independent re-run IS the gate; never trust the agent's red/green claim alone.
+- Demote-don't-delete: green tests demote findings to `## Filtered` with `[CHALLENGED-BY-TEST]` tag; original severity preserved for re-elevation.
+- Fail-open: agent failures surface "test-gate fail-open" under `## Caveats` + write `## Errors` entry.
+
+---

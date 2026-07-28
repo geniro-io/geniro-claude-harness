@@ -15,6 +15,8 @@ argument-hint: "[optional: path to template directory]"
 
 **Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
 
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a run silently skips a gate. Re-invoking restores the full body; the singleton state file's `phase:` says where to resume.
+
 ## Path constraints
 
 **No `~` in file paths passed to Read, Write, Edit, or Glob** (not expanded — creates a literal `~` directory); use `${CLAUDE_PLUGIN_ROOT}` for plugin files, absolute paths for project files.
@@ -44,6 +46,30 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 - **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
 
 `## Tool log` selective logging: record verification subagent spawns + every Write to project root or `.geniro/`. Skip routine Read/Bash inside Detect.
+
+## Anti-rationalization
+
+| Reasoning | Why it's wrong |
+|---|---|
+| "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
+| "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
+| "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
+| "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
+| "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
+| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the §3.2 exclusion list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |
+| "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
+| "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
+
+## Definition of done
+
+These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
+
+- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on the §3.2 exclusion list checked and absent
+- [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
+- [ ] L2 `discovery` emit fired
+- [ ] State file deleted on the success path
+- [ ] All user interactions used `AskUserQuestion`
+- [ ] If re-run mode + plugin-version delta: restart-session warning emitted
 
 ## Budgets — quality-first
 
@@ -521,30 +547,6 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1
 | L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
-
-## Anti-rationalization
-
-| Reasoning | Why it's wrong |
-|---|---|
-| "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
-| "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
-| "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
-| "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
-| "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
-| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the §3.2 exclusion list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |
-| "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
-| "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
-
-## Definition of done
-
-These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
-
-- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on the §3.2 exclusion list checked and absent
-- [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
-- [ ] L2 `discovery` emit fired
-- [ ] State file deleted on the success path
-- [ ] All user interactions used `AskUserQuestion`
-- [ ] If re-run mode + plugin-version delta: restart-session warning emitted
 
 ## Cross-references
 

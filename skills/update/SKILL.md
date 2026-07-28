@@ -13,6 +13,8 @@ argument-hint: "[--dry-run]"
 
 **Runtime requirement.** This skill drives the `claude plugin` CLI and the Claude Code install registry, and functions only under Claude Code. When invoked from another runtime (e.g. Cursor), state that updates are managed by that runtime's own plugin mechanism and exit without side effects.
 
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a gate gets skipped. `/geniro:update` keeps no state file, so re-invoking is the only restore: re-read the phase you were in before continuing it.
+
 ## Path constraints
 
 Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project files) to Read, Write, Edit, and Glob — these tools do not expand `~`, so a literal `~` directory gets created. Honor `CLAUDE_CONFIG_DIR` and fall back to `$HOME/.claude` only inside Bash blocks where `$HOME` expands correctly.
@@ -30,6 +32,16 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 This skill adds one invariant:
 
 8. **No subagent spawns.** `/geniro:update` does NOT spawn subagents — every phase runs inline in the orchestrator.
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "My recalled experience says the MIGRATION.md version headings don't match the package version, so I'll range-filter or read only the newest block." | A recalled learning does not override the walk-all consumption contract. The version heading is not a selection gate — walk EVERY entry across ALL sections (Phase 4) and let each read-only auto-detect decide relevance. The current skill body and the MIGRATION.md preamble are authoritative over any prior-session recollection. |
+| "The version-confirm AUQ is a formality — I'll just run the update." | That AUQ is the one explicit permission gate before a mutating marketplace + plugin update touches the install. Skipping it removes the user's only chance to cancel before the network fetch and registry write. Fire it unless `--dry-run`. |
+| "I ran the Auto-fix command, so the migration entry is resolved." | Auto-fix can apply partially. Re-run the entry's `Auto-detect:` after fixing; only an empty result confirms resolution. Reporting "fixed" without the re-detect can leave the user on a half-migrated install. |
+| "A file is missing from the hash-check but the update likely worked — continue." | A missing key file means a broken install, not a benign blip. Fire the Cancel-as-recommended AUQ and let the user decide; auto-continuing ships a plugin that may fail mid-skill later. |
+| "The user-content survival diff shows changes, but they're probably benign." | The update must never touch `.geniro/instructions/` or `.geniro/actions/`. Any diff is either a plugin bug or tampering — surface it via the AUQ; never auto-dismiss content the user authored. |
 
 ## Budgets — quality-first
 
@@ -378,16 +390,6 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 | L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
 | `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "My recalled experience says the MIGRATION.md version headings don't match the package version, so I'll range-filter or read only the newest block." | A recalled learning does not override the walk-all consumption contract. The version heading is not a selection gate — walk EVERY entry across ALL sections (Phase 4) and let each read-only auto-detect decide relevance. The current skill body and the MIGRATION.md preamble are authoritative over any prior-session recollection. |
-| "The version-confirm AUQ is a formality — I'll just run the update." | That AUQ is the one explicit permission gate before a mutating marketplace + plugin update touches the install. Skipping it removes the user's only chance to cancel before the network fetch and registry write. Fire it unless `--dry-run`. |
-| "I ran the Auto-fix command, so the migration entry is resolved." | Auto-fix can apply partially. Re-run the entry's `Auto-detect:` after fixing; only an empty result confirms resolution. Reporting "fixed" without the re-detect can leave the user on a half-migrated install. |
-| "A file is missing from the hash-check but the update likely worked — continue." | A missing key file means a broken install, not a benign blip. Fire the Cancel-as-recommended AUQ and let the user decide; auto-continuing ships a plugin that may fail mid-skill later. |
-| "The user-content survival diff shows changes, but they're probably benign." | The update must never touch `.geniro/instructions/` or `.geniro/actions/`. Any diff is either a plugin bug or tampering — surface it via the AUQ; never auto-dismiss content the user authored. |
 
 ## REFERENCE
 
