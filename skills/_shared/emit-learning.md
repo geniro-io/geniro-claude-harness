@@ -14,7 +14,6 @@
 - §4096-byte limit — the per-line sanity ceiling
 - §Example callers
 - §Known limitations
-- §Test coverage
 
 **Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`.
 
@@ -53,6 +52,17 @@ echo '<json-object>' | emit_learning
 3. **Surface a non-zero return — don't wave it off.** The helper prints nothing on success, so a swallowed non-zero return is indistinguishable from a clean write — the learning is gone and nothing in the session says so. On a non-zero return, diagnose the exit code against the §Return codes table and print one plain-English line so the loss is visible — e.g. `Couldn't record the learning — entry oversized` (rc=68), `Couldn't record the learning — a required field was missing` (rc=64), `Couldn't record the learning — write failed (disk full or permission denied)` (rc=69). Retry once only for the write-failed code (rc=69), since a transient disk/permission condition may clear; the other codes (missing field rc=64, oversized rc=68) describe the entry itself and won't succeed on a retry — fix the entry or surface and move on. Never run the emit as a backgrounded command: a backgrounded failure returns no exit code to inspect, so its loss is noticed only by accident.
 
 4. **Route through a declared memory backend.** When `memory.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §4-§5 around this emit — mirror/replace handling, redact-before-store via `lib/redact-secrets.sh`, and fail-open to the file append all live there. No block → this is a no-op and the emit is the file append exactly as above.
+
+## Sliding-window caps on bookkeeping types
+
+The bookkeeping types (`retry_failure_sequence`, `discarded_hypothesis`) accumulate one entry per failed attempt, so an unbounded log fills `query-learnings` results with stale noise and drowns the findings a caller actually wants primed. Each capped type keeps only its N most recent entries per key:
+
+| Type | Cap | Key |
+|---|---|---|
+| `retry_failure_sequence` | 3 | `(producer, scope, phase)` |
+| `discarded_hypothesis` | 5 | `(producer, scope)` |
+
+**On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file through `atomic_state_write`, never a direct `Edit`/`Write`. The state-helper hook blocks those two routes, so an attempt at them fails the step rather than corrupting the log; appending first and pruning after leaves the window over-full for any reader that queries in between.
 
 ## MODE contract
 
@@ -161,7 +171,3 @@ jq -nc \
 - **Sanitization is per-call.** A pattern that fires across multiple ext fields emits multiple audit-log rows. Aggregating is left to readers of the audit log.
 - **No producer→trust auto-default.** The helper does NOT auto-set `trust` based on producer; each caller supplies it explicitly at its emit site (e.g. `/geniro:debug` emits confirmed root causes as `verified`). A missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).
 - **Concurrent emit-learning with the same caller-supplied `dedup_key` is not serialized.** Two parallel calls with the same key but different content append both without auto-injecting `supersedes`, because each call's dedup-scan happens before the other's append. Acceptable given the helper's no-lock design; if strict serialization is needed, callers can wrap calls with a file lock.
-
-## Test coverage
-
-`tests/memory/emit-learning.sh` exercises the required-fields contract, auto-injected ts and dedup_key, caller-supplied dedup_key, sanitization of summary / body / ext / nested-ext, the dedup pipeline (no-op vs supersede), oversized rejection, invalid-JSON rejection, and injection rejection (override-phrasing + control-token payloads in summary / body / ext, plus a false-positive guard that a clean technical summary containing the word "ignore" is still accepted).

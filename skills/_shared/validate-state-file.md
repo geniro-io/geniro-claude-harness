@@ -7,16 +7,6 @@
 - **Design rationale:** `ARCHITECTURE.md` §State Files
 - **Write helper:** `skills/_shared/atomic-state-write.md`
 
-## Contents
-
-- When to call — situations that warrant validation
-- API — source-and-invoke pattern
-- Exit codes — return-code table + recovery action per code
-- Validation procedure — the ordered checks
-- Recovery AUQ template — what to ask the user on failure
-- YAML parsing strategy — shell-line-only, no `yq`
-- What this helper does NOT do — out-of-scope checks
-
 ---
 
 ## When to call

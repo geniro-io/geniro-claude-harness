@@ -42,12 +42,15 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ## Loop invariants
 
-The canonical loop invariants apply, with four skill-specific notes:
+The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with three refactor-specific bindings:
 
-1. **Invariant #4 (bounded structured tool results)** — orchestrator-inline execution writes per-step status and blocked-step reasons to state.md `## Plan steps`; total file body capped at ~8K chars via atomic_state_write truncation marker.
-2. **Invariant #5 (escalation gates, not silent abort)** — ≥30% blocked AUQ + PRODUCT-DECISION always waits for the user.
-3. **Invariant #7 (errors → structured observations)** — per-step blocked rationale, baseline validation failure, and reviewer CRITICAL findings all become structured `## Tool log` / `## Errors` entries.
-4. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+- **Invariant #4 (bounded structured tool results)** — orchestrator-inline execution writes per-step status and blocked-step reasons to state.md `## Plan steps`; total file body capped at ~8K chars via atomic_state_write truncation marker.
+- **Invariant #5 (escalation gates, not silent abort)** — ≥30% blocked AUQ + PRODUCT-DECISION always waits for the user.
+- **Invariant #7 (errors → structured observations)** — per-step blocked rationale, baseline validation failure, and reviewer CRITICAL findings all become structured `## Tool log` / `## Errors` entries.
+
+This skill adds one invariant:
+
+8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
@@ -66,7 +69,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | Per-step retry (orchestrator-inline Blocked Step Protocol) | 3 | Mark BLOCKED, continue to next step |
 | Session-level blocked ratio | 30% (post-rejection denominator) | AUQ — keep what worked & escalate / revert / force-continue. User picks. |
 | Phase 3 fix-loop | 1 round | Re-spawn reviewer once; if still failing, AUQ (escalate / accept / abort). |
-| Reviewer output size | ~4000 chars per dim | Truncation with marker (invariant #4). |
+| Reviewer output size | ~4000 chars per dim | Truncation with marker (canonical invariant #4). |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -141,7 +144,7 @@ On Phase 1 entry, in order:
 2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)` — `_project.md` + `_CODEBASE_MAP.md`. Fingerprint drift check fires if applicable.
 3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` to find prior discoveries about coupling, pitfalls, and conventions relevant to the refactor scope — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (under a declared `## Memory Backend` block routing `learnings`, /geniro:refactor's own tools can't call the backend read tool, so it delegates that read to a scoped `knowledge-retrieval-agent` spawn — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3 and uses the returned learnings; the local file is empty under `mode: replace`; no block → the inline file query runs unchanged).
 4. **Cross-layer conflict resolution** — `resolve-conflicts` with all three layers loaded; precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict. Echo lines from each loader are mandatory per its §Echo contract.
-5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept `geniro_schema_version: m5-v1` (treat field as absent), `m5-v2`, `m5-v3`, and `m5-v4` (read the field if present; an m5-v4 spec carries `workflow_refs[]` identically and may also carry a `launch_config` block, which /geniro:refactor ignores). Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). On `m5-v3` the cached parent-epic status and sibling sub-task statuses also prime scope decisions (e.g. an in-flight sibling touching the same module argues for a smaller perturbation surface), still read-only. Read-only — /geniro:refactor never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
+5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` — that file owns which schema versions a reader accepts and the rule that every consumer but /geniro:implement is tracker-read-only. Use the cached `status` field as scope-priming context — refactor scope decisions favor "still In Progress" specs (active editing area) over "Done" specs (stable code, smaller perturbation surface). On `m5-v3` the cached parent-epic status and sibling sub-task statuses also prime scope decisions (e.g. an in-flight sibling touching the same module argues for a smaller perturbation surface), Skipped silently when no spec.md is in scope.
 6. **Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — /geniro:refactor applies changes in place on the current branch, so if that branch is behind the default branch, offer to update it before scope discovery and baseline validation run against stale code. Skipped silently when the branch is already current.
 
 ### 1.2 Scope discovery + baseline + Test-first gate
@@ -300,12 +303,7 @@ For each step N in `## Plan steps` where `status: pending`:
 - **PASS**: mark `status: complete`, `attempts: <N>`, `last_post_check: PASS`. Continue to next step.
 - **FAIL**: enter Blocked Step Protocol (below).
 
-**Blocked Step Protocol** (orchestrator-inline per `refactor-patterns.md`):
-
-1. Attempt 1: analyze failure from tail-80 output, fix issue, re-run `<test_cmd_affected>`.
-2. Attempt 2: try a different approach to the same transformation, re-run.
-3. Attempt 3: try one more variation, re-run.
-4. After 3 failures: REVERT step's Edit changes (orchestrator uses Edit tool's `old_string`/`new_string` reversal or re-reads file and rewrites to pre-step content), mark `status: blocked`, `attempts: 3`, `last_post_check: REVERTED`, append blocked-rationale row to state.md. Continue to next step (NOT stop session).
+**Blocked Step Protocol** — run the three bounded attempts in `refactor-patterns.md` §Blocked Step Protocol, orchestrator-inline. On the revert after attempt 3, write `status: blocked`, `attempts: 3`, `last_post_check: REVERTED` and the blocked-rationale row to state.md, then continue to the next step — never stop the session. `last_post_check: REVERTED` is what makes the next step's pre-condition check fire (predicate (b) above); omitting it silently skips the baseline re-verification after a revert touched the tree.
 
 State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
 
@@ -329,7 +327,7 @@ If regression failed: render the regression outcome to a chat message first (whi
 
 If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 
-**L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED per orchestrator-inline Blocked Step Protocol, regardless of whether overall ratio triggered escalation), call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale from state.md ## Plan steps row>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when regression green AND <30% blocked; escalated when fired AND user picked "Keep what worked" or "Force-continue"; aborted on reverted/aborted state. Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
+**L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED per orchestrator-inline Blocked Step Protocol, regardless of whether overall ratio triggered escalation), call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale from state.md ## Plan steps row>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when regression green AND <30% blocked; escalated when fired AND user picked "Keep what worked" or "Force-continue"; aborted on reverted/aborted state. Sliding-window cap per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types (3 latest per `(producer, scope, phase)`; flip the oldest `deprecated: true` BEFORE appending, via `atomic_state_write`). Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
 
 ---
 

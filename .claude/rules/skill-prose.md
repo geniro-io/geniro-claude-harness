@@ -1,12 +1,15 @@
 ---
-globs: "skills/**/*.md, agents/**/*.md"
+paths:
+  - "skills/**/*.md"
+  - "agents/**/*.md"
+  - ".claude/skills/**/*.md"
 ---
 
 # Skill & agent authoring — voice, tone, and prose
 
 Positive-guidance companion to `.claude/rules/skill-authoring.md` (negative-space) and `.claude/rules/skill-structure.md` (mechanical). This file covers how prose inside skill / agent / reference files should be written so the orchestrator model parses it efficiently and follows it reliably.
 
-Sources for the rules below: Anthropic [`skill-creator`](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md), [Skill best-practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), [Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents), [Liu et al. 2024 "Lost in the Middle"](https://aclanthology.org/2024.tacl-1.9/), and observed prompt-length degradation thresholds ([particula.tech](https://particula.tech/blog/optimal-prompt-length-ai-performance), [mlops.community](https://mlops.community/blog/the-impact-of-prompt-bloat-on-llm-output-quality)).
+Sources for the rules below: Anthropic [`skill-creator`](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md), [Skill best-practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), [Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents), and the [Claude Code skills reference](https://code.claude.com/docs/en/skills), which is where §Rule placement's compaction budget comes from. Where a rule rests on published measurement, the section says so; where it rests on taste, it says that too. Treat an unlabelled rule as taste.
 
 ## Voice
 
@@ -20,35 +23,19 @@ Sources for the rules below: Anthropic [`skill-creator`](https://github.com/anth
 
 Per Anthropic's `skill-creator` verbatim: *"If you find yourself writing ALWAYS or NEVER in all caps, or using super rigid structures, that's a yellow flag — if possible, reframe and explain the reasoning so that the model understands why the thing you're asking for is important."*
 
-Reframing patterns:
+The dividing line: **explain WHY for rules the model would otherwise rationalize around** — anti-patterns, escape hatches, error semantics, anything whose cost is invisible at the call site. **State WHAT for routine procedure** — file paths, command syntax, slot tables, phase ordering. A reason bolted onto a routine imperative is filler; a bare imperative on a rule the model can talk itself out of gets talked out of. The reframed form costs ~10-15 tokens more per rule and buys the ability to apply the constraint to edge cases the original wording didn't anticipate.
 
-| Yellow flag | Reframed |
+| Bare imperative that invites drift | Reframed with the reason |
 |---|---|
 | "NEVER skip the test run." | "Run the test suite once at end-of-phase. The Phase 3 review pre-condition assumes green tests; skipping leaves the review reading stale code." |
 | "ALWAYS use atomic_state_write." | "Write state.md via `atomic_state_write` — direct `Edit`/`Write` calls bypass the state-helper enforcement hook and corrupt mid-crash." |
-| "MUST resolve approvals before continuing." | "Resolve the AUQ before continuing — empty answers indicate an upstream tool bug and must be re-asked, not auto-defaulted." |
+| "Spawn the reviewers in parallel." | "Spawn every reviewer dimension in ONE assistant response — separate turns serialize execution and double wall-time." |
 
-The reframed form costs ~10-15 tokens more per rule but the model can apply the underlying constraint to edge cases the original didn't anticipate.
+Routine procedure needs none of that: "Spawn the agent with `subagent_type: reviewer-agent`." / "Read `<task-dir>/.kr-out.md`." / "Set `phase: ship` on entry." Appending "because the state machine expects it" to any of those buys nothing — the state machine is documented in its own section.
 
-**Acceptable use of caps / MUST**: anti-rationalization tables, where the left cell is the rationalization the model might generate and the right cell needs to confront it bluntly. Caps in the *right* cell of an anti-rationalization row are fine when accompanied by reasoning. Caps in *normal prose* are the yellow flag.
+**Caps and MUST have exactly one home**: the right-hand cell of an anti-rationalization row, where the left cell is the rationalization the model might generate and the right cell has to confront it bluntly. Caps there are fine when accompanied by reasoning. Caps in normal prose are the yellow flag.
 
-## Prompt the positive
-
-State the target behavior rather than prohibiting its opposite: "write one-line comments", not "never write verbose comments". A prohibition names the banned pattern into context and makes it more available — the model now holds "verbose comments" as an activated concept it has to steer around. Keep a prohibition only as a hard guardrail you cannot phrase positively (a data-loss or external-effect bar), and pair it with what to do instead. Anti-rationalization rows already satisfy this shape: the left cell names the drift, the right cell states the correct move.
-
-## State what, not why (in normal prose)
-
-The complement to the "explain WHY" rule above: explain reasoning when the rule is non-obvious or counter-intuitive; otherwise state the action directly. Per [Claude Code skill docs](https://code.claude.com/docs/en/skills) verbatim:
-
-> *"State what to do rather than narrating how or why, and apply the same conciseness test you would for CLAUDE.md content. Once a skill loads, its content stays in context across turns, so every line is a recurring token cost."*
-
-Reconciliation between this rule and the explain-WHY rule: explain WHY for rules the model would otherwise rationalize around (anti-patterns, escape-hatches, error semantics). State WHAT for routine procedure (file paths, command syntax, slot tables, phase ordering).
-
-| Routine procedure → state what | Non-obvious rule → explain why |
-|---|---|
-| "Spawn the agent with `subagent_type: reviewer-agent`." | "Spawn the agent in parallel with the other 4 dimensions in ONE assistant response — separate turns serialize execution and double wall-time." |
-| "Read `<task-dir>/.kr-out.md`." | "OMIT `model=` at every spawn site — plugin agents declare their tier in frontmatter (`inherit`, or `sonnet` for the two mechanical carve-outs) and the runtime arg defeats the user's session-level `/model` choice." |
-| "Set `phase: ship` on entry." | (Don't write "set phase to ship because the state machine expects ..." — the state machine is documented in §State machine; the imperative is enough.) |
+**Prefer the positive form** — "write one-line comments" over "never write verbose comments" — and pair any prohibition you keep with what to do instead. Anti-rationalization rows already have this shape: the left cell names the drift, the right cell states the correct move. Treat this one as a stylistic preference rather than a measured effect: no instruction-following benchmark isolates it, and the circulated evidence for priming-by-prohibition comes from a moral-dilemma study on sub-4B models. Keep the prohibition form where a positive rewrite would blur a data-loss or external-effect bar.
 
 ## Assume a capable model
 
@@ -95,27 +82,34 @@ When a rule restates one quality across a phase ("fast, deterministic, low-overh
 |---|---|
 | "Phase 2 checks must be fast, deterministic, and low-overhead. After each fix, re-run the checks quickly; every re-run should be cheap and produce the same result." | "Phase 2 is a tight loop: cheap, deterministic checks re-run after every fix. Keep each check inside the tight loop." |
 
-## Lost-in-the-middle: rule placement
+## Rule placement
 
-[Liu et al. 2024](https://aclanthology.org/2024.tacl-1.9/) measured U-shaped attention bias — relevant information at the beginning or end of a long context outperforms information in the middle. For a 500-line SKILL.md, the most-attended slots are the first ~100 lines and the last ~100 lines. The middle ~300 lines hold detail.
+**Front-load everything the model must check every turn**, and keep the tail for detail it can look up. The governing mechanic is compaction, and it is documented, not inferred. Per the [Claude Code skills reference](https://code.claude.com/docs/en/skills) verbatim: *"Claude Code re-attaches the most recent invocation of each skill after the summary, keeping the first 5,000 tokens of each. Re-attached skills share a combined budget of 25,000 tokens… older skills can be dropped entirely after compaction if you have invoked many in one session."*
 
-Placement rules:
-- **Top third (lines 1-150 of a 500-line file):** role statement, phases overview, loop invariants, budgets, ACI tool surface. These are the rules the model checks every turn.
-- **Bottom third (lines ~350-500):** anti-rationalization table, REFERENCE list, task execution entry / state recovery. These are the safety net + lookup table.
-- **Middle third (lines ~150-350):** per-phase Steps with detail. Reference these by name from the invariants in the top third, so the model jumps to the relevant phase rather than scanning.
+Two consequences an author has to design around:
+- **A skill over ~5,000 tokens loses its tail for the rest of the session at the first compaction.** A long, multi-phase, subagent-heavy run is exactly where compaction is the expected case — so the invariants and the anti-rationalization table, the content that most needs to survive, is the content most at risk if it sits at the bottom.
+- **A skill invoked early in a busy session can be dropped in full.** The budget fills from the most recent invocation backwards.
 
-If a critical invariant lives in the middle third, the model will under-weight it. Move it to the Loop invariants section in the top third and refer to it by `#N` from the relevant phase.
+Placement rules for a SKILL.md:
+- **Top (inside the first ~5,000 tokens):** role statement, phases overview, loop invariants, budgets, the tool surface, and the anti-rationalization table. These are the rules the model checks every turn and the ones that must survive a summary.
+- **Below that:** per-phase Steps with detail, the REFERENCE list, state recovery. Refer to these by name from the invariants at the top so the model jumps to a phase rather than scanning for it.
+
+If a critical invariant lives past the boundary, move it into the Loop invariants section and cite it by `#N` from the phase that needs it. Where a skill genuinely cannot fit its load-bearing rules in 5,000 tokens, the remedy is re-invoking it after compaction, which the same doc recommends.
+
+**What this rule is not founded on.** The usual citation is [Liu et al. 2024](https://aclanthology.org/2024.tacl-1.9/)'s U-shaped "lost in the middle" attention curve. Chroma's 2025 replication across current frontier models found no notable position effect on retrieval, so do not move content on the theory that the middle of a file is unreadable. Move it because the tail may not be re-attached.
 
 ## Token budget awareness
 
-Reasoning degrades measurably past ~3,000 tokens of input ([particula.tech](https://particula.tech/blog/optimal-prompt-length-ai-performance), [mlops.community](https://mlops.community/blog/the-impact-of-prompt-bloat-on-llm-output-quality)). A target-size SKILL.md (~500 lines, the cap being a guideline not a hard limit) is ≈ 4-6K tokens — already at the degradation threshold. Reference files cost only when loaded, so move detail there aggressively.
+**A reference file's cost is its size times its load frequency.** A file loaded on every run of a skill is part of that skill's always-on budget; only a conditionally-loaded file is cheap. Before moving detail into a reference, state which runs will not load it — if the honest answer is "none", the move saves nothing and adds a tool round-trip. The same test kills the tempting move on an `agents/*.md` body, which is injected as the subagent's system prompt in full: relocating a rule there converts free prompt tokens into the same tokens plus a Read the agent might skip.
 
-Practical heuristics for trimming SKILL.md without losing content:
-- **Inline pseudo-code** → move to reference.md, reference it by anchor.
-- **Multi-paragraph explanation of a single step** → keep one paragraph; move the rest to reference.md.
-- **Hedge clauses** ("this may or may not", "depending on the situation") — either commit to the condition or drop the line.
-- **Restatement summaries** (paragraph ending with "in other words, ...") — drop. The reader just read the preceding paragraph.
-- **Defensive disclaimers** ("Note that this only applies if X") — fold into the rule itself with a single-clause conditional.
+**What the evidence prices is rule count and rule applicability, not word count.** Rules that are plausible but do not apply to the task in hand measurably degrade rule-guided reasoning, while an equivalent volume of inert text costs comparatively little — the expensive operation is forcing the model to adjudicate which of several similar-looking rules binds right now. Where many rules bind at once the failure mode is omission: the model acts as if the dropped rule was never written, rather than executing it poorly. So partitioning beats deleting. Path-scope a rule set so it loads only for the work it governs and the same words stop competing.
+
+Practical heuristics, in priority order:
+- **Scope before you cut.** A rule that applies to one kind of task belongs behind a path scope or a conditional load, not in the always-on body.
+- **Restatement summaries** (a paragraph ending "in other words, …") — drop. The reader read the preceding paragraph.
+- **Hedge clauses** ("this may or may not", "depending on the situation") — commit to the condition or drop the line.
+- **Defensive disclaimers** ("Note that this only applies if X") — fold into the rule itself as a single-clause conditional.
+- **Inline pseudo-code and multi-paragraph step explanations** → move to a reference file, but only once you have named the runs that skip it. Otherwise you have relocated the cost and added a round-trip.
 
 Reference files have no token-budget pressure until loaded — be generous there. SKILL.md needs to be lean.
 

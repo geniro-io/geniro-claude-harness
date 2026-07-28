@@ -281,6 +281,20 @@ Post-task project-rule mining is user-invoked, not ambient. `/geniro:reflect` sp
 
 ---
 
+## Optional MCP companions
+
+Some skills unlock extra capability when a companion MCP server is present, and degrade gracefully when it is not — so a user installs only what they need.
+
+| MCP | Used by | Enables | Install |
+|-----|---------|---------|---------|
+| **Playwright** (`mcp__plugin_playwright_playwright__*`) | `/geniro:implement` Phase 3 Ship sub-step, Pre-Ship Visual Verification | Screenshot loop at 375/768/1440, console and network sanity checks, keyboard-nav verification, smoke-test of the shipped change | Install the `playwright` marketplace plugin alongside this one. The `plugin_playwright_playwright__*` prefix is what Claude Code exposes when Playwright arrives from a sibling plugin. Absent it, the visual loop and smoke-test are skipped automatically. |
+
+A companion MCP is never declared in this plugin's manifest — the user installs it as a sibling plugin. To see what is reachable in a given environment, look for the tool prefix in the agent's tool list at runtime.
+
+The plugin agents also carry a broad `mcp__*` grant so a project-configured code-index or memory-backend MCP is reachable from a subagent without this plugin naming the server. That grant is read-only by contract: the inlined untrusted-content defense instructs agents to use MCP for read-only intelligence and never to call an egress or mutating MCP tool.
+
+---
+
 ## Dual-runtime port (Cursor)
 
 The repository ships as one plugin for two runtimes. `.claude-plugin/plugin.json` packages it for Claude Code; `.cursor-plugin/plugin.json` packages it for Cursor. Both point at the same `skills/` directory — Cursor reads the same SKILL.md files and ignores the Claude-specific frontmatter fields — while agents and hooks are runtime-specific ports under `cursor/`. Each runtime reads only its own manifest, so Claude Code's discovery (`agents/`, `hooks/hooks.json`) is untouched.
@@ -299,7 +313,7 @@ The repository ships as one plugin for two runtimes. `.claude-plugin/plugin.json
 ## Operational Rules (from report.md)
 
 - Hook blocking requires `exit 2`, not `exit 1` — `exit 1` is fail-open.
-- SKILL.md targets ≤500 lines with a ~700-line hard ceiling (guidelines, not strict caps); when a file grows past the target, move detail to a sibling `*-reference.md` rather than trimming load-bearing content.
+- SKILL.md size is measured in words, not lines (`.claude/rules/skill-structure.md` §File-size limits): everything load-bearing belongs inside the first ~3,000 words, which is all Claude Code re-attaches after a compaction, and ~5,000 words is the whole-file guideline. Both are guidelines — past them, move detail to a sibling `*-reference.md` some runs genuinely skip, rather than trimming load-bearing content.
 - Beyond ~150 total CLAUDE.md instructions, compliance degrades uniformly (context rot).
 - Skills cannot call other skills — use shared reference files + subagent delegation.
 - Subagents cannot spawn sub-tasks; all orchestration happens at the top-level skill.

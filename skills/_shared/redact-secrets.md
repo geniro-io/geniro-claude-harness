@@ -92,7 +92,3 @@ Schema (one JSONL line per `(pattern, entry)` fire):
 - **URL with `@` in password.** `https://user:p@ss@host/` matches the first `@`, leaving `ss@host/` visible. Real producers should URL-encode credentials anyway. Document for clarity; don't try to be cleverer than the spec.
 - **AWS secret exactly 40 chars.** Pattern matches `{40}` exactly. A 39- or 41-char secret slips through. Matches AWS's documented secret-key length; no looser counterpart needed.
 - **`sed` and `grep` portability.** Helper uses POSIX `-E` (extended) regex syntax; works on Linux GNU and macOS BSD. Backreferences (`\1`) are GNU sed and BSD sed compatible. If you ever port to a stricter `sed`, retest each pattern.
-
-## Test coverage
-
-`tests/memory/redact-secrets.sh` exercises every built-in pattern, the order-dependency between `sk-ant-` and `sk-`, multiline PEM, audit-log JSONL shape, `ignore_patterns` skip, and `additional_patterns` injection. Run after any change to `redact-secrets.sh`.

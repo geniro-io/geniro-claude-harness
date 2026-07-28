@@ -122,9 +122,11 @@ block() {
   File:    $FILE_PATH
   Matched: $matched_line
 
-If this is intentional (input validated, context sanitized, trusted source):
-  - Justify in an inline code comment AND retry the edit.
-  - Or bypass per-project: add "$pattern_id" to allow_patterns in .geniro/safety.json.
+Two ways forward — a code comment does NOT clear this block, the scan reads content only:
+  - Rewrite the edit so the flagged construct is gone (safe API, argv list, sanitizer).
+  - Or, if the pattern is intentional here (input validated, trusted source), add
+    "$pattern_id" to allow_patterns in .geniro/safety.json — the per-project bypass
+    this hook reads.
 EOF
   if [ -n "$SAFETY_FILE" ]; then
     echo "  (existing safety.json: $SAFETY_FILE)" >&2
@@ -212,7 +214,7 @@ run_pattern_scan() {
     "createHash\\s*\\(\\s*[\"'](md5|sha1)[\"']"
 
   check "sec-weak-crypto" "py pyw pyx pyi" \
-    "hashlib.md5() / hashlib.sha1() — broken for security (SHA-256+ for auth/integrity; for a non-security checksum, justify inline and bypass via allow_patterns)" \
+    "hashlib.md5() / hashlib.sha1() — broken for security (SHA-256+ for auth/integrity; for a non-security checksum, bypass via allow_patterns)" \
     '\bhashlib\.(md5|sha1)\s*\('
 }
 

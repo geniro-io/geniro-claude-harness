@@ -83,10 +83,7 @@ mtime · date · oversize · kind · turns · relevance · hits · project_label
 - **List mode** (`relevance`=`hits`=0, `snippet` empty): sorted by project, then newest-first.
 - **Search mode**: kept only when the query matches the body, title, or label; `relevance` = how many query terms co-occur within one ~160-char window (proximity), `hits` = total term occurrences, `snippet` = cleaned text around the densest match. Sorted relevance-desc, hits-desc, newest.
 
-**Why `scan.py`, not a shell `grep`/`jq` pipeline:**
-- `grep` skips `.jsonl` logs that embed base64 images as "binary" unless forced with `-a`, silently dropping real threads. A single Python read+search never does.
-- The macOS zsh sandbox strips `PATH` inside `| while` / `for in $(...)` loop bodies, so a per-file shell loop loses `cut`/`head`/`awk` mid-run. One Python process has no inner shell loops to break.
-- Proximity ranking and snippet extraction are trivial in Python and painful in shell.
+**Why `scan.py`, not a shell `grep`/`jq` pipeline:** proximity ranking and snippet extraction are trivial in Python and painful in shell (the silent-miss failures of a shell pipeline are in §Anti-rationalization).
 
 Every parsing guard (true `cwd` label, 2 MB title window, first-real-prompt fallback, oversize flag, multi-root scan, PR-number handling, the `edited`/`read-only` classification) lives in `scan.py` — read its module docstring before changing search behavior.
 

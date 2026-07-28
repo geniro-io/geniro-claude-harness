@@ -6,17 +6,6 @@
 
 **MODE contract:** formatting helper — **no MODE parameter, compaction-immune.** Behavior is derived from `load-*` outputs at call time; refreshes cascade from the load-side and need no signaling here.
 
-## Contents
-
-- §What this helper does — and what it doesn't
-- §API — invocation signature
-- §Flag reference
-- §Output formats — soft-notice vs hard-conflict AUQ
-- §Conflict-resolution flow — the canonical skill pattern
-- §Exit codes
-- §Known limitations
-- §Test coverage
-
 ## What this helper does — and what it doesn't
 
 **It does:**
@@ -117,7 +106,3 @@ The hard-conflict block is **plain text** intended for embedding into `AskUserQu
 - **No automatic detection.** This is deliberate — see §"What this helper does".
 - **Single-subject only.** One conflict per call. Multi-subject conflicts get separate notices.
 - **No threading with the AUQ tool.** The helper FORMATS text; wiring it into `AskUserQuestion` is the calling skill's job.
-
-## Test coverage
-
-`tests/memory/resolve-conflicts.sh` exercises the soft notice format with each combination of L4/L3/L2 lines present, the hard-block format, flag-validation rejection (rc=64) for missing subject / bad --following / unknown flag, and the `--suggested-action` append.

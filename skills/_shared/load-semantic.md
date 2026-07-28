@@ -1,15 +1,5 @@
 # L3 semantic-memory read helper + fingerprint drift detection
 
-## Contents
-
-- §API — `load_semantic` / `update_fingerprint` signatures
-- §MODE contract — initial-load vs refresh
-- §Fingerprint schema — the drift-detection record
-- §Drift warning shape — what a stale snapshot prints
-- §Caller patterns — how skills invoke the helper
-- §Known limitations
-- §Test coverage
-
 **Status:** Authoritative for L3 read-side access.
 
 ## API
@@ -130,7 +120,3 @@ content=$(load_semantic --quiet)
 - **No fingerprint pruning.** Files removed from the repo since the last `update_fingerprint` stay in `.fingerprint.json` (with their old hash) and silently never diverge. Refreshing via `update_fingerprint` rebuilds from scratch, so a periodic refresh is the canonical fix.
 - **Default candidate list is JS-biased.** Polyglot projects should call `update_fingerprint` with explicit paths.
 - **No locking on fingerprint writes.** Two concurrent `update_fingerprint` calls could race; the atomic-rename guarantees one wins cleanly but the other's data is lost. Acceptable — fingerprint refreshes are user-initiated, not auto-triggered, so concurrent calls are rare.
-
-## Test coverage
-
-`tests/memory/load-semantic.sh` exercises the default top-2 load, missing-files passthrough, `--extras` (with and without leading underscore), drift warning emission on stderr, `--quiet` suppression, fingerprint creation with explicit args, fingerprint with no-args default-list discovery, the stub-fingerprint case, and unknown-flag rejection.

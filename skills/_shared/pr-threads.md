@@ -2,16 +2,6 @@
 
 Single source for reading unresolved PR review threads and failing CI checks, and for writing replies / resolving threads. `/geniro:resolve` calls the **read side** (Phase 1); `/geniro:implement` calls the **write side** (Ship sub-step). The I/O logic lives here so the two skills never drift on the `gh` shapes or the thread-node-id ↔ numeric-comment-id mapping.
 
-## Contents
-
-- §1 — Resolve the PR ref
-- §2 — Read side: unresolved review threads
-- §3 — Read side: failing CI checks
-- §4 — Write side: reply to a thread
-- §5 — Write side: resolve a thread
-- §6 — MCP fallback + fail-open
-- §7 — Caller contract
-
 ---
 
 ## 1. Resolve the PR ref

@@ -9,7 +9,7 @@ argument-hint: "[thread path | thread count | empty = last 3 threads]"
 
 # /analyze-thread — Post-hoc Claude Thread Failure Analyzer
 
-You are the orchestrator for analyzing a saved Claude conversation thread and surfacing the errors Claude made while running a multi-phase pipeline. You parse the thread, run mechanical and judged checks against a canonical 32-item taxonomy, filter for relevance, then present findings with per-item user gates. You NEVER mutate the analyzed source files (this skill is read-only on the project under analysis); approved fixes are emitted as a handoff for `/improve-template` to apply.
+You are the orchestrator for analyzing a saved Claude conversation thread and surfacing the errors Claude made while running a multi-phase pipeline. You parse the thread, run mechanical and judged checks against the canonical taxonomy, filter for relevance, then present findings with per-item user gates. You NEVER mutate the analyzed source files (this skill is read-only on the project under analysis); approved fixes are emitted as a handoff for `/improve-template` to apply.
 
 **Input:** one thread file path, a thread count, or nothing — an empty argument analyzes the last 3 work-bearing threads across every project (§Phase 1 Step 1).
 **Output:** a markdown findings report + (on user approval) a handoff at `.geniro/state/handoff/from-analyze-thread-<branch>.md` that `/improve-template` consumes.
@@ -25,7 +25,7 @@ You are the orchestrator for analyzing a saved Claude conversation thread and su
 
 A batch run changes what each phase iterates over, never the phase contract: the same checks, filter tags, and gates apply per thread, and only Phase 3's merge step is batch-specific.
 
-The canonical taxonomy and per-check detection logic live in `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md`. SKILL.md keeps the phase narrative; the reference holds the 32-check spec.
+The canonical taxonomy and per-check detection logic live in `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md`. SKILL.md keeps the phase narrative; the reference holds the per-check spec.
 
 ---
 
@@ -182,7 +182,7 @@ Record, per thread: file path, format, byte count, events count, geniro-run flag
 
 ## PHASE 2: DETECT
 
-**Purpose:** Run all 32 checks against each thread's normalized events list and produce a raw findings list for filtering. Every finding carries its thread id from here on — Phase 3 cannot merge across threads without it.
+**Purpose:** Run every check in the taxonomy against each thread's normalized events list and produce a raw findings list for filtering. Every finding carries its thread id from here on — Phase 3 cannot merge across threads without it.
 
 ### Step 1: Run mechanical checks
 
@@ -197,7 +197,7 @@ Each mechanical hit produces a draft finding: `{thread_id, check_id, category, s
 ### Step 2: Spawn the LLM-judge
 
 ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). Pre-inline, per spawn:
-- The full canonical taxonomy from `checks-reference.md` (the 32-row table — short form).
+- The full canonical taxonomy from `checks-reference.md` (the check tables — short form).
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
 - The top-3 most-suspicious thread excerpts per `[J]` check, sliced to keep total excerpts ≤ 60 K tokens. Suspicion ranking heuristic: events near mechanical-finding clusters, events near `AskUserQuestion` calls, events near phase-boundary narration ("Phase 3:", "shipping", "review").
 
@@ -210,7 +210,7 @@ failure modes that were committed during execution. You do NOT fix anything — 
 only detect and report. The mechanical pre-pass has already found some issues;
 build on those, don't re-discover them.
 
-### Canonical taxonomy (32 rows, [M] / [J] / scope tags)
+### Canonical taxonomy ([M] / [J] / scope tags)
 {{taxonomy from checks-reference.md}}
 
 ### Mechanical findings already detected
@@ -239,7 +239,7 @@ Confidence ladder: high (unambiguous in trace) | medium (plausible but contestab
 low (heuristic match, would need a second pair of eyes).
 
 Also surface NOVEL findings — patterns of failure you spotted that don't fit any
-of the 32 documented checks. Tag those with check_id = "NOVEL-N" and add a
+documented check. Tag those with check_id = "NOVEL-N" and add a
 `novel_pattern_name` field.
 
 Do NOT propose fixes. Do NOT speculate on intent. Stick to what the trace shows.
@@ -398,7 +398,7 @@ The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T
 | Modifier in `$ARGUMENTS` | Effect |
 |---|---|
 | `--last=N` (or a bare integer) | Batch mode over the last N work-bearing threads, clamped to the 5-thread cap. Same as passing nothing, which uses N=3. |
-| `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses ~12 of the 32 checks. Pairs well with a large batch, where the judges dominate cost. |
+| `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses every judged check. Pairs well with a large batch, where the judges dominate cost. |
 | `--no-handoff` | Phase 4 Step 4 skipped; only the markdown report is printed. Useful when the user wants to read findings without committing to fix anything. |
 | `--strict` | Tighten Phase 3 filter: treat medium-confidence findings as TRUE-POSITIVE not UNCERTAIN (skips per-item AUQ, includes them by default). Use when running on a thread the user already trusts to be problematic. |
 | `--lenient` | Loosen Phase 3 filter: treat high-confidence judged findings as UNCERTAIN (forces AUQ). Use on threads where many findings are likely benign. |
@@ -432,7 +432,7 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 | "The user said 'analyze this thread', they obviously want fixes too — I'll edit the source files directly" | Read-only is invariant #1. This skill detects; `/improve-template` fixes. Cross-skill responsibility separation is documented in CLAUDE.md `## Available Skills` — collapsing it makes the analyzer a refactorer, breaking the user's mental model. |
 | "I already know what's in `checks-reference.md` from training data — don't bother reading it" | The reference file is the source of truth; it can be edited by the user between runs. Loading it at Phase 2 entry ensures the detection logic matches the current taxonomy, not a stale snapshot. |
 | "Empty AUQ answer = user wants to skip" | Per `feedback_canonical_rules.md` and the universal AUQ rule: empty answers indicate an upstream tool bug. Re-ask. Never auto-default. |
-| "I'll inline checks-reference.md into the judge prompt because it's only 250 lines" | Inlining doubles the prompt for every run. Reference the file by path; the judge reads it once at spawn time. The 60 K-token excerpt budget assumes the taxonomy is loaded by reference, not inlined. |
+| "I'll inline checks-reference.md into the judge prompt — it's short enough" | Inlining doubles the prompt for every run. Reference the file by path; the judge reads it once at spawn time. The 60 K-token excerpt budget assumes the taxonomy is loaded by reference, not inlined. |
 | "No argument given — I'll ask the user which thread they meant" | Every input shape resolves without a question (Phase 1 Step 1): empty means the last 3 work-bearing threads. Asking re-imposes the browse-and-paste step the batch default exists to remove, and the user who typed no argument has already told you what they want. |
 | "The newest log is the freshest data — analyze it first" | The newest log is this session's own (invariant #5): every finding it yields describes the analysis in progress rather than past work. Exclude it by session id. Do not generalize that into an age cutoff — idle open tabs touch their logs constantly, so a timestamp filter drops finished threads while adding nothing. |
 | "Three threads flagged the same check — that's the same finding twice, drop the duplicates" | Within one thread, yes. Across threads it is the strongest signal the batch produces: a defect reproduced in independent runs is systematic, not incidental. Merge into one finding carrying its recurrence count (invariant #4); dropping the extra occurrences discards exactly the evidence that justifies the fix. |
@@ -462,7 +462,7 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 
 ## REFERENCE
 
-- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md` — canonical 32-check taxonomy + per-check detection logic
+- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic
 - `${CLAUDE_PLUGIN_ROOT}/.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir to its `EXTRA_ROOTS` list
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules + Case A/B/C/D resume UX
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-file write helper (mandatory)

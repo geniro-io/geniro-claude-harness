@@ -354,14 +354,15 @@ Skip for files / diff range / branch.
 
 Mechanism:
 
-- `gh pr list --state open --base <baseRefName> --json number,title,headRefName,author,updatedAt,files --limit 30`
-- Compute file-path intersection between current PR's changed files and each sibling. `gh pr diff <N> --name-only` for file-name list (re-derived from parsing captured diff text or separate call).
+- `gh pr list --state open --base <baseRefName> --json number,title,headRefName,author,updatedAt,changedFiles,files --limit 30`
+- Compute file-path intersection between the current PR's changed files and each sibling's `files[].path` from that one list call. Do not issue a `gh pr diff <N> --name-only` per candidate — that spends up to 30 round-trips re-deriving what the payload already carries, most of them on candidates that then drop at `total_score == 0`.
+- **The `files` array is capped at 100 entries per PR** (`gh` requests `files(first: 100)`), so request `changedFiles` alongside it and compare: when a candidate's `changedFiles` exceeds its `files` length, the array is truncated and the intersection undercounts. Fetch `gh pr diff <N> --name-only` for that candidate only. A large sibling is exactly the one whose overlap matters most, and a truncated count can silently drop it at `total_score == 0`.
 - **Score each candidate sibling** (extended beyond pure file-overlap):
 - `file_overlap`: integer count of intersecting changed files.
 - `linear_bonus`: +2 if sibling's PR title OR body contains a Linear ID matching `linear-parent-ref` OR appearing in `linear-sibling-task-ids:` from (parent epic OR sibling sub-task linkage). Bonus is additive: PR can earn +2 for parent-match AND +2 for sibling-sub-task-match (total +4).
 - `total_score = file_overlap + linear_bonus`.
 - Keep **top-3** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When workflow integration is skipped (no workflow file), `linear_bonus` is always 0 and this reduces to pure file-overlap top-3.
-- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (~200 lines per sibling — bounds per-sibling context).
+- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` — diff CONTENT, which no list payload carries (~200 lines per sibling — bounds per-sibling context).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**2000 chars** — drop lowest-`total_score` sibling first if exceeded.
 - Pre-inline the SAME slot value into all 7 receiving reviewer prompts identically — architecture, design, bugs, conventions, optimizations, spec-compliance, regressions (expanded from architecture + design only). Feeding the block to a subset is a distribution miss the user did not consent to; the slot content is one computed value shared verbatim across the 7. Skipped for tests + security + pr-metadata (orthogonal or target-PR-specific). The slot is part of each receiving dim's pre-inlined context per SKILL.md §2.3; a dim spawned without it is detectable against the §2.3 spawn-context contract and the §4.0 post-spawn verification gate.
 

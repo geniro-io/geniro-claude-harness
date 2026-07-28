@@ -1,18 +1,6 @@
 # L2 stale-entry archival helper
 
-## Contents
-
-- §API — invocation + flags
-- §Criteria — the conditions an entry must meet to be archived
-- §Output — what the helper reports
-- §Safety invariants — never deletes, audit-trail preserving
-- §Environment — env-var knobs
-- §Caller conventions
-- §Known limitations
-- §Test coverage
-
 **Status:** Authoritative for marking `.geniro/knowledge/learnings.jsonl` entries `deprecated: true` based on score-decay criteria. Surfaces as a user-invoked operation OR via SessionStart Block 5e notice.
-
 
 ## API
 
@@ -102,14 +90,3 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 - **τ is global.** Same decay parameter applied to all entries. If a domain needs different decay (e.g., security pitfalls should age slower), use the `deprecated: false` manual override.
 - **No partial-restore.** Once `deprecated: true`, restoration is a manual `learnings.jsonl` edit (set to `false` or delete the field).
 - **No fuzzy-match restore.** No `unarchive --pattern` helper. By design — restoration is a deliberate user action.
-
-## Test coverage
-
-Coverage maintained for this helper in `tests/memory/archive-stale.sh`:
-- Dry-run identifies candidates without writing
-- Real run flips `deprecated: true`
-- Idempotency (re-run reports 0)
-- Bad flag rejected with rc=2
-- No-log-file handled gracefully (rc=1)
-- Score formula correctness at age=180d boundary
-- access_count>0 protects entry from candidate set

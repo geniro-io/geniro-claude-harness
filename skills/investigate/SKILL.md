@@ -130,7 +130,7 @@ CLAUDE.md is auto-loaded and may contain a "Domain Context" section (added by `/
 Procedure:
 
 1. **Extract domain terms from the question** — proper-noun-shaped tokens, role names, entity names (e.g., "tenant", "workspace", "task", "invoice"). Skip generic technical terms ("function", "endpoint", "cache").
-2. **Grep the auto-loaded CLAUDE.md content for each term**. Look for: definition lines (`**Tenant** —...`), entity lists (`Domain entities: Tenants, Workspaces,...`), and safety-rule mentions.
+2. **Look each term up in the auto-loaded CLAUDE.md** — its Domain Context definitions, entity lists, and safety rules.
 3. **Classify each match:**
 - **No match** — the term may be new domain vocabulary (route to Step 4a save-routing later); proceed without challenge.
 - **Exact match** — the user's term aligns with the glossary; proceed.
@@ -401,13 +401,12 @@ Check these rationalizations before drifting from the procedure.
 
 ## Definition of done
 
-- [ ] Question classified and scoped (Phase 1)
+These are the load-bearing exit gates — the checks that, if skipped, make the answer unsound or the no-ship boundary unsafe. Per-phase mechanics (classification, scoping, agent spawns, synthesis) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
+
 - [ ] External-lookup routing offered when classification is Internet-only (Phase 1 Step 1.5); `/deep-research` suggested, never auto-invoked
 - [ ] Glossary-mismatch check executed against CLAUDE.md Domain Context (Phase 1 Step 2.5); resolved via AskUserQuestion with `approvals[]` persistence if mismatch found
 - [ ] JIT retrieval cadence applied (Phase 1 Step 2.6)
-- [ ] Parallel research agents completed (Phase 2 Step 1)
 - [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
-- [ ] Findings cross-referenced and synthesized (Phase 3 Step 1)
 - [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
 - [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 3 Step 3)
 - [ ] Follow-up AUQ offered; save-routing applied per Step 4a (CLAUDE.md / ADR / learnings.jsonl / memory) NOT defaulted to a single store

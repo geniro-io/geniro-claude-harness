@@ -59,11 +59,11 @@ State.md `phase: mode-detect` during this phase. Light cost — a single design-
 
 ### 0.1 $ARGUMENTS resolution
 
-**`--prd` flag detection (opt-in).** If `$ARGUMENTS` contains the token `--prd`, note that the flag was passed and strip the token before passing the remaining text to mode detection. state.md does not exist yet at this point — it is created in §0.3 — so do NOT write frontmatter here; instead carry the flag forward and write `prd_mode: true` into the INITIAL state.md frontmatter at the §0.3 creation step. `prd_mode` turns on the Phase 0.5 problem-discovery interview and the spec's optional `## Problem & Evidence` body section. When `--prd` is absent, `prd_mode` stays unset and Phase 0.5 is skipped.
+**Opt-in flag detection.** Strip every recognized flag token from `$ARGUMENTS` before passing the remaining text to mode detection. state.md does not exist yet — it is created in §0.3 — so write no frontmatter here; carry each detected flag forward and write its field into the INITIAL frontmatter at the §0.3 creation step. The flags are orthogonal; any combination may be passed.
 
-**`--deep` flag detection (opt-in).** Semantic-parse `$ARGUMENTS` for `--deep` / `deep` / `deep mode` the same way; strip the token before mode detection. Carry it forward and write `deep-mode: true` into the §0.3 initial frontmatter (false/omitted when absent), and persist the activation to `approvals[]` category `deep_mode_choice`. `deep-mode` deepens Phase 4 (judge-panel approach search + 3× feasibility critics) and Phase 7.5 (3× claim verification) per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; it is orthogonal to `--prd` (both may be passed). When absent, those phases run their standard single-pass paths unless the user picks Deep at the Phase 3 wrap-up depth question (rules + AUQ shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2a).
-
-**`--artifact` flag detection (opt-in).** If `$ARGUMENTS` contains the token `--artifact`, note it and strip the token before mode detection. state.md does not exist yet — carry the flag forward and write `artifact_mode: true` + `artifact_status: pending` into the §0.3 initial frontmatter. The flag turns on the live visual plan artifact (per the §0.2.5 opt-in step and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`); when the flag is present, skip the §0.2.5 opt-in question — the flag is the opt-in. When `--artifact` is absent, the §0.2.5 question decides whether artifact mode turns on.
+- **`--prd`** → `prd_mode: true`. Turns on the Phase 0.5 problem-discovery interview and the spec's optional `## Problem & Evidence` body section. Absent: `prd_mode` stays unset and Phase 0.5 is skipped.
+- **`--deep`** (semantic-parse `--deep` / `deep` / `deep mode`) → `deep-mode: true` (false/omitted when absent), plus an `approvals[]` entry with category `deep_mode_choice`. Deepens Phase 4 (judge-panel approach search + 3× feasibility critics) and Phase 7.5 (3× claim verification) per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`. Absent: those phases run their standard single-pass paths unless the user picks Deep at the Phase 3 wrap-up depth question (rules + AUQ shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2a).
+- **`--artifact`** → `artifact_mode: true` + `artifact_status: pending`. Turns on the live visual plan artifact (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) and IS the opt-in, so §0.2.5 skips its question. Absent: the §0.2.5 question decides whether artifact mode turns on.
 
 **Launch-modifier detection (opt-in pre-fill of `launch_config`).** `/geniro:plan` also recognizes the `/geniro:implement` launch modifiers so a `/plan <topic> worktree ship:draft` invocation pre-fills the plan's `launch_config` block instead of discarding them. Semantic-parse `$ARGUMENTS` for the workspace modifiers (`new-branch` / `current-branch` / `worktree` / `no-worktree` / `here`), the ship modifiers (`don't push` / `no push` / `commit only` → commit-no-push, `draft only` → draft-pr, `ready-for-review` → ready-for-review, `stop after review` → stop-after-review), and a `freshness:merge` / `freshness:rebase` / `freshness:skip` modifier (colon form only — bare `merge` / `skip` are too ambiguous inside a free-text planning topic); `--deep` is already handled above. Strip the matched tokens from the topic text before mode detection, then carry the recognized set forward to two places: the `freshness:` token feeds §1.1b (the Phase 1 branch-freshness step applies the strategy directly), and the full launch-modifier set feeds §8.3.5 to pre-fill `launch_config` non-interactively. When no launch modifier is present, both steps run their interactive paths.
 
@@ -91,6 +91,8 @@ Fire `AskUserQuestion` with:
 **On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template; Phase 5 uses the 11-section schema unconditionally.
 
 **On "Cancel"** → exit immediately. Surface terminal message: "Cancelled before planning started".
+
+There is no in-loop edit-existing-sections mode. To surgically revise an existing design doc, edit it directly and re-run `/geniro:plan` only when ready to re-emit.
 
 ### 0.2.5 Visual artifact opt-in
 
@@ -528,7 +530,7 @@ Per cluster, apply the Gate presentation contract:
 
 5. **On approve, author the next cluster** (step 1). After all 3 clusters approved → Phase 6. After a cluster's section picks persist, fire the update for this site (§1.5 call-site table).
 
-**Tier-scaling.** For Trivial/Small tasks, sections 4 / 5 / 10 may be "none — task scope precludes" — noted in the cluster message, never a separate decision. At Trivial tier the clusters may collapse to 1-2 gates (the progress tracker then shows the collapsed stops); the default 3-cluster grouping applies to Medium/Big.
+**Tier-scaling.** For Trivial/Small tasks, sections 4 / 5 / 10 may be "none — task scope precludes" — noted in the cluster message, never a separate decision. Collapsing gates is Trivial-only: at Trivial tier the clusters may collapse to 1-2 gates (the progress tracker then shows the collapsed stops); Small, Medium, and Big each keep all 3 cluster gates. Small lightens what a section contains, not how many decisions the user makes — Trivial is the only tier whose loop can drop user-facing decision points at all, and even there the visual-companion and grill phases are skipped under the §1.5 conditions rather than unconditionally.
 
 Full chat-message template + lean-AUQ shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.1.
 

@@ -30,17 +30,16 @@ A `.md` file at `.geniro/actions/<slug>.md` with YAML frontmatter declaring `nam
 
 ## Loop invariants
 
-1. Inline execution — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
-2. Args validated — every Write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written). `run` has no confirmation gate (invariant 3 / Phase 5.3).
-3. Invoking authorizes execution — `run` fires the action's steps directly regardless of `risk_class` (Phase 5.3); the tool-allowlist intersection (Phase 5.4), the one-time scope checkpoint when the run edits outside what the action declares (Phase 5.4), and author-placed `[AUQ]`/`## Confirm:` checkpoints still fire.
-4. Bounded structured results — `list` renders a frontmatter-only table; the `description` field is the only free text shown and is already capped at create-validation time, so no separate body truncation applies.
-5. Hard escalation gates — 3-retry on slug ambiguity → final abort AUQ.
-6. Observations not assumed success — each step in `run` mode checks return status; failed step transitions to `failed` with step number captured.
-7. Errors as structured observations — surfaced inline in final message.
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply throughout /geniro:actions, with four skill-specific notes (an `#N` inside a note points at that file's numbered list):
+
+1. **Inline execution** — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
+2. **Invariant #2 (args validated)** — every write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written).
+3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 5.3); the tool-allowlist intersection (Phase 5.4), the one-time scope checkpoint when the run edits outside what the action declares (Phase 5.4), and author-placed `[AUQ]`/`## Confirm:` checkpoints still fire. `create` / `edit` / `delete` stay AUQ-gated under #3.
+4. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final message.
 
 ## Budgets — quality-first
 
-`/geniro:actions` has **zero hard kill caps**. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: one action runs at a time (assumed sequential).
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: one action runs at a time (assumed sequential).
 
 ## ACI surface per phase
 
@@ -63,8 +62,8 @@ Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); 
 
 | Cause | Message format |
 |---|---|
-| User cancelled at any AUQ (other than the scope checkpoint's stop pick — next row) | `aborted: user cancelled at <step>` |
 | Scope checkpoint (Phase 5.4) — user picked "Stop here, keep what's changed" | `aborted: stopped at scope checkpoint after step <N>`; edits stay in place and the Phase 5.5 summary, with its `/geniro:review` recommendation, prints before the transition |
+| User cancelled at any question other than the scope checkpoint above | `aborted: user cancelled at <step>` |
 | Slug resolution failed after 3 AUQ retries | `aborted: slug unresolved after 3 AUQ rounds` |
 | Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
@@ -79,14 +78,7 @@ Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which ac
 
 ### Action detection
 
-| Intent | Aliases | Maps to |
-|--------|---------|---------|
-| List | show, view, list, ls, current | `list` |
-| Create | create, new, scaffold, make, add | `create` |
-| Edit | edit, change, modify, update, tweak, adjust | `edit` |
-| Run | run, invoke, exec, execute, do | `run` |
-| Delete | delete, remove, rm, drop | `delete` |
-| Validate | validate, check, lint | `validate` |
+Map the verb token in `$ARGUMENTS` to a sub-command via the alias table in §Sub-commands above — that table is the single copy; the sub-command's own name matches as well as its aliases.
 
 If `$ARGUMENTS` is empty, default to `list`.
 
@@ -182,7 +174,7 @@ On **Cancel**: stop.
 mkdir -p "$PRIMARY_ROOT"/.geniro/actions
 ```
 
-Then apply the `.gitignore` re-include procedure in `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` §3.5 — the single copy of this idiom — with `actions` as the directory that must stay committed (`for d in actions`). It drops a bare `.geniro/` line if present (that line would ignore the whole tree and defeat every negation), then idempotently appends `.geniro/*`, `!.geniro/`, `!.geniro/actions/`, and `!.geniro/actions/**`.
+Then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` with `actions` as the directory that must stay committed (`for d in actions`). It drops a bare `.geniro/` line if present (that line would ignore the whole tree and defeat every negation), then idempotently appends `.geniro/*`, `!.geniro/`, `!.geniro/actions/`, and `!.geniro/actions/**`.
 
 This default keeps `.geniro/actions/` committed (team-shareable). The negation must live in `"$PRIMARY_ROOT"/.gitignore`, beside where the action file is written. Users who want their actions ignored remove the two `!.geniro/actions/` lines by hand.
 
@@ -326,7 +318,7 @@ The remaining WAIT points in run mode are not "are you sure you want to run this
 
 ### Phase 5.4: Execute inline (tool-scope intersection)
 
-Follow the action body's numbered steps directly, inline in the orchestrator (invariant 1). Pass extra positional `$ARGUMENTS` (after the action name) as input context under a "User-supplied input" heading.
+Follow the action body's numbered steps directly, inline in the orchestrator (the inline-execution invariant). Pass extra positional `$ARGUMENTS` (after the action name) as input context under a "User-supplied input" heading.
 
 **Tool-scope contract.** BEFORE running any step, intersect the action's frontmatter `allowed-tools` with the orchestrator's own `allowed-tools` ONCE and identify any step whose required tools fall outside the intersection. If gaps exist, surface them in a single AUQ before execution begins:
 
@@ -361,7 +353,7 @@ Files changed: <list, or "none">
 External calls: <list, or "none">
 ```
 
-When the scope checkpoint fired (Phase 5.4), close the summary by recommending an independent look at the diff: "This run went past what the action describes — `/geniro:review` reviews the diff before you push." Recommend it, never run it — `/geniro:actions` spawns no subagent and calls no other skill (invariant 1); the user decides whether to run it.
+When the scope checkpoint fired (Phase 5.4), close the summary by recommending an independent look at the diff: "This run went past what the action describes — `/geniro:review` reviews the diff before you push." Recommend it, never run it — `/geniro:actions` spawns no subagent and calls no other skill (the inline-execution invariant); the user decides whether to run it.
 
 **L2 emit on successful external-send run:** if the action's frontmatter declared `external-send: true` AND run succeeded, emit one L2 `discovery` row
 
@@ -484,13 +476,9 @@ Exit non-zero if any CRITICAL or HIGH. MEDIUM / LOW are warnings.
 
 | Layer | Read | Write | Notes |
 |---|---|---|---|
-| CLAUDE.md (not a memory layer) | not read | not written | `/geniro:actions` does not touch CLAUDE.md |
 | L2 learnings.jsonl | not read in CRUD modes | written in run mode if `external-send: true` and success (§Phase 5.5) | One `discovery` row per external-send run |
-| L3 semantic files | not read | not written | N/A |
 | L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |
 | Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD — NOT part of the memory model |
-
-Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivially because they are files on disk.
 
 ## Anti-rationalization
 
@@ -514,6 +502,7 @@ Actions are stored at the T3 PERSISTENT/CRUD tier. They survive compaction trivi
 
 - PERSISTENT (CRUD) — `.geniro/actions/` tier; write via `atomic_state_write` with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 5.5)
+- `.gitignore` re-include — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md`, applied at Phase 4 Step 2 so `.geniro/actions/` stays committed
 
 ## Definition of done
 

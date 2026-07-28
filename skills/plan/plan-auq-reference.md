@@ -4,7 +4,7 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 
 ## Contents
 
-1. state.md frontmatter — initial template (Phase 0.3)
+1. state.md body template (Phase 0.3)
 1b. Artifact opt-in question — Phase 0, asked once when `--artifact` is absent
 2. Phase 3 grill AUQ — message-first, one question at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
@@ -14,31 +14,11 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 
 ---
 
-## 1. state.md frontmatter — initial template
+## 1. state.md body template
 
-Written at Phase 0.3 via `atomic_state_write` to `.geniro/planning/<task-slug>/state.md`:
+The frontmatter field set is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md` §"State persistence" — read the schema there rather than re-deriving it; a second copy here is what lets the two drift. Phase 0.3 writes it via `atomic_state_write` to `.geniro/planning/<task-slug>/state.md`, over this body:
 
-```yaml
----
-tier: T1.5
-producer: plan
-schema-version: 1
-branch: <git-branch>
-worktree: <git-rev-parse-show-toplevel>     # optional, recommended for cross-worktree resume
-timestamp: <ISO-8601 UTC>
-phase: mode-detect
-status: in-progress
-non-resumable-actions: []
-approvals: []
-task_slug: <slug>
-mode: <IDEA|DESIGN_DOC>
-prd_mode: true                               # optional, present only when --prd was passed (Phase 0.1)
-deep-mode: <true|false>                      # optional, set by the --deep flag (Phase 0.1); missing reads as false
-artifact_mode: true                          # optional, present only when the user opted in / --artifact was passed (Phase 0)
-artifact_status: pending|live|unavailable    # optional, present only when artifact_mode is true; pending until first publish, live once published, unavailable when this session can't publish
-artifact_url: "<claude.ai url>"              # optional, present only when artifact_status is live
----
-
+```markdown
 # State: <topic>
 
 ## Inputs
@@ -53,7 +33,7 @@ artifact_url: "<claude.ai url>"              # optional, present only when artif
 ## Open Questions
 ```
 
-Three optional body sections — `## Workflow Refs` (populated in Phase 1.4), `## UI Preview` (populated in Phase 2 when triggered), and `## Problem Framing` (populated in Phase 0.5 when `--prd` was passed) — are written in those earlier phases and assembled into the spec body alongside the 11 sections approved in Phase 5. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `spec-challenge` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise. The optional `deep-mode` key is set in Phase 0.1 when `$ARGUMENTS` carries `--deep`; a missing value reads as `false`. The optional artifact keys are set at Phase 0 when the user opts into the visual plan artifact (the `--artifact` flag, or the §1b opt-in question when the flag is absent): `artifact_mode: true` marks the run as artifact-on, `artifact_status` tracks the publish state (`pending` → `live` → or `unavailable`), and `artifact_url` holds the captured `claude.ai` link once the page is live; all three are absent when artifact mode is off. The full artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`. This is the single-source-of-truth template — `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md` and `plan-loop.md` §0.3 mirror it and must carry the same field set.
+Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the 11 sections approved in Phase 5: `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered), `## Problem Framing` (Phase 0.5, when `--prd` was passed).
 
 ---
 
@@ -280,6 +260,23 @@ Group the 11-section schema into 3 dependency-ordered clusters. Author and gate 
 
 The per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §5.2. This section holds the literal templates.
 
+#### Concrete example + visual per section type
+
+Every section in a cluster's chat message closes on one concrete example and one visual, below its digest lines. The visual shape per section is shared language, canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map"; the example shapes below are plan's own:
+
+| Section | Concrete example shape |
+|---|---|
+| 1. Objective | One-line user-visible behavior statement: "User clicks X → sees Y within Z seconds" |
+| 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) |
+| 4. Assumptions | Concrete invariants: "`USER.tz` always populated" — cite `file:line` where the invariant is guaranteed |
+| 5. Risks | Specific failure scenario + observable symptom: "Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate" |
+| 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) |
+| 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" |
+| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /geniro:implement will ask the user mid-run |
+| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch |
+| 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
+| 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |
+
 Literal cluster-1 chat message (rendered before the AUQ):
 
 ```markdown
@@ -333,7 +330,7 @@ options:
     description: "Abort; spec not written."
 ```
 
-**Tier-scaling.** Sections 4 / 5 / 10 may be "none — task scope precludes" for Trivial/Small tasks — note these in the cluster message rather than as a rendered section. At Trivial tier the clusters may collapse to 1-2 gates; the default 3-cluster grouping applies to Medium/Big.
+**Tier-scaling.** Sections 4 / 5 / 10 may be "none — task scope precludes" for Trivial/Small tasks — note these in the cluster message rather than as a rendered section. Collapsing gates is Trivial-only: at Trivial tier the clusters may collapse to 1-2 gates (the progress tracker then shows the collapsed stops); Small, Medium, and Big each keep all 3 cluster gates. Small lightens what a section contains, not how many decisions the user makes — Trivial is the only tier whose loop can drop user-facing decision points at all, and even there the visual-companion and grill phases are skipped under the §1.5 conditions rather than unconditionally.
 
 The chat message is the load-bearing surface — it re-explains what was decided, why, and how /geniro:implement will build it, with room for the code and diagrams the `preview` side-box cannot fit. The AUQ stays lean.
 
@@ -519,5 +516,3 @@ approvals:
 ```
 
 On "No", omit the `launch_config:` sub-block and record `picked: "No — /implement will ask when it runs"`.
-
-Doctrine: these settings pre-answer SETUP only. They do NOT pre-authorize the new-dependency adoption gate, the runaway-scope / budget escalation, the handoff open-questions gate, or the spec-challenge-on-drift gate — each of those still fires on its own real trigger during `/geniro:implement` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety").

@@ -14,10 +14,6 @@ Skipping the gate is the documented anti-pattern: a success claim made without a
 
 - `/geniro:refactor` — when a behavior-adjacent test-coverage gap is detected (refactor's zero-behavior-change guarantee requires existing tests to lock the behavior; if none exists, the gate fires before Phase 2 per-step execution begins).
 
-The gate does NOT fire in:
-- `/geniro:implement` — Phase 2 decomposes the work via TodoWrite into sequential todos (one in-progress at a time) followed by Phase 3's reviewer pipeline (`tests` dimension covers test-first behaviour); a per-todo Test-First check would be redundant against that dimension.
-- `/geniro:debug` — debug's evidence requirement is hypothesis confirmation per `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`, not a test-first gate. Debug's adversarial mode is the closest analogue and runs the cycle in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` directly.
-
 ## Required AUQ shape
 
 - **`header`**: `"Tests"`.

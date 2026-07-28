@@ -2,18 +2,6 @@
 
 **Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), and `/geniro:plan` (manages `_FEATURES.md`).
 
-## Contents
-
-- §API — `update_semantic` signature + append/replace modes
-- §MODE contract — append vs replace
-- §Constraints — bounded-write limits
-- §Lock semantics — per-file O_EXCL lock + rc=11
-- §Replace semantics — prefix-match replacement
-- §Examples
-- §Caller patterns: handling rc=11
-- §Known limitations
-- §Test coverage
-
 ## API
 
 ```bash
@@ -109,7 +97,3 @@ For high-concurrency contention scenarios, callers can implement bounded retry w
 - **Stale-lock recovery is time-bounded, not manual.** A SIGKILL/crash leaves the lock file, but the next writer auto-reclaims it once its mtime exceeds the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, default 600s). The leak is therefore limited to a lock younger than that window.
 - **No batch ops.** One line per call. Callers needing multiple writes loop.
 - **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. Acceptable per the spec's "single-line replacement; no mass rewrites" guarantee.
-
-## Test coverage
-
-`tests/memory/update-semantic.sh` exercises append (to missing file + existing file), replace (matching + non-matching + missing file), all flag-validation failures (rc=64), lock contention (rc=11), and per-file independent locks.

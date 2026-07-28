@@ -38,36 +38,28 @@ Before analyzing code, read any project convention files referenced in the orche
 Scan the target codebase for:
 
 #### Duplication Patterns
-- Search the codebase to find identical or near-identical code blocks across files
-- Identify repeated logic that could be extracted to shared utilities
-- Flag magic numbers, repeated conditions, or boilerplate patterns
-- Report: file paths, line ranges, similarity scores
+- Identical or near-identical code blocks across files
+- Repeated logic that could be extracted to shared utilities
+- Magic numbers, repeated conditions, or boilerplate patterns
 
 #### Long Methods & Deep Nesting
-- Search for methods/functions exceeding 30 lines of significant logic
-- Identify nested blocks deeper than 4 levels (loops within conditionals within loops)
-- Report: function signatures, complexity metrics, extraction opportunities
+- Methods/functions exceeding 30 lines of significant logic
+- Nested blocks deeper than 4 levels (loops within conditionals within loops)
 
 #### God Classes & Large Modules
-- Locate classes/modules handling 5+ distinct responsibilities
-- Check for methods with unrelated concerns (auth + business logic + formatting)
-- Report: class structure, responsibility breakdown
+- Classes/modules handling 5+ distinct responsibilities
+- Methods with unrelated concerns (auth + business logic + formatting)
 
 #### Dead Code
-- Search the codebase to find unused variables, unreachable branches, orphaned functions
-- Cross-reference against test files and call graphs
-- Confirm unused status by checking imports and references
-- Report: confirmed dead code with confidence levels
+- Unused variables, unreachable branches, orphaned functions — confirmed unused against imports, call graphs, and test files before reporting
 
 #### Tight Coupling
-- Identify circular dependencies, deep inheritance chains
-- Find hard-coded dependencies that should be injected
-- Report: coupling patterns, refactoring surface
+- Circular dependencies, deep inheritance chains
+- Hard-coded dependencies that should be injected
 
 #### Type & Import Issues
 - Unused imports or missing type definitions
 - Inconsistent error handling or null-safety patterns
-- Report: code quality impacts
 
 #### Named Smell Baseline
 Match the scope files against the canonical named smells below (Fowler's *Refactoring* ch. 3 vocabulary — standard names the user can look up). Every hit is a labelled heuristic — report it as "possible Feature Envy", never as a hard violation: the smell-evidence filter (/geniro:refactor Phase 1) decides KEEP/FILTER, and a documented repo convention always wins over the label. Skip any smell the project's lint config already enforces — the lint run in the pipeline catches it deterministically and cheaper. Duplicated Code, Long Method, and Large Class / Divergent Change are already owned by the Duplication, Long Methods, and God Classes categories above — don't double-report them under a second name.

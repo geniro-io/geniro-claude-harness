@@ -21,17 +21,17 @@ Code rules split three ways depending on **when** they should fire:
 
 ## Loop invariants
 
-1. Single transaction, no subagents — `/geniro:instructions` runs entirely in the orchestrator (CRUD is too small for parallelism).
-2. Args validated before exec — every Write preceded by scope validation (regex match) AND file-existence check.
-3. Permission before side-effect — Write/Delete are AUQ-gated.
-4. Bounded structured results — `list --with-content` truncates per-file body display at ~2000 chars (base `list` shows only the name/size table).
-5. Hard escalation gates — 3-retry on scope ambiguity → final AUQ abort.
-6. Observations not assumed success — every Read/Write checks return status.
-7. Errors as structured observations — surfaced inline in the final user message (no state file).
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply throughout /geniro:instructions, with three skill-specific notes (an `#N` inside a note points at that file's numbered list):
+
+1. **Invariant #2 (args validated)** — every write is preceded by scope validation (regex match) AND a file-existence check.
+2. **Invariant #3 (permission before side-effect)** — create / edit / delete writes are AUQ-gated.
+3. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final user message.
+
+**Single transaction, no subagents** — `/geniro:instructions` runs entirely in the orchestrator (CRUD is too small for parallelism).
 
 ## Budgets — quality-first
 
-`/geniro:instructions` has **zero hard kill caps**. Soft gates: 3-retry scope ambiguity → final AUQ abort, `list --with-content` body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns. NOT capped: number of scopes processed in batch mode, files in `review-extra/`, file size after edit, AUQ chain depth for scope picking.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry scope ambiguity → final AUQ abort, `list --with-content` body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns.
 
 ## ACI surface per phase
 
@@ -49,9 +49,8 @@ No state file, but failure paths report a structured reason in the final user me
 
 | Cause | Format |
 |---|---|
-| User cancelled at any AUQ | `aborted: user cancelled at <step>` |
+| User cancelled at any question | `aborted: user cancelled at <step>` |
 | Scope resolution failed after 3 AUQ retries | `aborted: scope unresolved after 3 AUQ rounds` |
-| Validation found N issues, user picked "Abort" | `aborted: validate surfaced N issues; user picked abort` |
 | Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>; see .geniro/safety.json` |
 | Delete blocked by `.geniro/` deletion guard | `aborted: .geniro/ deletion guard blocked rm of <path>; see .geniro/safety.json` |
 
@@ -59,21 +58,14 @@ No state file, but failure paths report a structured reason in the final user me
 
 The stable scope set:
 
-| Scope | File path | Layer | Loaded by | Notes |
-|---|---|---|---|---|
-| `global` | `.geniro/instructions/global.md` | L4 | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints, plus the one cross-skill `### After worktree-setup` event step |
-| `code-style` | `.geniro/instructions/code-style.md` | L4 | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase self-review, `refactor` Phase verify); pre-inlined into reviewer-agent prompts for the conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
-| `memory` | `.geniro/instructions/memory.md` | L4 | Every pipeline + discovery skill (and operational skills that emit L2) at Step 0 + phase-boundary refresh, loaded alongside `global.md` | Holds the `## Memory Backend` block only — no Rules/Constraints/Additional Steps |
-| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | L4 | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default`, `requires-context` |
-| `implement` | `.geniro/instructions/implement.md` | L4 | `/geniro:implement` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `plan` | `.geniro/instructions/plan.md` | L4 | `/geniro:plan` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `review` | `.geniro/instructions/review.md` | L4 | `/geniro:review` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `resolve` | `.geniro/instructions/resolve.md` | L4 | `/geniro:resolve` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `debug` | `.geniro/instructions/debug.md` | L4 | `/geniro:debug` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `refactor` | `.geniro/instructions/refactor.md` | L4 | `/geniro:refactor` at Step 0 + phase-boundary refresh | `Additional Steps` map to phase enum |
-| `onboard` | `.geniro/instructions/onboard.md` | L4 | `/geniro:onboard` at Step 0 + phase-boundary refresh | Rules and Constraints only |
-| `investigate` | `.geniro/instructions/investigate.md` | L4 | `/geniro:investigate` at Step 0 + phase-boundary refresh | Same as `onboard` |
-| `reflect` | `.geniro/instructions/reflect.md` | L4 | `/geniro:reflect` at Step 0 | Rules and Constraints only (stateless — no Additional Steps) |
+| Scope | File path | Loaded by | Notes |
+|---|---|---|---|
+| `global` | `.geniro/instructions/global.md` | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints, plus the one cross-skill `### After worktree-setup` event step |
+| `code-style` | `.geniro/instructions/code-style.md` | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase self-review, `refactor` Phase verify); pre-inlined into reviewer-agent prompts for the conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
+| `memory` | `.geniro/instructions/memory.md` | Every pipeline + discovery skill (and operational skills that emit L2) at Step 0 + phase-boundary refresh, loaded alongside `global.md` | Holds the `## Memory Backend` block only — no Rules/Constraints/Additional Steps |
+| `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default`, `requires-context` |
+| `implement` · `plan` · `review` · `resolve` · `debug` · `refactor` · `onboard` · `investigate` | `.geniro/instructions/<skill>.md` | that skill at Step 0 + phase-boundary refresh | `Additional Steps` map to that skill's phase enum; `onboard` and `investigate` take Rules and Constraints only |
+| `reflect` | `.geniro/instructions/reflect.md` | `/geniro:reflect` at Step 0 | Rules and Constraints only (stateless — no Additional Steps) |
 
 **Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`) do NOT load instruction files** beyond `global.md`.
 
@@ -95,7 +87,7 @@ The optional `## Data Sources` section declares read-only sources the verificati
 
 The single source for every field's value set and length cap — validate-mode's per-scope check resolves here rather than restating them.
 
-- `slug` (required) — lowercase ASCII letters/digits/hyphens, regex `^[a-z][a-z0-9-]*$`. Filename without `.md` must equal this. The slug must not match a built-in dimension name (`bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`) or a retired-but-reserved name (`guidelines`, `rules-compliance`) — the loader treats a colliding slug as the built-in reviewer and the custom criteria silently never run. Keep this list in sync with `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Step 2 (Validate the slug), which runs the same collision check.
+- `slug` (required) — must satisfy the rules `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 4 enforces at load time: the filename without `.md`, matching `^[a-z][a-z0-9-]*$`, and not colliding with a reserved dimension name. That file owns the reserved list, because it is the runtime enforcer — a slug this skill accepts but the loader rejects produces a file the user believes is active while its criteria silently never run.
 - `description` (required) — one-line summary, ≤250 chars.
 - `model` (optional) — `haiku`/`sonnet`/`opus`/`inherit`; omitted = `inherit` (the reviewer runs at the orchestrator's tier, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`). Declare a tier only to deliberately pin this reviewer cheaper or stronger than the session.
 - `paths` (optional) — list of globs.
@@ -368,7 +360,7 @@ Violations are not auto-fixed; `validate` surfaces them on next invocation.
 | Rule | Severity |
 |---|---|
 | A shell-command entry fails the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 — it carries a mutating verb, hides its action behind command substitution / a wrapped CLI, or is a SQL command that is not SELECT-shaped (the screen's verb set is single-homed there; do not re-list it here) | HIGH — a mutating data-source command could run against production. Emit: "Data Sources entry `<label>` carries a mutating or un-screenable command — sources must be read-only (the verification step runs them automatically). Make it a read-only query or remove it (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §read-only screening)." |
-| A malformed entry — no source (missing the backticked command / MCP-tool name / action name), or no `(confirms: ...)` hint | MEDIUM — the entry can't be used. Emit: "Data Sources entry `<label>` is missing a source or a `(confirms: ...)` hint — each entry needs a label, a `(confirms: <fact kind>)` hint, and exactly one read-only source." |
+| A malformed entry — no source (missing the backticked command / MCP-tool name / action name), or no `(confirms: ...)` hint | MEDIUM — the entry can't be used |
 
 The HIGH severity matches the spec `verify:` read-only doctrine: a data-source shell command runs unattended during fact verification, so a mutating one is the same prod-risk class the `/geniro:implement` side-effect screen guards. `## Data Sources` is optional — absence is not a finding.
 
@@ -376,12 +368,12 @@ The HIGH severity matches the spec `verify:` read-only doctrine: a data-source s
 
 | Rule | Severity |
 |---|---|
-| A `## Memory Backend` block in any file OTHER than `memory.md` (e.g. left in `global.md` or a per-skill file — those are not loaded for the memory layer) | MEDIUM — emit: "`## Memory Backend` belongs in the dedicated `memory.md` file; move it there or remove it." |
-| `memory.md` carries `## Rules` / `## Constraints` / `## Additional Steps` (the memory scope is for the backend block only) | LOW — emit: "`memory.md` holds the `## Memory Backend` block only; put rules/steps in `global.md` or the per-skill file." |
-| An entry missing `layer`, or `layer` not `learnings` (`learnings` is the only routed layer) | MEDIUM — emit: "Memory Backend entry needs `layer: learnings` (the only routed layer)." |
-| `mode` present but not `mirror` / `replace` | MEDIUM — emit: "Memory Backend `mode` must be `mirror` or `replace` (default `mirror`)." |
-| The `read` tool/command fails the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 (the query op must be read-only; the `write` op is the declared mutator and is exempt) | HIGH — emit: "Memory Backend `read` must be a read-only query tool (it runs unattended during retrieval); make it read-only or remove it." |
-| An entry missing `write` or `read` | MEDIUM — emit: "Memory Backend entry needs both a `write` and a read-only `read` tool." |
+| A `## Memory Backend` block in any file OTHER than `memory.md` (e.g. left in `global.md` or a per-skill file — those are not loaded for the memory layer) | MEDIUM |
+| `memory.md` carries `## Rules` / `## Constraints` / `## Additional Steps` (the memory scope is for the backend block only) | LOW |
+| An entry missing `layer`, or `layer` not `learnings` (`learnings` is the only routed layer) | MEDIUM |
+| `mode` present but not `mirror` / `replace` | MEDIUM |
+| The `read` tool/command fails the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 (the query op must be read-only; the `write` op is the declared mutator and is exempt) | HIGH — it runs unattended during retrieval |
+| An entry missing `write` or `read` | MEDIUM |
 
 `## Memory Backend` is optional — absence is not a finding (memory uses the built-in file).
 
@@ -475,8 +467,6 @@ For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delet
 | Layer | Read | Write | Notes |
 |---|---|---|---|
 | CLAUDE.md (not a memory layer) | not read | not written | That's `/geniro:setup`'s domain |
-| L2 learnings.jsonl | not read | not written | `/geniro:instructions` is a CRUD frontend, not a knowledge-emit producer |
-| L3 semantic files | not read | not written | Out of scope |
 | L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/geniro:instructions`'s entire surface |
 
 **compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.

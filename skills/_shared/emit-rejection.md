@@ -1,15 +1,5 @@
 # AUQ-rejection L2 emit helper
 
-## Contents
-
-- §Relationship to `approvals[]` — when a rejection differs from a saved choice
-- §API — `emit_rejection_if_signal` signature
-- §Rejection signals — what counts as an explicit reject
-- §When skills should invoke
-- §Read-side protocol — how consumers read back rejections
-- §Example flow
-- §Behaviors to cover
-
 **Status:** Authoritative for converting AUQ rejection-signal picks into cross-session L2 entries. Called by skills that surface choice AUQs where the user can explicitly reject a suggestion (e.g., approach selection, ship-mode confirmation).
 
 ## Relationship to `approvals[]`

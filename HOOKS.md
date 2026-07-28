@@ -136,7 +136,7 @@ Emits an `additionalContext` block-set:
 
 Cheap regex scan for high-signal, low-false-positive security anti-patterns in the content about to land in the file. Catches the obvious string-level wins at edit time without the LLM-cost of an ambient Stop-hook review.
 
-Each pattern is scoped to applicable file extensions — Python's `pickle.loads` won't fire on `.js` files, JavaScript's `innerHTML=` won't fire on `.py` files. On match the hook prints to stderr (pattern ID, file, matched line, two remediation paths — inline justification + retry, OR per-project bypass) and exits 2.
+Each pattern is scoped to applicable file extensions — Python's `pickle.loads` won't fire on `.js` files, JavaScript's `innerHTML=` won't fire on `.py` files. On match the hook prints to stderr (pattern ID, file, matched line, two remediation paths — rewrite the edit so the flagged construct is gone, OR add the pattern ID to `allow_patterns` in `.geniro/safety.json`) and exits 2. The scan reads content only, so an inline code comment justifying the pattern does not clear the block.
 
 **Pattern IDs** (each individually bypassable):
 

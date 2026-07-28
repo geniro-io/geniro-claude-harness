@@ -617,7 +617,7 @@ Adds `risk_class: low` right after the opening `---` of each affected action's f
 
 Skills dropped in the consolidation: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`. Their `.geniro/instructions/<scope>.md` files are no longer loaded by any skill.
 
-**Action required:** Per-file decide: (a) migrate the rules content to the replacement skill's instruction file (mapping in CLAUDE.md "Skills deleted" section: `/follow-up` → `/implement`; `/learnings` → auto-step in `/implement` Phase 3; `/deep-simplify` → `/review` standard dimensions; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
+**Action required:** Per-file decide: (a) migrate the rules content to the replacement skill's instruction file (mapping in README.md "Skills deleted" section: `/follow-up` → `/implement`; `/learnings` → auto-step in `/implement` Phase 3; `/deep-simplify` → `/review` standard dimensions; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
 
 **Auto-detect:** `ls .geniro/instructions/{brainstorm,decompose,follow-up,deep-simplify,features,learnings,cleanup,vendor}.md 2>/dev/null`
 
@@ -712,7 +712,7 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 
 New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
 
-**Action required:** If a workflow legitimately needs to bypass a guard, add the pattern ID to `.geniro/safety.json` `allow_patterns` (full ID list in CLAUDE.md "Per-project allowlist for safety guardrails"). The hook output prints the exact ID to add.
+**Action required:** If a workflow legitimately needs to bypass a guard, add the pattern ID to `.geniro/safety.json` `allow_patterns` (full ID list in HOOKS.md "Per-project allowlist"). The hook output prints the exact ID to add.
 
 **Auto-detect:** N/A — only reveals itself when a blocked operation occurs (fail-loud).
 

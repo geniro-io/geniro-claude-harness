@@ -124,6 +124,8 @@ Classify the request, then look up its research sources in the Matrix above:
 Spawn ONLY the agents the Matrix selected — all in the same assistant turn, NOT one per turn. Skipped sources are NOT failures; the matrix is the contract. Log omitted source(s) in the state checkpoint with the matching skip reason. The agent prompts below stay as written; just omit the agents you skip.
 Replace every `{{placeholder}}` with the actual content from Step 1 before spawning.
 
+The two codebase-facing spawns use the plugin's `codebase-research-agent`, which carries the file:line citation contract and the ~5000-character output cap. The calls below are step 1 of the ladder in §Subagent Model Tiering — degrade them on `not found`. Internet research has no plugin agent and stays a general spawn.
+
 ```
 Agent(prompt="""
 ## Task: Internet Research
@@ -144,54 +146,38 @@ For each finding, provide:
 Return findings as a structured table. Do NOT suggest implementation — research only.
 """, description="Research: internet patterns")
 
-Agent(prompt="""
-## Task: ARCHITECTURE.md Research
-Read `ARCHITECTURE.md` and search for sections relevant to:
-{{issue description from Step 1}}
+Agent(subagent_type="geniro:codebase-research-agent",
+      description="Research: ARCHITECTURE.md decisions",
+      prompt="""
+RESEARCH_QUESTION: Which recorded decisions, invariants, and operational rules in `ARCHITECTURE.md` constrain or inform {{issue description from Step 1}}, and does the template already follow each one?
 
-This is a ~220-line consolidated decision record — one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules). Each section lists key rulings as bullets with file-path citations.
-Search strategy:
-1. Read the file fully — it is short; no grep or ToC sampling needed
-2. Extract every decision, invariant, or operational rule that constrains or informs the issue
-3. When a decision cites a `_shared/` helper or skill file, read that target for the full contract
-4. If survey-depth evidence is needed (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is available via `git show 3bb0857~1:report.md` — it was removed from the working tree when the docs were consolidated
+DELIVERABLE_SHAPE: table of [{section name + file:line in ARCHITECTURE.md or the cited helper, the decision or rule, how it applies to the issue, already-followed yes/no}]. Research only — do NOT suggest implementation.
 
-For each finding, provide:
-- Section name and line range in ARCHITECTURE.md (or the cited helper file)
-- The specific decision or rule
-- How it applies to our issue
-- Whether our template already follows it or not
+SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a short (~220-line) consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract. For survey-depth evidence (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is at `git show 3bb0857~1:report.md` — it was removed from the working tree when the docs were consolidated.
 
-Return findings as a structured table. Do NOT suggest implementation — research only.
-""", description="Research: ARCHITECTURE.md decisions")
+OUTPUT_PATH: .geniro/state/improve-template/.research-architecture-<slug>.md
 
-Agent(prompt="""
-## Task: Codebase Exploration
-Explore the current state of the template files related to:
-{{issue description from Step 1}}
+THOROUGHNESS: medium
+""")
 
-Template root: repo root (skills/, agents/, hooks/, lib/, scripts/, cursor/)
+Agent(subagent_type="geniro:codebase-research-agent",
+      description="Research: codebase exploration",
+      prompt="""
+RESEARCH_QUESTION: What is the current state of the template files related to {{issue description from Step 1}} — which files are affected, what do they do today, and where are the gaps, inconsistencies, or broken cross-references?
 
-Exploration strategy:
-1. Identify which files are affected (skills, agents, hooks, lib helpers, build scripts, the Cursor port under cursor/)
-2. Read each affected file fully
-3. Identify current patterns, gaps, and inconsistencies
-4. Check cross-references (does file A reference file B correctly? Are paths valid?)
-5. Check for related patterns in other skills that solve similar problems
+DELIVERABLE_SHAPE: table of [{file:line range, current behavior, gap or inconsistency found, how other template files handle the same situation}]. Research only — do NOT suggest implementation.
 
-For each finding, provide:
-- File path and line range
-- Current behavior
-- Gap or inconsistency found
-- How other template files handle similar situations
+SCOPE_HINT: repo root — skills/, agents/, hooks/, lib/, scripts/, cursor/. Read each affected file in full rather than sampling: keyword search shows matching lines only, which misses reworded coverage of the same rule and produces false "missing" findings. `scripts/dump-md.sh [path ...]` prints every tracked `.md` file under the given paths in full. Cover cross-references in both directions (does file A reference file B correctly, are the paths valid) and check whether another skill already solves the same problem.
 
-Return findings as a structured table. Do NOT suggest implementation — research only.
-""", description="Research: codebase exploration")
+OUTPUT_PATH: .geniro/state/improve-template/.research-codebase-<slug>.md
+
+THOROUGHNESS: medium
+""")
 ```
 
 ### Step 3: Collect and record
 
-Wait for all spawned agents. Write key findings plus `research-sources: [list]` to the state checkpoint.
+Wait for all spawned agents. The two `codebase-research-agent` spawns report to their `OUTPUT_PATH` files rather than inline — read each one; the internet agent returns inline. Write key findings plus `research-sources: [list]` to the state checkpoint.
 
 ---
 
@@ -208,7 +194,7 @@ Merge findings from the research agents that ran (1-3, depending on the Matrix).
 For each finding, assess yourself:
 
 **Structural compatibility:**
-- Compatible with template architecture? (skills = orchestrators, agents = leaf workers, <500 lines)
+- Compatible with template architecture? (skills = orchestrators, agents = leaf workers)
 - Would it break existing patterns or cross-references?
 - Which files would need changes?
 
@@ -321,7 +307,11 @@ Apply the following approved changes:
 [specific description of what to change and why]
 
 ### Constraints
-- Stay under 500 lines for SKILL.md files
+- SKILL.md size is measured in words, not lines (`.claude/rules/skill-structure.md` § File-size
+  limits). Keep everything load-bearing inside the first ~3,000 words — that is all Claude Code
+  re-attaches after a compaction, so a rule below the line stops existing mid-session. Treat
+  ~5,000 words as the whole-file guideline. Both are guidelines: on overflow, move detail into a
+  companion reference file — never trim load-bearing content to hit a number.
 - Preserve existing patterns (phase structure, agent spawning syntax, anti-rationalization tables)
 - Do NOT add features beyond what was approved
 - Do NOT refactor surrounding code
@@ -336,7 +326,7 @@ Apply the following approved changes:
   don't re-explain standard tool or model behavior, and prefer tightening an existing
   line over adding a new one. The bar is zero degradation: a tightening that drops a
   load-bearing nuance, edge case, or behavioral condition is a degradation, not a
-  compaction — keep the longer wording. Signal density, not line count, is the target.
+  compaction — keep the longer wording. Signal density, not size, is the target.
 - **Assume a capable model** (per `.claude/rules/skill-prose.md` §Assume a capable
   model): in the sections you touch, also REMOVE over-detailed mechanics the model
   derives itself — platform command recipes, shell idiom hand-holding, prescribed
@@ -349,7 +339,7 @@ Apply the following approved changes:
 ### Definition of Done
 - [ ] All approved changes applied
 - [ ] No unintended side effects on surrounding code
-- [ ] File line count verified (under 500 for skills)
+- [ ] SKILL.md checked against the ~3,000-word front-load budget and the ~5,000-word whole-file guideline; overflow moved into a companion reference file, not trimmed away
 - [ ] Cross-references to other files still valid
 """, description="Implement: [group name]")
 ```
@@ -358,7 +348,7 @@ Apply the following approved changes:
 
 Orchestrator runs these checks directly (no subagent). All must pass before Phase 5:
 
-1. **Line counts:** `wc -l` on each changed SKILL.md — 500 lines is the target, 700 the hard ceiling (`.claude/rules/skill-structure.md` § File-size limits). Over 700 → move detail into a companion reference file before proceeding; 500-700 is a soft flag, not a blocker (line caps are guidelines — never trim load-bearing content to hit a number).
+1. **Size:** `wc -w` on each changed SKILL.md — everything load-bearing belongs inside the first ~3,000 words, which is all Claude Code re-attaches after a compaction; ~5,000 words is the whole-file guideline (`.claude/rules/skill-structure.md` § File-size limits). Past the whole-file guideline, move detail into a companion reference file that some runs genuinely skip. Neither number blocks: `bash tests/authoring/lint-skills.sh` reports both, plus the heading the compaction boundary falls at, so read an over-target warning as "check what is load-bearing and where it sits" — never trim load-bearing content to hit a number.
 2. **Outbound references:** Glob for every path/agent/skill name mentioned in changed files — all must exist
 3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
 4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
@@ -466,7 +456,7 @@ Present to the user:
 
 | File | Change | Lines |
 |------|--------|-------|
-| [path] | [what changed] | [before → after line count] |
+| [path] | [what changed] | [before → after word count] |
 
 ### Review result: [LGTM / N warnings]
 [any warnings from Phase 5]
@@ -478,7 +468,7 @@ Scan for user corrections, convention discoveries, and limitations encountered. 
 
 ### Step 3: Cleanup
 
-Remove `.geniro/state/improve-template/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — delete only the current branch's slug, never globbing all state-*.md files. Also clear two generations of legacy state files (best-effort; either may not exist):
+Remove `.geniro/state/improve-template/state-<slug>.md` and this run's two Phase 1 research reports (`.research-architecture-<slug>.md`, `.research-codebase-<slug>.md`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — delete only the current branch's slug, never globbing all state-*.md files. Also clear two generations of legacy state files (best-effort; either may not exist):
 ```bash
 rm -f ".geniro/improve-template/state-${slug}.md" 2>/dev/null  # intermediate legacy: pre-state-dir, slug-scoped
 rm -f .geniro/improve-template-state.md           2>/dev/null  # original legacy: pre-slug, non-scoped
@@ -486,7 +476,7 @@ rm -f .geniro/improve-template-state.md           2>/dev/null  # original legacy
 
 ### Step 4: Suggest commit & push
 
-After cleanup, run `git status --short` and `git diff --stat` to show what's staged vs. unstaged. Then use the `AskUserQuestion` tool (do NOT output options as plain text) to offer shipping the changes:
+After cleanup, show the user what is currently staged versus unstaged. Then use the `AskUserQuestion` tool (do NOT output options as plain text) to offer shipping the changes:
 
 - **Question:** "Ship these template changes?"
 - **Options:**
@@ -541,9 +531,9 @@ your existing validation infrastructure (validation gate + relevance-filter
 1. **Spawn an author agent** (general-purpose, `model=` omitted — inherits orchestrator tier) with:
    - The full Phase A interview transcript (pre-inlined)
    - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
-   - Constraints (pre-inlined): description rules from Phase 4 validator below + the 500-line target / 700-line hard ceiling from `.claude/rules/skill-structure.md` § File-size limits + reference depth ≤1 hop + edit-in-place principle
+   - Constraints (pre-inlined): description rules from Phase 4 validator below + the word-based size rule from `.claude/rules/skill-structure.md` § File-size limits (~3,000-word front-load budget, ~5,000-word whole-file guideline) + reference depth ≤1 hop + edit-in-place principle
    - 1-2 exemplar SKILL.md files closest in shape to the proposed skill (e.g., for a small command-style skill, point at `instructions/SKILL.md`; for a multi-phase pipeline, point at `refactor/SKILL.md`)
-   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. SKILL.md targets 500 lines with a 700-line hard ceiling (per `.claude/rules/skill-structure.md`); split overflow into companion reference files (e.g., `<name>-reference.md`) rather than trimming load-bearing content — the implement skill's `implement-reference.md` is the canonical example of this split."
+   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. SKILL.md size is measured in words: keep everything load-bearing inside the first ~3,000 words (all that survives a compaction), and treat ~5,000 words as the whole-file guideline (per `.claude/rules/skill-structure.md`); split overflow into companion reference files (e.g., `<name>-reference.md`) rather than trimming load-bearing content — the implement skill's `implement-reference.md` is the canonical example of this split."
 
 2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the new description-format checks (see "Description-format validator" below).
 
@@ -552,7 +542,7 @@ your existing validation infrastructure (validation gate + relevance-filter
 Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
 - All Phase A interview answers reflected in the SKILL.md
 - Description meets all 6 format rules (validator checks 1-6 below)
-- SKILL.md ≤300 lines OR has companion files split logically
+- SKILL.md within the ~3,000-word front-load budget and the ~5,000-word whole-file guideline (`.claude/rules/skill-structure.md` § File-size limits), or overflow split into companion reference files
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
 - No invented `${CLAUDE_PLUGIN_ROOT}/...` references (every cited path actually exists)
 - Frontmatter valid (name, description, allowed-tools, model)
@@ -608,29 +598,21 @@ If the user interjects mid-phase: corrections/context fold into the current phas
 
 ## Definition of Done
 
+These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
+
 ### improve-existing-skill mode
-- [ ] Mode Detection routed to improve-existing-skill (no create-skill triggers in $ARGUMENTS)
-- [ ] Complexity gate applied (fast path or full pipeline)
-- [ ] Phase 1: Research sources selected per Matrix; only those agents spawned (logged in state checkpoint)
-- [ ] Phase 2: Findings cross-referenced and filtered to evidence-backed only
-- [ ] Phase 2b: Redundancy & relevance validated orchestrator-inline
-- [ ] Phase 3: Evidence table presented, user approved specific changes
-- [ ] Phase 4: Changes implemented (subagents for multi-file, direct for trivial)
-- [ ] Phase 4 Step 3 validation gate: 8 standard checks (line counts / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync / compaction-redundancy) PLUS 6 description-format sub-checks (length / third person / Use-when clause / Skip-for clause / no placeholders / valid YAML) for any changed SKILL.md
-- [ ] Phase 5: Independent review by fresh agent passed
-- [ ] Phase 6: Summary presented, state file cleaned up
-- [ ] Phase 6: Commit & push offered to the user (Step 4)
-- [ ] All changed SKILL.md files under 500 lines (preferred: ≤300 with companion files split)
-- [ ] No scope creep beyond approved changes
+- [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
+- [ ] Only the research sources the Matrix selected were spawned, and the selection is in the state checkpoint
+- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md: 8 standard checks (size / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync / compaction-redundancy) plus the 6 description-format sub-checks
+- [ ] A fresh agent reviewed the changes in Phase 5 and passed them
+- [ ] Every changed SKILL.md sits inside the ~3,000-word front-load budget and the ~5,000-word whole-file guideline (`.claude/rules/skill-structure.md` § File-size limits), with overflow split into companion reference files rather than trimmed
+- [ ] The state file is cleaned up, and commit-and-push was offered to the user rather than performed unasked
 
 ### create-skill mode
-- [ ] Mode Detection routed to create-skill (explicit trigger OR named scope does not exist)
-- [ ] Phase A: Skill kind asked (plugin-facing / project-local / plugin-internal helper)
-- [ ] Phase A: Official Skills authoring docs fetched once and cached
-- [ ] Phase A: 3-5 sequential AskUserQuestion calls completed (trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow)
-- [ ] Phase A: Pre-existing-instruction check via generic Agent (sonnet) — overlap table reviewed; duplicates rejected, user routed to existing skill if overlap
-- [ ] Phase B: Author agent spawned with interview transcript + constraints + 1-2 exemplar SKILL.md files; SKILL.md written to disk
-- [ ] Phase B: Phase 4 Step 3 validation gate run including 6 description-format checks AND checks #7 (README/CLAUDE.md/docs sync) + #8 (compaction/redundancy) for any new top-level skill
-- [ ] Phase C: Fresh review agent spawned; 8-item create-skill review checklist applied; blockers fixed (max 1 round)
-- [ ] Phase D: Phase 6 Summary + Commit & push offered
-- [ ] Created SKILL.md within the 500-line target / 700-line hard ceiling (Phase 4 Step 3 check #1); overflow split into companion reference files rather than trimmed
+- [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
+- [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
+- [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
+- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the 6 description-format checks and checks #7 (README/CLAUDE.md/docs sync) and #8 (compaction/redundancy)
+- [ ] A fresh review agent applied the 8-item create-skill checklist and its blockers are fixed
+- [ ] The created SKILL.md sits inside the ~3,000-word front-load budget and the ~5,000-word whole-file guideline, with overflow split into companion reference files rather than trimmed
+- [ ] Commit-and-push was offered to the user rather than performed unasked

@@ -49,7 +49,7 @@ If the slug was provided on the command line (e.g., `/geniro:instructions create
 Refuse and re-ask if any of the following fail:
 
 - **Regex** — must match `^[a-z][a-z0-9-]*$` (lowercase ASCII letters/digits/hyphens, starts with a letter).
-- **No built-in collision** — must not match any built-in dimension name or retired-but-reserved name (case-insensitive): `bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `guidelines`, `rules-compliance`. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
+- **No built-in collision** — must not match any reserved dimension name, case-insensitively. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 4 holds the list; check against that file rather than a copy, since it is what actually rejects the slug at load time. On collision, error: `Slug "{{slug}}" collides with built-in reviewer "{{built-in}}". Pick a different slug — e.g., "{{slug}}-strict" or "{{slug}}-custom".`
 - **No existing file** — `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` must not already exist. If it does, report: `<resolved path>` already exists. Use `/geniro:instructions edit review-extra {{slug}}` to modify it. and stop.
 
 On any validation failure, re-ask via `AskUserQuestion` with the error message included in the question text.

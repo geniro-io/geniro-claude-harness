@@ -32,7 +32,18 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
-**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via the shared helper `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list; timing per the note under that table). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them.
+**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via the shared helper `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list; timing per the note under that table). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them. T1.5 surviving is the point: the user keeps the spec, the state log, and the milestone breakdown for audit or for re-running `/implement` against the same task-dir.
+
+**Who cleans what, and when.**
+
+| Skill | Cleanup at terminal exit |
+|---|---|
+| `/implement` | `clean_task_transients` before EVERY terminal `phase:` write — `done`, `aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only` — not only the Ship path. |
+| `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
+| `/debug`, `/refactor`, `/onboard`, `/investigate` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. |
+| `/resolve` | Retains its `.geniro/state/resolve/<slug>/` dir past terminal exit. It is a spec producer whose `spec.md` and handoff are consumed downstream by `/implement` — deleting them would delete the deliverable, the same reason `/plan` retains its planning task-dir and `/setup` its singleton. |
+
+Transients left behind by an interrupted run are swept by the `/geniro:update` migration walk; that sweep is deliberately recurring rather than one-shot.
 
 ---
 

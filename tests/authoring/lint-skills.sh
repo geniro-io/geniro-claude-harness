@@ -10,8 +10,8 @@
 #     2. Dangling ${CLAUDE_PLUGIN_ROOT}/<path> file references (target must exist).
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
 #   ADVISORY (warn only, exit 0 contribution) — guideline checks the maintainer
-#   reads but never auto-trims to satisfy (line caps are guidelines, not limits):
-#     4. SKILL.md over the 500-line target.
+#   reads but never auto-trims to satisfy (size targets are guidelines, not limits):
+#     4. SKILL.md word count vs the front-load budget and whole-file guideline.
 #     5. Anti-rationalization tables over the 15-row guideline.
 #     6. Decaying line-number cross-references (file.md:NNN).
 #
@@ -76,12 +76,41 @@ rm -f "$valid_agents"
 echo
 echo "=== ADVISORY checks (warn only) ==="
 
-# 4. SKILL.md over the 500-line target (700 is the hard ceiling per skill-structure.md).
+# 4. SKILL.md size, measured in WORDS per skill-structure.md §File-size limits.
+#    Not lines: a skill body here runs 9-21 words/line depending on table density,
+#    so a line count ranks files backwards (setup 571L/5267W vs resolve 142L/3044W).
+#    The front-load budget is the load-bearing figure — Claude Code re-attaches only
+#    the first 5,000 tokens of a skill after compaction (~3,000 words of table-dense
+#    markdown), so anything past it is absent for the rest of a compacted session.
+FRONTLOAD_WORDS=3000
+WHOLEFILE_WORDS=5000
 for f in skills/*/SKILL.md; do
   [ -f "$f" ] || continue
-  n=$(wc -l < "$f" | tr -d ' ')
-  if [ "$n" -gt 500 ]; then report_warn "$(rel "$f"): $n lines (target ≤500, hard ceiling 700)"; fi
+  n=$(wc -w < "$f" | tr -d ' ')
+  if [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
+    report_warn "$(rel "$f"): $n words (whole-file guideline <=$WHOLEFILE_WORDS)"
+  fi
+  if [ "$n" -gt "$FRONTLOAD_WORDS" ]; then
+    # Name the last H2 that still fits inside the front-load budget, so the warning
+    # says WHICH sections stop being re-attached rather than just that the file is big.
+    cut=$(awk -v lim="$FRONTLOAD_WORDS" '
+      /^## / { last = $0 }
+      { w += NF; if (w > lim && !done) { print last; done = 1 } }
+    ' "$f")
+    [ -n "$cut" ] && report_warn "$(rel "$f"): compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"
+  fi
 done
+
+# Corpus shape, not per-file compliance: a median that creeps up is the signal to
+# act on, and one oversize skill among lean ones is a different problem from all of
+# them drifting together. INFO, not a warning — it never needs "fixing" on its own.
+skill_words=$(for f in skills/*/SKILL.md; do [ -f "$f" ] && wc -w < "$f"; done | tr -d ' ')
+if [ -n "$skill_words" ]; then
+  echo "INFO: SKILL.md word counts — $(printf '%s\n' "$skill_words" | sort -n | awk -v lim="$FRONTLOAD_WORDS" '
+    {a[NR]=$1; if ($1 > lim) over++}
+    END {printf "median %d, range %d-%d, %d of %d over the ~%d-word front-load budget",
+         (NR%2 ? a[(NR+1)/2] : int((a[NR/2]+a[NR/2+1])/2)), a[1], a[NR], over+0, NR, lim}')"
+fi
 
 # 5. Anti-rationalization tables over the 15-row guideline.
 for f in skills/*/SKILL.md; do

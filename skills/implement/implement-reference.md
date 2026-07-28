@@ -6,6 +6,7 @@ This file contains templates, examples, and detailed procedures referenced by SK
 
 ## Contents
 
+- Phase 1: Step 0a signal detection
 - Phase 1: Step 0c AUQ templates
 - Phase 1: Step 0 setup detail
 - Phase 1: $ARGUMENTS semantic-parse table
@@ -23,6 +24,27 @@ This file contains templates, examples, and detailed procedures referenced by SK
 - Phase 3 — Ship sub-step
 - Phase 3 — Adjustment Routing (Big / Medium / Small)
 - Definition of Done
+
+---
+
+## Phase 1: Step 0a signal detection
+
+How each Step 0a context signal is detected. SKILL.md §PHASE 1 Step 0a owns the signal list and what each one means for the Step 0b decision tree; read this section at Step 0a, before that tree is evaluated.
+
+| Signal | How detected |
+|---|---|
+| `CURRENT_BRANCH` | `git branch --show-current` |
+| `CURRENT_TOPLEVEL` | `git rev-parse --show-toplevel` |
+| `IN_WORKTREE` | `CURRENT_TOPLEVEL` is registered in `git worktree list --porcelain` AND is NOT the porcelain `bare` row or the main worktree row. Porcelain registry is the source of truth; the `.claude/worktrees/<slug>/` path convention is a sanity check, NOT the primary signal. |
+| `PROTECTED_BRANCH` | `CURRENT_BRANCH ∈ {main, master, develop, trunk}` (per-project override via `.geniro/safety.json`) |
+| `EXISTING_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` AND `phase:` is terminal ⇒ "prior task on this branch" |
+| `REVIEW_HANDOFF` / `DEBUG_HANDOFF` / `RESOLVE_HANDOFF` | The matching `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<CURRENT_BRANCH>.md` file exists. `EXISTING_TASK_STATE` does not cover the resolve case — that glob scans `.geniro/planning/*/state.md`, while /geniro:resolve keeps its state under `.geniro/state/resolve/<slug>/`. |
+| `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
+| `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`). Empty list when field absent. |
+| `SPEC_LAUNCH_CONFIG` | If spec.md present at resolved task slug: parse the optional `launch_config:` frontmatter block (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — `workspace` / `deep_mode` / `branch_freshness` / `ship_mode`, plus the optional `tracker_status` (present only when the spec had a linked tracker ticket). Empty when the block is absent, on an inline-task run with no spec, or on a pre-`m5-v4` spec that omits it. |
+| `BRANCH_FORMAT_RULE` | Read `global.md` directly here at Step 0a from the resolved instructions base dir: when `$GENIRO_INSTRUCTIONS_DIR` (or `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR`) is set and is a directory, read `<that-dir>/global.md` (expand a leading `~` to `$HOME`); otherwise read `<PRIMARY_ROOT>/.geniro/instructions/global.md`. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 re-Reads the same file with the full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. |
+| `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. |
+| `CONCURRENT_ACTIVITY` | `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. |
 
 ---
 
@@ -650,9 +672,9 @@ Runs only when BOTH conditions hold: (a) the Phase 2 changed-files list contains
 
 When both conditions hold, the verification is mandatory: an unreachable page — auth wall, feature flag, no running dev server, or cost concern — does NOT authorize the orchestrator to skip it silently. Surface the obstacle to the user through the step-1 dev-server choice ("Skip verification" / "Retry" / "Enter URL manually") and let the user, not a unilateral cost judgment, decide. Prompt via a STANDALONE `AskUserQuestion` with header "Smoke-test" as the ONLY question in that call — never batch it with the ship-mode AUQ. If the user picks "Yes — walk through it", execute this sequence:
 
-1. **Detect target URL.** Probe dev-server ports in order — 3000 (Next.js), 5173 (Vite), 8080 (generic), 4321 (Astro), 4200 (Angular) — via `curl -s -o /dev/null -w "%{http_code}" http://localhost:PORT`. On the first 200, fetch `/` and check the response `<title>` or a known marker matches the project's `package.json` `name`; if uncertain, `AskUserQuestion` "Detected server on :PORT — is this the project under test?" before navigating. If no port responds, walk up from the primary changed UI file to the nearest `package.json` containing a `dev`/`start`/`serve` script (monorepo layouts: `apps/<name>/package.json`, `packages/<name>/package.json`). Choose package manager by lockfile (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `bun.lockb` → bun, else npm). Run with `run_in_background: true`, record the PID, poll `GET /` until 200 or ~30 seconds elapse. If the server never comes up, ask the user "Skip verification" / "Retry" / "Enter URL manually".
+1. **Reach the running app.** Resolve WHICH app first: walk up from the primary changed UI file to the nearest manifest that declares a dev server, so a monorepo starts the app the change belongs to rather than the repo root. Then find that dev server if one is already up, and confirm it serves THIS project before navigating — ask the user when that is uncertain, since a stray server on a common port yields a verification of someone else's app. If nothing is serving, start the project's own dev server in the background, record its PID, and wait for it to answer, bounded at ~30 seconds so a server that never comes up cannot hang the run. If it never answers, ask the user "Skip verification" / "Retry" / "Enter URL manually".
 
-2. **Infer the target route.** Map the primary changed UI file to a URL path: `app/<segment>/page.tsx` → `/<segment>`, `pages/<name>.tsx` → `/<name>`, `src/routes/<name>/+page.svelte` → `/<name>`. Leaf component (e.g., `components/Button.tsx`) → fall back to `/` and ask the user where it renders. Navigate with `mcp__plugin_playwright_playwright__browser_navigate`. If the navigated page is a login / auth-gate page, or the inferred route returns 4xx or redirects away from the target (a feature-flag or permission wall), do NOT snapshot and proceed against the gated page — fire the same "Skip verification" / "Retry" / "Enter URL manually" `AskUserQuestion` so the user, not a unilateral skip, decides.
+2. **Open the changed surface.** Infer the route the primary changed UI file renders at and navigate there with `mcp__plugin_playwright_playwright__browser_navigate`; a leaf component with no route of its own falls back to `/` and a question to the user about where it renders. If the page that loads is a login / auth-gate page, or the inferred route returns 4xx or redirects away from the target (a feature-flag or permission wall), do NOT snapshot and proceed against the gated page — fire the same "Skip verification" / "Retry" / "Enter URL manually" `AskUserQuestion` so the user, not a unilateral skip, decides.
 
 3. **Baseline snapshot.** Call `mcp__plugin_playwright_playwright__browser_snapshot` to capture the accessibility tree with element refs. Every subsequent interaction (`browser_click`, `browser_type`, `browser_fill_form`) requires a `ref` from this snapshot.
 
@@ -664,7 +686,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 7. **Visual record.** Final `mcp__plugin_playwright_playwright__browser_take_screenshot` with `fullPage: true`, saved under `<task-dir>/playwright-verify.png`. This is the artifact — do NOT claim a pixel-diff against a prior state (no baseline image exists).
 
-8. **Cleanup.** If step 1 spawned a dev server (PID recorded), send `kill -TERM <pid>`; if still alive after 3s, escalate with `kill -KILL <pid>`. NEVER kill servers the user had running before verification — only clean up what this step spawned.
+8. **Cleanup.** Stop the dev server only if step 1 started it (the recorded PID). NEVER kill servers the user had running before verification — only clean up what this step spawned.
 
 **Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, render them to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — the issue list as a mini-table (risk · symptom you'd see · severity, the risk-finding shape from the same contract's §Finding-type visual map), each issue described in plain English with the screenshot it appears in referenced by path — then fire the lean `AskUserQuestion` with options: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal).
 
@@ -802,7 +824,7 @@ Downstream consumers (`/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/g
 
 The `.geniro/` deletion guard hook allows targeted `rm -f` under `<task-dir>` (per-file deletions). Bulk `rm -rf .geniro/planning/<task-dir>/` is also allowed (deep path), but unused under the new contract.
 
-**Temp files** — remove temporary screenshots, `.tmp`, `.bak`, `debug-*` files (not in `node_modules` or `.git`). Kill orphaned processes on agent ports (avoid touching standard dev ports). Remove stray `.log` files. Best-effort — silent failures OK.
+Scratch this run created OUTSIDE the task directory — a throwaway script, a captured log — is removed by name, from the set this run actually wrote. Never sweep the user's tree by glob: a pattern like `debug-*` or `*.bak` matches files the user authored and did not ask you to touch. Ship stages by name, so a missed stray dirties the working tree without reaching a commit.
 
 ---
 

@@ -158,20 +158,9 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`.
 
 When symptoms suggest the bug may not be in the code (timeouts, intermittent failures, environment-specific errors, deployment regressions), investigate infrastructure before or alongside code hypotheses.
 
-**Signals requiring at least one infrastructure hypothesis:**
+**Signals requiring at least one infrastructure hypothesis:** timeouts; intermittent failures (error rate >0 but <100%); environment-only manifestation (works locally, breaks in staging/prod); latency degradation without a code change; symptoms correlating with a deployment, config change, secret rotation, or scale event.
 
-- Timeouts (request, query, container, deployment)
-- Intermittent failures (5xx spike with no code change, error rate >0 but <100%)
-- Environment-only manifestation (works locally, breaks in staging/prod)
-- Symptoms correlate with a deployment, config change, secret rotation, or scale event
-- Latency degradation without code change
-
-**What to investigate:**
-
-- **Logs & error tracking** — application logs for error spikes, upstream failures, correlation with deployments
-- **Service health** — database connectivity/query performance, external service dependencies, container/process health (OOM kills, restart loops, CPU throttling)
-- **Environment & config** — env var diffs between working/broken environments, recent config changes, secret rotations, certificate expirations, DNS/network/firewall
-- **Resource limits** — memory, CPU, disk space, file descriptors, connection pool size vs active connections, external API rate limits
+**What to investigate:** logs, service health, environment/config diffs between the working and broken environments, and resource limits. The entries that get missed sit inside those categories — **certificate expiry**, **secret rotation**, and **connection-pool size vs active connections** — each breaks a running system while every code path is still correct.
 
 **Hypothesis quality bar:** "The database connection pool is exhausted under load" is testable — names the resource, condition, and observable signature. "Something is wrong with the server" is NOT a hypothesis — no variable to toggle, no falsifiable prediction.
 
@@ -183,25 +172,9 @@ Once a hypothesis is confirmed, narrow down to exact code location.
 
 **Binary search:** Disable half the relevant code path, check if the bug reproduces. Narrow iteratively. O(log N) iterations. Use when the confirmed hypothesis points to a general region but exact line/branch is unclear.
 
-**Git bisect:** For regressions, identify the commit that introduced the bug.
+**Git bisect:** For regressions, walk the good→bad range to identify the commit that introduced the bug. Use when the bug was absent at a prior commit.
 
-```bash
-git bisect start
-git bisect bad HEAD
-git bisect good <known-good-sha>
-# git checks out midpoint; run repro; mark good/bad; repeat
-git bisect reset
-```
-
-Use when the bug was absent at a prior commit. `git bisect run <repro-script>` automates the walk.
-
-**Profiling:** For performance bugs, use profiling tools for quantitative data (timing, memory, allocation count). Code inspection cannot distinguish "slow because of N+1 query" from "slow because of N^2 allocation."
-
-- Node: `node --prof`, `clinic.js`, `0x`, Chrome DevTools heap snapshots
-- Python: `cProfile`, `py-spy`, `memray`
-- Go: `pprof`
-- JVM: `async-profiler`, JFR
-- Browser: Performance panel, Memory panel, Lighthouse
+**Profiling:** For performance bugs, use the language's profiler for quantitative data (timing, memory, allocation count). Code inspection cannot distinguish "slow because of N+1 query" from "slow because of N^2 allocation."
 
 **Pick the cheapest technique:** binary search if the region is large; git bisect if the regression boundary is known; profiling if the symptom is quantitative. Don't run all three.
 
@@ -320,19 +293,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ### Example 1: Cache Not Invalidating
 
-```
-/geniro:debug User sees stale data after profile update
-```
-
-→ Phase 1 Observe: User updates name, refresh page shows old name
-→ Hypothesis 1: Cache invalidation broken; Hypothesis 2: Update endpoint not called
-→ Test: Add logging to cache invalidation and endpoint
-→ Result: Hypothesis 1 confirmed (cache key mismatch) → `[ROOT-CAUSE]`
-→ Phase 2 Propose: patch cacheKey builder in `src/cache/user.ts` to include user ID
-→ Verify: local experiment shows bug disappears with monkey-patch
-→ Phase 3 Findings persisted to `from-debug-<branch>.md`
-→ Escalate: /geniro:implement with the proposed patch
-→ L2 emit `diagnosis` with tags=[cache, invalidation, user-role]
+`/geniro:debug User sees stale data after profile update` → two competing hypotheses (cache invalidation broken vs. update endpoint never called); logging confirms the first, isolating a cache-key mismatch as the `[ROOT-CAUSE]` → propose patching the cacheKey builder in `src/cache/user.ts` to include the user ID, verified by monkey-patch → findings persisted to `from-debug-<branch>.md`, escalated to /geniro:implement, `diagnosis` emitted with tags=[cache, invalidation, user-role].
 
 ### Example 2: Intermittent Timeout
 

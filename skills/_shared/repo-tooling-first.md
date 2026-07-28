@@ -4,15 +4,6 @@ Single source of truth for the tooling-first generation primitive. Skills cite t
 
 Before hand-writing a structured artifact that a repo's own tooling can generate — a scaffolder, generator, CLI, or project command (`make new-migration`, `rails generate`, `nx g`, `cargo generate`, an `openspec` / `/opsx:*` change scaffold, a framework's `create` command) — detect that tooling and generate through it. Hand-writing reverse-engineers a format the tooling already produces correctly, and drifts the moment the tooling's version moves. Read-only on discovery, fail-open: when no tooling is found, fall back to the consumer's own hand-written contract.
 
-## Contents
-
-- §1 When it applies
-- §2 Discover the tooling (read-only)
-- §3 Generate through the tooling
-- §4 Precedence and edge cases
-- §5 Boundary vs the reuse audits
-- §6 Fail-open + plain-English echo
-
 ## 1. When it applies
 
 A consumer skill is about to emit a structured artifact — a spec or change folder, a migration, a scaffolded module, a config file — into a repo that may already own tooling for that artifact class. Apply this primitive before writing. It does NOT apply to free-form prose or to an artifact no standard tool generates.

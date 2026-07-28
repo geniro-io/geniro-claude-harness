@@ -154,12 +154,11 @@ Past diagnoses:
 These get surfaced on hypothesis formation so that the orchestrator does NOT re-form a hypothesis equivalent to an already-ruled-out one without explicit re-justification.
 4. **Cross-layer conflict resolution** — `resolve-conflicts(L2/L3/L4 loaded)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md`. Echo lines per each helper's mandatory echo contract.
 
-5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]`. Accept `geniro_schema_version: m5-v1` (treat field as absent), `m5-v2`, `m5-v3`, and `m5-v4` (read the field if present; an m5-v4 spec carries `workflow_refs[]` identically and may also carry a `launch_config` block, which /geniro:debug ignores). Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. On `m5-v3` the cached parent-epic status and sibling sub-task statuses are also available to prime hypotheses (e.g. a sibling already shipped a related fix, so the regression may live in shared code), still read-only. Read-only — /geniro:debug never mutates tracker state via MCP. Skipped silently when no spec.md is in scope.
+5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` — that file owns which schema versions a reader accepts and the rule that every consumer but /geniro:implement is tracker-read-only. Use the cached `status` field as hypothesis-priming context — "CI-303 still In Progress" vs "Done" guides whether the bug is in-flight code or already-shipped code. On `m5-v3` the cached parent-epic status and sibling sub-task statuses are also available to prime hypotheses (e.g. a sibling already shipped a related fix, so the regression may live in shared code), Skipped silently when no spec.md is in scope.
 
 ### 1.2 Observe & repro
 
-- Reproduce the bug consistently. Capture error messages, logs, stack traces.
-- Identify what changed (recent commit, config, user action). Record exact repro steps.
+- Reproduce the bug consistently and capture what the failure emits. Identify what changed. Record exact repro steps.
 - **If repro is unclear/missing:** `AskUserQuestion` with header "Repro details" — 2-4 concrete options (environment / steps to trigger / expected vs actual behavior). Do NOT guess.
 - **Check open PRs for an existing fix.** Before forming hypotheses, scan open PRs for one that may already fix this bug (ranked by overlap with the suspect / recently-changed files + symptom-keyword match in the PR title/body) — so the session does not re-investigate something already being patched. Surface matches as hypothesis-priming context; on a strong hit (file overlap AND keyword match) fire an `AskUserQuestion` (header "Existing fix") — review that PR's diff first / test it as a hypothesis / keep investigating — and persist the pick to `approvals[]` category `existing_fix_pr`. Read-only, fail-open (skipped with no GitHub remote or `gh` unavailable), Scientific Mode only. Full mechanism: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §8.
 
@@ -169,17 +168,7 @@ Persist to state.md body sections `## Symptom` and `## Reproduction Steps` (per 
 
 A feedback loop is a fast (≤30s, ideally ≤5s), deterministic, captured signal that reproduces the bug AND can be re-run cheaply.
 
-**Pick the cheapest option that reliably reproduces:**
-
-| Option | Use when |
-|---|---|
-| Failing assertion in REPL / test runner | Bug is in pure logic, no I/O |
-| `curl` against running dev server | Bug is in HTTP/API behavior |
-| SQL query against test DB | Bug is in query/migration logic |
-| Headless browser script | Bug is UI-rendered |
-| Differential test (good vs bad commit) | Regression — works at commit X, broken now |
-| Fuzz / loop reproducer | Bug is intermittent |
-| Manual click-through script | Genuinely UI-only with no automation seam (fallback only) |
+**Pick the cheapest mechanism that reliably reproduces** — an assertion, a request, a query, or a browser script, whichever matches the layer the bug lives at; a manual click-through is the fallback for a UI with no automation seam. Two shapes are not interchangeable with the rest: a regression that worked at commit X wants a differential test (good vs bad commit), and an intermittent bug wants a fuzz / loop reproducer feeding the reproduction-rate rule below.
 
 **Quality bar:**
 - **Fast** — re-runs in seconds. If only loop possible takes 5 minutes, shrink scope (smaller payload, in-memory mock, skip auth).
@@ -219,7 +208,7 @@ Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypo
 
 **L2 emit on REJECTED:** For each hypothesis transitioning to `Status: rejected` (eliminated by a test that produced contradicting evidence), call `emit-learning` with type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections in one Phase 1 = multiple emits). Canonical payload shape: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9.
 
-**Sliding-window cap:** keep at most 5 latest `discarded_hypothesis` entries per `(producer, scope)`. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; if ≥5, mark the oldest matching entry `deprecated: true` BEFORE appending the new one. This field-flip is a mutation of `.geniro/knowledge/learnings.jsonl`, which the state-helper enforcement hook guards — perform it through the atomic-write path (rewrite the file via `atomic_state_write`, not a direct `Edit`/`Write`), and rely on the `enforce-state-helper` allow-pattern in `.geniro/safety.json` only if the atomic path is unavailable. Prevents discarded-hypothesis chatter from drowning out `diagnosis` entries at retrieval time.
+**Sliding-window cap:** 5 latest `discarded_hypothesis` entries per `(producer, scope)`, pruned per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types — unbounded, discarded-hypothesis chatter drowns out `diagnosis` entries at retrieval time. Before emit, count existing non-deprecated entries via `query-learnings --type discarded_hypothesis --scope <scope> --include-superseded`; at 5 or more, flip the oldest matching entry to `deprecated: true` BEFORE appending the new one. That flip mutates `.geniro/knowledge/learnings.jsonl`, so rewrite the file via `atomic_state_write` — a direct `Edit`/`Write` is blocked by the state-helper enforcement hook.
 
 `rejected` is a normal outcome of hypothesis testing — emit fires in the happy path. `inconclusive` does NOT emit (the data is ambiguous; recording it would seed noise). `confirmed` does NOT emit a `discarded_hypothesis` (it emits a `diagnosis` later at Phase 3 §3.3).
 
@@ -325,7 +314,7 @@ When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-
 - **Abort** — `phase: aborted` (terminal).
 3. state.md marks `phase: phase-2-escalated` with timestamp + fix-attempt count + accumulated test outputs. The session-start restore re-surfaces the open question on resume.
 
-**L2 emit on fix-loop exit.** When Phase 2 exits AND `fix_attempts ≥ 2`, call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "fix-attempts", attempts: [{round: N, failure: "<why this attempt did not verify>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` (passed = test confirmed fix; escalated = user picked "Try different approach" or "Accept as documented limitation"; aborted = terminal). Sliding-window cap = 3 latest per `(producer, scope, phase)`. Single-attempt exits (fix_attempts == 1) do NOT emit. Scope = the file/module the fix targeted.
+**L2 emit on fix-loop exit.** When Phase 2 exits AND `fix_attempts ≥ 2`, call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "fix-attempts", attempts: [{round: N, failure: "<why this attempt did not verify>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` (passed = test confirmed fix; escalated = user picked "Try different approach" or "Accept as documented limitation"; aborted = terminal). Sliding-window cap per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types (3 latest per `(producer, scope, phase)`; flip the oldest `deprecated: true` BEFORE appending, via `atomic_state_write`). Single-attempt exits (fix_attempts == 1) do NOT emit. Scope = the file/module the fix targeted.
 
 ---
 
@@ -558,7 +547,7 @@ T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `de
 - Agent's tool surface inherited via the agent's frontmatter (owned by `agents/adversarial-tester-agent.md`).
 - Orchestrator's re-verification step uses read-only Bash (run test command).
 
-**Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard (CLAUDE.md § Safety Hooks). Runtime denies stay enforced regardless of ACI doc.
+**Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard (`${CLAUDE_PLUGIN_ROOT}/HOOKS.md`). Runtime denies stay enforced regardless of ACI doc.
 
 ---
 
@@ -610,7 +599,7 @@ When symptoms suggest the bug may not be in the code (timeouts, intermittent fai
 
 ## Isolation techniques
 
-Binary search / git bisect / profiling — full procedure + per-language profiler list in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §4. Pick the cheapest technique: binary search for large regions, git bisect for known-good→bad regression boundaries, profiling for quantitative symptoms.
+Binary search / git bisect / profiling — full procedure in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §4. Pick the cheapest technique: binary search for large regions, git bisect for known-good→bad regression boundaries, profiling for quantitative symptoms.
 
 ---
 

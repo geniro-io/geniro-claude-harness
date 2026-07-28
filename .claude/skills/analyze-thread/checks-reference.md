@@ -1,6 +1,6 @@
 # analyze-thread — checks reference
 
-The canonical 32-check taxonomy used by `/analyze-thread` Phase 2. Each check is tagged:
+The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is tagged:
 
 - `[M]` mechanical (deterministic over the normalized events list) — runs in Phase 2 Step 1
 - `[J]` judged (LLM pass over thread excerpts with this taxonomy seeded) — runs in Phase 2 Step 2
@@ -167,6 +167,6 @@ Sort events by suspicion descending; take top events until 60K-token budget is r
 
 ## Notes for maintainers
 
-- The 32-check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
+- The check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
 - When `/improve-template` consumes a handoff from `/analyze-thread`, it sees finding IDs verbatim. Keep IDs stable across edits to this file; rename `name` columns freely.
 - The judge prompt loads this file at spawn time, not at skill-install time. Editing the taxonomy takes effect on the next `/analyze-thread` run with no rebuild.
