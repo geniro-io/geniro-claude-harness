@@ -73,7 +73,7 @@ This is observability for the Phase 4 §4.0 verification gate — declared-vs-ac
 
 > Spawning <N> reviewers: <comma-separated plain-English list>.
 
-A dropped echo produces a silent multi-minute window where the user cannot tell the batch fired; the Definition-of-Done line below makes the drop detectable.
+SKILL.md's Definition of done makes a dropped echo detectable.
 
 **Step 2.3.2 — Fire the batch.**
 

@@ -195,18 +195,6 @@ Cover the categories below. Extend when new internal vocabulary appears in skill
 | `CE` / `CE subagent` / `CE output` | "codebase-explorer agent" / "codebase-explorer output" |
 | `TR` / `TR subagent` / `TR output` | "test-runner agent" / "test-runner output" |
 
-**Internal phase / step labels.** Phase / step numbering (`Phase 4.3`, `Phase 5.3`, `Step 12`, `Phase 6 Pre-gate`) is meaningful only to skill authors. The user knows what the orchestrator is DOING, not which numbered step it's on. When cross-referencing a step internally, anchor by the concept ("the open-question gate"), not the number ("Phase 6 Pre-gate").
-
-| Internal term | Plain-English form for user-facing prose |
-|---|---|
-| `Phase 4.3` / `Phase 4.3 test-gate` | "test-confirmation gate" / "confirming tests before writing code" |
-| `Phase 5.3` / `Phase 5.3 auto-emit` | "recording the pattern as a learning" |
-| `Step 0 workspace AUQ` | "workspace setup question" |
-| `Step 12 handoff resolution` | "resolving open questions from the prior review" |
-| `Phase 6 Pre-gate` | "the open-question gate" |
-| `Step 0a` / `Step 0b` / `Step 0c` | "detecting current context" / "deciding the action" / "asking for confirmation" |
-| `B1` / `b2/5` / batch labels | "file group 2 of 5" or content-anchored ("the queue-service files") |
-
 **Decision-type tags.** The `FIX-NOW` / `PRODUCT-DECISION` / `TESTABLE` / `INTENT-CHECK` taxonomy is reviewer-internal; `ROOT-CAUSE` / `SYMPTOM` / `UNKNOWN` is debug-internal. Both are jargon to a fresh user.
 
 | Internal term | Plain-English form for user-facing prose |
@@ -229,13 +217,7 @@ Cover the categories below. Extend when new internal vocabulary appears in skill
 | `open_questions[]` | "open questions from the prior review/debug" |
 | `related_findings[]` | "findings this question gates" |
 
-**Helper / function / hook names.** Implementation identifiers (`atomic_state_write`, `load_semantic`, `query_learnings`, `emit_learning`, `update_semantic`, `SessionStart`, `PreToolUse`, `Stop`) belong in author-facing prose, never narration. If the user needs to know a helper ran (e.g., to follow up on a failure), describe what it DID, not which function did it: "Couldn't refresh the project snapshot" beats "load_semantic returned rc=11".
-
-**Schema versions.** `m5-v1` / `m5-v2` / `m6-v1` are internal versioning markers. Don't surface unless the user must act on a version difference (e.g., re-author a spec after a breaking migration) — and even then, describe the action ("this spec uses the older format and needs re-authoring"), not the version number.
-
-**State-machine phase enum values.** `phase: analyze`, `phase: implement`, `phase: persist`, `phase: triage`, `phase: classify` are storage values. Describe what's HAPPENING, not which enum state the machine is in: "Analyzing the change scope" not "Now in `phase: analyze`".
-
-**Reviewer dimension slugs.** Some are already plain-English (`bugs`, `security`, `architecture`, `tests`). Slug forms with hyphens (`spec-compliance`, `pr-metadata`, `code-quality`) need light expansion in narration: "specification compliance" / "PR metadata check" / "code quality" — same words, drop the slug-style hyphenation.
+**Everything else** — phase / step labels (`Phase 4.3`, `Step 0b`, `Phase 6 Pre-gate`), state-machine enum values (`phase: analyze`), reviewer dimension slugs (`spec-compliance`), schema versions (`m5-v2`), helper / hook names (`load_semantic`, `PreToolUse`). These are storage and coordination identifiers: narrate what is happening or what a helper did, never the identifier — "Analyzing the change scope", not "Now in `phase: analyze`"; "Couldn't refresh the project snapshot", not "load_semantic returned rc=11". Surface a schema version only when the user must act on the difference, and then describe the action ("this spec uses the older format and needs re-authoring"), not the version number. When cross-referencing a step internally, anchor by the concept ("the open-question gate"), not the number.
 
 ### What's exempt
 

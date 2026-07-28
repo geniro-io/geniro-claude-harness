@@ -32,7 +32,7 @@ echo '<json-object>' | emit_learning
  - Appends to `.geniro/knowledge/learnings.jsonl` (created if absent).
  - May append to `.geniro/knowledge/.redaction-log.jsonl` (via `redact_secrets`).
 
-**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so the L2 append lands in the canonical store. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+**Path resolution:** `lib/repo-root.sh::_geniro_repo_root` resolves to the PRIMARY worktree, so the L2 append lands in the canonical store, never a linked worktree's. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists".
 
 **Return codes:**
 - `0` — entry appended, or no-op (identical duplicate).

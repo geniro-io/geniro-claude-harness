@@ -9,7 +9,7 @@ argument-hint: "[task description | spec.md path | empty to resume | 'continue']
 
 # Implement Skill — 3-Phase Autonomous Loop
 
-You are an autonomous executor. Consume an externally-provided spec (or inline task description), make every required code edit, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`. One orchestrator owns the Phase 2 edits; only a genuinely independent, self-contained slice is ever delegated — coupled slices never are.
+You are an autonomous executor. Consume an externally-provided spec (or inline task description), make every required code edit, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`. One orchestrator owns the Phase 2 edits; only a genuinely independent, self-contained slice is ever delegated.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — then substitute it everywhere and export it in every Bash call. Tool and hook substitutions: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
@@ -76,7 +76,7 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 |---|---|
 | "/geniro:implement should ask user before each Edit — safety first." | Phase 2 is the execution phase, and pre-approval lives upstream: the spec.md /geniro:plan emitted IS the pre-approval. Per-Edit AUQs defeat the spec-driven autonomy this skill is designed for. |
 | "Phase 2 should fan out subagents — parallel backend/frontend agents, or one subagent per todo — to save wall-time or keep context lean." | Fan-out of COUPLED work is the documented anti-pattern: parallel agents editing tightly-interdependent code (shared contracts, types, imports) produce style drift, duplicated implementations, and contradictions lint/compile cannot catch. The sanctioned form is Phase 2's delegation rule — only an independent, self-contained slice with a disjoint file set, and only such slices in parallel; everything coupled stays with the one orchestrator, which reads every delegate's diff before accepting it. |
-| "Mark all todos in_progress at start so the orchestrator can interleave work." | Forbidden by Loop invariant #9. Single-in-progress is Claude Code's enforced Tasks API design; scattered parallel attempts hurt quality. Mark the next todo `in_progress` only after the current todo completes. |
+| "Mark all todos in_progress at start so the orchestrator can interleave work." | Forbidden by Loop invariant #9. Mark the next todo `in_progress` only after the current todo completes. |
 | "Skip TodoWrite — it's overhead; the orchestrator knows the spec already." | TodoWrite gives the user real-time per-unit progress visibility; without it, Phase 2 is a black box until tests run. Not optional. |
 | "Re-run tests after each file Edit to catch regressions early." | Single end-of-Phase-2 test run via `test-runner-agent`. Per-file test runs explode wall-time on slow suites and burn turns inside the runner agent (one invocation per spawn). |
 | "/geniro:implement should self-fix indefinitely until reviews clean." | Phase 3 fix loop is bounded to 3 rounds. Past 3 unresolved rounds, escalate via AUQ — never silently loop. "Kick it until it passes" is a catalogued anti-pattern; round 4 entry is forbidden. |
@@ -87,7 +87,7 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 | "Pass `model=\"sonnet\"` at every spawn site for predictable cost." | Plugin agents declare their tier in frontmatter (`model: inherit`, except the two mechanical carve-outs — `test-runner-agent` and `knowledge-retrieval-agent` — which declare `model: sonnet`), so OMIT `model=` at every spawn site and let the frontmatter govern. A hardcoded tier at the spawn site defeats the user's session-level `/model` choice for inherit-agents. The only exception is a user-authored custom reviewer whose own frontmatter declares a tier — honor that declaration. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. |
 | "/geniro:implement should fire a user-approval AUQ before Phase 3 adversarial-tester spawn, mirroring /geniro:review Phase 4.3." | /geniro:review needs that AUQ because its contract is read-only reporter — spawning a test author expands its scope past contract. /geniro:implement is already authorized to mutate code (Phase 2 IS the mutation phase), so Phase 3 adversarial test authoring is symmetric to Phase 2 code authoring, NOT a new authority surface; the approved spec.md covers it. Explicit opt-out: the `--no-adversarial` modifier. |
 | "Branch format requires a ticket prefix per global.md — I'll create the Linear / Jira / GitHub-Issues ticket so the slug conforms." | /geniro:implement never creates tracker artifacts. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Mutation responsibility it mutates tracker state (status transitions at Phase 1 kickoff + Phase 3 Ship completion) but creates no tickets, issues, epics, or sub-tasks. A branch-format rule demanding a ticket ID is satisfied by the no-ticket-ID sub-flow's three options — user-provided ID, placeholder slug, or cancellation — never by inventing an upstream artifact. Tracker creation is a human authoring action, not a code-execution side-effect; an agent-created ticket appears in the user's tracker without authorization and triggers downstream artifacts (notifications, dashboard rows, sprint-planning surface area) the user did not approve. |
-| "/geniro:implement should inline-Read every relevant .claude/rules/, exemplar, and prior plan for thoroughness." | Loop invariant #8 bounds the orchestrator's own reads and delegates the rest. `.claude/rules/*.md` bodies and exemplar sources are JIT-loaded in Phase 2 only when an Edit target matches the rule's `paths:` glob, using the path list the codebase-explorer returned. Inline-reading the rest is the documented context-bloat regression. |
+| "/geniro:implement should inline-Read every relevant .claude/rules/, exemplar, and prior plan for thoroughness." | Loop invariant #8 bounds the orchestrator's own reads and delegates the rest. `.claude/rules/*.md` bodies and exemplar sources are JIT-loaded in Phase 2 only when an Edit target matches the rule's `paths:` glob, using the path list the codebase-explorer returned. |
 | "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it never writes files or tests you did not create, so content this run did not author means a concurrent external process. Committing from a working tree another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Workspace changed" AUQ (Phase 2 guard) instead of rationalizing the mutation away. |
 
 ---
@@ -131,7 +131,7 @@ Procedure — rendering, the round-trip write, approvals persistence, the `/geni
 
 ## State persistence
 
-**After a compaction, this file survives and the phase bodies do not — Read the phase file again on entry to (or resumption of) a phase.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary; everything in this spine is inside that budget, and the Steps live in the sibling phase files precisely so they can be re-Read on demand. Working from a summary's recollection of a phase instead of its actual Steps is how a run silently skips a gate. state.md tells you which phase to resume; the phase file tells you how.
+**After a compaction, this file survives and the phase bodies do not — Read the phase file again on entry to (or resumption of) a phase.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary; the Steps live in the sibling phase files precisely so they can be re-Read on demand. Working from a summary's recollection of a phase instead of its actual Steps is how a run silently skips a gate. state.md tells you which phase to resume; the phase file tells you how.
 
 **Task directory**:
 
@@ -185,19 +185,19 @@ Each helper's arguments, echo contract, and failure semantics live with the step
 
 ## PHASE 1: ANALYZE
 
-State.md `phase: analyze` on entry; resolves the workspace, the spec source, and the research inputs. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md`** — it carries the Steps, and `implement-reference.md`'s `§PHASE 1 …` citations resolve there. Exit: `phase: implement`, which the handoff gate blocks while any `unresolved` open question remains.
+State.md `phase: analyze` on entry. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md`** — it carries the Steps, and `implement-reference.md`'s `§PHASE 1 …` citations resolve there. Exit: `phase: implement`, which the handoff gate blocks while any `unresolved` open question remains.
 
 ---
 
 ## PHASE 2: IMPLEMENT
 
-State.md `phase: implement` on entry — the execution phase. No custom-instructions or project-snapshot refresh at entry; both remain in context from Phase 1. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md`** — it carries the Steps, and `implement-reference.md`'s `§PHASE 2 …` citations resolve there. Exit: `phase: self-review` on a green suite plus passing spec `verify:` checks, else `phase: phase-2-escalated`.
+State.md `phase: implement` on entry — the execution phase. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md`** — it carries the Steps, and `implement-reference.md`'s `§PHASE 2 …` citations resolve there. Exit: `phase: self-review` on a green suite plus passing spec `verify:` checks, else `phase: phase-2-escalated`.
 
 ---
 
 ## PHASE 3: SELF-REVIEW + SHIP
 
-State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step: fresh reviewer-agents read the diff in isolated contexts, a bounded fix loop closes what they find, then the run commits and ships. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md`** — it carries the Steps and the Ship sub-step, and `implement-reference.md`'s `§PHASE 3 …` citations resolve there. Exit: a terminal state, reached only after the ship report and the pre-terminal check.
+State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md`** — it carries the Steps and the Ship sub-step, and `implement-reference.md`'s `§PHASE 3 …` citations resolve there. Exit: a terminal state, reached only after the ship report and the pre-terminal check.
 
 ---
 
@@ -208,7 +208,7 @@ Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministical
 - **Workspace + adversarial-tester modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 0b "Inline modifier overrides".
 - **Ship-mode modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Inline modifiers from $ARGUMENTS".
 
-When no ship-mode modifier is present, the ship-mode AUQ fires. Conflicting modifiers (e.g., `new-branch` AND `current-branch`): last-occurrence wins (right-to-left scan); emit soft notice naming both detected variants.
+When no ship-mode modifier is present, the ship-mode AUQ fires. On conflicting modifiers, last-occurrence wins; emit a soft notice naming both detected variants.
 
 ---
 

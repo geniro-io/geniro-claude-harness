@@ -250,32 +250,7 @@ The `Recommended` marker reflects the §4.2 stress-test ranking — an approach 
 
 ### 4.1 Cluster authoring procedure — message-first, one decision per cluster
 
-Group the 11-section schema into 3 dependency-ordered clusters. Author and gate cluster-by-cluster; each cluster renders to a chat message, then fires ONE lean AUQ:
-
-| Cluster | Plain-English name | Sections | AUQ `header` (≤12 chars) |
-|---|---|---|---|
-| 1 | Goal & scope | 1 Objective, 2 Scope-Included, 3 Scope-Excluded | "Goal & scope" |
-| 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required | "Steps" |
-| 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition | "Safety" |
-
-The per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §5.2. This section holds the literal templates.
-
-#### Concrete example + visual per section type
-
-Every section in a cluster's chat message closes on one concrete example and one visual, below its digest lines. The visual shape per section is shared language, canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map"; the example shapes below are plan's own:
-
-| Section | Concrete example shape |
-|---|---|
-| 1. Objective | One-line user-visible behavior statement: "User clicks X → sees Y within Z seconds" |
-| 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) |
-| 4. Assumptions | Concrete invariants: "`USER.tz` always populated" — cite `file:line` where the invariant is guaranteed |
-| 5. Risks | Specific failure scenario + observable symptom: "Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate" |
-| 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) |
-| 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" |
-| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /geniro:implement will ask the user mid-run |
-| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch |
-| 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
-| 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |
+The cluster set (which of the 11 sections group into which of the 3 dependency-ordered clusters, each cluster's AUQ `header`) and the per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2. Each section's concrete example shape is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example per section type" and its visual shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map". This section holds the literal templates.
 
 Literal cluster-1 chat message (rendered before the AUQ):
 
@@ -330,7 +305,7 @@ options:
     description: "Abort; spec not written."
 ```
 
-**Tier-scaling.** Sections 4 / 5 / 10 may be "none — task scope precludes" for Trivial/Small tasks — note these in the cluster message rather than as a rendered section. Collapsing gates is Trivial-only: at Trivial tier the clusters may collapse to 1-2 gates (the progress tracker then shows the collapsed stops); Small, Medium, and Big each keep all 3 cluster gates. Small lightens what a section contains, not how many decisions the user makes — Trivial is the only tier whose loop can drop user-facing decision points at all, and even there the visual-companion and grill phases are skipped under the §1.5 conditions rather than unconditionally.
+**Tier-scaling** — which tiers may render a section as "none — task scope precludes", and which may collapse cluster gates — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2.
 
 The chat message is the load-bearing surface — it re-explains what was decided, why, and how /geniro:implement will build it, with room for the code and diagrams the `preview` side-box cannot fit. The AUQ stays lean.
 

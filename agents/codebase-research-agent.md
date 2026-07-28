@@ -82,7 +82,7 @@ Gaps are useful — they tell the orchestrator what to ask the user OR what addi
 
 ## Output Schema
 
-Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'EOF' ... EOF` — your tools include Bash, not the Write tool), using exactly this structure. On the missing-slot terminal (a required Input Contract slot absent), emit the `## Errors` stub shape below INSTEAD of the normal sections, then exit.
+Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the Write tool — using exactly this structure. On the missing-slot terminal (a required Input Contract slot absent), emit the `## Errors` stub shape below INSTEAD of the normal sections, then exit.
 
 ```markdown
 ## Codebase Research Report
@@ -106,15 +106,11 @@ Write the report to OUTPUT_PATH via Bash redirection (`cat > "$OUTPUT_PATH" <<'E
 
 | file:line | role | one-line summary |
 |---|---|---|
-| `apps/api/src/cache/key.ts:14` | definition | builds cache key from `(userId, scope)` |
-| `apps/api/src/users/profile.ts:88` | caller | reads cached profile via the key |
-| `apps/api/src/cache/key.test.ts:6` | test | asserts key uniqueness |
+| `<file:line>` | definition / caller / test / type / config | <what this site does with the subject> |
 
 **For DELIVERABLE_SHAPE = "module map":**
 
-- `apps/api/src/events/ingest/` — ingest pipeline; receives webhooks, normalizes payloads, enqueues
-- `apps/api/src/events/worker/` — async consumer; reads queue, dispatches to feature handlers
-- `apps/web/src/features/case-radar/timeline/` — renders the dispatched events in the user-facing timeline
+- `<module-dir>/` — <one-line role description of the module>
 
 ### Gaps
 

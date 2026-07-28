@@ -62,14 +62,13 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Research-agent output size | ~8K chars per agent | Loop invariant #4 | Truncation with marker. |
 
 **Architecture constraints (design intent, not budget):**
-- Parallel research agents — 1 to 3 per Phase 1 classification; never add beyond classified set.
-- Skip criteria apply ONLY to prune from classified set; never add.
+- Parallel research agents — 1 to 3 per Phase 1 classification.
 
 **Claude Code internals** (not under /geniro:investigate control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn site — the orchestrator's session tier propagates (passing `model="inherit"` at the call site fails input validation; the runtime resolver picks up inheritance only when `model=` is unset). The user's session-level `/model` choice is the canonical cost/depth knob; per-spawn hardcoding to `sonnet` is paternalistic and produces tier-mismatch UX.
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn site — the orchestrator's session tier propagates.
 
 ## Subagent Spawn Contract
 
@@ -184,7 +183,7 @@ This routing fires ONLY for the Internet-only classification — any question th
 From the question, extract:
 - **Target area**: which files, modules, or patterns are relevant
 - **Depth needed**: surface-level overview vs deep trace
-- **Skip criteria** — apply ONLY to prune agents the Phase 1 Step 1 row already includes. They never *add* agents beyond the table's literal set (the table wins). Each criterion is testable against the question text:
+- **Skip criteria** — prune agents the Phase 1 Step 1 row includes; they never add agents beyond it (the table wins). Each criterion is testable against the question text:
 - **Skip Codebase** when the question is answerable purely from git log/blame ("when did X change?", "who wrote Y?") or purely from external docs ("what does library Z's API do?").
 - **Skip Git** when the question is about current code behavior only and does not ask about history, evolution, rationale, or recent changes.
 - **Skip Internet** when the question is fully internal — the project's code, patterns, and commits — and does not reference external libraries, frameworks, standards, best practices, alternatives, or security advisories.
@@ -212,7 +211,7 @@ Skip this step entirely when CLAUDE.md has no Domain Context section, when the q
 
 ### Step 2.6: JIT retrieval cadence
 
-Retrieval is just-in-time: infer specific tags/paths/symbols from $ARGUMENTS, spawn only the literal classified set (Step 1) pruned by the skip criteria (Step 2), pre-inline the relevant file content into each spawn (Phase 2 §A/§B/§C templates), and require structured findings citing exact refs (Evidence Standard kinds 1-6, verbatim snippets not paraphrase). Those exact refs are what the Phase 3 `discovery` emit persists in `ext.{area, insight}`.
+Retrieval is just-in-time: infer specific tags/paths/symbols from $ARGUMENTS, spawn the classified set (Steps 1-2), pre-inline the relevant file content into each spawn (Phase 2 §A/§B/§C templates), and require structured findings citing exact refs (Evidence Standard kinds 1-6, verbatim snippets not paraphrase). Those exact refs are what the Phase 3 `discovery` emit persists in `ext.{area, insight}`.
 
 Unique requirement: state.md `## JIT Cadence` body section logs which steps fired for this run — the audit trail that makes the JIT discipline reviewable.
 

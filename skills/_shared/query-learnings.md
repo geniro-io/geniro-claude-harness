@@ -28,7 +28,7 @@ Emits matching JSONL entries to stdout, one per line. Exit codes (`query_learnin
 
 The `record_access` function has its own exit-code table in the §`record_access` function section (rc=1 IO error, rc=64 missing key).
 
-**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so the L2 read sources the canonical store (and not an empty linked-worktree log). See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+**Path resolution:** `lib/repo-root.sh::_geniro_repo_root` resolves to the PRIMARY worktree, so the L2 read sources the canonical store, not an empty linked-worktree log. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists".
 
 ## MODE contract
 

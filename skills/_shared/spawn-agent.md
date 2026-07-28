@@ -67,43 +67,12 @@ Plugin namespacing (`geniro:reviewer-agent`) is the form Claude Code registers w
 
 ## Worked example
 
-Skill instruction (in `skills/review/SKILL.md` Phase 2):
-```
-Agent(subagent_type="reviewer-agent", prompt="""
-DIMENSION: bugs
-CRITERIA: [content of bugs-criteria.md]
-…
-""")
-```
+Rungs 1 and 2 are the skill's own `Agent(...)` call with `subagent_type` swapped for that rung's form (`geniro:reviewer-agent`, then bare `reviewer-agent`); nothing else about the call changes. Rung 3 is the only shape worth rendering — the `general-purpose` prompt is the agent body, a `---` separator, then the original prompt unchanged:
 
-Step 1 — prefixed (interactive plugin-marketplace mode, happy path):
 ```
-Agent(subagent_type="geniro:reviewer-agent", prompt="""
-DIMENSION: bugs
-CRITERIA: [content of bugs-criteria.md]
-…
-""")
-```
-
-Step 2 — bare (vendored / harness mode, after step 1 returns "not found"):
-```
-Agent(subagent_type="reviewer-agent", prompt="""
-DIMENSION: bugs
-…
-""")
-```
-
-Step 3 — general-purpose with body inlined (SDK/harness, after step 2 also returns "not found"):
-```
-Agent(subagent_type="general-purpose", prompt="""
 <<body of ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md, frontmatter stripped>>
-
 ---
-
-DIMENSION: bugs
-CRITERIA: [content of bugs-criteria.md]
-…
-""")
+DIMENSION: bugs …          ← the original prompt, verbatim
 ```
 
 No `model=` is passed at any step — the Agent tool resolves the tier via the `model: inherit` directive in the plugin agent's frontmatter (or, at step 3, via `general-purpose`'s own inherit-from-parent default). User-authored custom reviewers that declare an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter are the one exception: pass `model={user-declared-value}` verbatim at every ladder rung.

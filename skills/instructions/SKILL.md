@@ -162,27 +162,7 @@ When the block type is ambiguous, ask in the Step 4 interview; default a vague "
 
 ### Ambiguity resolution
 
-Chain up to 3 AUQs across the stable scope set. Use a 2-level chain:
-
-**Level 1 — category:**
-
-- **Question:** "Which instruction file scope?"
-- **Options:**
-- `global` — Project-wide rules loaded by every Geniro skill
-- `code-style` — Cross-cutting style rules for code writing AND review
-- `memory` — Memory-backend routing (`## Memory Backend`) in its own `memory.md`
-- `Specific skill or review-extra` — Pick from per-skill (9) or review-extra (custom reviewer)
-
-If "Specific skill or review-extra", chain Level 2:
-
-- **Question:** "Which specific scope?"
-- **Options:**
-- `review-extra (new custom reviewer)` — Add a custom reviewer dimension (asks for slug)
-- `implement / plan / review / resolve` — Pipeline skills (chain to L2b)
-- `debug / refactor` — Pipeline skills (chain to L2b)
-- `onboard / investigate / reflect` — Discovery skills (chain to L2b)
-
-Level 2b asks for the exact skill (2-3 options, fits in AUQ). Across the stable scope set the chain depth is fixed at 2-3 levels. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
+Ask via `AskUserQuestion`, offering the candidates that survive from the §Valid scope set table above — each option labelled with the scope name and described by what loads it. When more than four candidates survive, chain follow-up questions per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Cap-extension for >4 options" rather than dropping a scope from the offer. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
 
 ### Scope validation
 
@@ -236,28 +216,20 @@ Run `/geniro:instructions create global` to create your first instruction file,
 or `/geniro:instructions create code-style` for project-wide style rules.
 ```
 
-Else, table format:
+Else, one row per scope in the §Valid scope set table — including the not-yet-created ones, so the user sees the whole surface — with `review-extra/` as a nested group and a totals footer:
 
 ```
 Custom instructions in .geniro/instructions/ (project: my-project):
 
 global.md 348 B modified 3 days ago
-code-style.md 1.2 KB modified 2 hours ago
 memory.md (none)
 implement.md (none — create with /geniro:instructions create implement)
-plan.md (none)
-review.md 892 B modified 1 week ago
-resolve.md (none)
-debug.md (none)
-refactor.md (none)
-onboard.md (none)
-investigate.md (none)
-reflect.md (none)
+... one row per remaining scope ...
 review-extra/ (directory — 2 files)
 ├── sql-bindings.md 1.6 KB modified 4 days ago
 └── accessibility-aria.md 2.1 KB modified 1 day ago
 
-13 scopes total · 4 active · 9 not-yet-created
+<total> scopes total · <n> active · <n> not-yet-created
 ```
 
 Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars per file).

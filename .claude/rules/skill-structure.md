@@ -79,15 +79,7 @@ Description rules:
 
 Every `agents/*.md` declares `maxTurns:` explicitly. Interactive Claude Code treats the value as advisory documentation, but the Agent SDK, `claude-code-action`, and cloud runners default to **10 turns** when the field is unset — an agent shipped without a cap hits `Reached maximum number of turns (10)` on its first reasoning workload there. Declaring it explicitly is what makes the agent portable across both runtimes.
 
-Pick the value by counting the workload, then adding slack:
-
-```
-floor    = sum(Reads + Greps + Bash invocations + reasoning turns + emit step)
-slack    = 50-60% (retry / refinement iterations)
-maxTurns = ceil(floor × 1.5) + optional safety bump
-```
-
-Set the cap at floor + 50%, never at floor. The last turns of a run are the emit step (write findings, produce output); a cap sized to the floor truncates exactly there, yielding partial output and a corrupted downstream handoff rather than a visible failure. Do not compensate in the other direction either — agents chasing a goal routinely run past a cap they were told to self-monitor, so the cap is the mechanism, not a hint.
+Estimate the agent's workload, then set the cap comfortably above that estimate — never at it. The last turns of a run are the emit step (write findings, produce output); a cap sized to the estimate truncates exactly there, yielding partial output and a corrupted downstream handoff rather than a visible failure. Do not compensate in the other direction either — agents chasing a goal routinely run past a cap they were told to self-monitor, so the cap is the mechanism, not a hint.
 
 Typical caps land in the 30-100 range: tight for mechanical agents (a test runner), generous for reasoning agents (a reviewer, an adversarial tester). Document the rationale inline near the frontmatter when the number is non-obvious. A value above ~150 reads as "the author gave up bounding scope" — audit the agent's procedure for scope creep before raising it further.
 

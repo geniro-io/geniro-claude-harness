@@ -5,7 +5,7 @@ Companion reference for less-common usage paths of `/geniro:plan`. The main flow
 ## Contents
 
 - DESIGN_DOC mode — no refine path
-- Concrete example + visual per section type (Phase 5 cluster chat-message substrate)
+- Concrete example per section type (Phase 5 cluster chat-message substrate)
 - workflow_refs[] usage notes (m5-v2 / m5-v3 schema)
 - Edge cases (empty $ARGUMENTS, milestone-mode, code-references, compaction, validator hard-fail, concurrent runs)
 - Cross-references (shared rules consumed)
@@ -23,24 +23,24 @@ If the user really wants to surgically edit an existing design doc bypassing Pha
 
 ---
 
-## Concrete example + visual per section type
+## Concrete example per section type
 
-Phase 5 cluster rendering (`plan-loop.md` §5.2) renders every section in a cluster's chat message as a friendly digest block (lead sentence / `**Why:**` with evidence cite / `**How it gets built:**` / `**You'll see:**`) PLUS one concrete example and a visual. This table supplies the example and the visual shape that close out each section in the message, after the digest lines:
+Phase 5 cluster rendering (`loop-phase-5-section-approval.md` §5.2) renders every section in a cluster's chat message as a friendly digest block (lead sentence / `**Why:**` with evidence cite / `**How it gets built:**` / `**You'll see:**`) PLUS one concrete example and a visual, both closing out the section below its digest lines. This table supplies the example; the visual that goes with it is shared language, canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map".
 
-| Section | Concrete example shape | Visual shape |
-|---|---|---|
-| 1. Objective | One-line user-visible behavior statement: "User clicks X → sees Y within Z seconds" | None beyond the `**You'll see:**` line — the behavior sentence is the anchor |
-| 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) | The in/out scope map: two boxed columns, `+` new file / `~` edited file / `x` excluded (the cluster-1 centerpiece) |
-| 4. Assumptions | Concrete invariants: "`USER.tz` always populated" — cite `file:line` where the invariant is guaranteed | Plain cited bullets — invariants don't diagram well |
-| 5. Risks | Specific failure scenario + observable symptom: "Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate" | Mini-table: risk · symptom you'd see · severity |
-| 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) | ASCII data-flow diagram (the cluster-2 centerpiece — render it even when the example is pseudocode) |
-| 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" | One-line list |
-| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /geniro:implement will ask the user mid-run | A gate timeline: `build ▸ [ask: X] ▸ build ▸ [ask: Y] ▸ ship` |
-| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch | Checklist of test names: `☐ it('rejects negative quantity')` |
-| 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) | The command/toggle in a code span |
-| 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" | `☐` checklist, one box per observable signal (the cluster-3 centerpiece) |
+| Section | Concrete example shape |
+|---|---|
+| 1. Objective | One-line user-visible behavior statement: "User clicks X → sees Y within Z seconds" |
+| 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) |
+| 4. Assumptions | Concrete invariants: "`USER.tz` always populated" — cite `file:line` where the invariant is guaranteed |
+| 5. Risks | Specific failure scenario + observable symptom: "Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate" |
+| 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) |
+| 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" |
+| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /geniro:implement will ask the user mid-run |
+| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch |
+| 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
+| 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |
 
-The example + visual close out each section in the chat message, below the digest lines. The orchestrator renders the whole cluster to a chat message FIRST, then fires ONE lean AUQ for the cluster (Approve all / Explain a section further / Revise specific sections / Cancel). The chat message is the rendering surface — it has full width for code and diagrams the `AskUserQuestion` `preview` side-box cannot fit. See `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract".
+The orchestrator renders the whole cluster to a chat message FIRST, then fires ONE lean AUQ for the cluster (Approve all / Explain a section further / Revise specific sections / Cancel). The chat message is the rendering surface — it has full width for code and diagrams the `AskUserQuestion` `preview` side-box cannot fit. See `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract".
 
 ---
 

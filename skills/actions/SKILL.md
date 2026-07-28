@@ -85,7 +85,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 **Run mode tool gating:** Phase 5.4 intersects the action's frontmatter `allowed-tools:` with this skill's own before any step runs.
 
-Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); they run under the no-confirm contract (Phase 5.3), scoped by the action's `allowed-tools`. `risk_class` is a blast-radius label (listing / delete-warning / lint), not a run prompt.
+Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); they run under the no-confirm contract (Phase 5.3), scoped by the action's `allowed-tools`.
 
 ## Termination case → state mapping
 
@@ -203,7 +203,7 @@ On **Cancel**: stop.
 mkdir -p "$PRIMARY_ROOT"/.geniro/actions
 ```
 
-Then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` with `actions` as the directory that must stay committed (`for d in actions`). It drops a bare `.geniro/` line if present (that line would ignore the whole tree and defeat every negation), then idempotently appends `.geniro/*`, `!.geniro/`, `!.geniro/actions/`, and `!.geniro/actions/**`.
+Then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` with `actions` as its directory list — the directory that must stay committed. It drops a bare `.geniro/` line if present (that line would ignore the whole tree and defeat every negation), then idempotently appends `.geniro/*`, `!.geniro/`, `!.geniro/actions/`, and `!.geniro/actions/**`.
 
 This default keeps `.geniro/actions/` committed (team-shareable). The negation must live in `"$PRIMARY_ROOT"/.gitignore`, beside where the action file is written. Users who want their actions ignored remove the two `!.geniro/actions/` lines by hand.
 

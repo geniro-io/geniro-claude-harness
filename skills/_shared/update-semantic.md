@@ -14,7 +14,7 @@ update_semantic --file <codebase-map|features> --append "<line>"
 update_semantic --file <codebase-map|features> --replace "<prefix>" "<new-line>"
 ```
 
-**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so `_CODEBASE_MAP.md` / `_FEATURES.md` mutations land in the canonical store. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+**Path resolution:** `lib/repo-root.sh::_geniro_repo_root` resolves to the PRIMARY worktree, so `_CODEBASE_MAP.md` / `_FEATURES.md` mutations land in the canonical store, never a linked worktree's. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists".
 
 Exit codes:
 - `0` — wrote (or no-op, e.g. replace with no match — surfaced via stderr).
@@ -68,25 +68,7 @@ update_semantic --file features \
 
 ## Caller patterns: handling rc=11
 
-The expected pattern is **defer-and-retry-at-skill-end**:
-
-```bash
-deferred_writes=()
-attempt_update() {
- update_semantic "$@"
- if [ $? -eq 11 ]; then
- # %q-quote each arg so a multi-word --append/--replace value survives the
- # eval replay as ONE argument ("$*" would re-split it into many).
- deferred_writes+=("$(printf '%q ' "$@")")
- fi
-}
-
-# At skill completion, drain the queue
-for w in "${deferred_writes[@]}"; do
- # eval safe here: args were %q-quoted at enqueue time
- eval "update_semantic $w"
-done
-```
+The expected pattern is **defer-and-retry-at-skill-end**: rc=11 means the lock is held, not that the write failed, so queue the call and drain the queue at skill completion rather than dropping the write. Argument boundaries must survive the deferral — a multi-word `--append` / `--replace` value has to replay as ONE argument, never re-split into several.
 
 For high-concurrency contention scenarios, callers can implement bounded retry with backoff — but typically L3 writes are once-per-skill-phase, and contention is rare.
 

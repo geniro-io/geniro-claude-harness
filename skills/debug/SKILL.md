@@ -52,7 +52,7 @@ This skill adds one invariant:
 
 ## Universal rule: all choice questions use AskUserQuestion
 
-Route every user-facing choice in this skill through the `AskUserQuestion` tool per the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate — an inline `(A)... or (B)...` in chat leaves no structured answer for the resume hook to read back, so the choice is lost on compaction. The enumerated gates are examples, not an exhaustive list.
+Route every user-facing choice in this skill through the `AskUserQuestion` tool — never downgrade to inline `(A)/(B)` options in chat, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. The enumerated gates are examples, not an exhaustive list; the anti-rationalization row below carries why.
 
 ---
 

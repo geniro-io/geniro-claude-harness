@@ -121,14 +121,7 @@ Single `AskUserQuestion` call carrying up to 3 questions (always-WAIT, never aut
 
 **Question 2 — conditional on workflow_refs OR `.geniro/workflow/*.md` having an `### On task start` section:**
 
-Merge sources for the workflow-refs-to-process list:
-
-```
-workflow_refs_to_process = []
-if $ARGUMENTS contains tracker URL/ID → append to workflow_refs_to_process
-for each ref in spec.md frontmatter workflow_refs[] → append to workflow_refs_to_process
-deduplicate by (kind, issue_id) — $ARGUMENTS reference wins on conflict
-```
+Build the workflow-refs-to-process list from a tracker URL/ID in `$ARGUMENTS` plus the spec.md frontmatter `workflow_refs[]`, deduplicated by `(kind, issue_id)` — the `$ARGUMENTS` reference wins a collision, because the user just typed it.
 
 For each entry, find the workflow file with primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — try `./.geniro/workflow/<ref.kind>.md` (cwd-local; uncommitted local edits win) first; on file-not-found retry against `<PRIMARY_ROOT>/.geniro/workflow/<ref.kind>.md`. If both missing → log warning + skip (graceful degrade). Staleness check: if `fetched_at` is > 1 hour old OR absent → re-fetch via MCP (timeout 3s, fail-open) — the refresh ALSO updates the cached `status` field. Resolve the current `status` (re-fetched value, or cached when fresh) BEFORE applying the workflow block — the workflow file's `### On task start` section gates its question shape on that field (e.g., the Linear template skips the "Move to In Progress?" prompt when status is already "In Progress", rephrases to "Move back?" when in non-terminal non-In-Progress states, and reframes as "Reopen?" when terminal). Apply the workflow file's `### On task start` block — it may append 0-2 questions to the AUQ batch depending on resolved status and assignee fields. Echo any "skipped — already in target state" cases to the user inline (not as an AUQ).
 

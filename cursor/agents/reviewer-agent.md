@@ -53,25 +53,15 @@ The orchestrating skill passes you:
 ### Step 1: Absorb criteria
 Read the criteria file carefully. Extract the specific checks, patterns, and anti-patterns you need to look for. These are your review checklist.
 
-### Step 1.5: Absorb plan context (if present)
-If PLAN CONTEXT was provided in your input:
-1. Scan it for decision markers (`D-XX`, `[D09]`, `Decision N:`, etc.) and list them mentally with their one-line gist.
-2. Note which areas of the changed code each decision constrains (e.g., "D-09 → backfill behavior for legacy rows").
-3. When judging whether a flagged behavior is a bug, check it against this list: behavior matching a decision is intentional, not a defect.
-4. But the plan governs intent, not observed code reality. If the changed code gives direct evidence that a decision's premise is factually contradicted by the codebase (the decision assumes something the live code disproves), the decision may be stale — surface that as an `[INTENT-CHECK]` finding rather than suppressing it under "the plan said so."
-5. If no PLAN CONTEXT is provided, or its value is the literal string `none` (the orchestrator's sentinel for "no plan resolved"), skip this step — apply general best practices.
+### Step 1.5 / Step 1.7: Optional context slots
+
+Two optional slots may arrive in your input. Each carries a sentinel meaning "not applicable" — on the sentinel, or when the slot is absent, ignore it and review without that bias.
+
+- **PLAN CONTEXT** — sentinel `none`. Plan / spec / decision-log content. Scan it for decision markers (`D-XX`, `[D09]`, `Decision N:`) and note which changed code each one constrains; behavior matching a decision is intentional, not a defect. But the plan governs intent, not observed code reality: if the changed code gives direct evidence that a decision's premise is factually contradicted by the codebase (the decision assumes something the live code disproves), the decision may be stale — surface that as an `[INTENT-CHECK]` finding rather than suppressing it under "the plan said so."
+- **PRIOR-ROUND FINDINGS** — sentinel `none — first review`. One `path:lines — one-line description` entry per CRITICAL or HIGH finding a prior round raised on the same PR/diff. Group the entries by KIND of issue, then bias your Step 2 attention toward analogous gaps in the CURRENT diff — a race caught in one handler means looking for races in adjacent handlers; a missing migration rollback means checking every new migration. Do not re-flag the entries themselves: they are either already fixed (the diff shows it) or tracked by the orchestrator's idempotency contract. The slot is capped at ~3000 chars (mirrors the PLAN CONTEXT cap rationale documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §4+§6), so a truncation marker `[…truncated…]` may appear.
 
 ### Step 1.6: Absorb project instructions (if present)
 Load the project's instruction files — `global.md` and `code-style.md` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. `global.md` carries project-wide rules, **including how to search and explore this codebase** — follow that search policy when you locate code in Step 2, so you reach for the project's preferred code index when one is configured rather than defaulting to plain-text search. `code-style.md` carries cross-cutting code-style rules that supplement your dimension's primary criteria. When a code-style rule is violated by changed code, flag it as part of your dimension review IF AND ONLY IF the violation is style-adjacent to your dimension (e.g., the conventions reviewer flags style violations; the bugs reviewer does NOT flag style violations — those are conventions-territory (style)). Do not duplicate findings already covered by your dimension's criteria file.
-
-### Step 1.7: Absorb prior-round context (if present)
-If PRIOR-ROUND FINDINGS was provided in your input:
-1. Read the summary — each entry is `path:lines — one-line description` for a CRITICAL or HIGH finding the prior reviewer flagged.
-2. Group entries by category: what KINDS of issues did prior rounds catch? (e.g., "race conditions in handler", "missing migration rollback", "test coverage gaps in service layer", "semantic-change blast radius unmentioned in PR body").
-3. As you apply your dimension criteria in Step 2, bias your attention toward analogous gaps in the CURRENT diff — if prior rounds caught a race condition in one handler, look for similar races in adjacent handlers; if prior rounds caught a missing migration rollback, look for missing rollback in any new migration; if prior rounds caught a semantic blast radius miss, look for unnamed callers of any changed symbol.
-4. Do not re-flag the prior-round entries themselves — those are either already fixed (and the diff shows the fix) or being tracked by the orchestrator's idempotency contract. If you see what looks like a prior-round entry, assume the orchestrator has handled it and move on.
-5. If the slot value is `none — first review` (the orchestrator's sentinel for round 1), or the slot is absent entirely, skip this step — apply general best practices without round-bias.
-6. The slot is capped at ~3000 chars (mirrors the PLAN CONTEXT cap rationale documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §4+§6); a truncation marker `[…truncated…]` may appear if prior rounds had many findings.
 
 ### Step 2: Analyze each file
 For each changed file:

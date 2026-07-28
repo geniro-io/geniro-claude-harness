@@ -11,26 +11,11 @@ Canonical procedure for keeping one or more `.geniro/` subdirectories tracked in
 
 ## Procedure
 
-Substitute `<DIRS>` for the caller's directory list; everything else is invariant.
+Edit `$PRIMARY_ROOT/.gitignore` — and only when it already exists, since creating one from scratch would start ignoring files the project deliberately tracks. Keep the in-place edit portable to BSD as well as GNU userland; this plugin ships to both.
 
-```bash
-GI="$PRIMARY_ROOT/.gitignore"
-if [ -f "$GI" ]; then
-  # A bare `.geniro/` line ignores the whole tree and defeats every negation below — drop it first.
-  sed -i.bak '/^\.geniro\/$/d' "$GI" && rm -f "$GI.bak"
-  add_line() { grep -qxF "$1" "$GI" 2>/dev/null || printf '%s\n' "$1" >> "$GI"; }
-  add_line ".geniro/*"
-  add_line "!.geniro/"
-  for d in <DIRS>; do
-    add_line "!.geniro/$d/"
-    add_line "!.geniro/$d/**"
-  done
-fi
-```
+Drop any bare `.geniro/` line first: git cannot re-include a path whose parent directory is excluded, so that one line ignores the whole tree and defeats every negation below.
 
-Four lines are appended — `.geniro/*`, `!.geniro/`, `!.geniro/<dir>/`, and `!.geniro/<dir>/**` — with the last two repeating per directory. Each line is appended only when absent, so re-runs are idempotent.
-
-Write only when `.gitignore` already exists — creating one from scratch would start ignoring files the project deliberately tracks.
+Then append, in this order and each line only when it is absent (so re-runs are idempotent): `.geniro/*`, `!.geniro/`, then `!.geniro/<dir>/` and `!.geniro/<dir>/**` per directory in `<DIRS>`. The order is load-bearing — git takes the last matching pattern, so each negation must follow the `.geniro/*` line it re-includes from.
 
 A user who wants one of these directories ignored deletes its two `!` lines by hand.
 

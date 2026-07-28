@@ -58,23 +58,9 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 
 ### Step 2: Locate the transcript directory
 
-Claude Code stores one `<session-id>.jsonl` transcript per session under `<config-dir>/projects/<munged-cwd>/`, where `<munged-cwd>` is the project's working directory with every `/` replaced by `-` (e.g. `/home/user/my-app` → `-home-user-my-app`). Resolve everything in Bash — never `~` in tool paths:
+Claude Code stores one `<session-id>.jsonl` transcript per session under `<config-dir>/projects/<munged-cwd>/`, where `<munged-cwd>` is the project's working directory with every `/` replaced by `-` (e.g. `/home/user/my-app` → `-home-user-my-app`). Resolve everything in Bash — never `~` in tool paths.
 
-```bash
-DIRS=""
-for CFG in "${CLAUDE_CONFIG_DIR:-}" "$HOME/.claude" "$HOME/.config/claude"; do
-  [ -n "$CFG" ] && [ -d "$CFG/projects" ] || continue
-  for P in "$PWD" "$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')"; do
-    [ -n "$P" ] || continue
-    D="$CFG/projects/$(printf '%s' "$P" | tr '/' '-')"
-    [ -d "$D" ] || D="$CFG/projects/$(printf '%s' "$P" | sed 's|[^A-Za-z0-9]|-|g')"
-    [ -d "$D" ] && DIRS="$DIRS $D"
-  done
-done
-echo "$DIRS"
-```
-
-The inner loop checks both the current directory and the primary worktree's path — sessions run from a linked worktree land under a different munged name. The `sed` fallback covers Claude Code versions that munge dots and underscores too. Dedupe the resulting list.
+Collect every such directory that exists, across each config dir in turn — `$CLAUDE_CONFIG_DIR` when set, `$HOME/.claude`, `$HOME/.config/claude` — and for two project paths: `$PWD` and the primary worktree's path (first entry of `git worktree list --porcelain`), because a session run from a linked worktree lands under a different munged name. When the `/`→`-` munge finds nothing, retry with every non-alphanumeric character munged to `-` — older Claude Code versions munge dots and underscores too. Dedupe the surviving list.
 
 **Graceful exit:** no config dir, no project directory, or zero transcripts → report plainly in one sentence ("No past session transcripts found for this project — nothing to mine.") and stop. This is a clean terminal outcome, not an error.
 

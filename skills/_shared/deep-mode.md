@@ -55,7 +55,7 @@ Fail-safe is silent-degrade-with-a-caveat, never a hard stop. A run that went sh
 
 ## 6. Boundary preservation inside the workflow
 
-A workflow wrapper tempts the model to treat the workflow as the authority and the skill body as advisory — the skill's contract then evaporates (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` documents this for the reporter skills; the same mechanism applies to every skill). Inside the deep workflow, all of the skill's invariants still bind, re-asserted in each step: the spawned agents stay read-only (findings / verdicts / critiques only — no `Edit`/`Write`/`git`/`gh`); the ORCHESTRATOR, not the workflow agents, owns every `atomic_state_write`; the skill's gates and approval options are unchanged; a no-ship skill still never ships. Deep mode changes pass count and aggregation, nothing else.
+A workflow is an execution wrapper, not a contract override — why that binds, and the failure mode it prevents, is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §"Why this binds" (written for the reporter skills; the same mechanism applies to every skill). Inside the deep workflow all of the skill's invariants still bind, re-asserted in each step (§4 item 2): the spawned agents stay read-only (findings / verdicts / critiques only — no `Edit`/`Write`/`git`/`gh`); the ORCHESTRATOR, not the workflow agents, owns every `atomic_state_write`; the skill's gates and approval options are unchanged; a no-ship skill still never ships. Deep mode changes pass count and aggregation, nothing else.
 
 ## 7. Anti-rationalization
 

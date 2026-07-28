@@ -20,7 +20,7 @@ Or direct invocation:
 - `2` — IO error, bad flag, invalid `GENIRO_DECAY_TAU_DAYS`, or refused-to-rewrite because the log holds malformed line(s) (see §Safety invariants)
 - `3` — direct invocation only: the rewrite lock is held by another process; run skipped (re-run in a moment). A caller that already owns the lock (the SessionStart hook) sets `GENIRO_ARCHIVE_LOCK_HELD=1` to skip acquisition.
 
-**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so archival mutations target the canonical L2 log. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+**Path resolution:** `lib/repo-root.sh::_geniro_repo_root` resolves to the PRIMARY worktree, so archival mutations target the canonical L2 log, never a linked worktree's. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists".
 
 ## Criteria (all must hold)
 

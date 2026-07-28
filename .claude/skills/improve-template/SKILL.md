@@ -122,8 +122,7 @@ For obvious bug fixes. The user already showed what's broken.
 | "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 | "The findings are obviously good, skip the redundancy check" | Phase 2b exists because orchestrator self-filtering inherits the researcher's framing. A fresh subagent greps the target file for existing instructions and flags over-engineering — catches what the proposer cannot see. |
-| "I'll skip internet research because the request feels local" | Wrong unless the Matrix says skip. The triggers (new skill / new pattern / external API / abstract request) override your gut feel — internal-feeling requests can still introduce new patterns. |
-| "I'll run all 3 research agents to be safe even though it's a typo fix" | The Matrix is mandatory both ways. Over-research wastes context and inflates Phase 2 with irrelevant findings the orchestrator must then filter. |
+| "I'll skip internet research because the request feels local" | A new pattern or external API shipped with no external evidence is the failure this catches — internal-feeling requests still introduce new patterns. |
 
 ---
 
@@ -133,7 +132,7 @@ These are the load-bearing exit gates — the checks that, if skipped, ship an u
 
 ### improve-existing-skill mode
 - [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
-- [ ] Only the research sources the Matrix selected were spawned, and the selection is in the state checkpoint
+- [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
 - [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md: 8 standard checks (size / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README+CLAUDE.md+docs sync / compaction-redundancy) plus the 6 description-format sub-checks
 - [ ] A fresh agent reviewed the changes in Phase 5 and passed them, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
 - [ ] Every changed SKILL.md was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away

@@ -426,7 +426,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 4. Persist to state.md frontmatter.
 
 **Downstream knobs (4):**
-- Phase 4.1 severity threshold: per SKILL.md §4.1 signal #4 (advisory-fallback confidence ≥80, relaxed to ≥70 at `risk-tier: high`) — the single source for the numeric values.
+- Phase 4.1 severity threshold: per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 signal #4 (advisory-fallback confidence ≥80, relaxed to ≥70 at `risk-tier: high`) — the single source for the numeric values.
 - Phase 4.2 verifier coverage: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) verified — no tier-scaling, no severity-scaling; same coverage at standard and high tier.
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
