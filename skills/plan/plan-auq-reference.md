@@ -1,10 +1,10 @@
 # Plan — AUQ Templates & State Schema Reference
 
-Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop file lean. The orchestrator reads this file when plan-loop references one of the sections below by name.
+Literal `AskUserQuestion` templates and state-schema blocks for the `/geniro:plan` loop. A phase file states its gate's rules and cites the section here that holds the literal template; read the named section when you reach that gate.
 
 ## Contents
 
-1. state.md body template (Phase 0.3)
+1. state.md body template (Phase 0.3) + the `approvals[]` entry shape every gate below writes
 1b. Artifact opt-in question — Phase 0, asked once when `--artifact` is absent
 2. Phase 3 grill AUQ — message-first, one question at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
@@ -33,7 +33,23 @@ The frontmatter field set is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKI
 ## Open Questions
 ```
 
-Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the 11 sections approved in Phase 5: `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered), `## Problem Framing` (Phase 0.5, when `--prd` was passed).
+Four further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the 11 sections approved in Phase 5: `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered), `## Problem Framing` (Phase 0.5, when `--prd` was passed), `## Considered Alternatives` (Phase 4.4).
+
+### `approvals[]` entry shape — every gate below writes this
+
+Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_write`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1 optional `approvals` array" — `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`:
+
+```yaml
+approvals:
+  - category: deep_mode_choice
+    prompt: "How deep should the planning go?"
+    options: ["Standard", "Deep — wider search + 3-vote verify"]
+    picked: "Standard"
+    at: 2026-05-17T10:50:00Z
+    asked_in_phase: clarify
+```
+
+The sections below name only their `category` slug and the phase they are asked in; §5b adds a nested `launch_config:` sub-block, the one gate whose entry carries more than the six fields. Write the entry before rendering the next question, so a context reset mid-sequence preserves every answer already given.
 
 ---
 
@@ -53,17 +69,7 @@ Fires at the very start of planning (Phase 0) — after the mode resolves, befor
 
 Empty answer → default OFF: artifact mode stays off and no artifact fields are written, consistent with how the §2a depth question defaults to Standard. On the "Yes" pick, the run is in artifact mode — set `artifact_mode: true` and `artifact_status: pending` in the §1 frontmatter; on "No", leave all artifact fields absent.
 
-Persist the pick to state.md frontmatter `approvals[]` with category `artifact_choice` so a resume after compaction doesn't re-ask:
-
-```yaml
-approvals:
-  - category: artifact_choice
-    prompt: "Build a live visual artifact of this plan as it develops? It publishes a private, auto-updating page to claude.ai."
-    options: ["Yes — build it and keep it updated", "No — keep planning in chat only"]
-    picked: "Yes — build it and keep it updated"
-    at: 2026-05-17T10:45:00Z
-    asked_in_phase: mode-detect
-```
+Persist the pick to `approvals[]` (§1 entry shape) with category `artifact_choice`, `asked_in_phase: mode-detect`, so a resume after compaction doesn't re-ask.
 
 The full artifact lifecycle (availability detection, create, per-phase update, URL persistence, unavailable/skip handling) is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; this section owns only the opt-in question template and the choice that gets persisted.
 
@@ -71,7 +77,7 @@ The full artifact lifecycle (availability detection, create, per-phase update, U
 
 ## 2. Phase 3 grill AUQ — message-first, one question at a time
 
-The grill procedure — message-first framing sized to the question, then a lean single-question AUQ, one question at a time, frontier regenerated after each answer — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §3.2 (Gate presentation contract in plan-loop §"Gate presentation contract"). This section holds the literal templates.
+The grill procedure — message-first framing sized to the question, then a lean single-question AUQ, one question at a time, frontier regenerated after each answer — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.2; the two-step shape it applies is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract". This section holds the literal templates.
 
 Chat message rendered before the FIRST question:
 
@@ -88,7 +94,7 @@ First decision before I lock the approach:
 I recommend JWT — the guard and its 401 contract already exist; a session flow would add a second auth path.
 ```
 
-Then the LEAN single-question AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted. Per the plan-loop §3.2 recommended-answer rule, the framing message names the recommendation and the AUQ's first option carries the `(Recommended)` marker:
+Then the LEAN single-question AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, the framing message names the recommendation and the AUQ's first option carries the `(Recommended)` marker:
 
 ```yaml
 questions:
@@ -105,17 +111,7 @@ questions:
 
 After the user answers, persist it (below), then render the next question's framing and fire its own single-question AUQ. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — depth-first walking exists precisely to let one answer reshape what follows.
 
-Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. Append the entry for each answer before rendering the next question:
-
-```yaml
-approvals:
-  - category: clarify_<dim>          # e.g., clarify_auth_method
-    prompt: "Which existing auth flow should the new feature integrate with?"
-    options: ["OAuth (src/auth/oauth.ts)", "JWT (src/auth/jwt.ts)", "Skip — proceed assuming OAuth"]
-    picked: "OAuth (src/auth/oauth.ts)"
-    at: 2026-05-17T10:50:00Z
-    asked_in_phase: clarify
-```
+Each answered question → one `approvals[]` entry (§1 entry shape) with category `clarify_<dim>` (e.g. `clarify_auth_method`), `asked_in_phase: clarify`.
 
 ### 2a. Planning-depth question (asked once at grill wrap-up when `--deep` is absent)
 
@@ -133,21 +129,11 @@ When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question once at
 
 Empty answer → default Standard (`deep-mode: false`). Phase 3 is skipped on Trivial tasks, so depth there stays flag-only.
 
-Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an `approvals[]` entry with category `deep_mode_choice`:
-
-```yaml
-approvals:
-  - category: deep_mode_choice
-    prompt: "How deep should the planning go?"
-    options: ["Standard", "Deep — wider search + 3-vote verify"]
-    picked: "Standard"
-    at: 2026-05-17T10:50:00Z
-    asked_in_phase: clarify
-```
+Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an `approvals[]` entry (§1 entry shape) with category `deep_mode_choice`, `asked_in_phase: clarify`.
 
 ### 2b. Checkpoint gate and termination summary
 
-The checkpoint trigger (a resolved branch OR ~6 questions since the last checkpoint) is canonical in plan-loop §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
+The checkpoint trigger (a resolved branch OR ~6 questions since the last checkpoint) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
 
 Chat message rendered before the checkpoint AUQ:
 
@@ -181,19 +167,9 @@ options:
     description: "Same as wrap-up, but I name the skipped branches in Assumptions for /geniro:implement to verify."
 ```
 
-Persist each checkpoint decision to `approvals[]` category `grill_checkpoint`:
+Persist each checkpoint decision to `approvals[]` (§1 entry shape) with category `grill_checkpoint`, `asked_in_phase: clarify`.
 
-```yaml
-approvals:
-  - category: grill_checkpoint
-    prompt: "Keep grilling the open branches, or wrap up here?"
-    options: ["Keep grilling", "Wrap up now", "Skip remaining with stated assumptions"]
-    picked: "Keep grilling"
-    at: 2026-05-17T11:05:00Z
-    asked_in_phase: clarify
-```
-
-**Termination** rules are canonical in plan-loop §3.4 (closing summary → the §2a planning-depth question when `--deep` is absent → Phase 4).
+**Termination** rules are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4 (closing summary → the §2a planning-depth question when `--deep` is absent → Phase 4).
 
 ---
 
@@ -355,8 +331,9 @@ Spec on disk: `.geniro/planning/<slug>/spec.md`
 the in/out scope map from the Goal & scope step>
 **🙋 Where you'll be asked mid-build:** <section 8 list, max 5 shown with
 "... and N more" if >5>
-**⚠️ Risk level:** <auto-computed: low / medium / high from section 5 Risks count
-+ section 7 forbidden_actions> — <one-line why>
+**⚠️ Risk level:** <the highest per-risk severity in section 5, raised one level
+when frontmatter forbidden_actions is non-empty> — <one-line why, naming the risk
+that set the level>
 **↩️ If something goes wrong:** <section 10 summary, 1-2 sentences>
 **✅ How we'll know it's done:**
 ☐ <section 11 — one checkbox per observable signal, e.g. "all 5 acceptance tests green">
@@ -381,9 +358,7 @@ options:
     description: "Terminal aborted; spec.md remains on disk but not committed."
 ```
 
-On Approve pick: spec.md `lifecycle: draft` → `approved` flip; `git commit` fires (NOT in Phase 6); `non-resumable-actions[]` updated with the commit SHA; transition to Phase 9.
-
-On Revision pick: max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, escalation AUQ "Revision limit reached" fires with options "Accept as-is" / "Re-revise (kick fresh cycle)" / "Abort".
+What each pick then does — the lifecycle flip, the commit, the revision-round ladder — is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.3–§8.4. This section holds the template only.
 
 ---
 
@@ -472,7 +447,7 @@ Map the picks to the `launch_config:` block values (`workspace` / `deep_mode` / 
 
 ### Step 3 — persistence
 
-Append one entry to state.md `approvals[]` with category `launch_config` via `atomic_state_write` — mirror the `deep_mode_choice` shape (§2a above), recording the gate answer and, on "Yes", the captured fields:
+Append one entry to `approvals[]` with category `launch_config`, `asked_in_phase: user-approve` — the §1 entry shape plus a nested `launch_config:` sub-block holding the captured fields:
 
 ```yaml
 approvals:

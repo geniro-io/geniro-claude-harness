@@ -23,7 +23,7 @@ Apply the Gate presentation contract: when a dimension needs framing the user ca
 
 ### 0.5.2 Persistence
 
-Append one entry to state.md frontmatter `approvals[]` per answered question via `atomic_state_write`, category `prd_<dim>` (e.g., `prd_problem_statement`, `prd_evidence`, `prd_target_user`, `prd_hypothesis`, `prd_success_metrics`, `prd_prioritization`). Same entry shape as Phase 3 (category / prompt / options / picked / at / asked_in_phase). Persisting here is non-negotiable: a context reset mid-plan would otherwise lose the entire problem framing, and the SessionStart re-injector renders `approvals[]` so a resumed session re-reads the answers and skips re-asking.
+Append one entry to state.md frontmatter `approvals[]` per answered question via `atomic_state_write`, category `prd_<dim>` (e.g., `prd_problem_statement`, `prd_evidence`, `prd_target_user`, `prd_hypothesis`, `prd_success_metrics`, `prd_prioritization`). Entry shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. Persisting here is non-negotiable: a context reset mid-plan would otherwise lose the entire problem framing, and the SessionStart re-injector renders `approvals[]` so a resumed session re-reads the answers and skips re-asking.
 
 Also append a `## Problem Framing` body section to state.md capturing the synthesized free-text answers (problem / evidence / user + job / hypothesis / metrics / MoSCoW), so Phase 6 can copy it into the spec without re-deriving from `approvals[]`:
 

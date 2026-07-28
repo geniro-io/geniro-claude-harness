@@ -71,7 +71,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 0 | Mode detect — $ARGUMENTS, opt-in flags, task-dir, initial state.md |
 | 0.5 | Problem discovery (`--prd` only) — problem-first interview |
 | 1 | Explore — tier-scaled research spawns, memory refresh, `workflow_refs` fetch |
-| 2 | Visual Companion (UI-conditional) — textual UI preview |
+| 2 | Visual Companion (UI-conditional) — UI preview: a rendered mockup on the plan page in artifact mode, a text description otherwise |
 | 3 | Grill — uncapped, checkpoint-bounded decision-tree clarification |
 | 4 | Approaches — 2-3 stress-tested, one lean AUQ, Recommended first |
 | 5 | Section approval — the 11-section schema in 3 cluster gates; milestone-mode |
@@ -83,6 +83,8 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 **How to run it.** Read the spine `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` at entry — it carries the HARD-GATE, the gate presentation contract, the echo contract, the terminal-state rule, the anti-rationalization table, and the §Phase files table mapping every phase to the file holding its steps. Read that phase file on entry to the phase, not up front; read a conditional phase's file (0.5, 2, 7.5) only once its trigger fires. The spine is the authoritative phase contract; each phase file is authoritative for its own steps.
 
+**Re-Read the spine and the current phase's file after a compaction, before acting on the resumed phase.** Only this SKILL.md is re-attached after a summary — the spine and every phase file arrived as Read results and are gone, and the session-restore context carries task state, not the loop's instructions. state.md `phase:` names which phase file to read. A resume that skips this walks the phase's irreversible steps — the Phase 8 commit branch and its never-`git add -f` bar, the launch-config spec rewrite, the Phase 9 transient cleanup — with none of their rules in context.
+
 ---
 
 ## Loop invariants
@@ -90,7 +92,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 These invariants apply throughout all phases; phase numbers and tool surface differ.
 
 1. **One result per tool call.** Every AskUserQuestion / Write / Bash / Agent spawn produces exactly one structured result. Failed AUQ (empty-answer bug) → fall back to plain-text re-ask; never auto-default.
-2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks. Path-based detection (design-doc-detect.md) validates file existence before treating $ARGUMENTS as a path.
+2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks before running.
 3. **Permission before side-effect.** Phase 6 `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — the frontmatter `allowed-tools` omits `Edit`, and the `enforce-state-helper` PreToolUse hook hard-blocks any direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so every state write routes through `atomic_state_write`.
 4. **Bounded and structured tool results.** Phase 1 research-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 5. **Escalation gates, not silent abort.** Every cap in §Budgets surfaces to the user with an explicit option set instead of aborting — the Phase 3 grill in particular is checkpoint-bounded (§3.4), never hard-capped. NO Class-A hard kill caps.
@@ -100,7 +102,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 
 **Turn-completion check (canonical, un-numbered).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard: never stop on an announced-but-unfired question.
 
-`## Tool log` schema (selective logging): entry shape is the single source of truth in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract — fields `ts` / `tool` / `detail` / `status` plus `summary` (Agent) or `result_ref` (Write). Each entry written via `atomic_state_write`. AUQ calls do NOT need logging — `approvals[]` is the structured record.
+`## Tool log` schema (selective logging): entry shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract; each entry is written via `atomic_state_write`. AUQ calls do NOT need logging — `approvals[]` is the structured record.
 
 ---
 
@@ -113,13 +115,10 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
 | Phase 3 grill checkpoint | summarize-and-continue every ~6 questions OR at branch completion (no fixed question cap) | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
+| Phase 5 per-cluster revision rounds | 3 | §5.2 | Cluster AUQ re-fires without Revise — approve-as-rendered / explain-further / cancel; an unresolved change carries to the Phase 8 gate. |
 | Phase 7 → Phase 6 auto-revision rounds | 3 | §7.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | 3 | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | ~4000 chars per agent | invariant #4 | Truncation with marker, not abort. |
-
-**Architecture constraints (design intent, not budget):**
-- Parallel research spawns per Phase 1: 1-4 (effort-tier-scaled per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`).
-- spec.md section count: exactly 11.
 
 **Question cadence** (the caps escalate rather than abort because asking questions IS this skill's job): Phase 3 uncapped grill with the checkpoint off-ramp; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
 
@@ -175,11 +174,9 @@ fi
 
 Call signatures live in each site's phase file (spine §Phase files).
 
-**Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` MODE: refresh, scope `plan` + `global` + `code-style` (L4) · the project snapshot via `load_semantic`, top-2 default with its fingerprint drift check (L3) · past learnings via `query_learnings`, tags inferred from the $ARGUMENTS topic (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (`mcp__linear__get_issue`, etc.), only when `$ARGUMENTS` carries a tracker URL/ID.
+**Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` (L4) · the project snapshot via `load_semantic` (L3) · past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (`mcp__linear__get_issue`, etc.), only when `$ARGUMENTS` carries a tracker URL/ID.
 
-**Writes — all T1.5, all via `atomic_state_write`:** state.md `## Workflow Refs` from the tracker payload (§1.4) · `## UI Preview` holding the description approved through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md`, only when the UI trigger matched (§2.3) · `## Tool log` after the spec.md write, and spec.md frontmatter `workflow_refs[]` copied from `## Workflow Refs` when present (§6.1) · `## Open Questions` on a validator hard-fail (§7.3) · `non-resumable-actions[]` after the git commit (§8.4). One conditional L2 write: `emit_learning` of a `decision` entry at §8.5, when Phase 4 had ≥2 approaches with a recorded trade-off.
-
-**Default trust for L2 emits**: `verified` (planning decisions are user-validated via Phase 8 AUQ).
+**Writes:** every state.md and spec.md mutation is T1.5 through `atomic_state_write` (invariant #3). The state.md body-section index — the base sections, the phase that owns each optional one, and the `approvals[]` entry every gate writes — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. L2 emits are conditional, and each supplies its own `trust` at its emit site.
 
 **Cross-layer conflict surfacing:** when L4/L3/L2 reads disagree, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol — soft conflict prints notice and continues; hard conflict halts with AUQ.
 
@@ -189,19 +186,18 @@ Call signatures live in each site's phase file (spine §Phase files).
 
 | Phase | Allowed | Blocked |
 |---|---|---|
-| Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) | All mutations |
+| Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskUserQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
+| Phase 0.5 (Problem discovery, `--prd` only) | AskUserQuestion / atomic_state_write (state.md `approvals[]` + `## Problem Framing`) | Edit / Write outside state.md / mutating Bash |
 | Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from the frontmatter `allowed-tools`, so the first publish raises the one-time `claude.ai` consent prompt — let it fire rather than pre-allowing the tool) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only) | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) | Edit / direct Write / mutating Bash |
-| Phase 7 (Validate) | Read / atomic_state_write (state.md `## Open Questions`) | All other mutations |
+| Phase 7 (Validate) | Read / AskUserQuestion / atomic_state_write (state.md `## Open Questions`) | All other mutations |
 | Phase 7.5 (Spec challenge — Big tier or `--deep`) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
 | Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
 
 Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit the orchestrator's tier.
-
-**Existing safety layer:** file-protection hook, git-guardrails, `.geniro/` deletion guard apply across all phases.
 
 ---
 
@@ -209,7 +205,7 @@ Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit th
 
 0. **Check for existing state.md.** Glob `.geniro/planning/*/state.md` for a file matching the resolved task slug:
 - **No state.md** → fresh run. Proceed to Phase 0.
-- **state.md exists, phase in non-terminal set** → resume from `phase:` value. The SessionStart hook re-injects context.
+- **state.md exists, phase in non-terminal set** → resume from `phase:` value, re-Reading the spine and that phase's steps file first (§How to run it). The SessionStart hook re-injects task context, not the loop's steps.
 - **state.md exists, phase in terminal set** (`done` / `aborted`) → task complete. Surface terminal state to user; if $ARGUMENTS carries a new topic, derive a new slug, fresh run.
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
@@ -229,7 +225,7 @@ Do NOT reintroduce these anti-patterns. Loop-level rows (commit timing, empty-AU
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /geniro:implement when the rendered UI doesn't match). |
 | "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
 | "The state-write enforcement is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field (omits `Edit`) + the `enforce-state-helper` PreToolUse hook (hard-blocks direct `Edit`/`Write` to canonical state paths) are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
-| "Re-cap Phase 3 at ~5 questions like before, OR just grill forever without pausing." | Phase 3 is an uncapped decision-tree grill, bounded by the checkpoint gate — summarize-and-continue every ~6 questions or when a branch resolves (plan-loop §3.4). Re-imposing a flat cap drops the relentless property the grill exists to provide; skipping the checkpoint drops the user's off-ramp. Keep both: no fixed cap, always a checkpoint. |
+| "Re-cap Phase 3 at ~5 questions like before, OR just grill forever without pausing." | Phase 3 is an uncapped decision-tree grill, bounded by the checkpoint gate — summarize-and-continue every ~6 questions or when a branch resolves (the Phase 3 checkpoint gate). Re-imposing a flat cap drops the relentless property the grill exists to provide; skipping the checkpoint drops the user's off-ramp. Keep both: no fixed cap, always a checkpoint. |
 | "11-section spec.md schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
 | "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | 3-round escalation cap. On round 3, AUQ surfaces to user with "accept as-is" option. User has agency at all times. |
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |

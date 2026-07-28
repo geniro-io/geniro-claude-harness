@@ -14,7 +14,7 @@ Companion reference for less-common usage paths of `/geniro:plan`. The main flow
 
 ## DESIGN_DOC mode — no refine path
 
-The Phase 0 DESIGN_DOC AUQ has 2 options (per `plan-loop.md`):
+The Phase 0 DESIGN_DOC AUQ has 2 options (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-0-mode-detect.md` §0.2):
 
 - **Start fresh with this as context** (Recommended) — the prior doc is inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. Phase 5 uses the 11-section schema unconditionally — the prior doc is context, not template.
 - **Cancel** — exit without writing state.md.
@@ -36,7 +36,7 @@ Phase 5 cluster rendering (`loop-phase-5-section-approval.md` §5.2) renders eve
 | 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) |
 | 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" |
 | 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /geniro:implement will ask the user mid-run |
-| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch |
+| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch, each criterion closing on its acceptance command: `verify: pnpm test orders.spec` |
 | 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
 | 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |
 
@@ -76,9 +76,9 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 - **Compaction mid-Phase-5** — handled by the SessionStart re-injection of state.md `approvals[]` and `## Tool log`. The model re-reads `approvals[]` and skips already-answered AUQs; Phase 6 idempotent re-entry regenerates spec.md from persisted approvals.
 
-- **Phase 7 validator hard-fail on round 3** — `plan-loop.md` escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). User has agency; no silent abort.
+- **Phase 7 validator hard-fail on round 3** — the `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). User has agency; no silent abort.
 
-- **Phase 8 user-revision round 3 exhaust** — `plan-loop.md` escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). Terminal `aborted` records `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
+- **Phase 8 user-revision round 3 exhaust** — the `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.3 escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). Terminal `aborted` records `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
 
 - **Concurrent /geniro:plan runs in different worktrees** — each worktree has its own `.geniro/planning/<task-slug>/state.md`.
 
@@ -88,11 +88,11 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 Shared rules consumed by this skill:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and the Phase 7.5 spec-challenge, which fires on Big effort tier or `--deep`; Phase 2 Visual Companion fires only on UI trigger). The Phase 0 / empty-argument AUQs are inlined directly in plan-loop.md.
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — the loop's spine: the HARD-GATE, the gate presentation contract, the echo contract, terminal states, and the §Phase files table naming the `loop-phase-<N>-<name>.md` file that holds each phase's steps (Phases 0–9, plus the conditional Phase 0.5 problem-discovery, Phase 2 Visual Companion on UI trigger, and Phase 7.5 spec-challenge on Big effort tier or `--deep`). The Phase 0 mode / empty-argument AUQs live in `loop-phase-0-mode-detect.md` §0.1–§0.2.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — Recommended-label policy for the Phase 4 approach AUQ + multi-select picker schema for Phase 5 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns the UI description agent (OMIT `model=`; inherits the orchestrator tier per ui-preview-gate.md), runs the textual-preview revision loop (max 3 rounds), returns approved description to state.md `## UI Preview`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns the UI description agent (OMIT `model=`; inherits the orchestrator tier per ui-preview-gate.md), runs the preview revision loop (max 3 rounds — against a published mockup in artifact mode, against the text description otherwise), returns the approved text to state.md `## UI Preview`.
 - `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — state.md write helper.
 - `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` — state.md validator for resume.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — L4 directive doc (Phase 1 entry refresh).

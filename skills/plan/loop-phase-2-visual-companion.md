@@ -19,18 +19,19 @@ Trigger fires → run the procedure documented at `${CLAUDE_PLUGIN_ROOT}/skills/
 
 Caller contract (this skill's side):
 - Provide the predicted affected-files list (from Phase 1 echo entries with UI-file matches), $ARGUMENTS topic, 1-2 exemplar UI files (path-only — agent reads them itself).
-- Destination path: hold in-memory as Phase 5 substrate. Do NOT write a separate `ui-preview.md` artifact at the planning task-dir — the approved description feeds Phase 5 section 6 (Steps) + section 9 (Validation) directly.
+- Destination path: hold in-memory as Phase 5 substrate. Do NOT write a separate `ui-preview.md` artifact at the planning task-dir — the approved text feeds Phase 5 section 6 (Steps) + section 9 (Validation) directly.
+- Preview form: pass `MOCKUP: true` when state.md has `artifact_mode: true` and the page is not recorded unavailable (`artifact_status` is not `unavailable`); otherwise omit it and the text description runs unchanged. A user who opted into the visual plan artifact already consented to publishing a page, so the mockup rides that opt-in — do not add a question for it. In mockup form, fire the before-gate artifact call for this site before the preview question, and again on each revision round (call-site table in `loop-artifact-call-sites.md`), so the user studies the mockup on the page while answering in the terminal.
 
 ### 2.3 Persistence
 
-The approved description is appended to state.md `## UI Preview` body section via `atomic_state_write`:
+The approved text is appended to state.md `## UI Preview` body section via `atomic_state_write`:
 
 ```markdown
 ## UI Preview
-<approved description verbatim, ≤200 lines per ui-preview-gate.md output constraint>
+<approved text verbatim — the description, or the mockup's digest in mockup form; ≤200 lines per ui-preview-gate.md output constraint>
 ```
 
-Phase 5 section 6 / section 9 authoring cites this block as substrate. Phase 7 validator does not gate on `## UI Preview` presence (Phase 2 is conditional; absence is valid).
+Phase 5 section 6 / section 9 authoring cites this block as substrate. Phase 7 validator does not gate on `## UI Preview` presence (Phase 2 is conditional; absence is valid). In mockup form the mockup lives on the plan page the run already tracks (`artifact_url`), so nothing about it is duplicated here; once the preview is approved, fire the update for this site (call-site table in `loop-artifact-call-sites.md`) so the page's decision panel clears.
 
 ### 2.4 Routing-out signal
 

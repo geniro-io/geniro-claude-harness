@@ -62,7 +62,7 @@ The distinction is the presence of the `claude.ai` URL, nothing else. Don't infe
 
 Each later phase boundary that produces real content (approaches chosen, sections approved, spec written, final approval) revises the existing page in place and republishes to the same URL — never a fresh page. Revising in place keeps the user's open tab stable and avoids re-rendering the whole document, which both thrashes the view and risks the 16 MiB rendered-size ceiling on a large plan.
 
-**Author every in-place fill in the house design language.** This applies to every fill — a § Update of a finished section AND a § Before-gate update of the panel and eager-filled layers. The new content must match the look the create step established: reuse the page's existing design tokens and component classes (the `:root` variables, the eyebrow / card / code-pill / `<details>` styles already in the file), and render its diagrams as inline `<svg>` and its data as styled token pills — never fresh ad-hoc styles, a generic block, or a flat `<pre>`. Same-session, those tokens live in the HTML file you are editing, so reuse them rather than inventing new ones. Cross-session or post-compaction, the design language has fallen out of context — re-load it first (`apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/artifact-design.md`, the same load § Availability detection & create does) before authoring, or the section you add drifts to a generic look while the rest of the page stays art-directed and the page stops reading as one document.
+**Author every in-place fill in the house design language.** This applies to every fill — a § Update of a finished section AND a § Before-gate update of the panel and eager-filled layers. The new content must match the look the create step established: reuse the page's existing design tokens and component classes (the `:root` variables, the eyebrow / card / code-pill / `<details>` styles already in the file), and render its diagrams as inline `<svg>` and its data as styled token pills — never fresh ad-hoc styles, a generic block, or a flat `<pre>`. Same-session, those tokens live in the HTML file you are editing, so reuse them rather than inventing new ones. Cross-session or post-compaction, the design language has fallen out of context — re-load it first (`apply ${CLAUDE_PLUGIN_ROOT}/skills/_shared/artifact-design.md`, the same load § Availability detection & create does) before authoring, or the section you add drifts to a generic look while the rest of the page stays art-directed and the page stops reading as one document. One carve-out: a UI mockup filled into the UI-mockup layer keeps its own styles, because it depicts the product's UI rather than this document — re-skinning it in the page's tokens would misrepresent what the plan approved. Style its frame (heading, eyebrow, caption) in the house language and embed the mockup markup unchanged.
 
 ### Same-session update
 
@@ -138,6 +138,7 @@ The page's visual identity — palette, type scale, grid ground, motion, and the
 17. **Dependencies & libraries** — the build-vs-buy calls, chosen versions, install commands, and links.
 18. **Links & references** — linked tracker tickets, related pull requests, and the sources the plan cites.
 19. **Interactivity** — an in-page search box, jump-to navigation, expand-all / collapse-all controls, and a live changelog of the plan's revisions. These use small inline JavaScript, which is allowed because it makes no external request; keep all script inline (no CDN, no external file).
+20. **UI mockup** — for a plan that changes UI, the rendered mockup produced at the preview gate: every component in each of its visible states as labelled variants, one labelled frame per breakpoint, and the focus order marked. It arrives as a self-contained block scoped under its own container, so embed it as-is rather than re-styling it (§ Update's carve-out), and caption it as structure-and-states, not final visual design. While the preview gate is open the Current decision panel anchor-links down to it instead of repeating it.
 
 Deliberately omit a file-change / blast-radius map — that view is not part of this page.
 
@@ -182,6 +183,7 @@ A concrete target for the model authoring the page:
 │  ▸ Test plan · security · performance             (collapsed)│
 │  ▸ Rollout & rollback · milestones                (collapsed)│
 │  ▸ Dependencies · links & references              (collapsed)│
+│  ▸ UI mockup — states · breakpoints               (collapsed)│
 ├─────────────────────────────────────────────────────────────┤
 │  [search box]  [jump to ▾]  [expand all] [collapse all]     │
 │  Revision log: r1 skeleton · r2 approach · r3 steps …       │

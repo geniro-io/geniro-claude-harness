@@ -17,7 +17,7 @@ State.md `phase: approaches` during this phase.
 
 ### 4.1 Approach generation
 
-Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches. Each approach:
+Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches when the design genuinely admits more than one shape; when it admits exactly one, present that one and name why the alternatives collapse. A filler alternative is worse than a single option — it turns the gate into a choice between the real approach and a strawman, and it flips the §8.5 `≤1 approach` skip so a fabricated option set is written to past learnings and read back in later sessions. Each approach:
 - **Name** (3-5 word label)
 - **Summary** (2-3 sentences)
 - **Trade-off** (1 sentence: gain vs give-up)
@@ -69,7 +69,7 @@ Apply the Gate presentation contract.
 
 1. **Render the approaches to a chat message in the Visual rendering language** (Gate presentation contract): open with the progress tracker (`● Approach` current) and a one-sentence opener naming the decision. For each of the 2-3 approaches: name, a plain-English 1-2 sentence summary, an ASCII data-flow / architecture diagram (5-10 lines), `What changes:` (the key new/edited files), `Trade-off:` (gain vs give-up in plain words), and the approach's `Stress-test:` verdict line from §4.2 (top risk + evidence `file:line`). Lead with the Recommended approach. Where no usable verdict exists, render the note in the verdict line's place: "stress-test unavailable" on an approach whose §4.2 critique did not return, "stress-test inconclusive" on an approach whose no-risks critique lacked its `Checked:` account.
 
-2. **Fire ONE lean AUQ.** Single-select; header "Approach"; one option per approach, `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). Option `label` = approach name; `description` = 1-line summary + trade-off; `preview` empty or a one-line recap. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a verified blocking feasibility risk is never Recommended.
+2. **Fire ONE lean AUQ.** Single-select; header "Approach"; one option per approach, `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). Option `label` = approach name; `description` = 1-line summary + trade-off; `preview` empty or a one-line recap. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a verified blocking feasibility risk is never Recommended. With a single approach the gate is a confirm, not a pick: options are "Go with this approach" / "Explain further" (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option) / "I want a different shape — I'll describe".
 
 Full literal example (chat message + lean AUQ: Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §3.
 

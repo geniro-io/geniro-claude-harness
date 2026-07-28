@@ -976,7 +976,7 @@ if [ -n "$state_file" ]; then
   fi
 
   BLOCK6="Resume steps:
-1. Read the current skill's SKILL.md to restore phase instructions.
+1. Read the current skill's SKILL.md to restore phase instructions. When it points at a loop spine plus per-phase step files, re-Read the spine and the step file for the phase you are resuming into — those arrived as Read results and did not survive the summary.
 $_step2
 $_step3
 4. Read the task files listed above — state.md (unless a validation warning withheld it), spec, plan, and the matching _FEATURES.md row — to recover the current phase and task context.

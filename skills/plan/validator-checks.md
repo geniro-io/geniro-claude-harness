@@ -4,7 +4,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 **Status:** Authoritative. The orchestrator runs all checks in sequence; each returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
-**Hard-fail handling:** see `plan-loop.md` — 3 auto-revision rounds, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
+**Hard-fail handling:** see `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 — 3 auto-revision rounds, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
 
 ## Contents
 
@@ -82,7 +82,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Rule:** section 9 (Validation) has body content; either references a test type (`unit`, `integration`, `e2e`) OR specifies a manual-verification procedure.
 
-**Sub-rule (`verify:` shape, optional field):** if a section 9 criterion carries a `verify:` field, it must be a non-empty command string. Shape-only — the validator never executes the command; /geniro:implement runs it at end-of-phase. A criterion without `verify:` is unaffected (the field is optional; absent = prose-only verification).
+**Sub-rule (`verify:` shape, optional field):** if a section 9 criterion carries a `verify:` field, it must be a non-empty command string. Shape-only — the validator never executes the command; /geniro:implement runs it at end-of-phase. A criterion without `verify:` still passes — the check never requires the field. Attaching one wherever a single read-only command can prove the criterion is the authoring default (`${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §9), an authoring bar rather than a validation bar.
 
 **Heuristic:** body-non-empty + keyword/regex match; for each `verify:` occurrence, assert the remainder of the line is non-empty after trimming whitespace.
 
@@ -141,7 +141,7 @@ These sub-checks run on m5-v2 OR m5-v3 OR m5-v4 specs, guarded by key-presence (
 
 ### 13. `launch_config_consistency`
 
-**Rule:** when frontmatter `launch_config:` is present (which implies `m5-v4`), each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `deep_mode` ∈ {`true`, `false`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}; and, when the optional `tracker_status` key is present, `tracker_status` ∈ {`move-to-in-progress`, `leave-unchanged`}. Shape-only — the check verifies enum membership, never executes anything. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`. Ordering note: the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so this check's present-branch fires on RE-validation of an existing spec (a later /geniro:plan run over the same task-dir); the write-time enum assertion lives in plan-loop §8.4 step 2.
+**Rule:** when frontmatter `launch_config:` is present (which implies `m5-v4`), each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `deep_mode` ∈ {`true`, `false`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}; and, when the optional `tracker_status` key is present, `tracker_status` ∈ {`move-to-in-progress`, `leave-unchanged`}. Shape-only — the check verifies enum membership, never executes anything. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`. Ordering note: the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so this check's present-branch fires on RE-validation of an existing spec (a later /geniro:plan run over the same task-dir); the write-time enum assertion lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.4 step 2.
 
 **Skip-when-absent:** skip the check entirely when `launch_config:` is absent — older specs without the block stay valid, mirroring how the `workflow_refs_consistency` check is skipped on legacy `m5-v1`. A legacy `m5-v1` / `m5-v2` / `m5-v3` spec that omits the block is never failed for not carrying it. The block is additive-optional: its absence is the default (`/geniro:implement` asks its Step 0 setup questions interactively) and never fails the spec.
 

@@ -114,7 +114,7 @@ These files describe one cohesive contract — when the `launch_config` shape, a
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` (this file) — the canonical schema.
 - `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` — the frontmatter example carrying the block.
 - `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` — the shape-only enum check.
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — the end-of-plan opt-in write.
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` — the end-of-plan opt-in write (§8.3.5 capture, §8.4 step 2 write).
 - `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` — the opt-in question wording.
 - `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` — the Step 0 read-and-apply path.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — the `approvals[]` category schema.
