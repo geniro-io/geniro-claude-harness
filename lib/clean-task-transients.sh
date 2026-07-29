@@ -3,6 +3,8 @@
 # transients (subagent scratch outputs) while preserving the T1.5 durable
 # artifacts (spec.md, state.md, plan-*.md, milestone-*.md).
 #
+# Callers pass the dir that owns the scratch — a planning task-dir, or a slug dir
+# under .geniro/state/<skill>/ for a producer that keeps its own (see /resolve).
 # Both producer skills that write into .geniro/planning/<task-dir>/ call this at
 # their terminal exit. /geniro:implement cleaned its own task-dir already;
 # /geniro:plan is read-only on SOURCE but still owns the scratch it writes, so it
@@ -19,7 +21,7 @@
 #
 # Usage:
 #   source "$_script_dir/clean-task-transients.sh"
-#   clean_task_transients ".geniro/planning/<task-dir>"
+#   clean_task_transients ".geniro/planning/<task-dir>"    # or a state slug dir
 #
 # Best-effort: a missing dir or a non-matching glob is a no-op (rm -f ignores
 # nonexistent paths), so it is safe to call on any terminal path, including early

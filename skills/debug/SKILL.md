@@ -80,7 +80,7 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 
 ## Budgets — quality-first
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — quality-first (canonical): no hard kill caps, no wall-time / tool-call / model-turn / cost ceiling. Deep hypothesis-driven investigation merits a strong session tier; the skill inherits the session's model (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — quality-first (canonical). Deep hypothesis-driven investigation merits a strong session tier; the skill inherits the session's model (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
 **Quality gates (escalate to user, do not abort):**
 

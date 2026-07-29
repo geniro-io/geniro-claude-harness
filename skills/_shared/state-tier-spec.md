@@ -41,6 +41,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | `/implement` | `clean_task_transients` before EVERY terminal `phase:` write — `done`, `aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only` — not only the Ship path. |
 | `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
 | `/debug`, `/refactor`, `/onboard`, `/investigate` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. |
+| `/review` | `rm -rf` `.geniro/state/review/<branch-slug>/` at the Phase 6 terminal write, when the test gate created it. It is keyed by branch rather than by run, so without this every reviewed branch leaves a directory behind permanently — and `/review` writes no state.md there, so session-restore never surfaces it either. |
 | `/resolve` | `clean_task_transients` on `.geniro/state/resolve/<slug>/` before every terminal `phase:` write — transients go, the dir stays. It is a spec producer whose `spec.md` and handoff are consumed downstream by `/implement`, so an `rm -rf` would delete the deliverable, the same reason `/plan` retains its planning task-dir and `/setup` its singleton. |
 
 Transients left behind by an interrupted run are swept by the `/geniro:update` migration walk; that sweep is deliberately recurring rather than one-shot.
@@ -57,6 +58,8 @@ Transients left behind by an interrupted run are swept by the `/geniro:update` m
 | `.geniro/planning/<task-dir>/.ce-out.md` | codebase-explorer-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.tr-out.md` | test-runner-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.adversarial-out.md` | adversarial-tester-agent (subagent report) |
+| `.geniro/state/review/<branch-slug>/.adversarial-out.md` | adversarial-tester-agent, when `/review` runs its test gate outside a planning task-dir |
+| `.geniro/state/resolve/<slug>/.spec-challenge-out.md` | spec-challenge pass, `/resolve` |
 | `.geniro/planning/<task-dir>/.research-out.md` | codebase-research-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
 | `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |

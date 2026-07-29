@@ -129,7 +129,7 @@ Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_s
 - **`.geniro/instructions/<skill>.md` / `code-style.md`** — hand off to the `/geniro:instructions create` patterns, or write via `atomic_state_write` (`source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"`); direct `Edit`/`Write` is hook-blocked there (invariant #5).
 - **Learnings** — `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract; never a raw write to the append-only log.
 
-**On decline** (Skip this rule / Skip the rest / explicit no), log it so future runs stop re-suggesting it — one emit per declined candidate, so `Skip the rest` fires for every remaining candidate (each with its own one-liner) before the walk closes:
+**On decline** (Skip this rule / Skip the rest / explicit no), log it so future runs stop re-suggesting it:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh"

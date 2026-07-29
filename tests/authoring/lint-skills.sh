@@ -123,7 +123,10 @@ WHOLEFILE_WORDS=5000
 
 baseline_words() {  # <relpath> -> its accepted word count, or empty if unrecorded
   [ -f "$SIZE_BASELINE" ] || return 0
-  awk -v p="$1" '$1 == p { print $2; exit }' "$SIZE_BASELINE"
+  # The count must be numeric: the baseline is a hand-editable tracked file, and a
+  # malformed row would otherwise reach `[ -le ]` and leak a raw shell diagnostic
+  # into the lint output. A bad row degrades to "unrecorded", which warns.
+  awk -v p="$1" '$1 == p && $2 ~ /^[0-9]+$/ { print $2; exit }' "$SIZE_BASELINE"
 }
 
 # Name the last H2 that still fits inside the front-load budget, so the warning says
@@ -143,13 +146,19 @@ check_skill_sizes() {
     n=$(wc -w < "$f" | tr -d ' ')
     base=$(baseline_words "$r")
     if [ -n "$base" ]; then
+      # Recorded: a maintainer already judged this size, so only growth past it is news.
       [ "$n" -le "$base" ] && continue
       report_warn "$r: grew to $n words (accepted baseline $base) — re-check what is load-bearing and where it sits, then refresh the baseline; do not trim to the number"
     elif [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
       report_warn "$r: $n words (whole-file guideline <=$WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then record it"
-    else
-      continue
+    elif [ "$n" -le "$FRONTLOAD_WORDS" ]; then
+      continue   # unrecorded and inside both budgets — nothing to say
     fi
+    # Falls through for: a grown file, an unrecorded file over the whole-file guideline,
+    # and an unrecorded file over the front-load budget alone. That last case must reach
+    # the block below: the front-load budget is the figure with a mechanism behind it, so
+    # a newly authored 4,000-word skill — the population nobody has judged yet — has to
+    # be told which of its sections stop being re-attached.
     if [ "$n" -gt "$FRONTLOAD_WORDS" ]; then
       cut=$(frontload_cut "$f")
       [ -n "$cut" ] && report_warn "$r: compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"
@@ -255,10 +264,30 @@ LC_ALL=C awk '
         t = norm(part[i])
         if (length(t) < 40) continue            # too short to be a real rule
         if (!normative(t)) continue
-        # A sentence carrying a canonical cross-reference IS the prescribed fix, not
-        # the defect: N files citing one helper is single-sourcing working correctly.
-        # Without this the check reports its own remedy as a violation.
-        if (t ~ /\$\{claude_plugin_root\}/ || index(t, "\302\247")) continue
+        # A sentence that is ONLY a pointer at the canonical file is the prescribed fix,
+        # not the defect. But "cite the helper AND restate its parameters" is the
+        # commonest duplication shape in this corpus, and skipping on the mere presence
+        # of a citation would hide exactly that. So strip the citation and judge what is
+        # left: a bare pointer collapses below the length/normative bar and drops out,
+        # while a restated rule survives and is counted. Clustering keys on the stripped
+        # form too, so two copies that cite the same helper with different wording around
+        # it still land in one cluster.
+        # The §anchor is a multi-word title, so strip to the first punctuation rather
+        # than the first space — otherwise the tail of the anchor name survives and
+        # reads as rule text. Anything AFTER that punctuation is real content: a
+        # trailing "(3 latest per …, flip the oldest … via …)" is a restatement and
+        # must stay visible to the count.
+        # Take the introducing preposition with the citation ("per <path>", "see <path>"):
+        # left behind, that bare "per" reads as normative force and every pointer would
+        # score as a rule. A "via" that belongs to the rule text is not adjacent to a
+        # path, so it survives.
+        bare = t
+        gsub(/(per|see|via|from|at|in) +\$\{claude_plugin_root\}[^ ]*/, " ", bare)
+        gsub(/\$\{claude_plugin_root\}[^ ]*/, " ", bare)
+        gsub(/\302\247[^,.;(]*/, " ", bare)
+        gsub(/  +/, " ", bare); sub(/^ +/, "", bare); sub(/ +$/, "", bare)
+        if (length(bare) < 40 || !normative(bare)) continue
+        t = bare
         # A trailing colon marks a label introducing a list ("Quality gates (escalate
         # to user, do not abort):"), not a rule stated in that file.
         if (t ~ /:$/) continue

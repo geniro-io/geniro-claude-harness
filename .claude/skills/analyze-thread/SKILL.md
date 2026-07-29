@@ -82,10 +82,10 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 |---|---|
 | "I'll skip Phase 1 Step 4 metadata extraction — the user said the thread is a Geniro run" | Phase 1 Step 4 detects WHICH skill ran, not WHETHER one ran. Plugin-specific checks reference skill-name-tagged anti-rationalization tables; without the skill identity, those checks misfire on every run. |
 | "I'll batch all uncertain findings into one multiSelect AUQ to save user clicks" | Per-finding AUQ is what the user explicitly requested — they want to see evidence per finding and decide individually. MultiSelect collapses the evidence-review step, which is the point of UNCERTAIN. |
-| "The thread is small — skip the parse step, just regex the markdown" | Phase 1's normalized events list is the substrate for Phase 2's mechanical checks. Skipping parse means every check turns into a bespoke regex and the false-positive rate explodes (memory: "mechanical pre-pass" is high-precision precisely because it operates on structured events). |
+| "The thread is small — skip the parse step, just regex the markdown" | Phase 2's checks query the thread against the Step 3 field schema, which is what makes the mechanical pre-pass high-precision. Ad-hoc regex that ignores the schema reads different fields per check, and the false-positive rate explodes. |
 | "I'll spawn one judge per check instead of one judge for all judged checks" | MAST showed one o1 pass over the full thread + seeded taxonomy achieves 94% accuracy. Per-check spawns multiply token cost N times with no signal gain, and the judges can't cross-reference findings. |
 | "The LLM-judge already produced findings — skip the mechanical pre-pass" | Mechanical checks are deterministic and catch what the judge will miss (schema validation, retry-loop window matching, identical-prompt over-spawn). The judge needs mechanical results as context to avoid re-discovering them. |
-| "Findings_raw is 80, but they look real — present them all" | The 60-cap is a parser-sanity tripwire, not a UX preference. 80 raw findings on one thread means either the events list is malformed (Phase 1 bug) or every check is firing (taxonomy bug). Halt and have the user re-verify input. |
+| "Findings_raw is 80, but they look real — present them all" | The 60-cap is a parser-sanity tripwire, not a UX preference. 80 raw findings on one thread means either Phase 1 Step 2 misdetected the input format, so every check is reading the wrong fields, or every check is firing (taxonomy bug). Halt and have the user re-verify input. |
 | "The user said 'analyze this thread', they obviously want fixes too — I'll edit the source files directly" | Read-only is invariant #1. This skill detects; `/improve-template` fixes. Cross-skill responsibility separation is documented in CLAUDE.md `## Skill routing` — collapsing it makes the analyzer a refactorer, breaking the user's mental model. |
 | "I already know what's in `checks-reference.md` from training data — don't bother reading it" | The reference file is the source of truth; it can be edited by the user between runs. Loading it at Phase 2 entry ensures the detection logic matches the current taxonomy, not a stale snapshot. |
 | "Empty AUQ answer = user wants to skip" | Per `feedback_canonical_rules.md` and the universal AUQ rule: empty answers indicate an upstream tool bug. Re-ask. Never auto-default. |
@@ -209,7 +209,7 @@ JSONL parsing uses `jq -Rc 'fromjson?'` per the project memory rule — never ba
 
 ### Step 4: Extract pipeline metadata
 
-Scan the events list for Geniro-skill signals:
+Query the thread for Geniro-skill signals:
 
 - Was a `/geniro:<skill>` slash command invoked? → `geniro-run: yes` + record which skill.
 - Was an `Agent(subagent_type=...)` call made? → record spawn sites for Phase 2 checks A1-A7.

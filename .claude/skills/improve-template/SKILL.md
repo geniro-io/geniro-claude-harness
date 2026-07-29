@@ -523,7 +523,7 @@ Scan for user corrections, convention discoveries, and limitations encountered. 
 
 ### Step 3: Cleanup
 
-`rm -rf .geniro/state/improve-template/<slug>/` — the whole slug directory, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — plus this run's two Phase 1 research reports (`.research-architecture-<slug>.md`, `.research-codebase-<slug>.md`). Delete only the current branch's slug; never glob across slugs. Legacy pre-rename paths belong to the `/geniro:update` migration walk, not to run-end cleanup.
+`rm -rf .geniro/state/improve-template/<slug>/` — the whole slug directory, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — plus this run's two Phase 1 research reports (`.research-architecture-<slug>.md`, `.research-codebase-<slug>.md`). Delete only the current branch's slug; never glob across slugs. Also `rm -f` the two pre-rename paths, `.geniro/state/improve-template/state-<slug>.md` and `.geniro/improve-template-state.md` — the `/geniro:update` migration walk that owns legacy paths elsewhere runs against installed plugins and never sweeps this repo-local dev skill, so nothing else would remove them.
 
 ### Step 4: Suggest commit & push
 
@@ -549,8 +549,7 @@ If the user picks skip, print the suggested commit message and the `git add` / `
 ## Create-Skill Mode (3-phase author flow)
 
 When Mode Detection routes to create-skill, run this flow instead of the
-Investigate → Filter → Implement pipeline. It writes no §State Persistence
-checkpoint — the A→D flow fits in one context.
+Investigate → Filter → Implement pipeline.
 
 ### Phase A: Gather Requirements (interactive)
 

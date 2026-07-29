@@ -61,10 +61,10 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
-| Phase 1 (Triage) | Read / Grep / Glob / Bash (`gh pr view`, `gh api graphql` / `gh pr checks` read side of `pr-threads.md`; workspace-sync git: `fetch` / `gh pr checkout` / `merge` / `rebase` / `pull` / `stash`; `atomic_state_write`) / AskUserQuestion (sync offers + no-PR fallback) | Edit / Write / any `gh` write (reply / resolve / PR-create) / `git push` / source-mutating Bash |
+| Phase 1 (Triage) | Read / Grep / Glob / Bash (`gh pr view`, `gh api graphql` / `gh pr checks` read side of `pr-threads.md`; workspace-sync git: `fetch` / `gh pr checkout` / `merge` / `rebase` / `pull` / `stash`; `atomic_state_write`; `clean_task_transients` on this run's own slug dir before a terminal `phase:` write) / AskUserQuestion (sync offers + no-PR fallback) | Edit / Write / any `gh` write (reply / resolve / PR-create) / `git push` / source-mutating Bash |
 | Phase 2 (Analyze & Verify) | Read / Grep / Glob / Bash (read-only repro, test runs) / Agent (`reviewer-agent` verify-finding — OMIT `model=`) / atomic_state_write | Edit / Write on source / `gh` write |
 | Phase 3 (Clarify) | Read / AskUserQuestion / Agent (`reviewer-agent` verify-finding on a Challenge pick — OMIT `model=`) / atomic_state_write | Edit / Write on source |
-| Phase 4 (Emit) | Read / Grep / Bash (read-only; `atomic_state_write` for spec + handoff) / Agent (spec-claim verifier — OMIT `model=`) | Edit / Write on source / `gh` write / `git push` |
+| Phase 4 (Emit) | Read / Grep / Bash (read-only apart from `atomic_state_write` for spec + handoff and `clean_task_transients` on this run's own slug dir) / Agent (spec-claim verifier — OMIT `model=`) | Edit / Write on source / `gh` write / `git push` |
 
 ---
 

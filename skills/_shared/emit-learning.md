@@ -64,7 +64,9 @@ The bookkeeping types (`retry_failure_sequence`, `discarded_hypothesis`) accumul
 
 **On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file through `atomic_state_write`, never a direct `Edit`/`Write`. The state-helper hook blocks those two routes, so an attempt at them fails the step rather than corrupting the log; appending first and pruning after leaves the window over-full for any reader that queries in between.
 
-Hold the shared knowledge-rewrite lock (`.geniro/knowledge/.archive-stale.lock` — the same one the archival path and the access-counter bump take) across the read-modify-write. A whole-file rewrite that skips it silently discards every append another session made between the read and the rename. When the lock is already held, skip the prune and append anyway: an over-full window self-corrects at the next emit, whereas a clobbered append is unrecoverable.
+Hold the shared knowledge-rewrite lock across the read-modify-write — the same one the archival path and the access-counter bump take. A whole-file rewrite that skips it silently discards every append another session made between the read and the rename.
+
+That lock is a **directory**, created with `mkdir "<repo-root>/.geniro/knowledge/.archive-stale.lock"` and released with `rmdir` on exit; `mkdir` failing IS the "already held" signal, which is what makes the acquisition atomic. The mechanism is load-bearing, not an implementation detail: creating a *file* at that path leaves `mkdir` failing forever while the staleness check (`[ -d ]`) never sees a lock to reclaim, so every later rewrite in the repo wedges. When the lock is already held, skip the prune and append anyway — an over-full window self-corrects at the next emit, whereas a clobbered append is unrecoverable.
 
 ## MODE contract
 
