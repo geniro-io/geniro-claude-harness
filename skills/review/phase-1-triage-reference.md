@@ -43,12 +43,10 @@ Two situations reach this sub-step, and they are NOT the same. A **compaction-re
 
 Collect these signals before deciding:
 
+The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, `PROTECTED_BRANCH` — are defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-signals.md` and detected identically here; the rows below are this skill's own additions.
+
 | Signal | How detected |
 |---|---|
-| `CURRENT_BRANCH` | `git branch --show-current` |
-| `CURRENT_TOPLEVEL` | `git rev-parse --show-toplevel` |
-| `IN_WORKTREE` | `CURRENT_TOPLEVEL` is registered in `git worktree list --porcelain` AND is NOT the porcelain `bare` row or the main worktree row. Porcelain registry is the source of truth; the `.claude/worktrees/<slug>/` path convention is a sanity check, NOT the primary signal. |
-| `PROTECTED_BRANCH` | `CURRENT_BRANCH ∈ {main, master, develop, trunk}` (per-project override via `.geniro/safety.json`) |
 | `EXISTING_REVIEW_STATE` | Glob `.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` ⇒ "prior /geniro:review run on this branch" |
 | `REVIEW_HANDOFF` | Alias for `EXISTING_REVIEW_STATE` — re-running /geniro:review means the user is in fix-up or follow-up review mode |
 | `DEBUG_HANDOFF` | Path `.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "/geniro:debug just authored repro tests for this branch" |
@@ -354,14 +352,15 @@ Skip for files / diff range / branch.
 
 Mechanism:
 
-- `gh pr list --state open --base <baseRefName> --json number,title,headRefName,author,updatedAt,files --limit 30`
-- Compute file-path intersection between current PR's changed files and each sibling. `gh pr diff <N> --name-only` for file-name list (re-derived from parsing captured diff text or separate call).
+- `gh pr list --state open --base <baseRefName> --json number,title,headRefName,author,updatedAt,changedFiles,files --limit 30`
+- Compute file-path intersection between the current PR's changed files and each sibling's `files[].path` from that one list call. Do not issue a `gh pr diff <N> --name-only` per candidate — that spends up to 30 round-trips re-deriving what the payload already carries, most of them on candidates that then drop at `total_score == 0`.
+- **The `files` array is capped at 100 entries per PR** (`gh` requests `files(first: 100)`), so request `changedFiles` alongside it and compare: when a candidate's `changedFiles` exceeds its `files` length, the array is truncated and the intersection undercounts. Fetch `gh pr diff <N> --name-only` for that candidate only. A large sibling is exactly the one whose overlap matters most, and a truncated count can silently drop it at `total_score == 0`.
 - **Score each candidate sibling** (extended beyond pure file-overlap):
 - `file_overlap`: integer count of intersecting changed files.
 - `linear_bonus`: +2 if sibling's PR title OR body contains a Linear ID matching `linear-parent-ref` OR appearing in `linear-sibling-task-ids:` from (parent epic OR sibling sub-task linkage). Bonus is additive: PR can earn +2 for parent-match AND +2 for sibling-sub-task-match (total +4).
 - `total_score = file_overlap + linear_bonus`.
 - Keep **top-3** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When workflow integration is skipped (no workflow file), `linear_bonus` is always 0 and this reduces to pure file-overlap top-3.
-- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` (~200 lines per sibling — bounds per-sibling context).
+- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` — diff CONTENT, which no list payload carries (~200 lines per sibling — bounds per-sibling context).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**2000 chars** — drop lowest-`total_score` sibling first if exceeded.
 - Pre-inline the SAME slot value into all 7 receiving reviewer prompts identically — architecture, design, bugs, conventions, optimizations, spec-compliance, regressions (expanded from architecture + design only). Feeding the block to a subset is a distribution miss the user did not consent to; the slot content is one computed value shared verbatim across the 7. Skipped for tests + security + pr-metadata (orthogonal or target-PR-specific). The slot is part of each receiving dim's pre-inlined context per SKILL.md §2.3; a dim spawned without it is detectable against the §2.3 spawn-context contract and the §4.0 post-spawn verification gate.
 
@@ -391,7 +390,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 
    **Round-counter + repeat markers are scoped to the SAME target.** The round counter increments only on a `pr-ref:` match — a fresh PR (different `pr-ref`) is round 1, so this branch does not run and no finding is marked as a repeat. This is deliberate: a new target earns a fresh review bar, and the repeat comparison must never cross different PRs. A future author should not "fix" the same-`pr-ref` condition into an always-increment counter — that would mark repeats against an unrelated PR's findings.
 
-   **`repeat-of-prior-round` marker (round ≥2 only).** When this branch runs, mark each prior-round finding so Phase 4/5 can annotate it. A current-round finding is `repeat-of-prior-round` when it matches the retained `prior-round-summary` by dedup key (`path:line + finding-title` — the finding was raised in an earlier round) AND it carries no strengthening signal THIS round — no fresh cross-reviewer convergence at or above the admission threshold this round, and no per-finding verifier `confirmed` verdict this round. This is a best-effort heuristic over the single retained `prior-round-summary` string (the per-finding bodies of earlier rounds are not retained — the handoff is overwritten on each produce), so the comparison is against this round's own signals, not unretained prior per-finding values. The marker rides the `PRIOR-ROUND FINDINGS:` slot threaded into reviewer prompts; it feeds the Disposition repeats count and the finding's "seen since round <N>" annotation per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 §5.0, NEVER a filter that decides whether a finding renders. A finding that was fixed in the prior round and no longer reproduces is simply absent from the current reviewers' output — it is not a repeat.
+   **`repeat-of-prior-round` marker (round ≥2 only).** When this branch runs, mark each prior-round finding so Phase 4/5 can annotate it. A current-round finding is `repeat-of-prior-round` when it matches the retained `prior-round-summary` by dedup key (`path:line + finding-title` — the finding was raised in an earlier round) AND it carries no strengthening signal THIS round — no fresh cross-reviewer convergence at or above the admission threshold this round, and no per-finding verifier `confirmed` verdict this round. This is a best-effort heuristic keyed on the retained `prior-round-summary` string: the no-strengthening-signal test reads this round's own signals. The marker rides the `PRIOR-ROUND FINDINGS:` slot threaded into reviewer prompts; it feeds the Disposition repeats count and the finding's "seen since round <N>" annotation per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 §5.0, NEVER a filter that decides whether a finding renders. A finding that was fixed in the prior round and no longer reproduces is simply absent from the current reviewers' output — it is not a repeat.
 4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Review rounds"`, question `"This is round N of review on the same target (substitute the actual round number for N). Continue or escalate?"`) with options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff"`. On Escalate: write a `## Handoff` to state file, persist `round:` and `prior-round-summary:`, exit cleanly without spawning reviewers (terminal `escalated`).
 5. **Re-review gate (round ≥ 2, fresh re-run only).** When `round >= 2` AND this is a fresh user-invoked re-run (NOT a compaction-resume — §0-pre distinguishes them by the in-flight `state.md`), the scope and depth of this round are the user's to choose, never auto-decided or inherited from the prior round. After any round-≥3 escalation clears, fire ONE `AskUserQuestion` carrying these two questions before spawning reviewers:
    - **Re-review scope** (header `"Re-review scope"`, question `"This branch was reviewed before (round N). What should this round cover?"`) — options `"Re-review the whole PR"` / `"Only changes since the last review"`. The delta option scopes the review to `<prior-reviewed-head>..HEAD`, where `<prior-reviewed-head>` is the handoff `pr-head-sha:` the prior round reviewed; when that SHA is absent or unreachable, fall back to whole-PR and note it under `## Caveats`. Prior-round findings thread into reviewers as the `PRIOR-ROUND FINDINGS:` slot under either scope. Persist `approvals[]` category `rereview_scope_choice`.
@@ -417,7 +416,7 @@ PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn 
 
 ## 9. Step 0.7 — Risk-tier stratification
 
-Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify by risk tier alongside size.
+Size-only triage (the §12 size threshold) misses high-stakes small diffs. Stratify by risk tier alongside size.
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for Hard Escalation Signals" — single source of truth for the 9 canonical signals (new entity / new endpoint or route / auth or permissions changes / new module / 3+ modules coordinated / open-closed violation / new async or background work / new external integration or env vars / ambiguous intent).
 2. Scan changed files + diff content for matches.
@@ -425,7 +424,7 @@ Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify 
 4. Persist to state.md frontmatter.
 
 **Downstream knobs (4):**
-- Phase 4.1 severity threshold: per SKILL.md §4.1 signal #4 (advisory-fallback confidence ≥80, relaxed to ≥70 at `risk-tier: high`) — the single source for the numeric values.
+- Phase 4.1 severity threshold: per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 signal #4 (advisory-fallback confidence ≥80, relaxed to ≥70 at `risk-tier: high`) — the single source for the numeric values.
 - Phase 4.2 verifier coverage: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) verified — no tier-scaling, no severity-scaling; same coverage at standard and high tier.
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
@@ -463,11 +462,13 @@ Persist the pick: frontmatter `deep-mode: <true|false>` + `approvals[]` category
 
 ## 12. Size triage
 
-After context settled, classify files when diff has >8 files or >400 LOC:
+**The size threshold — canonical home for the number, cited from every other site: >8 files OR >400 LOC.** That is roughly where one flat diff stops fitting a single reading pass: below it a reviewer holds the whole change at once and grouping only adds structure for nothing, above it the middle of the payload is where findings get missed. Both consumers below key off this one boundary.
+
+After context settled, classify files once the diff crosses it:
 
 - **Trivial**: Renames, formatting-only, import reordering, generated files, lock files → skip full review (mention in summary as "triaged out").
 - **Substantive**: Logic changes, new code, API changes, security-sensitive → full review.
 
 Done inline by orchestrator (read each diff hunk, classify) — no subagent.
 
-The size threshold also controls how each reviewer reads the diff — Standard vs Batched **payload** (≤8 files AND ≤400 LOC → Standard; >8 files OR >400 LOC → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.
+The same threshold controls how each reviewer reads the diff — Standard vs Batched **payload** (under it → Standard; over it → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.

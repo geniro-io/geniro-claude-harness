@@ -1,4 +1,4 @@
-# Canonical: Architecture Vocabulary
+# Canonical: architecture vocabulary
 
 Single source of truth for design vocabulary. Skills cite this file rather than redefining terms inline so that "deepen this module" means the same thing in every skill.
 

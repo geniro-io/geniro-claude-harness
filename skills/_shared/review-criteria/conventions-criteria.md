@@ -1,4 +1,4 @@
-# Conventions Review Criteria
+# Conventions review criteria
 
 Statistical pattern inference across siblings. Flags deviations from the modal pattern when no explicit rule exists. Treats code as a language: sample N siblings, compute frequency per pattern category, take the mode, flag the diff only when one variant is dominant.
 

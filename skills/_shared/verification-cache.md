@@ -1,4 +1,4 @@
-# Verification Cache
+# Verification cache
 
 Authoritative cache-invalidation rules for build/lint/test PASS results carried across phases. Consumers: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md` (independent re-run gate), `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (cross-phase PASS carry).
 

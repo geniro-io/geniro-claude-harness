@@ -10,13 +10,15 @@
 #            §"T1 — ephemeral transient outputs" table — the canonical list of
 #            `.geniro/planning/<task-dir>/<name>` transient files.
 #   COVERAGE lib/clean-task-transients.sh
-#            The shared helper's `rm -f` block — the single executor list of
-#            `"$task_dir"/<entry>` tokens that /geniro:plan AND /geniro:implement
-#            both call at terminal exit.
-# Every T1 basename in the spec table must match at least one rm entry, either
-# literally or via shell glob (e.g. `.research-*.md` covers `.research-out.md`
-# and the per-facet `.research-<facet>.md`). Placeholder forms like `<facet>`
-# are normalized to a representative concrete sample before matching.
+#            The shared helper's removal set — the `"$task_dir"/<entry>` tokens
+#            of its `rm -f` block plus the `-name '<pattern>'` operands of its
+#            `find … -exec rm` calls (a pattern that may match nothing has to go
+#            through find: zsh aborts a whole command on an unmatched glob).
+#            /geniro:plan AND /geniro:implement both call it at terminal exit.
+# Every T1 basename in the spec table must match at least one removal entry,
+# either literally or via shell glob (e.g. `.research-*.md` covers
+# `.research-out.md` and the per-facet `.research-<facet>.md`). Placeholder forms
+# like `<facet>` are normalized to a representative concrete sample first.
 #
 # Contract-driven: both lists are parsed from the live files (no hardcoded
 # basenames), so the test guards future drift in either direction. Empty parse
@@ -68,16 +70,20 @@ if [ -z "$spec_basenames" ]; then
   report_fail "parsed zero T1 paths from $SPEC_FILE §\"T1 — ephemeral transient outputs\" — section heading or path prefix drifted; fix this parser's anchors"
 fi
 
-# --- 2. rm entries from the shared cleanup helper -------------------------
-# The helper has one `rm -f` block; each path is a `"$task_dir"/<entry>` token.
-# Parse the whole file for that token shape (no other line uses it), so a
-# reworded comment can't hide a dropped entry.
-rm_entries=$(grep -oE '"\$task_dir"/[A-Za-z0-9._*?-]+' "$RM_FILE" \
-  | sed -E 's#^"\$task_dir"/##' \
-  | sort -u)
+# --- 2. removal entries from the shared cleanup helper --------------------
+# Two shapes carry a removal target: the `rm -f` block's `"$task_dir"/<entry>`
+# tokens, and the `-name '<pattern>'` operand of a `find … -exec rm` (used for
+# any pattern that may legitimately match nothing). Parse the whole file for
+# both, so a reworded comment can't hide a dropped entry.
+rm_entries=$(
+  {
+    grep -oE '"\$task_dir"/[A-Za-z0-9._*?-]+' "$RM_FILE" | sed -E 's#^"\$task_dir"/##'
+    grep -oE "\-name[[:space:]]+'[A-Za-z0-9._*?-]+'" "$RM_FILE" | sed -E "s#^-name[[:space:]]+'##; s#'\$##"
+  } 2>/dev/null | sort -u
+)
 
 if [ -z "$rm_entries" ]; then
-  report_fail "parsed zero rm entries from $RM_FILE rm-f block — the \"\$task_dir\"/ token shape drifted; fix this parser's anchor"
+  report_fail "parsed zero removal entries from $RM_FILE — the \"\$task_dir\"/ and -name '<pattern>' token shapes both drifted; fix this parser's anchors"
 fi
 
 if [ "$HARD_FAILS" -gt 0 ]; then

@@ -1,15 +1,5 @@
 # L3 semantic-memory read helper + fingerprint drift detection
 
-## Contents
-
-- §API — `load_semantic` / `update_fingerprint` signatures
-- §MODE contract — initial-load vs refresh
-- §Fingerprint schema — the drift-detection record
-- §Drift warning shape — what a stale snapshot prints
-- §Caller patterns — how skills invoke the helper
-- §Known limitations
-- §Test coverage
-
 **Status:** Authoritative for L3 read-side access.
 
 ## API
@@ -24,7 +14,7 @@ content=$(load_semantic [--extras "name1 name2 ..."] [--quiet])
 update_fingerprint [<path1> <path2> ...]
 ```
 
-**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so the L3 snapshot and fingerprint land in the canonical store. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+**Path resolution:** `lib/repo-root.sh::_geniro_repo_root` resolves to the PRIMARY worktree, so the L3 snapshot and fingerprint land in the canonical store, never a linked worktree's. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists".
 
 ## MODE contract
 
@@ -53,7 +43,7 @@ Concatenates the requested L3 markdown files to stdout. Each file is prefixed wi
 
 **Extras:** space-separated names (with or without leading `_`). Common usage: `--extras "_architecture _FEATURES"`.
 
-**Drift detection:** automatically runs before content emission unless `--quiet` is set. Diverging files print `[L3 drift] …` to stderr; load itself never auto-overwrites L3 content. Reactive refresh is a deliberate user action — re-run `/geniro:onboard`.
+**Drift detection:** automatically runs before content emission unless `--quiet` is set. Diverging files print the two-line staleness warning below (§Drift warning shape) to stderr; load itself never auto-overwrites L3 content. Reactive refresh is a deliberate user action — re-run `/geniro:onboard`.
 
 **Missing files are skipped silently** — first-run repos that haven't created any `_*.md` yet emit empty stdout, not an error.
 
@@ -97,8 +87,8 @@ Hash format: `sha256:<64-hex-chars>`. The `sha256:` prefix is deliberate — fut
 When `_ls_check_drift` finds any divergence:
 
 ```
-[L3 drift] Tech stack fingerprint diverged — package.json, tsconfig.json changed since fingerprint captured on 2026-05-19T15:30:00Z.
-[L3 drift] Consider re-running /geniro:onboard. Continuing with current memory.
+Project snapshot may be out of date — package.json, tsconfig.json changed since the snapshot was captured on 2026-05-19T15:30:00Z.
+Consider re-running /geniro:onboard. Continuing with the current snapshot.
 ```
 
 Always to stderr (so it doesn't pollute the loaded-content stream that callers capture via `$(load_semantic)`). Exactly two lines (the diverged-file list and the action prompt).
@@ -130,7 +120,3 @@ content=$(load_semantic --quiet)
 - **No fingerprint pruning.** Files removed from the repo since the last `update_fingerprint` stay in `.fingerprint.json` (with their old hash) and silently never diverge. Refreshing via `update_fingerprint` rebuilds from scratch, so a periodic refresh is the canonical fix.
 - **Default candidate list is JS-biased.** Polyglot projects should call `update_fingerprint` with explicit paths.
 - **No locking on fingerprint writes.** Two concurrent `update_fingerprint` calls could race; the atomic-rename guarantees one wins cleanly but the other's data is lost. Acceptable — fingerprint refreshes are user-initiated, not auto-triggered, so concurrent calls are rare.
-
-## Test coverage
-
-`tests/memory/load-semantic.sh` exercises the default top-2 load, missing-files passthrough, `--extras` (with and without leading underscore), drift warning emission on stderr, `--quiet` suppression, fingerprint creation with explicit args, fingerprint with no-args default-list discovery, the stub-fingerprint case, and unknown-flag rejection.

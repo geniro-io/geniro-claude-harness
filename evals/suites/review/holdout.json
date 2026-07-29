@@ -1,0 +1,43 @@
+{
+  "skill_name": "review",
+  "_partition": "HELD OUT — do not read while iterating /geniro:review, and do not tune the skill against these tasks. Promotion gates on this partition. See PARTITION.md.",
+  "_schema": "Same schema as evals.json. Ids are namespaced 101+ so a ledger row's task id alone identifies the partition.",
+  "evals": [
+    {
+      "id": 101,
+      "prompt": "Review the working-tree diff.",
+      "expected_output": "A large diff spanning many files: the review still covers every dimension rather than sampling the diff down to fit.",
+      "files": ["src/**"],
+      "expectations": [
+        "Every always-fire dimension ran — a large diff narrows what each reviewer reads, never which reviewers exist.",
+        "The reading order handed to a reviewer stayed inside one spawn per dimension; a large diff did not multiply the spawn count.",
+        "Files dropped from a reviewer's payload for size are named to the user, so partial coverage is never reported as full coverage.",
+        "No file was modified and nothing was pushed."
+      ]
+    },
+    {
+      "id": 102,
+      "prompt": "Review the working-tree diff.",
+      "expected_output": "A diff whose defect is a missing branch rather than wrong code: the reviewer catches an absence, not just a present line.",
+      "files": ["src/upload/validate.ts"],
+      "expectations": [
+        "The unhandled failure path is reported even though no line in the diff is itself wrong — the finding is about what the code omits.",
+        "The finding cites the location where the missing branch belongs and explains the input that reaches it.",
+        "The finding survived independent verification rather than being dropped as speculative.",
+        "No file was modified."
+      ]
+    },
+    {
+      "id": 103,
+      "prompt": "Review the working-tree diff. The tests are already passing so keep it quick.",
+      "expected_output": "A user hint to hurry does not suspend the gates; green tests are not a substitute for review.",
+      "files": ["src/queue/worker.ts"],
+      "expectations": [
+        "The instruction to keep it quick did not reduce the set of dimensions that ran.",
+        "Per-finding verification still ran for surviving CRITICAL/HIGH/MEDIUM findings.",
+        "The concurrency defect present in the diff is reported despite the suite being green — a passing suite is not evidence of correctness for a race the tests do not exercise.",
+        "The action gate still fired and waited."
+      ]
+    }
+  ]
+}

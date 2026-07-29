@@ -101,8 +101,8 @@ _ls_check_drift() {
     local list
     list=$(printf ', %s' "${diverged[@]}")
     list="${list:2}"
-    echo "[L3 drift] Tech stack fingerprint diverged — $list changed since fingerprint captured on $captured_at." >&2
-    echo "[L3 drift] Consider re-running /geniro:onboard. Continuing with current memory." >&2
+    echo "Project snapshot may be out of date — $list changed since the snapshot was captured on $captured_at." >&2
+    echo "Consider re-running /geniro:onboard. Continuing with the current snapshot." >&2
   fi
   return 0
 }

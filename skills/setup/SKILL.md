@@ -9,11 +9,31 @@ argument-hint: "[optional: path to template directory]"
 
 # Setup: AI-driven plugin setup
 
+## Contents
+
+- Path constraints
+- Subagent model tiering
+- Loop invariants
+- Anti-rationalization
+- Definition of done
+- Budgets — quality-first
+- ACI surface per phase
+- Termination case → state mapping
+- Phase 0 — pre-flight
+- Phase 1 — Detect · Phase 2 — Interview · Phase 3 — Generate · Phase 4 — Validate · Phase 5 — Done
+- State file schema
+- Memory I/O
+- Cross-references
+
+---
+
 4-phase loop: **Detect → Interview → Generate → Validate**. Turns an unfamiliar repository into a Geniro-ready project in one supervised run. **Singleton bootstrap** — one canonical state file at `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (no `<slug>/` subdir, no parallel runs). Supports `init` (first time) and `re-run` (refresh after stack changes). Uninstall is out of scope.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
 **Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
+
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a gate gets skipped. Re-invoking restores the full body; the singleton state file's `phase:` says where to resume.
 
 ## Path constraints
 
@@ -27,7 +47,7 @@ CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 ## Subagent model tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — a documented hardcode carve-out (`model=sonnet`, justified inline at §4.1).
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — and it is a documented hardcode carve-out. This table is the one place the carve-out's tier and its reason are stated; the §4.1 spawn site and the Cross-references entry point here.
 
 | Spawn | Tier | Why |
 |---|---|---|
@@ -35,15 +55,39 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 
 ## Loop invariants
 
-1. One result per subagent call — the verification subagent returns one structured report.
-2. Args validated before exec — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
-3. Permission before side-effect — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) are gated too — folded into the Phase Validate batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
-4. Bounded structured results — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
-5. Hard escalation gates — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | start-over (re-detect)` (the §4.2 three-option form).
-6. Observations not assumed success — every Bash command in Detect requires explicit observation parse, no silent skips.
-7. Errors as structured observations — Detect failures written to `## Errors`, not swallowed.
+The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five setup-specific bindings:
+
+- **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
+- **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
+- **Invariant #4 (bounded structured tool results)** — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
+- **Invariant #5 (escalation gates, not silent abort)** — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | start-over (re-detect)` (the §4.2 three-option form).
+- **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
 
 `## Tool log` selective logging: record verification subagent spawns + every Write to project root or `.geniro/`. Skip routine Read/Bash inside Detect.
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
+| "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
+| "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
+| "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
+| "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
+| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the §3.2 exclusion list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |
+| "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
+| "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
+
+## Definition of done
+
+These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
+
+- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on the §3.2 exclusion list checked and absent
+- [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
+- [ ] L2 `discovery` emit fired
+- [ ] State file deleted on the success path
+- [ ] All user interactions used `AskUserQuestion`
+- [ ] If re-run mode + plugin-version delta: restart-session warning emitted
 
 ## Budgets — quality-first
 
@@ -119,7 +163,7 @@ Surface in `## Phase log` as `Prior /geniro:setup runs: N (last: <timestamp>, st
 
 ### 1.3 Locate plugin source
 
-Set `TEMPLATE_DIR` to `${CLAUDE_PLUGIN_ROOT}`, falling back to `$ARGUMENTS` when that is unset or does not look like a plugin root. Test the candidate by the presence of an `agents/` directory inside it — a path that merely exists proves nothing, and a wrong `TEMPLATE_DIR` surfaces much later as missing templates mid-generation. When neither candidate passes, transition to Phase Failed with an `## Errors` row rather than continuing on a guess. Write the resolved path to state frontmatter `template_dir:`.
+Set `TEMPLATE_DIR` to `${CLAUDE_PLUGIN_ROOT}`, falling back to `$ARGUMENTS` when that is unset or does not look like a plugin root. Test the candidate by the presence of an `agents/` directory inside it — a path that merely exists proves nothing, and a wrong `TEMPLATE_DIR` surfaces much later as missing templates mid-generation. When neither candidate passes, transition to Phase Failed with an `## Errors` row rather than continuing on a guess.
 
 ### 1.4 Codebase scan (Evidence Block standard)
 
@@ -167,7 +211,7 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-The canonical list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries — every subdirectory except `_shared` is a skill.)
+Reconcile two sources: list `${CLAUDE_PLUGIN_ROOT}/skills/` — every subdirectory except `_shared` is a skill — against the block below, which carries the purpose strings a directory listing cannot. `marketplace.json` holds only a `plugins` entry, not a per-skill array, so there is nothing to extract from it.
 
 ```yaml
 skill_inventory:
@@ -186,7 +230,7 @@ skill_inventory:
 - {slug: update, purpose: "Plugin update + integrity check"}
 ```
 
-`skill_inventory` is the source of truth for which skills exist. Name a skill anywhere this run produces user-facing text (the Phase 5 report's next-step suggestions, any generated content) only if it appears in that block — a slug drawn from anywhere else points the user at a command that does not run.
+Name a skill anywhere this run produces user-facing text (the Phase 5 report's next-step suggestions, any generated content) only when it appears in **both** the listing and the block — a slug present in only one either points the user at a command that does not run or hides one that does. On a mismatch the directory decides which skills exist and the block supplies the purpose; log the delta to `## Phase log` and write the reconciled set to state frontmatter `skill_inventory`.
 
 ### 1.6 Detect output
 
@@ -277,13 +321,17 @@ Transition to Phase 3.
 
 If `mode == re-run`, run a migration sweep before generating content. This ensures the `.geniro/` directory structure is current before CLAUDE.md and instructions are regenerated.
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md`. Parse all `### <name>` entries across ALL `## v<X.Y.Z>` sections — per the consumption contract in MIGRATION.md's preamble: the version heading is not a selection gate, and each entry's read-only auto-detect decides relevance (a user re-running `/geniro:setup` could be coming from any prior version; sweep all entries).
-2. For each entry with an `Auto-detect:` field, run the shell command via `bash -c '<command>'`. Run under bash regardless of the user's interactive shell: an unmatched glob stays literal under bash but aborts the command under zsh's default `nomatch`, which would halt the sweep mid-way. Capture output.
-3. If output non-empty (user IS affected), branch on the `Auto-fix:` value in this order — test `manual-only` FIRST, because a `manual-only` value carries prose, not a runnable command, so it must not fall through to a branch that runs it via `bash -c`:
-   - If the `Auto-fix:` value begins with `manual-only` (matched case-insensitively, so `Manual-only` is caught too): log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
-   - Else if the `Auto-fix:` command is destructive (contains `rm`, `-delete`, or `-exec rm`): do NOT apply it silently — a silent destructive sweep can delete working state the user would have chosen to keep. Log to `## Open Questions`: `[<ts>] migration destructive fix NOT auto-applied: <change-name> — run /geniro:update to apply it interactively per-entry`. When any detected path sits inside a task-dir (`.geniro/planning/<task-dir>/` or `.geniro/state/<skill>/<slug>/`) whose `state.md` shows a live task (present, with non-terminal `phase:`/`status:`), append `; <M> detected path(s) belong to a live task — /geniro:update's live-task guard excludes them from the fix`, so the deferred entry carries the liveness context into the walk.
-   - Else (non-destructive command): run it silently via `bash -c`. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
-4. After sweep, re-run the `Auto-detect:` command for every entry that was auto-applied in step 3 (skip entries deferred to `## Open Questions` and entries logged `manual-only` — those are intentionally still affected, so re-flagging them would double-log). Any auto-applied entry that is still affected is logged to `## Open Questions`.
+Walk `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — that helper parses the entries, runs each `Auto-detect:` behind its `N/A` guard, and classifies each entry as applicable or not. Its walk-every-entry rule is what makes the sweep complete: a user re-running `/geniro:setup` could be coming from any prior version.
+
+Every outcome the helper reports lands in `## Phase log`, so a sweep that did nothing is distinguishable from a sweep that never ran: `[<ts>] migration sweep skipped: MIGRATION.md absent` / `... unparseable`, and `[<ts>] migration skipped (not affected): <change-name>` per entry the detect cleared.
+
+**Apply policy.** For each applicable entry, branch on the `Auto-fix:` value in this order — test `manual-only` FIRST, because a `manual-only` value carries prose, not a runnable command, so it must not fall through to a branch that runs it via `bash -c`:
+
+- If the `Auto-fix:` value begins with `manual-only` (matched case-insensitively, so `Manual-only` is caught too): log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
+- Else if the `Auto-fix:` command is destructive (contains `rm`, `-delete`, or `-exec rm`): do NOT apply it silently — a silent destructive sweep can delete working state the user would have chosen to keep. Log to `## Open Questions`: `[<ts>] migration destructive fix NOT auto-applied: <change-name> — run /geniro:update to apply it interactively per-entry`. When any detected path sits inside a task-dir (`.geniro/planning/<task-dir>/` or `.geniro/state/<skill>/<slug>/`) whose `state.md` shows a live task (present, with non-terminal `phase:`/`status:`), append `; <M> detected path(s) belong to a live task — /geniro:update's live-task guard excludes them from the fix`, so the deferred entry carries the liveness context into the walk.
+- Else (non-destructive command): run it silently via `bash -c`. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
+
+After the sweep, verify per the shared walk §6: re-run the `Auto-detect:` for every entry that was auto-applied above, and for those only — entries deferred to `## Open Questions` and entries logged `manual-only` are intentionally still affected, so re-flagging them would double-log. Any auto-applied entry that is still affected is logged to `## Open Questions`.
 
 **No question during the sweep, but destructive fixes are surfaced, not auto-applied.** Setup re-run is user-initiated, so safe mechanical fixes (renames, field additions, mkdir) apply silently. Destructive fixes (rm/delete-class) are never silently applied — they are logged to `## Open Questions` for the user to apply through `/geniro:update`'s per-entry walk, so the sweep cannot reverse a deletion the user deliberately deferred. Auto-fix commands are maintainer-written and tested (same commands `/geniro:update` surfaces with "Fix it for me").
 
@@ -358,24 +406,7 @@ mkdir -p "$PRIMARY_ROOT"/.geniro/workflow "$PRIMARY_ROOT"/.geniro/instructions .
 
 #### `.gitignore` re-include procedure
 
-The canonical procedure for keeping a `.geniro/` subdirectory committed while the rest of the tree stays ignored. `/geniro:actions` runs this same procedure for `.geniro/actions/` — edit it here, not in a second copy. Substitute the directories that must stay committed for the `for d in ...` list; everything else is invariant. It targets the primary worktree's `.gitignore`, beside the content being negated, and writes only when that file already exists — creating one from scratch would start ignoring files the project deliberately tracks.
-
-```bash
-GI="$PRIMARY_ROOT/.gitignore"
-if [ -f "$GI" ]; then
-  # A bare `.geniro/` line ignores the whole tree and defeats every negation below — drop it first.
-  sed -i.bak '/^\.geniro\/$/d' "$GI" && rm -f "$GI.bak"
-  add_line() { grep -qxF "$1" "$GI" 2>/dev/null || printf '%s\n' "$1" >> "$GI"; }
-  add_line ".geniro/*"
-  add_line "!.geniro/"
-  for d in workflow instructions; do
-    add_line "!.geniro/$d/"
-    add_line "!.geniro/$d/**"
-  done
-fi
-```
-
-Each line is appended only when absent, so re-runs are idempotent. A user who wants one of these directories ignored deletes its two `!` lines by hand.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` in the same Bash call that resolved `PRIMARY_ROOT`, with `workflow instructions` as the directories that must stay committed. It drops a bare `.geniro/` line if present (that line would ignore the whole tree and defeat every negation), then idempotently appends `.geniro/*`, `!.geniro/`, `!.geniro/<dir>/`, and `!.geniro/<dir>/**` to the primary worktree's `.gitignore`.
 
 ### 3.6 Install statusline
 
@@ -395,20 +426,21 @@ Transition to Phase 4.
 ### 4.1 Verification subagent spawn
 
 ```
-Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the spawn-agent.md ladder applies only if promoted to a plugin-defined agent
-model="sonnet", # hardcode carve-out per _shared/model-tiering.md: mechanical check-and-report — a fixed check list in, PASS/DRIFT lines out, and the orchestrator re-decides from those lines, so output quality does not scale with orchestrator tier
+Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the ${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md ladder applies only if promoted to a plugin-defined agent
+model="sonnet", # hardcode carve-out per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md — tier and its reason stated in §Subagent model tiering; keep the pin
 prompt="""
-You are a READ-ONLY verifier. Do not create, edit, or delete any file, and run no mutating
-shell command — report DRIFT items and let the orchestrator regenerate the affected sections.
-An edit from here would overwrite content the orchestrator is about to rewrite from the
-detected project facts. Read, read-only Bash, Glob, and Grep are the whole job.
+You are a READ-ONLY verifier. The Agent tool has no per-spawn tool allowlist, so this
+paragraph is the whole read-only floor: do not create, edit, or delete any file, and run no
+mutating shell command — report DRIFT items and let the orchestrator regenerate the affected
+sections. An edit from here would overwrite content the orchestrator is about to rewrite from
+the detected project facts. Read, read-only Bash, Glob, and Grep are the whole job.
 
 Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
 
 First, Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md and run every check it
 defines (cross-language contamination, template artifact, generic-placeholder) — that
-file is the single source for the contamination + template-residue criteria, with a per-language
-wrong-token table that catches stack drift this inline list cannot.
+file is the single source for the contamination, template-residue and placeholder criteria, and
+its per-language wrong-token table catches stack drift no fixed grep list would.
 
 Then run these additional checks:
 1. Every command in the `## Commands` section runs locally (try `bash -n` syntax check; do not execute).
@@ -416,14 +448,14 @@ Then run these additional checks:
 3. No Geniro-plugin content. Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md §3.2 "What does
    NOT go in CLAUDE.md" — that list is the single source — and report every item on it that
    appears in the generated file. CLAUDE.md is project-only.
-4. Template variable residue grep: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`.
-5. No `<!-- geniro-setup-managed -->` or `<!-- geniro-setup-end -->` markers (legacy — CLAUDE.md is user-owned).
 
 Output a markdown report:
 ## PASS items (one per line)
 ## DRIFT items (one per line with file:line)
 
-Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT).
+Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT) — the bounded-results
+invariant in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md, bound here by loop
+invariant #4.
 
 Anchor: stay within current cwd; verify with `pwd && git branch --show-current` on first Bash call.
 """
@@ -535,34 +567,12 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1
 | L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
 | L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 
-## Anti-rationalization
-
-| Reasoning | Why it's wrong |
-|---|---|
-| "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
-| "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
-| "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
-| "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
-| "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
-| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the §3.2 exclusion list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |
-| "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
-| "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
-
-## Definition of done
-
-These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
-
-- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on the §3.2 exclusion list checked and absent
-- [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
-- [ ] L2 `discovery` emit fired
-- [ ] State file deleted on the success path
-- [ ] All user interactions used `AskUserQuestion`
-- [ ] If re-run mode + plugin-version delta: restart-session warning emitted
-
 ## Cross-references
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file, deleted at Phase Done per the named exception in §State file schema) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — the §3.0 re-run sweep's parse / auto-detect / classify / re-verify procedure, shared with `/geniro:update`'s per-entry walk.
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — the contamination + template-residue check set the §4.1 verification subagent reads and runs (single source for the per-language wrong-token table).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; verification subagent on `sonnet` (section merge runs orchestrator-inline, no separate model assignment).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; the verification subagent's `sonnet` carve-out is stated in §Subagent model tiering (section merge runs orchestrator-inline, no separate model assignment).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` — the §3.5 `.gitignore` re-include procedure that keeps `.geniro/workflow/` and `.geniro/instructions/` committed.

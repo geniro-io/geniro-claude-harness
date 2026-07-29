@@ -1,4 +1,4 @@
-# Architecture Review Criteria
+# Architecture review criteria
 
 Design patterns, modularity, coupling, performance, scalability, and technical debt assessment.
 

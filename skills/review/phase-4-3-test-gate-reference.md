@@ -59,7 +59,7 @@ This gate is its own `AskUserQuestion` call fired during stratify (per §1 Firin
 **The 3-option set is canonical and rendered verbatim — all three, every run.** Do not drop "Let me pick which findings" because few findings are eligible; do not add an improvised `(Recommended)` to "Skip" or to any option — no option carries a `(Recommended)` suffix.
 
 - **Header:** "Test-gate"
-- **Question:** "Author failing tests to confirm review findings? Tests that pass today demote the corresponding finding to ## Filtered (kept visible, not deleted). The skill never writes tests without your approval."
+- **Question:** "Author failing tests to confirm review findings? A test that passes today moves the matching finding to a set-aside list — it stays visible, nothing is deleted. No tests are written without your approval."
 - **Options (render all three, verbatim):**
 - "Author tests for all eligible findings" — never carries a `(Recommended)` suffix
 - "Let me pick which findings" — always present; never dropped when the eligible set is small
@@ -67,7 +67,7 @@ This gate is its own `AskUserQuestion` call fired during stratify (per §1 Firin
 
 If user picks **"Skip"**, proceed to Phase 5 (no spawn, no state changes, no caveats).
 
-If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — <decision-type in plain English>` (e.g. "automatic fix" / "can be verified with a test" — never the raw taxonomy token, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop); each finding's self-contained block is rendered to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering (option `preview` stays empty or a one-line recap — the side-box truncates and is often absent). AUQ has a 4-option cap; when more than 4 eligible findings exist, batch across multiple chained questions (≤4 per call) — never drop or merge options. Aggregate selections across all calls. If user deselects all, treat as "Skip".
+If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — <decision-type in plain English>` (e.g. "automatic fix" / "can be verified with a test" — never the raw taxonomy token, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop); each finding's self-contained block is rendered to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering (option `preview` stays empty or a one-line recap — the side-box truncates and is often absent). When more than 4 eligible findings exist, chain follow-up calls per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension. If user deselects all, treat as "Skip".
 
 Persist user pick to `approvals[]` with category `test_gate_choice`.
 
@@ -77,7 +77,7 @@ Persist user pick to `approvals[]` with category `test_gate_choice`.
 
 Spawn ONE `adversarial-tester-agent` (per canonical model-tiering carve-out — frontmatter-declared `model: inherit`, omit `model=` at the spawn site to mirror orchestrator tier; reasoning-grade test authoring) with the eligible findings as hypothesis seeds. The agent already enforces F→P verification, 3× flake check, "test files only", and scope-locked-to-the-diff.
 
-**Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A before sending the prompt:** substitute the absolute path into `OUTPUT PATH:`, and use the same resolved path on every subsequent read in Steps 4 and 5. The agent treats the path as a literal — passing the unresolved placeholder creates a literal `<PRIMARY_ROOT>` directory.
+**Resolve the `OUTPUT PATH:` placeholders before sending the prompt** — `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, `<branch-slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules — and use the same resolved path on every subsequent read in Steps 4 and 5. The agent treats the path as a literal, so an unresolved placeholder creates a literal `<PRIMARY_ROOT>` directory. Keep the `.adversarial-out.md` basename: the state-helper hook exempts that transient-report name, and any other name under `.geniro/state/` is hard-blocked — the agent loses its report rather than merely misfiling it.
 
 ```
 Agent(subagent_type="adversarial-tester-agent", prompt="""
@@ -88,7 +88,7 @@ DIFF: [git diff summary]
 SHARED EDGE-CASE CHECKLIST: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md (READ at runtime; do not expect it inlined)
 PROJECT TEST FRAMEWORK HINTS: [test command from CLAUDE.md, naming convention, 1-2 exemplar test files inlined]
 PRIOR REVIEW FINDINGS (hypothesis seeds): [each eligible finding as: path:line — description — decision-type — severity]
-OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review-findings-adversarial.md
+OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review/<branch-slug>/.adversarial-out.md
 
 Authoring scope: assert on observable business behavior — return values, thrown error shapes, mutated state, side effects at out-of-process boundaries (network/db/queue/file/email/third-party). Do NOT author interaction-style assertions on internal same-process collaborators (`toHaveBeenCalledWith` and equivalents).
 

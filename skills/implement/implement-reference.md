@@ -6,6 +6,7 @@ This file contains templates, examples, and detailed procedures referenced by SK
 
 ## Contents
 
+- Phase 1: Step 0a signal detection
 - Phase 1: Step 0c AUQ templates
 - Phase 1: Step 0 setup detail
 - Phase 1: $ARGUMENTS semantic-parse table
@@ -23,6 +24,25 @@ This file contains templates, examples, and detailed procedures referenced by SK
 - Phase 3 — Ship sub-step
 - Phase 3 — Adjustment Routing (Big / Medium / Small)
 - Definition of Done
+
+---
+
+## Phase 1: Step 0a signal detection
+
+How each Step 0a context signal is detected. SKILL.md §PHASE 1 Step 0a owns the signal list and what each one means for the Step 0b decision tree; read this section at Step 0a, before that tree is evaluated.
+
+The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, `PROTECTED_BRANCH` — are defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-signals.md` and detected identically here; the rows below are this skill's own additions.
+
+| Signal | How detected |
+|---|---|
+| `EXISTING_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` AND `phase:` is terminal ⇒ "prior task on this branch" |
+| `REVIEW_HANDOFF` / `DEBUG_HANDOFF` / `RESOLVE_HANDOFF` | The matching `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<CURRENT_BRANCH>.md` file exists. `EXISTING_TASK_STATE` does not cover the resolve case — that glob scans `.geniro/planning/*/state.md`, while /geniro:resolve keeps its state under `.geniro/state/resolve/<slug>/`. |
+| `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
+| `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`). Empty list when field absent. |
+| `SPEC_LAUNCH_CONFIG` | If spec.md present at resolved task slug: parse the optional `launch_config:` frontmatter block (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — `workspace` / `deep_mode` / `branch_freshness` / `ship_mode`, plus the optional `tracker_status` (present only when the spec had a linked tracker ticket). Empty when the block is absent, on an inline-task run with no spec, or on a pre-`m5-v4` spec that omits it. |
+| `BRANCH_FORMAT_RULE` | Read `global.md` directly here at Step 0a from the resolved instructions base dir: when `$GENIRO_INSTRUCTIONS_DIR` (or `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR`) is set and is a directory, read `<that-dir>/global.md` (expand a leading `~` to `$HOME`); otherwise read `<PRIMARY_ROOT>/.geniro/instructions/global.md`. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 re-Reads the same file with the full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. |
+| `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. |
+| `CONCURRENT_ACTIVITY` | `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. |
 
 ---
 
@@ -53,11 +73,11 @@ question: "Branch format requires a ticket prefix (per .geniro/instructions/glob
 multiSelect: false
 options:
   - label: "Provide ticket ID inline"
-    description: "User types the ID (e.g. ENG-123) in the next message; agent re-derives the slug and proceeds."
+    description: "The ID sent in your next message (e.g. ENG-123) re-derives the slug before the branch is created."
   - label: "Use placeholder slug"
-    description: "Slug becomes <type>/no-ticket-<desc>. Branch is created with the placeholder; user can rename later via 'git branch -m'."
+    description: "Slug becomes <type>/no-ticket-<desc>. The branch is created with the placeholder and renameable later via 'git branch -m'."
   - label: "Cancel — I'll get a ticket first"
-    description: "Terminal. No git mutation. User exits and re-invokes /geniro:implement once a ticket exists."
+    description: "Terminal. No git mutation. The run exits so a ticket can be created first, then /geniro:implement re-invoked."
 ```
 
 ### Question 3 — implement depth
@@ -142,9 +162,10 @@ No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 
 
 When `$ARGUMENTS` does not directly carry a spec path, walk these in order and stop at the first hit:
 
-1. `<task-dir>/spec.md` — preferred (`/geniro:plan` canonical output).
-2. `<task-dir>/plan.md` — alias.
-3. design-doc frontmatter detect via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — covers design docs that don't follow naming convention.
+1. **A handoff's `spec_path:`** — for each `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` the Step 0a signals flagged, read its frontmatter and follow a `spec_path:` value to the spec it names. `/geniro:resolve` is the producer that writes the key, and it keeps its spec OUTSIDE `.geniro/planning/` (at `.geniro/state/resolve/<slug>/spec.md`), so entries 2-4 cannot reach it — without this entry an auto-continued resolve run falls silently into inline-task mode and never loads the spec's Steps or its §9 `verify:` lines. It resolves first because a handoff for the current branch points at a spec authored for exactly the work this run is continuing. The handoff file itself is never the spec: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` classifies it as `CODE_REFERENCE`. Key absent (a producer that authors no spec, e.g. `/geniro:review`) or target file missing → fall through to entry 2.
+2. `<task-dir>/spec.md` — preferred (`/geniro:plan` canonical output).
+3. `<task-dir>/plan.md` — alias.
+4. design-doc frontmatter detect via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — covers design docs that don't follow naming convention.
 
 If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task mode**: write a brief inline plan to state.md body under `## Inline Plan` containing one-sentence goal, file list (best-effort), and approach summary. This becomes the source-of-truth for Phase 3 self-review (the `spec` field consumed by reviewer-agents).
 
@@ -244,20 +265,6 @@ orchestrator JIT-loads rule bodies in Phase 2 when Edit targets match.
 ### Failure handling
 
 On missing/empty OUTPUT_PATH file OR `Agent` tool error: one silent retry. Second failure → inline-Read fallback (orchestrator Grep + Read top exemplar files and `_CODEBASE_MAP.md` rows) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo a one-line notice to user.
-
-### Escalation signals (orchestrator-side advisory)
-
-After reading the Codebase-Explorer report, the orchestrator scans `spec.md` for these signals and emits a one-line advisory if any match (NOT a tier override — user retains authority over `/model` selection):
-
-| Signal | Detection grep on spec.md |
-|---|---|
-| New entity / migration / schema change | `\b(migration\|schema\|ALTER\|CREATE TABLE)\b` |
-| Auth, permissions, or role boundary | `\b(auth\|RBAC\|permission\|role\|JWT\|OAuth\|middleware)\b` (case-insensitive) |
-| 3+ modules coordinated | spec.md `## Touchpoints` section lists ≥3 distinct top-level modules |
-| New external integration | `\b(API\|SDK\|MCP\|webhook\|integration)\b` AND filename like `.env\|secrets\|credentials` |
-| Async / queue / background job | `\b(async\|queue\|worker\|scheduler\|cron\|background)\b` |
-
-When ≥1 signal matches, emit: `"Spec touches <matched signals> — consider running on Opus tier if not already (current: <tier>)."` Log a `## Tool log` entry `escalation_signals: [...]`.
 
 ---
 
@@ -399,7 +406,7 @@ else:
 This screen is needed because a `verify:` command runs at the Phase 2 green exit — BEFORE self-review and BEFORE the commit-grade Ship AUQ. The safety PreToolUse hooks block force-push / branch-delete / `.geniro/` deletion, but they do NOT block a plain `git push`, `gh pr create`, or a `./deploy.sh` invocation — so a spec carrying `verify: gh pr create --fill` (or a deploy script) would otherwise ship the change with no Ship AUQ and no record of the irreversible action. That violates Loop-Invariant #3 (never ship without the gate). The screen is a doctrine guard, not a sandbox — a high-signal mutation-verb check on the command string, not an exhaustive side-effect analyzer. Apply the mutation-verb screen canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 (SQL-mutation verbs, `rm`/redirection/`tee`/`sed -i`, command-substitution and wrapped/aliased CLIs are all caught there). For the ship-time concern the most common matches are (case-insensitive, whole-token):
 
 - **Source publish:** `git push` (any form, including `git push --delete`), `gh pr create`, `gh pr merge`, `git commit`.
-- **Deploy / release:** `deploy`, `release`, `publish`, `helm install`, `helm upgrade`, plus deploy-CLI invocations (`kubectl apply`, `terraform apply`, `serverless deploy`, `vercel --prod`, `netlify deploy`, `fly deploy`) and any project deploy/release script named in CLAUDE.md.
+- **Deploy / release:** `deploy`, `release`, `publish`, any project deploy/release script named in CLAUDE.md, and every wrapped deploy-CLI invocation §4 enumerates.
 
 A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `ruff check`, `tsc --noEmit`, a read-query) carries none of these verbs and runs normally.
 
@@ -416,19 +423,21 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type: "reviewer-agent"`. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder at every spawn site. OMIT `model=` (reviewer-agent declares `model: inherit`).
 
+**Pass criteria paths, never criteria bodies — do not read the criteria files.** The dimensions table below names ~22,000 words of rubric across the five built-ins; pre-reading them to inline into prompts drags every word through the orchestrator's own context as pure pass-through payload, on every run, and the reviewer would have re-read them anyway. `reviewer-agent` holds `Read` and its §Step 1 reads whatever paths its prompt names. Inline a body only where the reviewer cannot Read the path but you can — say so in the slot so it knows which form it got. When the file is unreadable for you too, pass no criteria for that dimension and let the reviewer's §Fallback strategy run. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so those spawns pass content as before.
+
 ```
 Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="""
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIMENSION: bugs | security | architecture | tests | code-quality
-CRITERIA (pre-inlined): [content of corresponding criteria file from ${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/ — see the reviewer dimensions table below]
+CRITERIA FILES: [one absolute path per line — this dimension's criteria file(s) from the reviewer dimensions table below. Read each one before reviewing.]
 CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content]
 DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md rule 3]
 SPEC CONTEXT: [pre-inline spec.md OR state.md ## Inline Plan section]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
-PRIOR-ROUND FINDINGS: [paste prior-round CRITICAL/HIGH per agents/reviewer-agent.md §Step 1.7; first round: `none — first review`]
+PRIOR-ROUND FINDINGS: [paste prior-round CRITICAL/HIGH per ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md §Step 1.7; first round: `none — first review`]
 
-Review ONLY for [dimension]. Tag findings [SEVERITY] [NEW|PRE-EXISTING] per the output contract in agents/reviewer-agent.md §Output Format.
+Review ONLY for [dimension]. Tag findings [SEVERITY] [NEW|PRE-EXISTING] per the output contract in ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md §Output Format.
 
 Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs.
 """)
@@ -446,7 +455,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 **Code-style pre-inline slot (code-quality + architecture reviewers only):** if the Phase 1 / Phase 3-entry L4 loader echoed `Loaded code-style.md …`, pre-inline that content under a `## Code-style instructions` header per the reviewer-agent contract. If the loader echoed `No code-style.md found — skipping.`, omit the slot. Bugs / security / tests reviewers do NOT get the slot (code-style is orthogonal).
 
-**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff: Read / Grep / Glob / Bash (read-only) only. Edit / Write / Agent / mutating Bash / external network are blocked. Enforcement: `agents/reviewer-agent.md` frontmatter `tools:` whitelist. Prompt-level reinforcement of "read-only" is a fallback layer.
+**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff: Read / Grep / Glob / Bash (read-only) only. Edit / Write / Agent / mutating Bash / external network are blocked. Enforcement: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` whitelist. Prompt-level reinforcement of "read-only" is a fallback layer.
 
 **Parallel invocation:** all 5 (or fewer, on round N+1) spawns happen in ONE assistant response — multiple `Agent(...)` tool uses in the same message. Serial invocation doubles wall-time and the spec's design intent is parallelism.
 
@@ -462,7 +471,7 @@ If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero 
 
 ## Phase 3: Adversarial-tester spawn template
 
-Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel batch as the reviewers (adversarial-tester adds one more spawn when included). The adversarial-tester authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
+Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel batch as the reviewers (adversarial-tester adds one more spawn when included). The adversarial-tester authors F→P-verified failing tests against the diff and writes them to the project's test directory. It carries no criteria slot — its own contract has it read the edge-case taxonomy at runtime, so inlining that body here would only duplicate a read it makes anyway. SKIPPED on either of two conditions:
 
 - Codebase-Explorer report `change_scope: trivial`, OR
 - `--no-adversarial` modifier present in `$ARGUMENTS`.
@@ -479,7 +488,6 @@ The orchestrator pre-resolves these slots:
 | `CHANGED_FILES` | Newline-separated list of paths in DIFF |
 | `TEST_DIR_HINT` | Project test directory pattern from CLAUDE.md "Essential Commands" (e.g., `tests/`, `__tests__/`, `*.test.ts` co-located) |
 | `TEST_FRAMEWORK` | Detected from package.json / pyproject.toml / Cargo.toml (e.g., `vitest`, `jest`, `pytest`, `go test`) |
-| `TESTS_CRITERIA` | Pre-inlined `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` body |
 | `PRIOR_REVIEW_FINDINGS` | Round 1: `none — first round`. Round 2+: CRITICAL/HIGH findings from Round N-1 reviewers (pre-inlined) |
 | `OUTPUT_PATH` | `<task-dir>/.adversarial-out.md` |
 
@@ -491,7 +499,6 @@ DIFF: [full git diff body, pre-inlined]
 CHANGED_FILES: [newline-separated paths]
 TEST_DIR_HINT: [project test directory pattern]
 TEST_FRAMEWORK: [detected framework]
-TESTS_CRITERIA: [pre-inlined tests-criteria.md body]
 PRIOR_REVIEW_FINDINGS: [Round 1: 'none — first round'; Round 2+: CRITICAL/HIGH from prior round]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
@@ -650,9 +657,9 @@ Runs only when BOTH conditions hold: (a) the Phase 2 changed-files list contains
 
 When both conditions hold, the verification is mandatory: an unreachable page — auth wall, feature flag, no running dev server, or cost concern — does NOT authorize the orchestrator to skip it silently. Surface the obstacle to the user through the step-1 dev-server choice ("Skip verification" / "Retry" / "Enter URL manually") and let the user, not a unilateral cost judgment, decide. Prompt via a STANDALONE `AskUserQuestion` with header "Smoke-test" as the ONLY question in that call — never batch it with the ship-mode AUQ. If the user picks "Yes — walk through it", execute this sequence:
 
-1. **Detect target URL.** Probe dev-server ports in order — 3000 (Next.js), 5173 (Vite), 8080 (generic), 4321 (Astro), 4200 (Angular) — via `curl -s -o /dev/null -w "%{http_code}" http://localhost:PORT`. On the first 200, fetch `/` and check the response `<title>` or a known marker matches the project's `package.json` `name`; if uncertain, `AskUserQuestion` "Detected server on :PORT — is this the project under test?" before navigating. If no port responds, walk up from the primary changed UI file to the nearest `package.json` containing a `dev`/`start`/`serve` script (monorepo layouts: `apps/<name>/package.json`, `packages/<name>/package.json`). Choose package manager by lockfile (`pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `bun.lockb` → bun, else npm). Run with `run_in_background: true`, record the PID, poll `GET /` until 200 or ~30 seconds elapse. If the server never comes up, ask the user "Skip verification" / "Retry" / "Enter URL manually".
+1. **Reach the running app.** Resolve WHICH app first: walk up from the primary changed UI file to the nearest manifest that declares a dev server, so a monorepo starts the app the change belongs to rather than the repo root. Then find that dev server if one is already up, and confirm it serves THIS project before navigating — ask the user when that is uncertain, since a stray server on a common port yields a verification of someone else's app. If nothing is serving, start the project's own dev server in the background, record its PID, and wait for it to answer, bounded at ~30 seconds so a server that never comes up cannot hang the run. If it never answers, ask the user "Skip verification" / "Retry" / "Enter URL manually".
 
-2. **Infer the target route.** Map the primary changed UI file to a URL path: `app/<segment>/page.tsx` → `/<segment>`, `pages/<name>.tsx` → `/<name>`, `src/routes/<name>/+page.svelte` → `/<name>`. Leaf component (e.g., `components/Button.tsx`) → fall back to `/` and ask the user where it renders. Navigate with `mcp__plugin_playwright_playwright__browser_navigate`. If the navigated page is a login / auth-gate page, or the inferred route returns 4xx or redirects away from the target (a feature-flag or permission wall), do NOT snapshot and proceed against the gated page — fire the same "Skip verification" / "Retry" / "Enter URL manually" `AskUserQuestion` so the user, not a unilateral skip, decides.
+2. **Open the changed surface.** Infer the route the primary changed UI file renders at and navigate there with `mcp__plugin_playwright_playwright__browser_navigate`; a leaf component with no route of its own falls back to `/` and a question to the user about where it renders. If the page that loads is a login / auth-gate page, or the inferred route returns 4xx or redirects away from the target (a feature-flag or permission wall), do NOT snapshot and proceed against the gated page — fire the same "Skip verification" / "Retry" / "Enter URL manually" `AskUserQuestion` so the user, not a unilateral skip, decides.
 
 3. **Baseline snapshot.** Call `mcp__plugin_playwright_playwright__browser_snapshot` to capture the accessibility tree with element refs. Every subsequent interaction (`browser_click`, `browser_type`, `browser_fill_form`) requires a `ref` from this snapshot.
 
@@ -664,7 +671,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 7. **Visual record.** Final `mcp__plugin_playwright_playwright__browser_take_screenshot` with `fullPage: true`, saved under `<task-dir>/playwright-verify.png`. This is the artifact — do NOT claim a pixel-diff against a prior state (no baseline image exists).
 
-8. **Cleanup.** If step 1 spawned a dev server (PID recorded), send `kill -TERM <pid>`; if still alive after 3s, escalate with `kill -KILL <pid>`. NEVER kill servers the user had running before verification — only clean up what this step spawned.
+8. **Cleanup.** Stop the dev server only if step 1 started it (the recorded PID). NEVER kill servers the user had running before verification — only clean up what this step spawned.
 
 **Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, render them to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — the issue list as a mini-table (risk · symptom you'd see · severity, the risk-finding shape from the same contract's §Finding-type visual map), each issue described in plain English with the screenshot it appears in referenced by path — then fire the lean `AskUserQuestion` with options: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal).
 
@@ -676,7 +683,9 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 **Step 4 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
 
-**Done-Condition annotation (spec-driven runs).** Before building the AUQ, on a run that resolved a real spec.md, parse the spec's section 11 (Done Condition) and apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md`. For each clause that is machine-checkable (matches the validator's stopping-condition ontology) AND affirmatively unsatisfied against the evidence the helper maps, prepend one plain-English line to the AUQ's question text so the user decides with their own completion criterion in view — e.g. "The spec's done-condition lists 'PR approved' — that's not true yet. Ship anyway?". This is advisory and skip-when-clean: when every machine-checkable clause is satisfied (or section 11 carries only free-text clauses), add nothing and proceed silently — the gate never fires with nothing to decide, mirroring the spec fact-check's restraint. Un-parseable / free-text clauses stay human-eyeball-only — never auto-graded, the guard against false-nags. The annotation rides the existing Ship AUQ's question text and obeys the caller-constraints canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` §"What the caller does with the result". This is the ship-time clause-grader to the static diff-check the `architecture`/spec-compliance reviewer dimension runs in Phase 3; both read section 11. Stack any Done-Condition lines with the `## Accepted Failures` / `## Accepted Findings` disclosure below — both feed the same question text.
+**Three advisory annotations ride this AUQ's question text** — the Done-Condition check and the spec-staleness notice (both spec-driven runs only) and the overridden-gate disclosure. Each is skip-when-clean and prepends one plain-English line; any that fire stack into the same question text, and none of them changes the draft-vs-commit-grade push classification or the verbatim option-label allowlist.
+
+**Done-Condition annotation (spec-driven runs).** Before building the AUQ, on a run that resolved a real spec.md, parse the spec's section 11 (Done Condition) and apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md`. For each clause that is machine-checkable (matches the validator's stopping-condition ontology) AND affirmatively unsatisfied against the evidence the helper maps, prepend one plain-English line to the AUQ's question text so the user decides with their own completion criterion in view — e.g. "The spec's done-condition lists 'PR approved' — that's not true yet. Ship anyway?". This is advisory and skip-when-clean: when every machine-checkable clause is satisfied (or section 11 carries only free-text clauses), add nothing and proceed silently — the gate never fires with nothing to decide, mirroring the spec fact-check's restraint. Un-parseable / free-text clauses stay human-eyeball-only — never auto-graded, the guard against false-nags. The annotation rides the existing Ship AUQ's question text and obeys the caller-constraints canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` §"What the caller does with the result". This is the ship-time clause-grader to the static diff-check the `architecture`/spec-compliance reviewer dimension runs in Phase 3; both read section 11.
 
 Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a canonical allowlist — present them verbatim in the AUQ; never paraphrase, merge, or collapse them (e.g., never combine "Open draft PR (Recommended)" and "Open PR" into a single "open PR" / "Commit + push + open PR" label). "Open draft PR (Recommended)" must always appear as a distinct selectable option so the safe default is surfaced. (Mirrors the canonical-option-allowlist rule in /geniro:review's action gate.)
 
@@ -688,7 +697,7 @@ Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a c
 
 **Disclose overridden gates.** Before firing this AUQ, check state.md for a `## Accepted Failures` block (Phase 2 test-gate escalation) or `## Accepted Findings` block (Phase 3 review escalation). If either is present, the working tree is NOT "fully validated" — prepend a one-line disclosure to the AUQ question text: "Note: N item(s) were accepted as known limitations (<one-line summary>) and remain unresolved. Ship anyway?" Never frame the ship decision as fully validated when a gate was overridden. The disclosure also covers failures the orchestrator believes are pre-existing or flaky — these are NOT silently exempt from the gate. A RED required suite at ship time always requires the `## Accepted Failures` block + the accept-failures acknowledgement path (with any baseline-proof evidence summarized in the disclosure); the orchestrator never treats self-classified "flake" failures as already-validated.
 
-**Spec-staleness advisory (spec-driven runs).** Before firing this AUQ, check whether a mid-run gate (an `AskUserQuestion` during Phase 2 or Phase 3) approved a material deviation from the spec's locked approach — a different storage shape, data model, algorithm, or scope than the spec's section 4 (Approach) / section 6 (Steps) describe. This is orchestrator judgment and skip-when-clean, matching the Done-Condition annotation's restraint: if the implementation followed the spec's approach, add nothing and proceed silently — the gate never fires with nothing to decide. When a deviation was approved, the saved spec.md now describes the abandoned approach while the shipped code does not — prepend one plain-English line to the AUQ's question text so the user sees the divergence before shipping: "The approved <deviation> differs from the spec's locked approach (<what the spec said>) — the saved spec.md no longer matches the shipped code. Re-run /geniro:plan to re-sync it, or keep the spec as a historical record. Ship anyway?" Never edit or rewrite spec.md from /geniro:implement: the spec.md is the user's approved upstream artifact authored by /geniro:plan, and rewriting it here would force a cross-producer schema lockstep (same reasoning as the spec fact-check's "Do not rewrite the spec" boundary) — the consumer only flags the staleness; the user or a fresh /geniro:plan run re-syncs it. This line adds context to the Ship gate only; it never changes the draft-vs-commit-grade push classification and never adds a clause to the option-label allowlist below. Stack it with the Done-Condition and `## Accepted Failures` / `## Accepted Findings` lines — all feed the same question text.
+**Spec-staleness advisory (spec-driven runs).** Before firing this AUQ, check whether a mid-run gate (an `AskUserQuestion` during Phase 2 or Phase 3) approved a material deviation from the spec's locked approach — a different storage shape, data model, algorithm, or scope than the spec's section 4 (Approach) / section 6 (Steps) describe. This is orchestrator judgment and skip-when-clean, matching the Done-Condition annotation's restraint: if the implementation followed the spec's approach, add nothing and proceed silently — the gate never fires with nothing to decide. When a deviation was approved, the saved spec.md now describes the abandoned approach while the shipped code does not — prepend one plain-English line to the AUQ's question text so the user sees the divergence before shipping: "The approved <deviation> differs from the spec's locked approach (<what the spec said>) — the saved spec.md no longer matches the shipped code. Re-run /geniro:plan to re-sync it, or keep the spec as a historical record. Ship anyway?" Never edit or rewrite spec.md from /geniro:implement: the spec.md is the user's approved upstream artifact authored by /geniro:plan, and rewriting it here would force a cross-producer schema lockstep (same reasoning as the spec fact-check's "Do not rewrite the spec" boundary) — the consumer only flags the staleness; the user or a fresh /geniro:plan run re-syncs it.
 
 The user can always type a custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back to ship-mode AUQ.
@@ -802,7 +811,7 @@ Downstream consumers (`/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/g
 
 The `.geniro/` deletion guard hook allows targeted `rm -f` under `<task-dir>` (per-file deletions). Bulk `rm -rf .geniro/planning/<task-dir>/` is also allowed (deep path), but unused under the new contract.
 
-**Temp files** — remove temporary screenshots, `.tmp`, `.bak`, `debug-*` files (not in `node_modules` or `.git`). Kill orphaned processes on agent ports (avoid touching standard dev ports). Remove stray `.log` files. Best-effort — silent failures OK.
+Scratch this run created OUTSIDE the task directory — a throwaway script, a captured log — is removed by name, from the set this run actually wrote. Never sweep the user's tree by glob: a pattern like `debug-*` or `*.bak` matches files the user authored and did not ask you to touch. Ship stages by name, so a missed stray dirties the working tree without reaching a commit.
 
 ---
 

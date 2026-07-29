@@ -1,6 +1,6 @@
 # Flags & presets — cross-skill catalog
 
-The single catalog of every flag and modifier that pre-sets an otherwise-interactive question across `/geniro:plan`, `/geniro:implement`, and `/geniro:review`. A flag or modifier removes routine setup friction by answering a question in advance; it never pre-authorizes a safety gate. The safety gates listed in the final section fire on their own trigger regardless of any flag.
+The single catalog of every flag and modifier that pre-sets an otherwise-interactive question across `/geniro:plan`, `/geniro:implement`, and `/geniro:review`. A flag or modifier removes routine setup friction by answering a question in advance; it never pre-authorizes a safety gate.
 
 ## Contents
 

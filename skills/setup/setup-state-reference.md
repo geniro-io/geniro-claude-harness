@@ -21,7 +21,6 @@ geniro_kind: setup-state
 geniro_schema_version: m10a-v1
 worktree: /absolute/path # cross-check on rehydration
 mode: init # init | re-run
-template_dir: /Users/you/.claude/plugins/geniro@.../abc123
 plugin_version: 2.21.1 # from .claude-plugin/plugin.json; the §5.4 restart-warning compares this against the current plugin.json version (missing on a pre-field state file → no delta computable → no warning)
 detected:
 stack: node/npm

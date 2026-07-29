@@ -8,7 +8,7 @@ Hook configuration is **split** across three files:
 
 | File | Purpose |
 |---|---|
-| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, Stop, SessionStart) for Claude Code. Pointed to by [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) `hooks` field. |
+| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, Stop, SessionStart) for Claude Code. Auto-discovered at the `hooks/hooks.json` convention path — deliberately NOT declared in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json), which stays metadata-only. Adding a `hooks` field there would duplicate an auto-discovered path and risk double-registration; see [`.claude-plugin/PLUGIN_SCHEMA_NOTES.md`](.claude-plugin/PLUGIN_SCHEMA_NOTES.md) §Component declaration. |
 | [`settings.json`](settings.json) (root) | Defines the `statusLine` command. The status line is NOT a Claude Code hook — it's a separate display feature. Plugin-shipped `settings.json` cannot grant permissions (Claude Code ignores a `permissions` block here) — permission rules belong in the consumer's own user/project settings. |
 | [`cursor/hooks.json`](cursor/hooks.json) | Registers the same hook scripts for the Cursor runtime. Pointed to by [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json) `hooks` field. Every entry runs through the shim (below) rather than calling `hooks/*.sh` directly. |
 
@@ -29,7 +29,7 @@ Cursor speaks a different hook dialect, so its manifest points every entry at [`
 
 Both alias folds are load-bearing. Normalizing only the path key is a silent bypass: a content-reading guard such as the security pattern scan receives an empty field and exits 0 on a payload it would otherwise deny. Likewise, building a `cwd` field without moving into it leaves every guard inspecting the wrong tree. `tests/cursor/hook-shim.sh` covers each alias spelling and both directions — extend it when the translation map changes.
 
-Wired for Cursor: the destructive-git guard, the `.geniro/` deletion guard, protected-file writes, state-helper enforcement, TDD-order enforcement, and the security pattern scan (all six on both shell and file-write events), plus session-start restore.
+Wired for Cursor: all six Bash guards on `beforeShellExecution` — the destructive-git guard, the `.geniro/` deletion guard, protected-file writes, state-helper enforcement, TDD-order enforcement, and the security pattern scan — and four of those six again on `preToolUse` file-write events (protected-file writes, TDD-order, state-helper, security pattern scan), plus session-start restore. The destructive-git and `.geniro/`-deletion guards are shell-only in BOTH runtimes: they inspect a command string, and a file-write event carries a path with no command to read — the same split `hooks/hooks.json` uses.
 
 **Deliberately not wired for Cursor** — the runtime has no compatible slot, so the conventions apply as instructions per [`skills/_shared/runtime-portability.md`](skills/_shared/runtime-portability.md) instead: the gate-render guard (`AskUserQuestion` has no hook event), the evidence-on-completion reminder (no `Stop` event), and the marketplace update check (Claude Code's `claude plugin` registry only). Add a new hook to `cursor/hooks.json` only when its event maps cleanly onto the translation map at the top of the shim.
 
@@ -72,6 +72,8 @@ Implementation: case-insensitive pattern match via lowercase conversion; exit 2 
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message names the pattern ID and tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist). Pattern IDs: `write-env`, `write-git-internal`, `write-lockfile`, `write-cert-key`, `write-credentials`, `write-tfstate`, `write-vault`.
 
+**Degraded mode (no jq):** the hook cannot parse tool input, so it first scans the raw payload for the highest-signal protected names (`.env`, `*.pem`, `*.key`, `credentials.*`, `secrets.*`) and exits 2 on a hit. Only a clean scan falls open, and it falls open loudly — a `systemMessage` names the guard as inactive.
+
 ### block-dangerous-git.sh
 
 **Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
@@ -79,6 +81,8 @@ Implementation: case-insensitive pattern match via lowercase conversion; exit 2 
 Blocks destructive git operations by pattern ID: `force-push`, `force-push-with-lease`, `reset-hard`, `branch-delete-force`, `clean-fd`, `checkout-mass-discard`, `restore-mass-discard`, `update-ref-delete`, `filter-branch`, `push-delete`. The `push-delete` pattern blocks remote-branch deletion — both `git push <remote> --delete <branch>` and the colon delete-refspec form `git push origin :branch` — which the local `branch-delete-force` matcher never saw. Pads the command with whitespace, joins backslash-newline continuations, and collapses newlines so flag matchers (e.g. `[[:space:]]-f[[:space:]]`) hit reliably even at start/end of string or inside multi-line commands. Git GLOBAL options (`git -C <path> push`, `git -c k=v push`, `--git-dir`/`--work-tree`, pager flags) are stripped before matching, so they cannot break the `git <subcommand>` adjacency the matchers rely on. Checkout/restore matchers block a standalone `.` / `./` / `*` pathspec with or without `--` (`git checkout .`, `git checkout HEAD -- .`); `git clean` dry-run spans (`-n`/`--dry-run`) are previews and stay allowed, evaluated per-span so a dry span cannot mask a destructive sibling in the same command.
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist).
+
+**Degraded mode (no jq):** the guard cannot parse the command out of the tool JSON, so it first scans the raw payload for the highest-signal destructive tokens (`--force` / `--force-with-lease`, `reset --hard`, `filter-branch`) and exits 2 on a hit. Only a clean scan falls open, loudly, with a `systemMessage` naming the guard as inactive. The scan is coarse by design — it also matches a token inside a quoted string — accepted for a rarely-hit path where blocking a real force-push matters more than a false positive on prose.
 
 ### block-geniro-deletion.sh
 
@@ -97,7 +101,9 @@ Prevents bulk deletion of `.geniro/`, which holds user-authored persistent state
 - `worktree-remove-with-state` — `git worktree remove` (worktrees often hold un-routed `.geniro/` state).
 - `git-add-force-geniro` — `git add -f` / `--force` on `.geniro/` paths (force-adding ignored files surfaces them in the IDE Source Control panel, where a single "Discard All Changes" click becomes a one-click data-loss vector; track `.geniro/` subdirs via `.gitignore` negation instead).
 
-**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]`. On block, the error message names the pattern ID and the exact `safety.json` snippet to add. Fails open loudly (emits a `systemMessage`) if jq is missing.
+**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]`. On block, the error message names the pattern ID and the exact `safety.json` snippet to add.
+
+**Degraded mode (no jq):** the guard cannot parse the command out of the tool JSON, so it first scans the raw payload for a recursive `rm` naming `.geniro` and exits 2 on a hit. Only a clean scan falls open, loudly, with a `systemMessage` naming the guard as inactive. Coarse by design (it also matches the token inside a quoted string), on the same trade-off as the git guard.
 
 ### enforce-tdd-order.sh
 
@@ -136,7 +142,7 @@ Emits an `additionalContext` block-set:
 
 Cheap regex scan for high-signal, low-false-positive security anti-patterns in the content about to land in the file. Catches the obvious string-level wins at edit time without the LLM-cost of an ambient Stop-hook review.
 
-Each pattern is scoped to applicable file extensions — Python's `pickle.loads` won't fire on `.js` files, JavaScript's `innerHTML=` won't fire on `.py` files. On match the hook prints to stderr (pattern ID, file, matched line, two remediation paths — inline justification + retry, OR per-project bypass) and exits 2.
+Each pattern is scoped to applicable file extensions — Python's `pickle.loads` won't fire on `.js` files, JavaScript's `innerHTML=` won't fire on `.py` files. On match the hook prints to stderr (pattern ID, file, matched line, two remediation paths — rewrite the edit so the flagged construct is gone, OR add the pattern ID to `allow_patterns` in `.geniro/safety.json`) and exits 2. The scan reads content only, so an inline code comment justifying the pattern does not clear the block.
 
 **Pattern IDs** (each individually bypassable):
 
@@ -242,7 +248,7 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "npm 
 
 On success: emits `✓ <description> passed (<summary>)`, where `<summary>` is a detected framework test count or `<N> lines of output`. On failure: filters and caps output at `GENIRO_BACKPRESSURE_CAP` lines (default 150). Manages its own `mktemp` lifecycle; no persistence.
 
-Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/SKILL.md`](skills/review/SKILL.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
+Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/phase-2-spawns.md`](skills/review/phase-2-spawns.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
 
 ## Testing
 
@@ -265,7 +271,7 @@ bash tests/hooks/security-pattern-check.sh
 2. **Stdin Consumption** — All hooks consume stdin as first action
 3. **JSON Parsing** — Use jq for safe input extraction
 4. **Error Messages to Stderr** — Clear feedback redirected to user
-5. **Graceful Degradation** — hooks fail open when a dependency (e.g. `jq`) is missing: safety guards loudly (a `systemMessage` says the guard is not running), convenience reminders silently (never wedge the session)
+5. **Graceful Degradation** — hooks fail open when a dependency (e.g. `jq`) is missing: safety guards loudly (a `systemMessage` says the guard is not running), convenience reminders silently (never wedge the session). The three data-loss guards — `file-protection.sh`, `block-dangerous-git.sh`, `block-geniro-deletion.sh` — fail open only *after* a coarse raw-text scan of the payload for their highest-signal tokens; a hit there still exits 2, because on those three a false positive costs less than a clobbered credential file, a force-pushed branch, or a wiped `.geniro/`
 6. **Case Insensitivity** — File patterns are case-insensitive
 
 ## Sources & References

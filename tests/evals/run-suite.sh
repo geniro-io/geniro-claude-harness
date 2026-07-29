@@ -270,6 +270,40 @@ else
   fail "missing-prompt guard wrong — rc=$rc made_bench=$([ -e "$WS/benchmark.json" ] && echo yes || echo no) out: $(printf '%s' "$out" | tr '\n' '|' | cut -c1-160)"
 fi
 
+# ===== 11. Side-effect guard: /implement and /review refuse an approving auto-answer policy =====
+# /geniro:implement can commit/push/open a PR and /geniro:review can post a PR review. Under
+# approve-default-v1 the driver approves those gates, so the run performs the action for real.
+# The guard must fire BEFORE any spend, and must not fire for /plan (which writes a spec and stops).
+for sk in implement review; do
+  out="$( bash "$RS" --skill "geniro:$sk" --suite "$SUITE" \
+         --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$TMPDIR_BASE/ws-sideeffect-$sk" 2>&1 )"; rc=$?
+  if [ "$rc" -eq 64 ] && printf '%s' "$out" | grep -q "REFUSING to run the '$sk' suite" \
+     && [ ! -e "$TMPDIR_BASE/ws-sideeffect-$sk/benchmark.json" ]; then
+    pass "side-effect guard: $sk refuses approve-default-v1 (rc 64), no benchmark produced"
+  else
+    fail "$sk side-effect guard wrong — rc=$rc out: $(printf '%s' "$out" | tr '\n' '|' | cut -c1-200)"
+  fi
+done
+
+# A denying policy clears the guard — it must not be an unconditional block on these two skills.
+# Failing past the guard is fine here; what matters is that the REFUSING message is gone.
+out="$( EVAL_AUQ_POLICY=deny-ship-v1 bash "$RS" --skill geniro:implement --suite "$SUITE" \
+       --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$TMPDIR_BASE/ws-denypolicy" 2>&1 )" || true
+if printf '%s' "$out" | grep -q "REFUSING to run"; then
+  fail "denying policy still blocked — the guard is unconditional, not policy-sensitive"
+else
+  pass "side-effect guard: a denying EVAL_AUQ_POLICY clears the refusal"
+fi
+
+# /plan must be unaffected — it writes a spec and takes no external action.
+out="$( bash "$RS" --skill geniro:plan --suite "$SUITE" --dry-run \
+       --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$TMPDIR_BASE/ws-planguard" 2>&1 )" || true
+if printf '%s' "$out" | grep -q "REFUSING to run"; then
+  fail "side-effect guard over-fired on /plan, which takes no external action"
+else
+  pass "side-effect guard: /plan unaffected"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

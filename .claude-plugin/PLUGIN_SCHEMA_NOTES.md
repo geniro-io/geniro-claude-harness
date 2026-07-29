@@ -105,7 +105,7 @@ Geniro ships **no MCP servers of its own** and has **no `.mcp.json`** in the rep
 
 - For this plugin, omission is the correct opt-out — there is no validator error from leaving `mcpServers` out entirely.
 - Do NOT add an empty `"mcpServers": {}` object speculatively. If a future Claude-Code validator version requires an explicit empty object to distinguish "no MCP servers" from "field missing," add `"mcpServers": {}` (an empty OBJECT, not `[]` and not `""`) — that empty-object form is the canonical opt-out that avoids the validator error. Until a validator actually demands it, keep the field absent to match the current working manifest.
-- Optional MCP companions that Geniro skills *consume* (e.g. Playwright) are documented in `CLAUDE.md` §Optional MCP Dependencies and installed by the user as sibling plugins — they are not declared in this plugin's manifest.
+- Optional MCP companions that Geniro skills *consume* (e.g. Playwright) are documented in `ARCHITECTURE.md` §Optional MCP companions and installed by the user as sibling plugins — they are not declared in this plugin's manifest.
 
 ## Version field — format and sync
 

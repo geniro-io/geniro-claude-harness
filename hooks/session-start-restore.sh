@@ -16,6 +16,15 @@
 
 set -uo pipefail
 
+# Announce inactivity if jq is missing, like every sibling hook. Without the
+# check this hook runs to completion, dies at the final `jq -n`, prints an empty
+# line and exits 0 — so the entire restore silently produces nothing and the
+# user believes their task state was resumed.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"systemMessage":"Geniro hook inactive: jq not found on PATH, so saved task state is NOT being restored. Install jq to restore it."}\n'
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------
 # Input plumbing
 # ---------------------------------------------------------------------------
@@ -369,14 +378,13 @@ _fm_block_list_count() {
   ' "$file" 2>/dev/null
 }
 
-# Convert a YAML block-list field in frontmatter to JSONL on stdout.
-# Each `- key: value` entry becomes one JSON object; nested fields
-# (4-space indented) are merged into the same object until the next `-`.
-# Returns empty output for absent or `[]` lists. Unquoted values are
-# kept as strings; quoted values lose one balanced outer pair.
-_fm_block_list_to_jsonl() {
-  local file="$1" key="$2"
-  awk -v k="$key" '
+# Shared awk prelude for the two YAML-to-JSONL parsers below. Their state
+# machines differ (frontmatter block-lists indent 2/4; body sections indent 0/2),
+# but both accumulate `key: value` pairs into one JSON object per entry with the
+# same four helpers. Defined once and prepended to each program so the two
+# parsers cannot drift into emitting differently-escaped JSON. Single-quoted:
+# awk must receive this text verbatim, with no shell expansion.
+_GENIRO_AWK_KV_PRELUDE='
     function jesc(s,   t) {
       t = s
       gsub(/\\/, "\\\\", t)
@@ -418,7 +426,16 @@ _fm_block_list_to_jsonl() {
       }
       print out "}"
       have = 0
-    }
+    }'
+
+# Convert a YAML block-list field in frontmatter to JSONL on stdout.
+# Each `- key: value` entry becomes one JSON object; nested fields
+# (4-space indented) are merged into the same object until the next `-`.
+# Returns empty output for absent or `[]` lists. Unquoted values are
+# kept as strings; quoted values lose one balanced outer pair.
+_fm_block_list_to_jsonl() {
+  local file="$1" key="$2"
+  awk -v k="$key" "$_GENIRO_AWK_KV_PRELUDE"'
     NR == 1 && $0 != "---" { exit 0 }
     NR == 1 { in_fm = 1; next }
     in_fm && $0 == "---" { exit 0 }
@@ -476,49 +493,7 @@ _render_non_resumable_block() {
 # entirely. Terminates at next `##` heading or EOF.
 _body_section_to_jsonl() {
   local file="$1" section="$2"
-  awk -v section="$section" '
-    function jesc(s,   t) {
-      t = s
-      gsub(/\\/, "\\\\", t)
-      gsub(/"/, "\\\"", t)
-      gsub(/\t/, "\\t", t)
-      gsub(/\r/, "\\r", t)
-      gsub(/\n/, "\\n", t)
-      return t
-    }
-    function dequote(s) {
-      if (s ~ /^"[^"]*"$/ || s ~ /^\047[^\047]*\047$/) {
-        return substr(s, 2, length(s) - 2)
-      }
-      return s
-    }
-    function add_pair(line,   pos, kk, vv) {
-      pos = index(line, ":")
-      if (pos < 2) return
-      kk = substr(line, 1, pos - 1)
-      vv = substr(line, pos + 1)
-      sub(/^[[:space:]]+/, "", vv)
-      sub(/[[:space:]]+$/, "", vv)
-      vv = dequote(vv)
-      if (have == 0) {
-        keynum = 0
-        delete keys
-        delete vals
-        have = 1
-      }
-      keys[++keynum] = kk
-      vals[kk] = vv
-    }
-    function flush(   i, out) {
-      if (!have) return
-      out = "{"
-      for (i = 1; i <= keynum; i++) {
-        if (i > 1) out = out ","
-        out = out "\"" jesc(keys[i]) "\":\"" jesc(vals[keys[i]]) "\""
-      }
-      print out "}"
-      have = 0
-    }
+  awk -v section="$section" "$_GENIRO_AWK_KV_PRELUDE"'
     NR == 1 && $0 != "---" { in_body = 1; next }
     NR == 1 { in_fm = 1; next }
     in_fm && $0 == "---" { in_fm = 0; in_body = 1; next }
@@ -877,6 +852,11 @@ if [ -f "$_learnings_log" ]; then
 
       # Atomic lock acquisition. Failure = another tab is running it; skip.
       if mkdir "$_lock_dir" 2>/dev/null; then
+        # A SIGINT/SIGTERM between here and the rmdir below would orphan the lock
+        # and silently suppress auto-archive until the reclaim window elapses.
+        # The three peer acquisition sites (archive-stale.sh, query-learnings.sh,
+        # update-semantic.sh) all trap; this one is the outlier.
+        trap 'rmdir "$_lock_dir" 2>/dev/null' EXIT INT TERM
         _archive_rc=0
         # GENIRO_ARCHIVE_LOCK_HELD=1 — this hook already holds the mkdir lock;
         # without the flag the helper's direct-invocation branch would see the
@@ -891,8 +871,10 @@ if [ -f "$_learnings_log" ]; then
           _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
         fi
 
-        # Release lock.
+        # Release lock, and drop the trap so a later EXIT does not rmdir a lock
+        # another tab has since acquired.
         rmdir "$_lock_dir" 2>/dev/null
+        trap - EXIT INT TERM
 
         # Extract archived count from helper's stderr line:
         # "archive-stale: flipped deprecated:true on N entries:"
@@ -988,7 +970,7 @@ if [ -z "$COVERAGE_SUFFIX" ]; then
 fi
 
 # Block 6 — resume protocol. The cold-startup branch
-# (no active task) emits no "active task" block — i.e., the 7-step
+# (no active task) emits no "active task" block — i.e., the 5-step
 # resume protocol is suppressed entirely. Loader-refresh advice still
 # matters, so we emit a trimmed 1-step block in that case.
 BLOCK6=""
@@ -1010,13 +992,11 @@ if [ -n "$state_file" ]; then
   fi
 
   BLOCK6="Resume steps:
-1. Read the current skill's SKILL.md to restore phase instructions.
+1. Read the current skill's SKILL.md to restore phase instructions. When it points at a loop spine plus per-phase step files, re-Read the spine and the step file for the phase you are resuming into — those arrived as Read results and did not survive the summary.
 $_step2
 $_step3
-4. Read state.md (if not suppressed by Block 3) to identify the current phase.
-5. Read spec.md and plan.md (if present) for task context.
-6. If a feature ID is set in state.md, read the .geniro/planning/_FEATURES.md row and the linked spec.
-7. Continue from the next incomplete phase. The summary above is historical reference only — it may describe steps that already ran. Do not re-run any slash command or re-apply its arguments from this restored context; confirm current intent first, then proceed from where the task left off."
+4. Read the task files listed above — state.md (unless a validation warning withheld it), spec, plan, and the matching _FEATURES.md row — to recover the current phase and task context.
+5. Continue from the next incomplete phase. The summary above is historical reference only — it may describe steps that already ran. Do not re-run any slash command or re-apply its arguments from this restored context; confirm current intent first, then proceed from where the task left off."
 fi
 
 # ---------------------------------------------------------------------------

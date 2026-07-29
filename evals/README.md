@@ -50,10 +50,18 @@ math (Phase B `ingest.sh`) and the real runs (Phase C+):
 - **`price-map.json`** — versioned per-model token prices. The ledger stamps
   `cost_derived_from: "tokens*price-map@v1"` so a row's cost is reproducible against this map
   version. Re-resolve + bump `version` when model IDs are re-resolved (plan decision 3).
-- **The `/plan` suite** — `suites/plan/{evals.json,holdout.json}` in skill-creator's real
-  schema (`{skill_name, evals:[{id,prompt,expected_output,files[],expectations[]}]}`), split
+- **The suites** — `suites/<skill>/{evals.json,holdout.json,PARTITION.md}` in skill-creator's real
+  schema (`{skill_name, evals:[{id,prompt,expected_output,files[],expectations[]}]}`), each split
   into a dev partition (tuned against) and a held-out partition (gates promotion — plan §11).
-  Bootstrap size (6 + 3); the 20–50-task target from regression history is Phase D.
+  All bootstrap size (6 + 3); the 20–50-task target from regression history is Phase D.
+  - `plan` — runnable today.
+  - `review`, `implement` — **suite data only; not yet runnable.** Each needs a per-skill fixture
+    (the harness builds a `/plan` one) and an auto-answer policy that DENIES the ship-mode and
+    post-to-PR picks. `run-suite.sh` refuses these two under `approve-default-v1` and exits 64
+    rather than approving a gate that commits, pushes, opens a PR, or posts a review for real.
+    Set `EVAL_AUQ_POLICY` to a denying policy to clear it. These two skills are where an
+    instruction change is most likely to cost something, which is why their tasks target gates
+    rather than output shape — see each suite's `PARTITION.md`.
 - **The seeded ledger** — `history.jsonl` (empty) + `HISTORY.md` (header only, zero rows).
 - **The seam check** — `tests/seam/plan-review-implement-contract.sh`, judge-free, no trials,
   no cost: it pins the `/plan`→`/review` `workflow_refs[]` contract and the `/review`→`/implement`

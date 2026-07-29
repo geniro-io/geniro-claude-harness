@@ -1,4 +1,4 @@
-# Debug Handoff Detection (canonical, shared)
+# Debug handoff detection (canonical, shared)
 
 **Status:** Authoritative for consuming `/geniro:debug` T2 handoff files.
 

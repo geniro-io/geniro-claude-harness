@@ -28,32 +28,10 @@ Run the gate AFTER the workspace decision is known but BEFORE the first code edi
 
 ## 2. Shared sub-steps
 
-Both modes start here. The default-branch resolution follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 sub-bullets (b)/(c) (origin/HEAD → local main/master), restated inline so this gate stays self-contained; it adds one terminal `"main"` offline-safety fallback beyond those sub-bullets, for a repo with no remote and no main/master branch yet. Resolve the default branch, then attempt a best-effort fetch:
+Both modes start here. The default-branch resolution follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 sub-bullets (b)/(c) (origin/HEAD → local main/master), restated inline so this gate stays self-contained; it adds one terminal `"main"` offline-safety fallback beyond those sub-bullets, for a repo with no remote and no main/master branch yet. Resolve two values, keeping these names — the rest of this file reads them:
 
-```bash
-# Default branch: scope-anchor rule #3(b)/(c) (origin/HEAD, then local main/master) + terminal "main" offline-safety fallback.
-DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
-if [ -z "$DEFAULT_BRANCH" ]; then
-  for b in main master; do
-    git show-ref --verify --quiet "refs/heads/$b" && DEFAULT_BRANCH="$b" && break
-  done
-fi
-[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH="main"
-
-# Best-effort fetch of the default branch — fail-open when offline / no remote.
-FETCH_OK=0
-if git remote get-url origin >/dev/null 2>&1; then
-  TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 5"; command -v gtimeout >/dev/null 2>&1 && TO="gtimeout 5"
-  $TO git fetch origin "$DEFAULT_BRANCH" --quiet 2>/dev/null && FETCH_OK=1
-fi
-
-# BASE = freshest known tip of the default branch.
-if [ "$FETCH_OK" = 1 ] && git show-ref --verify --quiet "refs/remotes/origin/$DEFAULT_BRANCH"; then
-  BASE="origin/$DEFAULT_BRANCH"
-else
-  BASE="$DEFAULT_BRANCH"   # local fallback (last fetch/pull)
-fi
-```
+- **`DEFAULT_BRANCH`** — the target of `origin/HEAD`; failing that a local `main` or `master`; failing that the literal `main`.
+- **`BASE`** — the freshest known tip of that branch. Attempt a best-effort fetch of `DEFAULT_BRANCH` first, bounded to ~5s so an unreachable remote cannot hang the run (do not assume a `timeout` command is installed — macOS ships none by default). `BASE` is `origin/$DEFAULT_BRANCH` when that fetch succeeded and the remote-tracking ref exists; otherwise the local `$DEFAULT_BRANCH`, which is only as fresh as the user's last fetch or pull.
 
 When the fetch fails, surface one line so the user knows freshness is best-effort: `"Couldn't reach the remote — comparing against your local <DEFAULT_BRANCH> instead."` Then proceed with the local `BASE`.
 

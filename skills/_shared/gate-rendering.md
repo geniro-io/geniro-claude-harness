@@ -1,6 +1,6 @@
-# Gate Rendering — shared visual language
+# Gate rendering — shared visual language
 
-Canonical visual language for every gate that renders rich, multi-part content to chat before a lean `AskUserQuestion`. The calling contract owns the gate's two-step shape and field plumbing — `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract" for the /geniro:plan approval gates; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering for finding gates — this file defines the visual language those renders share.
+Canonical visual language for every gate that renders rich, multi-part content to chat before a lean `AskUserQuestion`. This file defines the visual language those renders share; the two-step shape they sit inside and the per-gate field plumbing belong to the calling contract (§When this applies).
 
 This file is the single source of truth for the visual language. Calling contracts cite specific sections; do NOT inline-paste the element definitions.
 
@@ -18,12 +18,12 @@ This file is the single source of truth for the visual language. Calling contrac
 
 Any gate that presents rich multi-part content before a decision:
 
-- `/geniro:plan` approval gates — Phase 4 approaches, Phase 5 section clusters, Phase 8 final approval (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract").
+- `/geniro:plan` approval gates — Phase 4 approaches, Phase 5 section clusters, Phase 8 final approval.
 - Finding and product-decision gates under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — /geniro:review decision gates and PR-comment per-finding gates, /geniro:implement self-review decision resolution, /geniro:refactor product-decision escalation.
 - Run-outcome and investigation gates — /geniro:review's report wrap-up (Action gate) and round-escalation, /geniro:debug's stall / fix-fail / open-question gates, /geniro:refactor's HIGH-risk step approval and blocked/regression escalations, /geniro:investigate's save-routing walk.
 - Rule-improvement candidate gates — the improvement pass's per-candidate "write this project rule?" walk across /geniro:reflect, /geniro:plan, /geniro:debug, and /geniro:onboard (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation).
 
-The two-step shape — render to a SEPARATE chat message first, then a lean `AskUserQuestion` — is owned by the calling contract (plan-loop.md §"Gate presentation contract"; per-finding-question.md §Message-first rendering), including the separate-message rule and the render-exists check; the pre-fire scrub belongs to the finding-gate contract (per-finding-question.md §Single-finding gate, "Scrub before the AUQ fires"). This file defines the visual language the render uses; consult the calling contract for when and how the render fires.
+The two-step shape — render to a SEPARATE chat message first, then a lean `AskUserQuestion` — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, together with the separate-message rule, the render-exists check, and the pre-fire scrub (§Single-finding gate, "Scrub before the AUQ fires"). Every calling contract above cites that file rather than restating it. This file defines the visual language the render uses; consult per-finding-question.md for when and how the render fires.
 
 ## Visual rendering language
 
@@ -85,21 +85,19 @@ The visual shape per spec section, for a `/geniro:plan` section-approval gate. T
 | 10. Rollback-Recovery | The revert command or feature-flag toggle in a code span |
 | 11. Done Condition | `☐` checklist, one box per observable signal (cluster centerpiece) |
 
-`/geniro:plan` pairs each visual with a concrete example of the section's content; that example set is the calling contract's own (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md`), while the visual shapes above are shared language.
+`/geniro:plan` pairs each visual with a concrete example of the section's content; that example set is the calling contract's own, while the visual shapes above are shared language.
 
 ## Turn-completion guard
 
 The two-step shape leaves a seam between its steps: the render is emitted as its own message, and the lean question follows. A gate is not rendered until the question has actually fired — close the seam in the same pass:
 
 - **After the render message exists, the immediate next action is the lean `AskUserQuestion`.** Never come to rest with the render emitted but the question unfired, and never close on a statement of intent ("I'll now ask which option you prefer"). Control returns to the user only through the question itself — a render with no question silently stalls the flow until the user types something, and whatever the render promised never happens.
-- **Before stopping anywhere in a gate flow, re-read the last emitted message.** If it is the gate render, or text announcing a question or action not yet taken, fire the question (or take the action) now instead of stopping.
+- **Before stopping anywhere in a gate flow — including right after the question is answered — apply the canonical turn-completion check in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`**: re-read the last emitted message and take the announced action instead of stopping.
 - **The render is visible message text, never internal reasoning.** Reasoning produced while deliberating is invisible to the user; a render that was only "thought through" does not exist on their screen. Emit it as an ordinary chat message — the render-exists check (per-finding-question.md §Single-finding gate, "Scrub before the AUQ fires") verifies the immediately-preceding assistant message *is* the render.
 
-**The render-first rule is mechanically enforced.** A plugin guard (`gate-render`) blocks any `AskUserQuestion` whose text references content "above" when the current turn contains no visible assistant message — the user would be answering blind. A blocked question is not a user denial, not an answered gate, and **not a tool failure**: it is a hard-block (`exit 2`) telling you the render is missing, so the empty-answer plain-text fallback in §Lean-question conventions does NOT apply here. Recover in two steps: write the full gate render as an ordinary chat message — the digest, evidence, and visuals the question refers to — then fire the same question again, options unchanged. Do not downgrade to plain-text options in chat (no structured answer is ever captured — treating a guard block as "the tool keeps failing" and asking in prose is the exact deviation this guard's recovery forbids), do not silently drop the gate (the decision is never made), and do not strip the "above" reference from the question to slip past the guard — the reference is what makes the lean question honest, and removing it without rendering hides the same blind-approval failure the guard exists to catch.
+**The render-first rule is mechanically enforced.** A plugin guard (`gate-render`) blocks any `AskUserQuestion` whose text references content "above" when the current turn contains no visible assistant message — the user would be answering blind. A blocked question is not a user denial, not an answered gate, and **not a tool failure**: it is a hard-block (`exit 2`) telling you the render is missing. Recover in two steps: write the full gate render as an ordinary chat message — the digest, evidence, and visuals the question refers to — then fire the same question again, options unchanged. Do not downgrade to plain-text options in chat (no structured answer is ever captured — treating a guard block as "the tool keeps failing" and asking in prose is the exact deviation this guard's recovery forbids), do not silently drop the gate (the decision is never made), and do not strip the "above" reference from the question to slip past the guard — the reference is what makes the lean question honest, and removing it without rendering hides the same blind-approval failure the guard exists to catch.
 
 This guard is the inverse of the separate-message rule: that rule forbids cramming the render and the question into one assistant message; this one forbids emitting the render and then stopping without the question. Both exist because the underlying model has a documented early-stopping failure mode — deep into a long session it can end on a text-only statement of intent without issuing the corresponding tool call. Gates sit exactly on that seam, so the question-fire is part of the render's own action, not a follow-up that can be dropped.
-
-The same applies after the question is answered: an answered gate is continued, not abandoned. The next message acknowledges the decision or starts the decided work — never a silent stop on the answer.
 
 ## Explain-further option
 
@@ -113,6 +111,7 @@ A gate's option set may include an **"Explain further"** option — a reading ai
 
 The lean `AskUserQuestion` that follows the render obeys these conventions at every gate:
 
+- **Every user-facing choice goes through the tool.** A plain-text `(A)/(B)` in chat bypasses the approvals persistence the structured tool records, so a resumed session has nothing to restore and re-asks a question the user already answered. The gates a skill enumerates are examples, not the complete set — a choice that arises mid-phase is still a choice. This is the canonical statement of the rule; consuming skills cite this bullet and list only their own gates.
 - **Single-select** unless the gate is explicitly multi-select (e.g. a pick loop).
 - **Never auto-default on an empty answer.** An empty answer indicates an upstream tool bug, not a user choice — re-ask. Only a repeated *empty-answer* loop (the tool keeps returning nothing) justifies falling back to a plain-text question in chat. A `gate-render` block (`exit 2`) is neither an empty answer nor a tool failure — recover it per §Turn-completion guard (render, then re-fire the same `AskUserQuestion`), never with the plain-text fallback.
 - **≤4 options per call**, chaining a follow-up question per per-finding-question.md §Cap-extension when more exist; never drop or merge options to fit one call.

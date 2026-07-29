@@ -1,5 +1,7 @@
 ---
-globs: "skills/**/*.md, agents/**/*.md"
+paths:
+  - "skills/**/*.md"
+  - "agents/**/*.md"
 ---
 
 # Skill & agent authoring — what NEVER ships to downstream consumers

@@ -1,4 +1,4 @@
-# Guidelines Review Criteria
+# Guidelines review criteria
 
 Code style, naming conventions, documentation, consistency, and compliance with project standards.
 

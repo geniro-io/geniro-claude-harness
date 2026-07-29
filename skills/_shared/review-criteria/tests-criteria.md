@@ -1,4 +1,4 @@
-# Tests Review Criteria
+# Tests review criteria
 
 Test coverage analysis, edge case handling, test quality, and critical path coverage assessment.
 

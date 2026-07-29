@@ -79,7 +79,11 @@ find_safety_json() {
 ALLOWED=""
 SAFETY_FILE=$(find_safety_json 2>/dev/null || true)
 if [ -n "$SAFETY_FILE" ] && [ -f "$SAFETY_FILE" ]; then
-  ALLOWED=$(jq -r '.allow_patterns[]? // empty' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
+  # allow_patterns entries name exact pattern IDs. The membership test below is a
+  # substring probe over the space-joined list, so a single entry that CARRIES
+  # whitespace ("harmless write-env alsoharmless") would silently enable every ID
+  # spelled inside it. Reject those at load rather than weaken the probe.
+  ALLOWED=$(jq -r '.allow_patterns[]? | select(type == "string" and (test("[[:space:]]") | not))' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
 fi
 
 case " $ALLOWED " in

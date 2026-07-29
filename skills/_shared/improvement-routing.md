@@ -1,4 +1,4 @@
-# Improvement Routing (canonical)
+# Improvement routing (canonical)
 
 ## Contents
 
@@ -174,7 +174,7 @@ Then the lean question (header `Rule N of M`, or just `Rule N` when only one can
 - **"Skip this rule"** — decline just this candidate and continue to the next.
 - **"Skip the rest"** — decline this candidate and all remaining ones; ends the walk.
 
-Write each approved candidate before rendering the next — for `.geniro/instructions/` and `code-style.md` targets, hand off to `/geniro:instructions create`; for CLAUDE.md / `.claude/rules/` / ADR / learnings, the orchestrator writes via the atomic state helpers. On a `Skip this rule` / `Skip the rest` / explicit decline, log it via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`) so the declined suggestion does not re-surface next run.
+Write each approved candidate before rendering the next — for `.geniro/instructions/` and `code-style.md` targets, hand off to `/geniro:instructions create`; for learnings, `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh`; for CLAUDE.md / `.claude/rules/` / ADR, ordinary `Edit`/`Write` — user-visible project files outside `.geniro/`, where the state-helper enforcement does not bind and the approval just collected is the authorization. On a `Skip this rule` / `Skip the rest` / explicit decline, log it via `emit_rejection_if_signal` (`${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh`) so the declined suggestion does not re-surface next run — one emit per declined candidate, so `Skip the rest` logs the unrendered remainder too rather than letting it return on every future run.
 
 An empty candidate list opens no `AskUserQuestion` — skip the walk entirely — but the `Reviewed for improvements: 0 candidate(s)` echo still fires (per §"Anchor + echo").
 

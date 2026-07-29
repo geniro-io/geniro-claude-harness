@@ -2,18 +2,6 @@
 
 **Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), and `/geniro:plan` (manages `_FEATURES.md`).
 
-## Contents
-
-- §API — `update_semantic` signature + append/replace modes
-- §MODE contract — append vs replace
-- §Constraints — bounded-write limits
-- §Lock semantics — per-file O_EXCL lock + rc=11
-- §Replace semantics — prefix-match replacement
-- §Examples
-- §Caller patterns: handling rc=11
-- §Known limitations
-- §Test coverage
-
 ## API
 
 ```bash
@@ -26,28 +14,26 @@ update_semantic --file <codebase-map|features> --append "<line>"
 update_semantic --file <codebase-map|features> --replace "<prefix>" "<new-line>"
 ```
 
-**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so `_CODEBASE_MAP.md` / `_FEATURES.md` mutations land in the canonical store. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+**Path resolution:** `lib/repo-root.sh::_geniro_repo_root` resolves to the PRIMARY worktree, so `_CODEBASE_MAP.md` / `_FEATURES.md` mutations land in the canonical store, never a linked worktree's. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists".
 
 Exit codes:
 - `0` — wrote (or no-op, e.g. replace with no match — surfaced via stderr).
 - `11` — lock held by another writer; caller should defer or retry.
 - `64` — bad / missing flags.
-- `68` — append line exceeds 4096 bytes.
+- `68` — append content exceeds 4096 bytes.
 - `69` — append IO failure.
 - `70` — `awk` failed during `--replace` (a real runtime error, distinct from a clean no-match which is rc=0).
 - `71` — atomic write of replacement failed (also returned if `mktemp` fails while staging a `--replace`).
 
 ## MODE contract
 
-Write-side helper — **no MODE parameter, compaction-immune.** Each
-invocation is a one-shot file mutation; the helper holds no context-resident
-state across calls. Skill flow decides when to re-invoke after a SessionStart
-event.
+**No MODE parameter, compaction-immune** — each invocation is a one-shot file mutation holding no
+context-resident state, so re-invoking after a SessionStart event is always safe.
 
 ## Constraints
 
 - **Applies only to `_CODEBASE_MAP.md` and `_FEATURES.md`.** Other L3 files (`_project.md`, `_architecture.md`, `_focus-*.md`) are manual-only.
-- **Append-only or single-line replacement.** Never rewrites the whole file. Human edits anywhere in the file survive untouched.
+- **Append or single-line replacement.** Never rewrites the whole file. One `--append` may carry several lines (up to the per-call byte ceiling, rc=68 past it), so a caller composing a whole section appends it as one block rather than line by line. Human edits anywhere in the file survive untouched.
 - **Format is the caller's responsibility.** Helper accepts any string as the line. Spec recommends `- <path> — <short description>, used by <consumer>` but the helper does not enforce that — keeping format-policing out of the I/O layer lets callers compose.
 - **Lock-guarded.** Each target has its own lock: `.geniro/planning/.codebase-map.lock` for codebase-map, `.geniro/planning/.features.lock` for features. Concurrent writers see rc=11 and decide whether to retry or defer until skill completion.
 
@@ -82,34 +68,12 @@ update_semantic --file features \
 
 ## Caller patterns: handling rc=11
 
-The expected pattern is **defer-and-retry-at-skill-end**:
-
-```bash
-deferred_writes=()
-attempt_update() {
- update_semantic "$@"
- if [ $? -eq 11 ]; then
- # %q-quote each arg so a multi-word --append/--replace value survives the
- # eval replay as ONE argument ("$*" would re-split it into many).
- deferred_writes+=("$(printf '%q ' "$@")")
- fi
-}
-
-# At skill completion, drain the queue
-for w in "${deferred_writes[@]}"; do
- # eval safe here: args were %q-quoted at enqueue time
- eval "update_semantic $w"
-done
-```
+The expected pattern is **defer-and-retry-at-skill-end**: rc=11 means the lock is held, not that the write failed, so queue the call and drain the queue at skill completion rather than dropping the write. Argument boundaries must survive the deferral — a multi-word `--append` / `--replace` value has to replay as ONE argument, never re-split into several.
 
 For high-concurrency contention scenarios, callers can implement bounded retry with backoff — but typically L3 writes are once-per-skill-phase, and contention is rare.
 
 ## Known limitations
 
 - **Stale-lock recovery is time-bounded, not manual.** A SIGKILL/crash leaves the lock file, but the next writer auto-reclaims it once its mtime exceeds the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, default 600s). The leak is therefore limited to a lock younger than that window.
-- **No batch ops.** One line per call. Callers needing multiple writes loop.
+- **One call, one atomic unit.** An append carries as much as fits under the byte ceiling; past it the caller splits into further calls.
 - **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. Acceptable per the spec's "single-line replacement; no mass rewrites" guarantee.
-
-## Test coverage
-
-`tests/memory/update-semantic.sh` exercises append (to missing file + existing file), replace (matching + non-matching + missing file), all flag-validation failures (rc=64), lock contention (rc=11), and per-file independent locks.

@@ -90,32 +90,39 @@ emit_conflict_notice() {
       ;;
   esac
 
-  printf '[layer-conflict] subject: %s\n' "$_RC_SUBJECT"
+  printf 'Conflict on: %s\n' "$_RC_SUBJECT"
 
   if [ -n "$_RC_L4" ]; then
     if [ -n "$_RC_L4_SRC" ]; then
-      printf '  L4 rule (project rules) %s: %s\n' "$_RC_L4_SRC" "$_RC_L4"
+      printf '  Your project rules %s: %s\n' "$_RC_L4_SRC" "$_RC_L4"
     else
-      printf '  L4 rule (project rules): %s\n' "$_RC_L4"
+      printf '  Your project rules: %s\n' "$_RC_L4"
     fi
   fi
   if [ -n "$_RC_L3" ]; then
     if [ -n "$_RC_L3_SRC" ]; then
-      printf '  L3 fact (project snapshot) %s: %s\n' "$_RC_L3_SRC" "$_RC_L3"
+      printf '  Your project snapshot %s: %s\n' "$_RC_L3_SRC" "$_RC_L3"
     else
-      printf '  L3 fact (project snapshot): %s\n' "$_RC_L3"
+      printf '  Your project snapshot: %s\n' "$_RC_L3"
     fi
   fi
   if [ -n "$_RC_L2" ]; then
     if [ -n "$_RC_L2_SRC" ]; then
-      printf '  L2 history (past learnings) %s: %s\n' "$_RC_L2_SRC" "$_RC_L2"
+      printf '  Past learnings %s: %s\n' "$_RC_L2_SRC" "$_RC_L2"
     else
-      printf '  L2 history (past learnings): %s\n' "$_RC_L2"
+      printf '  Past learnings: %s\n' "$_RC_L2"
     fi
   fi
 
   if [ -n "$_RC_FOLLOWING" ]; then
-    printf '  → Skill is following %s (precedence).' "$_RC_FOLLOWING"
+    # The flag carries a layer code; the rendered line must not (fresh-user test).
+    case "$_RC_FOLLOWING" in
+      L4) _rc_following_name="your project rules" ;;
+      L3) _rc_following_name="your project snapshot" ;;
+      L2) _rc_following_name="past learnings" ;;
+      *)  _rc_following_name="$_RC_FOLLOWING" ;;
+    esac
+    printf '  \342\206\222 Following %s.' "$_rc_following_name"
     if [ -n "$_RC_SUGGESTED" ]; then
       printf ' %s' "$_RC_SUGGESTED"
     fi
@@ -126,21 +133,21 @@ emit_conflict_notice() {
 hard_conflict_block() {
   _rc_parse_args "$@" || return $?
 
-  printf 'Hard cross-layer conflict on: %s\n\n' "$_RC_SUBJECT"
+  printf 'Conflict that needs your decision: %s\n\n' "$_RC_SUBJECT"
   printf 'The layers disagree and precedence (project rules > project snapshot > past learnings) alone cannot resolve this — your project rule contradicts current project-snapshot reality. Which is intent?\n\n'
 
   if [ -n "$_RC_L4" ]; then
-    printf '  - L4 rule (project rules)'
+    printf '  - Your project rules'
     [ -n "$_RC_L4_SRC" ] && printf ' (%s)' "$_RC_L4_SRC"
     printf ': %s\n' "$_RC_L4"
   fi
   if [ -n "$_RC_L3" ]; then
-    printf '  - L3 fact (project snapshot)'
+    printf '  - Your project snapshot'
     [ -n "$_RC_L3_SRC" ] && printf ' (%s)' "$_RC_L3_SRC"
     printf ': %s\n' "$_RC_L3"
   fi
   if [ -n "$_RC_L2" ]; then
-    printf '  - L2 history (past learnings)'
+    printf '  - Past learnings'
     [ -n "$_RC_L2_SRC" ] && printf ' (%s)' "$_RC_L2_SRC"
     printf ': %s\n' "$_RC_L2"
   fi

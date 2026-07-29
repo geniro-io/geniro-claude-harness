@@ -1,6 +1,6 @@
 # Debug — Detailed Reference
 
-Detail sections extracted from `skills/debug/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
 ## Contents
 
@@ -21,20 +21,23 @@ Detail sections extracted from `skills/debug/SKILL.md` to keep the main skill bo
 state.md `phase:` enum transitions:
 
 ```
-[entry] → mode-detect ──┬── investigate ──┬── propose ──┬── ship ── done
-                        │                 │             └── ship-summary-only (terminal — "Leave it to me")
-                        │                 │
-                        │                 └── phase-2-escalated ──┬── ship (accept-as-documented-limitation)
-                        │                                         ├── propose (try-different-approach loop-back)
-                        │                                         └── aborted (terminal)
-                        │
-                        └── phase-1-escalated ──┬── investigate (supply-data loop-back)
-                                                ├── ship-summary-only (abandon — partial findings)
-                                                └── aborted (terminal)
+[entry] → mode-detect ── investigate ──┬── propose ──┬── ship ──┬── done (terminal)
+                                       │             │          └── ship-summary-only (terminal — "Leave it to me")
+                                       │             │
+                                       │             └── phase-2-escalated ──┬── ship (accept-as-documented-limitation)
+                                       │                                     ├── propose (try-different-approach loop-back)
+                                       │                                     └── aborted (terminal)
+                                       │
+                                       └── phase-1-escalated ──┬── investigate (supply-data loop-back)
+                                                               ├── ship (abandon — partial findings; Phase 3 exit
+                                                               │         writes the terminal ship-summary-only)
+                                                               └── aborted (terminal)
 
 [entry] → adversarial-mode-detect ── adversarial-investigate ── adversarial-ship ──┬── done
                                                                                    └── adversarial-aborted (terminal — zero red tests)
 ```
+
+Each escalation edge leaves the phase whose gate writes it: `phase-1-escalated` from `investigate` (the stall gate), `phase-2-escalated` from `propose` (the fix-loop gate).
 
 **Terminal states:** `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`. The SessionStart recovery treats all four as "task complete — no resume needed".
 
@@ -119,34 +122,22 @@ status: done
 deep-mode: <true|false>               # propagated from state.md; producer→consumer in lockstep; missing reads as false
 approvals: []
 non-resumable-actions: []
-authored_tests:                       # MUST be present; MAY be empty []
-  - id: t1                            # short stable anchor (t1, t2, ...)
-    path: <repo-root-relative path>   # resolve against debug-source-worktree's `git rev-parse --show-toplevel`
-    intent: <one-line guarantee>      # e.g., "covers H2 — null-pointer on empty payload"
-    mode: scientific                  # MUST match top-level `mode:`
-    f_to_p_status: <enum>             # red-on-current | green-under-patch | red-on-current+green-under-patch | escape-hatch
-    related_hypotheses: [H2]          # optional — Hypothesis IDs from `## Hypotheses`
-    targeted_source: <prod path>      # optional — production file the test targets (used by /geniro:implement for triage)
-    confidence: high                  # optional — adversarial mode only (high|medium|low)
-open_questions:                       # MUST be present; MAY be empty []
-  - id: q1                            # short stable anchor (q1, q2, ...)
-    source: <phase-or-step>           # e.g., phase-1-stall-gate, phase-2-multi-path-fix, phase-3-cannot-verify
-    question: <verbatim ambiguity question>
-    related_hypotheses: [H2, H4]      # optional — Hypotheses IDs from `## Hypotheses` this question is tied to
-    status: unresolved                # enum: unresolved | resolved | wontfix
-    resolution:                       # populated only when status moves out of `unresolved`
-      picked: <chosen option>
-      at: <ISO-8601 UTC>
-      asked_in_phase: <phase name>
-      resolved_by: <skill — debug | implement | manual>
+authored_tests: []                    # entry fields: id, path, intent, mode, f_to_p_status,
+                                      #   related_hypotheses, targeted_source, confidence
+open_questions: []                    # entry fields: id, source, question, related_hypotheses,
+                                      #   status, resolution{picked, at, asked_in_phase, resolved_by}
 ---
 ```
 
 Body: full content of findings template + body sections (`## Tool log` / `## Errors` / `## Open Questions` (human-readable mirror of frontmatter) / `## Resolved Questions` / `## Persisted approvals`).
 
-The `open_questions[]` frontmatter array is the machine-readable source of truth per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /geniro:implement's Phase 1 handoff-resolution step gate.
+Both arrays are present on every handoff and may be empty `[]`; the per-field schema, enums, and producer/consumer responsibilities live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — `open_questions[]` under §T2, `authored_tests[]` under §Producer-specific extensions. Restating the fields here is what lets them drift out of step with /geniro:implement's consumer, so read the schema there rather than from a copy.
 
-The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced — full schema and producer/consumer contracts in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /geniro:implement Phase 1 handoff-resolution step) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
+Debug-specific values within those schemas: `mode:` matches the handoff's top-level `mode:` discriminator (`scientific` here, `adversarial` for the adversarial handoff); `source:` names the gate that raised the question (`phase-1-stall-gate`, `phase-1-missing-data-gate`, `phase-2-multi-path-fix`, `phase-3-cannot-verify`); `resolution.resolved_by:` is `debug`, `implement`, or `manual`.
+
+The `open_questions[]` frontmatter array is the machine-readable source of truth. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /geniro:implement's Phase 1 handoff-resolution step gate.
+
+The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /geniro:implement Phase 1 handoff-resolution step) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
 
 ### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
 
@@ -158,20 +149,9 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`.
 
 When symptoms suggest the bug may not be in the code (timeouts, intermittent failures, environment-specific errors, deployment regressions), investigate infrastructure before or alongside code hypotheses.
 
-**Signals requiring at least one infrastructure hypothesis:**
+**Signals requiring at least one infrastructure hypothesis:** timeouts; intermittent failures (error rate >0 but <100%); environment-only manifestation (works locally, breaks in staging/prod); latency degradation without a code change; symptoms correlating with a deployment, config change, secret rotation, or scale event.
 
-- Timeouts (request, query, container, deployment)
-- Intermittent failures (5xx spike with no code change, error rate >0 but <100%)
-- Environment-only manifestation (works locally, breaks in staging/prod)
-- Symptoms correlate with a deployment, config change, secret rotation, or scale event
-- Latency degradation without code change
-
-**What to investigate:**
-
-- **Logs & error tracking** — application logs for error spikes, upstream failures, correlation with deployments
-- **Service health** — database connectivity/query performance, external service dependencies, container/process health (OOM kills, restart loops, CPU throttling)
-- **Environment & config** — env var diffs between working/broken environments, recent config changes, secret rotations, certificate expirations, DNS/network/firewall
-- **Resource limits** — memory, CPU, disk space, file descriptors, connection pool size vs active connections, external API rate limits
+**What to investigate:** logs, service health, environment/config diffs between the working and broken environments, and resource limits. The entries that get missed sit inside those categories — **certificate expiry**, **secret rotation**, and **connection-pool size vs active connections** — each breaks a running system while every code path is still correct.
 
 **Hypothesis quality bar:** "The database connection pool is exhausted under load" is testable — names the resource, condition, and observable signature. "Something is wrong with the server" is NOT a hypothesis — no variable to toggle, no falsifiable prediction.
 
@@ -183,25 +163,9 @@ Once a hypothesis is confirmed, narrow down to exact code location.
 
 **Binary search:** Disable half the relevant code path, check if the bug reproduces. Narrow iteratively. O(log N) iterations. Use when the confirmed hypothesis points to a general region but exact line/branch is unclear.
 
-**Git bisect:** For regressions, identify the commit that introduced the bug.
+**Git bisect:** For regressions, walk the good→bad range to identify the commit that introduced the bug. Use when the bug was absent at a prior commit.
 
-```bash
-git bisect start
-git bisect bad HEAD
-git bisect good <known-good-sha>
-# git checks out midpoint; run repro; mark good/bad; repeat
-git bisect reset
-```
-
-Use when the bug was absent at a prior commit. `git bisect run <repro-script>` automates the walk.
-
-**Profiling:** For performance bugs, use profiling tools for quantitative data (timing, memory, allocation count). Code inspection cannot distinguish "slow because of N+1 query" from "slow because of N^2 allocation."
-
-- Node: `node --prof`, `clinic.js`, `0x`, Chrome DevTools heap snapshots
-- Python: `cProfile`, `py-spy`, `memray`
-- Go: `pprof`
-- JVM: `async-profiler`, JFR
-- Browser: Performance panel, Memory panel, Lighthouse
+**Profiling:** For performance bugs, use the language's profiler for quantitative data (timing, memory, allocation count). Code inspection cannot distinguish "slow because of N+1 query" from "slow because of N^2 allocation."
 
 **Pick the cheapest technique:** binary search if the region is large; git bisect if the regression boundary is known; profiling if the symptom is quantitative. Don't run all three.
 
@@ -209,7 +173,7 @@ Use when the bug was absent at a prior commit. `git bisect run <repro-script>` a
 
 ## 5. Stall Diagnosis Taxonomy
 
-When /geniro:debug stalls (the stall gate fires — threshold defined in SKILL.md §1.7), classify the root-cause-of-the-stall as a missing component:
+When /geniro:debug stalls (the stall gate fires — threshold defined in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.7), classify the root-cause-of-the-stall as a missing component:
 
 | # | Missing component | Symptom | AUQ option label | AUQ description |
 |---|---|---|---|---|
@@ -224,7 +188,7 @@ When /geniro:debug stalls (the stall gate fires — threshold defined in SKILL.m
 
 **AUQ rendering:** stall gate fires `AskUserQuestion` with header "Stall diagnosis". Render the most likely missing-component categories plus an "Abandon — present partial findings" option (AUQ maxItems=4, so typically the top 3 categories + Abandon) — the model picks categories based on stall context (inconclusive-test outputs, hypothesis types tried). "Abort" comes via "Other". Each option's `preview` (where helpful) shows what Phase 1 will do next.
 
-**Persistence:** same structured-entry pattern as the Scientific-mode stall gate (SKILL.md §1.7 Stall escalation gate). Write a structured `open_questions[]` entry with `source: phase-1-stall-gate`, `question: <verbatim category text>`, `related_hypotheses: [<inconclusive H-IDs>]`, `status: unresolved`. On user pick of any surfaced missing-component category, update to `status: resolved` with `resolution.picked` and `resolution.resolved_by: debug`. On Abandon or Abort, the entry stays `unresolved` and Phase 3 §3.0 Pre-gate surfaces it before the escalation AUQ.
+**Persistence:** same structured-entry pattern as the Scientific-mode stall gate (`${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.7 Stall escalation gate). Write a structured `open_questions[]` entry with `source: phase-1-stall-gate`, `question: <verbatim category text>`, `related_hypotheses: [<inconclusive H-IDs>]`, `status: unresolved`. On user pick of any surfaced missing-component category, update to `status: resolved` with `resolution.picked` and `resolution.resolved_by: debug`. On Abandon or Abort, the entry stays `unresolved` and Phase 3 §3.0 Pre-gate surfaces it before the escalation AUQ.
 
 ---
 
@@ -320,19 +284,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ### Example 1: Cache Not Invalidating
 
-```
-/geniro:debug User sees stale data after profile update
-```
-
-→ Phase 1 Observe: User updates name, refresh page shows old name
-→ Hypothesis 1: Cache invalidation broken; Hypothesis 2: Update endpoint not called
-→ Test: Add logging to cache invalidation and endpoint
-→ Result: Hypothesis 1 confirmed (cache key mismatch) → `[ROOT-CAUSE]`
-→ Phase 2 Propose: patch cacheKey builder in `src/cache/user.ts` to include user ID
-→ Verify: local experiment shows bug disappears with monkey-patch
-→ Phase 3 Findings persisted to `from-debug-<branch>.md`
-→ Escalate: /geniro:implement with the proposed patch
-→ L2 emit `diagnosis` with tags=[cache, invalidation, user-role]
+`/geniro:debug User sees stale data after profile update` → two competing hypotheses (cache invalidation broken vs. update endpoint never called); logging confirms the first, isolating a cache-key mismatch as the `[ROOT-CAUSE]` → propose patching the cacheKey builder in `src/cache/user.ts` to include the user ID, verified by monkey-patch → findings persisted to `from-debug-<branch>.md`, escalated to /geniro:implement, `diagnosis` emitted with tags=[cache, invalidation, user-role].
 
 ### Example 2: Intermittent Timeout
 
@@ -365,7 +317,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ## 8. Open-PR scan — already fixed elsewhere?
 
-Phase 1 (Scientific Mode) sub-step referenced from SKILL.md §1.2. Checks whether an open PR already fixes the bug under investigation — so a debug session does not re-investigate something a teammate is already patching, and so a strong match can prime or short-circuit the hypothesis loop. Read-only; never opens, edits, or comments on a PR (debug's no-ship boundary holds).
+Phase 1 (Scientific Mode) sub-step referenced from `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.2. Checks whether an open PR already fixes the bug under investigation — so a debug session does not re-investigate something a teammate is already patching, and so a strong match can prime or short-circuit the hypothesis loop. Read-only; never opens, edits, or comments on a PR (debug's no-ship boundary holds).
 
 **When it runs.** After §1.2 Observe & repro, once the symptom and the suspect / recently-changed files are known, before §1.4 Hypothesize. Scientific Mode only — Adversarial Mode tests a specific diff, where "already fixed elsewhere" does not apply.
 

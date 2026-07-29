@@ -13,7 +13,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 ## Phases overview
 
-1. **Phase 0 — Scope & inventory.** Parse `$ARGUMENTS`, build the file inventory, load the rubric (the three `.claude/rules/*.md` files + the do-not-flag list).
+1. **Phase 0 — Scope & inventory.** Parse `$ARGUMENTS`, build the file inventory, load the rubric (the three `.claude/rules/*.md` files + `dimensions-reference.md`).
 2. **Phase 1 — Mechanical pre-pass.** Run the D1 deterministic battery (tests, lint, shellcheck, wiring greps). Output: machine findings + candidate lists that seed the reviewers.
 3. **Phase 2 — Parallel dimension reviewers.** Spawn up to 8 reviewers (D2-D8, with D5 split into markdown + shell) in ONE response.
 4. **Phase 3 — Merge, verify, filter.** Dedupe, count convergence, re-read every cited line, drop unverifiable and do-not-flag items, assign tiers.
@@ -27,6 +27,24 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 3. **Parallel spawns in one response.** All Phase 2 `Agent(...)` calls go in the same assistant turn; sequential turns serialize wall-time across 7-8 reviewers.
 4. **Do-not-flag list is binding.** The reference file's endorsed-patterns list overrides any reviewer's instinct — re-flagging endorsed patterns is the audit's own false-positive failure mode.
 5. **Caps are guidelines.** Line/row caps over target are advisory findings proposing a MOVE to a reference file, never a cut of load-bearing content.
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "The reviewer quoted the line — no need to re-read it." | Invariant #1: admission requires YOUR Read of the cited location. |
+| "I'll fix this obvious typo while scanning." | Invariant #2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
+| "I'll spawn reviewers one at a time to manage context." | Reviewer outputs are bounded (≤25 rows each); the orchestrator only holds tables, not the reviewers' reading. Sequential spawns multiply wall-time ~8×. |
+| "This caps-MUST is a violation." | Caps inside anti-rationalization right-hand cells with reasoning are explicitly endorsed. Check the do-not-flag list before flagging. |
+| "This SKILL.md is 520 lines — finding: trim 20 lines." | Invariant #5: the valid finding is advisory + a MOVE proposal, never a cut. |
+| "Two files state the same threshold and agree, so it's fine." | Agreement today is drift tomorrow — multi-homed constants are the D7 finding even when values match. Fix: one home, others cite it. |
+| "Tests pass, so hooks/lib are correct." | Passing ≠ covered: hard-block guards have historically shipped untested. D8's coverage map is independent of the suite's exit code. |
+| "A magic number needs a named constant." | These are markdown instructions and small shell scripts — the fix is an inline WHY or a citation to the canonical home. Keep the number. |
+| "The same finding from two reviewers — I'll report both rows." | Convergence is a signal, not two findings. Collapse to one row with `convergence: 2` — duplicate rows inflate counts and erode the report's signal. |
+| "Skill X mentions /geniro:learnings — stale ref, flag it." | Deleted-skill names inside the documented replacement tables (CLAUDE.md, MIGRATION.md) are documentation OF the deletion. Adjudicate candidates; don't bulk-flag grep hits. |
+| "The user said audit everything — I'll include design/ and evals/." | Out of default scope: design/ holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
+| "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
+| "There are 80 findings — I'll show tier counts and link the report." | The user approves fixes finding-by-finding, so a count hides the exact edits they're authorizing. Render every finding (low included) before the gate; send the report file when the set is long, but the visible set must equal the approvable set. |
 
 ## Budgets
 
@@ -57,7 +75,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
    - Repo-local: `.claude/rules/*.md`, `.claude/skills/**/*.md`.
    - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
    - Tests: `tests/**` (coverage map input for D8). `design/` and `evals/` are out of scope unless `$ARGUMENTS` names them.
-3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and the do-not-flag list from `.claude/skills/audit-plugin/dimensions-reference.md`. If prior dated audit reports exist (`design/scratch/plugin-audit-2*.md` — date-named reports only, not companions like `plugin-audit-PROGRESS.md`; the whole `design/scratch/` area is gitignored, so this only finds reports from prior runs ON THIS MACHINE — a fresh clone starts without prior-audit context, which is fine), read the most recent one's health summary — patterns it endorses extend the do-not-flag list, and its open findings get a "still open?" re-check tag in Phase 3.
+3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and `.claude/skills/audit-plugin/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. If prior dated audit reports exist (`design/scratch/plugin-audit-2*.md` — date-named reports only, not companions like `plugin-audit-PROGRESS.md`; the whole `design/scratch/` area is gitignored, so this only finds reports from prior runs ON THIS MACHINE), read the most recent one's health summary and T0-T2 tier tables — patterns it endorses extend the do-not-flag list, and those rows enter the Phase 3 merge tagged "still open?".
 4. **Write the state checkpoint** to `.geniro/state/audit-plugin/<slug>/state.md` — slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules; audit-plugin is not in that helper's enumerated producer set but adopts its contract shape verbatim. Write via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — direct Write to `.geniro/state/` paths trips the state-helper hook), with the full T1.5 YAML frontmatter starting on line 1: `tier: T1.5`, `producer: audit-plugin`, `schema-version: 1`, `branch`, `worktree`, `timestamp`, `phase`, `status`, `non-resumable-actions: []` (plain-text header lines before the `---` fence fail `validate_state_file`). Checkpoint after every phase with: phase completed, scope, dimensions selected, finding counts.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
@@ -114,7 +132,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 3 — Merge, verify, filter (orchestrator-inline)
 
-1. **Merge** all reviewer tables + machine findings. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
+1. **Merge** all reviewer tables + machine findings, plus the prior report's T0-T2 rows tagged "still open?" in Phase 0 — carried so a re-detection miss can't silently close a safety or correctness finding, and bounded to those tiers because lower ones resurface on their own if they persist. A carried row cites a location but no evidence quote, so step 2 verifies it by re-reading that location for the issue itself; gone means it was fixed since. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
 2. **Verify** every non-machine finding: Read the cited `file:line` ±5 lines; the quoted evidence must appear there and the issue description must match what the code/prose actually says. Quote absent or claim mischaracterizes the source → drop with a one-line note in the report's "Filtered" section.
 3. **Filter**: drop do-not-flag matches; drop T5 findings with no convergence and weak evidence (cosmetic noise floor); collapse repeating patterns (e.g., 14 restatement sites) into ONE finding listing all locations.
 4. **Calibrate tiers** — reviewers over-rate their own dimension; re-check each T0/T1 against the tier table definitions (T0 requires an actual bypass/loss path, T1 an actual behavior delta).
@@ -137,8 +155,6 @@ In chat, render **every** finding before the action gate — the user approves i
 
 ## PHASE 5 — Action gate
 
-The user must see each finding (Phase 4) before this gate — approving a fix they never read is the failure this gate guards against.
-
 Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness, ...). How should I proceed?" with options: "Fix safety + correctness now (T0-T1) (Recommended)" / "Let me pick findings" / "Report only — I'll handle fixes separately".
 
 - **Fix path:** group approved findings by file/module; spawn implementation agents (one per group, ONE response) with the finding rows + verbatim current content pre-inlined and the constraint set from the repo rules (edit-in-place, no scope creep, caps are guidelines). Then re-run the Phase 1 battery + Read each changed location to confirm the finding is resolved. Max 1 fix round — surviving failures go back to the user. Large structural items (multi-file refactors, reference-graph re-homing) are better routed to `/improve-template` with the finding rows as `$ARGUMENTS`; say so instead of attempting them inline.
@@ -150,24 +166,6 @@ Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness,
 ## State recovery
 
 On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.md`. If present: first source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "The reviewer quoted the line — no need to re-read it." | Reviewers fabricate plausible `path:line` citations. Invariant #1: admission requires YOUR Read of the cited location. One fabricated citation discredits the entire report. |
-| "I'll fix this obvious typo while scanning." | Invariant #2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
-| "I'll spawn reviewers one at a time to manage context." | Reviewer outputs are bounded (≤25 rows each); the orchestrator only holds tables, not the reviewers' reading. Sequential spawns multiply wall-time ~8×. |
-| "This caps-MUST is a violation." | Caps inside anti-rationalization right-hand cells with reasoning are explicitly endorsed. Check the do-not-flag list before flagging. |
-| "This SKILL.md is 520 lines — finding: trim 20 lines." | Caps are guidelines. The valid finding is advisory + a MOVE proposal (detail → reference file), never a cut to hit a number. |
-| "Two files state the same threshold and agree, so it's fine." | Agreement today is drift tomorrow — multi-homed constants are the D7 finding even when values match. Fix: one home, others cite it. |
-| "Tests pass, so hooks/lib are correct." | Passing ≠ covered: hard-block guards have historically shipped untested. D8's coverage map is independent of the suite's exit code. |
-| "A magic number needs a named constant." | These are markdown instructions and small shell scripts — the fix is an inline WHY or a citation to the canonical home. Keep the number. |
-| "The same finding from two reviewers — I'll report both rows." | Convergence is a signal, not two findings. Collapse to one row with `convergence: 2` — duplicate rows inflate counts and erode the report's signal. |
-| "Skill X mentions /geniro:learnings — stale ref, flag it." | Deleted-skill names inside the documented replacement tables (CLAUDE.md, MIGRATION.md) are documentation OF the deletion. Adjudicate candidates; don't bulk-flag grep hits. |
-| "The user said audit everything — I'll include design/ and evals/." | Out of default scope: design/ holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
-| "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
-| "There are 80 findings — I'll show tier counts and link the report." | The user approves fixes finding-by-finding, so a count hides the exact edits they're authorizing. Render every finding (low included) before the gate; send the report file when the set is long, but the visible set must equal the approvable set. |
 
 ## Definition of done
 

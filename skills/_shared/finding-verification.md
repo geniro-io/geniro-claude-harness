@@ -1,6 +1,6 @@
 # /geniro:review Phase 4.2 — Per-finding empirical-reproduction verifier
 
-Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — is verified by a file-clustered fresh `reviewer-agent` spawn in verify-finding mode: survivors citing the same file share one spawn (up to 3 findings per cluster; a solo survivor or a sentinel-`File` finding spawns singly), with one independent verdict per finding. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result per finding. Isolated context per verifier (NOT the full reviewer bundle — the isolation boundary is the originating reviewer's bundle, not cluster siblings) prevents anchoring and sycophancy. Every §4.1 survivor is verified — no tier-scaling, no severity-scaling. The §4.1 multi-signal gate already constrains the survivor set to findings with Evidence-Block-grade citations (signal #2 mandatory for MEDIUM, and every kept finding at CRITICAL / HIGH / MEDIUM carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`), so every code-anchored survivor has a concrete file:line for the verifier to re-read. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice (§2 path-less branch).
+Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — is verified by a file-clustered fresh `reviewer-agent` spawn in verify-finding mode: survivors citing the same file share one spawn (cluster cap and its rationale in §4; a solo survivor or a sentinel-`File` finding spawns singly), with one independent verdict per finding. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result per finding. Isolated context per verifier (NOT the full reviewer bundle — the isolation boundary is the originating reviewer's bundle, not cluster siblings) prevents anchoring and sycophancy. Every §4.1 survivor is verified — no tier-scaling, no severity-scaling. The §4.1 multi-signal gate constrains most of the survivor set to findings with Evidence-Block-grade citations, because signal #2 is mandatory for MEDIUM — so a code-anchored MEDIUM always carries a concrete file:line to re-read. A CRITICAL or HIGH may be admitted on convergence or confidence alone, with a thin citation and no Evidence Block: losing a high-severity defect costs more than carrying an unproven one, and supplying the missing quote is this verifier's job (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4.1 — the Evidence Block is a post-verification invariant, not an admission-time one). Where such a finding names no line, slice the cited file from its first referenced symbol instead, and say in the verdict that the anchor was reconstructed. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice (§2 path-less branch).
 
 ## Contents
 
@@ -9,7 +9,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — is verified
 - §3 — Output contract (verifier emits)
 - §3.5 — Resolve embedded "confirm / verify" asks
 - §3.6 — Actionability bar (reachable + behavior delta required for `confirmed`)
-- §4 — Spawn batch shape
+- §4 — Spawn batch shape (canonical home of the same-file cluster cap)
 - §4.5 — Spawn-failure fail-open (orchestrator-assigned `unverified`)
 - §5 — Result aggregation and demotion rules
 - §6 — Anti-rationalization
@@ -30,7 +30,7 @@ Skip condition: ONLY when that set is empty. Never skip based on tier — every 
 
 Each verifier spawn receives ONLY:
 
-- The finding bodies of ONE cluster — 1-3 findings citing the same file, each with its full body (title / file:line / severity / decision-type / confidence / evidence / suggested-fix / why-matters). A single finding is the degenerate one-finding cluster; cross-skill callers such as /geniro:resolve and spec-challenge always pass one.
+- The finding bodies of ONE cluster — the co-located findings citing the same file (cluster cap per §4), each with its full body (title / file:line / severity / decision-type / confidence / evidence / suggested-fix / why-matters). A single finding is the degenerate one-finding cluster; /geniro:resolve clusters its same-file comment items the same way, and spec-challenge always passes one.
 - The cited code slice — orchestrator reads the cited file ONCE per cluster, extracting each member's `line ± 30` window (overlapping windows merge into one range), and inlines into the prompt.
 - 1-hop caller grep results — orchestrator runs `grep -rn "<symbol>" --include="*.<ext>"` for each member's key symbol; pipe results capped at 50 lines per member (when members share a symbol, one merged grep serves them).
 - 1-2 sibling test references per member symbol — orchestrator greps test directories (`test/`, `tests/`, `__tests__/`, `spec/`); capped at 20 lines per member.
@@ -107,20 +107,24 @@ A real server-side pattern that is unreachable under the production flag state i
 
 ## 4. Spawn batch shape
 
+**Cluster cap — at most 3 findings per verifier spawn. This section is the cap's canonical home; every other site cites it rather than restating the number.** Three is where two opposing pressures balance: co-locating same-file survivors amortizes one file read and one caller grep across several verdicts, while every extra body in a spawn widens the cross-item anchoring surface the §2 isolation contract exists to narrow — past three, a verdict is materially more likely to rest on a sibling's framing than on its own literal quote. A solo survivor is the degenerate one-finding cluster; a sentinel-`File` survivor never clusters at all, because it verifies against the diff and has no shared file slice to amortize.
+
 Orchestrator-side (in /geniro:review Phase 4.2):
 
 ```
-Group non-sentinel §4.1 survivors by cited file path; split a group of 4+ into clusters of ≤3.
+Group non-sentinel §4.1 survivors by cited file path; split any group larger than the
+cluster cap into clusters at the cap.
 A sentinel-File survivor (SPEC-COMPLIANCE / PR-METADATA) never clusters — compose its
 spawn per §2's path-less bullet (finding body + `git diff --name-only <base>...HEAD`
-+ any real code file:line embedded in its evidence, read ± 30 lines when present);
++ any real code file:line embedded in its evidence, sliced at the §2 width when present);
 add to the same parallel-spawn batch.
 
 For each cluster:
-  1. Read the cited file ONCE, extracting each member's line ± 30 window (merge overlaps).
-  2. Run `grep -rn "<key symbol from member.evidence>" --include="*.<ext>"` per member
-     (cap 50 lines each; one merged grep when members share the symbol).
-  3. Run `grep -rn "<symbol>" test/ tests/ __tests__/ spec/` per member (cap 20 lines each).
+  1. Read the cited file ONCE, extracting each member's slice window per the §2 caps
+     (merge overlaps).
+  2. Run `grep -rn "<key symbol from member.evidence>" --include="*.<ext>"` per member,
+     capped per §2 (one merged grep when members share the symbol).
+  3. Run `grep -rn "<symbol>" test/ tests/ __tests__/ spec/` per member, capped per §2.
   4. Compose ONE verifier spawn: all member finding bodies + the shared slice + grep
      outputs; instruct one verdict block per finding, keyed by file:line + title.
   5. Add to parallel-spawn batch.
@@ -171,7 +175,7 @@ After all verifiers return, the orchestrator processes each finding's verdict bl
 |---|---|
 | "The original reviewer is usually right — confirm to maintain coherence." | Agreeing to stay coherent with the original reviewer is the documented multi-judge failure mode. Re-read the cited code; if the defect is not visible in the quote, mark refuted. Coherence is not a verification signal. |
 | "Skip the caller grep — the finding cites `file:line`, that's enough." | The cited `file:line` is the reviewer's claim. Without grepping callers, impact cannot be refuted or confirmed. Read the call sites before emitting. |
-| "Pass the full reviewer bundle to each verifier so they have full context." | Shared context anchors verifiers toward agreement — they read the original framing instead of the code. Each verifier sees ONLY its cluster's finding bodies plus cited slice plus caller grep. Independence is load-bearing. The sanctioned cluster — up to 3 co-located finding bodies citing the same file — is not the forbidden bundle, which is the originating reviewer's full output and framing. |
+| "Pass the full reviewer bundle to each verifier so they have full context." | Shared context anchors verifiers toward agreement — they read the original framing instead of the code. Each verifier sees ONLY its cluster's finding bodies plus cited slice plus caller grep. Independence is load-bearing. The sanctioned cluster — co-located finding bodies citing the same file, at the §4 cap — is not the forbidden bundle, which is the originating reviewer's full output and framing. |
 | "Sibling finding #1 in this cluster is confirmed, so #2 in the same file is probably real too." | Cross-item anchoring is the documented failure mode of batched judgment — a verdict must rest on its own literal quote from the cited code, not on a sibling's verdict. Confirm/refute each finding as if it were the only one in the spawn. |
 | "Verifier confidence:1 — silently demote severity to MEDIUM instead of refuting." | `confidence: 1` with no contradicting evidence means the verifier is uncertain; emit `validation: clarified, confidence: 1` and let the orchestrator decide. Silently demoting severity hides the uncertainty from the consumer. |
 | "All §4.1 survivors verified takes too many spawns — sample top-N instead." | The verifier explicitly drops tier-scaling AND severity-scaling. Parallel-spawn invariant: wall-time is ~max(spawn-time) regardless of N. Token cost is bounded by the §4.1 multi-signal gate, which is already tight (MEDIUM requires Evidence-Block + ≥60 confidence), AND by file-clustering — co-located survivors share one spawn. If finding count is high, that signals tightening Phase 4.1, not under-verifying. Sampling or skipping reintroduces the failure mode the empirical-reproduction pass exists to eliminate. |

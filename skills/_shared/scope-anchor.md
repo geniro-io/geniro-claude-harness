@@ -1,6 +1,14 @@
-# Scope Anchor
+# Scope anchor
 
 Canonical rule for what a skill operates on when the user does not explicitly name a target. Referenced from `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement`, `/geniro:onboard`, and `/geniro:investigate`. Define the rule here once; do not paste it into the calling skills.
+
+## Contents
+
+- The rule — what a skill operates on when no target is named
+- Subagent spawn anchor — the WORKTREE / BRANCH slots every spawn carries
+- Forbidden subagent-spawn moves
+- Forbidden discovery moves (when no target was supplied)
+- Anti-rationalization
 
 ## The rule
 

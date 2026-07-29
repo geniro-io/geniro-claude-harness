@@ -1,6 +1,6 @@
 # analyze-thread — checks reference
 
-The canonical 32-check taxonomy used by `/analyze-thread` Phase 2. Each check is tagged:
+The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is tagged:
 
 - `[M]` mechanical (deterministic over the normalized events list) — runs in Phase 2 Step 1
 - `[J]` judged (LLM pass over thread excerpts with this taxonomy seeded) — runs in Phase 2 Step 2
@@ -23,7 +23,7 @@ The canonical 32-check taxonomy used by `/analyze-thread` Phase 2. Each check is
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| A1 | Missed parallel-spawn | warning | generic+plugin | Find runs of ≥2 `tool_use.name == "Agent"` events where each lives in a separate assistant turn AND the inter-event narration contains no result-dependency words ("based on the previous", "after the first agent returns"). Also flag when the active skill body text contains the phrase "in ONE assistant response" or "in ONE response" or "same assistant turn" within the spawn site's enclosing section. |
+| A1 | Missed parallel-spawn | warning | generic+plugin | Find runs of ≥2 `tool_use.name == "Agent"` events where each lives in a separate assistant turn AND the inter-event narration contains no result-dependency words ("based on the previous", "after the first agent returns"). The phrase "in ONE assistant response" / "in ONE response" / "same assistant turn" in the spawn site's enclosing skill section confirms one response was required — it raises confidence on a separate-turn hit; on its own, with the spawns batched in one turn, it is compliance, not a finding. |
 | A2 | Spawn-list violation | blocker | plugin | Only fires when `geniro-run: yes` AND the active skill is `/geniro:review` or `/geniro:implement` Phase 3. Parse the state.md frontmatter (if present in thread) for `spawn_dims_declared:` — count items. Count actual `tool_use.name == "Agent"` events in the same phase whose `subagent_type` is `reviewer-agent`. If actual < declared, flag the diff. |
 | A3 | Hallucinated subagent name | blocker | generic | Extract every `tool_use.input.subagent_type` value from `tool_use.name == "Agent"` events. The Claude Code system prompt lists available agents — collect them from the thread's system message (or the in-thread `Available agent types for the Agent tool:` block). Flag any `subagent_type` not in that list. |
 | A4 | Wrong tier — explicit `model=` against `inherit` | warning | plugin | For each `Agent` tool_use, check if `tool_input.model` is present. Cross-reference against the agent definition's expected behavior: plugin agents declared `model: inherit` in `agents/<name>.md` frontmatter should have NO `model=` field at the spawn site. Hardcoded `model="sonnet"` / `model="haiku"` defeats the user's session-level `/model` choice. |
@@ -52,7 +52,7 @@ The canonical 32-check taxonomy used by `/analyze-thread` Phase 2. Each check is
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| D2 | AskUserQuestion bypass | blocker | generic+plugin | Extract the active skill's `approval_required_for:` list (from spec.md frontmatter or skill body grep). For each entry, find the corresponding tool call (e.g., "git push" → `tool_use.name == "Bash"` with command matching `git push`). Cross-reference: did an `AskUserQuestion` resolve to the approval option BEFORE the call? If no AUQ or AUQ answered "Cancel"/"Skip" — flag. |
+| D2 | AskUserQuestion bypass | blocker | generic+plugin | Key off the outward-action set, not a declared field: for every call matching the `non-resumable-actions[]` enum in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` (`git push`, `gh pr create`, `gh pr comment`, commit, release tag, outward post), scan backwards for an `AskUserQuestion` whose resolved answer covered that action class. Flag when none precedes the call, or the answer was "Cancel" / "Skip". Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`, an approval reaches only the class the user was shown, so a gate about a different class does not count. |
 | D3 | Premature completion (mechanical part) | warning | generic+plugin | Find the last assistant turn containing one of: "shipped", "done!", "all tests pass", "ready to merge", "complete". Then check: (a) TodoWrite state at that point has open items, OR (b) the prior `tool_result` from a test-runner agent had non-zero failure count. The judged part is in §4. |
 | D6 | Unresolved open_questions[] at gate | blocker | plugin | Grep handoff files referenced in the thread for `status: unresolved` entries. If the next assistant turn after the handoff read is a Phase 6 / Pre-PR action (gh pr create, gh pr comment, git push) without a preceding resolution step, flag. |
 
@@ -89,7 +89,7 @@ The canonical 32-check taxonomy used by `/analyze-thread` Phase 2. Each check is
 
 ## 4. Judged checks — taxonomy seed for the LLM-judge prompt
 
-These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. The judge prompt seeds the full list below; the judge returns findings in the schema documented in SKILL.md Phase 2 Step 2.
+These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. This table is what the orchestrator inlines verbatim into each judge prompt (SKILL.md invariant #3); the judge returns findings in the schema documented in SKILL.md Phase 2 Step 2.
 
 | ID | Name | Severity | Scope | What the judge looks for |
 |---|---|---|---|---|
@@ -139,7 +139,7 @@ Use these when tagging FALSE-POSITIVE. Each is a documented case where a mechani
 | A6 over-spawn | The "duplicate" prompts target different `subagent_type` values (e.g., reviewer-agent for `bugs` vs `security`) | Diff the spawn invocations; different subagent_type = different work even with similar prompt. |
 | B3 infinite loop | The 3+ identical calls were retries against a flaky external service (network, MCP) where the tool_result varies | Read the tool_results; if errors differ or eventually succeed, this is correct retry, not infinite loop. |
 | B4 Edit-without-Read | The Edit's target was just created by a Write in the prior turn | Trace backwards: a Write counts as "knowing" the file. |
-| D2 AUQ bypass | The action was on the `approval_required_for: []` (empty list) for the active skill | Re-check the spec.md frontmatter; empty list = nothing requires approval. |
+| D2 AUQ bypass | An upstream approval already covered the action class — a ship gate answered "push and open the PR" covers both calls | Read the approving question and its options; if they named that class, the action is covered. |
 | D3 premature completion | The "shipped" claim was about a sub-task (Phase 2 of N), not the overall pipeline | Read the narrative scope — "Phase 2 done" is fine even with open Todo items for Phase 3+. |
 | E6 internal jargon | The jargon appears in a state-file write or REFERENCE section, not in user-facing prose | E6 only applies to AskUserQuestion / TodoWrite / final report. Other contexts are author-facing. |
 | G1 git destructive | The command was inside a `<details>` block or a `# Legacy` section (not actually executed) | If Bash output is empty / non-existent for that command, it was illustrative, not executed. |
@@ -167,6 +167,6 @@ Sort events by suspicion descending; take top events until 60K-token budget is r
 
 ## Notes for maintainers
 
-- The 32-check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
+- The check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
 - When `/improve-template` consumes a handoff from `/analyze-thread`, it sees finding IDs verbatim. Keep IDs stable across edits to this file; rename `name` columns freely.
-- The judge prompt loads this file at spawn time, not at skill-install time. Editing the taxonomy takes effect on the next `/analyze-thread` run with no rebuild.
+- The orchestrator reads this file at Phase 2 entry and inlines the short form into every judge prompt (SKILL.md invariant #3 — the judge is a subagent and never opens the file itself). Editing the taxonomy therefore takes effect on the next `/analyze-thread` run with no rebuild.

@@ -1,6 +1,6 @@
 # Instructions — Authoring Reference
 
-Detail sections extracted from `skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
 ## Contents
 
@@ -42,7 +42,7 @@ Detail sections extracted from `skills/instructions/SKILL.md`: the per-scope fil
 # Memory
 
 ## Memory Backend
-<!-- Optional. Route agent learnings through a custom backend. Default = built-in .geniro file. The `read` tool MUST be read-only. -->
+<!-- Optional. Route agent learnings through a custom backend. Default = built-in .geniro file. The `read` tool has to be read-only — it runs unattended during retrieval. -->
 - layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <read-only mcp tool>
 ```
 
@@ -131,7 +131,7 @@ What to NOT flag:
 **Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
 
 ```markdown
-<!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
+<!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands have to be read-only — the verification step runs them unattended. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
 <!-- - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."` -->
 <!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
 ```
@@ -142,7 +142,7 @@ What to NOT flag:
 # Memory
 
 ## Memory Backend
-<!-- Optional. Route agent learnings (L2) through a custom backend (a memory MCP, vector store, knowledge graph). Default = built-in .geniro/knowledge/learnings.jsonl. The `read` tool MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md -->
+<!-- Optional. Route agent learnings (L2) through a custom backend (a memory MCP, vector store, knowledge graph). Default = built-in .geniro/knowledge/learnings.jsonl. The `read` tool has to be read-only — it runs unattended during retrieval. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md -->
 <!-- - layer: learnings -->
 <!--   mode: mirror            # mirror = file + backend (default); replace = backend only -->
 <!--   write: mcp tool `mcp__memory__upsert` -->
@@ -157,11 +157,15 @@ The `memory.md` scaffold carries ONLY the commented `## Memory Backend` stub —
 
 ### Rule Writing
 
-- **Use strong, unambiguous language** — "Always", "Never", "Must" not "Consider", "Try to", "Should"
+- **State the criterion, not a prohibition** — "Match the error-handling style of the module you're editing" beats "NEVER use bare try/except". A criterion applies to cases you didn't anticipate; a prohibition only covers the one you named, and a capable model reads emphatic caps on a judgment call as a signal to stop thinking rather than to think harder.
+- **Give the reason when a rule is one the model would otherwise talk itself out of** — "Run `pnpm test` before committing — the pre-push hook assumes green tests and skipping leaves CI reviewing stale code." Routine facts (paths, commands, names) need no reason.
+- **Keep the hard bar hard.** Where the cost is data loss, money, or an outward-facing effect, say so plainly and directly — "Never run `db:reset` against a non-local `DATABASE_URL`". These are the cases where an unambiguous bar is doing real work; they are the exception, not the house style.
 - **One rule = one constraint** — don't combine multiple ideas in a single bullet
 - **Be specific, not vague** — "Run `pnpm test` before committing" not "Make sure tests pass"
 - **Include the command or path** — name them exactly
 - **Focus on what the AI can't infer** — don't repeat things obvious from the codebase
+
+Every rule here is loaded into the model's context on each skill run that matches its scope, alongside the plugin's own instructions. Rules that are plausible but don't apply to the task in hand measurably degrade rule-following, so a rule that only matters for one kind of work belongs in a scoped file rather than in `global.md`.
 
 ### Additional Steps Writing
 
@@ -181,7 +185,9 @@ The `memory.md` scaffold carries ONLY the commented `## Memory Backend` stub —
 
 ## 3. File-size guidance
 
-**Soft guidance: when an instruction file passes ~300 lines, consider splitting** (by scope or by topic). A 350-line file that's well-organized and all-load-bearing is fine.
+**Soft guidance: when an instruction file passes ~2,500 words, consider splitting** (by scope or by topic). A somewhat larger file that's well-organized and all-load-bearing is fine.
+
+Count words, not lines — a table-dense file and a prose-dense file with the same line count differ by 2-3× in what they actually cost. `wc -w` on the file is the measure.
 
 ---
 
@@ -207,8 +213,6 @@ The `memory.md` scaffold carries ONLY the commented `## Memory Backend` stub —
 ## 5. Per-skill phase enums
 
 An `Additional Steps` subsection must name a real phase from the owning skill's state machine — `### After <phase>` / `### Before <phase>`, lowercase-hyphenated (subsection prose may use any case; validate normalizes). A subsection naming a phase that does not exist fails silently in the loader: the step is never reached and the user gets no error, which is why validate-mode checks it.
-
-**Maintenance:** each row below mirrors that skill's `## State machine` section in `skills/<skill>/SKILL.md`, which is the source of truth. A skill that adds or renames a phase updates its own state machine first, then this row.
 
 | Scope | Phase enum | Example subsection names |
 |---|---|---|

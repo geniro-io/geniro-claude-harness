@@ -124,6 +124,25 @@ PLUGIN_ROOT="${PLUGIN_ROOT:-$(cd "$_rs_dir/.." && pwd)}"
 case "$SUITE" in (*holdout*) HOLDOUT=true;; (*) HOLDOUT=false;; esac
 SKILL_SHORT="${SKILL#*:}"   # geniro:plan → plan (the ledger `skill`)
 
+# Side-effect guard — fail CLOSED before spending a cent.
+# /plan writes a spec and stops. /implement can commit, push, and open a PR; /review can post to a
+# real pull request. Under an approving auto-answer policy those gates get approved, so a suite run
+# performs the external action for real, against whatever repo the fixture points at. The driver's
+# policy is what decides, so a suite is only runnable here once its denying policy exists and is
+# named — an approving default is not a safe fallback for these two.
+case "$SKILL_SHORT" in
+  implement|review)
+    if [ "${EVAL_AUQ_POLICY:-approve-default-v1}" = "approve-default-v1" ]; then
+      echo "run-suite: REFUSING to run the '$SKILL_SHORT' suite under the approving auto-answer policy." >&2
+      echo "  /geniro:$SKILL_SHORT can take an irreversible action (commit / push / open a PR / post a PR review)," >&2
+      echo "  and approve-default-v1 answers those gates with approval, so the run would perform it for real." >&2
+      echo "  Set EVAL_AUQ_POLICY to a policy that DENIES the ship-mode and post-to-PR picks before running." >&2
+      echo "  See evals/suites/$SKILL_SHORT/PARTITION.md for what the suite assumes." >&2
+      exit 64
+    fi
+    ;;
+esac
+
 # Which task ids to run (default: all in the suite).
 if [ -n "$TASK_IDS" ]; then
   IDS="$(printf '%s' "$TASK_IDS" | tr ',' ' ')"

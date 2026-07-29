@@ -1,4 +1,4 @@
-# Bugs Review Criteria
+# Bugs review criteria
 
 Logic errors, null/undefined checks, boundary conditions, numeric precision, state management, and type safety issues.
 

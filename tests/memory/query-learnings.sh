@@ -379,6 +379,58 @@ else
   fail "record_access lock-release; rc=$rc cnt=$cnt lock-left=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) (expect 0/1/n)"
 fi
 
+# ===== Pre-acquire stale-lock reclaim (the crash-wedge branch) =====
+# A crash while another rewriter held the mkdir DIRECTORY lock leaves it behind
+# with no trap to clear it; without reclaim every later bump skips silently. The
+# reclaim window is shared with archive-stale.sh via GENIRO_LOCK_RECLAIM_SECS.
+seed_rl() {   # plant one bumpable entry; $1 = touch -t stamp for the lock, or ""
+  new_sandbox
+  printf '%s\n' '{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"rl1","access_count":0}' \
+    > .geniro/knowledge/learnings.jsonl
+  mkdir .geniro/knowledge/.archive-stale.lock
+  # Explicit `if`, not `[ … ] && …`: the guard is the function's last command, so
+  # an empty stamp would return 1 and abort the caller under `set -e`.
+  if [ -n "$1" ]; then touch -t "$1" .geniro/knowledge/.archive-stale.lock; fi
+  return 0
+}
+count_rl() { jq -Rc 'fromjson? | select(.dedup_key=="rl1") | .access_count' .geniro/knowledge/learnings.jsonl; }
+
+seed_rl 202001010000   # 2020 → far past any sane reclaim window
+set +e; record_access rl1; rc=$?; set -e
+cnt=$(count_rl)
+if [ "$rc" -eq 0 ] && [ "$cnt" = "1" ] && [ ! -d .geniro/knowledge/.archive-stale.lock ]; then
+  pass "record_access reclaims a stale lock, bumps, and releases"
+else
+  fail "record_access stale-lock reclaim; rc=$rc cnt=$cnt lock-left=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) (expect 0/1/n)"
+fi
+
+# A non-numeric override must not disable reclaim: unsanitized it would reach
+# `[ -gt ]`, error, evaluate false, and wedge the counter bump permanently.
+seed_rl 202001010000
+set +e; err=$(GENIRO_LOCK_RECLAIM_SECS=abc record_access rl1 2>&1 >/dev/null); rc=$?; set -e
+cnt=$(count_rl)
+if [ "$rc" -eq 0 ] && [ "$cnt" = "1" ] && [ ! -d .geniro/knowledge/.archive-stale.lock ] \
+   && ! printf '%s' "$err" | grep -qi 'integer expression'; then
+  pass "non-numeric GENIRO_LOCK_RECLAIM_SECS falls back to the default — stale lock still reclaimed"
+else
+  fail "record_access bad-override sanitization; rc=$rc cnt=$cnt lock-left=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) err='$err' (expect 0/1/n)"
+fi
+
+# The same override must not make reclaim indiscriminate: a FRESH lock is a live
+# writer, so the bump skips and the foreign lock survives untouched.
+seed_rl ""             # mtime = now
+set +e; GENIRO_LOCK_RECLAIM_SECS=abc record_access rl1; rc=$?; set -e
+cnt=$(count_rl)
+if [ "$rc" -eq 0 ] && [ "$cnt" = "0" ] && [ -d .geniro/knowledge/.archive-stale.lock ]; then
+  pass "non-numeric override does not steal a fresh lock (bump skipped, lock preserved)"
+else
+  fail "record_access fresh-lock preservation; rc=$rc cnt=$cnt lockdir=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) (expect 0/0/y)"
+fi
+rmdir .geniro/knowledge/.archive-stale.lock 2>/dev/null || true
+# bash keeps a `VAR=v func` assignment set after the function returns — clear it
+# so it cannot leak into anything appended below.
+unset GENIRO_LOCK_RECLAIM_SECS
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

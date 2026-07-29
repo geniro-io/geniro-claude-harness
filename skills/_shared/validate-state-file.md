@@ -3,19 +3,9 @@
 **Helper for state-file frontmatter validation.** Skills source this from Bash before resume / after recovery to verify a state file is well-formed.
 
 - **Library:** `lib/validate-state-file.sh`
-- **Schema reference:** `skills/_shared/state-tier-spec.md`
+- **Schema reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`
 - **Design rationale:** `ARCHITECTURE.md` §State Files
-- **Write helper:** `skills/_shared/atomic-state-write.md`
-
-## Contents
-
-- When to call — situations that warrant validation
-- API — source-and-invoke pattern
-- Exit codes — return-code table + recovery action per code
-- Validation procedure — the ordered checks
-- Recovery AUQ template — what to ask the user on failure
-- YAML parsing strategy — shell-line-only, no `yq`
-- What this helper does NOT do — out-of-scope checks
+- **Write helper:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 
 ---
 

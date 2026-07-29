@@ -15,6 +15,9 @@
 #   - Verification-coverage line: verified/total over the live (non-deprecated)
 #     set, present on the report; n/a on an empty corpus; printed even when 0
 #     entries are stale.
+#   - Direct-run rewrite lock: held fresh lock -> rc=3; stale lock reclaimed;
+#     a non-numeric GENIRO_LOCK_RECLAIM_SECS neither disables reclaim nor makes
+#     it steal a live lock.
 
 set -uo pipefail
 
@@ -227,6 +230,60 @@ if { [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; } && [ ! -d "$(dirname "$LOG")/.archive
 else
   fail "direct-run lock release; rc=$rc lock-left=$([ -d "$(dirname "$LOG")/.archive-stale.lock" ] && echo y || echo n)"
 fi
+
+# ===== Stale-lock reclaim (the crash-wedge branch) =====
+# A SIGKILL between mkdir and rmdir leaves the lock dir behind with no trap to
+# clear it. Without reclaim every later run skips with rc=3 forever, silently
+# suppressing archiving. The lock is a mkdir DIRECTORY, released with rmdir.
+LOCK=""
+seed_lock() {  # <touch -t stamp> — plant a lock dir aged to the given mtime
+  LOCK="$(dirname "$LOG")/.archive-stale.lock"
+  mkdir -p "$LOCK"
+  touch -t "$1" "$LOCK"
+}
+
+new_sandbox
+write_corpus
+seed_lock 202001010000   # 2020 → far past any sane reclaim window
+set +e
+bash "$REPO_ROOT/lib/archive-stale.sh" >/dev/null 2>&1; rc=$?
+set -e
+if { [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; } && [ ! -d "$LOCK" ]; then
+  pass "stale lock (mtime past the 600s window) is reclaimed, run proceeds, lock released"
+else
+  fail "stale-lock reclaim; rc=$rc (expect 0|1, not 3) lock-left=$([ -d "$LOCK" ] && echo y || echo n)"
+fi
+
+# A non-numeric override must not disable reclaim: unsanitized it would reach
+# `[ -gt ]`, error, evaluate false, and wedge the lock permanently.
+new_sandbox
+write_corpus
+seed_lock 202001010000
+set +e
+out=$(GENIRO_LOCK_RECLAIM_SECS=abc bash "$REPO_ROOT/lib/archive-stale.sh" 2>&1 >/dev/null); rc=$?
+set -e
+if { [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; } && [ ! -d "$LOCK" ] \
+   && ! printf '%s' "$out" | grep -qi 'integer expression'; then
+  pass "non-numeric GENIRO_LOCK_RECLAIM_SECS falls back to the default — stale lock still reclaimed"
+else
+  fail "non-numeric reclaim sanitization; rc=$rc lock-left=$([ -d "$LOCK" ] && echo y || echo n) err='$out'"
+fi
+
+# The same override must not make reclaim indiscriminate: a FRESH lock is a live
+# writer and still blocks with rc=3.
+new_sandbox
+write_corpus
+LOCK="$(dirname "$LOG")/.archive-stale.lock"
+mkdir -p "$LOCK"          # mtime = now
+set +e
+out=$(GENIRO_LOCK_RECLAIM_SECS=abc bash "$REPO_ROOT/lib/archive-stale.sh" 2>&1); rc=$?
+set -e
+if [ "$rc" -eq 3 ] && [ -d "$LOCK" ]; then
+  pass "non-numeric override does not steal a fresh lock (rc=3, lock preserved)"
+else
+  fail "fresh-lock preservation under bad override; rc=$rc (expect 3) lock-left=$([ -d "$LOCK" ] && echo y || echo n) out=$out"
+fi
+rmdir "$LOCK" 2>/dev/null || true
 
 echo
 echo "Tests run:    $TESTS_RUN"

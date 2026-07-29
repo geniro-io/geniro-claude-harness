@@ -14,7 +14,6 @@
 - §4096-byte limit — the per-line sanity ceiling
 - §Example callers
 - §Known limitations
-- §Test coverage
 
 **Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`.
 
@@ -28,12 +27,12 @@ echo '<json-object>' | emit_learning
 ```
 
 - **Input:** a single JSON object on stdin (one entry per call).
-- **Output:** none on success. JSONL line is appended to the log file. The helper does NOT echo the written entry or its computed `recurrence_count` — a caller that needs the post-write count (e.g. to fire a `recurrence_count >= 3` rule-capture gate) reads it back via `query-learnings`; see the `recurrence_count` field note below for the exact filter.
+- **Output:** none on success. JSONL line is appended to the log file. The helper does NOT echo the written entry or its computed `recurrence_count` — a caller that needs the post-write count (e.g. to fire the rule-capture gate in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md`, which owns the threshold) reads it back via `query-learnings`; see the `recurrence_count` field note below for the exact filter.
 - **Side effects:**
  - Appends to `.geniro/knowledge/learnings.jsonl` (created if absent).
  - May append to `.geniro/knowledge/.redaction-log.jsonl` (via `redact_secrets`).
 
-**Path resolution:** this helper uses `lib/repo-root.sh::_geniro_repo_root` to find the project root. When invoked from a linked git worktree (where `.geniro/` may exist with just `planning/`), the resolver returns the PRIMARY worktree's path so the L2 append lands in the canonical store. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists" for the contract.
+**Path resolution:** `lib/repo-root.sh::_geniro_repo_root` resolves to the PRIMARY worktree, so the L2 append lands in the canonical store, never a linked worktree's. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Why this exists".
 
 **Return codes:**
 - `0` — entry appended, or no-op (identical duplicate).
@@ -54,12 +53,25 @@ echo '<json-object>' | emit_learning
 
 4. **Route through a declared memory backend.** When `memory.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §4-§5 around this emit — mirror/replace handling, redact-before-store via `lib/redact-secrets.sh`, and fail-open to the file append all live there. No block → this is a no-op and the emit is the file append exactly as above.
 
+## Sliding-window caps on bookkeeping types
+
+The bookkeeping types (`retry_failure_sequence`, `discarded_hypothesis`) accumulate one entry per failed attempt, so an unbounded log fills `query-learnings` results with stale noise and drowns the findings a caller actually wants primed. Each capped type keeps only its N most recent entries per key:
+
+| Type | Cap | Key |
+|---|---|---|
+| `retry_failure_sequence` | 3 | `(producer, scope, phase)` |
+| `discarded_hypothesis` | 5 | `(producer, scope)` |
+
+**On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file through `atomic_state_write`, never a direct `Edit`/`Write`. The state-helper hook blocks those two routes, so an attempt at them fails the step rather than corrupting the log; appending first and pruning after leaves the window over-full for any reader that queries in between.
+
+Hold the shared knowledge-rewrite lock across the read-modify-write — the same one the archival path and the access-counter bump take. A whole-file rewrite that skips it silently discards every append another session made between the read and the rename.
+
+That lock is a **directory**, created with `mkdir "<repo-root>/.geniro/knowledge/.archive-stale.lock"` and released with `rmdir` on exit; `mkdir` failing IS the "already held" signal, which is what makes the acquisition atomic. The mechanism is load-bearing, not an implementation detail: creating a *file* at that path leaves `mkdir` failing forever while the staleness check (`[ -d ]`) never sees a lock to reclaim, so every later rewrite in the repo wedges. When the lock is already held, skip the prune and append anyway — an over-full window self-corrects at the next emit, whereas a clobbered append is unrecoverable.
+
 ## MODE contract
 
-Write-side helper — **no MODE parameter, compaction-immune.** Behavior is
-identical at initial-load, refresh, and post-compaction. Skill flow decides
-when to re-invoke after a SessionStart event; the helper itself does not
-distinguish.
+**No MODE parameter, compaction-immune** — safe to re-invoke after a SessionStart event; the helper
+does not distinguish initial-load from refresh.
 
 ## Required fields
 
@@ -81,7 +93,7 @@ A learning emitted with `trust: verified` is grounded in a captured observation 
 - `body` — sanitized via `redact_secrets`.
 - `ext` — every string-valued path inside (including inside arrays) is sanitized via `redact_secrets`. Path labels in the audit log use dotted notation (e.g. `ext.symptom`, `ext.options.0`).
 - `supersedes` — if the caller provides it, it's preserved verbatim. Otherwise the helper may auto-inject it (see Dedup).
-- `recurrence_count` — how many times this learning has recurred. Defaults to `1` on a fresh emit. On a dedup match (different content under an existing `dedup_key`), the helper carries forward the prior entry's value and increments by 1, so a learning re-observed N times ends at `recurrence_count: N`. Callers normally leave this unset and let the helper manage it. The helper does not echo the resulting value — a caller that needs to read the post-write count (e.g. to gate a `recurrence_count >= 3` rule-capture offer) re-queries via `query-learnings --include-superseded` filtered by `dedup_key` after the emit. Entries written before this field existed have it absent — `query-learnings` treats absent as `1`, so legacy entries score and rank exactly as they did before the field was added.
+- `recurrence_count` — how many times this learning has recurred. Defaults to `1` on a fresh emit. On a dedup match (different content under an existing `dedup_key`), the helper carries forward the prior entry's value and increments by 1, so a learning re-observed N times ends at `recurrence_count: N`. Callers normally leave this unset and let the helper manage it. The helper does not echo the resulting value — a caller that needs to read the post-write count (e.g. to gate the rule-capture offer in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md`, which owns the threshold) re-queries via `query-learnings --include-superseded` filtered by `dedup_key` after the emit. Entries written before this field existed have it absent — `query-learnings` treats absent as `1`, so legacy entries score and rank exactly as they did before the field was added.
 - `type`, `trust`, `links`, `deprecated` — passed through unchanged.
 
 Unknown fields are also passed through — the schema is open.
@@ -161,7 +173,3 @@ jq -nc \
 - **Sanitization is per-call.** A pattern that fires across multiple ext fields emits multiple audit-log rows. Aggregating is left to readers of the audit log.
 - **No producer→trust auto-default.** The helper does NOT auto-set `trust` based on producer; each caller supplies it explicitly at its emit site (e.g. `/geniro:debug` emits confirmed root causes as `verified`). A missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).
 - **Concurrent emit-learning with the same caller-supplied `dedup_key` is not serialized.** Two parallel calls with the same key but different content append both without auto-injecting `supersedes`, because each call's dedup-scan happens before the other's append. Acceptable given the helper's no-lock design; if strict serialization is needed, callers can wrap calls with a file lock.
-
-## Test coverage
-
-`tests/memory/emit-learning.sh` exercises the required-fields contract, auto-injected ts and dedup_key, caller-supplied dedup_key, sanitization of summary / body / ext / nested-ext, the dedup pipeline (no-op vs supersede), oversized rejection, invalid-JSON rejection, and injection rejection (override-phrasing + control-token payloads in summary / body / ext, plus a false-positive guard that a clean technical summary containing the word "ignore" is still accepted).

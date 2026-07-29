@@ -1,10 +1,10 @@
 # Plan — AUQ Templates & State Schema Reference
 
-Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop file lean. The orchestrator reads this file when plan-loop references one of the sections below by name.
+Literal `AskUserQuestion` templates and state-schema blocks for the `/geniro:plan` loop. A phase file states its gate's rules and cites the section here that holds the literal template; read the named section when you reach that gate.
 
 ## Contents
 
-1. state.md frontmatter — initial template (Phase 0.3)
+1. state.md body template (Phase 0.3) + the `approvals[]` entry shape every gate below writes
 1b. Artifact opt-in question — Phase 0, asked once when `--artifact` is absent
 2. Phase 3 grill AUQ — message-first, one question at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
@@ -14,31 +14,11 @@ Detail sections extracted from `skills/plan/plan-loop.md` to keep the main loop 
 
 ---
 
-## 1. state.md frontmatter — initial template
+## 1. state.md body template
 
-Written at Phase 0.3 via `atomic_state_write` to `.geniro/planning/<task-slug>/state.md`:
+The frontmatter field set is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md` §"State persistence" — read the schema there rather than re-deriving it; a second copy here is what lets the two drift. Phase 0.3 writes it via `atomic_state_write` to `.geniro/planning/<task-slug>/state.md`, over this body:
 
-```yaml
----
-tier: T1.5
-producer: plan
-schema-version: 1
-branch: <git-branch>
-worktree: <git-rev-parse-show-toplevel>     # optional, recommended for cross-worktree resume
-timestamp: <ISO-8601 UTC>
-phase: mode-detect
-status: in-progress
-non-resumable-actions: []
-approvals: []
-task_slug: <slug>
-mode: <IDEA|DESIGN_DOC>
-prd_mode: true                               # optional, present only when --prd was passed (Phase 0.1)
-deep-mode: <true|false>                      # optional, set by the --deep flag (Phase 0.1); missing reads as false
-artifact_mode: true                          # optional, present only when the user opted in / --artifact was passed (Phase 0)
-artifact_status: pending|live|unavailable    # optional, present only when artifact_mode is true; pending until first publish, live once published, unavailable when this session can't publish
-artifact_url: "<claude.ai url>"              # optional, present only when artifact_status is live
----
-
+```markdown
 # State: <topic>
 
 ## Inputs
@@ -53,7 +33,23 @@ artifact_url: "<claude.ai url>"              # optional, present only when artif
 ## Open Questions
 ```
 
-Three optional body sections — `## Workflow Refs` (populated in Phase 1.4), `## UI Preview` (populated in Phase 2 when triggered), and `## Problem Framing` (populated in Phase 0.5 when `--prd` was passed) — are written in those earlier phases and assembled into the spec body alongside the 11 sections approved in Phase 5. The frontmatter `phase:` field transitions through the state machine (`mode-detect` → `problem-discovery` (only when `prd_mode: true`) → `explore` → `visual-companion` / `clarify` → `approaches` → `section-approve` → `write-spec` → `validate` → `spec-challenge` → `user-approve` → `handoff` → `done`). The optional `prd_mode: true` frontmatter key is set in Phase 0.1 when `$ARGUMENTS` carries `--prd`; absent otherwise. The optional `deep-mode` key is set in Phase 0.1 when `$ARGUMENTS` carries `--deep`; a missing value reads as `false`. The optional artifact keys are set at Phase 0 when the user opts into the visual plan artifact (the `--artifact` flag, or the §1b opt-in question when the flag is absent): `artifact_mode: true` marks the run as artifact-on, `artifact_status` tracks the publish state (`pending` → `live` → or `unavailable`), and `artifact_url` holds the captured `claude.ai` link once the page is live; all three are absent when artifact mode is off. The full artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`. This is the single-source-of-truth template — `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md` and `plan-loop.md` §0.3 mirror it and must carry the same field set.
+Four further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the 11 sections approved in Phase 5: `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered), `## Problem Framing` (Phase 0.5, when `--prd` was passed), `## Considered Alternatives` (Phase 4.4).
+
+### `approvals[]` entry shape — every gate below writes this
+
+Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_write`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1 optional `approvals` array" — `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`:
+
+```yaml
+approvals:
+  - category: deep_mode_choice
+    prompt: "How deep should the planning go?"
+    options: ["Standard", "Deep — wider search + 3-vote verify"]
+    picked: "Standard"
+    at: 2026-05-17T10:50:00Z
+    asked_in_phase: clarify
+```
+
+The sections below name only their `category` slug and the phase they are asked in; §5b adds a nested `launch_config:` sub-block, the one gate whose entry carries more than the six fields. Write the entry before rendering the next question, so a context reset mid-sequence preserves every answer already given.
 
 ---
 
@@ -73,17 +69,7 @@ Fires at the very start of planning (Phase 0) — after the mode resolves, befor
 
 Empty answer → default OFF: artifact mode stays off and no artifact fields are written, consistent with how the §2a depth question defaults to Standard. On the "Yes" pick, the run is in artifact mode — set `artifact_mode: true` and `artifact_status: pending` in the §1 frontmatter; on "No", leave all artifact fields absent.
 
-Persist the pick to state.md frontmatter `approvals[]` with category `artifact_choice` so a resume after compaction doesn't re-ask:
-
-```yaml
-approvals:
-  - category: artifact_choice
-    prompt: "Build a live visual artifact of this plan as it develops? It publishes a private, auto-updating page to claude.ai."
-    options: ["Yes — build it and keep it updated", "No — keep planning in chat only"]
-    picked: "Yes — build it and keep it updated"
-    at: 2026-05-17T10:45:00Z
-    asked_in_phase: mode-detect
-```
+Persist the pick to `approvals[]` (§1 entry shape) with category `artifact_choice`, `asked_in_phase: mode-detect`, so a resume after compaction doesn't re-ask.
 
 The full artifact lifecycle (availability detection, create, per-phase update, URL persistence, unavailable/skip handling) is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; this section owns only the opt-in question template and the choice that gets persisted.
 
@@ -91,7 +77,7 @@ The full artifact lifecycle (availability detection, create, per-phase update, U
 
 ## 2. Phase 3 grill AUQ — message-first, one question at a time
 
-The grill procedure — message-first framing sized to the question, then a lean single-question AUQ, one question at a time, frontier regenerated after each answer — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §3.2 (Gate presentation contract in plan-loop §"Gate presentation contract"). This section holds the literal templates.
+The grill procedure — message-first framing sized to the question, then a lean single-question AUQ, one question at a time, frontier regenerated after each answer — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.2; the two-step shape it applies is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract". This section holds the literal templates.
 
 Chat message rendered before the FIRST question:
 
@@ -108,7 +94,7 @@ First decision before I lock the approach:
 I recommend JWT — the guard and its 401 contract already exist; a session flow would add a second auth path.
 ```
 
-Then the LEAN single-question AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted. Per the plan-loop §3.2 recommended-answer rule, the framing message names the recommendation and the AUQ's first option carries the `(Recommended)` marker:
+Then the LEAN single-question AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, the framing message names the recommendation and the AUQ's first option carries the `(Recommended)` marker:
 
 ```yaml
 questions:
@@ -125,17 +111,7 @@ questions:
 
 After the user answers, persist it (below), then render the next question's framing and fire its own single-question AUQ. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — depth-first walking exists precisely to let one answer reshape what follows.
 
-Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. Append the entry for each answer before rendering the next question:
-
-```yaml
-approvals:
-  - category: clarify_<dim>          # e.g., clarify_auth_method
-    prompt: "Which existing auth flow should the new feature integrate with?"
-    options: ["OAuth (src/auth/oauth.ts)", "JWT (src/auth/jwt.ts)", "Skip — proceed assuming OAuth"]
-    picked: "OAuth (src/auth/oauth.ts)"
-    at: 2026-05-17T10:50:00Z
-    asked_in_phase: clarify
-```
+Each answered question → one `approvals[]` entry (§1 entry shape) with category `clarify_<dim>` (e.g. `clarify_auth_method`), `asked_in_phase: clarify`.
 
 ### 2a. Planning-depth question (asked once at grill wrap-up when `--deep` is absent)
 
@@ -153,21 +129,11 @@ When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question once at
 
 Empty answer → default Standard (`deep-mode: false`). Phase 3 is skipped on Trivial tasks, so depth there stays flag-only.
 
-Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an `approvals[]` entry with category `deep_mode_choice`:
-
-```yaml
-approvals:
-  - category: deep_mode_choice
-    prompt: "How deep should the planning go?"
-    options: ["Standard", "Deep — wider search + 3-vote verify"]
-    picked: "Standard"
-    at: 2026-05-17T10:50:00Z
-    asked_in_phase: clarify
-```
+Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an `approvals[]` entry (§1 entry shape) with category `deep_mode_choice`, `asked_in_phase: clarify`.
 
 ### 2b. Checkpoint gate and termination summary
 
-The checkpoint trigger (a resolved branch OR ~6 questions since the last checkpoint) is canonical in plan-loop §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
+The checkpoint trigger (a resolved branch OR ~6 questions since the last checkpoint) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
 
 Chat message rendered before the checkpoint AUQ:
 
@@ -201,19 +167,9 @@ options:
     description: "Same as wrap-up, but I name the skipped branches in Assumptions for /geniro:implement to verify."
 ```
 
-Persist each checkpoint decision to `approvals[]` category `grill_checkpoint`:
+Persist each checkpoint decision to `approvals[]` (§1 entry shape) with category `grill_checkpoint`, `asked_in_phase: clarify`.
 
-```yaml
-approvals:
-  - category: grill_checkpoint
-    prompt: "Keep grilling the open branches, or wrap up here?"
-    options: ["Keep grilling", "Wrap up now", "Skip remaining with stated assumptions"]
-    picked: "Keep grilling"
-    at: 2026-05-17T11:05:00Z
-    asked_in_phase: clarify
-```
-
-**Termination** rules are canonical in plan-loop §3.4 (closing summary → the §2a planning-depth question when `--deep` is absent → Phase 4).
+**Termination** rules are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4 (closing summary → the §2a planning-depth question when `--deep` is absent → Phase 4).
 
 ---
 
@@ -270,15 +226,7 @@ The `Recommended` marker reflects the §4.2 stress-test ranking — an approach 
 
 ### 4.1 Cluster authoring procedure — message-first, one decision per cluster
 
-Group the 11-section schema into 3 dependency-ordered clusters. Author and gate cluster-by-cluster; each cluster renders to a chat message, then fires ONE lean AUQ:
-
-| Cluster | Plain-English name | Sections | AUQ `header` (≤12 chars) |
-|---|---|---|---|
-| 1 | Goal & scope | 1 Objective, 2 Scope-Included, 3 Scope-Excluded | "Goal & scope" |
-| 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required | "Steps" |
-| 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition | "Safety" |
-
-The per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §5.2. This section holds the literal templates.
+The cluster set (which of the 11 sections group into which of the 3 dependency-ordered clusters, each cluster's AUQ `header`) and the per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2. Each section's concrete example shape is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example per section type" and its visual shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map". This section holds the literal templates.
 
 Literal cluster-1 chat message (rendered before the AUQ):
 
@@ -333,7 +281,7 @@ options:
     description: "Abort; spec not written."
 ```
 
-**Tier-scaling.** Sections 4 / 5 / 10 may be "none — task scope precludes" for Trivial/Small tasks — note these in the cluster message rather than as a rendered section. At Trivial tier the clusters may collapse to 1-2 gates; the default 3-cluster grouping applies to Medium/Big.
+**Tier-scaling** — which tiers may render a section as "none — task scope precludes", and which may collapse cluster gates — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2.
 
 The chat message is the load-bearing surface — it re-explains what was decided, why, and how /geniro:implement will build it, with room for the code and diagrams the `preview` side-box cannot fit. The AUQ stays lean.
 
@@ -356,7 +304,7 @@ If "Slice into milestones" picked:
 Propose the milestones as vertical slices: each cuts a narrow but complete path through every affected layer (schema, API, UI, tests), is demoable or verifiable on its own, and fits one fresh /geniro:implement session; prefactoring that eases later milestones lands in milestone-1. A layer-per-milestone split leaves nothing verifiable until the last milestone lands — the failure mode vertical slicing prevents. A wide mechanical refactor that cannot slice vertically sequences expand–contract instead, per the Big-tier row in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`.
 
 1. Fire a follow-up AUQ with the proposed milestone names (single-select for "approve all" or multi-select pick per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`).
-2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 11-section schema scoped to the milestone. A milestone that depends on specific earlier milestones (not merely everything before it) lists them in its `blocked_by:` frontmatter, and the `## Milestones` index mirrors those edges (`${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §Milestone-mode).
+2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own 11-section schema scoped to the milestone. A milestone that depends on specific earlier milestones (not merely everything before it) lists them in its `blocked_by:` frontmatter, and the `## Milestones` index mirrors those edges (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §Milestone-mode).
 3. Persist to `approvals[]` with category `milestone_slice`.
 
 Handoff (Phase 9) prints `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs. The milestone-mode AUQ fires only at Big tier; not Small/Medium/Trivial.
@@ -383,8 +331,9 @@ Spec on disk: `.geniro/planning/<slug>/spec.md`
 the in/out scope map from the Goal & scope step>
 **🙋 Where you'll be asked mid-build:** <section 8 list, max 5 shown with
 "... and N more" if >5>
-**⚠️ Risk level:** <auto-computed: low / medium / high from section 5 Risks count
-+ section 7 forbidden_actions> — <one-line why>
+**⚠️ Risk level:** <the highest per-risk severity in section 5, raised one level
+when frontmatter forbidden_actions is non-empty> — <one-line why, naming the risk
+that set the level>
 **↩️ If something goes wrong:** <section 10 summary, 1-2 sentences>
 **✅ How we'll know it's done:**
 ☐ <section 11 — one checkbox per observable signal, e.g. "all 5 acceptance tests green">
@@ -409,9 +358,7 @@ options:
     description: "Terminal aborted; spec.md remains on disk but not committed."
 ```
 
-On Approve pick: spec.md `lifecycle: draft` → `approved` flip; `git commit` fires (NOT in Phase 6); `non-resumable-actions[]` updated with the commit SHA; transition to Phase 9.
-
-On Revision pick: max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, escalation AUQ "Revision limit reached" fires with options "Accept as-is" / "Re-revise (kick fresh cycle)" / "Abort".
+What each pick then does — the lifecycle flip, the commit, the revision-round ladder — is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.3–§8.4. This section holds the template only.
 
 ---
 
@@ -500,7 +447,7 @@ Map the picks to the `launch_config:` block values (`workspace` / `deep_mode` / 
 
 ### Step 3 — persistence
 
-Append one entry to state.md `approvals[]` with category `launch_config` via `atomic_state_write` — mirror the `deep_mode_choice` shape (§2a above), recording the gate answer and, on "Yes", the captured fields:
+Append one entry to `approvals[]` with category `launch_config`, `asked_in_phase: user-approve` — the §1 entry shape plus a nested `launch_config:` sub-block holding the captured fields:
 
 ```yaml
 approvals:
@@ -519,5 +466,3 @@ approvals:
 ```
 
 On "No", omit the `launch_config:` sub-block and record `picked: "No — /implement will ask when it runs"`.
-
-Doctrine: these settings pre-answer SETUP only. They do NOT pre-authorize the new-dependency adoption gate, the runaway-scope / budget escalation, the handoff open-questions gate, or the spec-challenge-on-drift gate — each of those still fires on its own real trigger during `/geniro:implement` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"Doctrine boundary — setup only, never safety").

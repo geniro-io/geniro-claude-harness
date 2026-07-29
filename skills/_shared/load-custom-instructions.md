@@ -83,7 +83,7 @@ For each file in the load set, in order:
 2a. **If Read errors with file-not-found AND no external dir is active AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
 3. **If file is still not found** (cwd missing AND fallback missing or unavailable): treat as a silent skip — no error, no warning, just the missing-file echo line.
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
-4. After the Read attempt(s) (success OR file-not-found), print exactly one echo line per the §Echo contract — non-negotiable.
+4. After the Read attempt(s) (success OR file-not-found), print one echo line per §Echo contract.
 5. Apply the loaded content:
  - `## Rules` → standing rules active in every phase of the consumer skill
  - `## Constraints` → a flat bullet list of hard gates, evaluated globally (or at a phase boundary when a bullet's text names one) — not organized into per-phase subsections; only `## Additional Steps` uses named-phase subsections
@@ -121,7 +121,7 @@ If a file has zero rules or zero constraints, still emit the line with the liter
 
 ## Mid-pipeline refresh
 
-When a consumer reaches a phase boundary that prescribes a refresh (every refresh site in the codebase is named explicitly in the consumer's phases — typically after each major phase that consumes meaningful context), the consumer MUST re-invoke this helper with `MODE: refresh` and the same `SKILL_SLUG` and `LOAD_TIER` it used at Step 0. The refresh is procedurally identical to the initial load — every Read fires again, every echo line prints again.
+When a consumer reaches a phase boundary that prescribes a refresh (every refresh site in the codebase is named explicitly in the consumer's phases — typically after each major phase that consumes meaningful context), the consumer re-invokes this helper with `MODE: refresh` and the same `SKILL_SLUG` and `LOAD_TIER` it used at Step 0. Compaction between the initial load and that boundary may already have dropped the rules from context, so the refresh is procedurally identical to the initial load — every Read fires again, every echo line prints again.
 
 Canonical refresh-site wording at consumer sites:
 

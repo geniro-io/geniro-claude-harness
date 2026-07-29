@@ -3,8 +3,8 @@
 **Canonical reference for every state file in `.geniro/`.** See `ARCHITECTURE.md` §State Files for the design decisions behind this spec.
 
 Helpers reference this spec:
-- `skills/_shared/atomic-state-write.md` — write helper for T1.5, T2, T3 CRUD, and append-only.
-- `skills/_shared/validate-state-file.md` — validates frontmatter against this spec.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for T1.5, T2, T3 CRUD, and append-only.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — validates frontmatter against this spec.
 
 ## Contents
 
@@ -32,7 +32,19 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
-**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via the shared helper `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list; timing per the note under that table). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them.
+**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via the shared helper `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list; timing per the note under that table). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them. T1.5 surviving is the point: the user keeps the spec, the state log, and the milestone breakdown for audit or for re-running `/implement` against the same task-dir.
+
+**Who cleans what, and when.**
+
+| Skill | Cleanup at terminal exit |
+|---|---|
+| `/implement` | `clean_task_transients` before EVERY terminal `phase:` write — `done`, `aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only` — not only the Ship path. |
+| `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
+| `/debug`, `/refactor`, `/onboard`, `/investigate` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. |
+| `/review` | `rm -rf` `.geniro/state/review/<branch-slug>/` at the Phase 6 terminal write, when the test gate created it. It is keyed by branch rather than by run, so without this every reviewed branch leaves a directory behind permanently — and `/review` writes no state.md there, so session-restore never surfaces it either. |
+| `/resolve` | `clean_task_transients` on `.geniro/state/resolve/<slug>/` before every terminal `phase:` write — transients go, the dir stays. It is a spec producer whose `spec.md` and handoff are consumed downstream by `/implement`, so an `rm -rf` would delete the deliverable, the same reason `/plan` retains its planning task-dir and `/setup` its singleton. |
+
+Transients left behind by an interrupted run are swept by the `/geniro:update` migration walk; that sweep is deliberately recurring rather than one-shot.
 
 ---
 
@@ -46,13 +58,15 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | `.geniro/planning/<task-dir>/.ce-out.md` | codebase-explorer-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.tr-out.md` | test-runner-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.adversarial-out.md` | adversarial-tester-agent (subagent report) |
+| `.geniro/state/review/<branch-slug>/.adversarial-out.md` | adversarial-tester-agent, when `/review` runs its test gate outside a planning task-dir |
+| `.geniro/state/resolve/<slug>/.spec-challenge-out.md` | spec-challenge pass, `/resolve` |
 | `.geniro/planning/<task-dir>/.research-out.md` | codebase-research-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
 | `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
 | `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
 | `.geniro/planning/<task-dir>/playwright-verify.png` | Pre-Ship Visual Verification screenshot |
 
-These files do NOT carry frontmatter and are NEVER validated via `validate_state_file`. They are cleaned mechanically via targeted `rm -f` before every terminal `phase:` write of the owning run (Ship and all other terminal transitions); leftovers from interrupted runs are swept by the `/geniro:update` migration walk.
+These files carry no frontmatter and never pass through `validate_state_file`. They are cleaned mechanically via targeted `rm -f` before every terminal `phase:` write of the owning run (Ship and all other terminal transitions); leftovers from interrupted runs are swept by the `/geniro:update` migration walk.
 
 ### T1.5 — three valid layouts (producer-bound; survives Ship)
 
@@ -203,7 +217,7 @@ open_questions:
 
 **Producer responsibilities:**
 - Initialize `open_questions: []` in the handoff frontmatter; never use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
-- Each entry MUST have `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `related_comments`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body; `related_comments` is the `/geniro:resolve`-producer equivalent — it links a question to the review-thread `thread_id`(s) that raised it.
+- Each entry has `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `related_comments`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body; `related_comments` is the `/geniro:resolve`-producer equivalent — it links a question to the review-thread `thread_id`(s) that raised it.
 - **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich, self-contained chat explanation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust.
 - When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
@@ -219,17 +233,18 @@ open_questions:
 ### Producer-specific extensions
 
 Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `risk-tier`). Constraints:
-- MUST NOT shadow common-base or tier-specific field names with different semantics.
-- MUST be documented in the producing skill's SKILL.md / reference-file frontmatter example block.
+- Does not shadow a common-base or tier-specific field name with different semantics — a shadowed name makes every reader's parse ambiguous.
+- Is documented in the producing skill's SKILL.md / reference-file frontmatter example block.
 - The validator silently passes them through — only required-field presence and enum values are checked.
 
 **`/geniro:review` producer-specific fields:**
 
 - `spawn_dims_declared: [<dim-slug>, ...]` — declared parallel-spawn list, written at Phase 2 entry before the batch fires. Consumed by Phase 4 §4.0 verification gate (declared-vs-actual diff).
 - `spawn_dims_count: <int>` — denormalized length of `spawn_dims_declared`.
-- `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Consumed by Phase 2 to merge into the spawn batch.
+- `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default, requires_context}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Carries every short spawn-spec scalar; the unbounded `criteria-content` body is deliberately absent, because this state file *is* the durable handoff that ships downstream and persisting a user file's whole body into it would pay that cost twice. Phase 2 re-reads `source_path` for the body instead. Consumed by Phase 2 to merge into the spawn batch.
+- `mechanical_prepass_attempted: {<check-id>: <findings|clean|error>, ...}` — per-check outcome map written by Phase 1.5 §1.5.6/§1.5.7. Consumed by the Phase 4 §4.0a declaration check. A closed value set matters: `clean` is a recorded outcome, so a healthy diff that produced no findings is distinguishable from a check that was declared and never reached.
 - `report_status: <draft|final>` — whole-report lifecycle. Phase 5.1 writes `draft` so a mid-gate compaction still recovers the findings; the Phase 6 finalize step (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) flips it to `final` only after the Pre-gate (open questions) and the open-decision gate clear. The Action gate's handoff option and the §7.0 Post-drill guard both require `final`. **Back-compat (single source of this rule): a missing `report_status` reads as `final`** — mirrors the `step0_status: missing → resolved` precedent, so handoffs produced before this field exists are not retro-blocked. Other sites reference this rule; they do not restate it.
-- `deep-mode: <true|false>` — set by the `--deep` flag or the Deep chooser pick; the activation also persists to `approvals[]` category `deep_mode_choice`. Multiplies the reviewer/verifier fan-out (angle-diverse passes + signal-gated verification) per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`. Missing reads as `false`. **Shared field:** `/geniro:plan`, `/geniro:implement`, and `/geniro:debug` carry the same `deep-mode` + `deep_mode_choice` pair (canonical cross-skill contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2); each deepens its own analysis phases per its `deep-mode-reference.md`. The field is therefore defined once here and not restated per producer section.
+- `deep-mode: <true|false>` — set by the `--deep` flag or the Deep chooser pick; the activation also persists to `approvals[]` category `deep_mode_choice`. Multiplies the reviewer/verifier fan-out (angle-diverse passes + signal-gated verification) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Missing reads as `false`. **Shared field:** `/geniro:plan`, `/geniro:implement`, and `/geniro:debug` carry the same `deep-mode` + `deep_mode_choice` pair (canonical cross-skill contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2); each deepens its own analysis phases per its `deep-mode-reference.md`. The field is therefore defined once here and not restated per producer section.
 
 **`/geniro:debug` producer-specific `authored_tests` array (T2 handoff only):**
 
@@ -251,13 +266,17 @@ authored_tests:
 - Initialize `authored_tests: []` in the handoff frontmatter even when no test was authored (e.g., scientific path B "accept as documented limitation" or adversarial zero-red-tests terminal). The empty-array form lets consumers distinguish "no tests by design" from "field absent in legacy handoff".
 - One entry per authored test file. If a single test file holds multiple test cases, one entry covers it; the `intent` field summarizes the file-level guarantee.
 - `path` is repo-root relative. Consumers re-resolve against their own `git rev-parse --show-toplevel` to handle cross-worktree consumption.
-- `mode` MUST match the handoff's top-level `mode:` discriminator (`scientific` for `from-debug-<branch>.md`, `adversarial` for `from-debug-adversarial-<branch>.md`).
+- `mode` matches the handoff's top-level `mode:` discriminator (`scientific` for `from-debug-<branch>.md`, `adversarial` for `from-debug-adversarial-<branch>.md`).
 - Scientific mode `f_to_p_status: escape-hatch` paired with an `intent: "escape-hatch: <rationale>"` is valid — surfaces the §2.4 hard-to-mock chain case where the bug cannot be verified without temporary production edits (which are reverted before escalation).
 
 **Consumer responsibilities:**
 - Read `authored_tests[]` before falling back to body-string parsing. The shared consumer protocol at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` codifies the prefer-frontmatter / fallback-to-body order.
 - Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
 - The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only Edit/Write blocker for /geniro:implement Phase 1.
+
+**`/geniro:resolve` producer-specific fields:**
+
+- `spec_path: <repo-relative path>` — the `spec.md` this run authored, at `.geniro/state/resolve/<slug>/spec.md`. Required on every `from-resolve-<branch>.md`. `/geniro:implement` follows it as the FIRST entry of its spec-discovery walk (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Spec discovery walk-list") — the only route to a spec that lives outside `.geniro/planning/`. Without it a `RESOLVE_HANDOFF` auto-continue falls into inline-task mode and never loads the spec's Steps or its §9 `verify:` lines. Producers that author no spec (`/geniro:review`, `/geniro:debug`) omit the key; a consumer treats absent-or-unresolvable as fall-through, not an error.
 
 **`/geniro:resolve` producer-specific `comment_resolutions` array (T2 handoff only):**
 
@@ -283,7 +302,7 @@ comment_resolutions:                 # MAY be []; only review-comment items appe
 **Producer responsibilities (`/geniro:resolve`):**
 - Initialize `comment_resolutions: []` even when empty, so the consumer distinguishes "no replies by design" from "field absent in a non-resolve handoff".
 - One entry per review-comment item with verdict `fix` / `answer-only` / `wontfix`. `needs-clarification` items go to `open_questions[]` instead (resolved later, they may re-enter as a `fix`).
-- `verdict: fix` MUST set `resolve_after_fix: true`, a `fix_step_anchor` pointing at the spec Step, and a `verify:` mirroring that Step's §9 acceptance check (or null when none exists). `wontfix` / `answer-only` set `resolve_after_fix: false` and null `fix_step_anchor` / `verify`.
+- `verdict: fix` sets `resolve_after_fix: true`, a `fix_step_anchor` pointing at the spec Step, and a `verify:` mirroring that Step's §9 acceptance check (or null when none exists). `wontfix` / `answer-only` set `resolve_after_fix: false` and null `fix_step_anchor` / `verify`.
 - The I/O shapes for the eventual reply + resolve live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` (write side).
 
 **Consumer responsibilities (`/geniro:implement`):**
@@ -296,7 +315,7 @@ comment_resolutions:                 # MAY be []; only review-comment items appe
 
 ## Format rules
 
-- Frontmatter MUST start on line 1 with `---`.
+- Frontmatter starts on line 1 with `---`.
 - Closing `---` on its own line.
 - Empty line after closing fence before body.
 - Body MAY use `## Section` headers; per-skill conventions for content.

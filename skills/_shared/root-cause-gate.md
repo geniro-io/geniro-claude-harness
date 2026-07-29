@@ -1,20 +1,27 @@
-# Root-Cause Gate
+# Root-cause gate
 
 Canonical AskUserQuestion gate that fires when a finding or proposed change is classified `[SYMPTOM]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Auto-patching a symptom without confirming the underlying cause silently handles a defect the user never confirmed: a real bug ships, no audit trail, and the visible defect re-emerges later via a different surface.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the gate logic.
 
+## Contents
+
+- When this fires — the `[SYMPTOM]` trigger predicate
+- Always-WAIT contract — no mode or lane skips this gate
+- Required AUQ shape (single-select) — the three options, verbatim
+- Result handling — how each pick re-tags the finding or exits the skill
+- Anti-rationalization
+
 ## When this fires
 
 Used by:
-- `/geniro:plan` — when the spec/plan authoring surfaces a proposed change classified `Root-cause classification: SYMPTOM-PATCH` (or `MIXED`) for any design unit. /geniro:plan's orchestrator-side spec-authoring prompts apply the classification; the gate fires upstream of `/geniro:implement`.
 - `/geniro:review` Phase 5 disposition — when any finding carrying `Cause: [SYMPTOM]` survives Phase 3 dedup and Phase 4 judge (i.e., wasn't dropped earlier) and is about to be persisted to the handoff for a downstream fixer (/geniro:review is a Reporter and applies no fixes; the gate records the disposition the handoff carries forward)
 
-Skip silently when zero `[SYMPTOM]` (or `MIXED`) classifications are present after the upstream filter step.
+Skip silently when zero `[SYMPTOM]` classifications are present after the upstream filter step.
 
 ## Always-WAIT contract
 
-This gate is **Always-WAIT** in every mode and lane (Auto, Fast, Light included). Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § "What counts as an artifact"). The reviewer-agent and /geniro:plan's spec-authoring classify findings/designs by structural signals (does the change touch the surface where the defect shows, or the layer where causation originates?) but cannot judge user intent — and two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
+This gate is **Always-WAIT** in every mode and lane (Auto, Fast, Light included). Symptom-matching is correlation, not causation — the same principle the `/geniro:debug` Evidence Standard enforces ("the hypothesis matches the symptom" is rejected as confirmation; only reproduction with a captured artifact qualifies — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § "What counts as an artifact"). The reviewer-agent classifies findings by structural signals (does the change touch the surface where the defect shows, or the layer where causation originates?) but cannot judge user intent — and two indistinguishable `[SYMPTOM]` classifications can mean radically different things:
 
 - **Intentional deferral** — the deeper bug is being addressed in a separate work stream, so the symptom-patch IS the right call right now.
 - **Wrong classification** — the orchestrator's `[SYMPTOM]` tag is wrong and the user knows the true root cause sits elsewhere; auto-handling would bury the real bug.
@@ -39,8 +46,7 @@ The gate follows the two-step shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per
 - **Options:** the three options below, each with its one-line consequence.
 
 Pull the `<title>` / `<file:line or design-section>` / `<symptom>` / `<suspected root cause>` / `<why this matters>` values from the upstream artifact's persisted body fields:
-- For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
-- For `/geniro:plan`: from /plan-emitted design unit fields in spec.md (design title / target file / `Symptom:` / `Suspected root cause:` / `Why this matters:`).
+For `/geniro:review`: from each finding's `File:` / finding-title / `Why this matters:` plus the `Cause:` and `Suspected root cause:` sub-fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` § Persistence schema.
 
 When more than one `[SYMPTOM]` finding/design fires the gate in the same skill phase, fire the AUQ once per finding (sequentially) — the user's choice on one symptom does not transfer to another. The single-select shape stays the same per call; do NOT batch into a multi-select. Each finding's chat block renders fresh before its own question.
 
@@ -72,7 +78,7 @@ After the gate resolves:
 | Your reasoning | Why it's wrong |
 |---|---|
 | "The symptom matches the bug, that's good enough" | Symptom-matching is correlation, not causation. Only confirmed cause (verified by code-trace, repro test, or hypothesis-confirmation artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § "What counts as an artifact") justifies a fix. The reviewer-agent's `[SYMPTOM]` classification means causation is unconfirmed — fire the gate. |
-| "I'll just pick one of the two valid fixes" | If the reviewer-agent classifies a design unit as `MIXED` (one path treats the symptom, another addresses the cause) and the user has not been asked, picking silently ships a product decision the user did not authorize. Symmetric with the multi-path fix gate in /geniro:debug (§2.2) and the `[PRODUCT-DECISION]` gate in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Fire the AUQ. |
+| "I'll just pick one of the two valid fixes" | When a `[SYMPTOM]` finding admits two defensible fixes — one that treats the surface, one that addresses the cause — picking silently ships a product decision the user did not authorize. Symmetric with the multi-path fix gate in /geniro:debug (§2.2) and the `[PRODUCT-DECISION]` gate in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Fire the AUQ. |
 | "The classification looks wrong — it's clearly a root-cause fix, I'll skip the gate" | Skipping the gate based on your own re-classification silently handles a finding the user never saw — the defect ships with no audit trail and re-emerges via another surface. The agent's classification is the gate trigger; if it's wrong, the user picks "Confirmed root cause (proceed)" and the re-tag happens at result-handling — the audit trail records the override. |
 | "Only one [SYMPTOM] finding fired — the user will get annoyed by the question" | One AUQ call is the cost of preventing a real bug from shipping. The user is far more annoyed by a regression caused by an unconfirmed root cause than by a single decision prompt. |
 | "I'll batch every [SYMPTOM] finding into one multi-select" | Each symptom has its own root cause, its own user context, and its own correct disposition. Batching forces the user to over-generalize ("escalate all" or "proceed all") and loses the per-finding decision the gate exists to capture. Fire one AUQ per finding sequentially. |

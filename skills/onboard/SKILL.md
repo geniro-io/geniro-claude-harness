@@ -9,6 +9,23 @@ argument-hint: "[optional: --focus area1,area2 --depth N]"
 
 # Onboard: rapid codebase orientation
 
+## Contents
+
+- Arguments
+- Outputs — the 8-section `_CODEBASE_MAP.md` template
+- State machine
+- Loop invariants
+- Anti-rationalization
+- Quality-first budgets
+- Phase 1 — Discover
+- Phase 2 — Map
+- State file schema
+- ACI per-phase tool surface
+- Definition of done
+- Examples
+
+---
+
 2-phase loop (Discover → Map). Generates a structured map that serves as a reference for the session.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
@@ -18,6 +35,7 @@ argument-hint: "[optional: --focus area1,area2 --depth N]"
 - **No arguments** — full codebase scan; produces the 8-section `_CODEBASE_MAP.md` (default mode).
 - `--focus area1,area2,...` — scope-limiter. Scans all, but concentrates the map output on focus areas; non-focus areas get summary-level coverage.
 - `--depth N` — limit directory scanning to N levels deep. Useful for large monorepos where full traversal is too slow. Orthogonal to `--focus` (combine as needed).
+- `--cap N` — raise the default 50-file read budget to N. The budget is what keeps an ordinary run fast, so it is not raised by asking mid-run; a user who wants a deeper first map says so up front.
 
 Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, concentrate on auth+api).
 
@@ -63,18 +81,29 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 **`## Tool log` section in state.md:** selective logging — log L3 writes (`_CODEBASE_MAP.md` write via `update-semantic`), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash skipped.
 
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
+| "I need more detail on this module" | The codebase map captures architecture, not implementation. Keep it under 1000 lines. |
+| "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
+| "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
+| "The repo has 5000 files but I'll just scan everything — better safe than sorry." (or: "it's monorepo-scale, so bypass the cap silently") | Mass-scan violates the bounded-scan contract. The read budget exists for tokens + speed: sample the most relevant files and record what was covered in `## Scope`. Expansion is explicit — `--cap N` up front, or the §1.3 Step 2 AUQ — so raising the cap on your own authority, silently or otherwise, defeats the cost-control intent. |
+| "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
+| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Hard caps abort legitimate complex discovery mid-stride. Quality-first — no hard caps. The read budget bounds the cost, `--cap N` raises it, and a repo too large for the sample to represent escalates via AUQ. User has agency without being interrupted to get it. |
+| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress and the user re-runs from scratch. The `## Tool log` in particular is what records the scan process — which directories were covered, which raised permission errors — so a failed onboard stays diagnosable without repeating the whole scan. |
+
 ## Quality-first budgets
 
 No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. All limits below are escalation gates that surface to the user.
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Repo-size scan cap | 50 files (default) OR user-configured expansion | §1.3 Step 2 | AUQ — "Apply --focus" / "Expand scan (specify cap)" / "Truncate at top 50" / "Abort". **User picks; persists to state.md `approvals[]` (category `expand_scope`).** |
+| Repo-size scan cap | 50 files read, or `--cap N` | §1.3 Step 2 | A repo too large for that sample to represent it escalates via AUQ — §1.3 Step 2 owns the threshold, the option list and the `approvals[]` persistence. |
 
 **Architecture constraints (design intent, not budget):**
 - No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
-
-**Claude Code internals** (not under /geniro:onboard control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
 
 ---
 
@@ -84,15 +113,7 @@ State.md `phase: discover`. Low cost — a repo-size scan + Glob + initial Read 
 
 ### 1.1 Step 0 — Mode detect
 
-Transient detect on entry — does not persist a state.md row:
-
-| `$ARGUMENTS` shape | Behavior |
-|---|---|
-| empty | Full codebase scan (default mode). |
-| `--focus <area>` | Scope-limiter on the full 8-section template. |
-| `--depth N` | Limit scanning to N levels. |
-| Combined | Both flags supported. |
-
+Parse `$ARGUMENTS` per §Arguments and echo the resolved mode. Transient — no state.md row.
 
 ### 1.2 Step 1 — Load custom instructions + past learnings
 
@@ -105,17 +126,15 @@ On Phase 1 entry:
 
 Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract.
 
-### 1.3 Step 2 — Repo-size scan + ≤50-file cap
+### 1.3 Step 2 — Bounded repo scan
 
-Avoid loading entire repositories — bounded scan ≤50 files default.
+Avoid loading entire repositories — the bounded scan reads at most 50 files by default, chosen for relevance (entry points, manifests, top-level modules) rather than directory order. That budget bounds cost on every run, so repo size alone is not a reason to stop and ask.
 
 **Procedure:**
 
 1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod, .github/, src/.
-2. **Estimate scan size** — `find . -type f | wc -l` (or platform equivalent) to count total files. When `--depth N` is set, bound traversal with `find . -maxdepth N -type f` and record `scan_depth: N` in state.md frontmatter so Phase 2 mapping honors the same bound. Skip standard ignores: `node_modules`, `.git`, `dist/`, `build/`, `target/`, `.venv`, `vendor/`, `__pycache__`.
-3. **Apply ≤50-file default cap:**
-- If total file count ≤50 OR `--focus` provided AND focus-glob hits ≤50: proceed unblocked.
-- If total >50 AND no `--focus`: fire the repo-size scan cap AUQ — header "Repo-size cap":
+2. **Estimate scan size** — count the repo's source files, honoring its ignore rules and any `--depth N`; record `scan_depth: N` in state.md frontmatter so Phase 2 mapping honors the same bound.
+3. **Apply the read budget:** sample within it and proceed — 50 files by default, `--cap N` to raise it, `--focus` to narrow what gets sampled, `--depth N` to bound traversal. Proceeding is the default because the question is unanswerable before the user has seen anything about the repo, and the budget already bounds the cost. Escalate only when the repo is large enough that a 50-file sample can no longer represent it (50,000+ files) and no `--focus` or `--cap` was given: auto-apply `--depth 2` so traversal doesn't stall, then fire the repo-size scan cap AUQ — header "Repo-size cap":
 - **"Apply --focus <area>"** — user supplies focus areas; re-run scan with filter.
 - **"Expand scan (specify cap)"** — user provides explicit cap (e.g. 200, 500). **Persists to state.md `approvals[]` with category `expand_scope`.**
 - **"Truncate at top 50"** — proceeds with top 50 most-likely-relevant files. Terminal state on completion: `map-truncated`.
@@ -126,17 +145,10 @@ Avoid loading entire repositories — bounded scan ≤50 files default.
 **Edge cases:**
 - **Empty or near-empty repo** (no source files found): terminal `routed` with suggestion "Repo appears empty. Use `/geniro:investigate` to clarify project state." Run the §2.5 cleanup before writing this terminal phase, as with every other terminal exit.
 - **Permission errors on key directories** — log to `## Errors` body section; note gaps in final map's `## Tech Debt & Notes`.
-- **Very large repos (50,000+ files)** — auto-applies `--depth 2` AND fires the AUQ above; user picks; default to truncate.
 
 ### 1.4 Step 3 — Scan structure
 
-After caps respected:
-
-1. List directories and file counts within scope.
-2. Identify language / framework / tools (from package.json / pyproject.toml / Cargo.toml / etc.).
-3. Find package managers, config files, CI/CD definitions (`.github/workflows/`, `.gitlab-ci.yml`).
-4. Spot large monorepos, multi-language projects.
-5. Check for documentation (README, ADRs, wiki references).
+Within the scanned scope, gather the evidence sections 1 / 2 / 5 of the map need — directory structure, stack and tooling, and the files that configure them.
 
 State.md update: `phase: discover` → `phase: map`. `## Scope` body section captures the scanned-file list + applied cap.
 
@@ -156,11 +168,13 @@ Compose the map content in-context using the 8-section template from §Outputs a
 
 Persist the composed map through `update-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.md` — that helper IS the write mechanism, holding the `.codebase-map.lock` for an atomic lock-guarded write. Do NOT write `_CODEBASE_MAP.md` with the `Write` tool directly: `.geniro/planning/_*.md` is a guarded persistent path and a direct write trips the state-helper enforcement hook and double-writes the file.
 
-The helper writes one line per call (append-only or single-line prefix replacement — never whole-file):
-- **First onboard** (no prior map) — emit each composed map line with `update-semantic --file codebase-map --append "<line>"`. Append creates the file if it is missing.
+The helper appends or replaces a single line — never whole-file:
+- **First onboard** (no prior map) — append the composed map in section-sized blocks with `update-semantic --file codebase-map --append "<block>"`, each block under the helper's 4096-byte per-call ceiling (rc=68 past it — split the block and retry). Append creates the file if it is missing.
 - **Incremental re-run** (prior map exists) — for a changed entry use `update-semantic --file codebase-map --replace "<line-prefix>" "<new-line>"` (matches the first line starting with `<line-prefix>`); for a new entry use `--append "<line>"`.
 
 On rc=11 (lock held by another writer) defer and retry at phase end per the helper's defer-and-retry pattern.
+
+After the map persists, refresh the project-snapshot fingerprint — `update_fingerprint` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` §API. Every other skill's staleness check compares the current stack files against that fingerprint; leaving it stale keeps the "re-run /geniro:onboard" warning firing after a successful onboard, which teaches users to ignore the one signal that says the map is out of date.
 
 ### 2.3 Emit `discovery` learning
 
@@ -284,7 +298,7 @@ Mirrors the /geniro:implement ACI surface — read-only Phase 1, helper-mediated
 - Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
-- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `emit-learning` helper invocations / AskUserQuestion (the §2.3.5 improvement-candidate presentation) / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
+- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskUserQuestion (the §2.3.5 improvement-candidate presentation) / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
 - Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
 Existing safety hooks apply across all phases (file-protection / git-guardrail / `.geniro/` deletion guard).
@@ -305,28 +319,14 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] At least 3 critical paths traced and documented
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use `--focus` for large repos)
 - [ ] L3 `_CODEBASE_MAP.md` updated via `update-semantic`
+- [ ] Project-snapshot fingerprint refreshed via `update_fingerprint` (per §2.2)
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)
 - [ ] State.md cleaned up per §2.5
+
 ---
 
 ## Examples
 
 Three worked invocation examples (monorepo focus scan / returning-after-months refresh / feature-planning focus) in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §2.
 
----
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
-| "I need more detail on this module" | The codebase map captures architecture, not implementation. Keep it under 1000 lines. |
-| "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
-| "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
-| "The repo has 5000 files but I'll just scan everything — better safe than sorry." | Mass-scan violates the bounded-scan contract. The ≤50-file default cap exists for tokens + speed. Fire the AUQ — user picks `--focus`, expansion, or truncation. Don't silently broad-scan. |
-| "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
-| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Hard caps abort legitimate complex discovery mid-stride. Quality-first — no hard caps. The ≤50-file gate escalates to the user via AUQ. User has agency. |
-| "/geniro:onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
-| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
-| "Audit trail isn't needed for local /geniro:onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. The SessionStart hook re-injects on compaction; without the log, post-mortem requires re-running the scan from scratch. |

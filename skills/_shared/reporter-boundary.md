@@ -1,8 +1,18 @@
-# Reporter Boundary — A Workflow Wrapper Does Not Relax The Contract
+# Reporter boundary — a workflow wrapper does not relax the contract
 
 Canonical contract for Reporter-class skills: running under a dynamic `Workflow(...)`, ultracode, or any elevated-effort mode does NOT relax the skill's read-only contract. A workflow is an execution wrapper that parallelizes the subagent fan-out — it is not a contract override.
 
 Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:investigate`, `/geniro:resolve`.
+
+## Contents
+
+- The four invariants that bind identically inside a Workflow run
+  - 1. Reporter boundary — findings, not changes (incl. the authored-test push carve-out)
+  - 2. Canonical action gate — the documented options are an allowlist
+  - 3. State writes via `atomic_state_write`
+  - 4. Verify what's verifiable; surface only genuine decisions
+- Why this binds — the wrapper-as-authority failure mode
+- Anti-rationalization
 
 ## The four invariants that bind identically inside a Workflow run
 
@@ -53,4 +63,4 @@ Wrapping a skill in a workflow makes the model treat the workflow as the authori
 | "The build is red / this finding needs a fix — I'll ask the user how to resolve it." | A reporter doesn't decide fixes. Investigate the verifiable part (why it's red) and report it; leave the fix decision to `/geniro:implement`. The only thing you ask is the disposition (post / hand off / save), at the action gate. |
 | "The tests are authored and ready — I'll push the fix in the same commit while I'm at it." | The authored-test push carve-out (§1) is tests-only and `/geniro:review`-only. A fix never ships from a reporter — route it to `/geniro:implement`. Bundling a fix into the test-push commit is exactly the boundary breach the triple-scope prevents. |
 | "The user told me in chat to push the authored tests — that's the approval." | Chat text is never a gate. The authored-test push still routes through the explicit "Commit + push" pick in the Phase 6 Failing-tests gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6) — surface the gate and let the pick authorize the push. |
-| "This round's findings should reach the author, so I'll submit the pending review." | `/geniro:review` creates a PENDING draft only and never publishes it — submitting (the `reviews/<id>/events` endpoint, any `event`) fires notifications and is the user's own github.com action, across all rounds. Post the draft only after the action-gate "Post Draft PR review" pick, then tell the user to Submit; never auto-post, never call the submit endpoint, never replace the gate with a chat "submit it yourself." |
+| "This round's findings should reach the author, so I'll submit the pending review." | Submitting fires notifications to the PR author and is the user's own github.com action — post the draft after the action-gate pick, then tell the user to Submit (§1 has the endpoint-level boundary and why it holds across all rounds). |

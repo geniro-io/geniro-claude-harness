@@ -1,4 +1,4 @@
-# Design-Doc Detection
+# Design-doc detection
 
 Authoritative algorithm for resolving the first non-flag token of `$ARGUMENTS` to one of: `DESIGN_DOC`, `IDEA`, `CODE_REFERENCE`. Consumers cite this file at Phase 1 entry.
 
@@ -67,7 +67,7 @@ AUQ shape conventions for any of the per-consumer prompts above follow `${CLAUDE
 
 ## Marker writers
 
-`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<task-slug>/spec.md` canonical + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer.
+`/geniro:plan` Phase 6 writes **all three markers** (path placement under `.geniro/planning/<task-slug>/spec.md` canonical + HTML comment after H1 + YAML frontmatter `geniro_kind: design-doc`). This is the canonical writer.
 
 Other writers (manually authored design docs, docs imported from external sources, docs written by other Geniro skills that produce design content) **should write at least the YAML frontmatter** to maximize portability — frontmatter is the marker that survives copy-out-of-`.geniro/planning/` and HTML-stripping editors. Path and HTML markers are nice-to-have but not sufficient on their own across all user workflows.
 

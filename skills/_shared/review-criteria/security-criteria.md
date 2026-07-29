@@ -1,4 +1,4 @@
-# Security Review Criteria
+# Security review criteria
 
 OWASP-aligned security analysis: injection attacks, authentication/authorization, secrets management, crypto, input validation, data exposure, and cross-boundary composition / abuse cases.
 

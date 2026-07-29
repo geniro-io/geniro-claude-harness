@@ -1,8 +1,17 @@
-# Context Isolation Checklist
+# Context isolation checklist
 
 Co-cited with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every Agent() spawn site. spawn-agent.md handles agent-name resolution + runtime degradation; this file handles prompt richness. Together they ensure subagents never inherit orchestrator session state.
 
 This file is the single source of truth for the pre-inlined-context contract every Agent() spawn must satisfy. Skills cite this file; do NOT inline-paste the checklist.
+
+## Contents
+
+- Why this exists — the three failure modes a bare prompt produces
+- When this applies — every Agent() spawn; codebase research uses `codebase-research-agent`
+- Required pre-inlined context — the six fields every prompt carries
+- Forbidden patterns — prompt shapes that guarantee a re-do
+- Anti-rationalization
+- Definition of Done
 
 ## Why this exists
 
@@ -16,7 +25,7 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 ## When this applies
 
-Satisfy the checklist on every Agent() spawn. A bare-prompt spawn forces the agent to re-discover everything from scratch, which is exactly the rediscovery / wrong-schema / unwanted-mutation set of failures listed above.
+Satisfy the checklist on every Agent() spawn.
 
 ### Codebase research — use `codebase-research-agent`
 
@@ -49,13 +58,15 @@ Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-re
 
 ## Required pre-inlined context
 
-Include all six fields in every Agent() prompt — a missing field is the gap that produces the rediscovery, wrong-schema, or unwanted-mutation failure described in §Why this exists.
+Include all six fields in every Agent() prompt — a missing field is the gap the §Why-this-exists failures come through.
 
 **(1) Task scope.** Exactly what the agent must produce — single deliverable, no expansion. Phrase as "Produce <X>" not "Investigate <Y>". Scope-creep prevention: if the orchestrator would accept two different deliverables from the same prompt, the scope is under-specified. Cross-reference `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for in-agent scope guards.
 
 **(2) Acceptance criteria.** Explicit pass/fail signal in 1-3 bullets. The agent uses these to self-check before reporting completion; the orchestrator uses them to validate the agent's output. Examples: "Output table has exactly 3 columns: file, line, severity" / "Every finding has an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`".
 
 **(3) Relevant file paths with content.** Orchestrator reads files in advance and pastes the content into the prompt. Agents do NOT discover via Glob — discovery duplicates work the orchestrator already did. Paste the verbatim content under a `## Pre-Inlined Files` section with path headers; do not summarize.
+
+The rule binds on the task inputs the orchestrator discovered — the diff, the changed files, the spec, whatever it went looking for. A fixed plugin-owned reference the agent's own contract already tells it to Read (a `review-criteria/` rubric, `subagent-instruction-load.md`, the confidence rubric) passes as a resolved absolute path instead: nothing was discovered, so nothing is re-discovered, and inlining it would push a multi-thousand-word file through the orchestrator's context purely to hand it to an agent that would have opened it anyway. Resolve the path before passing it — an unresolved `${CLAUDE_PLUGIN_ROOT}` token is not a path the agent can open.
 
 **(4) Prohibited tools list.** When the agent must NOT touch certain surfaces, declare it explicitly via `disallowedTools: [<list>]` AND restate the constraint inside the prompt body (belt-and-suspenders, since degraded `general-purpose` calls per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` lose the tool allowlist enforcement). Common patterns:
 - reviewer-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` — read-only by contract.
@@ -65,7 +76,7 @@ Include all six fields in every Agent() prompt — a missing field is the gap th
 
 **(5) Output schema.** The exact format the agent's response must match. Examples: a Markdown table with named headers, a JSON block matching a stated schema, or finding objects matching the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. If the orchestrator cannot parse the agent's output, re-spawning is wasted work — pin the schema upfront. Include a one-example block showing the literal shape.
 
-**(6) Model tier.** For plugin-defined agents OMIT `model=` at every spawn site — the agent's frontmatter `model:` governs. reviewer-agent / adversarial-tester-agent / codebase-research-agent / codebase-explorer-agent declare `model: inherit` (→ the orchestrator's session tier); test-runner-agent and knowledge-retrieval-agent declare `model: sonnet` (mechanical-agent carve-out, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §carve-outs). Pass `model=` explicitly ONLY for general-purpose spawns where the tier IS the deliverable contract (e.g. `/geniro:setup` Phase 4 verification = sonnet, ui-preview = haiku), and for user-authored custom reviewers that declared `model:` in their frontmatter. The tier choice is part of the spawn contract; document it at the spawn site.
+**(6) Model tier.** For plugin-defined agents OMIT `model=` — the agent's frontmatter `model:` governs, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Pass `model=` explicitly ONLY for a general-purpose spawn where the tier IS the deliverable contract (`/geniro:setup` Phase 4 verification = sonnet) and for a user-authored custom reviewer that declared `model:` in its frontmatter; document that choice at the spawn site.
 
 ## Forbidden patterns
 
@@ -84,7 +95,7 @@ Include all six fields in every Agent() prompt — a missing field is the gap th
 | "The acceptance criteria duplicate the task scope — pick one." | Scope is what to produce; criteria is how to verify. They serve different purposes — scope drives the agent's work, criteria drives the orchestrator's accept/reject decision. Both required. |
 | "I'll skip the disallowedTools field — the agent has good judgment." | The agent's good judgment is unaudited. The disallowedTools list is the only enforcement layer between the agent and the file system in interactive mode; in degraded mode (general-purpose fallback) you lose even that, and the in-prompt restatement is the only remaining guard. Belt + suspenders. |
 | "Pre-inlining files is for slow agents — fast agents can re-Glob." | Re-Globbing is non-deterministic (different agents see different snapshots) and re-discovers files the orchestrator already validated. Pre-inlining is the parallelism multiplier — the orchestrator does discovery once, every agent benefits. |
-| "I'll pin a `model=` on every spawn so tier is always explicit." | Plugin-defined agents declare their tier in frontmatter (`model: inherit` for all but the two mechanical carve-outs, which declare `model: sonnet`) and the spawn site OMITs `model=` so the frontmatter governs — passing the runtime arg defeats the user's session-level tier choice for inherit-agents (and `model="inherit"` fails input validation). Pass `model=` explicitly only for general-purpose spawns where tier is the safety contract (verification = sonnet, ui-preview = haiku) and for custom reviewers that declared `model:` in frontmatter. |
+| "I'll pin a `model=` on every spawn so tier is always explicit." | OMIT `model=` for plugin-defined agents — their frontmatter tier governs, and `model="inherit"` at the call site fails input validation outright. The rule, its carve-outs, and the reasoning: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. |
 | "Built-in `Explore` is the standard codebase-search agent in Claude Code — I'll use it instead of spawning a plugin agent." | `Explore` is pinned to Haiku 4.5 regardless of the orchestrator's tier — on an Opus session, evidence gathering for the orchestrator's reasoning would run on a substantially weaker model. The plugin's `codebase-research-agent` declares `model: inherit` so research runs at the tier the user picked at session start. `Explore` is also exposed to the upstream MCP-overflow bug ([#38928](https://github.com/anthropics/claude-code/issues/38928)). `codebase-research-agent` is the default for every plugin skill's codebase research; do not spawn `Explore`. |
 
 ## Definition of Done
@@ -93,8 +104,8 @@ A spawn site correctly applies the checklist when:
 
 - [ ] Task scope is a single explicit deliverable, phrased "Produce <X>".
 - [ ] Acceptance criteria are 1-3 explicit pass/fail bullets.
-- [ ] Every relevant file is pre-inlined (full content) with absolute path; no implicit Glob expected.
+- [ ] Every discovered input file is pre-inlined (full content) with absolute path; no implicit Glob expected. Fixed plugin-owned references the agent's contract has it Read pass as resolved absolute paths (field 3).
 - [ ] disallowedTools is set when the agent's contract is read-only; the constraint is also restated in-prompt.
 - [ ] Output schema is pinned with a one-example block showing the literal shape.
-- [ ] Model tier follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`: plugin-defined agents OMIT `model=` (inherit orchestrator tier); `model=` is passed explicitly only for general-purpose spawns where tier is the contract and for custom reviewers that declared `model:` in frontmatter.
+- [ ] Model tier follows field (6): plugin-defined agents OMIT `model=`; an explicit tier appears only at the two sites that field allows.
 - [ ] The spawn obeys `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` runtime-degradation rule (prefixed `geniro:<agent>` first, then bare `<agent>` on "not found", then general-purpose with body-prepended on second "not found"; cache the resolved rung for the session).

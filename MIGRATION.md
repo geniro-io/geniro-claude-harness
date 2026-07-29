@@ -200,6 +200,8 @@ The `block-config-weakening.sh` PreToolUse hook — which hard-blocked edits to 
 
 ### `/geniro:review` re-runs can collapse unchanged repeat findings into a Carried-over section
 
+> **Superseded — historical record only.** The Carried-over section and the repeat-handling choice this entry introduces were both removed by *"`/geniro:review` re-runs no longer collapse repeats into a Carried-over section"* (above). Nothing described below still fires — an unchanged repeat stays in the main `## Findings` list, and the `rereview_repeat_handling` approvals category is retired. Follow the removal entry, not this one. No action.
+
 A round ≥2 `/geniro:review` re-run now offers a "Repeat findings" choice at the re-review gate: move unchanged repeats (issues raised in an earlier round and never fixed, surfacing identically this round) into a collapsed `## Carried-over from round <N>` handoff section, or keep every repeat in the main findings list. The choice routes presentation only — under either pick every repeat stays in the report and in the handoff, and a repeat that strengthened since last round (fresh convergence, a newly-reachable code path, or a verifier confirmation absent before) still promotes back to the active `## Findings` list. The pick persists as a new `approvals[]` category `rereview_repeat_handling`. A first review or fresh-PR round has no prior round to carry over from, so the section and the choice never appear there.
 
 **Action required:** None — first-review and fresh-PR runs are unaffected; the new section and gate only appear on a round ≥2 re-run, and the collapse is opt-in per run.
@@ -617,7 +619,7 @@ Adds `risk_class: low` right after the opening `---` of each affected action's f
 
 Skills dropped in the consolidation: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`. Their `.geniro/instructions/<scope>.md` files are no longer loaded by any skill.
 
-**Action required:** Per-file decide: (a) migrate the rules content to the replacement skill's instruction file (mapping in CLAUDE.md "Skills deleted" section: `/follow-up` → `/implement`; `/learnings` → auto-step in `/implement` Phase 3; `/deep-simplify` → `/review` standard dimensions; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
+**Action required:** Per-file decide: (a) migrate the rules content to the replacement skill's instruction file (mapping in README.md "Skills deleted" section: `/follow-up` → `/implement`; `/learnings` → auto-step in `/implement` Phase 3; `/deep-simplify` → `/review` standard dimensions; `/decompose` → `/plan` milestone-mode), then (b) delete: `/geniro:instructions delete <scope>`.
 
 **Auto-detect:** `ls .geniro/instructions/{brainstorm,decompose,follow-up,deep-simplify,features,learnings,cleanup,vendor}.md 2>/dev/null`
 
@@ -689,7 +691,7 @@ cd .geniro/planning && \
 
 ### Legacy state-file paths superseded by T1/T2/T3
 
-`.geniro/state/` was reorganized per the tier framework: T1.5 durable session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry for backward-compat resume but writes to the T2 path.
+`.geniro/state/` was reorganized per the tier framework: T1.5 durable session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted).
 
 **Action required:** Optional cosmetic cleanup (orphan files inert).
 
@@ -712,7 +714,7 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 
 New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
 
-**Action required:** If a workflow legitimately needs to bypass a guard, add the pattern ID to `.geniro/safety.json` `allow_patterns` (full ID list in CLAUDE.md "Per-project allowlist for safety guardrails"). The hook output prints the exact ID to add.
+**Action required:** If a workflow legitimately needs to bypass a guard, add the pattern ID to `.geniro/safety.json` `allow_patterns` (full ID list in HOOKS.md "Per-project allowlist"). The hook output prints the exact ID to add.
 
 **Auto-detect:** N/A — only reveals itself when a blocked operation occurs (fail-loud).
 
