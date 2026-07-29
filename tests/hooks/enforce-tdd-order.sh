@@ -189,6 +189,17 @@ expect_allow "RED: awk numeric compare allowed" \
 expect_allow "RED: running a python script allowed" \
   "$(run_bash 'python3 manage.py migrate')"
 
+# ===== NotebookEdit branch: notebook_path is classified like file_path =====
+run_notebookedit() {
+  jq -nc --arg p "$1" '{tool_name: "NotebookEdit", tool_input: {notebook_path: $p, new_source: "x = 1"}}' | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+write_phase RED
+expect_block "RED: NotebookEdit on a production notebook blocked" \
+  "$(run_notebookedit "$GITREPO/src/pipeline.ipynb")"
+expect_allow "RED: NotebookEdit on a test notebook allowed" \
+  "$(run_notebookedit "$GITREPO/tests/pipeline.ipynb")"
+
 # No TDD state file → not opted in → Bash production write allowed.
 write_phase RED
 rm -f "$STATE_FILE"

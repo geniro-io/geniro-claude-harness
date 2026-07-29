@@ -1,4 +1,4 @@
-# Debug — Detailed Reference
+# Debug — detailed reference
 
 Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
@@ -6,11 +6,11 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` to 
 
 1. State machine — full ASCII diagram + state semantics
 2. State file schema — frontmatter + body sections (T1.5 state.md, T2 handoff files)
-3. Infrastructure Investigation — signals + investigation checklist
-4. Isolation Techniques — binary search, git bisect, profiling
-5. Stall Diagnosis Taxonomy — 8-component missing-component table
+3. Infrastructure investigation — signals + investigation checklist
+4. Isolation techniques — binary search, git bisect, profiling
+5. Stall diagnosis taxonomy — 8-component missing-component table
 6. Adversarial Mode templates — A5 spawn prompt + A6 findings template
-7. Extended examples — Intermittent Timeout + Verify Recent Changes
+7. Extended examples — intermittent timeout + verify recent changes
 8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
 9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5)
 
@@ -145,7 +145,7 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`.
 
 ---
 
-## 3. Infrastructure Investigation
+## 3. Infrastructure investigation
 
 When symptoms suggest the bug may not be in the code (timeouts, intermittent failures, environment-specific errors, deployment regressions), investigate infrastructure before or alongside code hypotheses.
 
@@ -157,7 +157,7 @@ When symptoms suggest the bug may not be in the code (timeouts, intermittent fai
 
 ---
 
-## 4. Isolation Techniques
+## 4. Isolation techniques
 
 Once a hypothesis is confirmed, narrow down to exact code location.
 
@@ -171,7 +171,7 @@ Once a hypothesis is confirmed, narrow down to exact code location.
 
 ---
 
-## 5. Stall Diagnosis Taxonomy
+## 5. Stall diagnosis taxonomy
 
 When /geniro:debug stalls (the stall gate fires — threshold defined in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.7), classify the root-cause-of-the-stall as a missing component:
 
@@ -220,18 +220,7 @@ none — adversarial mode runs a fresh pass (no prior reviewer findings availabl
 ### Output
 Write your report to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) via the atomic-write helper — a direct Edit/Write to any `.geniro/state/` path is hard-blocked by the state-helper enforcement hook, so write it with `source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"` then `atomic_state_write "<path>" <<'EOF' … EOF`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
 
-The handoff's frontmatter MUST include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check. Inline this schema verbatim — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree:
-
-```yaml
-authored_tests:
-  - id: t1                            # stable anchor (t1, t2, ...)
-    path: <repo-root-relative path>   # resolve against your current `git rev-parse --show-toplevel`
-    intent: <one-line description of what the test guards>
-    mode: adversarial                 # MUST be `adversarial` (matches top-level `mode:` discriminator)
-    f_to_p_status: red-on-current     # only `red-on-current` is valid for kept adversarial tests
-    targeted_source: <prod file path> # the production source the test attacks
-    confidence: <high|medium|low>     # mirrors your A6 Confidence column
-```
+The handoff's frontmatter must include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree. Read the entry schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § Producer-specific extensions and fill every field from your run; the values this mode fixes are `mode: adversarial` (matching the top-level `mode:` discriminator), `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring your A6 Confidence column, and `path` resolved against your own `git rev-parse --show-toplevel`.
 
 `authored_tests: []` (empty array) is the correct form for the zero-red-tests terminal outcome. Body `**Test file:**` lines remain the human-readable mirror; the frontmatter is the contract.
 
@@ -282,11 +271,11 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ## 7. Extended examples
 
-### Example 1: Cache Not Invalidating
+### Example 1: Cache not invalidating
 
 `/geniro:debug User sees stale data after profile update` → two competing hypotheses (cache invalidation broken vs. update endpoint never called); logging confirms the first, isolating a cache-key mismatch as the `[ROOT-CAUSE]` → propose patching the cacheKey builder in `src/cache/user.ts` to include the user ID, verified by monkey-patch → findings persisted to `from-debug-<branch>.md`, escalated to /geniro:implement, `diagnosis` emitted with tags=[cache, invalidation, user-role].
 
-### Example 2: Intermittent Timeout
+### Example 2: Intermittent timeout
 
 ```
 /geniro:debug API endpoint times out randomly under load
@@ -300,7 +289,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 → Verify: local experiment shows timeouts disappear with monkey-patch
 → Phase 3 Escalate: /geniro:implement with the proposed patch
 
-### Example 3: Verify Recent Changes (Adversarial Mode)
+### Example 3: Verify recent changes (Adversarial Mode)
 
 ```
 /geniro:debug verify last changes

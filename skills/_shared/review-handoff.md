@@ -4,7 +4,7 @@ Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). The `/geni
 
 State.md `phase: action-gate` during this phase.
 
-**Handoff schema version: `m6-v3`** (the producer writes `geniro_schema_version:` into the handoff frontmatter per `/geniro:review` SKILL.md §5.1). Consumers accept `m6-v1`, `m6-v2`, and `m6-v3`; per-version field-presence contract:
+**Handoff schema version: `m6-v3`** (the producer writes `geniro_schema_version:` into the handoff frontmatter at its Phase 5.1 write — `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.1). Consumers accept `m6-v1`, `m6-v2`, and `m6-v3`; per-version field-presence contract:
 
 - `m6-v1` (legacy): no per-finding verification fields at any severity; bare deferred list.
 - `m6-v2`: the four verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) present on every kept finding (CRITICAL / HIGH / MEDIUM), emitted by the Phase 4.2 per-finding verifier; `Validation:` admits `unverified` (orchestrator-assigned when the verifier failed to spawn — see the presence rules below); bare deferred list.
@@ -34,14 +34,16 @@ Within `m6-v2`/`v3`, a producer that verified only HIGH findings emits verificat
 
 /geniro:review does not apply fixes. The Phase 6 handoff message never includes "I'll fix these now" language. The fix path routes to /geniro:implement (manual, or via the Phase 6 handoff line).
 
-**Skip Phase 6 entirely only when the review produced nothing to decide** — ALL FOUR hold:
+**Skip the Phase 6 GATES only when the review produced nothing to decide** — ALL FOUR hold:
 
 - Zero kept findings remain in `## Findings` after Phase 4.2 (at any severity, not only CRITICAL / HIGH / MEDIUM).
 - Zero `Decision Type: PRODUCT-DECISION` findings — a Path-B LOW is still the user's call and still needs the §3 open-decision gate.
 - `## Deferred — sub-threshold` is empty — otherwise the §4.6 include-deferred gate has entries to offer.
 - `## Authored Tests` is empty — otherwise the §6 Failing-tests gate has a commit policy to settle.
 
-Severity alone does not decide this. An all-LOW review still carries decisions: the open-decision gate for a LOW product-decision, the Post option (which §4 keeps present for a finding of any severity), and the include-deferred gate that exists precisely for sub-threshold entries. Skipping on "no CRITICAL / HIGH / MEDIUM" exits before all three.
+**The §3.5 finalize step is outside that skip and runs on every pass.** It is a silent draft→final flip, not a gate, and the handoff written at Phase 5.1 carries `report_status: draft`. Skipping it strands a clean review at `draft` forever — which then trips /geniro:implement's draft warning and fails Invariant D in the §7.0 Pre-Post guard if the user ever posts that round's findings. Run §3.5, then exit the phase.
+
+Severity alone does not decide the gate skip. An all-LOW review still carries decisions: the open-decision gate for a LOW product-decision, the Post option (which §4 keeps present for a finding of any severity), and the include-deferred gate that exists precisely for sub-threshold entries. Skipping on "no CRITICAL / HIGH / MEDIUM" exits before all three.
 
 ---
 
@@ -68,7 +70,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 **Why it runs first.** An open question here is one whose answer changes what the Action gate is choosing between (e.g., "API seeder additions in-scope or split into a separate PR?" — the answer changes which findings get posted). Letting Action gate fire first means the user picks "/geniro:implement findings" without realizing those questions still gate the implementation.
 
-**What this gate does NOT ask.** /geniro:review records an open question ONLY when it cannot determine the answer itself and the answer changes what it posts — a genuine scope or judgment call. It does NOT record (so never surfaces here) a "how should X be fixed?" question: a reporter doesn't decide fixes, a finding carries its own recommended action, and /geniro:implement resolves fix specifics when it fixes. It also does not pose anything it could verify itself — a checkable claim is verified into a finding, not recorded as a question (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4).
+**What this gate does NOT ask.** /geniro:review records an open question ONLY when it cannot determine the answer itself and the answer changes what it posts — a genuine scope or judgment call. Fix-detail questions and self-verifiable claims are excluded at record time by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4, so neither ever reaches this gate.
 
 **Procedure:**
 
@@ -153,6 +155,13 @@ resolved-threads-snapshot: [<path:line entries|null>]        # read by §7.1 ded
 pr-bot-comments-snapshot: [<path:line entries|null>]         # read by §7.1 dedup check 2
 pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3
 prior-round-summary: <text|null>                       # written/read across re-run rounds (§7)
+spawn_dims_declared: [<dim-slug>, ...]   # producer-run: the dimension set declared before the Phase 2 batch fired
+spawn_dims_count: <int>                  # producer-run: length of spawn_dims_declared
+custom_reviewers: []                     # producer-run: discovered custom review dimensions (short spawn-spec scalars, never criteria bodies)
+mechanical_prepass_attempted:            # producer-run: one entry per pre-pass check, value in {findings, clean, error}
+  lint: <findings|clean|error>
+  schema: <findings|clean|error>
+  secret: <findings|clean|error>
 approvals: []
 non-resumable-actions: []
 open_questions:                       # always present; may be empty []
@@ -203,6 +212,14 @@ open_questions:                       # always present; may be empty []
 <!-- Populated only when the test-confirmation gate authored tests; lists each AI-authored test file by path. Empty otherwise. The Failing-tests gate fires when this section is non-empty. -->
 <list of test file paths, or empty>
 
+## Caveats
+<!-- One line per fail-open or coverage gap the run hit — a failed PR/tracker fetch, a thin mechanical pre-pass, a dropped custom reviewer, a finding left `Validation: unverified`, a test that flipped green on re-run. The section is where every fail-open path in the producer lands, so it is part of the skeleton even on a clean run. -->
+<list, or empty>
+
+## Accepted Gaps
+<!-- Written only when the user answered "Skip the missing reviewers and continue" at the producer's post-spawn completeness gate; names each declared dimension that never returned. Empty otherwise. -->
+<list, or empty>
+
 ## Tool log
 <reviewer spawns + side-effects>
 
@@ -244,8 +261,8 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 **Write/rewrite discipline — schema comes from the template, never from memory.** Any full handoff write (Phase 5.1 first write) or rewrite (a later round updating the file, a re-author after compaction, any whole-file replacement) follows this procedure — re-authoring the handoff from memory drops the identity frontmatter, renames fields (`pr-head-sha` → `pr-head-oid`, breaking the §7.4 freshness check that then reads null), collapses the per-finding verification fields into a prose line (downstream parses it as legacy `m6-v1`), and drops snapshot fields the same run's Post drill needs:
 
 1. **Before writing, re-read the source schema.** Re-read the §2.6 template above (or, for a rewrite, the prior handoff being updated) and take the field set from there — the frontmatter keys, the per-finding verification fields (present since `m6-v2`), and the `## ` section list. Do not reconstruct any of them from memory.
-2. **Write via `atomic_state_write`** with the full frontmatter + body skeleton, every finding rendered as the multi-line per-finding body block (not a prose collapse).
-3. **After writing, self-check (grep) presence.** Grep the written file for the identity frontmatter keys (`tier:`, `producer:`, `schema-version:`, `geniro_kind:`, `geniro_schema_version:`, `task_slug:`) AND the mandatory per-finding verification field labels on each kept finding (`Validation:`, `Recommended-action:`, `Verification-confidence:`, `Verification-evidence:`) — exempting LOW findings (including `[USER-ELECTED]` promoted LOWs, which carry none per the presence rules). Any missing key means the write dropped schema — re-author from the template, do not patch by memory.
+2. **Write via `atomic_state_write`** with the full frontmatter + body skeleton, every finding rendered as the multi-line per-finding body block (not a prose collapse). Because the frontmatter is re-authored from the template, every full write — first write or rewrite — lands `report_status: draft`; the §3.5 finalize step re-runs afterwards, so a rewrite can never leave a stale `final` behind.
+3. **After writing, self-check (grep) presence.** Grep the written file for the identity frontmatter keys (`tier:`, `producer:`, `schema-version:`, `geniro_kind:`, `geniro_schema_version:`, `task_slug:`), the producer-run declaration keys the verification gates read back (`spawn_dims_declared:`, `spawn_dims_count:`, `mechanical_prepass_attempted:`), AND the mandatory per-finding verification field labels on each kept finding (`Validation:`, `Recommended-action:`, `Verification-confidence:`, `Verification-evidence:`) — exempting LOW findings (including `[USER-ELECTED]` promoted LOWs, which carry none per the presence rules). Any missing key means the write dropped schema — re-author from the template, do not patch by memory.
 4. **On a rewrite, preserve every prior frontmatter field.** A field present in the prior version is preserved unless an explicit contract drops it (e.g. a documented schema migration). Fields are dropped by contract, never by omission. Before overwriting, capture the prior frontmatter key set (grep the file's keys); after writing, diff against it — a key that vanished without a contract is a regression. The snapshot fields (`resolved-threads-snapshot:`, `pr-bot-comments-snapshot:`, `pr-formal-reviews-snapshot:`) are the easiest to lose on a rewrite and are exactly what the §7.1 Post-drill dedup reads.
 
 **Definition of Done (write/rewrite):** the written handoff carries every identity frontmatter key and every mandatory per-finding verification field from the §2.6 template, and a rewrite preserved every frontmatter field the prior version carried (verifiable by the before/after key diff in steps 3-4).
@@ -276,9 +293,8 @@ Each field is `null` when the producer had nothing to capture (no PR ref, or `gh
   - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
   - **File:** path/to/file.ts:42-48
   - **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
-  - **Cause:** ROOT-CAUSE | SYMPTOM | UNKNOWN
   - **Confidence:** NN%
-  - **Origin:** llm:<dim> | mechanical:<check>
+  - **Origin:** llm:<dim> | mechanical:<check>       [which producer found it — NOT the reviewer-agent's own `Origin:` field, whose value set is different; see the mapping note below]
   - **Why this matters:** <1-sentence impact, verbatim from reviewer-agent output>
   - **Suggested fix:** <concrete improvement text, verbatim — synthesis form for PRODUCT-DECISION>
   - **Evidence:**
@@ -295,6 +311,8 @@ Each field is `null` when the producer had nothing to capture (no PR ref, or `gh
   - **Recommendation:** <option-id> — <one-sentence rationale> [PRODUCT-DECISION only]
   - **step0_status:** `pending | resolved | wontfix` [PRODUCT-DECISION only — omit for other types]
 ```
+
+**`Origin:` — producer→handoff mapping.** The name carries a different value set on each side of the write, so map it explicitly rather than copying it through. `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format emits `Origin: [NEW] | [PRE-EXISTING]` — *newness*, whether the defect sits in changed or unchanged code — and that value lands in this block's **title-line tag** (`[NEW]` / `[PRE-EXISTING]`), never in the `Origin:` sub-field. The `Origin:` sub-field above carries *provenance*: `llm:<dim>` for the reviewer dimension that reported it, `mechanical:<check>` for a Phase 1.5 pre-pass check, which the reviewer output does not state (the orchestrator knows it from which spawn returned the finding). A writer that copies the agent's `Origin:` straight into the sub-field produces `Origin: [NEW]`, which no consumer can resolve to a dimension.
 
 **The `- [ ]` checkbox is the addressed-tracker (presentation-only).** Every finding is written unchecked (`- [ ]`); the engineer ticks it (`- [x]`) by hand as they resolve that finding. No gate, consumer, or guard reads its checked state — they parse the `- **<Field>:**` sub-fields and the frontmatter — and it is never carried into a posted PR comment (the §7.5 pre-POST scrub composes comment bodies fresh). The `· <SEVERITY>` suffix on the title line mirrors the `Severity:` sub-field for at-a-glance scanning; the sub-field stays the canonical value the §3 / §7.0 gates read. The title line leads with the plain-text finding id (`F<n> — …`) and bolds only the short title — some markdown previews break a bold-led checkbox item with nested detail lines, so plain-text-lead keeps the checkbox inline. A handoff written before this rendering existed shows the finding header as `### F<n> — <title>` — same block, same fields; consumers parse by the `- **<Field>:**` labels and the frontmatter, never by the header shape.
 
@@ -436,7 +454,7 @@ Fires when the §4 Action-gate pick is `"/geniro:implement findings"` AND `## De
 
 1. MOVE each included entry out of `## Deferred — sub-threshold` INTO `## Findings`, re-rendered as the full per-finding body block with `[USER-ELECTED]` appended to its title-line tag list. Severity stays as scored — never inflated.
 2. Verification fields per the §"Verification fields — presence rules" USER-ELECTED convention: a promoted LOW carries none; a promoted evidence-less MEDIUM carries all four fields on the spawn-failure convention, excluded from any post set.
-3. The report is already `report_status: final` at this point, and a full rewrite resets it to `draft` (per /geniro:review SKILL.md §5.5 idempotent re-entry). Re-run the §3.5 finalize silently after the rewrite — safe, because a promotion can never introduce a PRODUCT-DECISION (§4.1 Path B keeps those out of `## Deferred — sub-threshold` by construction), so no decision gate re-opens.
+3. The report is already `report_status: final` at this point, and the rewrite in step 1 lands it back at `draft` (§2.6 write/rewrite discipline, step 2). Re-run the §3.5 finalize silently after the rewrite — safe, because a promotion can never introduce a PRODUCT-DECISION (§4.1 Path B keeps those out of `## Deferred — sub-threshold` by construction), so no decision gate re-opens.
 4. A legacy bare-list entry with no `File:` sub-field is skipped with a one-line notice (it cannot be re-rendered as a per-finding block) and stays in the report for awareness.
 
 **Persist the pick** to `approvals[]` category `deferred_inclusion` (value: `leave-in-report` | `include-all` | `include-picked` plus the included ids) via `atomic_state_write`. On a compaction-resume, check `approvals[]` before re-firing, like the other Phase 6 gates.

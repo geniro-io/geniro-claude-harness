@@ -42,7 +42,7 @@ Fires after the user accepts the spec for commit — via the §8.2 "Approve" pic
 
 **Opt-in (no launch modifier present).** Fall back to the interactive opt-in:
 
-1. **Ask the launch-config gate question** per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5b — "Pre-define the implementation settings now, so /geniro:implement can run on its own?" The gate question never auto-defaults; an empty answer is re-asked.
+1. **Ask the launch-config gate question** per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §5b, which owns its wording. The gate question never auto-defaults; an empty answer is re-asked.
 
 2. **On "No"** — write no `launch_config:` block. The spec carries no pre-set; `/geniro:implement` asks its setup questions interactively as it does today. Proceed to §8.4 with the spec unchanged.
 

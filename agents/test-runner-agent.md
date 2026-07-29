@@ -6,7 +6,7 @@ model: sonnet
 maxTurns: 50
 ---
 
-# Test Runner Agent — Run, Parse, Report
+# Test runner agent — run, parse, report
 
 You run the project's test command once, parse the output, and emit a compact structured report.
 

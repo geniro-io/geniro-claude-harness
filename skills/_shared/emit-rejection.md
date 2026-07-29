@@ -59,7 +59,7 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 
 Skills that **read** these L2 entries (to surface "user previously rejected X" hints) should:
 
-1. Read these entries at Phase 1 of the relevant skill — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a `## Memory Backend` block query the declared read tool for `user_rejected_suggestion` / `auq-rejection` / this scope (the local file is empty under `replace`), else call `query-learnings --type user_rejected_suggestion --tag auq-rejection [--tag <category>] --scope <current>`.
+1. Read these entries at Phase 1 of the relevant skill — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a `## Memory Backend` block query the declared read tool for `user_rejected_suggestion` / `auq-rejection` / this scope (the local file is empty under `replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --type user_rejected_suggestion --tag auq-rejection [--tag <category>] --scope <current>`.
 2. Surface result count to user in pre-AUQ display:
    ```
    User previously rejected <suggestion> in <scope> (<relative-time>).
@@ -96,18 +96,9 @@ User picks: Postgres
 Two weeks later:
 User: /geniro:plan implement caching layer
 
-/geniro:plan Phase 1 query-learnings --type user_rejected_suggestion --scope global
+/geniro:plan Phase 1 query_learnings --type user_rejected_suggestion --scope global
 -> surfaces: "User previously rejected Redis (approach_choice, 2 weeks ago)"
 
 /geniro:plan Phase 4: Skip Redis from approach list, or surface with notice
   "(previously rejected by user)".
 ```
-
-## Behaviors to cover
-
-When adding tests for this helper, exercise:
-- Explicit cancel/abort/no/reject/skip signals
-- picked_non_recommended detection
-- picked == recommended (no-op)
-- Missing args rejection (rc=64)
-- Payload field correctness (producer, scope, type, ext.*)

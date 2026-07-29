@@ -4,6 +4,7 @@ Per-dimension checklists for `/audit-plugin`. Each dimension defines its file sc
 
 ## Contents
 
+- Reviewer spawn template
 - Severity tiers (shared output classification)
 - Finding output contract (shared reviewer schema)
 - D1 — Mechanical hygiene (deterministic, no LLM)
@@ -17,6 +18,46 @@ Per-dimension checklists for `/audit-plugin`. Each dimension defines its file sc
 - Do-not-flag list (endorsed patterns)
 
 ---
+
+## Reviewer spawn template
+
+Pasted by the orchestrator at Phase 2. Every slot is filled before the spawn — a reviewer that has to discover its own rubric will invent one.
+
+```
+Agent(subagent_type="general-purpose", prompt="""
+## Task: Plugin audit — dimension D<N> (<name>)
+
+You are one reviewer in a multi-dimension audit of this Claude Code plugin repo.
+Review ONLY your dimension; other dimensions are covered by parallel reviewers.
+
+### Your rubric
+{{paste the full D<N> section from dimensions-reference.md}}
+
+### Severity tiers and output contract
+{{paste §Severity tiers + §Finding output contract from dimensions-reference.md}}
+
+### Do-not-flag list
+{{paste §Do-not-flag list}}
+
+### Your file scope
+{{inventory subset for this dimension, from Phase 0}}
+
+### Mechanical pre-pass context
+{{battery summary; for D3 additionally: the candidate lists; for D7 additionally: the seed-grep output}}
+
+### Procedure
+1. Load your markdown scope in FULL via `scripts/dump-md.sh <scope paths>` and survey from that — grep hits miss reworded coverage; grep only to pinpoint an exact known string. Read non-markdown files directly.
+2. Verify each candidate finding by Reading the exact cited lines — your `evidence` column must be a verbatim quote.
+3. Return ONLY the findings table per the output contract (≤25 rows) plus a 2-3 sentence per-dimension verdict ("healthy / debt concentrated in X").
+Do NOT fix anything. Do NOT review outside your dimension. Report only.
+""", description="Audit: D<N> <name>")
+```
+
+Dimension-specific notes:
+- **D4 (rules compliance):** instruct the reviewer to load the three `.claude/rules/*.md` files first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
+- **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
+- **D6:** paste the no-execution-site and over-constraint candidate lists from the D1 battery into the `### Mechanical pre-pass context` slot, as D3 and D7 already get theirs.
+- **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
 
 ## Severity tiers (shared output classification)
 
@@ -64,6 +105,8 @@ A finding without a verifiable `file:line` + verbatim `evidence` is inadmissible
 | File-size guidelines | `wc -w`: SKILL.md past ~3,000 words puts later sections outside the compaction re-attach budget, ~5,000 is the whole-file guideline; `agents/*.md` past ~2,500. All advisory — `tests/authoring/lint-skills.sh` warns only when a SKILL.md grows past its recorded size in `tests/authoring/skill-size-baseline.txt`, and then names the heading its compaction boundary falls at, so a silent run means every size is one a maintainer already accepted. Flag WHAT sits below the boundary, never the number itself | T4 |
 | TOC presence | Any `skills/**/*-reference.md` or `_shared/*.md` >100 lines without a "Contents"/"Sections" block in its first 30 lines | T4 |
 | Orphan candidates | For each `skills/_shared/*.md`, `lib/*.sh`, `agents/*.md`: grep the repo for its basename; zero inbound references → CANDIDATE for D3 adjudication | feed D3 |
+| No-execution-site candidates | Same basenames, but the shape a zero-reference test cannot see: referrers exist yet **none is an execution site** — every hit is another `_shared/` peer, and no `skills/*/SKILL.md`, phase file, or `agents/*.md` names it. A helper two peers cite but no skill ever runs is dead with a non-zero reference count, which is how one survived three audits. Also flag a helper whose referrers disagree about where it fires | feed D6 |
+| Over-constraint candidates | The authoring lint's INFO lines already name every SKILL.md over the front-load budget and the heading its compaction boundary falls at — paste them; they are check-10 candidates. Plus `grep -c` per shipped file for blanket prohibitions in normal prose (`NEVER` / `ALWAYS` / `MUST` outside a table row) — density, not any single hit, is the check-11 signal | feed D6 |
 
 Record full battery output to the state checkpoint. Machine findings are pre-verified (no Phase 3 re-read needed); candidate lists feed the relevant reviewer prompts.
 
@@ -74,7 +117,7 @@ Record full battery output to the state checkpoint. Machine findings are pre-ver
 Checks:
 1. **Docs-vs-reality drift.** CLAUDE.md skills table, README, HOOKS.md, ARCHITECTURE.md, and CONTRIBUTING.md claims vs actual skill/hook/helper behavior: listed skills exist, described flags/phases/paths match the SKILL.md body, hook descriptions match the script's actual matchers and bypass IDs, design rationale cited from ARCHITECTURE.md still matches the code that cites it.
 2. **Description-vs-body drift.** Each SKILL.md frontmatter `description:` vs what the body actually does (flags, phases, outputs).
-3. **Schema lockstep.** For every state-file / handoff field a producer writes (per `skills/_shared/state-tier-spec.md`), confirm consumers read the same field name and shape; flag fields written-but-never-read or read-but-never-written.
+3. **Schema lockstep.** For every state-file / handoff field a producer writes (per `skills/_shared/state-tier-spec.md`), confirm consumers read the same field name and shape; flag fields written-but-never-read or read-but-never-written. Hit count carries no signal here — a written field always has hits, so classify each as a write, a read, or a schema declaration and report when none is a read (or none is a write). Name both remedies and say which is cheaper: an unwired producer is as often a missing feature as it is dead weight.
 4. **Helper contract drift.** For each `_shared/*.md` helper and `lib/*.sh` script: do callers pass the slots / flags / MODE values the contract defines? Do cited exit codes match the script?
 5. **Single-source violations.** Pseudo-code blocks, slot tables, or schema definitions duplicated across ≥2 files (the rule: one source, others cite it).
 6. **Spawn-site consistency.** Every plugin-agent spawn follows the `spawn-agent.md` ladder and the OMIT-`model=` rule for carve-out agents; flag sites that contradict the skill's own tiering table.
@@ -89,7 +132,7 @@ Tier mapping: schema mismatch with behavioral impact → T1; doc drift / duplica
 Checks:
 1. **Deleted-skill references** outside the documented replacement tables (adjudicate D1 candidates).
 2. **Dangling section anchors.** `§Some Header` / "see §N" cross-references whose target header no longer exists in the cited file.
-3. **Dropped phase/step names.** References to phases or steps that were renamed or removed (grep the referenced skill for the phase name).
+3. **Dropped phase/step names.** References to phases or steps that were renamed or removed (grep the referenced skill for the phase name). Read each hit rather than counting it — a hit that only *documents the removal* is not evidence the name is still live.
 4. **Stale conditionals.** "when X ships" / "once Y lands" where X/Y already exists; "reserved for future" hooks that are now live.
 5. **Orphans.** Adjudicate D1 orphan candidates: a `_shared` helper, lib script, or agent with zero inbound references is dead weight (or its callers reference it by a wrong name — which is a T1 instead).
 6. **Stale rule files.** `.claude/rules/*` migration-audit sections describing work already completed; rules citing files that moved.
@@ -104,7 +147,7 @@ Tier mapping: wrong-name reference breaking a runtime lookup → T1; everything 
 Checks (the rules files are the source of truth — these are pointers, not restatements):
 1. **Hard exclusions** (`skill-authoring.md`): plugin-author-internal references, authoring-process narration, informational noise, out-of-scope content, non-English.
 2. **Prose rules** (`skill-prose.md`): caps-MUST/NEVER/ALWAYS outside anti-rationalization tables; menu-of-options paragraphs; restatement summaries; mixed point-of-view; load-bearing invariants placed past the compaction re-attach boundary (§Rule placement); fresh-user test on every user-facing string (step titles, AUQ text, narration templates).
-3. **Structure rules** (`skill-structure.md`): section ordering; frontmatter description format (third person, "Use when", no XML); anti-rationalization tables ≤15 rows with reasoning in the right cell; reference-graph depth ≤1 hop and no upward links from `_shared/` into skill bodies for runtime instructions; no line-number cross-refs.
+3. **Structure rules** (`skill-structure.md`): section ordering; frontmatter description format (third person, "Use when", no XML); anti-rationalization tables ≤15 rows with reasoning in the right cell; reference-graph depth ≤1 hop and no upward links from `_shared/` into skill bodies for runtime instructions; no line-number cross-refs. Also **reference class** (§Reference classes): prose carrying taste a verifier could evaluate one criterion at a time wants to be a rubric; prose stating a condition a command could decide wants to be an executable check or a failing test; prose describing a file's conventions wants to be that file, passed as an exemplar. Flag the mismatch, not every prose reference — prose is the default, just not the only option.
 
 Tier mapping: hard exclusions / hard structure breaches → T2; prose-guideline breaches → T5 (or T4 when they carry recurring token cost, e.g. restatement blocks).
 
@@ -114,7 +157,7 @@ Tier mapping: hard exclusions / hard structure breaches → T2; prose-guideline 
 
 5a checks (markdown):
 1. **Contradictions.** Phase A states X, phase B assumes not-X; an invariant the steps violate; a budget table disagreeing with the step that enforces it.
-2. **Unfireable gates.** Conditions comparing against fields no schema carries; gates whose trigger can never occur; AUQ flows with no path to one of their documented outcomes.
+2. **Unfireable gates.** Conditions comparing against fields no schema carries; gates whose trigger can never occur; branches conditioned on a flag, mode, or option the skill no longer ships (check `argument-hint` and the modifier table, not only the body); gates an earlier gate always pre-empts; AUQ flows with no path to one of their documented outcomes.
 3. **Tool-surface mismatches.** Body instructs using a tool absent from `allowed-tools`; AskUserQuestion specs exceeding 4 options; spawn prompts using slots never filled.
 4. **State-machine holes.** `phase:`/`status:` enum values written but never read (or read but never written); terminal states unhandled by resume logic.
 5. **Broken procedures.** Steps referencing outputs of steps that don't produce them; counters that reset on compaction while the skill claims compaction-safety.
@@ -131,21 +174,36 @@ Tier mapping: bypassable guard / data-loss path → T0; behavioral bug → T1; l
 
 ## D6 — Over-complication & instruction bloat
 
-**Scope:** `skills/`, `agents/`, `.claude/skills/`. The project-local skills ship to nobody, but they load on every plugin-editing session and sit outside every other bloat check, which is where the densest over-specification in the repo accumulates. **Method:** LLM reviewer. The goal is REMOVAL/COMPRESSION candidates — every finding proposes one concrete action: delete, shorten, merge, move to a sibling reference file, or convert a deterministic constraint to a hook/script. Apply the per-line test to every candidate: "would removing this make Claude err?" If not, it is weight without payload. Target signal density, not raw size — see `.claude/rules/skill-prose.md` §Token budget awareness for the why: what degrades rule-following is the number of plausible-but-inapplicable rules the model has to adjudicate between, not the volume of text, so a near-duplicate or a drifted restatement costs far more than its word count (restatements — check 1 — and cross-file duplicates — check 8 — actively harm, not merely bloat). Where a rule is load-bearing for one kind of task only, prefer scoping it to that work over deleting it.
+**Scope:** `skills/`, `agents/`, `.claude/skills/`. The project-local skills ship to nobody, but they load on every plugin-editing session and sit outside every other bloat check, which is where the densest over-specification in the repo accumulates. **Method:** LLM reviewer. The goal is REMOVAL/COMPRESSION candidates — every finding proposes one concrete action: delete, shorten, merge, move to a sibling reference file, or convert a deterministic constraint to a hook/script. Apply the per-line test to every candidate: "would removing this make Claude err?" If not, it is weight without payload. Then apply it a second way, which is where this dimension's largest wins now are: "would replacing this rule with a criterion, or this example with a better-designed interface, make Claude err?" A rule can be unique, correct and still cost more than it buys — checks 11 and 12 carry that half. Target signal density, not raw size — see `.claude/rules/skill-prose.md` §Token budget awareness for the why: what degrades rule-following is the number of plausible-but-inapplicable rules the model has to adjudicate between, not the volume of text, so a near-duplicate or a drifted restatement costs far more than its word count (restatements — check 1 — and cross-file duplicates — check 8 — actively harm, not merely bloat). Where a rule is load-bearing for one kind of task only, prefer scoping it to that work over deleting it.
 
 Checks:
 1. **Restatements.** Same rationale stated ≥2× within one file; "in other words" summaries; rule text duplicating an anti-rationalization row.
 2. **Hedges** without a condition ("may or may not", "depending on the situation").
 3. **Collapsible steps.** Adjacent steps that always run together with no decision between them; sub-step trees deeper than the decision structure warrants.
-4. **Dead anti-rationalization rows.** Rows defending against a failure mode the current design makes impossible (e.g., the step it polices was removed).
-5. **Example & option overload.** >3 examples per concept or near-identical examples teaching one pattern; option lists offering >2 choices with no stated default → collapse to one default + one escape hatch.
+4. **Anti-rationalization rows carrying no live rationalization.** A row whose left cell names reasoning the current design no longer permits the model to reach. Rows are the densest carrier of dead text, and the easiest to over-condemn — apply check 12's bar, including its carve-out: a failure mode absent from current code is what a working guardrail looks like, not evidence the row is spent.
+5. **Example & option overload.** Near-identical examples teaching one pattern, or more per concept than `.claude/rules/skill-prose.md` §"Examples — diverse and canonical" allows (that file owns the count); option lists offering several choices with no stated default → collapse to one default + one escape hatch. This check owns example *redundancy*; an example that constrains the solution space is check 11.
 6. **Model-known instruction.** Text re-explaining standard tool behavior or general competence the model already has ("read before editing", "write clean code") — delete, or convert a hard constraint to a hook. This is the per-line test's most common failure.
 7. **Over-specified procedure.** Instructions narrating what the model would do anyway — trivial substeps, platform-specific command mechanics, shell idioms, workaround recipes for environment quirks the model can resolve on its own. Assume a capable model: state the goal and the bound ("poll until ready or ~30s"), not the mechanics of achieving it (per `.claude/rules/skill-prose.md` §Assume a capable model). Also: Definition-of-Done lists restating every body step instead of exit gates.
 8. **Cross-file duplicated rules.** The SAME rule (prose, not a constant — D7 owns constants) stated in ≥2 files. Keep one canonical home; others cite it with `§`. A duplicate that has DRIFTED reads as a contradiction.
 9. **Appended-patch contradiction.** A later note / "NOTE:" / exception / caveat that patches or narrows an earlier rule in the same file instead of being folded into it — the later text silently overrides the earlier (recency wins) or forces reconciliation. Rewrite the original to be correct on its own; delete the patch.
-10. **Token-budget pressure.** SKILL.md detail that belongs in a sibling reference file (multi-paragraph explanations of one step, inline pseudo-code duplicated from a reference, or a large fully-unique block — a long template, full schema table, big example set) — propose a MOVE, not a cut. Redundancy is not a precondition. A MOVE only pays when the destination is conditionally loaded, so name the runs that will not read it: a reference every run of the skill loads is part of that skill's always-on budget, and a move into an `agents/*.md` body is never a saving, since an agent body is injected whole as the subagent's system prompt.
+10. **Progressive disclosure not used.** The structural default for a long skill is a spine plus a tree of files loaded at the point of use, not one file that front-loads everything. Flag SKILL.md detail that belongs in a sibling file read on phase entry (multi-paragraph explanations of one step, inline pseudo-code duplicated from a reference, or a large fully-unique block — a long template, full schema table, big example set) — propose a MOVE, not a cut. Redundancy is not a precondition. A MOVE only pays when the destination is conditionally loaded, so name the runs that will not read it: a reference every run of the skill loads is part of that skill's always-on budget, and a move into an `agents/*.md` body is never a saving, since an agent body is injected whole as the subagent's system prompt. A skill whose spine already fills the front-load budget wants splitting, not compressing.
+
+11. **Over-constraint.** Checks 1-10 ask whether text is redundant. This one asks whether text that is live, unique and correct still costs more than it buys, because it was written for a weaker model than the one reading it. Anthropic removed over 80% of Claude Code's system prompt for this generation with no measurable loss on their coding evals, and most of what went was not duplication — it was guardrails the model no longer needs. Three shapes:
+    - **Rule that should be a criterion.** A fixed threshold or blanket prohibition where the model could read the situation instead — "never write multi-line comments" versus "match the surrounding code's comment density". Flag the ones whose right answer plainly varies by context; a project contract (an exact path, schema, or canonical option label) is not this shape and stays fixed.
+    - **Example that narrows.** An example is not free: it constrains the model to the space the example demonstrates. Flag examples teaching a pattern the model already has, or a single example standing in for a rule that should be stated as a rule. Where the real fix is upstream — a more expressive parameter, a closed enum, a tool surface that cannot express the wrong call — propose that instead (`.claude/rules/skill-structure.md` §Design the interface, not the instructions).
+    - **Guardrail past its model.** A rule whose stated or implied justification is a failure mode of an older generation, or one a hook, schema, or test now enforces deterministically. Enforcement moving into a mechanism is exactly when the prose should go.
+
+    **Report the removal candidate, never the count.** Name what the text constrains, what the model would do without it, and what breaks if that judgment is wrong. A candidate whose answer is genuinely invariant across contexts is not over-constraint — leave it.
+
+12. **Dead instructions (liveness).** Text that can no longer apply at all: an instruction or gate governing a step, phase, sub-command, or flag that no longer exists; a mechanism a refactor replaced, still described in the old terms. Anti-rationalization rows are the densest carrier.
+
+    **Route by referent, at the owner's tier** — this check is the lens, not the home, and filing everything here would downgrade real T1 defects to T4: a schema or frontmatter field → D2 check 3; a phase or step name → D3 check 3; a gate or branch condition → D5a check 2; a replaced mechanism still documented → D3 check 7. Only text with no such owner is reported here.
+
+    **Name the referent, then check it — hit count is not the verdict.** Grep proves absence only for a named identifier, and only outside `design/` and `evals/`, which quote strings they do not use; hits that merely *document a removal* (MIGRATION.md, a deleted-skills table) are not liveness. A written field always has hits, so classify each as a write, a read, or a schema declaration and report when none is a read. **An anti-rationalization row is not dead because its failure mode is absent from current code — that is what a working guardrail looks like.** Retire a row only when the step it polices is gone or a mechanism now enforces it; the latter is check 11's third shape, not this one.
 
 Tier mapping: T4 by default; pure-style items → T5; a duplicated rule that has drifted into a contradiction → T1. Every removal carries regression risk — propose, never auto-cut; state what behavior would change if the deletion is wrong.
+
+**Return the sweep, not a quota.** This is the repo's only subtracting dimension, so say what the sweep found even when it found nothing — a clean result belongs in the verdict sentence, not padded into a findings row. Zero findings is a valid outcome; a manufactured one is worse than none, because a deletion is the one finding whose wrongness the user cannot notice later.
 
 ## D7 — Magic numbers & duplicated constants
 

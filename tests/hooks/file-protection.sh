@@ -174,6 +174,43 @@ expect_allow "bash: python writing a normal file allowed" "$(run_bash "python3 -
 expect_allow "bash: running a python script allowed"    "$(run_bash 'python3 manage.py migrate')"
 expect_allow "bash: node reading .env allowed"          "$(run_bash "node -e \"console.log(require('fs').readFileSync('.env','utf8'))\"")"
 
+# ===== NotebookEdit form is guarded (notebook_path, not file_path) =====
+run_notebookedit() {
+  jq -nc --arg p "$1" '{tool_name: "NotebookEdit", tool_input: {notebook_path: $p, new_source: "x = 1"}}' | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "NotebookEdit to .env blocked"          "$(run_notebookedit /proj/.env)"
+expect_block "NotebookEdit to a .pem blocked"        "$(run_notebookedit /proj/server.pem)"
+expect_allow "NotebookEdit to a normal notebook allows" "$(run_notebookedit /proj/analysis.ipynb)"
+
+# ===== jq-less fail-closed scan: the coarse raw name check still blocks =====
+# The guard's whole role is preventing credential clobber, so it does NOT fail
+# fully open when jq is missing — it scans the path/command FIELDS textually and
+# blocks the highest-signal protected names. Everything else fails open. FAKEBIN
+# holds symlinks to every tool the fallback needs except jq.
+FAKEBIN="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$FAKEBIN"
+for _t in cat grep sed awk tr head printf env bash sh; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$FAKEBIN/$_t"
+done
+run_write_nojq() {  # <path>
+  printf '{"tool_input":{"file_path":"%s","content":"x"}}' "$1" | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+run_bash_nojq() {  # <command>
+  printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "jqless: write to .env still blocked"        "$(run_write_nojq /proj/.env)"
+expect_block "jqless: write to a .pem still blocked"      "$(run_write_nojq /proj/server.pem)"
+expect_block "jqless: write to credentials.json blocked"  "$(run_write_nojq /proj/credentials.json)"
+expect_block "jqless: bash redirect to .env blocked"      "$(run_bash_nojq 'echo x > .env')"
+expect_block "jqless: notebook_path .env blocked"         "$(printf '{"tool_input":{"notebook_path":"/proj/.env"}}' | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1; echo $?)"
+# Outside the coarse name set the guard fails OPEN — a lockfile is protected only
+# on the full jq path, and the allowlist itself needs jq to read.
+expect_allow "jqless: lockfile fails open"                "$(run_write_nojq /proj/package-lock.json)"
+expect_allow "jqless: normal source fails open"           "$(run_bash_nojq 'echo x > src/app.js')"
+
 # ===== Fail-open on missing file_path =====
 expect_allow "missing file_path → allow" "$(echo '{"tool_input": {}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
 

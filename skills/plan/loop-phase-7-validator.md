@@ -4,7 +4,7 @@ A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentat
 
 State.md `phase: validate` during this phase.
 
-### 7.1 Mechanical pass-through (not Opus self-prompt)
+### 7.1 Mechanical pass-through
 
 Phase 7 uses a **deterministic validator** — script-checkable rules executed orchestrator-side. No LLM round-trip per check.
 

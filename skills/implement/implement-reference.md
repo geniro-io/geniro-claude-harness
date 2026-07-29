@@ -1,4 +1,4 @@
-# Implement Skill — Reference Material
+# Implement skill — reference material
 
 This file contains templates, examples, and detailed procedures referenced by SKILL.md. The orchestrator reads specific sections at the relevant phase — not the entire file upfront.
 
@@ -596,7 +596,7 @@ else:
    The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Single-finding gate — apply that section; don't restate it here.
 4. State.md records `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
 
-The Always-WAIT contract applies: empty `AskUserQuestion` answer = upstream bug, fall back to plain text and re-ask. NEVER auto-default to any option.
+The Always-WAIT contract applies: an empty `AskUserQuestion` answer is an upstream bug — fall back to plain text and re-ask, because defaulting to an option silently records a decision the user never made.
 
 ---
 
@@ -671,7 +671,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 7. **Visual record.** Final `mcp__plugin_playwright_playwright__browser_take_screenshot` with `fullPage: true`, saved under `<task-dir>/playwright-verify.png`. This is the artifact — do NOT claim a pixel-diff against a prior state (no baseline image exists).
 
-8. **Cleanup.** Stop the dev server only if step 1 started it (the recorded PID). NEVER kill servers the user had running before verification — only clean up what this step spawned.
+8. **Cleanup.** Stop only the dev server step 1 started (the recorded PID); a server the user already had running stays up, since killing it takes down work outside this task.
 
 **Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, render them to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — the issue list as a mini-table (risk · symptom you'd see · severity, the risk-finding shape from the same contract's §Finding-type visual map), each issue described in plain English with the screenshot it appears in referenced by path — then fire the lean `AskUserQuestion` with options: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal).
 
@@ -705,7 +705,7 @@ The user can always type a custom response via "Other":
 
 **Approvals-persistence protocol (step 4):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /geniro:review or /geniro:debug handoff (re-resolve per this step's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
 
-**L2 emit on rejection signal:** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
+**Record a rejection signal.** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 
 ```bash
 emit_rejection_if_signal \
@@ -761,7 +761,7 @@ Learning capture is a Phase 3 ship sub-step (step 3 — after Commit, before the
 
 Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-style.md`; dim=`architecture` → suggest `global.md`; other → "appropriate scope". Suggestion fires ONLY for `convention` type — single-occurrence `decision` emits do NOT warrant promotion to a custom-instruction rule. The line is informational (no AUQ, no auto-edit) — user remains source-of-truth for custom-instruction curation.
 
-**Project-snapshot update site.** If Phase 2 added a new module / file, call `update-semantic --file codebase-map --append "..."` to append a bounded entry to `_CODEBASE_MAP.md`. Lock-guarded; rc=11 (lock held) is a recoverable "skip-and-defer" — caller may retry later or skip silently.
+**Project-snapshot update site.** If Phase 2 added a new module / file, call `source "${CLAUDE_PLUGIN_ROOT}/lib/update-semantic.sh" && update_semantic --file codebase-map --append "..."` to append a bounded entry to `_CODEBASE_MAP.md`. Lock-guarded; rc=11 (lock held) is a recoverable "skip-and-defer" — caller may retry later or skip silently.
 
 ---
 
@@ -769,7 +769,7 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 **Worktree:** if working in a worktree (from Phase 1 workspace decision), leave the session in it. Do NOT call `ExitWorktree` proactively — runtime already prompts on session exit to keep or remove the worktree.
 
-**Integrations:** workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A) — glob both `./.geniro/workflow/*.md` (cwd-local) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback). If a workflow file specifies completion actions (status transitions, PR linking, comments), re-fetch the tracker issue's current `status` via MCP at ship time (the status may have changed externally during implementation) BEFORE applying the workflow file's `### On task completion` block — the block gates its questions on the current status (e.g., the Linear template skips the "Move to In Review?" prompt when already In Review or terminal). Then apply the workflow file's `### On task completion` block, passing the resolved `status` and the ship action (Commit / Commit + push / Commit + PR / Leave uncommitted) as inputs. Always ask the user before changing external state (issue status, comments). NEVER auto-update. If integration backend is unavailable, log warning and skip both the re-fetch and the questions.
+**Integrations:** workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A) — glob both `./.geniro/workflow/*.md` (cwd-local) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback). If a workflow file specifies completion actions (status transitions, PR linking, comments), re-fetch the tracker issue's current `status` via MCP at ship time (the status may have changed externally during implementation) BEFORE applying the workflow file's `### On task completion` block — the block gates its questions on the current status (e.g., the Linear template skips the "Move to In Review?" prompt when already In Review or terminal). Then apply the workflow file's `### On task completion` block, passing the resolved `status` and the ship action (Commit / Commit + push / Commit + PR / Leave uncommitted) as inputs. Ask the user before changing external state (issue status, comments) — a status flip or a posted comment is visible to the whole team and cannot be taken back, so it is never applied unattended. If integration backend is unavailable, log warning and skip both the re-fetch and the questions.
 
 **AI-disclosure prefix.** When the workflow file contains a `## AI-Disclosure Prefix` section, apply the documented prefix to any comment text the skill AUTHORS before posting via the tracker MCP. Status-only updates, assignee-only updates, commit messages, and PR descriptions are excluded per the section's exclusion list. If the AI-Disclosure section is still a TODO stub, skip authoring comments entirely — post only status-only updates.
 
@@ -794,7 +794,7 @@ source "${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh"
 clean_task_transients "<task-dir>"
 ```
 
-The helper is the single source of the T1 transient list (mirrors `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1): `.kr-out.md`, `.ce-out.md`, `.tr-out.md`, `.adversarial-out.md`, `.spec-challenge-out.md`, the `.research-*.md` glob (the `codebase-research-agent` report plus `/plan`'s per-facet and critique research files left in the same task-dir), `notes.md`, and `playwright-verify.png`. These files were used once by the orchestrator or subagents during the run; they're dead weight once the task reaches a terminal state. `/geniro:plan` calls the same helper at its own terminal exit, so a plan-only or milestone-sliced run cleans its scratch even when this skill never runs against that task-dir — this run remains the backstop for any leftover from an interrupted `/geniro:plan`.
+The helper is the single source of the T1 transient list (mirrored, for reading, in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1). Those files were used once by the orchestrator or subagents during the run; they're dead weight once the task reaches a terminal state. `/geniro:plan` calls the same helper at its own terminal exit, so a plan-only or milestone-sliced run cleans its scratch even when this skill never runs against that task-dir — this run remains the backstop for any leftover from an interrupted `/geniro:plan`.
 
 After the rm, echo `Cleaned up transient working files from <task-dir>` — one plain line; this is the in-session signal the pre-terminal check in Ship step 9 looks for.
 

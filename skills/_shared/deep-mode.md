@@ -6,7 +6,7 @@ Canonical cross-skill contract for the opt-in `--deep` quality mode. `/geniro:re
 
 - §1 — What deep mode is (and is not)
 - §2 — Activation + state
-- §3 — The two layers (recall + precision)
+- §3 — The two layers (recall + precision) + the canonical script skeletons
 - §4 — Workflow mitigations (mandatory)
 - §5 — Fail-safe ladder
 - §6 — Boundary preservation inside the workflow
@@ -31,6 +31,42 @@ Deep mode deepens along two independent axes; a skill may use either or both. It
 
 - **Recall layer** — run a generative/analytic stage N× (typically 3×) in parallel, then UNION + DEDUP the passes in-script before the skill consumes them. **Prefer diverse decomposition over identical repetition:** point each pass at a DISTINCT region of the stage's space — distinct lenses (as `/geniro:plan`'s approach panel does), or distinct angles (common-path / boundaries-and-error-paths / interaction-with-surrounding-code) — rather than re-running one identical prompt N×. Identical passes harvest only the temperature tail of one distribution: high overlap, low marginal recall per pass, heavy dedup churn. Distinct passes search where the others do not, so each pass buys new territory at the same token cost. A single pass is non-deterministic and surfaces a subset; independent passes surface overlapping-but-different subsets whose union catches what any one missed. Dedup BEFORE any cross-pass agreement signal is computed — otherwise one producer agreeing with itself inflates that signal (each skill's reference gives its dedup key); with diverse passes, agreement ACROSS angles is a stronger reliability signal than identical clones agreeing.
 - **Precision layer** — validate each candidate (a finding, a cited claim, an approach) with INDEPENDENT verifiers aggregated by majority. Each verifier receives the same isolated input, NOT the other verifiers' outputs — independence is load-bearing. A majority of 3 tolerates one hallucinated vote, so a single false-confirm or false-refute can't flip the disposition. A verifier whose output won't parse **abstains** (counts toward neither side); if fewer than 2 parseable votes remain, quorum fails → run one fresh single-pass verifier. Never flip a disposition on abstentions. **Signal-gate the vote count where the skill has corroborating signal** (its reference says whether it does): run ONE verifier first and accept its single verdict when it is high-confidence AND agrees with the upstream signal that already corroborates the candidate (a confirm of a candidate several independent producers converged on, or a refute of a lone low-stakes candidate); escalate to the full 3 independent verifiers only when the disposition is contested or expensive — the first vote is low-confidence, CONTRADICTS the upstream signal, or would drop a high-stakes candidate. One vote never drops a high-stakes candidate. This keeps the majority's hallucination-tolerance exactly where a flipped disposition is costly while spending the extra votes only on the genuinely-contested minority (`N + 2·contested·N` votes instead of `3N`). The majority-aggregation rules above apply whenever 3 votes run.
+
+### Script skeletons
+
+Both skeletons below are canonical for every skill's deep `Workflow(...)`. A consuming `deep-mode-reference.md` supplies its own stage set, angle or lens names, dedup key, and escalation predicate, and cites this section instead of re-inlining the script. Apply every §4 mitigation at both fan-outs.
+
+**Recall — N angle-scoped passes per stage, unioned and deduped in-script:**
+
+```
+phase('Deep pass — angle-diverse')
+const ANGLES = ['common-path', 'boundaries-and-errors', 'interaction']   // 3 distinct, stage-agnostic angles
+const perStage = await pipeline(
+  STAGES,                                                  // the skill's declared stage set (dimensions, lenses, ...)
+  s => parallel(ANGLES.map(angle => () =>
+    agent(passPrompt(s, angle, ctx), { label: `${s.slug}:${angle}`, phase: 'Deep pass — angle-diverse' }))),
+  (anglePasses, s) => dedupeWithinStage(anglePasses, s)     // union + dedup IN-SCRIPT → one per-stage set (seen-in: N/3)
+)
+return perStage                                            // raw JSON text from agents, parsed in-script
+```
+
+The in-script dedup is load-bearing, not an optimization: it runs BEFORE any cross-stage agreement signal is computed, so one stage's repeated passes can never inflate that signal (§3 recall layer). Record the within-stage tally (`seen-in: N/3`) as a distinct, weaker signal than cross-stage agreement.
+
+**Precision — first vote, then escalate only where the call is contested:**
+
+```
+phase('Deep verify — signal-gated')
+const verified = await parallel(candidates.map(c => () => (async () => {
+  const first = parseVote(await agent(verifierPrompt(c, 0), { label: `verify:${c.id}:v0`, phase: 'Deep verify — signal-gated' }))
+  if (!needsEscalation(first, c)) return { ...c, verdict: first }        // high-confidence + agrees with upstream signal → accept 1 vote
+  const rest = await parallel([1,2].map(i => () =>                       // contested / high-stakes → full 3-vote majority
+    agent(verifierPrompt(c, i), { label: `verify:${c.id}:v${i}`, phase: 'Deep verify — signal-gated' })))
+  return { ...c, verdict: majority([first, ...rest]) }                   // majority() parses defensively; parse-fail = abstain
+})()))
+return verified.filter(v => v.verdict !== 'refuted')                     // survivors continue down the skill's own path
+```
+
+`needsEscalation(first, candidate)` is the one skill-specific piece — each consuming reference states its own predicate. Every predicate carries these two clauses at minimum: the first vote abstained (parse failure), or its `confidence < 70`. The remaining clauses express what that skill treats as contested or high-stakes, per the §3 precision layer.
 
 ## 4. Workflow mitigations (mandatory)
 

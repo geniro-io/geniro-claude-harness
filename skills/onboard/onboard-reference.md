@@ -1,4 +1,4 @@
-# Onboard — Detailed Reference
+# Onboard — detailed reference
 
 Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/onboard/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
@@ -133,7 +133,7 @@ Express App (index.ts)
 
 ## 2. Invocation examples
 
-### Example 1: New to a Monorepo
+### Example 1: New to a monorepo
 ```
 /geniro:onboard --depth 2 --focus auth,api
 ```
@@ -142,7 +142,7 @@ Express App (index.ts)
 → Generate `_CODEBASE_MAP.md` highlighting those modules
 → Output: directory tree, module relationships, auth/api critical paths
 
-### Example 2: Returning After 6 Months
+### Example 2: Returning after 6 months
 ```
 /geniro:onboard
 ```
@@ -151,7 +151,7 @@ Express App (index.ts)
 → Note what's changed since last visit (diff against the prior project snapshot `_CODEBASE_MAP.md`)
 → Map is ready as reference for the session
 
-### Example 3: Planning a Feature
+### Example 3: Planning a feature
 ```
 /geniro:onboard --focus database,models
 ```

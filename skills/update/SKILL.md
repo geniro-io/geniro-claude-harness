@@ -15,7 +15,7 @@ argument-hint: "[--dry-run]"
 - Loop invariants
 - Anti-rationalization
 - Budgets — quality-first
-- ACI surface per phase
+- ACI per-phase tool surface
 - Termination case → message
 - User-content snapshot
 - Phase 1 — pre-check · Phase 2 — update · Phase 3 — post-check · Phase 4 — migration
@@ -29,7 +29,7 @@ argument-hint: "[--dry-run]"
 
 **Runtime requirement.** This skill drives the `claude plugin` CLI and the Claude Code install registry, and functions only under Claude Code. When invoked from another runtime (e.g. Cursor), state that updates are managed by that runtime's own plugin mechanism and exit without side effects.
 
-**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a gate gets skipped. `/geniro:update` keeps no state file, so re-invoking is the only restore: re-read the phase you were in before continuing it.
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary, and `/geniro:update` keeps no state file, so re-read the phase you were in before continuing it.
 
 ## Path constraints
 
@@ -63,7 +63,7 @@ This skill adds one invariant:
 
 `/geniro:update` has **zero hard kill caps**. Class-B gates: 4-retry network backoff, hash-diff truncation, per-migration-step truncation. NOT capped: migration walk step count, hash-check file count, total update duration.
 
-## ACI surface per phase
+## ACI per-phase tool surface
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
@@ -80,7 +80,7 @@ External sends: not in `/geniro:update` ACI ever.
 | Cause | Message |
 |---|---|
 | Network error after 4 retries | `aborted: network error during plugin marketplace update after 4 retries` |
-| Install recorded under the pre-v5.0.0 plugin id | `aborted: plugin renamed — reinstall required` (Phase 1 Step 1.5 prints the reinstall commands) |
+| Install recorded under the legacy plugin id | `aborted: plugin renamed — reinstall required` (Phase 1 Step 1.5 prints the reinstall commands) |
 | Update succeeded but registry missing entry | `aborted: registry missing the geniro plugin entry — see ~/.claude/plugins/installed_plugins.json` |
 | Hash-check failed | `aborted: plugin integrity check failed — missing file(s) or manifest hash mismatch on <file>` |
 | User-content tampering detected | AUQ surfaces; user picks Continue or Abort |
@@ -124,7 +124,7 @@ Read `version` from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` into `CUR
 
 ### Step 1.5 — Legacy install-id check
 
-The plugin was renamed `geniro-claude-plugin` → `geniro` in v5.0.0. An install still recorded under the old id cannot be updated in place — `claude plugin update` resolves ids exactly, and the old id no longer exists in the marketplace. Detect it before spending a network round-trip on a command that cannot succeed:
+An install still recorded under the legacy `geniro-claude-plugin` id cannot be updated in place — `claude plugin update` resolves ids exactly, and that id no longer exists in the marketplace. Detect it before spending a network round-trip on a command that cannot succeed:
 
 ```bash
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
@@ -162,7 +162,8 @@ Then take the baseline snapshot:
 ```bash
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
-# PRIMARY_ROOT is set by the Mode A resolver run above.
+# PRIMARY_ROOT is set by the Mode A resolver, which runs inside THIS Bash call —
+# each Bash call is a fresh shell, so a value resolved in an earlier call is gone.
 
 # --- paste the §User-content snapshot definitions here ---
 
@@ -224,6 +225,12 @@ When the repair runs, tell the user in plain English that the plugin's global in
 ### Step 2 — Discover new plugin path
 
 ```bash
+# Re-resolve REGISTRY — each Bash call runs in a fresh shell, so the Phase 1 definition
+# does not survive. CURRENT_VERSION cannot be re-read: plugin.json now holds the NEW
+# version, so substitute the literal value Phase 1 Step 1 read.
+REGISTRY="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
+CURRENT_VERSION="<the version read in Phase 1 Step 1>"
+
 if [ ! -f "$REGISTRY" ]; then
 echo "ERROR: registry not found at $REGISTRY — abort." >&2
 echo "Hint: if you use a custom config dir, ensure CLAUDE_CONFIG_DIR is exported." >&2
@@ -261,7 +268,12 @@ GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \
 node "$PLUGIN_PATH/hooks/geniro-check-update.js"
 exit 0
 fi
+
+echo "PLUGIN_PATH=$PLUGIN_PATH"
+echo "NEW_VERSION=$NEW_VERSION"
 ```
+
+Carry both echoed values forward by literal substitution: every later fenced block re-assigns them at its top, because each Bash call runs in a fresh shell and nothing else recomputes them.
 
 Transition to Phase 3.
 
@@ -272,6 +284,9 @@ Transition to Phase 3.
 If the new plugin publishes `$PLUGIN_PATH/.claude-plugin/manifest.sha256`, verify each file via `sha256sum -c` (or `shasum -a 256 -c` on macOS, which ships no `sha256sum`). Otherwise (no manifest published), sanity-check that key files exist:
 
 ```bash
+# Fresh shell — re-assign from the value Phase 2 Step 2 echoed.
+PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
+
 HASH_FAIL=0
 MISSING=()
 for f in \
@@ -298,7 +313,7 @@ If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended — a hash-check failure means
 Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one, and must be computed by the same code, or the diff is meaningless. Paste the §User-content snapshot definitions into this call and pass the re-resolved `PRIMARY_ROOT` — that recomputes the baseline's filename and reads it back.
 
 ```bash
-# PRIMARY_ROOT is set by the Mode A resolver run above.
+# PRIMARY_ROOT is set by the Mode A resolver, which runs inside THIS Bash call.
 # --- paste the §User-content snapshot definitions here ---
 
 USER_SNAPSHOT=$(cat "$(_gu_snapshot_file "$PRIMARY_ROOT")" 2>/dev/null)
@@ -322,6 +337,9 @@ If diff non-empty, AUQ:
 ### Step 3 — Refresh update cache
 
 ```bash
+# Fresh shell — re-assign from the value Phase 2 Step 2 echoed.
+PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
+
 GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \
 node "$PLUGIN_PATH/hooks/geniro-check-update.js"
 ```
@@ -337,6 +355,10 @@ Transition to Phase 4.
 ## Phase 4 — migration
 
 ```bash
+# Fresh shell — re-assign from the values Phase 2 Step 2 echoed.
+PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
+NEW_VERSION="<the version Phase 2 Step 2 echoed>"
+
 MIGRATION_FILE="$PLUGIN_PATH/MIGRATION.md"
 if [ ! -f "$MIGRATION_FILE" ]; then
 echo "[info] No MIGRATION.md in v$NEW_VERSION — skipping migration walk."

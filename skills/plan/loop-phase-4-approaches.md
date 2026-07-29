@@ -77,7 +77,7 @@ Full literal example (chat message + lean AUQ: Service-layer fan-out vs in-proce
 
 User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`, each carrying its §4.2 `Stress-test:` verdict line + evidence; an approach demoted for a verified blocking risk records `Why not recommended: <blocking risk + file:line>`.
 
-**L2 emit on rejection signal:** After appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
+**Record a rejection signal.** After appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 
 ```bash
 emit_rejection_if_signal \

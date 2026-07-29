@@ -1,4 +1,4 @@
-# Setup — State File Schema
+# Setup — state file schema
 
 Full state.md schema for `/geniro:setup`, extracted from SKILL.md §State file schema. Read this file when writing or validating the setup state file.
 

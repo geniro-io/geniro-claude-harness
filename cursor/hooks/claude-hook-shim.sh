@@ -32,7 +32,9 @@
 # notice (systemMessage) is re-emitted as {"agent_message":...} with no
 # permission key — an informational notice must not vote on an action another
 # guard may deny. Any other failure fails open, matching the scripts' own
-# fail-open contract.
+# fail-open contract. That translation also runs when jq is missing, where the
+# three data-loss guards still block on their own coarse scan — see the
+# jq-absent branch below.
 set -uo pipefail
 
 SHIM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,13 +51,21 @@ SCRIPT="$PLUGIN_ROOT/hooks/$SCRIPT_NAME"
 
 INPUT="$(cat 2>/dev/null || true)"
 
-# jq is both the payload reader and the response writer, so without it no guard
-# can run. Say so out loud: every hook script announces its own inactivity on
-# this path under Claude Code, and a silent exit 0 leaves the user believing all
-# seven wired guards are live when they are inert. The notice is assembled with
+# One capture file for the script's stderr, shared by the jq-absent branch and
+# the main path. The trap carries INT and TERM as well as EXIT: Cursor kills a
+# hook that overruns its timeout, and a signal death skips an EXIT-only trap,
+# leaving the temp file behind in $TMPDIR on every timed-out run.
+STDERR_FILE="$(mktemp)"
+trap 'rm -f "$STDERR_FILE"' EXIT INT TERM
+
+# jq is both the payload translator and the response writer, so without it the
+# shim cannot build a Claude-shaped payload or format a verdict. Say so out
+# loud: every hook script announces its own inactivity on this path under
+# Claude Code, and a silent exit 0 leaves the user believing all seven wired
+# guards are live when they are inert. Everything below is assembled with
 # printf because the tool that would format JSON is the one that is missing —
-# hence the fixed literal (nothing here needs escaping) and the plain-glob event
-# detection.
+# hence the fixed literal notice, the plain-glob event detection, and the
+# hand-rolled string escaping.
 if ! command -v jq >/dev/null 2>&1; then
   case "$SCRIPT_NAME" in
     *[!A-Za-z0-9._-]*) GUARD_NAME="a Geniro guard" ;;
@@ -66,6 +76,36 @@ if ! command -v jq >/dev/null 2>&1; then
     *'"hook_event_name"'*'"sessionStart"'*)
       printf '{"additional_context":"%s"}\n' "$NOTICE" ;;
     *'"hook_event_name"'*'"beforeShellExecution"'*|*'"hook_event_name"'*'"preToolUse"'*)
+      # Not every guard is inert without jq. The three data-loss guards
+      # (file-protection, block-dangerous-git, block-geniro-deletion) keep a
+      # coarse fail-CLOSED raw-text scan on their own jq-absent path and still
+      # exit 2 on a hit — HOOKS.md §Key Safety Principles 5. Emitting the
+      # notice without running the script discards that scan, so `rm -rf
+      # .geniro` would proceed under Cursor while Claude Code blocks it. Run
+      # the script and translate its block; the notice is for the rest.
+      #
+      # Those scans read the raw payload text, so no jq-side translation is
+      # needed — except the path alias, folded here with shell builtins
+      # because normalizing only under jq is the same silent bypass the main
+      # path's fold exists to prevent. The content alias is skipped: no
+      # fail-closed scan reads content.
+      NOJQ_INPUT="${INPUT//\"target_file\"/\"file_path\"}"
+      NOJQ_INPUT="${NOJQ_INPUT//\"path\"/\"file_path\"}"
+      printf '%s' "$NOJQ_INPUT" | bash "$SCRIPT" >/dev/null 2>"$STDERR_FILE"
+      NOJQ_RC="${PIPESTATUS[1]}"
+      if [ "$NOJQ_RC" -eq 2 ]; then
+        NOJQ_MSG="$(cat "$STDERR_FILE" 2>/dev/null || true)"
+        [ -n "$NOJQ_MSG" ] || NOJQ_MSG="Blocked by a Geniro guardrail."
+        # Escape for a JSON string literal: backslash first, then quote, then
+        # collapse the whitespace that has no legal bare form.
+        NOJQ_MSG="${NOJQ_MSG//\\/\\\\}"
+        NOJQ_MSG="${NOJQ_MSG//\"/\\\"}"
+        NOJQ_MSG="${NOJQ_MSG//$'\n'/ }"
+        NOJQ_MSG="${NOJQ_MSG//$'\r'/ }"
+        NOJQ_MSG="${NOJQ_MSG//$'\t'/ }"
+        printf '{"permission":"deny","agent_message":"%s"}\n' "$NOJQ_MSG"
+        exit 0
+      fi
       printf '{"agent_message":"%s"}\n' "$NOTICE" ;;
   esac
   exit 0
@@ -118,8 +158,6 @@ if [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
   cd "$HOOK_CWD" || true
 fi
 
-STDERR_FILE="$(mktemp)"
-trap 'rm -f "$STDERR_FILE"' EXIT
 STDOUT="$(printf '%s' "$PAYLOAD" | bash "$SCRIPT" 2>"$STDERR_FILE")"
 RC=$?
 STDERR="$(cat "$STDERR_FILE" 2>/dev/null || true)"

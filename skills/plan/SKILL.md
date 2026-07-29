@@ -95,7 +95,7 @@ These invariants apply throughout all phases; phase numbers and tool surface dif
 2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks before running.
 3. **Permission before side-effect.** Phase 6 `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — the frontmatter `allowed-tools` omits `Edit`, and the `enforce-state-helper` PreToolUse hook hard-blocks any direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so every state write routes through `atomic_state_write`.
 4. **Bounded and structured tool results.** Phase 1 research-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
-5. **Escalation gates, not silent abort.** Every cap in §Budgets surfaces to the user with an explicit option set instead of aborting — the Phase 3 grill in particular is checkpoint-bounded (§3.4), never hard-capped. NO Class-A hard kill caps.
+5. **Escalation gates, not silent abort.** Every cap in §Budgets surfaces to the user with an explicit option set instead of aborting. NO Class-A hard kill caps.
 6. **Final answer grounded in observations.** Phase 5 section content cites Phase 1 explore findings (`file:line` references), not generic prose — the Phase 7 validator includes a "citations present" check that fails an uncited section.
 7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -136,7 +136,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Phase 8 user-revision rounds | 3 | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | ~4000 chars per agent | invariant #4 | Truncation with marker, not abort. |
 
-**Question cadence** (the caps escalate rather than abort because asking questions IS this skill's job): Phase 3 uncapped grill with the checkpoint off-ramp; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
+**Question cadence:** Phase 3 uncapped; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
 
 ---
 

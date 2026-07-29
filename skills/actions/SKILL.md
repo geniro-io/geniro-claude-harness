@@ -17,7 +17,7 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 - Anti-rationalization
 - Definition of done
 - Budgets — quality-first
-- ACI surface per phase
+- ACI per-phase tool surface
 - Termination case → state mapping
 - Phase 1 — parse intent
 - Phases 2-7 — one per sub-command (`list` / `create` / `run` / `edit` / `delete` / `validate`)
@@ -30,7 +30,7 @@ Stateless loop: **Parse → Execute → Done**. Execute branches into one of six
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
-**After a compaction, re-invoke this skill before running a sub-command whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a gate gets skipped. There is no state file here, so re-invoking is the only restore: it brings back the full body and the run re-resolves from Phase 1.
+**After a compaction, re-invoke this skill before running a sub-command whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary, and there is no state file here, so re-invoking is the only restore: the run re-resolves from Phase 1.
 
 ## Sub-commands
 
@@ -67,7 +67,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
 | "I'll spawn a subagent to execute the action" | No — Phase 4 runs inline; the orchestrator is the runtime. |
 | "I'll auto-pick `risk_class: low` if I can't tell" | No — Q4 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
-| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; adding an "are you sure?" AUQ would re-ask a decision the user already made by invoking it. `risk_class` is metadata (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
+| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; an "are you sure?" AUQ re-asks a decision the user already made. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
 | "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
@@ -88,7 +88,7 @@ Load-bearing exit gates — per-command mechanics live in their phase sections.
 
 No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: one action runs at a time (assumed sequential).
 
-## ACI surface per phase
+## ACI per-phase tool surface
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
@@ -217,8 +217,6 @@ Then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` with `ac
 
 This default keeps `.geniro/actions/` committed (team-shareable). The negation must live in `"$PRIMARY_ROOT"/.gitignore`, beside where the action file is written. Users who want their actions ignored remove the two `!.geniro/actions/` lines by hand.
 
-**Hook reminder:** the `.geniro/` deletion guard hook blocks `git add -f` on `.geniro/` paths — the correct path is `.gitignore` negation (above), never `git add -f`. Force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click becomes a one-click data-loss vector.
-
 ### Step 3 — Interview (Q1–Q4)
 
 Use `AskUserQuestion` for each question. Q1–Q3 capture purpose, trigger, and output; **Q4 captures risk class**.
@@ -279,7 +277,7 @@ After Write, run these checks (orchestrator-side, no subagent):
 | 1 | YAML frontmatter parses | CRITICAL |
 | 2 | `name:` matches filename slug exactly | CRITICAL |
 | 3 | `description:` starts with "Use when" (case-insensitive) | HIGH |
-| 4 | `description:` ≤250 chars | HIGH |
+| 4 | `description:` within the length cap declared in `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md` §Description | HIGH |
 | 5 | No `{{placeholder}}` in body | HIGH |
 | 6 | File <500 lines | MEDIUM |
 | 7 | `## Steps` section present with ≥1 numbered item | HIGH |
@@ -368,7 +366,7 @@ If no gaps, proceed without asking. Do not call any tool the action did not decl
 
 `Show me the diff first` renders the diff and re-fires this same question, so the user decides with the diff in view — the one-pause cap counts triggers, not re-renders. `Stop here, keep what's changed` halts execution with the edits left in place and goes to Phase 4.5: print the wrap-up summary, including its `/geniro:review` recommendation, before the terminal transition — the run that most needs an independent look is the one that must not exit silently.
 
-One such trigger per run at most, and it is declaration-relative — what the action names versus what the run touched. The count is reported, never the trigger; no number of edits fires this on its own. Phase 4.3 still stands: this pause reports new information rather than re-asking a settled decision. Exactly one, because a second prompt gets less attention than the first, not more.
+One such trigger per run at most, and it is declaration-relative — what the action names versus what the run touched. The count is reported, never the trigger; no number of edits fires this on its own. Exactly one, because a second prompt gets less attention than the first, not more.
 
 **Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
 
@@ -481,7 +479,7 @@ Run the 10 create-gate checks (Phase 3 Step 6 table, same severities), plus thes
 
 | Check | Severity |
 |---|---|
-| `description:` passes the three §Description quality rules in `/geniro:instructions` Mode: validate Step 2 — that table is the shared source for these rows and their severity | LOW |
+| `description:` passes the three rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` — that file is the shared source for these rows and their severity | LOW |
 | `allowed-tools:` field present (if action mutates) | LOW |
 | No references to dropped skills in body | HIGH |
 

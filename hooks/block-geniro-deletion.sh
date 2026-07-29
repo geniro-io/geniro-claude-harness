@@ -21,13 +21,14 @@
 #     (.geniro/instructions/..), a dotted state DIRECTORY name
 #     (.geniro/state/review.bak/), and prefixed paths (/abs/.geniro/<seg>,
 #     $PWD/.geniro/<seg>, ../proj/.geniro/<seg>)
-#   - find <path-with-.geniro> ... -delete / -exec rm  (bulk deletes)
+#   - find <path-with-.geniro> ... -delete, or -exec rm/mv/unlink/shred/truncate
+#     (bulk deletes and bulk displacement)
 #   - <anything naming .geniro> | xargs rm             (bulk delete, find optional)
 #   - rsync --delete into a .geniro/ path              (mirrors the dir away)
 #   - mv of a .geniro/ path elsewhere                  (displacement loses the
 #     tree from its protected location as completely as deletion; only SOURCE
 #     operands are gated, so moving content INTO .geniro/ stays allowed)
-#   - interpreter-mediated deletes and moves (python/node/perl/ruby/php
+#   - interpreter-mediated deletes and moves (a scripting runtime
 #     shutil.rmtree, os.remove, fs.rmSync, File.delete, unlink, shutil.move,
 #     os.rename, …) — not shell syntax, so the rm and mv matchers never see
 #     them; each target runs the same depth rules
@@ -117,7 +118,17 @@ _geniro_extract_inner_payloads() {
   if [ -z "$cmd" ] && [ -z "$raw" ]; then
     return 0
   fi
-  local _m _pl
+  local _m _pl _lit
+
+  # ONE shell-word matcher for every arm. The wrapper prefix consumes its own
+  # flags, `VAR=value` assignments, durations and `{}` placeholders — never an
+  # arbitrary word, which would let any two-word command read as a shell.
+  local _wv_pfx='((sudo|doas|command|env|exec|nohup|nice|timeout|stdbuf|ionice|xargs)([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*[[:space:]]+)*'
+  local _wv_shq='["'\'']?'
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  # One quoted literal; and the payload operand form, which may also be bare.
+  local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
+  local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
 
   # Arm 1 — interpreter `-c` payload.
   while IFS= read -r _m; do
@@ -126,7 +137,7 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_sh}"'[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+'"${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 2 — `eval` payload. The preceding-character class excludes `-` so a long
   # option belonging to another tool (`node --eval`, `perl --eval`) is not read
@@ -137,9 +148,9 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+'"${_wv_arg}" 2>/dev/null || true)"
 
-  # Arm 3 — a quoted literal piped into a BARE shell. `echo "<program>" | bash`
+  # Arm 3 — a quoted literal piped into a shell. `echo "<program>" | bash`
   # feeds <program> on stdin, so it is neither a `-c` argument nor an `eval`
   # operand, and the guard's quote-scrub blanks it as data. The right-hand side
   # must carry no flag cluster containing `c` (that spelling is arm 1's, and
@@ -154,18 +165,20 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '("[^"]*"|'\''[^'\'']*'\'')[^|"'\'']*\|[[:space:]]*((sudo|command|env|exec)[[:space:]]+)*([^[:space:]|;&<>]*/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
 
-  # Arm 4 — a heredoc body fed to a bare shell (`bash <<EOF … EOF`,
-  # `cat <<EOF | sh`). This is the mirror image of arm 3: the body is stdin, and
-  # every guard's heredoc scrub deletes it BEFORE extraction because a heredoc is
-  # data in every other position (`cat > notes.md <<EOF`). So the body is
-  # re-derived here from the RAW command, and emitted only when the opener line
-  # names a bare shell as a command word. One body LINE per payload: the guards
-  # match per line and per `;`-bounded span, and joining the body would let a
-  # single `#` comment line swallow the commands after it.
+  # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
+  # This is the mirror image of arm 3: the body is stdin, and every guard's
+  # heredoc scrub deletes it BEFORE extraction because a heredoc is data in every
+  # other position (`cat > notes.md <<EOF`). So the body is re-derived here from
+  # the RAW command, and emitted only when the opener line names a shell as a
+  # command word. One body LINE per payload: the guards match per line and per
+  # `;`-bounded span, and joining the body would let a single `#` comment line
+  # swallow the commands after it. The shell-word matcher reaches awk through the
+  # environment, not `-v`, because awk processes escape sequences in a `-v`
+  # assignment and would eat the regex's own backslashes.
   if [ -n "$raw" ]; then
-    printf '%s\n' "$raw" | awk '
+    printf '%s\n' "$raw" | GENIRO_WV_SHRE='(^|[|;&][[:space:]]*|[[:space:]])'"${_wv_sh}"'([[:space:]]|$)' awk '
       hd {
         line = $0
         if (dash) sub(/^\t+/, "", line)
@@ -179,10 +192,67 @@ _geniro_extract_inner_payloads() {
         sub(/^<<-?[[:space:]]*/, "", tag)
         gsub(/["'\'']/, "", tag)
         hd = 1
-        emit = ($0 ~ /(^|[|;&][[:space:]]*|[[:space:]])(sudo[[:space:]]+|command[[:space:]]+|env[[:space:]]+|exec[[:space:]]+)*([^[:space:]|;&<>]*\/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]|$)/)
+        emit = ($0 ~ ENVIRON["GENIRO_WV_SHRE"])
         next
       }
     ' 2>/dev/null || true
+  fi
+
+  # Arm 5 — a program fed to a shell through process substitution
+  # (`bash <(echo "<program>")`, `sh -s < <(printf '<program>')`). The shell reads
+  # it from the /dev/fd path the substitution names, so it carries no `-c`, no
+  # pipe into the shell and no heredoc — arms 1-4 all miss it. Every quoted
+  # literal inside the substitution is a candidate program, the same limit arm 3
+  # carries: a substitution that COMPUTES its program leaves nothing to read.
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    while IFS= read -r _lit; do
+      [ -z "$_lit" ] && continue
+      _pl="$_lit"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s' "$_m" | grep -oE "${_wv_lit}" 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_sh}"'[^|;&]*[<>]\([^)]*\)' 2>/dev/null || true)"
+
+  # Arm 6 — an interpreter handing a program to a shell. `os.system('<program>')`,
+  # `subprocess.run('<program>', shell=True)` and `child_process.execSync(...)`
+  # spawn a real shell, but the interpreter is not one, so no arm above sees the
+  # call — and the program is not an interpreter FILE op either, so family B below
+  # misses it too. That makes any interpreter a laundering channel for every
+  # payload the guards block directly. The quoted argument IS the shell command.
+  #
+  # Gated on an interpreter COMMAND WORD, because the same text is inert without
+  # one: `echo "os.system('rm -rf x')" > notes.md` authors a file, it does not
+  # shell out, and blocking it would be a false positive on ordinary code
+  # authoring. Nothing extractable is lost — a shell-out inside a script FILE
+  # carries no literal in the command either way.
+  if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+    # A dot is allowed before the op name because that is how the ops are normally
+    # reached (`require('child_process').execSync(…)`); the cost is that a JS
+    # `re.exec("s")` also yields its argument, which re-scans as an inert word.
+    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|system|popen|shell_exec|passthru|proc_open)'
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^(]*\([[:space:]]*//')
+      _pl="${_pl#\\}"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      _pl="${_pl%\\}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_shellout}"'[[:space:]]*\([[:space:]]*\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Ruby's backtick literal is the same shell-out with no call syntax at all.
+    # Narrowed further to a `ruby` command word: elsewhere a backtick span is
+    # ordinary shell command substitution, already visible to the guards as
+    # syntax, and re-extracting it would only add noise.
+    if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)ruby([[:space:]]|$)'; then
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '`[^`]*`' 2>/dev/null || true)"
+    fi
   fi
 
   return 0
@@ -218,19 +288,21 @@ if ! command -v _geniro_interp_delete_targets >/dev/null 2>&1; then
 _geniro_interp_delete_targets() {
   local cmd="${1:-}"
   [ -z "$cmd" ] && return 0
-  if ! printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|perl|ruby|php)([[:space:]]|$)'; then
+  if ! printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
     return 0
   fi
 
   local _q="\\\\?[\"']"
   local _nonlit="(\\\\[^\"']|[^\\\\\"'[:space:])])"
-  # Delete ops across the interpreter families. Each is name-qualified
-  # (`os.remove`, `fs.rm`) or unambiguous on its own (`rmtree`, `unlink`), so a
-  # same-named collection method (`list.remove`) does not read as a file delete.
-  # The move/rename family is included because DISPLACEMENT loses a tree from its
-  # protected location as completely as deletion does, and its first argument is
-  # the source — the same operand position the delete ops use.
-  local _ops="(shutil\.rmtree|rmtree|os\.removedirs|os\.remove|os\.unlink|os\.rmdir|fs\.rmSync|fs\.rmdirSync|fs\.unlinkSync|fs\.rm|rmSync|rmdirSync|unlinkSync|FileUtils\.rm_rf|FileUtils\.rm_r|FileUtils\.rm|File\.delete|File\.unlink|Dir\.delete|unlink|rmdir|shutil\.move|os\.rename|os\.replace|renameSync|File\.rename|FileUtils\.mv|FileUtils\.move)"
+  # Delete ops across the interpreter families. The fs family is base-keyed with
+  # an optional `Sync`, so `fs.rm`, `fs.rmSync` and `fs.promises.rm` all land;
+  # every name that collides with an ordinary collection method (`os.remove`,
+  # `File.delete`, `Deno.remove`) stays qualified, so a `list.remove` is not read
+  # as a file delete. The move/rename family is included because DISPLACEMENT
+  # loses a tree from its protected location as completely as deletion does, and
+  # its first argument is the source — the same operand position the delete ops
+  # use.
+  local _ops="(shutil\.rmtree|rmtree|os\.removedirs|os\.remove|os\.unlink|os\.rmdir|Deno\.remove(Sync)?|FileUtils\.rm_rf|FileUtils\.rm_r|FileUtils\.rm|FileUtils\.mv|FileUtils\.move|File\.delete|File\.unlink|File\.rename|Dir\.delete|shutil\.move|os\.rename|os\.replace|(rm|rmdir|unlink|rename)(Sync)?)"
   local unresolved=0 lit resolved
 
   while IFS= read -r lit; do
@@ -589,7 +661,7 @@ while IFS= read -r MV_SPAN; do
   set +f
 done <<< "$MV_SPANS"
 
-# 2c. Interpreter-mediated deletes and displacements: python/node/perl/ruby/php
+# 2c. Interpreter-mediated deletes and displacements: a scripting runtime
 #     removing a .geniro path (shutil.rmtree, os.remove, fs.rmSync, File.delete,
 #     unlink, …) or moving one away (shutil.move, os.rename, …). None of that is
 #     shell syntax, so the rm and mv spans above never see it. The move family's
@@ -606,7 +678,7 @@ if [ -n "$_id_targets" ] || [ "$_id_unresolved" = "1" ]; then
   # recursive too — otherwise the non-recursive path skips every non-glob arg
   # and `shutil.move('.geniro', …)` walks straight through.
   _id_recursive=0
-  if printf '%s' "$COMMAND" | grep -qE 'rmtree|rm_rf|rm_r\(|rmSync|rmdirSync|removedirs|rmdir|recursive|shutil\.move|os\.rename|os\.replace|renameSync|File\.rename|FileUtils\.(mv|move)'; then
+  if printf '%s' "$COMMAND" | grep -qE 'rmtree|rm_rf|rm_r\(|removedirs|recursive|shutil\.move|os\.rename|os\.replace|File\.rename|FileUtils\.(mv|move)|Deno\.remove(Sync)?|(rm|rmdir|rename)(Sync)?\('; then
     _id_recursive=1
   fi
   while IFS= read -r _id_tok; do
@@ -630,8 +702,11 @@ if ! is_allowed "find-geniro-delete"; then
   if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-delete'; then
     block "find-geniro-delete" "find ... -delete on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path, or pathlib.Path.unlink in Python) so each deletion is auditable."
   fi
-  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-exec(dir)?[[:space:]]+([^[:space:]]*/)?rm([[:space:]]|$)'; then
-    block "find-geniro-delete" "find ... -exec rm on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
+  # The executed command is any of the loss family, not `rm` alone: `-exec mv` is
+  # the displacement this guard's mv span already blocks directly, and
+  # unlink/shred/truncate destroy each matched file exactly as `rm` does.
+  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv)([[:space:]]|$)'; then
+    block "find-geniro-delete" "find ... -exec rm/mv/unlink/shred/truncate on .geniro/ wipes or displaces user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
   fi
   # `xargs rm` deletes in bulk whatever the left-hand side lists, and find is only
   # one of the producers (`echo .geniro | xargs rm -rf`, `ls .geniro/x | xargs rm`

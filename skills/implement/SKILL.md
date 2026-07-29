@@ -7,7 +7,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Tod
 argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep]"
 ---
 
-# Implement Skill — 3-Phase Autonomous Loop
+# Implement: 3-phase autonomous loop
 
 ## Contents
 
@@ -148,8 +148,6 @@ Procedure — rendering, the round-trip write, approvals persistence, the `/geni
 ---
 
 ## State persistence
-
-**After a compaction, this file survives and the phase bodies do not — Read the phase file again on entry to (or resumption of) a phase.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary; the Steps live in the sibling phase files precisely so they can be re-Read on demand. Working from a summary's recollection of a phase instead of its actual Steps is how a run silently skips a gate. state.md tells you which phase to resume; the phase file tells you how.
 
 **Task directory**:
 

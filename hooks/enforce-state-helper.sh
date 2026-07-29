@@ -12,11 +12,12 @@
 # Edit/Write/MultiEdit branch: checks .tool_input.file_path.
 # Bash branch: catches shell-side writes the file-tool matcher never sees —
 # redirection (>, >>, >|), tee, in-place sed (-i), cp/mv destinations, dd of=,
-# interpreter-mediated writes (python/node/perl/ruby opening a state file
+# interpreter-mediated writes (a scripting runtime opening a state file
 # for writing, a pathlib write, an interpreter copy/rename landing on one; awk
 # redirecting `print` into one), and shell indirection — `sh -c "..."`,
-# `eval "..."`, a quoted program piped to a bare shell, and a heredoc body fed
-# to one, each of which the guard re-runs on.
+# `eval "..."`, a quoted program piped to a shell, a heredoc body fed to one, a
+# process substitution a shell reads, and an interpreter shelling out, each of
+# which the guard re-runs on.
 # Reads (cat/grep) stay allowed. Commands invoking the sanctioned helpers
 # (atomic_state_write / atomic_state_append) are allowed — they write via their
 # own mktemp + mv. Paths under .geniro/state/tdd/ are exempt: the TDD-order
@@ -171,7 +172,8 @@ $prefix:   Spec: skills/_shared/atomic-state-write.md"
 }
 
 # Shell indirection (`sh -c "<payload>"`, `eval "<payload>"`, a program piped to
-# a bare shell, a heredoc fed to one) and interpreter-mediated writes are
+# a shell, a heredoc fed to one, a process substitution, an interpreter shelling
+# out) and interpreter-mediated writes are
 # single-sourced in lib/write-vectors.sh. Each inline fallback keeps the guard
 # whole on a vendored install shipping hooks/ without lib/ — a missing helper
 # must never make this guard fail open — and is a VERBATIM copy of the canonical
@@ -190,7 +192,17 @@ _geniro_extract_inner_payloads() {
   if [ -z "$cmd" ] && [ -z "$raw" ]; then
     return 0
   fi
-  local _m _pl
+  local _m _pl _lit
+
+  # ONE shell-word matcher for every arm. The wrapper prefix consumes its own
+  # flags, `VAR=value` assignments, durations and `{}` placeholders — never an
+  # arbitrary word, which would let any two-word command read as a shell.
+  local _wv_pfx='((sudo|doas|command|env|exec|nohup|nice|timeout|stdbuf|ionice|xargs)([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*[[:space:]]+)*'
+  local _wv_shq='["'\'']?'
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  # One quoted literal; and the payload operand form, which may also be bare.
+  local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
+  local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
 
   # Arm 1 — interpreter `-c` payload.
   while IFS= read -r _m; do
@@ -199,7 +211,7 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_sh}"'[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+'"${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 2 — `eval` payload. The preceding-character class excludes `-` so a long
   # option belonging to another tool (`node --eval`, `perl --eval`) is not read
@@ -210,9 +222,9 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+'"${_wv_arg}" 2>/dev/null || true)"
 
-  # Arm 3 — a quoted literal piped into a BARE shell. `echo "<program>" | bash`
+  # Arm 3 — a quoted literal piped into a shell. `echo "<program>" | bash`
   # feeds <program> on stdin, so it is neither a `-c` argument nor an `eval`
   # operand, and the guard's quote-scrub blanks it as data. The right-hand side
   # must carry no flag cluster containing `c` (that spelling is arm 1's, and
@@ -227,18 +239,20 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '("[^"]*"|'\''[^'\'']*'\'')[^|"'\'']*\|[[:space:]]*((sudo|command|env|exec)[[:space:]]+)*([^[:space:]|;&<>]*/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
 
-  # Arm 4 — a heredoc body fed to a bare shell (`bash <<EOF … EOF`,
-  # `cat <<EOF | sh`). This is the mirror image of arm 3: the body is stdin, and
-  # every guard's heredoc scrub deletes it BEFORE extraction because a heredoc is
-  # data in every other position (`cat > notes.md <<EOF`). So the body is
-  # re-derived here from the RAW command, and emitted only when the opener line
-  # names a bare shell as a command word. One body LINE per payload: the guards
-  # match per line and per `;`-bounded span, and joining the body would let a
-  # single `#` comment line swallow the commands after it.
+  # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
+  # This is the mirror image of arm 3: the body is stdin, and every guard's
+  # heredoc scrub deletes it BEFORE extraction because a heredoc is data in every
+  # other position (`cat > notes.md <<EOF`). So the body is re-derived here from
+  # the RAW command, and emitted only when the opener line names a shell as a
+  # command word. One body LINE per payload: the guards match per line and per
+  # `;`-bounded span, and joining the body would let a single `#` comment line
+  # swallow the commands after it. The shell-word matcher reaches awk through the
+  # environment, not `-v`, because awk processes escape sequences in a `-v`
+  # assignment and would eat the regex's own backslashes.
   if [ -n "$raw" ]; then
-    printf '%s\n' "$raw" | awk '
+    printf '%s\n' "$raw" | GENIRO_WV_SHRE='(^|[|;&][[:space:]]*|[[:space:]])'"${_wv_sh}"'([[:space:]]|$)' awk '
       hd {
         line = $0
         if (dash) sub(/^\t+/, "", line)
@@ -252,10 +266,67 @@ _geniro_extract_inner_payloads() {
         sub(/^<<-?[[:space:]]*/, "", tag)
         gsub(/["'\'']/, "", tag)
         hd = 1
-        emit = ($0 ~ /(^|[|;&][[:space:]]*|[[:space:]])(sudo[[:space:]]+|command[[:space:]]+|env[[:space:]]+|exec[[:space:]]+)*([^[:space:]|;&<>]*\/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]|$)/)
+        emit = ($0 ~ ENVIRON["GENIRO_WV_SHRE"])
         next
       }
     ' 2>/dev/null || true
+  fi
+
+  # Arm 5 — a program fed to a shell through process substitution
+  # (`bash <(echo "<program>")`, `sh -s < <(printf '<program>')`). The shell reads
+  # it from the /dev/fd path the substitution names, so it carries no `-c`, no
+  # pipe into the shell and no heredoc — arms 1-4 all miss it. Every quoted
+  # literal inside the substitution is a candidate program, the same limit arm 3
+  # carries: a substitution that COMPUTES its program leaves nothing to read.
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    while IFS= read -r _lit; do
+      [ -z "$_lit" ] && continue
+      _pl="$_lit"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s' "$_m" | grep -oE "${_wv_lit}" 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_sh}"'[^|;&]*[<>]\([^)]*\)' 2>/dev/null || true)"
+
+  # Arm 6 — an interpreter handing a program to a shell. `os.system('<program>')`,
+  # `subprocess.run('<program>', shell=True)` and `child_process.execSync(...)`
+  # spawn a real shell, but the interpreter is not one, so no arm above sees the
+  # call — and the program is not an interpreter FILE op either, so family B below
+  # misses it too. That makes any interpreter a laundering channel for every
+  # payload the guards block directly. The quoted argument IS the shell command.
+  #
+  # Gated on an interpreter COMMAND WORD, because the same text is inert without
+  # one: `echo "os.system('rm -rf x')" > notes.md` authors a file, it does not
+  # shell out, and blocking it would be a false positive on ordinary code
+  # authoring. Nothing extractable is lost — a shell-out inside a script FILE
+  # carries no literal in the command either way.
+  if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+    # A dot is allowed before the op name because that is how the ops are normally
+    # reached (`require('child_process').execSync(…)`); the cost is that a JS
+    # `re.exec("s")` also yields its argument, which re-scans as an inert word.
+    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|system|popen|shell_exec|passthru|proc_open)'
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^(]*\([[:space:]]*//')
+      _pl="${_pl#\\}"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      _pl="${_pl%\\}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_shellout}"'[[:space:]]*\([[:space:]]*\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Ruby's backtick literal is the same shell-out with no call syntax at all.
+    # Narrowed further to a `ruby` command word: elsewhere a backtick span is
+    # ordinary shell command substitution, already visible to the guards as
+    # syntax, and re-extracting it would only add noise.
+    if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)ruby([[:space:]]|$)'; then
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '`[^`]*`' 2>/dev/null || true)"
+    fi
   fi
 
   return 0
@@ -291,7 +362,10 @@ if ! command -v _geniro_interp_write_targets >/dev/null 2>&1; then
 _geniro_interp_write_targets() {
   local cmd="${1:-}"
   [ -z "$cmd" ] && return 0
-  if ! printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|perl|ruby|php|awk|gawk|mawk)([[:space:]]|$)'; then
+  # Runtime roster. bun and tsx implement node:fs verbatim and deno ships its own
+  # Deno.* file API, so a roster frozen at the 2019 set lets one word bypass the
+  # whole channel.
+  if ! printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript|awk|gawk|mawk)([[:space:]]|$)'; then
     return 0
   fi
 
@@ -301,6 +375,15 @@ _geniro_interp_write_targets() {
   # A non-literal target: a bare identifier or an escaped variable
   # (`fopen(\$f, "w")`), i.e. anything that is not the opening quote of a literal.
   local _nonlit="(\\\\[^\"']|[^\\\\\"'[:space:])])"
+  # Ops whose FIRST argument is the target and which write unconditionally.
+  # Base-keyed: `writeFile` covers fs.writeFile/writeFileSync/promises.writeFile,
+  # `writeTextFile` covers Deno.writeTextFile(Sync).
+  local _wops_first='((writeFile|appendFile|createWriteStream|outputFile|writeTextFile)(Sync)?|file_put_contents|File\.write|IO\.write)'
+  # Copy/rename: the SECOND argument is the target. This is the interpreter
+  # spelling of a cp/mv DESTINATION, which the shell-side cp/mv vector in every
+  # calling guard already treats as a write — without it the same clobber walks
+  # past that guard just by being written in Python or Node.
+  local _wops_second='(shutil\.copy[A-Za-z0-9_]*|shutil\.move|os\.rename|os\.replace|File\.rename|FileUtils\.(cp|mv|copy|move)|(copyFile|rename|cp)(Sync)?)'
   local unresolved=0 has_awk=0 lit resolved
   if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(awk|gawk|mawk)([[:space:]]|$)'; then
     has_awk=1
@@ -317,31 +400,28 @@ _geniro_interp_write_targets() {
   done <<< "$(
     {
       # open()/fopen()/File.open() count only with a write mode in the second
-      # argument — `open('<path>')` is a read and must stay allowed.
+      # argument — `open('<path>')` is a read and must stay allowed. The Lua
+      # io.open('<path>','w') spelling is the same shape and matches on the name.
       printf '%s' "$cmd" \
         | grep -oE "(open|fopen|File\.open)\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*,[[:space:]]*${_q}[waxWAX>]" \
         | sed -E "s/^[^(]*\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
-      # perl's 3-argument open puts the mode second and the path third
+      # The 3-argument perl open puts the mode second and the path third
       # (`open(FH, ">", "path")`).
       printf '%s' "$cmd" \
         | grep -oE "open\([^,)]*,[[:space:]]*${_q}[>+]{1,2}${_q}[[:space:]]*,[[:space:]]*${_q}[^\\\\\"']+${_q}" \
         | sed -E "s/^.*,[[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
-      # These write unconditionally, so their first argument is the target.
       printf '%s' "$cmd" \
-        | grep -oE "(writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|IO\.write)\([[:space:]]*${_q}[^\\\\\"']+${_q}" \
+        | grep -oE "${_wops_first}\([[:space:]]*${_q}[^\\\\\"']+${_q}" \
         | sed -E "s/^[^(]*\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
-      # pathlib: the target is the Path(...) argument, not write_text's content.
+      # pathlib: the target is the Path(...) argument, not the write_text body.
       printf '%s' "$cmd" \
         | grep -oE "Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.(write_text|write_bytes|touch|open)" \
         | sed -E "s/^Path\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
-      # Copy/rename: the SECOND argument is the target. This is the interpreter
-      # spelling of a cp/mv DESTINATION, which the shell-side cp/mv vector in
-      # every calling guard already treats as a write — without it the same
-      # clobber walks past that guard just by being written in Python or Node.
-      # (No apostrophe above on purpose: bash 3.2 does not skip comments while
-      # scanning a $( ) body, so one would read as an unterminated quote.)
+      # (Every comment in this $( ) body keeps its apostrophes and parentheses
+      # balanced on purpose: bash 3.2 does not skip comments while scanning the
+      # body, so an odd one reads as an unterminated quote or an unclosed group.)
       printf '%s' "$cmd" \
-        | grep -oE "(shutil\.copy[A-Za-z0-9_]*|shutil\.move|os\.rename|os\.replace|copyFileSync|renameSync|File\.rename)\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*,[[:space:]]*${_q}[^\\\\\"']+${_q}" \
+        | grep -oE "${_wops_second}\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*,[[:space:]]*${_q}[^\\\\\"']+${_q}" \
         | sed -E "s/^.*,[[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
       # awk: `print`/`printf` redirected to a quoted literal, the shape that
       # writes a file from inside an awk program
@@ -363,11 +443,11 @@ _geniro_interp_write_targets() {
   # interpreter edits (perl -pi -e, ruby -i, perl -i.bak) whose target is the
   # file operand. The flag must end at a word or suffix boundary so an unrelated
   # long option (`ruby -version`) does not read as `-i`.
-  if printf '%s' "$cmd" | grep -qE "open\([[:space:]]*${_nonlit}[^)]*,[[:space:]]*${_q}[waxWAX>]|open\([^)]*mode[[:space:]]*=[[:space:]]*${_q}[wax]|(writeFileSync|appendFileSync|createWriteStream|writeFile|file_put_contents|File\.write|File\.open|IO\.write)\([[:space:]]*${_nonlit}"; then
+  if printf '%s' "$cmd" | grep -qE "open\([[:space:]]*${_nonlit}[^)]*,[[:space:]]*${_q}[waxWAX>]|open\([^)]*mode[[:space:]]*=[[:space:]]*${_q}[wax]|(${_wops_first}|File\.open)\([[:space:]]*${_nonlit}"; then
     unresolved=1
   fi
   # Copy/rename whose DESTINATION (second argument) is a variable or expression.
-  if printf '%s' "$cmd" | grep -qE "(shutil\.copy[A-Za-z0-9_]*|shutil\.move|os\.rename|os\.replace|copyFileSync|renameSync|File\.rename)\([^,)]*,[[:space:]]*${_nonlit}"; then
+  if printf '%s' "$cmd" | grep -qE "${_wops_second}\([^,)]*,[[:space:]]*${_nonlit}"; then
     unresolved=1
   fi
   # pathlib's write_text/write_bytes carry CONTENT, not a path — the target sits
@@ -386,6 +466,32 @@ _geniro_interp_write_targets() {
   return 0
 }
 # GENIRO-VENDORED-END _geniro_interp_write_targets
+fi
+if ! command -v _geniro_join_quoted_newlines >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_join_quoted_newlines
+_geniro_join_quoted_newlines() {
+  local cmd="${1:-}"
+  [ -z "$cmd" ] && return 0
+  printf '%s\n' "$cmd" | awk '
+    { buf = buf $0 "\n" }
+    END {
+      n = length(buf); q = ""; out = ""; seg = ""
+      for (i = 1; i <= n; i++) {
+        c = substr(buf, i, 1)
+        if (q == "") {
+          if (c == "\"" || c == "'\''") { q = c; seg = c } else { out = out c }
+        } else if (c == "\n") {
+          seg = seg " "
+        } else {
+          seg = seg c
+          if (c == q) { out = out seg; q = ""; seg = "" }
+        }
+      }
+      if (q != "") { printf "%s", buf } else { printf "%s", out }
+    }
+  ' 2>/dev/null || printf '%s\n' "$cmd"
+}
+# GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
 
 if [ "$TOOL_NAME" = "Bash" ]; then
@@ -435,6 +541,14 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   fi
 
   JOINED="${SCRUBBED//\\$'\n'/ }"
+
+  # A quoted literal may itself span a newline, and the per-line blanking below
+  # would then see an unbalanced quote on each half and scan the second half as
+  # syntax — a benign `echo` of a multi-line string that merely MENTIONS a state
+  # path blocked. Join the newlines INSIDE such a span first (lossless: a newline
+  # inside quotes never separates two commands), leaving every command-separating
+  # newline for the pass below. Contract: lib/write-vectors.sh.
+  JOINED=$(_geniro_join_quoted_newlines "$JOINED")
 
   # Quoted string literals are data (`echo "see > .geniro/x"` writes nothing).
   # Scrubbed per LINE, newlines INTACT: a newline separates two commands exactly
@@ -634,7 +748,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])ln[[:space:]]+[^|;&]*' || true)"
 
-  # 10) Interpreter-mediated writes: python/node/perl/ruby/php opening a state
+  # 10) Interpreter-mediated writes: a scripting runtime opening a state
   #     file for writing, a pathlib Path(...) write, an interpreter copy/rename
   #     landing on one, or an awk program redirecting `print` into one. Vectors
   #     1-9 read $ONELINE, whose heredoc bodies and quoted literals were blanked

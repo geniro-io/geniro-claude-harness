@@ -17,7 +17,7 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]
 - Anti-rationalization
 - Budgets — quality-first
 - Subagent model tiering
-- Spec metadata contract (/geniro:plan → /geniro:review)
+- Spec metadata contract
 - ACI per-phase tool surface
 - Memory I/O schedule
 - Definition of done
@@ -26,7 +26,7 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]
 
 ---
 
-Comprehensive code review using parallel multi-agent analysis. This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage.md` (Phases 1 + 1.5) · `phase-2-spawns.md` (Phase 2) · `phase-3-4-filter-stratify.md` (Phases 3 + 4) · `phase-5-6-emit-handoff.md` (Phases 5 + 6).
+This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage.md` (Phases 1 + 1.5) · `phase-2-spawns.md` (Phase 2) · `phase-3-4-filter-stratify.md` (Phases 3 + 4) · `phase-5-6-emit-handoff.md` (Phases 5 + 6).
 
 **Runtime portability.** Claude Code sets `${CLAUDE_PLUGIN_ROOT}`. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it everywhere and export it in every Bash call. Tool and hook substitutions: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
@@ -36,7 +36,7 @@ Comprehensive code review using parallel multi-agent analysis. This file is the 
 
 You are a **coordinator**. Delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. Do NOT review code yourself — read files only to gather context and verify agent findings.
 
-`/geniro:review` is a **Reporter**: it never applies fixes. Findings persist to a handoff file; downstream consumers (`/geniro:implement`, manual user action) apply them. The Phase 6 handoff message omits "I'll fix these now" language — that phrasing implies a fixer responsibility this skill does not have. A `Workflow(...)` / ultracode wrapper parallelizes the reviewer fan-out, not the Reporter contract; full boundary at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+`/geniro:review` is a **Reporter**: it never applies fixes. Findings persist to a handoff file; downstream consumers (`/geniro:implement`, manual user action) apply them. A `Workflow(...)` / ultracode wrapper parallelizes the reviewer fan-out, not the Reporter contract; full boundary at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 ---
 
@@ -53,7 +53,7 @@ State.md `phase:` enum transitions:
 
 **Terminal states:** `done`, `aborted`, `escalated` — SessionStart recovery treats all three as "review complete / cancelled". `done` includes a Phase 6 handoff line; `aborted` writes a `## Termination reason` body section; `escalated` (round-limit hand-off) surfaces its reason in `## Open Questions` instead (mapping: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9). Recovery rolls the seven **non-terminal** states back to phase-entry and re-runs from there — idempotent, because `approvals[]` makes the Phase 6 AUQ skip already-answered picks.
 
-**After a compaction, Read the phase file for the phase you are resuming.** Claude Code re-attaches only this spine; the Steps are gone. Reconstructing a phase from a summary's recollection instead of its actual steps is how a spawn batch or a gate gets skipped. `phase:` says where to resume.
+**After a compaction, re-Read the phase file for the phase `phase:` says you are resuming** — only this spine is re-attached, the Steps are gone, and reconstructing a phase from a summary's recollection is how a spawn batch or a gate gets skipped.
 
 ---
 
@@ -62,7 +62,7 @@ State.md `phase:` enum transitions:
 1. **One result per tool call.** Phase 2 parallel-spawn reviewer-agents — each must return a structured result; a dead spawn gets a `status: failed` entry in `## Tool log`.
 2. **Args validated before execution.** `$ARGUMENTS` flag parsing (semantic, no CLI grammar); PR ref validation via `mcp__github__pull_request_read` or GraphQL fallback.
 3. **Permission before side-effect.** Phase 6 "Post Draft PR" requires AUQ approval before posting to GitHub — the action gate always fires and waits first; never auto-post, never substitute a chat-text suggestion for it. The post creates a PENDING review that /geniro:review never submits, on every round — submitting is the user's own github.com action (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4). State.md writes go through `atomic_state_write`.
-4. **Bounded and structured tool results.** Reviewer-agent output ~4000 chars per dim; truncation marker. Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
+4. **Bounded and structured tool results.** Reviewer-agent output is capped per dimension by its own contract (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap), with a truncation marker. Output schema per the same file's §Output Format.
 5. **Escalation gates, not silent abort.** Round-N ≥3 → Phase 6 escalation gate.
 6. **Final answer grounded in observations — at every kept severity.** The Phase 6 handoff message cites the state.md path so the user can audit the source; every REPORTED CRITICAL / HIGH / MEDIUM finding carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` quoting the cited file or caller chain literally, because a severity claim without a literal quote is unverifiable. This binds at emit, not at admission: a CRITICAL or HIGH may enter Phase 4.2 on a thin citation, and the verifier (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §3) is what supplies the quote for every §4.1 survivor.
 7. **Errors → structured observations.** Reviewer spawn failures → `## Errors` body section. `gh` fail-open is NOT silent — log it there too.
@@ -72,7 +72,7 @@ State.md `phase:` enum transitions:
 
 **Turn-completion check (canonical, un-numbered).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard: never stop on an announced-but-unfired question.
 
-`## Tool log`: a typical run produces 5-12 entries (1 per reviewer + 1 per Phase 5.3 emit-learning + 1 per PR-side-effect).
+`## Tool log`: one entry per reviewer spawn, one per Phase 5.3 emit-learning, and one per PR-side-effect.
 
 ---
 
@@ -95,7 +95,7 @@ State.md `phase:` enum transitions:
 
 ## Budgets — quality-first
 
-No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. The one cap escalates rather than aborts: **round-N reviewer re-spawn caps at 3**, and the Phase 6 Round-N gate then fires an AUQ (Continue / Escalate / Abort). Over-size reviewer output truncates (invariant #4); the Phase 3 dedup pass runs once per round inline, so it cannot fail.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. The one bound escalates rather than aborts: at **round 3 the Phase 6 Round-N gate fires** (Continue / Escalate / Abort); its hard ceiling lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §5. Over-size reviewer output truncates (invariant #4); the Phase 3 dedup pass runs once per round inline, so it cannot fail.
 
 ---
 
@@ -117,11 +117,11 @@ When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLA
 
 | Phase | Allowed tools | Restricted |
 |---|---|---|
-| Phase 1 / 1.5 | Read, Grep, Glob, read-only Bash (`gh pr view`, `git diff`, lint, `tsc --noEmit`), **read-only `mcp__linear__*` (`get_issue` / `list_issues`; degrade silently if unregistered)** | No Edit/Write apart from state.md; no Linear `update_issue` / `create_comment` (those stay in /geniro:implement Ship) |
-| Phase 2 / 3 / 4 | Agent (reviewer-agent, the per-finding verifier in verify-finding mode, adversarial-tester-agent); read-only Bash for §2.7 build verification; Phase 3 dedup inline | No Edit/Write mutations; no Bash mutations |
-| Phase 5 / 6 | Write scoped to `.geniro/state/handoff/**`; `atomic_state_write` on the handoff path (gate resolutions, `approvals[]`); `emit-learning`; `gh api POST /pulls/N/reviews` with `event` omitted (§5.4, Post drill only); Phase 6 AskUserQuestion; Agent — one verify-finding spawn, only on the "Challenge this finding" pick (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3 Step 0) | No Edit/Write on project files (a reporter never mutates source or rules); edits outside the handoff scope are hook-blocked; never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES`, never the submit endpoint `gh api POST /pulls/N/reviews/<id>/events` (publishing a pending review is the user's action); no reviewer re-spawn without the Round-N gate pick |
+| Phase 1 / 1.5 | Read, Grep, Glob, read-only Bash (`gh pr view`, `git diff`, lint, `tsc --noEmit`) plus `atomic_state_write`, **read-only `mcp__linear__*` (`get_issue` / `list_issues`; degrade silently if unregistered)** | No Edit/Write — the state file goes through the helper; no Linear `update_issue` / `create_comment` (those stay in /geniro:implement Ship) |
+| Phase 2 / 3 / 4 | Agent (reviewer-agent in review and verify-finding modes, adversarial-tester-agent); read-only Bash for §2.7 build verification; Phase 3 dedup inline | No Edit/Write mutations; no Bash mutations |
+| Phase 5 / 6 | `Bash` for `atomic_state_write` on the handoff path (the Phase 5.1 write, gate resolutions, `approvals[]`); `emit-learning`; `gh api POST /pulls/N/reviews` with `event` omitted (§5.4, Post drill only); Phase 6 AskUserQuestion; Agent — one verify-finding spawn, only on the "Challenge this finding" pick (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3 Step 0) | No Edit/Write anywhere — a reporter never mutates source or rules, and the state-helper hook hard-blocks direct writes under `.geniro/state/`, so the helper is the only route to the handoff. Never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES`, never the submit endpoint `gh api POST /pulls/N/reviews/<id>/events` (publishing a pending review is the user's action); no reviewer re-spawn without the Round-N gate pick |
 
-Safety hooks apply throughout: file-protection, git-guardrails, `.geniro/` deletion guard, state-helper enforcement, security-pattern-scan on any Edit/Write.
+Safety hooks apply throughout: file-protection, git-guardrails, `.geniro/` deletion guard, state-helper enforcement, security-pattern-scan.
 
 ---
 
@@ -134,13 +134,13 @@ Safety hooks apply throughout: file-protection, git-guardrails, `.geniro/` delet
 | Phase 5 · 6 | `atomic_state_write` (write T2) — handoff path, full body; then updated `approvals[]` |
 | Phase 5.3 | `emit-learning` (write L2) — producer /geniro:review, type `pitfall`, trust `verified` |
 
-`pitfall` is the only L2 type /geniro:review emits (on convergence ≥3). `convention` belongs to /geniro:implement, `decision` to /geniro:plan, `diagnosis` to /geniro:debug.
+`pitfall` is the only L2 type /geniro:review emits, and only on convergence ≥3.
 
 ---
 
 ## Definition of done
 
-The load-bearing exit gates — skipping any makes the review incomplete or unsafe. Per-phase mechanics live in the phase files; this is the final contract check.
+Per-phase mechanics live in the phase files; this is the final contract check, and skipping any item leaves the review incomplete or unsafe.
 
 - [ ] Every mandatory reviewer spawned in parallel — 7 always-fire dimensions (including `regressions`) + every triggered conditional one (design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual AND spawn instances == `spawn_dims_count`.
 - [ ] The spawn echo (`Spawning <N> reviewers: ...`), carrying the declared count, went out in the same response that fired the batch (§2.3.1).
@@ -151,7 +151,7 @@ The load-bearing exit gates — skipping any makes the review incomplete or unsa
 - [ ] `phase:` was stamped via `atomic_state_write` on ENTRY to each phase (invariant #10), so both declarations existed before the gates reading them.
 - [ ] All three pre-pass checks (lint / schema / secret) ran to a recorded outcome — `findings`, `clean`, or `error` — declared in `mechanical_prepass_attempted`, and §4.0a confirmed it.
 - [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
-- [ ] `report_status: draft→final` flipped only after the decision gate cleared; on a Post, `[POSTED-TO-PR]` markers persisted.
+- [ ] `report_status: draft→final` flipped on this pass once the decision gates cleared — including on a clean review with no gates to fire; on a Post, `[POSTED-TO-PR]` markers persisted.
 - [ ] The Action gate fired (always-WAIT) with its pick in `approvals[]`; the chained include-deferred gate fired on the `/geniro:implement findings` pick when set-aside minor findings existed; the round-N gate fired when round ≥3.
 - [ ] `--deep` honored when present; approved test authoring stayed additive — never filtering the posted finding set.
 
@@ -167,7 +167,7 @@ The load-bearing exit gates — skipping any makes the review incomplete or unsa
 
 ## Phase 2 — LLM reviewer spawns
 
-`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.8. Fire one `reviewer-agent` per triggered dimension as a single parallel batch. Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
+`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.3 and §2.5-§2.8 (§2.4 is reserved). Fire one `reviewer-agent` per triggered dimension as a single parallel batch. Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
 
 ## Phase 3 — Filter & aggregate
 
@@ -179,14 +179,14 @@ The load-bearing exit gates — skipping any makes the review incomplete or unsa
 
 ## Phase 5 — Persist & emit
 
-`phase: persist` · Steps: `phase-5-6-emit-handoff.md` §5.0-§5.5, opening with **§5.0 repeat findings**. Exit when `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
+`phase: persist` · Steps: `phase-5-6-emit-handoff.md` §5.0, §5.1 and §5.3-§5.5 (§5.2 is reserved), opening with **§5.0 repeat findings**. Exit when `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
 
 ## Phase 6 — Action gate handoff
 
-`phase: action-gate` · Steps: `phase-5-6-emit-handoff.md` (its Phase 6 section) plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9; read §7 (the Post drill) only on the "Post Draft PR review" pick — a third of that file, unreachable when `pr-ref: none`. Each gate is its own AUQ, never collapsed into chat text. Exit when the open-question, open-decision, and Action gates — plus the Failing-tests gate when `## Authored Tests` is non-empty — have each fired with their picks persisted to `approvals[]`.
+`phase: action-gate` · Steps: `phase-5-6-emit-handoff.md` (its Phase 6 section) plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9; the Post drill (§7.0-§7.8) is its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` — read it only on the "Post Draft PR review" pick, unreachable when `pr-ref: none`. Each gate is its own AUQ, never collapsed into chat text. Exit when the open-question, open-decision, and Action gates — plus the Failing-tests gate when `## Authored Tests` is non-empty — have each fired with their picks persisted to `approvals[]`.
 
 ---
 
 ## REFERENCE
 
-Beyond the four phase files named in the header, each phase file cites its own deeper contracts. Under `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage-reference.md` (Phase 1 input mode / scope / risk-tier / memory load) · `deep-mode-reference.md` (`--deep` recall + vote) · `phase-4-3-test-gate-reference.md`. Under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/`: `finding-verification.md` (Phase 4.2 verifier) · `review-handoff.md` (Phase 6 handoff; §7 is the Post drill) · `plan-context.md` · `flags-reference.md`.
+Beyond the four phase files named in the header, each phase file cites its own deeper contracts. Under `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage-reference.md` (Phase 1 input mode / scope / risk-tier / memory load) · `deep-mode-reference.md` (`--deep` recall + vote) · `phase-4-3-test-gate-reference.md`. Under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/`: `finding-verification.md` (Phase 4.2 verifier) · `review-handoff.md` (Phase 6 handoff) · `review-handoff-post.md` (§7 Post drill, Post pick only) · `plan-context.md` · `flags-reference.md`.

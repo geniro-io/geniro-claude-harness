@@ -116,6 +116,9 @@ emit_conflict_notice() {
 
   if [ -n "$_RC_FOLLOWING" ]; then
     # The flag carries a layer code; the rendered line must not (fresh-user test).
+    # `local`: this file is sourced into a skill's Bash block, so an unscoped
+    # assignment would leak the name into the caller's shell.
+    local _rc_following_name
     case "$_RC_FOLLOWING" in
       L4) _rc_following_name="your project rules" ;;
       L3) _rc_following_name="your project snapshot" ;;

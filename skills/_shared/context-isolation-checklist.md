@@ -74,7 +74,7 @@ The rule binds on the task inputs the orchestrator discovered — the diff, the 
 - `/geniro:investigate` research spawns (general-purpose): `disallowedTools: ["Edit", "Write"]` — research is read-only.
 - `/geniro:setup` Phase 4 verification spawn (general-purpose): `disallowedTools: ["Edit", "Write"]` — verification is read-only.
 
-**(5) Output schema.** The exact format the agent's response must match. Examples: a Markdown table with named headers, a JSON block matching a stated schema, or finding objects matching the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. If the orchestrator cannot parse the agent's output, re-spawning is wasted work — pin the schema upfront. Include a one-example block showing the literal shape.
+**(5) Output schema.** The exact format the agent's response must match. Examples: a Markdown table with named headers, a JSON block matching a stated schema, or finding blocks matching the per-finding schema in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format. If the orchestrator cannot parse the agent's output, re-spawning is wasted work — pin the schema upfront. Include a one-example block showing the literal shape.
 
 **(6) Model tier.** For plugin-defined agents OMIT `model=` — the agent's frontmatter `model:` governs, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Pass `model=` explicitly ONLY for a general-purpose spawn where the tier IS the deliverable contract (`/geniro:setup` Phase 4 verification = sonnet) and for a user-authored custom reviewer that declared `model:` in its frontmatter; document that choice at the spawn site.
 
@@ -102,10 +102,5 @@ The rule binds on the task inputs the orchestrator discovered — the diff, the 
 
 A spawn site correctly applies the checklist when:
 
-- [ ] Task scope is a single explicit deliverable, phrased "Produce <X>".
-- [ ] Acceptance criteria are 1-3 explicit pass/fail bullets.
-- [ ] Every discovered input file is pre-inlined (full content) with absolute path; no implicit Glob expected. Fixed plugin-owned references the agent's contract has it Read pass as resolved absolute paths (field 3).
-- [ ] disallowedTools is set when the agent's contract is read-only; the constraint is also restated in-prompt.
-- [ ] Output schema is pinned with a one-example block showing the literal shape.
-- [ ] Model tier follows field (6): plugin-defined agents OMIT `model=`; an explicit tier appears only at the two sites that field allows.
-- [ ] The spawn obeys `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` runtime-degradation rule (prefixed `geniro:<agent>` first, then bare `<agent>` on "not found", then general-purpose with body-prepended on second "not found"; cache the resolved rung for the session).
+- [ ] All six § Required pre-inlined context fields are present in the prompt, each satisfying the condition stated there.
+- [ ] The spawn obeys the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and caches the resolved rung for the session.

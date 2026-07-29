@@ -1,8 +1,8 @@
-# review-extra: Custom Reviewer Authoring & Create Flow
+# review-extra: custom reviewer authoring and create flow
 
 ## Contents
 
-- Custom Reviewer Authoring (review-extra) — body shape, severity-default, paths scoping, model choice, count caps.
+- Custom reviewer authoring (review-extra) — body shape, severity-default, paths scoping, model choice, count caps.
 - Mode: create — review-extra variant — the slug-bearing flow:
   - Step 1: Resolve the slug
   - Step 2: Validate the slug
@@ -19,7 +19,7 @@ Companion file to `SKILL.md` for the `review-extra` directory-style scope. The p
 
 See `SKILL.md` for the load-bearing rules referenced below: validation rules (`## — Mode: validate`, `### Step 2 — Lint rule set` — the `review-extra/<slug>.md` row in the per-scope table), file structure (`## File shapes` for the loaded instruction files, and `## Frontmatter field reference (review-extra/<slug>.md)` for this scope's own schema), count caps cross-references.
 
-## Custom Reviewer Authoring (review-extra)
+## Custom reviewer authoring (review-extra)
 
 Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a different shape from the other instruction files — they declare a new code-review dimension that runs alongside the built-in reviewer-agents (bugs, security, architecture, tests, optimizations, conventions, regressions, plus design/pr-metadata/spec-compliance). Treat each file as a reviewer-agent prompt body, not a workflow rule:
 
@@ -100,7 +100,7 @@ Explain the body shape before asking. Use `AskUserQuestion` with no options (fre
 
 ### Step 7: Propose the assembled file
 
-Infer the optional frontmatter from the description and criteria just gathered, applying §Custom Reviewer Authoring above as the rubric: omit `model:`, scope `paths:` to the file kinds the criteria name, set `severity-default:` to the severity those criteria imply, and pre-fill `requires-context:` whenever the criteria reference live external data the reviewer cannot fetch for itself. Then render the assembled file — frontmatter plus criteria — and gate it:
+Infer the optional frontmatter from the description and criteria just gathered, applying §Custom reviewer authoring above as the rubric: omit `model:`, scope `paths:` to the file kinds the criteria name, set `severity-default:` to the severity those criteria imply, and pre-fill `requires-context:` whenever the criteria reference live external data the reviewer cannot fetch for itself. Then render the assembled file — frontmatter plus criteria — and gate it:
 
 - **Question:** "Here's the reviewer as assembled — create it?"
 - **Options:**
@@ -143,7 +143,8 @@ Show the created file content and report (per SKILL.md Step 0.5: when the main r
 Created `.geniro/instructions/review-extra/{{slug}}.md`.
 
 This reviewer will run alongside the built-in reviewers every time you invoke
-/geniro:review (or /geniro:implement Phase 3 self-review / /geniro:refactor Phase 3 verify).
+/geniro:review, and during the self-review of /geniro:implement and the
+verification of /geniro:refactor.
 
 Test it: run `/geniro:review` against a PR you expect this reviewer to flag,
 and confirm findings appear and look right. Edit with

@@ -104,24 +104,7 @@ Appended to the standard 11-section `spec.md` as an allowed extra body section. 
 
 ## 4. Handoff `comment_resolutions[]` (Phase 4)
 
-The canonical schema is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields (change in lockstep with `/geniro:implement`). Shape, for authoring reference:
-
-```yaml
-comment_resolutions:                 # in from-resolve-<branch>.md frontmatter · MAY be []
-  - thread_id: PRRT_kwDOExample      # → pr-threads.md §5 resolveReviewThread
-    comment_id: 1234567890           # → pr-threads.md §4 reply endpoint
-    source: review-comment           # only review-comment items appear here (CI items do not — #5)
-    author: coderabbitai[bot]
-    path: api/users.ts
-    line: 42
-    verdict: fix                     # fix | answer-only | wontfix
-    reply_draft: |
-      Addressed in <commit> — guarded the null deref before the map(); see api/users.ts:42.
-    resolve_after_fix: true          # fix → true; answer-only / wontfix → false
-    verify: "pnpm test users.spec"   # passes ⇒ the fix landed (mirrors spec §9); null if none
-    fix_step_anchor: step-3          # the spec Step that implements it; null for answer-only/wontfix
-    status: pending                  # pending | posted | skipped (set by /geniro:implement)
-```
+The array lives in `from-resolve-<branch>.md` frontmatter and MAY be `[]`. Its per-entry schema — the fields `thread_id`, `comment_id`, `source`, `author`, `path`, `line`, `verdict`, `reply_draft`, `resolve_after_fix`, `verify`, `fix_step_anchor`, `status`, plus their enums and the producer/consumer responsibilities — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields (change in lockstep with `/geniro:implement`). Read the field definitions there before the Phase 4 write rather than reconstructing them here.
 
 `/geniro:implement` consumption (its Ship sub-step):
 1. For `verdict: fix` — re-verify the fix landed (run `verify:`, else confirm `fix_step_anchor`'s files are in the pushed diff). Not landed → `status: skipped`, thread untouched.

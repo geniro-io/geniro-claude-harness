@@ -46,7 +46,7 @@ Standard Phase 3 routes every Round-1 finding straight into the fix loop. Deep m
   - the first vote is `refuted` AND `seen-in >= 2/3` angles — the refute contradicts the within-dim corroboration that surfaced it.
 - **Accept the single vote** otherwise: a high-confidence first vote on a MEDIUM-or-lower finding that agrees with the corroboration — a `confirmed`/`clarified`, or a `refuted` of a lone (`seen-in: 1/3`) finding.
 - **Majority when escalated:** ≥2 "drop" → the finding is demoted out of the fix set (recorded in state.md, not fixed); otherwise it enters the fix loop with the majority `recommended_action`.
-- Parse-fail = abstain; a first-vote abstention triggers escalation; quorum < 2 → one fresh single-pass verifier for that finding (deep-mode.md §5).
+- Parse-fail = abstain; a first-vote abstention triggers escalation; quorum < 2 → one fresh single-pass verifier for that finding (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5).
 
 **Why signal-gating fits a mutation skill:** a single verifier can hallucinate in either direction, and in implement BOTH are costly — a false-confirm authorizes an unneeded edit, a false-refute ships a real bug. So high-stakes findings (CRITICAL/HIGH) always take the full majority, while the MEDIUM-and-lower bulk — high-confidence and corroborated — settles at one vote. This mirrors `/geniro:review --deep`, tightened for the fix loop: review accepts a single high-stakes confirm (its findings are only reported); implement escalates high-stakes findings in both directions (its findings are fixed). Both still demote a refuted finding before acting on it — review to `## Filtered`, implement out of the fix set.
 
@@ -56,38 +56,24 @@ Deep cost is front-loaded on Round 1 discovery + verification. The bounded fix l
 
 ## 6. Workflow shape
 
-One script, two phases (recall then verify). Build path/context strings as plain constants before any backtick template literal (deep-mode.md §4, path-constants mitigation). Return raw JSON text and parse defensively — never `agent({schema})`.
+One script, two phases (recall then verify). Both fan-outs instantiate the canonical script skeletons in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 "Script skeletons", and apply every mandatory Workflow mitigation in that file's §4 — each one prevents an observed failure, so read them before writing the script.
+
+Implement supplies these pieces:
+
+- **Recall phase.** The stage set is the declared Phase 3 dimension set minus the adversarial-tester, run under the three angles named in §3 above. Dedup key: same file + overlapping line range + same defect class, with the within-dim tally carried as `seen-in: N/3 angles`.
+- **Verify phase.** The candidates are the flattened per-dim findings the recall phase returned, and the survivors (`verdict !== 'refuted'`) enter the fix loop. Its escalation predicate, per §4:
 
 ```
-phase('Deep self-review — angle-diverse passes')
-const ANGLES = ['common-path', 'boundaries-and-errors', 'interaction']      // §3: 3 distinct, dimension-agnostic angles
-const perDim = await pipeline(
-  DIMENSIONS,                                          // the declared Phase 3 dim set (minus adversarial)
-  d => parallel(ANGLES.map(angle => () =>
-    agent(reviewerPrompt(d, angle, diffCtx), { label: `${d.slug}:${angle}`, phase: 'Deep self-review — angle-diverse passes' }))),
-  (anglePasses, d) => dedupeWithinDim(anglePasses, d)  // union + dedup IN-SCRIPT → one per-dim set (seen-in: N/3 angles)
-)
-const findings = perDim.flat().filter(Boolean)
-
-phase('Deep verify — signal-gated')
-const verified = await parallel(findings.map(f => () => (async () => {
-  const first = parseVote(await agent(verifierPrompt(f, 0), { label: `verify:${f.id}:v0`, phase: 'Deep verify — signal-gated' }))
-  if (!needsEscalation(first, f)) return { ...f, verdict: first }           // high-confidence + agrees with signal → accept 1 vote
-  const rest = await parallel([1,2].map(i => () =>                          // contested / high-stakes → full 3-vote majority
-    agent(verifierPrompt(f, i), { label: `verify:${f.id}:v${i}`, phase: 'Deep verify — signal-gated' })))
-  return { ...f, verdict: majority([first, ...rest]) }                      // majority() parses defensively; parse-fail = abstain
-})()))
-return verified.filter(v => v.verdict !== 'refuted')                        // survivors enter the fix loop
 // needsEscalation(first, f) = first abstained (parse-fail) OR first.confidence < 70
 //   OR f.severity === 'CRITICAL' OR f.severity === 'HIGH'
 //   OR (first.validation === 'refuted' && f.seen_in >= 2)
 ```
 
-Every reviewer/verifier prompt re-asserts the read-only contract (no Edit/Write/git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per deep-mode.md §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn.
+Every reviewer/verifier prompt re-asserts the read-only contract (no Edit/Write/git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn.
 
 ## 7. Fail-safe
 
-Per deep-mode.md §5 — the standard single-pass Phase 3 batch and the single-pass spec-challenge are the floor. A workflow error / unparseable aggregate / agent-registration failure degrades to the standard single-pass path for that stage with a plain-English caveat (`Deep mode couldn't run the extra self-review passes — fell back to a single pass.`). Never a hard stop; a shallower self-review is still a valid pre-ship gate.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5 — the standard single-pass Phase 3 batch and the single-pass spec-challenge are the floor. A workflow error / unparseable aggregate / agent-registration failure degrades to the standard single-pass path for that stage with a plain-English caveat (`Deep mode couldn't run the extra self-review passes — fell back to a single pass.`). Never a hard stop; a shallower self-review is still a valid pre-ship gate.
 
 ## 8. Anti-rationalization
 
@@ -99,4 +85,4 @@ Per deep-mode.md §5 — the standard single-pass Phase 3 batch and the single-p
 | "Skip verification — if the angle passes surfaced a finding, just fix it." | The angle passes raise recall (find more); verification raises precision (avoid fixing a hallucinated defect) — different levers. Every finding still gets at least one verifier before the fix, and contested or high-stakes findings get the full 3-vote majority (§4). Fixing a false positive wastes a round and can introduce a regression. |
 | "Run one verifier on every finding to save tokens." | The single-vote path is gated, not blanket (§4): a low-confidence first vote, ANY CRITICAL/HIGH finding, or a refute contradicting `seen-in >= 2/3` escalates to the full 3. In a mutation skill both a wrong fix and a dropped real bug are costly, so high-stakes findings always take the majority — one vote is accepted only for the corroborated MEDIUM-and-lower bulk. |
 | "Multiply the adversarial-tester 3× too, for parity with the reviewer dims." | The adversarial-tester already hunts edge cases exhaustively and AUTHORS tests; tripling it triples authored-test churn for little recall gain. Deep mode multiplies the reviewer dimensions and the verifier votes, and keeps the adversarial-tester a single spawn (§3). |
-| "I'm in the deep Workflow now, so I can let the agents apply the fixes in parallel." | The workflow agents are read-only — they find and verify only. The orchestrator owns every fix and every `atomic_state_write` (deep-mode.md §6). Parallel agents editing source is exactly the boundary the wrapper tempts you to drop. |
+| "I'm in the deep Workflow now, so I can let the agents apply the fixes in parallel." | The workflow agents are read-only — they find and verify only. The orchestrator owns every fix and every `atomic_state_write` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6). Parallel agents editing source is exactly the boundary the wrapper tempts you to drop. |

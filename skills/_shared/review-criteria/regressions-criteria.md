@@ -148,7 +148,6 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 
 - `File:` — `path:line` anchored at the deletion site (for §1 and §3), at the behavior-mutating hunk (for §2), or at the edited path (for §4). When the finding cites a caller or unedited sibling in an unchanged file, name BOTH the anchor site and the cited path in the body — the `File:` anchor stays at the deletion / edited site.
 - `Severity:` — CRITICAL / HIGH / MEDIUM / LOW per the rubric in §Severity Tagging.
-- `Cause:` — `[ROOT-CAUSE] | [SYMPTOM] | [UNKNOWN]` per the canonical enum at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Phase 3 dedup keys off this classification.
 - `Criteria:` — short label naming the specific check from this file. Suggested values: `Symbol-deletion + caller-blast` (§1) / `Intent-vs-behavior over-reach` (§2) / `Test-coverage delta` (§3) / `Parallel-path symmetry` (§4) / `Regression provenance` (§5).
 - `Evidence:` — quote the deleted hunk verbatim AND cite the surviving caller / surviving production / quoted intent fragment. The reader must be able to reproduce the finding from `Evidence:` alone.
 - `Why this matters:` — name the downstream consequence (compile failure, runtime error, silent behavior change, coverage regression).
@@ -166,7 +165,7 @@ Two false-positive classes route to other dims rather than being suppressed here
 - **Cause-path comparison for deleted tests vs. outcome-matching surviving tests.** Belongs to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)". This dim emits the higher-level "test deleted, production stayed" signal; that section handles the cause-path nuance.
 - **Cross-round PR-body vs. diff drift.** Belongs to `pr-metadata-criteria.md` §11 (Description ↔ Code Drift on Re-Review). This dim covers the broader diff-vs-stated-intent direction across all intent sources, not just the PR body across rounds.
 
-When two dims have legitimate overlap on the same hunk, both emit. The Phase 3 filter and Phase 4 stratify steps in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` deduplicate by `file:line + cause`; orthogonal findings on the same hunk survive deduplication.
+When two dims have legitimate overlap on the same hunk, both emit. The consuming skill's filter and stratify steps collapse only same-finding duplicates, so orthogonal findings on the same hunk both survive deduplication.
 
 ## Severity Tagging
 
@@ -198,7 +197,7 @@ The rubric is additive — a single hunk can trigger multiple rows (e.g., a dele
 ## Reference notes
 
 - Reviewer output format: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-- Phase 1 input inlining (DIFF / PLAN / LINEAR / PEER-PR slots): `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 1.
-- Phase 3 dedup + Phase 4 stratify pipeline: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 3 and Phase 4.
+- Spawn-prompt input inlining (DIFF / PLAN / LINEAR / PEER-PR slots): `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3.
+- Dedup + stratify pipeline: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §3.1 (dedup key) and §4.1 (admission).
 - Cause-path comparison for deleted tests: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)".
 - Caller-blast for surviving symbols: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §1.5.

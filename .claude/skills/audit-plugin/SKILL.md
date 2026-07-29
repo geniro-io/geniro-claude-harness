@@ -7,7 +7,16 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Tod
 argument-hint: "[path/dimension scope | --quick | empty for full audit]"
 ---
 
-# /audit-plugin — Whole-repo plugin audit pipeline
+# /audit-plugin — whole-repo plugin audit pipeline
+
+## Contents
+
+- Phases overview · Loop invariants · Anti-rationalization · Budgets · Subagent tiering
+- Phase 0 (scope & inventory) · Phase 1 (mechanical pre-pass) · Phase 2 (dimension reviewers)
+- Phase 3 (merge, verify, filter) · Phase 4 (report) · Phase 5 (action gate)
+- State recovery · Definition of done · REFERENCE
+
+---
 
 You are the audit orchestrator. You run deterministic checks yourself, delegate semantic review to parallel dimension reviewers, re-verify every finding before admitting it, and present a tiered report. Fixes are applied only after the user approves them at the action gate.
 
@@ -26,7 +35,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 2. **Report before fix.** Fixes happen only after the Phase 5 gate — an audit that silently edits while scanning destroys the baseline the findings cite.
 3. **Parallel spawns in one response.** All Phase 2 `Agent(...)` calls go in the same assistant turn; sequential turns serialize wall-time across 7-8 reviewers.
 4. **Do-not-flag list is binding.** The reference file's endorsed-patterns list overrides any reviewer's instinct — re-flagging endorsed patterns is the audit's own false-positive failure mode.
-5. **Caps are guidelines.** Line/row caps over target are advisory findings proposing a MOVE to a reference file, never a cut of load-bearing content.
+5. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 
 ## Anti-rationalization
 
@@ -44,7 +53,8 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 | "Skill X mentions /geniro:learnings — stale ref, flag it." | Deleted-skill names inside the documented replacement tables (CLAUDE.md, MIGRATION.md) are documentation OF the deletion. Adjudicate candidates; don't bulk-flag grep hits. |
 | "The user said audit everything — I'll include design/ and evals/." | Out of default scope: design/ holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
-| "There are 80 findings — I'll show tier counts and link the report." | The user approves fixes finding-by-finding, so a count hides the exact edits they're authorizing. Render every finding (low included) before the gate; send the report file when the set is long, but the visible set must equal the approvable set. |
+| "There are 80 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
+| "This instruction reads fine — leave it." | Reading fine is not the bar. A rule can be live and still cost more than it buys: a fixed threshold where a criterion would let the model read the situation, an example that narrows the solution space, a guardrail written for a weaker model. D6 hunts those, not only redundancy. |
 
 ## Budgets
 
@@ -84,49 +94,14 @@ Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
-- **Candidate lists** — pasted into the D3 reviewer prompt for adjudication.
+- **Candidate lists** — pasted into the reviewer prompt of the dimension each one feeds (D3, D6, D7 per the D1 table). A dimension with an enumerable surface and no seed under-performs: the reviewer spends its budget rediscovering what a grep already knew.
 - **Context notes** — battery summary pasted into every reviewer prompt ("tests green, lint warns on X, shellcheck advisory on Y") so reviewers don't re-derive it.
 
 If `--quick`: jump to Phase 4 with machine findings only.
 
 ## PHASE 2 — Parallel dimension reviewers
 
-Spawn the selected reviewers in ONE response. Each prompt is self-contained — reviewers must not need to discover their own rubric:
-
-```
-Agent(subagent_type="general-purpose", prompt="""
-## Task: Plugin audit — dimension D<N> (<name>)
-
-You are one reviewer in a multi-dimension audit of this Claude Code plugin repo.
-Review ONLY your dimension; other dimensions are covered by parallel reviewers.
-
-### Your rubric
-{{paste the full D<N> section from dimensions-reference.md}}
-
-### Severity tiers and output contract
-{{paste §Severity tiers + §Finding output contract from dimensions-reference.md}}
-
-### Do-not-flag list
-{{paste §Do-not-flag list}}
-
-### Your file scope
-{{inventory subset for this dimension, from Phase 0}}
-
-### Mechanical pre-pass context
-{{battery summary; for D3 additionally: the candidate lists; for D7 additionally: the seed-grep output}}
-
-### Procedure
-1. Load your markdown scope in FULL via `scripts/dump-md.sh <scope paths>` and survey from that — grep hits miss reworded coverage; grep only to pinpoint an exact known string. Read non-markdown files directly.
-2. Verify each candidate finding by Reading the exact cited lines — your `evidence` column must be a verbatim quote.
-3. Return ONLY the findings table per the output contract (≤25 rows) plus a 2-3 sentence per-dimension verdict ("healthy / debt concentrated in X").
-Do NOT fix anything. Do NOT review outside your dimension. Report only.
-""", description="Audit: D<N> <name>")
-```
-
-Dimension-specific notes:
-- **D4 (rules compliance):** instruct the reviewer to load the three `.claude/rules/*.md` files first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
-- **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
-- **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
+Spawn the selected reviewers in ONE response. Each prompt is self-contained — reviewers must not need to discover their own rubric. Spawn template, the per-dimension notes, and the sharding rule: `dimensions-reference.md` §Reviewer spawn template — you are already reading that file to paste each reviewer's rubric sections, so it costs no extra load here.
 
 Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-<reviewer>.md` (via `atomic_state_write`), where `<reviewer>` is the spawn's unique label — `D2`...`D8`, `D5a`/`D5b`, `D4-shardA`/`D4-shardB` — so no two spawns share a filename and overwrite each other. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
 
@@ -151,13 +126,15 @@ Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/`
 
 On `--quick` runs, omit sections 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead.
 
-In chat, render **every** finding before the action gate — the user approves individual fixes, so each one has to be visible, low and cosmetic included. A tier count alone is not enough; a count hides the exact change a reader is being asked to authorize. Lead with the highest-value fix, then the full tier tables T0→T5 (same `# | file:line | issue | fix` rows as the report, convergence inline), then the report path. When the table set is very long, send the report file itself (so every row is scannable) AND render the decision-critical tiers (T0/T1/T2) inline — but never collapse a tier to a bare number. The set the user is about to approve and the set they can see must be the same set.
+In chat, render **every** finding before the action gate — the user approves individual fixes, so each one has to be visible, low and cosmetic included. Lead with the highest-value fix, then the full tier tables T0→T5 (same `# | file:line | issue | fix` rows as the report, convergence inline), then the report path. When the table set is very long, send the report file itself (so every row is scannable) AND render the decision-critical tiers (T0/T1/T2) inline. The set the user is about to approve and the set they can see must be the same set.
 
 ## PHASE 5 — Action gate
 
-Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness, ...). How should I proceed?" with options: "Fix safety + correctness now (T0-T1) (Recommended)" / "Let me pick findings" / "Report only — I'll handle fixes separately".
+Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness, ...). How should I proceed?" with options: "Fix safety + correctness now (T0-T1) (Recommended)" / "Fix everything — every tier" / "Let me pick findings" / "Report only — I'll handle fixes separately".
 
-- **Fix path:** group approved findings by file/module; spawn implementation agents (one per group, ONE response) with the finding rows + verbatim current content pre-inlined and the constraint set from the repo rules (edit-in-place, no scope creep, caps are guidelines). Then re-run the Phase 1 battery + Read each changed location to confirm the finding is resolved. Max 1 fix round — surviving failures go back to the user. Large structural items (multi-file refactors, reference-graph re-homing) are better routed to `/improve-template` with the finding rows as `$ARGUMENTS`; say so instead of attempting them inline.
+T0-T1 carries the `(Recommended)` marker because it is the smallest change set that closes every bypass and behavior defect, so it is the one a reviewer can still read end-to-end. "Fix everything" is a first-class option, not a fallback — say what it costs (it fans out across more agents and touches far more files, and the whole set lands in one fix round) and let the user choose.
+
+- **Fix path:** group approved findings into **strictly disjoint file scopes** — two agents editing one file overwrite each other, and a shared file is the one place a fix round loses work silently. Name each agent's scope as an allowlist and name the files other agents hold, so a finding that spans a boundary gets reported back rather than reached for. Spawn one agent per group in ONE response, with the finding rows and the constraint set from the repo rules (edit-in-place, no scope creep, caps are guidelines); the report file is the finding source of truth, so pass its path rather than re-inlining rows. Expect cross-scope work: an agent that finds more instances of its defect class outside its own files reports them, and you ground-truth the claim with a grep before routing it to the owning agent. Then re-run the Phase 1 battery + Read each changed location to confirm the finding is resolved. A suite failing mid-round usually means another agent is mid-write on a file it reads — re-run at the end rather than treating it as a regression. Max 1 fix round — surviving failures go back to the user. Large structural items (multi-file refactors, reference-graph re-homing) are better routed to `/improve-template` with the finding rows as `$ARGUMENTS`; say so instead of attempting them inline.
 - **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
 - **Report only:** proceed to cleanup.
 

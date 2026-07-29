@@ -1,4 +1,4 @@
-# /geniro:plan Reference
+# /geniro:plan reference
 
 Companion reference for less-common usage paths of `/geniro:plan`. The main flow lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md`; this file documents edge cases and the shared rules consumed.
 

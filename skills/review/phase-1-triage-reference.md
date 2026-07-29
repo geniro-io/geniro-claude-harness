@@ -195,7 +195,7 @@ The pre-step resolves the review target from `$ARGUMENTS`, and for a PR ref fetc
 
 **PR-ref resolution.** Parse `<owner>/<repo>/<number>` from `$ARGUMENTS`. For a full PR URL, parse the path segments directly; for bare PR number (`#1234` or `1234`), resolve `<owner>/<repo>` from the current repo via `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`.
 
-**Thread-state fetch.** Feeds the `resolved-threads-snapshot:` (Phase 1 item 4 — Post-drill already-on-PR dedup) and the existing-review ingest (§1.1). MCP-preferred: `mcp__github__pull_request_read` with the resolved owner/repo/number; consume `reviewThreads[]` from the returned payload directly. Fallback when MCP is unavailable:
+**Thread-state fetch.** Feeds the `resolved-threads-snapshot:` persisted below and the existing-review ingest (§1.1). MCP-preferred: `mcp__github__pull_request_read` with the resolved owner/repo/number; consume `reviewThreads[]` from the returned payload directly. Fallback when MCP is unavailable:
 
 ```bash
 gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -F cursor=null -f query='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{isResolved isOutdated path line}}}}}'
@@ -203,7 +203,9 @@ gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -F cursor=null -f q
 
 Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatenate `nodes[]` across pages — typical PR completes in 1-3 calls, stays under rate-limit budget). Record each thread's `isResolved` / `isOutdated` / `path` / `line` — resolved threads feed the snapshot; outdated threads are excluded (referenced code rewritten, comment stale).
 
-**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): skip the snapshot (`resolved-threads-snapshot: null`), proceed with the review, and surface `PR review-thread fetch failed — reviewing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open).
+Persist the surviving entries to state.md frontmatter as `resolved-threads-snapshot:` (one `path:line` per already-resolved thread). The Phase 6 Post drill's already-on-PR dedup (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` §7.1) is its only consumer: it drops findings overlapping a review comment already on the PR, and reads `null` as "nothing to dedup against" rather than "no overlap found".
+
+**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): skip the snapshot (`resolved-threads-snapshot: null`), proceed with the review, and surface `PR review-thread fetch failed — reviewing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open). No PR ref is the same case — `resolved-threads-snapshot: null`, no dedup downstream.
 
 ### 1.1 Existing PR review ingest (formal reviews + inline bot comments)
 
@@ -233,7 +235,7 @@ pr-formal-reviews-snapshot:              # null when no PR ref or none with bodi
     excerpt: "Requesting changes: the new retry path never caps attempts — unbounded backoff under sustained 5xx..."
 ```
 
-Render two sibling blocks in the spawn prompts of the bugs / architecture / regressions / security dims (per SKILL.md §2.3): a `## Existing PR review comments` block (from `pr-bot-comments-snapshot:`), each entry `- <author> @ <path>:<line> — <excerpt>`; and a `## Existing PR formal reviews` block (from `pr-formal-reviews-snapshot:`), each entry `- <author> (<state>) — <excerpt>`. Each block is omitted when its snapshot is null.
+Render two sibling blocks in the spawn prompts of the bugs / architecture / regressions / security dims (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3): a `## Existing PR review comments` block (from `pr-bot-comments-snapshot:`), each entry `- <author> @ <path>:<line> — <excerpt>`; and a `## Existing PR formal reviews` block (from `pr-formal-reviews-snapshot:`), each entry `- <author> (<state>) — <excerpt>`. Each block is omitted when its snapshot is null.
 
 **Fail-open.** No PR ref → set both `pr-bot-comments-snapshot: null` and `pr-formal-reviews-snapshot: null`, skip. Fetch error (network / scope / rate limit) or zero kept entries → set the corresponding snapshot key (`pr-bot-comments-snapshot` and/or `pr-formal-reviews-snapshot`) to `null` and surface `PR review ingest failed — reviewers run without prior formal-review / inline-bot context` under `## Caveats` (mirrors the thread-state fail-open). Never block on this fetch.
 
@@ -292,7 +294,8 @@ Workflow files live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_s
 1. `ls ./.geniro/workflow/*.md <PRIMARY_ROOT>/.geniro/workflow/*.md 2>/dev/null` — merge the two listings, deduplicating by basename (cwd-local entry wins when a file exists in both locations; uncommitted local edits beat the primary copy). If zero matches across both, skip entirely.
 2. For each unique workflow file, read it and extract the `## Argument Detection` regex patterns (Linear's: `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form, `\b[A-Z]{2,}-\d+\b` bare-ID form).
 3. Apply patterns against (a) `$ARGUMENTS`, (b) `pr.title`, (c) `pr.body` — in that order. First match wins. Multiple matches in one source are deduplicated to the first.
-4. Persist the matched tracker ID to state.md frontmatter:
+4. **Merge in the spec's own tracker refs.** When a spec.md is resolvable (via `--plan <path>`, a `geniro-plan:` PR-body line, a walk-up `.geniro/planning/*/spec.md`, or a canonical project path), parse its frontmatter `workflow_refs[]` and merge those entries with the refs found in steps 1-3. Accepted schema versions and the merge precedence are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §Spec metadata contract — the `$ARGUMENTS` reference wins on conflict because the user just typed it, the fresher signal.
+5. Persist the tracker ID from the deduplicated merged list to state.md frontmatter:
 - Linear: `linear-task-ref: <ENG-123|null>` (defaults to `null` when no match).
 
 ### 3.5.2 MCP fetch
@@ -327,6 +330,7 @@ Total cap ~2000 chars — trim Description first, then AC list (keep first 5 ACs
 - **spec-compliance** — Acceptance Criteria become the rubric (in addition to PLAN CONTEXT section 9). Each AC must be reflected by a test reference or boundary assertion in the diff.
 - **pr-metadata** — Title/body alignment with issue title; issue ID prefix presence enhanced from regex-only to verified-existence check.
 - **architecture** — Parent epic + sibling sub-task IDs enable cross-PR coordination signals (see expanded peer-PR scout).
+- **regressions** — the issue's stated intent is one of the intent sources this dim classifies a behavior change against, alongside spec.md, PR body, and commit message.
 
 Other dims (bugs / security / tests / optimizations / conventions / design) do NOT see LINEAR CONTEXT — they review the code under per-file rubrics where tracker context is noise.
 
@@ -362,7 +366,7 @@ Mechanism:
 - Keep **top-3** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When workflow integration is skipped (no workflow file), `linear_bonus` is always 0 and this reduces to pure file-overlap top-3.
 - For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` — diff CONTENT, which no list payload carries (~200 lines per sibling — bounds per-sibling context).
 - Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**2000 chars** — drop lowest-`total_score` sibling first if exceeded.
-- Pre-inline the SAME slot value into all 7 receiving reviewer prompts identically — architecture, design, bugs, conventions, optimizations, spec-compliance, regressions (expanded from architecture + design only). Feeding the block to a subset is a distribution miss the user did not consent to; the slot content is one computed value shared verbatim across the 7. Skipped for tests + security + pr-metadata (orthogonal or target-PR-specific). The slot is part of each receiving dim's pre-inlined context per SKILL.md §2.3; a dim spawned without it is detectable against the §2.3 spawn-context contract and the §4.0 post-spawn verification gate.
+- Pre-inline the SAME slot value into all 7 receiving reviewer prompts identically — architecture, design, bugs, conventions, optimizations, spec-compliance, regressions (expanded from architecture + design only). Feeding the block to a subset is a distribution miss the user did not consent to; the slot content is one computed value shared verbatim across the 7. Skipped for tests + security + pr-metadata (orthogonal or target-PR-specific). The slot is part of each receiving dim's pre-inlined context per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; a dim spawned without it is detectable against that spawn-context contract and the `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.0 post-spawn verification gate.
 
 Fail-open: if `gh pr list` fails or zero overlap-and-bonus surviving, render slot as `none — gh unavailable (fail-open)` (error case) or `none — no relevant open peer PRs` (legitimate empty result).
 
@@ -390,7 +394,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 
    **Round-counter + repeat markers are scoped to the SAME target.** The round counter increments only on a `pr-ref:` match — a fresh PR (different `pr-ref`) is round 1, so this branch does not run and no finding is marked as a repeat. This is deliberate: a new target earns a fresh review bar, and the repeat comparison must never cross different PRs. A future author should not "fix" the same-`pr-ref` condition into an always-increment counter — that would mark repeats against an unrelated PR's findings.
 
-   **`repeat-of-prior-round` marker (round ≥2 only).** When this branch runs, mark each prior-round finding so Phase 4/5 can annotate it. A current-round finding is `repeat-of-prior-round` when it matches the retained `prior-round-summary` by dedup key (`path:line + finding-title` — the finding was raised in an earlier round) AND it carries no strengthening signal THIS round — no fresh cross-reviewer convergence at or above the admission threshold this round, and no per-finding verifier `confirmed` verdict this round. This is a best-effort heuristic keyed on the retained `prior-round-summary` string: the no-strengthening-signal test reads this round's own signals. The marker rides the `PRIOR-ROUND FINDINGS:` slot threaded into reviewer prompts; it feeds the Disposition repeats count and the finding's "seen since round <N>" annotation per `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 §5.0, NEVER a filter that decides whether a finding renders. A finding that was fixed in the prior round and no longer reproduces is simply absent from the current reviewers' output — it is not a repeat.
+   **`repeat-of-prior-round` marker (round ≥2 only).** When this branch runs, mark each prior-round finding so Phase 4/5 can annotate it. A current-round finding is `repeat-of-prior-round` when it matches the retained `prior-round-summary` by dedup key (`path:line + finding-title` — the finding was raised in an earlier round) AND it carries no strengthening signal THIS round — no fresh cross-reviewer convergence at or above the admission threshold this round, and no per-finding verifier `confirmed` verdict this round. This is a best-effort heuristic keyed on the retained `prior-round-summary` string: the no-strengthening-signal test reads this round's own signals. The marker rides the `PRIOR-ROUND FINDINGS:` slot threaded into reviewer prompts; it feeds the Disposition repeats count and the finding's "seen since round <N>" annotation per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.0, NEVER a filter that decides whether a finding renders. A finding that was fixed in the prior round and no longer reproduces is simply absent from the current reviewers' output — it is not a repeat.
 4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Review rounds"`, question `"This is round N of review on the same target (substitute the actual round number for N). Continue or escalate?"`) with options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff"`. On Escalate: write a `## Handoff` to state file, persist `round:` and `prior-round-summary:`, exit cleanly without spawning reviewers (terminal `escalated`).
 5. **Re-review gate (round ≥ 2, fresh re-run only).** When `round >= 2` AND this is a fresh user-invoked re-run (NOT a compaction-resume — §0-pre distinguishes them by the in-flight `state.md`), the scope and depth of this round are the user's to choose, never auto-decided or inherited from the prior round. After any round-≥3 escalation clears, fire ONE `AskUserQuestion` carrying these two questions before spawning reviewers:
    - **Re-review scope** (header `"Re-review scope"`, question `"This branch was reviewed before (round N). What should this round cover?"`) — options `"Re-review the whole PR"` / `"Only changes since the last review"`. The delta option scopes the review to `<prior-reviewed-head>..HEAD`, where `<prior-reviewed-head>` is the handoff `pr-head-sha:` the prior round reviewed; when that SHA is absent or unreachable, fall back to whole-PR and note it under `## Caveats`. Prior-round findings thread into reviewers as the `PRIOR-ROUND FINDINGS:` slot under either scope. Persist `approvals[]` category `rereview_scope_choice`.
@@ -398,7 +402,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
    Never auto-decide either: an orchestrator narrating "I'll review only the unreviewed delta" (or silently re-reviewing the whole PR) is the exact drift this gate prevents. On a compaction-resume this gate does NOT re-fire — re-apply the saved picks per §0-pre.
 6. Persist `round:` and `prior-round-summary:` to the state file. Consumed by every Phase 2 reviewer prompt as the `PRIOR-ROUND FINDINGS:` slot.
 
-**Repeat-finding presentation (Phase 5 mechanics).** Detailed contract for the repeats accounting named in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 5 §5.0. A kept finding carrying the `repeat-of-prior-round` marker (§7 step 3) stays in the main `## Findings` list with every gate intact — a needs-your-decision repeat still carries `step0_status: pending` and fires the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3), an `open_questions[]`-linked repeat keeps its entry and the full gate chain, and a repeat stays in the Post drill's eligible set (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.1) — annotated "seen since round <N>" on its title line. Repeats are never dropped and never removed from the handoff body; the marker drives the count and annotation, never admission (per SKILL.md §4.1). The report's and handoff's `## Summary` `Disposition:` line carries `<R> repeated unchanged from round <N-1>` (omitted when `<R>` is zero).
+**Repeat-finding presentation (Phase 5 mechanics).** Detailed contract for the repeats accounting named in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.0. A kept finding carrying the `repeat-of-prior-round` marker (step 3 above) stays in the main `## Findings` list with every gate intact — a needs-your-decision repeat still carries `step0_status: pending` and fires the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3), an `open_questions[]`-linked repeat keeps its entry and the full gate chain, and a repeat stays in the Post drill's eligible set (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.1) — annotated "seen since round <N>" on its title line. Repeats are never dropped and never removed from the handoff body; the marker drives the count and annotation, never admission (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.1). The report's and handoff's `## Summary` `Disposition:` line carries `<R> repeated unchanged from round <N-1>` (omitted when `<R>` is zero).
 
 ---
 
@@ -423,11 +427,12 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 3. If ANY signal matches → `risk-tier: high`. Otherwise → `risk-tier: standard`.
 4. Persist to state.md frontmatter.
 
-**Downstream knobs (4):**
-- Phase 4.1 severity threshold: per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 signal #4 (advisory-fallback confidence ≥80, relaxed to ≥70 at `risk-tier: high`) — the single source for the numeric values.
-- Phase 4.2 verifier coverage: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) verified — no tier-scaling, no severity-scaling; same coverage at standard and high tier.
+**Downstream knobs (3):**
+- Phase 4.1 admission: `risk-tier: high` relaxes the advisory-fallback confidence floor (signal #4). `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for that floor and every other admission signal — do not restate the values here.
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
+
+Phase 4.2 verifier coverage is deliberately NOT one of them: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) is verified at both tiers — no tier-scaling, no severity-scaling.
 
 ---
 
@@ -439,6 +444,8 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 | `load-semantic` MODE: refresh | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + fingerprint drift check |
 | `query-learnings` (route per `query-learnings.md` §"Memory backend override" — declared backend read tool under a `## Memory Backend` block; the file is empty under `replace`) | tags inferred from changed-file paths | top-K matching L2 entries (default K=5; filter superseded/deprecated) |
 | `resolve-conflicts` | transitive | hard conflict → AUQ |
+
+**Backend-routed learnings.** When `memory.md` declares a `## Memory Backend` block routing `learnings`, /geniro:review's own tool surface cannot reach the backend's read tool, so delegate that one read to a scoped `knowledge-retrieval-agent` spawn (`SCOPE: learnings-backend`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3, and use the returned report in place of the file query — which is empty under `mode: replace`. With no such block, the inline file query above runs unchanged.
 
 ---
 

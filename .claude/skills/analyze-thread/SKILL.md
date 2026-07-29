@@ -7,14 +7,31 @@ allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[thread path(s) | thread count | empty = last 3 threads]"
 ---
 
-# /analyze-thread — Post-hoc Claude Thread Failure Analyzer
+# /analyze-thread — post-hoc Claude thread failure analyzer
+
+## Contents
+
+- Phases
+- Subagent model tiering
+- State persistence
+- Loop invariants
+- Anti-rationalization
+- Budgets & quality gates
+- ACI per-phase tool surface
+- Definition of done
+- Phase 1 (parse) · Phase 2 (detect) · Phase 3 (filter) · Phase 4 (present)
+- Modifier handling
+- Task execution entry / state recovery
+- REFERENCE
+
+---
 
 You are the orchestrator for analyzing a saved Claude conversation thread and surfacing the errors Claude made while running a multi-phase pipeline. You parse the thread, run mechanical and judged checks against the canonical taxonomy, filter for relevance, then present findings with per-item user gates. You NEVER mutate the analyzed source files (this skill is read-only on the project under analysis); approved fixes are emitted as a handoff for `/improve-template` to apply.
 
 **Input:** one or more thread file paths, a thread count, or nothing — an empty argument analyzes the last 3 work-bearing threads across every project (§Phase 1 Step 1).
 **Output:** a findings report printed to chat + (on user approval) a handoff at `.geniro/state/handoff/from-analyze-thread-<branch>.md` that `/improve-template` consumes.
 
-**After a compaction:** only this file's first ~5,000 tokens survive the summary — the spine (through §Definition of Done) is re-attached, the phase sections below it are not. Re-invoke `/analyze-thread` with the same argument before continuing; the §State Persistence checkpoint makes that a resume at the last completed phase, not a re-run.
+**After a compaction:** re-invoke `/analyze-thread` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
 
 ---
 
@@ -31,7 +48,7 @@ The canonical taxonomy and per-check detection logic live in `.claude/skills/ana
 
 ---
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. This skill has exactly one subagent spawn — the Phase 2 LLM-judge — and it OMITs `model=` so it inherits orchestrator tier (judging the thread is reasoning-grade work).
 
@@ -39,7 +56,7 @@ The Phase 4 handoff target (`/improve-template`) is a sibling skill, not a subag
 
 ---
 
-## State Persistence
+## State persistence
 
 After completing each phase, write a checkpoint to `.geniro/state/analyze-thread/<slug>/state.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules — base it on the analyzed thread, never the project name; §Task execution entry gives the single- and batch-mode forms). Use `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — direct Edit/Write to state paths trips the `enforce-state-helper` hook.
 
@@ -65,7 +82,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 
 ---
 
-## Loop Invariants
+## Loop invariants
 
 1. **Read-only on the analyzed source.** The thread file and any project files it references are never mutated by this skill. Mutating skills are `/improve-template` (template fixes) and `/geniro:implement` (consumer-code fixes) — both consume the handoff this skill emits.
 2. **Mechanical before judged.** Phase 2 runs mechanical checks first because they are cheap, deterministic, and high-precision; the LLM-judge pass is then seeded with mechanical results so it does not re-discover them.
@@ -85,17 +102,17 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 | "I'll skip Phase 1 Step 4 metadata extraction — the user said the thread is a Geniro run" | Phase 1 Step 4 detects WHICH skill ran, not WHETHER one ran. Plugin-specific checks reference skill-name-tagged anti-rationalization tables; without the skill identity, those checks misfire on every run. |
 | "I'll batch all uncertain findings into one multiSelect AUQ to save user clicks" | Per-finding AUQ is what the user explicitly requested — they want to see evidence per finding and decide individually. MultiSelect collapses the evidence-review step, which is the point of UNCERTAIN. |
 | "The thread is small — skip the parse step, just regex the markdown" | Phase 2's checks query the thread against the Step 3 field schema, which is what makes the mechanical pre-pass high-precision. Ad-hoc regex that ignores the schema reads different fields per check, and the false-positive rate explodes. |
-| "I'll spawn one judge per check instead of one judge for all judged checks" | MAST showed one o1 pass over the full thread + seeded taxonomy achieves 94% accuracy. Per-check spawns multiply token cost N times with no signal gain, and the judges can't cross-reference findings. |
+| "I'll spawn one judge per check instead of one judge for all judged checks" | Invariant #3 is one judge per thread. Per-check spawns multiply token cost with no signal gain, and the judges can't cross-reference each other's findings. |
 | "The LLM-judge already produced findings — skip the mechanical pre-pass" | Mechanical checks are deterministic and catch what the judge will miss (schema validation, retry-loop window matching, identical-prompt over-spawn). The judge needs mechanical results as context to avoid re-discovering them. |
 | "Findings_raw is 80, but they look real — present them all" | The 60-cap is a parser-sanity tripwire, not a UX preference. 80 raw findings on one thread means either Phase 1 Step 2 misdetected the input format, so every check is reading the wrong fields, or every check is firing (taxonomy bug). Halt and have the user re-verify input. |
 | "The user said 'analyze this thread', they obviously want fixes too — I'll edit the source files directly" | Read-only is invariant #1. This skill detects; `/improve-template` fixes. Cross-skill responsibility separation is documented in CLAUDE.md `## Skill routing` — collapsing it makes the analyzer a refactorer, breaking the user's mental model. |
 | "I already know what's in `checks-reference.md` from training data — don't bother reading it" | The reference file is the source of truth; it can be edited by the user between runs. Loading it at Phase 2 entry ensures the detection logic matches the current taxonomy, not a stale snapshot. |
 | "No argument given — I'll ask the user which thread they meant" | Every input shape resolves without a question (Phase 1 Step 1): empty means the last 3 work-bearing threads. Asking re-imposes the browse-and-paste step the batch default exists to remove, and the user who typed no argument has already told you what they want. |
-| "The newest log is the freshest data — analyze it first" | The newest log is this session's own (invariant #5): every finding it yields describes the analysis in progress rather than past work. Exclude it by session id, not by timestamp. |
+| "The newest log is the freshest data — analyze it first" | The newest log is this session's own, which invariant #5 excludes: every finding it yields describes the analysis in progress rather than past work. |
 
 ---
 
-## Budgets & Quality Gates
+## Budgets & quality gates
 
 | Budget | Value | Why |
 |---|---|---|
@@ -120,12 +137,12 @@ Glob is permitted across phases for state-file lookup and helper resolution but 
 
 ---
 
-## Definition of Done
+## Definition of done
 
 These are the load-bearing exit gates — the checks that, if skipped, ship a wrong result. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
 
 - [ ] The thread set resolved from `$ARGUMENTS` with no question asked, excluded this session's own log by id, and named every clamped or skipped thread to the user
-- [ ] Phase 2 LLM-judge: one Agent call per thread, all issued in ONE assistant response, with the short-form taxonomy inlined per invariant #3 — a judge that returned nothing usable is reported as a mechanical-only thread, never as a full judged pass
+- [ ] Phase 2 LLM-judge ran per invariant #3, and a judge that returned nothing usable is reported as a mechanical-only thread, never as a full judged pass
 - [ ] Phase 3 cross-thread merge ran before triage: recurring defects collapsed to one finding with `threads: [...]`, recurrence raising confidence but never severity
 - [ ] Every UNCERTAIN finding got its own AUQ, fired sequentially rather than batched into one multiSelect
 - [ ] Handoff written via `atomic_state_write` when the user chose to emit, with one `open_questions[]` entry per kept finding
@@ -414,7 +431,7 @@ open_questions:
 (one bullet per kept finding, mirroring the frontmatter entry by `id`)
 ```
 
-`/improve-template` reads this handoff when invoked with the `process-handoff` argument (Mode Detection → Complexity Gate handoff-ingestion path) and routes each parsed finding to its appropriate flow (Phase 1-fast / full pipeline depending on complexity).
+`/improve-template` reads this handoff when invoked with the `process-handoff` argument (its mode-detection → handoff-ingestion path) and routes each parsed finding to its appropriate flow (Phase 1-fast / full pipeline depending on complexity).
 
 ### Step 5: If "launch now", invoke /improve-template
 

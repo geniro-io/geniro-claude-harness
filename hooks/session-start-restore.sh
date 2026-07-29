@@ -75,6 +75,23 @@ if ! command -v _geniro_sha256 >/dev/null 2>&1; then
   _geniro_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 fi
 
+# Stale-lock reclaim window. This hook reclaims the SAME .archive-stale.lock as
+# lib/archive-stale.sh and lib/query-learnings.sh, so the value is theirs — the
+# canonical helper carries it, with the same inline fallback as above for a
+# vendored install shipping hooks/ without lib/.
+_geniro_lock_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/lock-reclaim.sh"
+if [ -f "$_geniro_lock_helper" ]; then
+  # shellcheck source=/dev/null
+  source "$_geniro_lock_helper" 2>/dev/null || true
+fi
+if ! command -v _geniro_lock_reclaim_secs >/dev/null 2>&1; then
+  _geniro_lock_reclaim_secs() {
+    local secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
+    case "$secs" in ''|*[!0-9]*) secs=600 ;; esac
+    printf '%s' "$secs"
+  }
+fi
+
 # Branch -> slug derivation, single-sourced in lib/branch-slug.sh so this hook and
 # the sibling enforce-tdd-order.sh compute an identical slug from a branch name (a
 # divergent form misses the producer's state file on every >60-char branch). Inline
@@ -836,15 +853,8 @@ if [ -f "$_learnings_log" ]; then
       if [ -d "$_lock_dir" ]; then
         _lock_mtime=$(stat -c %Y "$_lock_dir" 2>/dev/null || stat -f %m "$_lock_dir" 2>/dev/null || echo 0)
         _lock_age=$(( $(date +%s) - _lock_mtime ))
-        # Shared reclaim window — override via GENIRO_LOCK_RECLAIM_SECS (default
-        # 600s), the same env knob update-semantic.sh (_US_STALE_LOCK_SECS) and
-        # archive-stale.sh honor for this same .archive-stale.lock, so a retuned
-        # window stays consistent across all reclaimers.
-        # Sanitized before the integer test, like the other numeric knobs in this
-        # hook: a non-numeric override makes `[ -gt ]` error and evaluate false,
-        # leaving an orphaned lock to block auto-archive until it is cleared by hand.
-        _lock_reclaim_secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
-        case "$_lock_reclaim_secs" in ''|*[!0-9]*) _lock_reclaim_secs=600 ;; esac
+        # Reclaim window per lib/lock-reclaim.sh, resolved at the top of this hook.
+        _lock_reclaim_secs="$(_geniro_lock_reclaim_secs)"
         if [ "$_lock_age" -gt "$_lock_reclaim_secs" ]; then
           rmdir "$_lock_dir" 2>/dev/null
         fi

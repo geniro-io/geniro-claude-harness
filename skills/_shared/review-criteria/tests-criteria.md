@@ -388,7 +388,7 @@ A test's name, description, and comments are a promise about what it verifies. W
 
 The coverage checks in §8 look for tests of changed *code paths*. This check looks for tests of *required behaviors* — the gap a code-path scan misses, because the spec can require a behavior the diff never branched on.
 
-When a spec / plan is in context (spec.md section 9 Validation criteria, section 2 In-Scope behaviors, or the section-11 Done Condition; or a PR/plan acceptance-criteria list), map each enumerated behavior to a covering test. Apply the keyword-anchor traceability mechanism from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §"Tests for Stated Acceptance Criteria" (derive 2–4 anchors per criterion, grep the run's test files, flag any criterion whose anchors appear in no test) — scoped to the tests authored or changed in this run.
+When a spec / plan is in context (spec.md section 9 Validation criteria, section 2 In-Scope behaviors, or the section-11 Done Condition; or a PR/plan acceptance-criteria list), map each enumerated behavior to a covering test. Apply the keyword-anchor traceability mechanism from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §"4. Tests for stated acceptance criteria" (derive 2–4 anchors per criterion, grep the run's test files, flag any criterion whose anchors appear in no test) — scoped to the tests authored or changed in this run.
 
 - Flag any spec-enumerated behavior with no covering assertion. Severity tracks the criterion's blast radius (critical-path behavior → HIGH; routine → MEDIUM).
 - When no spec/plan is in context (inline-task runs), this check is a silent no-op — there is no enumerated behavior set to map against.

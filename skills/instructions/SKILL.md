@@ -15,13 +15,13 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 - Anti-rationalization
 - Definition of done
 - Budgets — quality-first
-- ACI surface per phase
+- ACI per-phase tool surface
 - Termination case → state mapping
 - Valid scope set
 - File shapes
 - Frontmatter field reference (`review-extra/<slug>.md`)
 - Phase 1 — parse intent
-- Phase 2 — execute (mode dispatch) + Batch Mode
+- Phase 2 — execute (mode dispatch) + batch mode
 - Modes: list / create / edit / validate / delete
 - Memory I/O
 - Writing effective instructions
@@ -39,7 +39,7 @@ Code rules split three ways depending on **when** they should fire:
 - **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads on matching glob — fires even outside Geniro pipelines).
 - **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
 
-**After a compaction, re-invoke this skill before running a mode whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the `## — Mode:` sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a mode instead of its actual steps is how a gate gets skipped. This skill is stateless (one invocation = one transaction), so re-invoking restores the full body and the transaction restarts from Phase 1.
+**After a compaction, re-invoke this skill before running a mode whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary, and this skill is stateless, so re-invoking restores the full body and the transaction restarts from Phase 1.
 
 ## Loop invariants
 
@@ -78,7 +78,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry scope ambiguity → final AUQ abort, `list --with-content` body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns.
 
-## ACI surface per phase
+## ACI per-phase tool surface
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
@@ -195,13 +195,13 @@ For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO requi
 - `edit review-extra` / `delete review-extra` no slug AND multiple files exist → AUQ which slug. If >4 files, chain follow-ups per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` cap-extension rule.
 - `validate review-extra` ignores slug — always validates the whole directory. Print one-line notice if a slug was passed.
 
-If multi-scope, proceed to **Batch Mode**. Otherwise proceed to the resolved command section.
+If multi-scope, proceed to **batch mode**. Otherwise proceed to the resolved command section.
 
-## Phase 2: Execute (Mode dispatch, single-scope)
+## Phase 2: Execute (mode dispatch, single-scope)
 
 Branch to the matching `## — Mode: <op>` section (`list` / `create` / `edit` / `validate` / `delete`).
 
-## Batch Mode
+## Batch mode
 
 For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow. Across the stable scope set the multi-scope chain stays under 4 AUQ rounds.
 
@@ -393,13 +393,7 @@ The HIGH severity matches the spec `verify:` read-only doctrine: a data-source s
 
 `## Memory Backend` is optional — absence is not a finding (memory uses the built-in file).
 
-**Description quality rules** — the shared source. Applied here to the `description:` of `review-extra/<slug>.md`; `/geniro:actions validate` runs the same three rows against an action's `description:`, so a severity change here changes both:
-
-| Rule | Severity |
-|---|---|
-| Describes intent rather than implementation | LOW |
-| Mentions adjacent terms (e.g. for `sql-bindings`: "SQL", "ORM", "DAO") | LOW |
-| Carries an explicit boundary clause ("Skip for …", "Not for …") | LOW |
+**Description quality rules** — grade the `description:` of `review-extra/<slug>.md` against the three rows in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md`, which owns them and their severity.
 
 **`requires-context` lint rules** (applied to `review-extra/<slug>.md`):
 
@@ -501,4 +495,4 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the L4 procedural-memory loader for `.geniro/instructions/*.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for instruction files
 - `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` — file shapes, create scaffolds, writing principles, and the per-skill phase enums validate-mode checks `Additional Steps` anchors against (§5)
-- `/geniro:actions` — its `validate` mode reads the §Description quality rules table above as its source for those three rows
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` — the three description-quality rows validate-mode grades a `review-extra/<slug>.md` description against

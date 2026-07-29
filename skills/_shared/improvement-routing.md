@@ -55,7 +55,7 @@ At most 3 candidates per run. On overflow keep the 3 highest-significance and dr
 | Pattern that should be enforced automatically without LLM judgment | **Project rules/hooks** (CI, lint, project-local hooks) | Automated enforcement beats manual memory |
 | Non-obvious gotcha, workaround, or debugging insight | **Knowledge** (`.geniro/knowledge/learnings.jsonl`, path resolved per `_shared/primary-worktree.md`) | Searchable across sessions via `lib/query-learnings.sh` (loaded at every pipeline skill's Phase 1) |
 | Architectural decision with rationale (lightweight, internal) | **Knowledge** (`.geniro/knowledge/learnings.jsonl`, path resolved per `_shared/primary-worktree.md`) | Provides context for future changes in the same area |
-| Architectural decision that is **(1) hard to reverse, (2) surprising without context, AND (3) the result of genuine trade-offs** — including refactor candidates explicitly REJECTED with rationale | **ADR** (`docs/adr/NNNN-<slug>.md` or `docs/decisions/NNNN-<slug>.md`) | Survives team turnover and shipped code; the durable record for "why we chose / rejected X" when learnings.jsonl is too transient |
+| Architectural decision that is **(1) hard to reverse, (2) surprising without context, AND (3) the result of genuine trade-offs** — including refactor candidates explicitly REJECTED with rationale | **ADR** (`docs/adr/NNNN-<slug>.md` or `docs/decisions/NNNN-<slug>.md`) | Survives team turnover and shipped code; the durable record for "why X was chosen / rejected" when learnings.jsonl is too transient |
 | User preference or correction about how to collaborate | **Memory** (native auto-memory) | Auto-retrieved by Claude in future sessions |
 
 ## Decision logic when target is ambiguous
@@ -75,8 +75,8 @@ The §Routing table names the target for each discovery type; this ladder resolv
 Architecture Decision Records survive code, sessions, and team turnover. Use them only when **all three** criteria hold:
 
 1. **Hard to reverse** — undoing the decision later requires non-trivial migration (e.g., choice of database engine, auth model, monorepo vs polyrepo, sync vs async API).
-2. **Surprising without context** — a future reader (human or agent) would ask "why did we do this?" and not infer the answer from the code alone.
-3. **Genuine trade-offs** — the decision had real alternatives with real upsides; this is not "we picked the obvious option."
+2. **Surprising without context** — a future reader (human or agent) would ask "why is it done this way?" and not infer the answer from the code alone.
+3. **Genuine trade-offs** — the decision had real alternatives with real upsides; the obvious option winning by default is not a trade-off.
 
 If any criterion fails → use **Knowledge** (`learnings.jsonl`) instead. Most architectural choices are NOT ADRs — bias toward learnings.
 
@@ -98,14 +98,14 @@ If any criterion fails → use **Knowledge** (`learnings.jsonl`) instead. Most a
 What was the situation that forced a decision? What constraints applied?
 
 ## Decision
-What did we choose? State it as a single sentence at the top.
+What was chosen? State it as a single sentence at the top.
 
 ## Alternatives considered
 - **Option A** — pros / cons / why rejected
 - **Option B** — pros / cons / why rejected
 
 ## Consequences
-What do we accept by choosing this? What becomes harder? What becomes easier?
+What does this choice commit the project to? What becomes harder? What becomes easier?
 
 ## References
 - Related ADRs (NNNN), commits, learnings, or external sources
@@ -115,7 +115,7 @@ What do we accept by choosing this? What becomes harder? What becomes easier?
 
 - `/geniro:investigate` save-routing step — "Save key findings to memory" gains an ADR sub-option when the finding meets all 3 criteria.
 - `/geniro:debug` — root causes traced to an undocumented architectural choice trigger an ADR proposal alongside the L2 emit.
-- `/geniro:refactor` — refactor candidates explicitly REJECTED by the user (PRODUCT-DECISION findings, escalated work) propose an ADR capturing "why we did NOT do X." 4th AUQ option fires only when ADR-eligibility criteria met (hard to reverse + surprising without context + genuine trade-offs).
+- `/geniro:refactor` — refactor candidates explicitly REJECTED by the user (PRODUCT-DECISION findings, escalated work) propose an ADR capturing why X was deliberately NOT done. 4th AUQ option fires only when ADR-eligibility criteria met (hard to reverse + surprising without context + genuine trade-offs).
 - `/geniro:reflect` — the on-demand improvement walk presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
 
 ## Why code rules go to `.claude/rules/`, not CLAUDE.md
@@ -141,7 +141,7 @@ Two ways to source the improvement candidates that feed §Presentation. Match th
 
 ### Spawn slots (reflection-agent mode)
 
-Pass the agent: **mode**, **the change** (a diff summary + changed files, a finding set + the diff it was raised against, or session-transcript extracts), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`query-learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns candidates that passed the §Candidate bar per its Output Format; it never writes.
+Pass the agent: **mode**, **the change** (a diff summary + changed files, a finding set + the diff it was raised against, or session-transcript extracts), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns candidates that passed the §Candidate bar per its Output Format; it never writes.
 
 Run the spawn synchronously. `/geniro:reflect` is on-demand — the candidate walk IS its deliverable, so there is no later decision gate the spawn could delay.
 
