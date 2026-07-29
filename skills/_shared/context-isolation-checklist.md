@@ -57,6 +57,8 @@ Include all six fields in every Agent() prompt — a missing field is the gap th
 
 **(3) Relevant file paths with content.** Orchestrator reads files in advance and pastes the content into the prompt. Agents do NOT discover via Glob — discovery duplicates work the orchestrator already did. Paste the verbatim content under a `## Pre-Inlined Files` section with path headers; do not summarize.
 
+The rule binds on the task inputs the orchestrator discovered — the diff, the changed files, the spec, whatever it went looking for. A fixed plugin-owned reference the agent's own contract already tells it to Read (a `review-criteria/` rubric, `subagent-instruction-load.md`, the confidence rubric) passes as a resolved absolute path instead: nothing was discovered, so nothing is re-discovered, and inlining it would push a multi-thousand-word file through the orchestrator's context purely to hand it to an agent that would have opened it anyway. Resolve the path before passing it — an unresolved `${CLAUDE_PLUGIN_ROOT}` token is not a path the agent can open.
+
 **(4) Prohibited tools list.** When the agent must NOT touch certain surfaces, declare it explicitly via `disallowedTools: [<list>]` AND restate the constraint inside the prompt body (belt-and-suspenders, since degraded `general-purpose` calls per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` lose the tool allowlist enforcement). Common patterns:
 - reviewer-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` — read-only by contract.
 - adversarial-tester-agent: `disallowedTools: ["Edit", "Write", "NotebookEdit"]` outside test files — mutation allowed only on test paths via the spawn prompt's file allowlist.
@@ -93,7 +95,7 @@ A spawn site correctly applies the checklist when:
 
 - [ ] Task scope is a single explicit deliverable, phrased "Produce <X>".
 - [ ] Acceptance criteria are 1-3 explicit pass/fail bullets.
-- [ ] Every relevant file is pre-inlined (full content) with absolute path; no implicit Glob expected.
+- [ ] Every discovered input file is pre-inlined (full content) with absolute path; no implicit Glob expected. Fixed plugin-owned references the agent's contract has it Read pass as resolved absolute paths (field 3).
 - [ ] disallowedTools is set when the agent's contract is read-only; the constraint is also restated in-prompt.
 - [ ] Output schema is pinned with a one-example block showing the literal shape.
 - [ ] Model tier follows field (6): plugin-defined agents OMIT `model=`; an explicit tier appears only at the two sites that field allows.

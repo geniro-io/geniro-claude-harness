@@ -97,7 +97,7 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
   - `## Existing PR review comments` (from `pr-bot-comments-snapshot:`, per §1.1) — bugs + architecture + regressions + security dims ONLY; omitted when null.
   - `## Existing PR formal reviews` (from `pr-formal-reviews-snapshot:`, per §1.1) — same dims (bugs + architecture + regressions + security); each entry `- <author> (<state>) — <excerpt>`; omitted when null.
   - Authored rule-file list (per §2.8 detection) — conventions dim ONLY; omitted when the repo has no authored rule files.
-  - Dimension-specific criteria file body inlined.
+  - Dimension-specific criteria file path(s) — one absolute path per line, not the body (see **Criteria files** below).
   - Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 
 After the parallel batch returns, narrate completion before transitioning to §3:
@@ -106,9 +106,9 @@ After the parallel batch returns, narrate completion before transitioning to §3
 
 Surface any `status: failed` entries by their plain-English dim name (e.g., "PR metadata reviewer failed — see `## Errors`"), not by raw slug.
 
-**Criteria files** (read once at Phase 2 entry):
+**Criteria files** — pass the path, never the body, and do not read them here. Across a full grid these rubrics run to tens of thousands of words; pre-reading them to inline drags every word through the orchestrator's own context as pass-through payload, and `reviewer-agent` holds `Read` and reads whatever paths its prompt names (its §Step 1). Inline a body only where no readable path exists, and say so in the slot. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so that spawn passes content as before.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `optimizations-criteria.md` · `regressions-criteria.md`
-- conventions dim — three files inlined together: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` (per-file style rubrics) · `conventions-criteria.md` (repo-modal patterns) · `rules-compliance-criteria.md` (authored-rule citations)
+- conventions dim — all three paths passed together: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` (per-file style rubrics) · `conventions-criteria.md` (repo-modal patterns) · `rules-compliance-criteria.md` (authored-rule citations)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/design-criteria.md` (conditional per §2.5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/pr-metadata-criteria.md` (conditional)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` (conditional per §2.6)

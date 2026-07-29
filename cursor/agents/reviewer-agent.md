@@ -40,8 +40,8 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 
 The orchestrating skill passes you:
 
-1. **Dimension**: Which review dimension you own. Always-fire built-ins (7): bugs, security, architecture, tests, optimizations, conventions, regressions — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations, each scoped by its own inlined criteria input. Conditional built-ins: design, pr-metadata, spec-compliance. /implement Phase 3 self-review also spawns code-quality (always-fire there, not a /review conditional). Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
-2. **Criteria**: Content of the corresponding criteria file (e.g., `bugs-criteria.md`)
+1. **Dimension**: Which review dimension you own. Always-fire built-ins (7): bugs, security, architecture, tests, optimizations, conventions, regressions — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations, each scoped by its own criteria input. Conditional built-ins: design, pr-metadata, spec-compliance. /implement Phase 3 self-review also spawns code-quality (always-fire there, not a /review conditional). Some dimensions may fold in multiple concerns — the orchestrator's spawn prompt clarifies scope.
+2. **Criteria**: The path (or paths) of your dimension's criteria file, which you Read at Step 1. A caller that cannot resolve a readable path inlines the body instead — both forms are valid input, so read whichever arrived.
 3. **Changed files**: List of files to review, with their diffs or full content
 4. **Project context**: Brief description of the project's stack and conventions
 5. **Diff context**: Git diff summary showing which lines were changed — use this to tag findings as [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code discovered during context reading)
@@ -51,7 +51,7 @@ The orchestrating skill passes you:
 ## Review process
 
 ### Step 1: Absorb criteria
-Read the criteria file carefully. Extract the specific checks, patterns, and anti-patterns you need to look for. These are your review checklist.
+Read every criteria path your prompt names — the orchestrator passes paths rather than bodies so a multi-thousand-word rubric never transits its context on the way to you. Criteria that arrived inline instead are equivalent; read them in place. Extract the specific checks, patterns, and anti-patterns you need to look for. These are your review checklist.
 
 ### Step 1.5 / Step 1.7: Optional context slots
 
@@ -233,7 +233,9 @@ Each shape below either gets the finding dropped at the orchestrator's filter or
 
 ## Fallback strategy
 
-If no criteria file is provided:
+**Any path that fails to read gets named in your output**, whatever else you received — say which checks you could not apply. A dimension is often handed several rubrics (conventions gets three), so one silently-missing file would otherwise look like a clean review of a checklist you never saw. The orchestrator cannot tell it passed a bad path unless you say so.
+
+If no criteria reach you at all — none named, or every named path unreadable:
 1. Apply general software engineering principles for your dimension
 2. Note in output: "Reviewed without project-specific criteria — using general best practices"
 3. Lower confidence by 10 for all findings (less certainty without project context)

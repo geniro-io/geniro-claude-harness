@@ -47,7 +47,7 @@ When a plugin subagent is invoked in a context without an interactive orchestrat
 
 When a task's shape argues for a stronger tier, surface a one-line advisory and continue — e.g. "Spec touches auth boundary + async work — consider running on Opus tier if not already (current: <tier>)". Signals never drive an automatic tier override; the user retains authority via `/model`.
 
-`/geniro:implement` Phase 1 owns the wired detection for the greppable signals — schema / migration change, auth or role boundary, 3+ coordinated modules, new external integration, async / queue / background work — with its own per-signal patterns. The judgment-only signals, which no pattern detects: an ambiguous spec or absent acceptance criteria, a novel problem domain with no similar code in the repo to copy, long-horizon autonomy (multi-step plan, no human checkpoints), and an open-closed violation (changing public signatures, shared middleware, routing).
+No skill wires per-signal detection for this. An advisory the user can act on only by abandoning the run and restarting on another tier does not earn a scan on every run, and the same risk surface already reaches them through the change-scope estimate and the reviewer dimensions. Read the signals as judgment cues when picking a tier up front: a schema or migration change, an auth or role boundary, 3+ coordinated modules, a new external integration, async / queue / background work, an ambiguous spec or absent acceptance criteria, a novel problem domain with no similar code in the repo to copy, long-horizon autonomy (multi-step plan, no human checkpoints), and an open-closed violation (changing public signatures, shared middleware, routing).
 
 ## Runtime escalation (Sonnet → Opus on failure)
 

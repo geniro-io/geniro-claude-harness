@@ -267,20 +267,6 @@ orchestrator JIT-loads rule bodies in Phase 2 when Edit targets match.
 
 On missing/empty OUTPUT_PATH file OR `Agent` tool error: one silent retry. Second failure → inline-Read fallback (orchestrator Grep + Read top exemplar files and `_CODEBASE_MAP.md` rows) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo a one-line notice to user.
 
-### Escalation signals (orchestrator-side advisory)
-
-After reading the Codebase-Explorer report, the orchestrator scans `spec.md` for these signals and emits a one-line advisory if any match (NOT a tier override — user retains authority over `/model` selection):
-
-| Signal | Detection grep on spec.md |
-|---|---|
-| New entity / migration / schema change | `\b(migration\|schema\|ALTER\|CREATE TABLE)\b` |
-| Auth, permissions, or role boundary | `\b(auth\|RBAC\|permission\|role\|JWT\|OAuth\|middleware)\b` (case-insensitive) |
-| 3+ modules coordinated | spec.md `## Touchpoints` section lists ≥3 distinct top-level modules |
-| New external integration | `\b(API\|SDK\|MCP\|webhook\|integration)\b` AND filename like `.env\|secrets\|credentials` |
-| Async / queue / background job | `\b(async\|queue\|worker\|scheduler\|cron\|background)\b` |
-
-When ≥1 signal matches, emit: `"Spec touches <matched signals> — consider running on Opus tier if not already (current: <tier>)."` Log a `## Tool log` entry `escalation_signals: [...]`.
-
 ---
 
 ## Phase 1: Library reuse audit (build-vs-buy)
@@ -421,7 +407,7 @@ else:
 This screen is needed because a `verify:` command runs at the Phase 2 green exit — BEFORE self-review and BEFORE the commit-grade Ship AUQ. The safety PreToolUse hooks block force-push / branch-delete / `.geniro/` deletion, but they do NOT block a plain `git push`, `gh pr create`, or a `./deploy.sh` invocation — so a spec carrying `verify: gh pr create --fill` (or a deploy script) would otherwise ship the change with no Ship AUQ and no record of the irreversible action. That violates Loop-Invariant #3 (never ship without the gate). The screen is a doctrine guard, not a sandbox — a high-signal mutation-verb check on the command string, not an exhaustive side-effect analyzer. Apply the mutation-verb screen canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 (SQL-mutation verbs, `rm`/redirection/`tee`/`sed -i`, command-substitution and wrapped/aliased CLIs are all caught there). For the ship-time concern the most common matches are (case-insensitive, whole-token):
 
 - **Source publish:** `git push` (any form, including `git push --delete`), `gh pr create`, `gh pr merge`, `git commit`.
-- **Deploy / release:** `deploy`, `release`, `publish`, `helm install`, `helm upgrade`, plus deploy-CLI invocations (`kubectl apply`, `terraform apply`, `serverless deploy`, `vercel --prod`, `netlify deploy`, `fly deploy`) and any project deploy/release script named in CLAUDE.md.
+- **Deploy / release:** `deploy`, `release`, `publish`, any project deploy/release script named in CLAUDE.md, and every wrapped deploy-CLI invocation §4 enumerates.
 
 A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `ruff check`, `tsc --noEmit`, a read-query) carries none of these verbs and runs normally.
 
@@ -438,12 +424,14 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type: "reviewer-agent"`. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder at every spawn site. OMIT `model=` (reviewer-agent declares `model: inherit`).
 
+**Pass criteria paths, never criteria bodies — do not read the criteria files.** The dimensions table below names ~22,000 words of rubric across the five built-ins; pre-reading them to inline into prompts drags every word through the orchestrator's own context as pure pass-through payload, on every run, and the reviewer would have re-read them anyway. `reviewer-agent` holds `Read` and its §Step 1 reads whatever paths its prompt names. Inline a body only where the reviewer cannot Read the path but you can — say so in the slot so it knows which form it got. When the file is unreadable for you too, pass no criteria for that dimension and let the reviewer's §Fallback strategy run. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so those spawns pass content as before.
+
 ```
 Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="""
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
 DIMENSION: bugs | security | architecture | tests | code-quality
-CRITERIA (pre-inlined): [content of corresponding criteria file from ${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/ — see the reviewer dimensions table below]
+CRITERIA FILES: [one absolute path per line — this dimension's criteria file(s) from the reviewer dimensions table below. Read each one before reviewing.]
 CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content]
 DIFF CONTEXT: [paste `git diff <base>...HEAD` output where <base> resolves per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md rule 3]
 SPEC CONTEXT: [pre-inline spec.md OR state.md ## Inline Plan section]
@@ -484,7 +472,7 @@ If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero 
 
 ## Phase 3: Adversarial-tester spawn template
 
-Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel batch as the reviewers (adversarial-tester adds one more spawn when included). The adversarial-tester authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
+Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel batch as the reviewers (adversarial-tester adds one more spawn when included). The adversarial-tester authors F→P-verified failing tests against the diff and writes them to the project's test directory. It carries no criteria slot — its own contract has it read the edge-case taxonomy at runtime, so inlining that body here would only duplicate a read it makes anyway. SKIPPED on either of two conditions:
 
 - Codebase-Explorer report `change_scope: trivial`, OR
 - `--no-adversarial` modifier present in `$ARGUMENTS`.
@@ -501,7 +489,6 @@ The orchestrator pre-resolves these slots:
 | `CHANGED_FILES` | Newline-separated list of paths in DIFF |
 | `TEST_DIR_HINT` | Project test directory pattern from CLAUDE.md "Essential Commands" (e.g., `tests/`, `__tests__/`, `*.test.ts` co-located) |
 | `TEST_FRAMEWORK` | Detected from package.json / pyproject.toml / Cargo.toml (e.g., `vitest`, `jest`, `pytest`, `go test`) |
-| `TESTS_CRITERIA` | Pre-inlined `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` body |
 | `PRIOR_REVIEW_FINDINGS` | Round 1: `none — first round`. Round 2+: CRITICAL/HIGH findings from Round N-1 reviewers (pre-inlined) |
 | `OUTPUT_PATH` | `<task-dir>/.adversarial-out.md` |
 
@@ -513,7 +500,6 @@ DIFF: [full git diff body, pre-inlined]
 CHANGED_FILES: [newline-separated paths]
 TEST_DIR_HINT: [project test directory pattern]
 TEST_FRAMEWORK: [detected framework]
-TESTS_CRITERIA: [pre-inlined tests-criteria.md body]
 PRIOR_REVIEW_FINDINGS: [Round 1: 'none — first round'; Round 2+: CRITICAL/HIGH from prior round]
 OUTPUT_PATH: [absolute path under <task-dir>]
 
