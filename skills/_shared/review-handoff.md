@@ -293,7 +293,6 @@ Each field is `null` when the producer had nothing to capture (no PR ref, or `gh
   - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
   - **File:** path/to/file.ts:42-48
   - **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
-  - **Cause:** ROOT-CAUSE | SYMPTOM | UNKNOWN
   - **Confidence:** NN%
   - **Origin:** llm:<dim> | mechanical:<check>       [which producer found it — NOT the reviewer-agent's own `Origin:` field, whose value set is different; see the mapping note below]
   - **Why this matters:** <1-sentence impact, verbatim from reviewer-agent output>

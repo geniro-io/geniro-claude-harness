@@ -74,7 +74,7 @@ The rule binds on the task inputs the orchestrator discovered — the diff, the 
 - `/geniro:investigate` research spawns (general-purpose): `disallowedTools: ["Edit", "Write"]` — research is read-only.
 - `/geniro:setup` Phase 4 verification spawn (general-purpose): `disallowedTools: ["Edit", "Write"]` — verification is read-only.
 
-**(5) Output schema.** The exact format the agent's response must match. Examples: a Markdown table with named headers, a JSON block matching a stated schema, or finding objects matching the per-finding line schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. If the orchestrator cannot parse the agent's output, re-spawning is wasted work — pin the schema upfront. Include a one-example block showing the literal shape.
+**(5) Output schema.** The exact format the agent's response must match. Examples: a Markdown table with named headers, a JSON block matching a stated schema, or finding blocks matching the per-finding schema in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format. If the orchestrator cannot parse the agent's output, re-spawning is wasted work — pin the schema upfront. Include a one-example block showing the literal shape.
 
 **(6) Model tier.** For plugin-defined agents OMIT `model=` — the agent's frontmatter `model:` governs, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Pass `model=` explicitly ONLY for a general-purpose spawn where the tier IS the deliverable contract (`/geniro:setup` Phase 4 verification = sonnet) and for a user-authored custom reviewer that declared `model:` in its frontmatter; document that choice at the spawn site.
 

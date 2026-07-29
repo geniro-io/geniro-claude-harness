@@ -99,7 +99,7 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
   - `## Existing PR formal reviews` (from `pr-formal-reviews-snapshot:`, per the same §1.1 ingest) — same dims (bugs + architecture + regressions + security); each entry `- <author> (<state>) — <excerpt>`; omitted when null.
   - Authored rule-file list (per §2.8 detection) — conventions dim ONLY; omitted when the repo has no authored rule files.
   - Dimension-specific criteria file path(s) — one absolute path per line, not the body (see **Criteria files** below).
-  - Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
+  - Output schema per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
 After the parallel batch returns, record how many reviewer spawns actually fired — via `atomic_state_write`, append one `## Tool log` entry:
 

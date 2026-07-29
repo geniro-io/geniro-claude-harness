@@ -148,7 +148,6 @@ Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_
 
 - `File:` — `path:line` anchored at the deletion site (for §1 and §3), at the behavior-mutating hunk (for §2), or at the edited path (for §4). When the finding cites a caller or unedited sibling in an unchanged file, name BOTH the anchor site and the cited path in the body — the `File:` anchor stays at the deletion / edited site.
 - `Severity:` — CRITICAL / HIGH / MEDIUM / LOW per the rubric in §Severity Tagging.
-- `Cause:` — `[ROOT-CAUSE] | [SYMPTOM] | [UNKNOWN]` per the canonical enum at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Phase 3 dedup keys off this classification.
 - `Criteria:` — short label naming the specific check from this file. Suggested values: `Symbol-deletion + caller-blast` (§1) / `Intent-vs-behavior over-reach` (§2) / `Test-coverage delta` (§3) / `Parallel-path symmetry` (§4) / `Regression provenance` (§5).
 - `Evidence:` — quote the deleted hunk verbatim AND cite the surviving caller / surviving production / quoted intent fragment. The reader must be able to reproduce the finding from `Evidence:` alone.
 - `Why this matters:` — name the downstream consequence (compile failure, runtime error, silent behavior change, coverage regression).

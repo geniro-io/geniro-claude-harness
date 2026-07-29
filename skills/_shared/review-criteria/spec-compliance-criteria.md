@@ -45,7 +45,7 @@ When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched a Li
 - **Only Linear ACs present (no PLAN CONTEXT OR PLAN CONTEXT lacks section 9):** Linear ACs become the sole rubric. Apply check #4 (Tests for stated acceptance criteria) against the Linear AC list.
 - **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to Check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
 
-Findings from Linear-AC mismatches carry the prefix "Linear AC: " in the Cause field to distinguish from PLAN CONTEXT ACs (e.g., "Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path"). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
+Findings from Linear-AC mismatches carry the prefix "Linear AC: " in the finding title to distinguish from PLAN CONTEXT ACs (e.g., "Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path"). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
 
 ## Spec-premise validation (classify the divergence before assigning blame)
 
@@ -58,7 +58,7 @@ For each candidate divergence, ask: **is the spec's premise still true in the cu
 - **If the code's departure is grounded** (the spec premise is contradicted by the live code, and the diff's choice is the correct one given current reality), the divergence is a **spec-defect, not a code omission**. Emit it as:
   - **Decision Type:** `[INTENT-CHECK]` — the user decides whether to fix the spec or the code. Never `[FIX-NOW]` against the implementation; the implementation is not broken.
   - **Severity:** cap at MEDIUM (advisory). A stale spec is not a HIGH/CRITICAL code omission.
-  - **Cause:** phrase as "spec may be stale: `<spec premise>` is contradicted by `<code reality>`", NOT "diff omitted X".
+  - **Finding title:** phrase as "spec may be stale: `<spec premise>` is contradicted by `<code reality>`", NOT "diff omitted X" — the title is what a reader skims, and blaming the diff for a stale premise is the mis-attribution this whole section exists to prevent.
   - **Evidence:** cite TWO live-code facts, each with `file:line` — (1) the fact that contradicts the spec's premise, AND (2) the fact establishing the diff's departure is the *correct* response, not merely that the premise is stale. Quote the spec fragment alongside them. The second citation is the load-bearing guard against under-reporting: "the premise looks stale" is not enough to clear the implementation — you must show the omission is the right call. Cite (1) but not (2) → inconclusive (see below), not a spec-defect.
   - **Also emit a structured `open_questions[]` entry** (`source: spec-compliance`, `status: unresolved`) so the decision actually gates the handoff — an `[INTENT-CHECK]` tag alone surfaces the note in the PR body but fires no interactive decision gate. Phrase: "Spec premise `<premise>` is contradicted by `<code reality>` (`file:line`); the diff correctly departed. Decide: fix the spec, change the code to match the spec, or accept the divergence." This reuses the same channel as §Cross-PR scope split — same `open_questions[]` plumbing, same handoff gating.
 
@@ -277,7 +277,7 @@ When ALL parent scope items appear covered across current + peer PRs combined, t
 
 Spec-compliance findings have no `path:lines`. Emit each finding with:
 - `File:` field set to the literal string `SPEC-COMPLIANCE` (no path, no line number).
-- All other reviewer-agent output fields per the standard template (Severity, Cause, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
+- All other reviewer-agent output fields per the standard template (Severity, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
 - `Evidence:` quotes the relevant fragment of the plan verbatim (with a brief surrounding marker — e.g., "plan section: `## Acceptance criteria`, AC3: `…`") AND names the missing artifact in the diff (e.g., "no file under `migrations/` in the changed-files list").
 
 The Phase 6 Post drill's comment composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4) detects the `File: SPEC-COMPLIANCE` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST under a `## Spec Compliance` section, NOT into the inline `comments[]` array (which requires a path-anchored line).

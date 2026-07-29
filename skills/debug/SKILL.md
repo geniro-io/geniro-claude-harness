@@ -55,7 +55,7 @@ Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with debug-specific bindings:
 
 - **Invariant #3 (permission before side-effect)** — /geniro:debug performs NO `git push` / `gh pr create`; the no-ship boundary holds under a dynamic `Workflow(...)` or ultracode mode too, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-- **Invariant #4 (bounded results)** — `adversarial-tester-agent` output is bounded by the hard cap on authored tests its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`); finding schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
+- **Invariant #4 (bounded results)** — `adversarial-tester-agent` output is bounded by the hard cap on authored tests its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`); finding schema per that file's §Output Schema.
 - **Invariant #5 (escalation gates)** — stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate via AUQ; never fabricate a conclusion.
 - **Invariant #6 (grounded in observations)** — a hypothesis is **confirmed** only when its `Result:` field in `## Hypotheses` cites an artifact from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. That standard also binds every fix-verification and reproduction-test capture: reasoning is correlation, and only reproduction with a captured artifact confirms causation.
 

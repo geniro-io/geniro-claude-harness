@@ -105,7 +105,6 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 - **File:** path/to/file.ts:42-48
 - **Confidence:** XX%
 - **Decision Type:** [FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK]
-- **Cause:** [ROOT-CAUSE] | [SYMPTOM] | [UNKNOWN] — classification per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. MANDATORY on every finding (`[SYMPTOM-ACK]` is gate-result-only — never emitted here). If you cannot determine cause classification, use `[UNKNOWN]` — the orchestrator routes UNKNOWN findings for further investigation per `finding-tagging.md`.
 - **Origin:** [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code)
 - **Criteria:** [which specific check from the criteria file]
 - **Evidence:** MANDATORY for CRITICAL, HIGH, and MEDIUM; not required for LOW. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, attach EITHER an Evidence Block (Command / Exit code / Tail (last 3 lines)) when a command was run, OR a citation (file:line snippet, log line, query result, user-provided artifact) when running a command isn't applicable. CRITICAL / HIGH / MEDIUM findings without evidence are downgraded or dropped at the relevance-filter step.

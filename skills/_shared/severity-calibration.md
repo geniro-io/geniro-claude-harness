@@ -204,4 +204,3 @@ A per-dim file that specializes severity cites §1 as the canonical taxonomy and
 - `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Severity levels + §Confidence Scoring — agent-side rubric pointers here
 - `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.1 — consumer: applies this file's §5 gate at its admission step
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` — per-finding verifier (disproof step on every §4.1 survivor)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md` — Cause taxonomy ([ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN])
