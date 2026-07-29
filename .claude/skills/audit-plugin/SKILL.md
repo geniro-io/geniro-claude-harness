@@ -11,8 +11,7 @@ argument-hint: "[path/dimension scope | --quick | empty for full audit]"
 
 ## Contents
 
-- Phases overview · Loop invariants · Anti-rationalization · Budgets
-- Dead instructions & subtraction · Subagent tiering
+- Phases overview · Loop invariants · Anti-rationalization · Budgets · Subagent tiering
 - Phase 0 (scope & inventory) · Phase 1 (mechanical pre-pass) · Phase 2 (dimension reviewers)
 - Phase 3 (merge, verify, filter) · Phase 4 (report) · Phase 5 (action gate)
 - State recovery · Definition of done · REFERENCE
@@ -55,7 +54,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 | "The user said audit everything — I'll include design/ and evals/." | Out of default scope: design/ holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
 | "There are 80 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
-| "This instruction reads fine — leave it." | Reading fine is not being live. A rule whose step, flag, gate, or field no longer exists still costs adjudication on every run. Prove liveness with a grep before passing over it. |
+| "This instruction reads fine — leave it." | Reading fine is not the bar. A rule can be live and still cost more than it buys: a fixed threshold where a criterion would let the model read the situation, an example that narrows the solution space, a guardrail written for a weaker model. D6 hunts those, not only redundancy. |
 
 ## Budgets
 
@@ -66,14 +65,6 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 | Findings per reviewer | ≤25, ranked by impact |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |
 | Reviewer re-spawn on malformed output | 1 retry, then proceed with what parsed |
-
-## Dead instructions & subtraction
-
-An instruction is **dead** when the thing it governs no longer exists: the step it polices was removed, the flag it branches on no longer ships, the gate it guards can never fire, the field it reads is never written, or the failure mode it defends against is now structurally impossible. Dead text costs more than verbose text — the model still has to decide whether it applies, and a rule that cannot apply is the most expensive kind of noise.
-
-Liveness is a claim, so prove it: name the step, flag, gate, field, or failure mode, then grep for it. Absent → the finding is a deletion, with the grep as its evidence. Present → not dead; if it is merely wordy, that is an ordinary bloat finding instead.
-
-**Every audit subtracts.** A run that produces only additive findings has not done this job — the repo grows by default, and nothing else removes. Subtraction stays proposal-only (invariant #2), and every removal names the behavior that breaks if the removal is wrong, so the user approves a known risk rather than a blank one. Checklist and the shapes to hunt: `dimensions-reference.md` §D6 check 11.
 
 ## Subagent tiering
 
@@ -103,7 +94,7 @@ Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
-- **Candidate lists** — pasted into the D3 reviewer prompt for adjudication.
+- **Candidate lists** — pasted into the reviewer prompt of the dimension each one feeds (D3, D6, D7 per the D1 table). A dimension with an enumerable surface and no seed under-performs: the reviewer spends its budget rediscovering what a grep already knew.
 - **Context notes** — battery summary pasted into every reviewer prompt ("tests green, lint warns on X, shellcheck advisory on Y") so reviewers don't re-derive it.
 
 If `--quick`: jump to Phase 4 with machine findings only.
@@ -160,7 +151,6 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt)
 - [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list
 - [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
-- [ ] The report carries at least one subtraction proposal, or states in the health summary that a liveness sweep found nothing dead
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked
 - [ ] State cleaned up; commit offered
 
