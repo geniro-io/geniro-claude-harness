@@ -56,7 +56,7 @@ Present a human-readable findings summary before the escalation question fires �
 
 **Source worktree:** [from `git rev-parse --show-toplevel`]
 
-**Why escalating to <target>:** [one sentence — which target and concrete reason scope fits it; user makes the final routing choice in the escalation question (§3.2)]
+**Why escalating to <target>:** [one sentence — which target, plus the fix's blast radius: how many files it touches and whether it changes interfaces, architecture, or auth/permissions; user makes the final routing choice in the escalation question (§3.2)]
 
 **🔍 Root cause:** [one sentence, plain language — why the bug happens]
 
@@ -88,14 +88,11 @@ Present a human-readable findings summary before the escalation question fires �
 
 The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path IS the contract.
 
-### 3.2 Escalation AUQ (4 options)
+### 3.2 Escalation AUQ
 
 Only after the summary above is visible AND persisted, `AskUserQuestion` with header "Escalate" and these options:
 
-- **Trivial — run `/geniro:implement`** — ≤2 files, obvious target, no architecture or auth/permissions change.
-- **Non-trivial — run `/geniro:implement`** — touches multiple modules, changes interfaces, needs architecture review, or introduces a new pattern. (Both Trivial and Non-trivial route to the same target — `/geniro:implement`. The Trivial/Non-trivial designation surfaces in the spec context the receiving skill loads.)
-
-Both `/geniro:implement` options pre-load findings from the handoff file written above (`from-debug-<branch>.md`); the receiving skill resolves its path itself, so the option labels stay free of internal path placeholders.
+- **Run `/geniro:implement`** — the receiving skill pre-loads findings from the handoff file written above (`from-debug-<branch>.md`) and resolves that path itself, so the label stays free of internal path placeholders. How large the fix is rides in the handoff's **Why escalating** line, not in the option set.
 - **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because a probe you actually ran failed to reach the artifact (§1.5 — an assumed limit is not a reason to route). Trigger a follow-up `AskUserQuestion` with concrete options for the missing data. When data arrives, return to the §3.0 Pre-gate, do NOT escalate yet.
 - **Leave it to me** — user will apply the patch manually using the state file as reference. state.md transitions to `phase: ship-summary-only` (terminal).
 

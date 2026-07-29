@@ -216,7 +216,7 @@ The `(Recommended)` suffix on an AskUserQuestion option is load-bearing — user
 
 ### When `(Recommended)` MAY be applied
 
-- The option represents a canonical gate's conservative default (e.g. `test-first-gate.md` § Required AUQ shape "Author failing test first" option — the F→P-correct path; `root-cause-gate.md` § Required AUQ shape "Symptom — escalate to /geniro:debug" option — escalation when classification is `[SYMPTOM]` with low confidence; `within-skill-state-handoff.md` § Mismatch handling Case C "Stop — I'll switch" option — recovery from collision).
+- The option represents a canonical gate's conservative default (e.g. `root-cause-gate.md` § Required AUQ shape "Symptom — escalate to /geniro:debug" option — escalation when classification is `[SYMPTOM]` with low confidence; `within-skill-state-handoff.md` § Mismatch handling Case C "Stop — I'll switch" option — recovery from collision).
 - The option represents a conservative verification path the orchestrator wants the user to take BEFORE acting (e.g. "Verify scenario X first" when the orchestrator is uncertain).
 - The option directly matches a previously-loaded canonical default (CLAUDE.md gate / `.geniro/instructions/<skill>.md` rule).
 

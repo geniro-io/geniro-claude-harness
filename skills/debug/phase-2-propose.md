@@ -9,9 +9,9 @@ state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduct
 - §2.1 Refresh custom instructions on entry · §2.2 Multi-path fix gate (Always-WAIT) · §2.3 Text fix proposal
 - §2.4 Author F→P reproduction test + monkey-patch verify · §2.5 Fix-loop escalation
 
-### 2.1 Refresh custom instructions on entry (single — no double-refresh)
+### 2.1 Refresh custom instructions on entry
 
-On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` call. Mirrors Phase 3 entry contract: always re-fires. Cost: 1 helper read.
+On Phase 2 entry, re-fire `load-custom-instructions(MODE: refresh, scope: debug + global + code-style — pipeline tier, 3 files)` once. The fix proposal and the reproduction test are both authored here, so the code-style rules have to be the ones on disk now — Phase 1's load can be many hypothesis rounds old.
 
 ### 2.2 Multi-path fix gate (Always-WAIT)
 

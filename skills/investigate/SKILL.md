@@ -64,8 +64,6 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 **Architecture constraints (design intent, not budget):**
 - Parallel research agents — 1 to 3 per Phase 1 classification.
 
-**Claude Code internals** (not under /geniro:investigate control): input tokens ≤200K per turn → compaction; output tokens ≤8K per turn → soft truncation.
-
 ## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn site — the orchestrator's session tier propagates.
@@ -143,7 +141,7 @@ State.md `phase: classify`. Low cost — a semantic $ARGUMENTS classification + 
 
 On Phase 1 entry:
 
-1. **Refresh custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Loads `global.md` + `investigate.md` + `code-style.md`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory.
+1. **Refresh custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory — the helper's §Procedure owns the load set.
 2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). `_CODEBASE_MAP.md` content (if present) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
 3. **Query past learnings** — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the file is empty under `mode: replace`), else `query-learnings --tag <kw1> --tag <kw2> --scope global --limit 5` (one `--tag` per keyword inferred from $ARGUMENTS). To find prior answers and avoid duplicate research.
 4. **Cross-layer conflict resolution** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
@@ -174,7 +172,7 @@ Fire `AskUserQuestion` (header "Research depth"):
 - **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
 - **Options**: "Run /deep-research instead" / "Continue with /geniro:investigate"
 
-On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate (`phase: routed`) — do NOT auto-invoke. On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no WebSearch tool), skip this step silently and continue.
+On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate (`phase: routed`) — do NOT auto-invoke; run the Phase 3 Step 6 cleanup on the way out. On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no WebSearch tool), skip this step silently and continue.
 
 This routing fires ONLY for the Internet-only classification — any question that needs code or git evidence stays in /geniro:investigate, since `/deep-research` has no codebase or git access.
 
@@ -215,9 +213,9 @@ Retrieval is just-in-time: infer specific tags/paths/symbols from $ARGUMENTS, sp
 
 Unique requirement: state.md `## JIT Cadence` body section logs which steps fired for this run — the audit trail that makes the JIT discipline reviewable.
 
-Before spawning agents, check past learnings for existing answers to this question or closely related topics — same routing as Phase 0 Step 3 (query-learnings.md §"Memory backend override"), with keywords from the question. If a comprehensive answer exists, present it and ask the user if they want fresh investigation.
+**Duplicate-answer check** — before spawning agents, re-query past learnings for this question or closely related topics, routed as in Phase 1 Step 0 item 3 but with the keywords the classification has since sharpened. If a comprehensive prior answer exists, present it and ask whether the user wants a fresh investigation.
 
-If the question is ambiguous, use the `AskUserQuestion` tool to clarify scope before spawning agents. Ask one focused question, not multiple.
+**Ambiguous scope** — when the question's scope is ambiguous, use the `AskUserQuestion` tool to clarify it before spawning agents. Ask one focused question, not multiple.
 
 ## Phase 2: Investigate+Verify
 
@@ -400,7 +398,7 @@ Default trust: `retrieved` if WebFetch/WebSearch was load-bearing; `verified` if
 
 ### Step 6: Cleanup
 
-State.md `phase: present` → the path's terminal value: `done` after save-routing, `present-summary-only` after a "Done — answer is sufficient" pick. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
+Every terminal exit runs this — `done` after save-routing, `present-summary-only` after a "Done — answer is sufficient" pick, `routed` from the Phase 1 Step 1.5 external-lookup exit, `aborted` from either escalation state. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
 rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true

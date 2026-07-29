@@ -30,7 +30,7 @@ Skip condition: ONLY when that set is empty. Never skip based on tier — every 
 
 Each verifier spawn receives ONLY:
 
-- The finding bodies of ONE cluster — 1-3 findings citing the same file, each with its full body (title / file:line / severity / decision-type / confidence / evidence / suggested-fix / why-matters). A single finding is the degenerate one-finding cluster; cross-skill callers such as /geniro:resolve and spec-challenge always pass one.
+- The finding bodies of ONE cluster — 1-3 findings citing the same file, each with its full body (title / file:line / severity / decision-type / confidence / evidence / suggested-fix / why-matters). A single finding is the degenerate one-finding cluster; /geniro:resolve clusters its same-file comment items the same way, and spec-challenge always passes one.
 - The cited code slice — orchestrator reads the cited file ONCE per cluster, extracting each member's `line ± 30` window (overlapping windows merge into one range), and inlines into the prompt.
 - 1-hop caller grep results — orchestrator runs `grep -rn "<symbol>" --include="*.<ext>"` for each member's key symbol; pipe results capped at 50 lines per member (when members share a symbol, one merged grep serves them).
 - 1-2 sibling test references per member symbol — orchestrator greps test directories (`test/`, `tests/`, `__tests__/`, `spec/`); capped at 20 lines per member.

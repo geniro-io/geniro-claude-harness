@@ -4,7 +4,7 @@ Canonical contract for the Phase 3 test-quality gate: an always-on (skip-when-cl
 
 The problem it solves: an implementer agent's tests are often wrong on the first pass — they omit a behavior the spec required, or they name two behaviors and assert only one. Left to the broad reviewer pipeline alone, those findings get auto-fixed or filtered without the user seeing that the audit ran, so the user re-runs the audit by hand every time. This gate is the automated, visible form of that manual ask.
 
-Consumers: `/geniro:implement` (Phase 3, after the fix loop converges, before Ship). Reused by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` at its REFACTOR exit for `/geniro:refactor` and `/geniro:debug` TDD cycles.
+Consumers: `/geniro:implement` (Phase 3, after the fix loop converges, before Ship). Reused by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` at its REFACTOR exit for the `/geniro:debug` adversarial TDD cycle.
 
 ## Relationship to the tests reviewer dimension (no new agent)
 

@@ -16,7 +16,8 @@ Why Python and not a shell pipeline:
 Roots scanned (a thread's session logs live under <config-dir>/projects/):
   1. ~/.claude/projects                 (default config dir)
   2. $CLAUDE_CONFIG_DIR/projects        (when the env var is set and the dir exists)
-  3. every path in EXTRA_ROOTS below    (fixed extra config dirs — add yours here)
+  3. $FIND_THREADS_EXTRA_ROOTS          (colon-separated extra config dirs; EXTRA_ROOTS below is
+                                         the default used when the var is unset)
 
 Usage:
   python3 scan.py                 # list mode: every work-bearing thread (edited + read-only), grouped-sort
@@ -36,38 +37,44 @@ Query matching (see _term_positions):
 Output columns (TSV):
   mtime  date  oversize  kind  turns  relevance  hits  label  title  path  snippet
     - kind: "edited" (calls a code-edit tool) | "read-only" (spawns a subagent / invokes a Skill but never edits code).
+    - turns: user+assistant events in the scanned head; a trailing "+" means the file outran the
+             12 MB read cap, so the count is a floor rather than a total.
     - list mode:   relevance=0, hits=0, snippet="" ; sorted by label asc, then newest-first.
     - search mode: relevance = the most query terms that co-occur in one ~160-char window (the
                    proximity score) ; hits = total term occurrences ; a thread is kept only when the
                    query matches its body, title, or label ; sorted relevance desc, hits desc, newest.
+
+A "#SUMMARY threads=N projects=M edited=E read-only=R" line goes to stderr, so a consumer piping the
+TSV never has to filter a non-row line out of the stream.
 """
 import sys, os, re, json, glob, time
 
-# --- Fixed extra config-dir roots. The default + $CLAUDE_CONFIG_DIR are added automatically. ---
-# Add one absolute "<config-dir>/projects" path per entry when you run a second Claude config dir
-# that the CLAUDE_CONFIG_DIR env var is NOT exporting into this session's environment.
-EXTRA_ROOTS = [
-    os.path.expanduser("~/Desktop/Projects/ManifestLab/.claude-manifest-lab/projects"),
+# --- Extra config-dir roots, for a second Claude config dir that the CLAUDE_CONFIG_DIR env var is
+# NOT exporting into this session. Export FIND_THREADS_EXTRA_ROOTS as a colon-separated list of
+# "<config-dir>/projects" paths to override the default below — adding a root is an export, not a
+# source edit. "~" is expanded in roots().
+EXTRA_ROOTS = [p for p in os.environ.get("FIND_THREADS_EXTRA_ROOTS", "").split(":") if p.strip()] or [
+    "~/Desktop/Projects/ManifestLab/.claude-manifest-lab/projects",
 ]
 
 CODE_SIGNAL = re.compile(r'"name":"(?:Edit|Write|MultiEdit|NotebookEdit)"')
 WORK_SIGNAL = re.compile(r'"name":"(?:Agent|Task|Skill)"')  # read-only agentic work: a spawned subagent or a Skill tool call
 OVERSIZE_BYTES = 5 * 1024 * 1024          # /analyze-thread's hard cap
 SIGNAL_SCAN_CAP = 20 * 1024 * 1024        # scan at most 20 MB for the work signals
-TITLE_SCAN_CAP = 2 * 1024 * 1024          # the ai-title line can sit ~1.5 MB deep
-PROMPT_SCAN_CAP = 800 * 1024              # first real user prompt lives in the opening events
-SEARCH_SCAN_CAP = 12 * 1024 * 1024        # body bytes scanned for query matches (bounds huge logs)
+TITLE_SCAN_CAP = 2 * 1024 * 1024          # window into the head read for the ai-title line (~1.5 MB deep)
+PROMPT_SCAN_CAP = 800 * 1024              # window for the first real user prompt (opening events)
+SEARCH_SCAN_CAP = 12 * 1024 * 1024        # size of the ONE head read per file — feeds label, title, turns, search
 
 
 def roots():
     out, seen = [], set()
-    cands = [os.path.expanduser("~/.claude/projects")]
+    cands = ["~/.claude/projects"]
     cfg = os.environ.get("CLAUDE_CONFIG_DIR", "").strip()
     if cfg:
-        cands.append(os.path.join(os.path.expanduser(cfg), "projects"))
+        cands.append(os.path.join(cfg, "projects"))
     cands.extend(EXTRA_ROOTS)
     for c in cands:
-        c = os.path.realpath(c)
+        c = os.path.realpath(os.path.expanduser(c))
         if c not in seen and os.path.isdir(c):
             seen.add(c)
             out.append(c)
@@ -130,11 +137,16 @@ def iter_user_texts(blob):
             yield t
 
 
-def label_of(path):
+# label_of / title_of / turns_of / search_score all take the ONE head read main() does per file.
+# Re-opening the file per helper cost up to 16.8 MB of redundant reads and UTF-8 decodes per thread.
+# The narrower caps are character windows into that blob; a decoded character is never fewer than one
+# byte, so each window still covers at least the byte budget it used to read.
+
+
+def label_of(blob, path):
     # True project label = first parseable .cwd. The first line literally containing "cwd" is
     # sometimes a base64 blob whose bytes spell it; that line fails to parse, so parse each line.
-    blob = read_head(path, TITLE_SCAN_CAP)
-    for ln in blob.splitlines():
+    for ln in blob[:TITLE_SCAN_CAP].splitlines():
         try:
             o = json.loads(ln)
         except (ValueError, TypeError):
@@ -145,9 +157,8 @@ def label_of(path):
     return os.path.basename(os.path.dirname(path))  # lossy folder-name fallback
 
 
-def title_of(path):
-    blob = read_head(path, TITLE_SCAN_CAP)
-    for ln in blob.splitlines():
+def title_of(blob):
+    for ln in blob[:TITLE_SCAN_CAP].splitlines():
         if '"type":"ai-title"' in ln:
             try:
                 o = json.loads(ln)
@@ -156,7 +167,7 @@ def title_of(path):
             at = o.get("aiTitle")
             if at:
                 return at[:100]
-    head = read_head(path, PROMPT_SCAN_CAP)
+    head = blob[:PROMPT_SCAN_CAP]
     skip = ("<command-", "<local-command-", "Base directory for this skill:", "Caveat: The messages below")
     for t in iter_user_texts(head):
         if not any(s in t[:40] for s in skip):
@@ -167,13 +178,10 @@ def title_of(path):
     return "(thread — no title)"
 
 
-def turns_of(path):
-    n = 0
-    blob = read_head(path, SEARCH_SCAN_CAP)
-    for ln in blob.splitlines():
-        if '"type":"user"' in ln or '"type":"assistant"' in ln:
-            n += 1
-    return n
+def turns_of(blob):
+    # Counts only what the head read covers; main() marks the count "+" when the file is bigger.
+    return sum(1 for ln in blob.splitlines()
+               if '"type":"user"' in ln or '"type":"assistant"' in ln)
 
 
 def _positions(low, needle, cap=4000):
@@ -213,7 +221,7 @@ def _term_positions(low, term):
     return _positions(low, term)
 
 
-def search_score(path, terms):
+def search_score(blob, terms):
     """Score a thread against the query.
 
     Returns (relevance, total_hits, snippet):
@@ -223,7 +231,6 @@ def search_score(path, terms):
       total_hits = total term occurrences (a tie-breaker within a relevance tier).
       snippet    = cleaned text around the densest window, for disambiguation in the list.
     """
-    blob = read_head(path, SEARCH_SCAN_CAP)
     low = blob.lower()
     occ, total = [], 0
     for i, t in enumerate(terms):
@@ -268,12 +275,13 @@ def main():
             if code_only and kind != "edited":
                 continue
             mtime = int(st.st_mtime)
-            label = " ".join(label_of(path).split())
-            title = " ".join(title_of(path).split())[:100]
+            blob = read_head(path, SEARCH_SCAN_CAP)   # the one read every helper below shares
+            label = " ".join(label_of(blob, path).split())
+            title = " ".join(title_of(blob).split())[:100]
             relevance = hits = 0
             snippet = ""
             if terms:
-                relevance, hits, snippet = search_score(path, terms)
+                relevance, hits, snippet = search_score(blob, terms)
                 meta = (label + " " + title).lower()
                 in_meta = any(t in meta for t in terms)
                 if relevance == 0 and not in_meta:
@@ -282,13 +290,21 @@ def main():
                     relevance = max(relevance, 1)  # a title/label hit is at least one matched surface
             date = time.strftime("%Y-%m-%d", time.localtime(mtime))
             oversize = 1 if st.st_size > OVERSIZE_BYTES else 0
-            turns = turns_of(path)
+            turns = turns_of(blob)
+            if st.st_size > SEARCH_SCAN_CAP:
+                turns = "%d+" % turns      # scan capped — the printed count is a floor, not a total
             rows.append((mtime, date, oversize, kind, turns, relevance, hits, label, title, path, snippet))
 
     if terms:
         rows.sort(key=lambda r: (-r[5], -r[6], -r[0]))   # relevance desc, hits desc, newest
     else:
         rows.sort(key=lambda r: (r[7], -r[0]))           # label asc, newest-first
+
+    # Aggregates the caller would otherwise tally by eye. stderr, so a consumer piping the TSV
+    # (analyze-thread's batch scan) never has to filter a non-row line out of the stream.
+    edited = sum(1 for r in rows if r[3] == "edited")
+    print("#SUMMARY threads=%d projects=%d edited=%d read-only=%d"
+          % (len(rows), len({r[7] for r in rows}), edited, len(rows) - edited), file=sys.stderr)
 
     try:
         for r in rows:

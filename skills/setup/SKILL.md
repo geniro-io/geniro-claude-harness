@@ -40,7 +40,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five setup-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
-- **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at Phase Validate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) are gated too — folded into the Phase Validate batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
+- **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
 - **Invariant #4 (bounded structured tool results)** — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
 - **Invariant #5 (escalation gates, not silent abort)** — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | start-over (re-detect)` (the §4.2 three-option form).
 - **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
@@ -145,7 +145,7 @@ Surface in `## Phase log` as `Prior /geniro:setup runs: N (last: <timestamp>, st
 
 ### 1.3 Locate plugin source
 
-Set `TEMPLATE_DIR` to `${CLAUDE_PLUGIN_ROOT}`, falling back to `$ARGUMENTS` when that is unset or does not look like a plugin root. Test the candidate by the presence of an `agents/` directory inside it — a path that merely exists proves nothing, and a wrong `TEMPLATE_DIR` surfaces much later as missing templates mid-generation. When neither candidate passes, transition to Phase Failed with an `## Errors` row rather than continuing on a guess. Write the resolved path to state frontmatter `template_dir:`.
+Set `TEMPLATE_DIR` to `${CLAUDE_PLUGIN_ROOT}`, falling back to `$ARGUMENTS` when that is unset or does not look like a plugin root. Test the candidate by the presence of an `agents/` directory inside it — a path that merely exists proves nothing, and a wrong `TEMPLATE_DIR` surfaces much later as missing templates mid-generation. When neither candidate passes, transition to Phase Failed with an `## Errors` row rather than continuing on a guess.
 
 ### 1.4 Codebase scan (Evidence Block standard)
 
@@ -193,7 +193,7 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-The canonical list below is the source of truth — `marketplace.json` carries only a `plugins` entry, not a per-skill array, so there is nothing to extract from it. (To cross-check that the list is current, list `${CLAUDE_PLUGIN_ROOT}/skills/` directory entries — every subdirectory except `_shared` is a skill.)
+Reconcile two sources: list `${CLAUDE_PLUGIN_ROOT}/skills/` — every subdirectory except `_shared` is a skill — against the block below, which carries the purpose strings a directory listing cannot. `marketplace.json` holds only a `plugins` entry, not a per-skill array, so there is nothing to extract from it.
 
 ```yaml
 skill_inventory:
@@ -212,7 +212,7 @@ skill_inventory:
 - {slug: update, purpose: "Plugin update + integrity check"}
 ```
 
-`skill_inventory` is the source of truth for which skills exist. Name a skill anywhere this run produces user-facing text (the Phase 5 report's next-step suggestions, any generated content) only if it appears in that block — a slug drawn from anywhere else points the user at a command that does not run.
+Name a skill anywhere this run produces user-facing text (the Phase 5 report's next-step suggestions, any generated content) only when it appears in **both** the listing and the block — a slug present in only one either points the user at a command that does not run or hides one that does. On a mismatch the directory decides which skills exist and the block supplies the purpose; log the delta to `## Phase log` and write the reconciled set to state frontmatter `skill_inventory`.
 
 ### 1.6 Detect output
 

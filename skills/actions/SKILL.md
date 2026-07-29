@@ -9,7 +9,7 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 
 # Actions: custom workflow-helper management
 
-Stateless loop: **Parse → Execute → Done**. Execute branches into one of six sub-command sections (Phases 3-8 below), so a run passes through Phase 1, Phase 2, exactly one of Phases 3-8, and the terminal report. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`.
+Stateless loop: **Parse → Execute → Done**. Execute branches into one of six sub-command sections (Phases 3-8 below), so a run passes through Phase 1, exactly one of Phases 3-8, and the terminal report. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
@@ -17,14 +17,14 @@ Stateless loop: **Parse → Execute → Done**. Execute branches into one of six
 
 ## Sub-commands
 
-| Sub-command | Aliases | Purpose |
-|-------------|---------|---------|
-| `list` | show, view, ls, current | Print the table of installed actions |
-| `create` | new, scaffold, make, add | Interview-driven scaffold for a new action |
-| `edit` | change, modify, update, tweak, adjust | Open an existing action for external editing, then re-validate |
-| `run` | invoke, exec, execute, do | Read an action file and follow its steps inline (no run-confirmation gate — Phase 5.3) |
-| `delete` | remove, rm, drop | Remove an action file (with confirmation) |
-| `validate` | check, lint | Lint frontmatter and body against the rule set |
+| Sub-command | Phase | Aliases | Purpose |
+|-------------|-------|---------|---------|
+| `list` | 3 | show, view, ls, current | Print the table of installed actions |
+| `create` | 4 | new, scaffold, make, add | Interview-driven scaffold for a new action |
+| `edit` | 6 | change, modify, update, tweak, adjust | Open an existing action for external editing, then re-validate |
+| `run` | 5 | invoke, exec, execute, do | Read an action file and follow its steps inline (no run-confirmation gate — Phase 5.3) |
+| `delete` | 7 | remove, rm, drop | Remove an action file (with confirmation) |
+| `validate` | 8 | check, lint | Lint frontmatter and body against the rule set |
 
 ## What is a custom action?
 
@@ -46,10 +46,10 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | "I'll just edit a core Geniro skill instead of creating a custom action" | No — core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
 | "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 6. Silent overwrite destroys committed work. |
 | "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
-| "The five interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
+| "The four interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
 | "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
 | "I'll spawn a subagent to execute the action" | No — Phase 5 runs inline; the orchestrator is the runtime. |
-| "I'll auto-pick `risk_class: low` if I can't tell" | No — Q5 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
+| "I'll auto-pick `risk_class: low` if I can't tell" | No — Q4 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
 | "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; adding an "are you sure?" AUQ would re-ask a decision the user already made by invoking it. `risk_class` is metadata (list / delete-warning / lint), not a run gate. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
 | "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
@@ -136,19 +136,11 @@ The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`
 
 Re-ask up to 3 times via AskUserQuestion until valid.
 
-## Phase 2: Mode dispatch
-
-Branch on resolved action: `list` → Phase 3 · `create` → Phase 4 · `run` → Phase 5 · `edit` → Phase 6 · `delete` → Phase 7 · `validate` → Phase 8.
-
 ## Phase 3: `list` sub-command
 
 ### Step 1 — Scan directory
 
-Build the registry index per Phase 5.0 Step 1 (dual-glob local + main-worktree, deduped by absolute path, `local` wins, each row source-tagged). The list output tags each row with its source (`local` / `main-worktree`). Without this, list mode misses actions authored in the main worktree but absent from the current linked worktree.
-
-```bash
-ls -la ./.geniro/actions/*.md "$PRIMARY_ROOT"/.geniro/actions/*.md 2>/dev/null
-```
+Build the registry index per Phase 5.0 Step 1 (dual-glob local + main-worktree, deduped by absolute path, `local` wins, each row tagged `local` / `main-worktree`). Without this, list mode misses actions authored in the main worktree but absent from the current linked worktree.
 
 ### Step 2 — Present results
 
@@ -209,9 +201,9 @@ This default keeps `.geniro/actions/` committed (team-shareable). The negation m
 
 **Hook reminder:** the `.geniro/` deletion guard hook blocks `git add -f` on `.geniro/` paths — the correct path is `.gitignore` negation (above), never `git add -f`. Force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click becomes a one-click data-loss vector.
 
-### Step 3 — Interview (Q1–Q5)
+### Step 3 — Interview (Q1–Q4)
 
-Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, output, and test cases; **Q5 captures risk class**.
+Use `AskUserQuestion` for each question. Q1–Q3 capture purpose, trigger, and output; **Q4 captures risk class**.
 
 **Q1 — Purpose:** "What should this action do?"
 - `Slack/messaging workflow`, `Pull-request workflow`, `Release/deployment workflow`, `Custom workflow`
@@ -222,10 +214,7 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 **Q3 — Output / side-effects:** "What does it produce or change?"
 - `Reports back to chat only`, `Writes a file`, `Posts to an external system`, `Multiple side effects`
 
-**Q4 — Test cases (optional):** "Include a brief 'how to test it' note?"
-- `Yes — add 1–2 test cases`, `Skip`
-
-**Q5 — Risk class:** "What is the risk class for this action?" (`risk_class` labels blast radius for the listing, the delete warning, and lint; it is not a run gate — Phase 5.3.)
+**Q4 — Risk class:** "What is the risk class for this action?" (`risk_class` labels blast radius for the listing, the delete warning, and lint; it is not a run gate — Phase 5.3.)
 - `low` — Pure read operations: read files, list dirs, aggregate data, display info. No network, no file mutation outside cwd.
 - `medium` — Local file mutation, git commit (no push), tests with side effects (DB seed, integration test). External reads (HTTP GET).
 - `high` — External sends (Slack/PR/email), git push, npm publish, docker push, cloud mutations, file deletion outside `.geniro/`.
@@ -239,15 +228,15 @@ Use `AskUserQuestion` for each question. Q1–Q4 capture purpose, trigger, outpu
 
 ### Step 4 — Draft preview
 
-Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`, then synthesize a concrete action body by filling in answers from Step 3:
+Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`; when the interview answers leave the shape thin, read `${CLAUDE_PLUGIN_ROOT}/skills/actions/example-actions/pr-notify-slack.md` alongside it as a worked example of a finished action file. Then synthesize a concrete action body by filling in answers from Step 3:
 
 - Frontmatter `name` = the kebab-case slug.
 - Frontmatter `description` reflects Q2's trigger context and follows the description rule in the template's §Authoring rules.
-- Frontmatter `risk_class:` = Q5's answer (REQUIRED).
+- Frontmatter `risk_class:` = Q4's answer (REQUIRED).
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
 - Frontmatter `external-send: true` if Q3 = "Posts to an external system" or "Multiple side effects" with external.
-- Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if the action has no skip conditions), `## Steps` (numbered), `## Output`, `## Test cases` (only if Q4 = Yes).
+- Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if the action has no skip conditions), `## Steps` (numbered), `## Output`, `## Test cases` (1–2 checks that confirm the run worked).
 
 **Show the drafted markdown to the user. Do NOT call Write yet.** Then AUQ:
 

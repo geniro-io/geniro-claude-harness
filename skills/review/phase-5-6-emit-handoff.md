@@ -7,7 +7,6 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 - Phase 5 — Persist & emit
   - 5.0 Repeat findings (re-run rounds)
   - 5.1 Handoff file write
-  - 5.2 Old state-file fallback
   - 5.3 Auto-emit pitfall learnings on convergence
   - 5.4 PR comment posting (conditional — gated by Phase 6)
   - 5.5 Idempotent re-entry
@@ -38,10 +37,6 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. `<PRIMARY_
 **`report_status:` producer-side initialization.** Write frontmatter `report_status: draft` on this Phase 5.1 handoff write. The report is provisional — written now so a mid-gate compaction recovers the findings, but not yet authoritative. The Phase 6 finalize step (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) flips it to `final` only after the decision gates clear; the handoff offer and the §7.0 public-post guard refuse to fire against a `draft`.
 
 Write the full handoff frontmatter + body skeleton from the template at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6 "Handoff file template" (the `atomic_state_write` heredoc block). Each finding under `## Findings` renders as the multi-line per-finding body block (NOT a one-liner) per §"Per-finding body schema" in that same reference — the title line is a `- [ ]` addressed-checkbox (written unchecked) the engineer ticks by hand as they resolve the finding, with the detail fields nested beneath it. The Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
-
-### 5.2 Old state-file fallback
-
-If a file exists at `<PRIMARY_ROOT>/.geniro/state/review-findings-state.md`, read it once on Phase 5 entry for resume compatibility, but always write to the canonical path. The old file is NOT auto-deleted (user may have references).
 
 ### 5.3 Auto-emit pitfall learnings on convergence
 

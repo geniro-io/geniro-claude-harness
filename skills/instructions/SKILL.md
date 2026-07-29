@@ -100,7 +100,7 @@ The stable scope set:
 
 Three shapes across the scope set. The schema itself is owned by the loader that parses these files at runtime — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract; the shapes below and the annotated templates are authoring scaffolds written against it, so a schema change lands there first. The templates for all three, plus the per-scope create scaffolds, live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — read that section before rendering a scaffold or judging a body's structure.
 
-- **Singleton scopes** (`global`, `code-style`, every per-skill scope) — `## Rules`, `## Additional Steps` → `### After <phase-enum-value>`, `## Constraints`, and the optional `## Data Sources`.
+- **Singleton scopes** (`global`, `code-style`, every per-skill scope) — `## Rules`, `## Additional Steps` → `### After <phase>` / `### Before <phase>`, `## Constraints`, and the optional `## Data Sources`.
 - **`memory`** — its own `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only; no Rules / Constraints / Additional Steps.
 - **`review-extra/<slug>`** — directory-style, one file per custom reviewer, with YAML frontmatter (fields below) plus a `# Criteria` body.
 
@@ -152,13 +152,13 @@ A `create`/`edit` request implies WHICH block to author, not just which scope. M
 | User intent (examples) | Block type | Scope |
 |---|---|---|
 | "always do X" / "never Y" / a standing rule | `## Rules` | the named/contextual scope |
-| "run X after `<phase>`" / a project-specific post-phase step (e.g. duplicate the plan into OpenSpec, archive after ship) | `## Additional Steps` → `### After <phase-enum-value>` (e.g. `### After user-approve` for `/plan`, `### After ship` for `/implement`) | the per-skill scope |
+| "run X after `<phase>`" / "run X before `<phase>`" / a project-specific step at a phase boundary (e.g. duplicate the plan into OpenSpec, archive after ship) | `## Additional Steps` → `### After <phase>` or `### Before <phase>` (e.g. `### After user-approve` for `/plan`, `### Before ship` for `/implement`) | the per-skill scope |
 | "run X every time a new worktree is created" / a per-worktree workspace bootstrap (e.g. build a per-worktree code index for an MCP) | `## Additional Steps` → `### After worktree-setup` (a cross-skill event anchor, not a phase) | `global` |
 | "hard limit" / "must not exceed" / a gate | `## Constraints` | the named scope |
 | "verify facts against my <source>" / "cross-check status from <db/MCP>" | `## Data Sources` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`) | `global` or per-skill |
 | "change how memory/knowledge works" / "store learnings in my MCP" / "use a custom memory backend" | `## Memory Backend` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`) | `memory` (its own dedicated file) |
 
-When the block type is ambiguous, ask in the Step 4 interview; default a vague "add a rule" to `## Rules`. The `## Additional Steps` phase anchor must be a real phase-enum value for the scope (enums in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5) — for a `/plan` post-approval step use `### After user-approve`. The sole exception is `### After worktree-setup`: a cross-skill event anchor (hosted in `global.md`, not a per-skill file) that fires when any skill creates a new worktree rather than at a phase boundary.
+When the block type is ambiguous, ask in the Step 4 interview; default a vague "add a rule" to `## Rules`. The `## Additional Steps` anchor must name a real phase-enum value for the scope, prefixed `After` or `Before` (enums in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5) — for a `/plan` post-approval step use `### After user-approve`. The sole exception is `### After worktree-setup`: a cross-skill event anchor (hosted in `global.md`, not a per-skill file) that fires when any skill creates a new worktree rather than at a phase boundary.
 
 ### Ambiguity resolution
 
@@ -253,13 +253,13 @@ mkdir -p "$PRIMARY_ROOT"/.geniro/instructions/review-extra # if scope == review-
 
 ### Step 3 — Gather project context
 
-Read `CLAUDE.md` for tech stack/commands/conventions; check `package.json`/`Makefile` for scripts; check for ESLint/Prettier/tsconfig. This context informs scope-specific rule suggestions.
+When the request does not already name a concrete rule, read enough of the project — CLAUDE.md, the build and test scripts, the linter and formatter configs — that Step 4's suggestions name this project's real tooling instead of placeholders.
 
 ### Step 4 — Scope-specific scaffold + interview
 
-Each scope gets a **scope-specific scaffold** with example Rules to make the empty-file moment less confusing. The four scaffolds (`code-style` / `implement` / `global` / `memory`) plus their stub-inclusion notes live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — render the matching scaffold before the interview.
+Each scope gets a **scope-specific scaffold** with example Rules to make the empty-file moment less confusing. The four scaffolds (`code-style` / `implement` / `global` / `memory`) plus their stub-inclusion notes live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — render the matching scaffold first, always.
 
-Use `AskUserQuestion` after showing the scaffold:
+The interview is for requests that arrive vague. When the invocation already names an actionable rule ("add a rule that we run `pnpm test` before shipping"), place it in the scaffold under the block type §Block-type detection resolved and go straight to Step 5 — re-interviewing a user who already answered spends three questions to reach the line they handed over. Otherwise use `AskUserQuestion`:
 
 - **Question:** "Add what kind of rules?"
 - **Options (scope-tailored):** Documentation / Quality gates / Workflow steps / Free-form (Other path)
@@ -289,15 +289,14 @@ For `review-extra`, follow the slug-bearing flow in `${CLAUDE_PLUGIN_ROOT}/skill
 
 If missing, branch to `create`. Else display current body inline.
 
-### Step 2 — Three-way AUQ
+### Step 2 — Pick the edit path
 
 - **Question:** "How would you like to edit `<scope>`?"
 - **Options:**
+- `Apply the change you described` — offered when the invocation already names a concrete change ("change the test command in my implement rules to `pnpm test:ci`"). Draft the edited body, show what changed, and gate the write on the same AUQ as the dialogue path.
 - `Open in editor (external)` — Print absolute path; instruct user to edit externally and re-run `/geniro:instructions validate <scope>` when done. Exit.
 - `Rewrite via dialogue` — Interview-style sequence of AUQs (Add a Rule / Add an Additional Step / Add a Constraint / Remove a Rule by number / Done). Apply edits to an in-memory copy; final write AUQ-gated.
 - `Cancel`
-
-The dialogue path is intentionally simpler than freeform edit — stays inside AUQ contracts and avoids prompt-injection through user-supplied text.
 
 ### Step 3 — Re-validate (review-extra only)
 
@@ -422,7 +421,7 @@ To fix: /geniro:instructions edit implement
 /geniro:instructions edit review-extra sql-bindings
 ```
 
-Exit status: 0 if no `CRITICAL`/`HIGH`; non-zero otherwise. `MEDIUM`/`LOW` are warnings.
+When any `CRITICAL` or `HIGH` is present, lead the report with a blocking verdict — `✗ Needs fixing: <N> blocking issue(s)` above the per-file lines. `MEDIUM`/`LOW` are warnings and leave the verdict clean.
 
 ### No auto-fix
 

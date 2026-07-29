@@ -689,7 +689,7 @@ cd .geniro/planning && \
 
 ### Legacy state-file paths superseded by T1/T2/T3
 
-`.geniro/state/` was reorganized per the tier framework: T1.5 durable session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted). `/review` reads legacy `.geniro/state/review-findings-state.md` once on Phase 5 entry for backward-compat resume but writes to the T2 path.
+`.geniro/state/` was reorganized per the tier framework: T1.5 durable session-bound (`<skill>/<slug>/state.md`), T2 inter-skill handoff (`handoff/from-<producer>-<branch>.md`), T3 persistent CRUD. Legacy paths like `.geniro/state/follow-up/`, `.geniro/state/decompose/`, `.geniro/state/learnings/`, `.geniro/state/review-findings-state.md` are orphan (skills that wrote them are deleted).
 
 **Action required:** Optional cosmetic cleanup (orphan files inert).
 

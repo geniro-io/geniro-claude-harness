@@ -7,7 +7,8 @@
 # Two severities:
 #   HARD (exit non-zero) — zero-false-positive correctness checks:
 #     1. Non-Latin (Cyrillic) letters in skills/ or agents/ bodies.
-#     2. Dangling ${CLAUDE_PLUGIN_ROOT}/<path> file references (target must exist).
+#     2. Dangling plugin-root file references — ${CLAUDE_PLUGIN_ROOT}/<path> and the
+#        $PLUGIN_PATH/<path> form (target must exist).
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
 #   ADVISORY (warn only, exit 0 contribution) — guideline checks the maintainer
 #   reads but never auto-trims to satisfy (size targets are guidelines, not limits):
@@ -50,15 +51,19 @@ else
   echo "OK: no Cyrillic in skills/ or agents/"
 fi
 
-# 2. Dangling ${CLAUDE_PLUGIN_ROOT}/<path> file references.
+# 2. Dangling plugin-root file references. Both spellings of the plugin root are
+# scanned: ${CLAUDE_PLUGIN_ROOT}/<path>, and the $PLUGIN_PATH/<path> form /geniro:update
+# uses against the freshly-installed tree — a rename that leaves one of those behind
+# surfaces to the user as an integrity-check failure, so it has to fail here first.
+# The trailing boundary stops a `.sha256` suffix from matching as `.sh`.
 dangling=0
-refs=$(grep -rhoE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]+\.(md|sh|js|json)(\.example)?' skills agents 2>/dev/null \
-  | sed -E 's#\$\{CLAUDE_PLUGIN_ROOT\}/##' | sort -u)
+refs=$(grep -rhoE '(\$\{CLAUDE_PLUGIN_ROOT\}|\$PLUGIN_PATH)/[A-Za-z0-9._/-]+\.(md|sh|js|json)(\.example)?([^A-Za-z0-9]|$)' skills agents 2>/dev/null \
+  | sed -E 's#(\$\{CLAUDE_PLUGIN_ROOT\}|\$PLUGIN_PATH)/##; s#[^A-Za-z0-9]$##' | sort -u)
 while IFS= read -r p; do
   [ -z "$p" ] && continue
-  if [ ! -f "$p" ]; then report_fail "dangling reference: \${CLAUDE_PLUGIN_ROOT}/$p (target file does not exist)"; dangling=$((dangling + 1)); fi
+  if [ ! -f "$p" ]; then report_fail "dangling plugin-root reference: $p (target file does not exist)"; dangling=$((dangling + 1)); fi
 done <<< "$refs"
-[ "$dangling" -eq 0 ] && echo "OK: all \${CLAUDE_PLUGIN_ROOT}/ file references resolve"
+[ "$dangling" -eq 0 ] && echo "OK: all plugin-root file references resolve"
 
 # 3. Unknown subagent_type spawn names.
 valid_agents="$(mktemp)"

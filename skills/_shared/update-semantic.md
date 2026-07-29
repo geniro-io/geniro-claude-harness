@@ -20,7 +20,7 @@ Exit codes:
 - `0` — wrote (or no-op, e.g. replace with no match — surfaced via stderr).
 - `11` — lock held by another writer; caller should defer or retry.
 - `64` — bad / missing flags.
-- `68` — append line exceeds 4096 bytes.
+- `68` — append content exceeds 4096 bytes.
 - `69` — append IO failure.
 - `70` — `awk` failed during `--replace` (a real runtime error, distinct from a clean no-match which is rc=0).
 - `71` — atomic write of replacement failed (also returned if `mktemp` fails while staging a `--replace`).
@@ -33,7 +33,7 @@ context-resident state, so re-invoking after a SessionStart event is always safe
 ## Constraints
 
 - **Applies only to `_CODEBASE_MAP.md` and `_FEATURES.md`.** Other L3 files (`_project.md`, `_architecture.md`, `_focus-*.md`) are manual-only.
-- **Append-only or single-line replacement.** Never rewrites the whole file. Human edits anywhere in the file survive untouched.
+- **Append or single-line replacement.** Never rewrites the whole file. One `--append` may carry several lines (up to the per-call byte ceiling, rc=68 past it), so a caller composing a whole section appends it as one block rather than line by line. Human edits anywhere in the file survive untouched.
 - **Format is the caller's responsibility.** Helper accepts any string as the line. Spec recommends `- <path> — <short description>, used by <consumer>` but the helper does not enforce that — keeping format-policing out of the I/O layer lets callers compose.
 - **Lock-guarded.** Each target has its own lock: `.geniro/planning/.codebase-map.lock` for codebase-map, `.geniro/planning/.features.lock` for features. Concurrent writers see rc=11 and decide whether to retry or defer until skill completion.
 
@@ -75,5 +75,5 @@ For high-concurrency contention scenarios, callers can implement bounded retry w
 ## Known limitations
 
 - **Stale-lock recovery is time-bounded, not manual.** A SIGKILL/crash leaves the lock file, but the next writer auto-reclaims it once its mtime exceeds the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, default 600s). The leak is therefore limited to a lock younger than that window.
-- **No batch ops.** One line per call. Callers needing multiple writes loop.
+- **One call, one atomic unit.** An append carries as much as fits under the byte ceiling; past it the caller splits into further calls.
 - **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. Acceptable per the spec's "single-line replacement; no mass rewrites" guarantee.

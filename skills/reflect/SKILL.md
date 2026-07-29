@@ -74,7 +74,7 @@ Collect every such directory that exists, across each config dir in turn — `$C
    ```
 
 3. **Search mode:** additionally filter with `grep -lia '<search string>'` over the survivors, keep the 8 newest by mtime, and report how many matches were dropped ("12 sessions matched; analyzing the 8 newest"). Empty mode: keep the 5 newest survivors.
-4. **Exclude the current session.** Re-run `wc -c` on the selected files: a file that grew since step 1 is this session's own live transcript — your tool calls are being appended to it while you work — so growth is guaranteed and the check is deterministic. Exclude it. Backstop: also exclude any transcript whose final user turn is this reflect invocation. The current session is still open — its evidence is incomplete, and mining it is self-referential.
+4. **Exclude the current session.** Identify it by content: the transcript whose final user turn is this reflect invocation. Growth since step 1's `wc -c` corroborates but never excludes on its own — a second Claude tab open on the same project appends to the same directory and grows too, and that session is legitimate evidence. The current session is still open: its evidence is incomplete, and mining it is self-referential.
 
 Zero sessions surviving selection → the same one-sentence graceful exit as step 2.
 
@@ -115,11 +115,13 @@ Spawn slots:
 - **Dedupe targets:** paths to `CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*` — the agent greps them itself and emits per-candidate ADD / UPDATE / NOOP verdicts.
 - **Prior declines:** the query output above (or the literal `none`) — previously-declined candidates are dropped, not re-surfaced.
 
-The agent returns at most 3 candidates that passed `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar, each carrying target / file / change / evidence / significance / dedupe verdict. Cross-session recurrence (the same correction in 2+ analyzed sessions) is the strongest evidence — tell the agent to weight it accordingly.
+The agent returns at most 3 candidates that passed `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar, each carrying target / file / change / evidence / significance / dedupe verdict / recurrence flag. Cross-session recurrence (the same correction in 2+ analyzed sessions) is the strongest evidence — tell the agent to weight it accordingly.
 
 ## Phase 4: Present and route
 
-Walk the candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation — render each candidate as a self-contained chat message first (the exact rule text in a fenced block, where it lands, the transcript evidence behind it), then fire its own lean `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. Options per candidate: **Write this rule** / **Skip this rule** / **Skip the rest**.
+A candidate carrying `Recurrence-eligible: yes` never enters the walk — its lesson has already been seen 3+ times, so hand it to `/geniro:instructions create`, which collects its own approval; walking it here would be the second prompt for the same rule (improvement-routing.md §"Coexistence with recurrence rule-capture").
+
+Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation — render each candidate as a self-contained chat message first (the exact rule text in a fenced block, where it lands, the transcript evidence behind it), then fire its own lean `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. Options per candidate: **Write this rule** / **Skip this rule** / **Skip the rest**.
 
 **On approval**, write before rendering the next candidate, routed per the improvement-routing §Routing table:
 
@@ -127,7 +129,7 @@ Walk the candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/impr
 - **`.geniro/instructions/<skill>.md` / `code-style.md`** — hand off to the `/geniro:instructions create` patterns, or write via `atomic_state_write` (`source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"`); direct `Edit`/`Write` is hook-blocked there (invariant #5).
 - **Learnings** — `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract; never a raw write to the append-only log.
 
-**On decline** (Skip this rule / Skip the rest / explicit no), log it so future runs stop re-suggesting it:
+**On decline** (Skip this rule / Skip the rest / explicit no), log it so future runs stop re-suggesting it — one emit per declined candidate, so `Skip the rest` fires for every remaining candidate (each with its own one-liner) before the walk closes:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh"
@@ -153,7 +155,7 @@ emit_rejection_if_signal "/geniro:reflect" global rule_candidate "<candidate one
 
 - [ ] Transcript directory resolved across config dirs + primary-worktree path variant (Phase 1); absence handled with a one-sentence graceful exit
 - [ ] Sessions classified work-bearing with `grep -a`; selection matched the input mode's cap; dropped matches reported (Phase 1)
-- [ ] Current session excluded via the growth check (Phase 1 step 4)
+- [ ] Current session excluded by the final-user-turn identity check, not by file growth alone (Phase 1 step 4)
 - [ ] One analyst per session, spawned in ONE response, each returning the 4-section extract (Phase 2)
 - [ ] One reflection-agent synthesis via the spawn ladder, fed extracts + dedupe targets + prior declines (Phase 3)
 - [ ] Candidates walked one at a time, message-first render before each question (Phase 4)

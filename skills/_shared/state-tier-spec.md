@@ -41,7 +41,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | `/implement` | `clean_task_transients` before EVERY terminal `phase:` write — `done`, `aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only` — not only the Ship path. |
 | `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
 | `/debug`, `/refactor`, `/onboard`, `/investigate` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. |
-| `/resolve` | Retains its `.geniro/state/resolve/<slug>/` dir past terminal exit. It is a spec producer whose `spec.md` and handoff are consumed downstream by `/implement` — deleting them would delete the deliverable, the same reason `/plan` retains its planning task-dir and `/setup` its singleton. |
+| `/resolve` | `clean_task_transients` on `.geniro/state/resolve/<slug>/` before every terminal `phase:` write — transients go, the dir stays. It is a spec producer whose `spec.md` and handoff are consumed downstream by `/implement`, so an `rm -rf` would delete the deliverable, the same reason `/plan` retains its planning task-dir and `/setup` its singleton. |
 
 Transients left behind by an interrupted run are swept by the `/geniro:update` migration walk; that sweep is deliberately recurring rather than one-shot.
 

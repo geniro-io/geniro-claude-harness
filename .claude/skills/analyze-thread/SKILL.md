@@ -1,18 +1,18 @@
 ---
 name: analyze-thread
-description: "Use when post-hoc analyzing saved Claude conversation threads for pipeline errors — wrong subagent tier, missed parallel-spawn, schema-invalid tool args, premature completion, instruction drift, hallucinated tools. Takes a thread path, or with no argument analyzes the last few work-bearing threads across every project and merges their findings with a recurrence count. Auto-detects JSONL (Claude Code session log) or markdown (UI export / paste). 4-phase loop: Parse → Detect (mechanical + LLM-judge) → Filter → Present with per-finding AUQ. Emits a handoff to /improve-template for approved fixes. Skip for live debugging (/geniro:debug) or pending-diff code review (/geniro:review)."
+description: "Use when post-hoc analyzing saved Claude conversation threads for pipeline errors — wrong subagent tier, missed parallel-spawn, schema-invalid tool args, premature completion, instruction drift, hallucinated tools. Takes one or more thread paths, or with no argument analyzes the last few work-bearing threads across every project; a multi-thread run merges their findings with a recurrence count. Auto-detects JSONL (Claude Code session log) or markdown (UI export / paste). 4-phase loop: Parse → Detect (mechanical + LLM-judge) → Filter → Present with per-finding AUQ. Emits a handoff to /improve-template for approved fixes. Skip for live debugging (/geniro:debug) or pending-diff code review (/geniro:review)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
-argument-hint: "[thread path | thread count | empty = last 3 threads]"
+argument-hint: "[thread path(s) | thread count | empty = last 3 threads]"
 ---
 
 # /analyze-thread — Post-hoc Claude Thread Failure Analyzer
 
 You are the orchestrator for analyzing a saved Claude conversation thread and surfacing the errors Claude made while running a multi-phase pipeline. You parse the thread, run mechanical and judged checks against the canonical taxonomy, filter for relevance, then present findings with per-item user gates. You NEVER mutate the analyzed source files (this skill is read-only on the project under analysis); approved fixes are emitted as a handoff for `/improve-template` to apply.
 
-**Input:** one thread file path, a thread count, or nothing — an empty argument analyzes the last 3 work-bearing threads across every project (§Phase 1 Step 1).
-**Output:** a markdown findings report + (on user approval) a handoff at `.geniro/state/handoff/from-analyze-thread-<branch>.md` that `/improve-template` consumes.
+**Input:** one or more thread file paths, a thread count, or nothing — an empty argument analyzes the last 3 work-bearing threads across every project (§Phase 1 Step 1).
+**Output:** a findings report printed to chat + (on user approval) a handoff at `.geniro/state/handoff/from-analyze-thread-<branch>.md` that `/improve-template` consumes.
 
 **After a compaction:** only this file's first ~5,000 tokens survive the summary — the spine (through §Definition of Done) is re-attached, the phase sections below it are not. Re-invoke `/analyze-thread` with the same argument before continuing; the §State Persistence checkpoint makes that a resume at the last completed phase, not a re-run.
 
@@ -102,7 +102,6 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 |---|---|---|
 | Threads per batch | default 3; hard cap 5 | Each thread costs its own judge spawn and its own mechanical pass. Past 5 the merged report outgrows the per-finding AUQ ladder and the wall-clock stops being worth the added recurrence signal. A count above the cap is clamped, with the clamp stated to the user |
 | Thread file size | hard cap 5 MB; warn at 1 MB | JSONL session logs can grow large; >5 MB likely a merged multi-session log that should be split first. In a batch, an oversize thread is skipped and named in the report rather than aborting the run |
-| Mechanical-check wall-clock | 30 s ceiling per thread | All Phase 2 mechanical checks are grep/jq one-liners; 30 s means the parse step produced a malformed events list — halt and report |
 | LLM-judge token budget | seed prompt ≤ 8 K tokens, thread excerpts ≤ 60 K tokens | The seed is the inlined short-form taxonomy plus that thread's mechanical findings (invariant #3). Per thread, and each judge has its own context, so a batch does not share this budget. Excerpts are sliced to the top-3 most-suspicious sections per check, not the full thread, to fit the 200 K context with headroom |
 | Findings raw cap | 60 per thread | More than 60 raw findings on one thread = the parser misclassified the format; halt and ask user to re-check input. Applies per thread, not to the batch total |
 | Findings kept cap | 25 surfaced to user | Counted AFTER the Phase 3 cross-thread merge, so a defect recurring in 3 threads consumes one slot. Past 25 the AUQ ladder becomes unworkable; if more survive, sort by recurrence × severity × confidence and truncate, noting the tail count |
@@ -154,10 +153,13 @@ Glob is permitted across phases for state-file lookup and helper resolution but 
 | `$ARGUMENTS` | Mode | Thread set |
 |---|---|---|
 | a path or bare filename | single | that one thread |
+| two or more paths | batch | exactly those threads, in the order given |
 | a bare integer N, or `--last=N` | batch | the last N work-bearing threads |
 | empty | batch | the last 3 work-bearing threads |
 
 **Single mode.** Resolve the path; for a bare filename search the current working tree first, then the config-dir `projects/` trees. Check the file exists, is readable, and is under the 5 MB hard cap. Between 1 MB and 5 MB, warn before continuing — large threads slow the judge pass.
+
+**Explicit paths.** Two or more paths skip discovery and run as a batch over exactly those threads — this is how `/find-threads` hands over a multi-thread pick, and running them as one batch instead of N single runs is what earns the Phase 3 recurrence merge. Apply the single-mode existence and size checks to each; skip and name an oversize one rather than aborting; exclude this session's own log even when it is named (invariant #5); clamp to the 5-thread cap and say so.
 
 **Batch mode.** Discover threads with the sibling scan engine, which already enumerates every config-dir root, keeps only threads that did agentic work, and reports each thread's size and true project label:
 
@@ -192,7 +194,7 @@ Record the detected format in the Phase 1 checkpoint.
 
 ### Step 3: Normalize to events list
 
-Produce an in-memory events list with this shape (one row per event):
+Each check queries the thread file for the fields below with `jq` / `grep` — the events list is a projection over the file, never a multi-MB log read into your context. One row per event:
 
 | Field | Source — JSONL | Source — markdown |
 |---|---|---|
@@ -382,7 +384,7 @@ Print the updated confirmed list (including newly-promoted UNCERTAIN items). Fir
   - "Emit handoff and launch /improve-template now (Recommended)"
   - "Emit handoff only — I'll run /improve-template later"
   - "Drop specific findings before handoff" — loops back with multiSelect over the confirmed list
-  - "Skip — just save the markdown report"
+  - "Skip — no handoff; the printed report is enough"
 
 ### Step 4: Emit the handoff
 
@@ -442,7 +444,7 @@ The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T
 |---|---|
 | `--last=N` (or a bare integer) | Batch mode over the last N work-bearing threads, clamped to the 5-thread cap. Same as passing nothing, which uses N=3. |
 | `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses every judged check. Pairs well with a large batch, where the judges dominate cost. |
-| `--no-handoff` | Phase 4 Step 4 skipped; only the markdown report is printed. Useful when the user wants to read findings without committing to fix anything. |
+| `--no-handoff` | Phase 4 Step 4 skipped; the findings report is printed and no handoff file is written. Useful when the user wants to read findings without committing to fix anything. |
 | `--strict` | Tighten Phase 3 filter: treat medium-confidence findings as TRUE-POSITIVE not UNCERTAIN (skips per-item AUQ, includes them by default). Use when running on a thread the user already trusts to be problematic. |
 | `--lenient` | Loosen Phase 3 filter: treat high-confidence judged findings as UNCERTAIN (forces AUQ). Use on threads where many findings are likely benign. |
 | `--format=jsonl` / `--format=markdown` | Skip Phase 1 Step 2 auto-detect and force the format. Use when sniffing misclassifies. |
@@ -465,11 +467,12 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic
-- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir to its `EXTRA_ROOTS` list
+- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules + Case A/B/C/D resume UX
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-file write helper (mandatory)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — pre-resume validator + recovery AUQ
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — T1 / T1.5 / T2 lifecycle (handoff lives at T2)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare/prefixed/general-purpose degradation ladder
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — `model=` vs OMIT rules
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — message-first per-finding gate protocol (the shape Phase 4 Step 2 fires)
 - `${CLAUDE_PLUGIN_ROOT}/.claude/skills/improve-template/SKILL.md` — handoff consumer

@@ -217,13 +217,13 @@ On Phase 1 entry, in order:
 
 1. **Parse `$ARGUMENTS`** to understand what is being refactored and why.
 2. **Find all related files** with the project's code-search tooling (follow the project's search policy from `global.md` — reach for its code index when one is configured). Read all files in scope to understand current organization, dependencies, imports, and test coverage.
-3. **Prior-planning context.** Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Check: `.geniro/planning/*/` (task-local), workflow files (cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/*.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` (search for scope-file keywords — or, under a `## Memory Backend` block routing `learnings`, delegate that read to a scoped `knowledge-retrieval-agent` spawn (`SCOPE: learnings-backend`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3, since /geniro:refactor's own tools can't reach the backend and the file is empty under `replace`), git state (`git rev-parse --show-toplevel`, `git branch --show-current`, `git log --oneline -5`, `git status --short`).
+3. **Prior-planning context.** Scope follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Check: `.geniro/planning/*/` (task-local), workflow files (cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/*.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), `<PRIMARY_ROOT>/.geniro/knowledge/learnings.jsonl` (search for scope-file keywords — a different query from §1.1's inferred-tag query, routed through the same memory-backend delegation), and git state (worktree root, current branch, recent commits, working-tree status).
 4. **Read project convention files** referenced in CLAUDE.md.
 5. **Baseline validation** — run the project's validation suite once (read command from CLAUDE.md). Capture as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Outcomes:
 - **Red:** `AskUserQuestion` header "Baseline" — "Fix the broken tests first (stop refactoring)" / "Proceed anyway — existing failures are out of scope (risky)". Default: stop. state.md → `phase: plan-escalated`.
 - **No tests exist:** escalate immediately — "Cannot refactor safely without tests. Use `/geniro:implement` to add coverage first." state.md → `phase: routed` (terminal).
 - **Green:** record passing-state fingerprint (test count) in state.md `## Baseline` body section; proceed.
-6. **Test-First Gate (behavior-adjacent coverage check).** Before any refactor edit, check whether each function/symbol in scope has at least one test exercising it. If a gap is detected, fire `${CLAUDE_PLUGIN_ROOT}/skills/_shared/test-first-gate.md` — author RED before refactor edit. If every scope-symbol already has coverage, skip silently.
+6. **Coverage check on the symbols in scope.** Check whether each function/symbol in scope has at least one test exercising it — the zero-behavior-change guarantee is only as strong as the tests locking current behavior. A gap is the "new tests required to cover untested code" hard signal in §1.3.2; carry it there rather than authoring the missing test here, because a test authored now would be a characterization test that passes on current code (not a test-first cycle), and §1.3.2 lets the user decide whether the symbol belongs in scope at all. If every scope-symbol already has coverage, skip silently.
 
 ### 1.3 Tier classification (canonical effort-scaling)
 
@@ -372,8 +372,6 @@ For each step N in `## Plan steps` where `status: pending`:
 **Blocked Step Protocol** — run the three bounded attempts in `refactor-patterns.md` §Blocked Step Protocol, orchestrator-inline. On the revert after attempt 3, write `status: blocked`, `attempts: 3`, `last_post_check: REVERTED` and the blocked-rationale row to state.md, then continue to the next step — never stop the session. `last_post_check: REVERTED` is what makes the next step's pre-condition check fire (predicate (b) above); omitting it silently skips the baseline re-verification after a revert touched the tree.
 
 State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
-
-Model tier note: the orchestrator's session tier runs the loop. HIGH-risk plan steps don't need separate model tiering — orchestrator is already on the highest tier; per-step reasoning runs at orchestrator-grade quality throughout.
 
 ### 2.3 Session-level cap + escalation AUQ
 

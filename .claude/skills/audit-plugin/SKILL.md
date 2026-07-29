@@ -13,7 +13,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 ## Phases overview
 
-1. **Phase 0 — Scope & inventory.** Parse `$ARGUMENTS`, build the file inventory, load the rubric (the three `.claude/rules/*.md` files + the do-not-flag list).
+1. **Phase 0 — Scope & inventory.** Parse `$ARGUMENTS`, build the file inventory, load the rubric (the three `.claude/rules/*.md` files + `dimensions-reference.md`).
 2. **Phase 1 — Mechanical pre-pass.** Run the D1 deterministic battery (tests, lint, shellcheck, wiring greps). Output: machine findings + candidate lists that seed the reviewers.
 3. **Phase 2 — Parallel dimension reviewers.** Spawn up to 8 reviewers (D2-D8, with D5 split into markdown + shell) in ONE response.
 4. **Phase 3 — Merge, verify, filter.** Dedupe, count convergence, re-read every cited line, drop unverifiable and do-not-flag items, assign tiers.
@@ -57,7 +57,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"` with `model=`
    - Repo-local: `.claude/rules/*.md`, `.claude/skills/**/*.md`.
    - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
    - Tests: `tests/**` (coverage map input for D8). `design/` and `evals/` are out of scope unless `$ARGUMENTS` names them.
-3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and the do-not-flag list from `.claude/skills/audit-plugin/dimensions-reference.md`. If prior dated audit reports exist (`design/scratch/plugin-audit-2*.md` — date-named reports only, not companions like `plugin-audit-PROGRESS.md`; the whole `design/scratch/` area is gitignored, so this only finds reports from prior runs ON THIS MACHINE), read the most recent one's health summary — patterns it endorses extend the do-not-flag list, and its open findings get a "still open?" re-check tag in Phase 3.
+3. **Load the rubric:** Read `.claude/rules/skill-authoring.md`, `skill-prose.md`, `skill-structure.md`, and `.claude/skills/audit-plugin/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. If prior dated audit reports exist (`design/scratch/plugin-audit-2*.md` — date-named reports only, not companions like `plugin-audit-PROGRESS.md`; the whole `design/scratch/` area is gitignored, so this only finds reports from prior runs ON THIS MACHINE), read the most recent one's health summary and T0-T2 tier tables — patterns it endorses extend the do-not-flag list, and those rows enter the Phase 3 merge tagged "still open?".
 4. **Write the state checkpoint** to `.geniro/state/audit-plugin/<slug>/state.md` — slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules; audit-plugin is not in that helper's enumerated producer set but adopts its contract shape verbatim. Write via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — direct Write to `.geniro/state/` paths trips the state-helper hook), with the full T1.5 YAML frontmatter starting on line 1: `tier: T1.5`, `producer: audit-plugin`, `schema-version: 1`, `branch`, `worktree`, `timestamp`, `phase`, `status`, `non-resumable-actions: []` (plain-text header lines before the `---` fence fail `validate_state_file`). Checkpoint after every phase with: phase completed, scope, dimensions selected, finding counts.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
@@ -114,7 +114,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 3 — Merge, verify, filter (orchestrator-inline)
 
-1. **Merge** all reviewer tables + machine findings. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
+1. **Merge** all reviewer tables + machine findings, plus the prior report's T0-T2 rows tagged "still open?" in Phase 0 — carried so a re-detection miss can't silently close a safety or correctness finding, and bounded to those tiers because lower ones resurface on their own if they persist. A carried row cites a location but no evidence quote, so step 2 verifies it by re-reading that location for the issue itself; gone means it was fixed since. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
 2. **Verify** every non-machine finding: Read the cited `file:line` ±5 lines; the quoted evidence must appear there and the issue description must match what the code/prose actually says. Quote absent or claim mischaracterizes the source → drop with a one-line note in the report's "Filtered" section.
 3. **Filter**: drop do-not-flag matches; drop T5 findings with no convergence and weak evidence (cosmetic noise floor); collapse repeating patterns (e.g., 14 restatement sites) into ONE finding listing all locations.
 4. **Calibrate tiers** — reviewers over-rate their own dimension; re-check each T0/T1 against the tier table definitions (T0 requires an actual bypass/loss path, T1 an actual behavior delta).

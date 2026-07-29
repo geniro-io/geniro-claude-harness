@@ -9,15 +9,13 @@
   - Step 3: Check count caps
   - Step 4: Ensure directory exists
   - Step 5: Gather the description
-  - Step 6: Optional model override
-  - Step 7: Optional paths globs
-  - Step 8: Optional severity-default
-  - Step 9: Gather the criteria body
-  - Step 10: Write the file
-  - Step 11: Confirm
+  - Step 6: Gather the criteria body
+  - Step 7: Propose the assembled file
+  - Step 8: Write the file
+  - Step 9: Confirm
 - Worked example — an adversarial reviewer for high-risk paths (a complete, copy-adaptable `review-extra/adversarial.md`).
 
-Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-11). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per SKILL.md Step 0.5).
+Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-9). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per SKILL.md Step 0.5).
 
 See `SKILL.md` for the load-bearing rules referenced below: validation rules (`## — Mode: validate`, `### Step 2 — Lint rule set` — the `review-extra/<slug>.md` row in the per-scope table), file structure (`## File shapes` for the loaded instruction files, and `## Frontmatter field reference (review-extra/<slug>.md)` for this scope's own schema), count caps cross-references.
 
@@ -95,72 +93,28 @@ mkdir -p "$PRIMARY_ROOT"/.geniro/instructions/review-extra
 Use `AskUserQuestion` with no options (free-form via "Other"):
 - **Question:** "One-line description of what this reviewer checks (shown in review reports and used in the reviewer-agent prompt). E.g., 'All SQL queries use parameterized bindings, never string concatenation.'"
 
-### Step 6: Optional model override
-
-Use `AskUserQuestion`:
-- **Question:** "Which model should run this reviewer? By default it inherits whatever model your session runs on; pin a specific model only if this check should always run cheaper or stronger than the session."
-- **Options:**
-- label: "Inherit session model (Recommended)" — description: "Omit the model field — the reviewer runs at the same tier as your session"
-- label: "haiku" — description: "Pin cheap and fast — best for narrow regex-like pattern checks"
-- label: "sonnet" — description: "Pin the mid tier — solid semantic checks at fixed cost"
-- label: "opus" — description: "Pin the strongest tier — deep architectural / cross-file concerns that must run strong even from a cheaper session"
-
-On "Inherit session model", omit the `model:` field from frontmatter (omitted = inherit, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`).
-
-### Step 7: Optional paths globs
-
-Use `AskUserQuestion`:
-- **Question:** "Should this reviewer only fire for specific file patterns? Narrow scoping prevents the reviewer from burning budget on diffs where it can never find anything."
-- **Options:**
-- label: "All files (always fires)" — description: "Reviewer runs on every diff. Good for project-wide concerns."
-- label: "Only files matching these globs (Recommended for narrow checks)" — description: "Reviewer fires only when the diff touches matching files."
-
-On "Only files matching these globs", chain a free-form follow-up via `AskUserQuestion` (no options — "Other" path):
-- **Question:** "Enter comma-separated globs (e.g., `**/*.sql, **/dao/*.{ts,py}`)."
-
-Parse the comma-separated input into a YAML list. Validate each entry is non-empty and a string. On invalid input, re-ask.
-
-### Step 8: Optional severity-default
-
-Use `AskUserQuestion`:
-- **Question:** "Default severity for findings from this reviewer? The reviewer-agent may override per-finding, but this is the starting point for scoring."
-- **Options:**
-- label: "HIGH" — description: "Security-critical / data-integrity reviewers (e.g., SQL injection, secrets logging)"
-- label: "MEDIUM (default)" — description: "Most quality / convention reviewers"
-- label: "LOW" — description: "Style / nice-to-have reviewers"
-- label: "Other" — description: "CRITICAL, or skip and use the default MEDIUM"
-
-On "Other", chain `AskUserQuestion`:
-- **Question:** "Pick the severity:"
-- **Options:**
-- label: "CRITICAL" — description: "Reserve for must-fix-before-merge findings (data loss, auth bypass)"
-- label: "Skip — use default MEDIUM" — description: "Omit the severity-default field"
-
-On any "Skip", omit the `severity-default:` field.
-
-### Step 9: Gather the criteria body
+### Step 6: Gather the criteria body
 
 Explain the body shape before asking. Use `AskUserQuestion` with no options (free-form via "Other"):
 - **Question:** "Paste the criteria body. Mirror the `what to flag / what NOT to flag` shape from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md`. Keep it 30-80 lines, focused on concrete code patterns (not abstract principles). Example structure:\n\n```\n# Criteria\n\nWhat to flag:\n- String concatenation that builds a SQL string with a runtime variable\n- ORM.raw calls passing concatenated strings instead of bind parameters\n\nWhat to NOT flag:\n- Static SQL with no variables\n- Schema-migration files that intentionally build CREATE statements\n```\n\nPaste your criteria below:"
 
-### Step 9.5: Optional external-data dependency
+### Step 7: Propose the assembled file
 
-Use `AskUserQuestion`:
-- **Question:** "Does this reviewer need live external data the orchestrator should fetch for it — a Notion page, a Linear/Jira issue, an API response? Subagents can't call MCP tools directly, so the orchestrator fetches the data and hands it to the reviewer."
+Infer the optional frontmatter from the description and criteria just gathered, applying §Custom Reviewer Authoring above as the rubric: omit `model:`, scope `paths:` to the file kinds the criteria name, set `severity-default:` to the severity those criteria imply, and pre-fill `requires-context:` whenever the criteria reference live external data the reviewer cannot fetch for itself. Then render the assembled file — frontmatter plus criteria — and gate it:
+
+- **Question:** "Here's the reviewer as assembled — create it?"
 - **Options:**
-  - label: "No external data" — description: "The reviewer works from the diff and project files alone. This covers most reviewers."
-  - label: "Yes — declare what to fetch" — description: "The orchestrator pre-fetches live external data and injects it before the reviewer runs."
+- label: "Create it" — description: "Write the file exactly as shown"
+- label: "Change a field" — description: "Adjust the model, the file patterns, the default severity, or the external-data directive first"
+- label: "Cancel" — description: "Don't create the file"
 
-On "Yes — declare what to fetch", chain a free-form follow-up via `AskUserQuestion` (no options — "Other" path):
-- **Question:** "Describe what to fetch in one or two sentences — name the source and what the reviewer needs from it. E.g., 'Fetch the live Notion Incident Report (the page titled \"Incident Report\", latest entry) and provide its incident-pattern list so the reviewer can match the diff against known incidents.'"
+On "Change a field", ask which one and take the new value free-form, then re-render the assembled file and re-ask. On "Cancel", stop without writing.
 
-Store the answer verbatim as the `requires-context:` frontmatter value. On "No external data", omit the field.
+### Step 8: Write the file
 
-### Step 10: Write the file
+Route the approved file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
 
-Assemble the frontmatter (omitting fields the user skipped) and route the file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
-
-Example output for the `sql-bindings` walk-through (the user picked "Inherit session model" at Step 6, so `model:` is omitted):
+Example output for the `sql-bindings` walk-through (`model:` omitted, so the reviewer inherits the session tier):
 
 ```yaml
 ---
@@ -181,7 +135,7 @@ What to NOT flag:
 -...
 ```
 
-### Step 11: Confirm
+### Step 9: Confirm
 
 Show the created file content and report (per SKILL.md Step 0.5: when the main repo checkout is not the current directory, show the resolved absolute path and append `— written to the main repo checkout so it survives this worktree's removal.`):
 

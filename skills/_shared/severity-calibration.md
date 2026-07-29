@@ -169,7 +169,7 @@ ELSE DEFER to ## Deferred — sub-threshold (state.md body; off the PR and the f
      by default — a user pick lifts it, per review-handoff.md §7.1 / §4.6)
 ```
 
-Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM. Every kept finding at CRITICAL / HIGH / MEDIUM carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, so a MEDIUM admitted on convergence or a confidence score alone would be kept with nothing to re-read — it drops to `## Deferred — sub-threshold` instead.
+Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM. A MEDIUM admitted on convergence or a confidence score alone would be kept with nothing to re-read, so it drops to `## Deferred — sub-threshold` instead. At CRITICAL / HIGH that same thin citation is admitted rather than dropped — losing a high-severity defect costs more — and the Phase 4.2 verifier supplies the missing quote, which makes the Evidence Block requirement (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`) a post-verification invariant rather than an admission-time one.
 
 Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80). High tier (`risk-tier: high`) relaxes signal #4 to `confidence ≥ 70`. Other signals (convergence, Evidence-Block, pre-resolved) unchanged across tiers. The §4.3 test-confirmation gate affects neither §4.1 admission nor §4.2 verification — test authoring runs after the finding set is fixed and never filters it.
 

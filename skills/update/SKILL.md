@@ -238,6 +238,11 @@ NEW_VERSION=$(cat "$PLUGIN_PATH/.claude-plugin/plugin.json" \
 
 if [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
 echo "[info] already on latest version (v$NEW_VERSION) — nothing to do."
+# Same refresh as Phase 3 Step 3. The status line renders straight from this cache and
+# nothing else rewrites it before the next session start — exiting without it leaves the
+# "update available" arrow lit for the rest of the session, in the run meant to clear it.
+GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \
+node "$PLUGIN_PATH/hooks/geniro-check-update.js"
 exit 0
 fi
 ```

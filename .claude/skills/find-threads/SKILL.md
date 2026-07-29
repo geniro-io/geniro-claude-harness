@@ -16,7 +16,7 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 - **A query** (e.g. `2649`, `bright data`, `case-radar.ts`, `didnt post low`) → keep only threads whose body, title, or project path matches, ranked best-first. See **Searching by content** below for what to type.
 - **`--code-only`** → restrict the result set to code-editing threads (the legacy behavior); combines with a query.
 
-**Output:** a titled list of threads, each tagged `edited` or `read-only`, + (on the user's pick) a launched `/analyze-thread <path> --format=jsonl` directive for the first selection and a runnable queue for the rest.
+**Output:** a titled list of threads, each tagged `edited` or `read-only`, + (on the user's pick) a launched `/analyze-thread <paths…> --format=jsonl` directive for the first five picks and a runnable queue for any overflow.
 
 ---
 
@@ -24,7 +24,7 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 1. **Discover** — run `scan.py`. It enumerates every `*.jsonl` session log under each config dir's `projects/`, keeps threads that did agentic work — an `edited` thread calls a code-edit tool (`Edit` / `Write` / `MultiEdit` / `NotebookEdit`); a `read-only` thread spawns a subagent or invokes a Skill but never edits code — and for each survivor extracts its kind, a title, the true project label, the date, a turn count, and an oversize flag. `--code-only` drops the read-only threads. With a query it also scores each thread by content match and drops non-matches.
 2. **Present** — render the survivors. No query → grouped by project, newest-first. A query → one flat list ranked best-first, each row showing its project, date, title, kind (`edited`/`read-only`), a match indicator, and a snippet. Number every shown row.
-3. **Select & launch** — take a free-text reply (`1,4,7` / `1-5` / `all`), resolve it to absolute paths, echo the set for confirmation, then launch `/analyze-thread <first> --format=jsonl` and print the remaining picks as a runnable queue.
+3. **Select & launch** — take a free-text reply (`1,4,7` / `1-5` / `all`), resolve it to absolute paths, echo the set for confirmation, then launch `/analyze-thread` on the first batch of up to 5 picks and print any overflow as a runnable queue.
 
 ---
 
@@ -35,7 +35,7 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 3. **Free-text selection, not a multiSelect question.** A single project can hold well over a hundred threads; an `AskUserQuestion` caps at 4 options, so one-option-per-thread cannot present them. Selection is a numbered chat list plus a free-text reply, parsed and echoed back. The only `AskUserQuestion` is the lean launch-confirmation gate (3 options).
 4. **Project label comes from the thread's `cwd`, not the folder name.** Decoding the `projects/<encoded>` folder name by turning `-` into `/` corrupts labels for projects with literal hyphens (e.g. `claude-plugin`). `scan.py` reads the true path from the JSONL `cwd` field instead.
 5. **English-only skill body.** Thread titles are runtime data and may contain any language — render them as-is in the list. The skill body itself stays English-only.
-6. **Scan every config dir, not just `~/.claude/`.** A thread's session logs live under whichever config dir was active when it ran. `scan.py` scans `~/.claude/projects`, `$CLAUDE_CONFIG_DIR/projects` when that env var is set, and every path in its `EXTRA_ROOTS` list — so a thread under a second config dir is never invisible. Add a new config dir to `EXTRA_ROOTS` in `scan.py` once.
+6. **Scan every config dir, not just `~/.claude/`.** A thread's session logs live under whichever config dir was active when it ran. `scan.py` scans `~/.claude/projects`, `$CLAUDE_CONFIG_DIR/projects` when that env var is set, and every path in `$FIND_THREADS_EXTRA_ROOTS` (colon-separated; `scan.py`'s `EXTRA_ROOTS` default when unset) — so a thread under a second config dir is never invisible. Add a config dir by exporting it, not by editing source.
 7. **Search returns ranked candidates; you disambiguate the top few.** `scan.py` ranks by term proximity, not certainty. A worktree dir named `pr-2649` mentions that number without being the PR-2649 review. Before presenting or launching a query result, confirm the top candidates are what the user means — check which skill actually ran, or that a real PR reference is present — rather than trusting rank #1 blindly.
 
 ---
@@ -46,7 +46,7 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 - [ ] Phase 2 (list): rows grouped by project, newest-first, numbered once across the full set (stable on expand), capped at 10/project with "show more"; read-only rows tagged `[read-only]`
 - [ ] Phase 2 (search): flat ranked list, top 15 shown with snippets, total-matched count stated, top candidates sanity-checked against the query
 - [ ] Phase 3: free-text selection parsed and echoed; launch-confirmation AUQ fired (with a `header`)
-- [ ] Phase 3: first *launchable* pick launched as `/analyze-thread <path> --format=jsonl`; remaining launchable picks queued (each with `--format=jsonl`); oversize picks listed separately, not queued
+- [ ] Phase 3: first batch of up to 5 *launchable* picks launched as ONE `/analyze-thread <paths…> --format=jsonl`; any further batches queued (each with `--format=jsonl`); oversize picks listed separately, not queued
 - [ ] No session log or any other file modified by this skill
 
 ---
@@ -91,10 +91,11 @@ mtime · date · oversize · kind · turns · relevance · hits · project_label
 ```
 
 - **`kind`**: `edited` (calls a code-edit tool) or `read-only` (spawns a subagent / invokes a Skill but never edits code). `--code-only` keeps only `edited`.
+- **`turns`**: a trailing `+` (`412+`) means the thread outran the engine's read cap, so the count is a floor — render the `+`.
 - **List mode** (`relevance`=`hits`=0, `snippet` empty): sorted by project, then newest-first.
 - **Search mode**: kept only when the query matches the body, title, or label; `relevance` = how many query terms co-occur within one ~160-char window (proximity), `hits` = total term occurrences, `snippet` = cleaned text around the densest match. Sorted relevance-desc, hits-desc, newest.
 
-**Why `scan.py`, not a shell `grep`/`jq` pipeline:** proximity ranking and snippet extraction are trivial in Python and painful in shell (the silent-miss failures of a shell pipeline are in §Anti-rationalization).
+It also prints a `#SUMMARY threads=… projects=… edited=… read-only=…` line on stderr — the aggregate counts Phase 2's header quotes.
 
 Every parsing guard (true `cwd` label, 2 MB title window, first-real-prompt fallback, oversize flag, multi-root scan, PR-number handling, the `edited`/`read-only` classification) lives in `scan.py` — read its module docstring before changing search behavior.
 
@@ -142,6 +143,7 @@ Rows arrive sorted by project then newest-first. Walk them top to bottom; start 
 ```
 
 Rules:
+- The header's four counts come from the engine's `#SUMMARY` line, not from tallying rows.
 - Numbers are assigned once across the full kept set and never change. Show the newest 10 rows per project; hidden rows keep their already-assigned numbers and are *revealed*, not renumbered, on `more <project name>`.
 - Tag `read-only` rows with `[read-only]`; `edited` rows carry no tag (they are the common case, so tagging only the minority keeps the list scannable).
 - Mark oversize rows with `[>5 MB]` and note once that `/analyze-thread` refuses files over 5 MB.
@@ -161,7 +163,7 @@ Rows arrive ranked best-first across all projects. Present ONE flat list (releva
 ```
 
 Rules:
-- Show the top 15; reveal the rest on `more`. A common-word query can match every thread — say so (`<total>` matched) so the user knows ranking, not exclusion, is in play.
+- Show the top 15; reveal the rest on `more`. A common-word query can match every thread — say so (`<total>` from the `#SUMMARY` line) so the user knows ranking, not exclusion, is in play.
 - Include the snippet so the user can tell matches apart at a glance.
 - Tag `read-only` rows with `[read-only]`; `edited` rows carry no tag. The kind is load-bearing when the user is hunting a pipeline run (a read-only `/geniro:review` is exactly an `/analyze-thread` target).
 - Before presenting, sanity-check the top candidates against what the user asked for (invariant #7) — e.g. if they want a `/review` run, confirm the rank-#1 thread actually ran that skill, not merely mentions the PR. Note any candidate you down-rank and why.
@@ -188,9 +190,9 @@ Parse the reply against the numbered list, resolve each number to its absolute p
 Echo the resolved set back as a short list (`#`, title, path) so the user sees exactly what will run. Then fire ONE `AskUserQuestion`:
 
 - **Header:** "Launch analysis"
-- **Question:** "Launch /analyze-thread on these N threads? The first launchable one runs now; the rest print as a queue you can run one at a time."
+- **Question:** "Launch /analyze-thread on these N threads? Up to five are analyzed together in one run; any beyond that print as a queue."
 - **Options:**
-  - "Launch — first now, rest queued (Recommended)"
+  - "Launch — up to five now, rest queued (Recommended)"
   - "Let me re-pick" — return to Step 1
   - "Cancel" — stop, change nothing
 
@@ -198,25 +200,24 @@ If any selected thread is oversize (`>5 MB`), name those here and warn that `/an
 
 ### Step 3 — Launch the first, queue the rest
 
-On "Launch", split the selection into launchable (`≤5 MB`) and oversize (`>5 MB`) picks.
+On "Launch", split the selection into launchable (`≤5 MB`) and oversize (`>5 MB`) picks, then group the launchable ones into batches of at most 5 — `/analyze-thread`'s per-run cap. One batch is one run, and a run carrying several threads is what produces the cross-thread recurrence merge; splitting the same picks into single-thread runs throws that merge away.
 
-Launch the FIRST launchable pick now as a chat slash-command directive (the same sibling-launch pattern `/analyze-thread` itself uses for `/improve-template` — a slash command in chat, not a subagent):
-
-```
-/analyze-thread <first-launchable-abs-path> --format=jsonl
-```
-
-Then print the remaining launchable picks as a fenced, runnable queue — one per line, each carrying `--format=jsonl`:
+Launch the FIRST batch now as a chat slash-command directive (the same sibling-launch pattern `/analyze-thread` itself uses for `/improve-template` — a slash command in chat, not a subagent):
 
 ```
-Queued — run these one at a time after the first finishes:
-/analyze-thread <abs-path-2> --format=jsonl
-/analyze-thread <abs-path-3> --format=jsonl
+/analyze-thread <abs-path-1> <abs-path-2> … --format=jsonl
+```
+
+Then print any remaining batches as a fenced, runnable queue — one command per batch, each carrying `--format=jsonl`:
+
+```
+Queued — run this after the first finishes:
+/analyze-thread <abs-path-6> <abs-path-7> … --format=jsonl
 ```
 
 List any oversize picks separately under "Too large to analyze as-is (over 5 MB — split first)" with their paths — do NOT put them in the runnable queue, because `/analyze-thread` refuses them at its 5 MB cap and the command would just fail. If every pick is oversize, launch nothing and say so, naming the oversize threads.
 
-`--format=jsonl` is on every command for the reason in invariant #2. Do not batch multiple threads into one `/analyze-thread` call — it takes exactly one thread path per run.
+`--format=jsonl` is on every command for the reason in invariant #2.
 
 ---
 
@@ -242,7 +243,7 @@ List any oversize picks separately under "Too large to analyze as-is (over 5 MB 
 | "I'll only scan `~/.claude/projects`." | Threads run under a second config dir (`$CLAUDE_CONFIG_DIR`, or one listed in `scan.py`'s `EXTRA_ROOTS`) live elsewhere and would be invisible (invariant #6). `scan.py` scans every configured root. |
 | "I'll label each project by decoding its folder name (`-` → `/`)." | That corrupts any project with a literal hyphen in its path (invariant #4). `scan.py` reads the true path from the JSONL `cwd` field. |
 | "After `more <project>` I'll re-render that project's threads numbered from 1." | Renumbering on expand makes a pick collide with numbers already given to other rows. Numbers are assigned once across the full kept set; expansion only reveals hidden rows' existing numbers. |
-| "I'll launch all selected threads in one `/analyze-thread` call to save round-trips." | `/analyze-thread` takes exactly one thread path per run. Launch the first and print the rest as a runnable queue. |
+| "The user picked 9 threads — I'll pass all 9 to one `/analyze-thread` call for the widest recurrence signal." | `/analyze-thread` clamps a run at 5 threads, so the tail is silently dropped. Launch the first 5 in one command and queue the overflow as further commands of up to 5. |
 | "An oversize thread is fine to queue — let the user find out." | `/analyze-thread` refuses files over its 5 MB cap, so the queued command would just fail. Flag oversize threads up front so the user can split them first. |
 | "The user wants threads worth analyzing — I'll skip the read-only review/debug runs." | The default surfaces `read-only` threads on purpose: a `/geniro:review` or `/geniro:debug` run that edited nothing is exactly what `/analyze-thread` inspects for pipeline failures. Drop them only when the user passes `--code-only`. |
 
@@ -250,6 +251,6 @@ List any oversize picks separately under "Too large to analyze as-is (over 5 MB 
 
 ## REFERENCE
 
-- `scan.py` (sibling) — the discovery + search engine. Module docstring documents every column, root-resolution, the PR-number rule, the proximity score, the `edited`/`read-only` classification, and the `--code-only` flag. Add a new config dir to its `EXTRA_ROOTS` list.
-- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/SKILL.md` — the downstream consumer: input contract (single thread path in `$ARGUMENTS`), the `--format=jsonl` modifier, the 5 MB cap, and the sibling-launch pattern this skill mirrors
+- `scan.py` (sibling) — the discovery + search engine. Module docstring documents every column, root-resolution, the PR-number rule, the proximity score, the `edited`/`read-only` classification, and the `--code-only` flag. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default.
+- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/SKILL.md` — the downstream consumer: input contract (one or more thread paths in `$ARGUMENTS`, clamped at 5 per run), the `--format=jsonl` modifier, the 5 MB cap, and the sibling-launch pattern this skill mirrors
 - `.claude/rules/skill-authoring.md` · `.claude/rules/skill-prose.md` · `.claude/rules/skill-structure.md` — authoring conventions this skill follows by convention (project-local skills are outside CI lint scope)

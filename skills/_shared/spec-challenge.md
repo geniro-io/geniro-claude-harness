@@ -34,7 +34,7 @@ Caller invokes:
 |---|---|
 | `MODE` | `plan` (post-write, pre-approval) or `implement` (Phase 1, pre-edit). Branches per-skill behavior — see §2. |
 | `SPEC_PATH` | Path to the `spec.md` to challenge. |
-| `TASK_DIR` | Planning task-dir; scratch output lands at `<TASK_DIR>/.spec-challenge-out.md`. |
+| `TASK_DIR` | The caller's task-dir; scratch output lands at `<TASK_DIR>/.spec-challenge-out.md`. |
 | `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|small\|medium\|big`). Calibrates the synthesis judge's risk tolerance — never an internal gate; whether the pass runs at all is the caller's contract. |
 | `DEEP` | `true` when the calling skill is in deep mode (`deep-mode: true`), else `false` / absent. When `true`, Stage B (§4) runs each cited claim through 3 independent verifiers with majority aggregation instead of 1 — the precision layer per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Orthogonal to `MODE`; raises verification reliability, not the claim set. Missing reads as `false`. |
 
@@ -42,7 +42,7 @@ Caller invokes:
 
 The caller receives back:
 - A verdict (per §7, MODE-specific).
-- The scratch report at `<TASK_DIR>/.spec-challenge-out.md` (transient working file — the owning skill's terminal-exit cleanup removes it as part of the T1 rm set: `/geniro:plan` on `done`/`aborted` in MODE: plan, `/geniro:implement` on every terminal `phase:` write in MODE: implement; the `/geniro:update` migration walk sweeps any leftover from an interrupted run).
+- The scratch report at `<TASK_DIR>/.spec-challenge-out.md` (transient working file — the owning skill's terminal-exit cleanup removes it as part of the T1 rm set: `/geniro:plan` on `done`/`aborted`, `/geniro:implement` and `/geniro:resolve` on every terminal `phase:` write; the `/geniro:update` migration walk sweeps any `.geniro/planning` leftover from an interrupted run).
 - In plan mode: a list of keep-with-modifications fixes to fold into the spec.
 - In implement mode: either a silent clean-pass note OR a fired AskUserQuestion (per §8).
 
