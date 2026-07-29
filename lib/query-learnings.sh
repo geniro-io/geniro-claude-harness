@@ -42,6 +42,8 @@ if [ -z "${_QL_DEPS_LOADED:-}" ]; then
   source "$_ql_script_dir/repo-root.sh"
   # shellcheck disable=SC1091
   source "$_ql_script_dir/score-formula.sh"
+  # shellcheck disable=SC1091
+  source "$_ql_script_dir/lock-reclaim.sh"
   _QL_DEPS_LOADED=1
 fi
 
@@ -301,16 +303,14 @@ record_access() {
   # Pre-acquire stale-lock reclaim: a SIGKILL/crash while another rewriter held
   # the lock leaves the dir behind with no trap to clear it, which would wedge
   # this counter bump for up to the TTL. Reclaim an abandoned lock whose mtime
-  # age exceeds the TTL, then the mkdir below retries. Shared reclaim window —
-  # override via GENIRO_LOCK_RECLAIM_SECS (default 600s); this reclaims the SAME
-  # lock as archive-stale.sh, so the two must agree.
+  # age exceeds the TTL, then the mkdir below retries. The reclaim window is
+  # lib/lock-reclaim.sh's — this reclaims the SAME lock as archive-stale.sh, so
+  # the two cannot hold different values.
   if [ -d "$lock" ]; then
     local lock_mtime
     lock_mtime=$(stat -c %Y "$lock" 2>/dev/null || stat -f %m "$lock" 2>/dev/null || echo 0)
-    # Sanitized before the integer test: a non-numeric override makes `[ -gt ]`
-    # error and evaluate false, permanently disabling stale-lock reclaim.
-    local _ql_reclaim_secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
-    case "$_ql_reclaim_secs" in ''|*[!0-9]*) _ql_reclaim_secs=600 ;; esac
+    local _ql_reclaim_secs
+    _ql_reclaim_secs="$(_geniro_lock_reclaim_secs)"
     if [ $(( $(date +%s) - lock_mtime )) -gt "$_ql_reclaim_secs" ]; then
       rmdir "$lock" 2>/dev/null
     fi

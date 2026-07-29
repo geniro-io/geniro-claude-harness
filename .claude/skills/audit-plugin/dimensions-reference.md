@@ -4,6 +4,7 @@ Per-dimension checklists for `/audit-plugin`. Each dimension defines its file sc
 
 ## Contents
 
+- Reviewer spawn template
 - Severity tiers (shared output classification)
 - Finding output contract (shared reviewer schema)
 - D1 — Mechanical hygiene (deterministic, no LLM)
@@ -17,6 +18,45 @@ Per-dimension checklists for `/audit-plugin`. Each dimension defines its file sc
 - Do-not-flag list (endorsed patterns)
 
 ---
+
+## Reviewer spawn template
+
+Pasted by the orchestrator at Phase 2. Every slot is filled before the spawn — a reviewer that has to discover its own rubric will invent one.
+
+```
+Agent(subagent_type="general-purpose", prompt="""
+## Task: Plugin audit — dimension D<N> (<name>)
+
+You are one reviewer in a multi-dimension audit of this Claude Code plugin repo.
+Review ONLY your dimension; other dimensions are covered by parallel reviewers.
+
+### Your rubric
+{{paste the full D<N> section from dimensions-reference.md}}
+
+### Severity tiers and output contract
+{{paste §Severity tiers + §Finding output contract from dimensions-reference.md}}
+
+### Do-not-flag list
+{{paste §Do-not-flag list}}
+
+### Your file scope
+{{inventory subset for this dimension, from Phase 0}}
+
+### Mechanical pre-pass context
+{{battery summary; for D3 additionally: the candidate lists; for D7 additionally: the seed-grep output}}
+
+### Procedure
+1. Load your markdown scope in FULL via `scripts/dump-md.sh <scope paths>` and survey from that — grep hits miss reworded coverage; grep only to pinpoint an exact known string. Read non-markdown files directly.
+2. Verify each candidate finding by Reading the exact cited lines — your `evidence` column must be a verbatim quote.
+3. Return ONLY the findings table per the output contract (≤25 rows) plus a 2-3 sentence per-dimension verdict ("healthy / debt concentrated in X").
+Do NOT fix anything. Do NOT review outside your dimension. Report only.
+""", description="Audit: D<N> <name>")
+```
+
+Dimension-specific notes:
+- **D4 (rules compliance):** instruct the reviewer to load the three `.claude/rules/*.md` files first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
+- **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
+- **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
 
 ## Severity tiers (shared output classification)
 
@@ -145,7 +185,18 @@ Checks:
 9. **Appended-patch contradiction.** A later note / "NOTE:" / exception / caveat that patches or narrows an earlier rule in the same file instead of being folded into it — the later text silently overrides the earlier (recency wins) or forces reconciliation. Rewrite the original to be correct on its own; delete the patch.
 10. **Token-budget pressure.** SKILL.md detail that belongs in a sibling reference file (multi-paragraph explanations of one step, inline pseudo-code duplicated from a reference, or a large fully-unique block — a long template, full schema table, big example set) — propose a MOVE, not a cut. Redundancy is not a precondition. A MOVE only pays when the destination is conditionally loaded, so name the runs that will not read it: a reference every run of the skill loads is part of that skill's always-on budget, and a move into an `agents/*.md` body is never a saving, since an agent body is injected whole as the subagent's system prompt.
 
+11. **Dead instructions (liveness).** Checks 1-10 ask whether text is redundant. This one asks whether it is REACHABLE AT ALL — the dead-code question, and the highest-value removal in the dimension, because a rule that can never apply still costs adjudication on every run. Five shapes:
+    - **Orphaned policeman** — an instruction, gate, or anti-rationalization row governing a step, phase, or sub-command that no longer exists (a phase split or a deletion is the usual cause).
+    - **Unreachable branch** — a condition on a flag, mode, or option the skill no longer ships, or a gate whose trigger cannot occur.
+    - **Write-only / read-only field** — a state or frontmatter field written by no producer, or read by no consumer.
+    - **Defunct defense** — a rule defending against a failure mode the current design makes structurally impossible.
+    - **Superseded remnant** — text left behind by a refactor that replaced its mechanism, still describing the old one.
+
+    **Liveness is a claim — prove it before reporting.** Name the step / flag / gate / field / failure mode, then grep the repo for it. Zero hits outside the instruction itself → report the deletion, with the grep as the evidence. Any real hit → not dead; if it is merely wordy it belongs to checks 1-10 instead. A "this looks obsolete" with no grep behind it is inadmissible, exactly like an unverified `file:line`.
+
 Tier mapping: T4 by default; pure-style items → T5; a duplicated rule that has drifted into a contradiction → T1. Every removal carries regression risk — propose, never auto-cut; state what behavior would change if the deletion is wrong.
+
+**This dimension is expected to subtract.** The repo grows by default and nothing else removes, so a D6 pass returning only additive or purely-stylistic findings has under-delivered. Report a liveness sweep that genuinely found nothing dead as its own result — that is a real finding about the repo's health, not an empty return.
 
 ## D7 — Magic numbers & duplicated constants
 

@@ -12,7 +12,6 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 - Forbidden phrases — the tokens the Stop hook scans, and scoping a claim to its command
 - Stop hook reliability disclaimer — why the hook is a reminder, not the gate
 - Anti-rationalization
-- Definition of Done
 
 ## Why this exists
 
@@ -28,7 +27,7 @@ Evidence Block schema + verification cache invalidation rules + per-skill consum
 
 - Any "done", "passing", "validated", "ready to ship", "shipped" claim by the orchestrator or any subagent.
 - Every CRITICAL or HIGH finding emitted by reviewer agents (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`). MEDIUM findings should attach evidence when available; CRITICAL/HIGH without evidence are downgraded or dropped.
-- Every hypothesis confirmation in `/geniro:debug` — debug consumes this artifact-kind contract per its § Evidence Standard.
+- Every hypothesis confirmation in `/geniro:debug` — debug consumes this artifact-kind contract per its loop invariant #6.
 - Any cross-phase cache-PASS carry — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`.
 - Any memory write claiming `trust: verified` — the captured-artifact bar governs L2 learnings too; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` § Evidence bar for `trust: verified`.
 
@@ -96,14 +95,3 @@ Stop hooks fire only approximately 50–80% of the time, so treat `require-evide
 | "The agent reported PASS, I'll forward that as evidence." | Subagent PASS reports are inputs, not evidence. The orchestrator MUST attach the captured command output (or independently re-run per `verification-cache.md`) before forwarding the claim. |
 | "It's a CRITICAL finding but I'm confident — I'll skip the Evidence Block." | Reviewer-agent findings without an Evidence Block are downgraded or dropped at the relevance-filter step. Confidence does not substitute for artifact. |
 | "The test command exited 0, so the tests pass." | Exit 0 is not proof of a passing run — vitest, jest, and pytest exit 0 on "No test files found" / zero collected. A passing claim requires the observed count in the tail ("N passed"). A backgrounded run's exit code especially must be paired with the summary line; a clipped or empty summary is not a green. |
-
-## Definition of Done
-
-A consumer skill correctly applies the Evidence Standard when:
-
-- [ ] Every completion claim ("done", "passing", "validated", "shipped", "ready to ship") in orchestrator output is followed by an Evidence Block in the same message.
-- [ ] Every CRITICAL/HIGH reviewer-agent finding carries an Evidence Block at emit-time (relevance-filter drops findings missing it).
-- [ ] No forbidden-phrase token appears in final output without an accompanying Evidence Block.
-- [ ] Every check claim states the surface its command actually covered — no unscoped "complete" over an open checklist — and, when the run commits or opens a PR, reaches the commit message and PR body at that same width.
-- [ ] Cross-phase PASS carries cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md` and verify no intervening mutation.
-- [ ] Evidence is captured in the current message — no stale artifacts, no reasoning-only claims.

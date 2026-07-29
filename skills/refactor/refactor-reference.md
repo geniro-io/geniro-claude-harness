@@ -1,4 +1,4 @@
-# Refactor — Detailed Reference
+# Refactor — detailed reference
 
 Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
@@ -97,7 +97,7 @@ For Medium and Big: spawn a fresh reviewer-agent. The agent reads its own criter
 ```
 Agent(subagent_type="reviewer-agent", prompt="""
 ## Review: Refactor Diff
-This is a refactor — behavior MUST be unchanged. CI already passed. Focus on invariants, not style.
+This is a refactor — the diff is supposed to leave behavior identical, so any behavior change is a finding. CI already passed. Focus on invariants, not style.
 
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]

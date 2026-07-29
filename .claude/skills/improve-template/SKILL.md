@@ -7,7 +7,20 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Web
 argument-hint: "<issue description or area to improve>"
 ---
 
-# /improve-template — Template Investigation & Fix Pipeline
+# /improve-template — template investigation and fix pipeline
+
+## Contents
+
+- Subagent model tiering · State persistence
+- Mode detection · Handoff-ingestion path · Complexity gate · Research selection matrix
+- Anti-rationalization · Definition of done
+- Phase 1 (investigate) · Phase 2 (cross-reference & filter) · Phase 2b (redundancy validation)
+- Phase 3 (present to user) · Phase 4 (implement) · Phase 5 (self-review) · Phase 6 (report & complete)
+- Create-skill mode (Phases A-D)
+- Description-format validator
+- Mid-flow user input
+
+---
 
 You are the orchestrator for investigating and fixing issues in the Geniro plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You NEVER implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
@@ -15,9 +28,9 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
 **Authoring rules:** `.claude/rules/skill-structure.md` (file-size limits, section ordering, reference graph) and `.claude/rules/skill-prose.md` (voice, rule placement) govern every skill / agent file this pipeline writes. §File-size limits is the single source for the word budgets, what counts as overflow, and the never-trim-load-bearing-content clause — cite that section everywhere, never restate its numbers, and give subagents the repo-relative path plus an explicit instruction to read it before editing.
 
-**After a compaction:** only this file's first ~5,000 tokens survive the summary — the spine (through §Definition of Done) is re-attached, the phase sections below it are not. Re-invoke `/improve-template` with the same argument before continuing; the §State Persistence checkpoint makes that a resume at the last completed phase, not a re-run.
+**After a compaction:** re-invoke `/improve-template` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
 
-## Subagent Model Tiering
+## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`: spawn sites OMIT `model=` so every subagent inherits the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off; a skill-side hardcode (e.g. forcing opus from a Sonnet session) overrides that choice silently. For plugin-defined subagents (the agents under `${CLAUDE_PLUGIN_ROOT}/agents/`), also follow the ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
 
@@ -33,7 +46,7 @@ Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering
 
 ---
 
-## State Persistence
+## State persistence
 
 After completing each phase, write a checkpoint to `.geniro/state/improve-template/<slug>/state.md` — slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules; improve-template is not in that helper's enumerated producer set but adopts its contract shape verbatim. Write it via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`) — a direct `Write` to a `.geniro/state/` path is hard-blocked by the state-helper hook, so a checkpoint written any other way never lands. The T1.5 frontmatter opens on line 1; plain-text header lines before the `---` fence fail `validate_state_file`.
 
@@ -59,29 +72,29 @@ Create-skill mode writes no checkpoint: the A→D author flow fits in one contex
 
 ---
 
-## Mode Detection (before Complexity Gate)
+## Mode detection (before the complexity gate)
 
 Detect which of three modes the request wants — **process-handoff** (consume findings from `/analyze-thread`), **create-skill** (author a new skill), or **fix/improve an existing skill** (default mode). Check in this order:
 
-**process-handoff mode.** Triggers when `$ARGUMENTS` matches `process-handoff`, `process handoff`, or `process handoff from analyze-thread`. Route to the **handoff-ingestion path** below — it reads the `/analyze-thread` findings file and feeds each finding through the existing Complexity Gate, so it does not skip the normal pipeline.
+**process-handoff mode.** Triggers when `$ARGUMENTS` matches `process-handoff`, `process handoff`, or `process handoff from analyze-thread`. Route to the **handoff-ingestion path** below — it reads the `/analyze-thread` findings file and feeds each finding through the existing complexity gate, so it does not skip the normal pipeline.
 
-**create-skill mode.** Triggers on an explicit phrase — `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill` — which routes straight through. When `$ARGUMENTS` merely describes a capability with no matching SKILL.md, confirm before routing (`AskUserQuestion`: "This reads as a new skill rather than a fix to an existing one — create a new skill?"). Most improvement requests also name a scope no SKILL.md matches ("make the review dimension for X better"), and an unconfirmed route skips the Complexity Gate and Phase 1 to drop a fix request into an authoring interview.
+**create-skill mode.** Triggers on an explicit phrase — `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill` — which routes straight through. When `$ARGUMENTS` merely describes a capability with no matching SKILL.md, confirm before routing (`AskUserQuestion`: "This reads as a new skill rather than a fix to an existing one — create a new skill?"). Most improvement requests also name a scope no SKILL.md matches ("make the review dimension for X better"), and an unconfirmed route skips the complexity gate and Phase 1 to drop a fix request into an authoring interview.
 
-If create-skill mode is detected, route to the **create-skill flow** below — skip the Complexity Gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
+If create-skill mode is detected, route to the **create-skill flow** below — skip the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
 
-Otherwise default to **improve-existing-skill mode** (Complexity Gate → Phase 1).
+Otherwise default to **improve-existing-skill mode** (complexity gate → Phase 1).
 
 ### Handoff-ingestion path (process-handoff mode)
 
 1. Resolve the branch (`git branch --show-current`) and read `.geniro/state/handoff/from-analyze-thread-<branch>.md`. If absent, report that no handoff exists for this branch and ask the user to name the area to improve instead (falls back to improve-existing-skill mode).
 2. Parse the frontmatter `open_questions[]` array — each entry carries `id` / `source` (the check that surfaced it) / `question` / `severity` / `suggested_action` / `status`, plus an optional `recurrence: <M>/<T>` when the analysis ran over several threads. Skip entries already `status: resolved` or `wontfix`.
-3. For each unresolved finding, run the **Complexity Gate** below to classify it (obvious bug fix → Phase 1-fast; targeted improvement or open-ended → full pipeline). The `suggested_action` and any `context` framing seed the Step 1 request-parse; the `source` check and `findings_count` set the scope. Order the findings by `recurrence` before severity where it is present — a defect reproduced across several independent threads is a systematic instruction failure, while a one-off may be a single run's noise.
+3. For each unresolved finding, run the **complexity gate** below to classify it (obvious bug fix → Phase 1-fast; targeted improvement or open-ended → full pipeline). The `suggested_action` and any `context` framing seed the Step 1 request-parse; the `source` check and `findings_count` set the scope. Order the findings by `recurrence` before severity where it is present — a defect reproduced across several independent threads is a systematic instruction failure, while a one-off may be a single run's noise.
 4. Group findings that touch the same file into one implementation unit (Phase 4 grouping) rather than running the whole pipeline per finding.
 5. After the changes land and the user ships them (Phase 6), close each consumed entry in the producer's handoff: set `status: resolved` (or `wontfix` for a finding the user declined at the Phase 3 gate) plus `resolution.picked` / `.at` / `.resolved_by: improve-template`, then write the file back via `atomic_state_write`. The helper overwrites rather than merges — re-emit every other frontmatter key and body section unchanged, or the write truncates producer state. Step 2 skips `resolved` and `wontfix`, so closing the entry is what stops a later run re-ingesting fixes already shipped.
 
 ---
 
-## Complexity Gate (before Phase 1) — improve-existing-skill mode only
+## Complexity gate (before Phase 1) — improve-existing-skill mode only
 
 Classify the request — this picks both the pipeline depth AND which research sources Phase 1 spawns. Self-classify; do not spawn a triage subagent.
 
@@ -91,7 +104,7 @@ Classify the request — this picks both the pipeline depth AND which research s
 | **Targeted improvement** | Specific skill/agent/hook named; clear scope; user cites the file or behavior | Full pipeline | Codebase always; ARCHITECTURE.md / Internet conditional on triggers below |
 | **Open-ended investigation** | "Make X better"; broad area; vague target; no specifics | Full pipeline | All three (codebase + ARCHITECTURE.md + internet) |
 
-### Research Selection Matrix
+### Research selection matrix
 
 **Codebase research** — always runs in the full pipeline. Reading current template state is mandatory.
 
@@ -101,7 +114,7 @@ Classify the request — this picks both the pipeline depth AND which research s
 
 Record the selected sources in the state checkpoint as `research-sources: [list]` so Phase 5 reviewers can see scope was narrowed by the matrix, not by oversight.
 
-### Phase 1-fast: Quick Fix Path
+### Phase 1-fast: quick fix path
 
 For obvious bug fixes. The user already showed what's broken.
 
@@ -124,14 +137,14 @@ For obvious bug fixes. The user already showed what's broken.
 | "I'll reuse the implementation agent for review" | Fresh agents avoid anchoring bias. The reviewer must NOT have seen the implementation prompt. |
 | "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
-| "I'll add a note about the edge case" | Rewrite the original instruction to handle it explicitly. Separate notes create context distance and rot — the original must read correctly on its own. |
+| "I'll add a note about the edge case" | Rewrite the original instruction so it reads correctly on its own — the edit-in-place constraint the Phase 4 Step 2 prompt carries. |
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 | "The findings are obviously good, skip the redundancy check" | Phase 2b is a separate pass because a finding that reads well in the research table often duplicates an instruction already in the target file. Grep the target files for existing coverage and judge over-engineering per finding — inline, no spawn. |
 | "I'll skip internet research because the request feels local" | A new pattern or external API shipped with no external evidence is the failure this catches — internal-feeling requests still introduce new patterns. |
 
 ---
 
-## Definition of Done
+## Definition of done
 
 These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
 
@@ -156,23 +169,23 @@ These are the load-bearing exit gates — the checks that, if skipped, ship an u
 
 ## PHASE 1: INVESTIGATE (parallel research)
 
-**Purpose:** Gather evidence from the research sources the Matrix selected — up to three independent sources (codebase / ARCHITECTURE.md / internet).
+**Purpose:** Gather evidence from the research sources the matrix selected — up to three independent sources (codebase / ARCHITECTURE.md / internet).
 
 **Input:** User describes an issue, shows a screenshot, or names an area to improve.
 
 ### Step 1: Parse the request
 
-Classify the request, then look up its research sources in the Matrix above:
+Classify the request, then look up its research sources in the matrix above:
 - **Bug fix** — something broken (screenshot, error, false positive). Extract: what happened, expected behavior, affected file(s).
 - **Improvement** — enhance existing behavior. Extract: which skill/agent/hook, what aspect.
 - **New capability** — add something missing. Extract: what, why, which files affected. Internet research is mandatory here — new patterns require external evidence.
 
 ### Step 2: Spawn the selected research agents in ONE response
 
-Spawn ONLY the agents the Matrix selected — all in the same assistant turn, NOT one per turn. Skipped sources are NOT failures; the matrix is the contract. Log omitted source(s) in the state checkpoint with the matching skip reason. The agent prompts below stay as written; just omit the agents you skip.
+Spawn ONLY the agents the matrix selected — all in the same assistant turn, NOT one per turn. Skipped sources are NOT failures; the matrix is the contract. Log omitted source(s) in the state checkpoint with the matching skip reason. The agent prompts below stay as written; just omit the agents you skip.
 Replace every `{{placeholder}}` with the actual content from Step 1 before spawning.
 
-The two codebase-facing spawns use the plugin's `codebase-research-agent`, which carries the file:line citation contract and the ~5000-character output cap. The calls below are step 1 of the ladder in §Subagent Model Tiering — degrade them on `not found`. Internet research has no plugin agent and stays a general spawn.
+The two codebase-facing spawns use the plugin's `codebase-research-agent`, which carries the file:line citation contract and the ~5000-character output cap. The calls below are step 1 of the ladder in §Subagent model tiering — degrade them on `not found`. Internet research has no plugin agent and stays a general spawn.
 
 ```
 Agent(prompt="""
@@ -235,7 +248,7 @@ Wait for all spawned agents. The two `codebase-research-agent` spawns report to 
 
 ### Step 1: Build a combined findings list
 
-Merge findings from the research agents that ran (1-3, depending on the Matrix). Group by topic. Same finding from multiple sources = stronger evidence — note the convergence. If only one source ran, evidence strength caps at what that source supports.
+Merge findings from the research agents that ran (1-3, depending on the matrix). Group by topic. Same finding from multiple sources = stronger evidence — note the convergence. If only one source ran, evidence strength caps at what that source supports.
 
 ### Step 2: Filter each finding
 
@@ -313,7 +326,7 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text — the tool
   - "I disagree with some findings — let me challenge them" — go to Phase 3b
   - "Research deeper on specific items" — go to Phase 3b
 
-### Phase 3b: Challenge Resolution
+### Phase 3b: challenge resolution
 
 For each challenged finding, spawn a research agent with: the finding description, the user's concern, and instructions to search for definitive evidence. Update the evidence table based on results. Re-present to user. Loop until approved.
 
@@ -365,20 +378,18 @@ Apply the following approved changes:
   notes, exceptions, caveats, or conditions below/after the original. Adding
   "NOTE: also handle X" or "Exception: when Y, do Z" creates context distance and
   instruction rot. The original instruction should read correctly on its own.
-- **Minimum-tokens principle:** Write the change at the lowest token cost that fully
-  preserves meaning and behavior — don't restate a rule already present in the file,
-  don't re-explain standard tool or model behavior, and prefer tightening an existing
-  line over adding a new one. The bar is zero degradation: a tightening that drops a
-  load-bearing nuance, edge case, or behavioral condition is a degradation, not a
-  compaction — keep the longer wording. Signal density, not size, is the target.
-- **Assume a capable model** (per `.claude/rules/skill-prose.md` §Assume a capable
-  model): in the sections you touch, also REMOVE over-detailed mechanics the model
-  derives itself — platform command recipes, shell idiom hand-holding, prescribed
-  loop shapes where goal + bound suffices, chewed-up substeps for a one-step goal.
-  Excess detail isn't just token cost: it primes one mechanism and confuses the run
-  when the environment wants another. An improvement pass removes the unnecessary,
-  not only adds. Contracts stay: schemas, paths, thresholds, canonical option labels,
-  and explain-WHY on rationalization-prone rules are not "detail".
+- **Minimum-tokens principle** (per `.claude/rules/skill-prose.md` §Assume a capable
+  model): write the change at the lowest token cost that fully preserves meaning and
+  behavior — prefer tightening an existing line over adding a new one — and in the
+  sections you touch also REMOVE what the model derives itself: a rule already stated
+  elsewhere in the file, re-explained standard tool or model behavior, platform command
+  recipes, shell idiom hand-holding, prescribed loop shapes where goal + bound suffices,
+  chewed-up substeps for a one-step goal. Excess detail isn't just token cost: it primes
+  one mechanism and confuses the run when the environment wants another. Two bounds on
+  the removal — a tightening that drops a load-bearing nuance, edge case, or behavioral
+  condition is a degradation, not a compaction, so keep the longer wording; and contracts
+  stay: schemas, paths, thresholds, canonical option labels, and explain-WHY on
+  rationalization-prone rules are not "detail". Signal density, not size, is the target.
 
 ### Definition of Done
 - [ ] All approved changes applied
@@ -399,7 +410,7 @@ Orchestrator runs these checks directly (no subagent). All must pass before Phas
 6. **Description-format checks (6 sub-checks):** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks, their warning/blocker levels, and the procedure are in § Description-format validator below; check 6 there overlaps with #4 above and counts once.
 7. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md` since it carries the skills-table row. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
    **Generated Cursor agents — blocker, not a warning:** when the change edited any `agents/*.md`, run `scripts/build-cursor-agents.sh` and include the regenerated `cursor/agents/*.md` in the same change set. `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift between the two, so omitting it ships a red build. Fix it by re-running the script rather than spawning a fix agent, and never hand-edit `cursor/agents/`.
-8. **Compaction & redundancy (added text):** scan the lines this change ADDED for weight without payload — a restatement of an instruction already in the file, a re-explanation of standard tool or model behavior, or a hedge with no condition. Judge any tightening against the Minimum-tokens principle in the Phase 4 Step 2 constraint set (the `description` field is out of scope here — § Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
+8. **Compaction & redundancy (added text):** judge the lines this change ADDED against the Minimum-tokens principle in the Phase 4 Step 2 constraint set, plus hedges carrying no condition (the `description` field is out of scope here — § Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
 
 If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#1 lint advisories, #6 sub-items 1-4, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
@@ -439,7 +450,7 @@ Commit {{pre-change sha from Phase 4 Step 0}}; files {{paths from Phase 4 Step 0
    - Are cross-references that worked before still valid?
    - Could downstream skills/agents behave differently due to these changes?
 6. **Pre-existing bugs:** While reviewing the changed files, also note any bugs, inconsistencies, or broken patterns that existed BEFORE this change. Report these separately — they are opportunities, not blockers.
-7. **Subtraction:** an improvement pass removes as well as adds (the "Assume a capable model"
+7. **Subtraction:** an improvement pass removes as well as adds (the Minimum-tokens
    constraint the implementers were given). Report what this diff REMOVED — deleted rows, restatements
    collapsed into a citation, hand-holding the model derives itself, rules the change superseded. If
    the diff is purely additive, say so in those words and judge whether that was right: a genuinely
@@ -545,12 +556,12 @@ If the user picks skip, print the suggested commit message and the `git add` / `
 
 ---
 
-## Create-Skill Mode (3-phase author flow)
+## Create-skill mode (3-phase author flow)
 
-When Mode Detection routes to create-skill, run this flow instead of the
+When mode detection routes to create-skill, run this flow instead of the
 Investigate → Filter → Implement pipeline.
 
-### Phase A: Gather Requirements (interactive)
+### Phase A: Gather requirements (interactive)
 
 1. **Determine target.** Ask via `AskUserQuestion` with header "Skill kind":
    - **Plugin-facing** (`/geniro:<name>`) — adds to `skills/<name>/SKILL.md` in the plugin
@@ -581,7 +592,7 @@ Investigate → Filter → Implement pipeline.
 
 2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the new description-format checks (see "Description-format validator" below).
 
-### Phase C: Review (fresh agent, your existing pattern)
+### Phase C: Review (fresh agent)
 
 Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
 - All Phase A interview answers reflected in the SKILL.md
@@ -594,7 +605,7 @@ Run the standard Phase 5 self-review with a fresh agent that did NOT see the aut
 
 Process review results per the existing Phase 5 routing (Blockers → fresh fix agent, max 1 round).
 
-### Phase D: Report & Commit (reuse Phase 6)
+### Phase D: Report & commit (reuse Phase 6)
 
 Same Phase 6 as improve-existing-skill mode; Step 3 is a no-op.
 
@@ -617,7 +628,7 @@ Report results in the existing Phase 4 validation summary. Warnings do not block
 
 ---
 
-## Mid-flow User Input
+## Mid-flow user input
 
 If the user interjects mid-phase: corrections/context fold into the current phase (note in checkpoint); preferences apply at the next decision point; blockers halt the phase and you ask how to proceed; new issues are noted and queued for after the current pipeline completes.
 

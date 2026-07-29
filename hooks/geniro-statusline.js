@@ -152,6 +152,10 @@ function getSessionInfo(transcriptPath) {
 }
 
 let input = '';
+// Claude Code writes the status-line payload to stdin and re-renders on every
+// turn, so a hung read would stall the render indefinitely. Bail out with a blank
+// status line instead: 3s is an order of magnitude more than the local pipe write
+// ever needs, and still short enough that a wedged parent is not felt as a freeze.
 const stdinTimeout = setTimeout(() => process.exit(0), 3000);
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });

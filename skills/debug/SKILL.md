@@ -14,11 +14,9 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes] [-
 - Your role — investigate, don't ship
 - State machine
 - Loop invariants
-- Universal rule: all choice questions use AskUserQuestion
 - Anti-rationalization
 - Budgets — quality-first
 - Subagent model tiering
-- Evidence Standard
 - Definition of done
 - ACI per-phase tool surface
 - Memory I/O schedule
@@ -59,7 +57,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 - **Invariant #3 (permission before side-effect)** — /geniro:debug performs NO `git push` / `gh pr create`; the no-ship boundary holds under a dynamic `Workflow(...)` or ultracode mode too, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 - **Invariant #4 (bounded results)** — `adversarial-tester-agent` output is bounded by the hard cap on authored tests its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`); finding schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 - **Invariant #5 (escalation gates)** — stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate via AUQ; never fabricate a conclusion.
-- **Invariant #6 (grounded in observations)** — every `Result:` field in `## Hypotheses` cites a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (§ Evidence Standard below carries the confirmation bar).
+- **Invariant #6 (grounded in observations)** — a hypothesis is **confirmed** only when its `Result:` field in `## Hypotheses` cites an artifact from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. That standard also binds every fix-verification and reproduction-test capture: reasoning is correlation, and only reproduction with a captured artifact confirms causation.
 
 This skill adds one invariant:
 
@@ -68,12 +66,6 @@ This skill adds one invariant:
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 `## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped. **Deep mode** (opt-in, default off): `--deep` (or the Phase 0 Debug-depth chooser when `--deep` is absent) deepens Phase 1 hypothesis generation (3× fan-out + dedup) and Phase 2 fix/reproduction verification (3 verifiers, majority vote) per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — higher quality at higher token cost, no change to gates or the no-ship boundary.
-
----
-
-## Universal rule: all choice questions use AskUserQuestion
-
-Route every user-facing choice in this skill through the `AskUserQuestion` tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which owns the rule and the reason. The gates enumerated below are this skill's, not the complete set; the anti-rationalization row below carries why.
 
 ---
 
@@ -91,7 +83,7 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | No-access-by-default is the same fabrication shortcut as inconclusive-by-default: a limit on your own reach is a claim and carries the same artifact requirement (Evidence Standard). Attempt the read with the tools you have and capture what fails; the §1.5 missing-data gate opens on that captured failure. Handing the user a manual checklist your own shell answers in seconds skips the probe that would have settled it. |
 | "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at §3.5 Cleanup and leave no regression guard. §2.4 mandates the reproduction be authored as a unit/integration test in the project's framework. Escape hatch (Reproduction Decision) is opt-in for genuinely non-reproducible cases only. |
-| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The Universal Rule above makes the tool mandatory for ANY choice question — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
+| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | Every user-facing choice in this skill routes through the `AskUserQuestion` tool (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule) — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 | "I'll name the reproduction test after the confirmed hypothesis number from `## Hypotheses`" | state.md gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. §2.4 mandates: describe the bug behavior, not the thread-local label. |
 | "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskUserQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
 | "Bypass `git guardrail` hooks if a needed `git bisect` step blocks." | Hooks fail for a reason. `git bisect` is permitted (read-only investigation per § ACI per-phase). If a specific guardrail blocks legitimate debug work, the path is `.geniro/safety.json` allow_patterns, not `--no-verify`. |
@@ -131,14 +123,6 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 |---|---|
 | `codebase-research-agent` | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant #8). Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
 | `adversarial-tester-agent` | Adversarial mode test authoring. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
-
----
-
-## Evidence Standard
-
-Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — schema, forbidden phrases, and the artifact kinds are defined there. This skill applies that standard at every hypothesis-confirmation, fix-verification, and reproduction-test capture.
-
-**Debug-specific framing — hypothesis confirmation.** A hypothesis is **confirmed** only when its `Result:` field cites an artifact from that file's § What counts as an artifact. Hypothesis-tracking is the most evidence-rigorous flow in the plugin: reasoning is correlation; only reproduction with a captured artifact confirms causation.
 
 ---
 
@@ -252,7 +236,7 @@ state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial
 
 ## REFERENCE
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram (§1), state.md + handoff schemas (§2), infrastructure checklist (§3), isolation procedures (§4), stall taxonomy table (§5), adversarial spawn + findings templates (§6), worked examples — Cache Not Invalidating / Intermittent Timeout / Verify Recent Changes (§7), open-PR scan (§8), emit payload shapes (§9).
+- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram (§1), state.md + handoff schemas (§2), infrastructure checklist (§3), isolation procedures (§4), stall taxonomy table (§5), adversarial spawn + findings templates (§6), worked examples — Cache not invalidating / Intermittent timeout / Verify recent changes (§7), open-PR scan (§8), emit payload shapes (§9).
 - `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — depth question (§1), hypothesis fan-out (§2), 3-verifier majority vote (§3).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes.

@@ -89,7 +89,17 @@ _geniro_extract_inner_payloads() {
   if [ -z "$cmd" ] && [ -z "$raw" ]; then
     return 0
   fi
-  local _m _pl
+  local _m _pl _lit
+
+  # ONE shell-word matcher for every arm. The wrapper prefix consumes its own
+  # flags, `VAR=value` assignments, durations and `{}` placeholders — never an
+  # arbitrary word, which would let any two-word command read as a shell.
+  local _wv_pfx='((sudo|doas|command|env|exec|nohup|nice|timeout|stdbuf|ionice|xargs)([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*[[:space:]]+)*'
+  local _wv_shq='["'\'']?'
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  # One quoted literal; and the payload operand form, which may also be bare.
+  local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
+  local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
 
   # Arm 1 — interpreter `-c` payload.
   while IFS= read -r _m; do
@@ -98,7 +108,7 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_sh}"'[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+'"${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 2 — `eval` payload. The preceding-character class excludes `-` so a long
   # option belonging to another tool (`node --eval`, `perl --eval`) is not read
@@ -109,9 +119,9 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+'"${_wv_arg}" 2>/dev/null || true)"
 
-  # Arm 3 — a quoted literal piped into a BARE shell. `echo "<program>" | bash`
+  # Arm 3 — a quoted literal piped into a shell. `echo "<program>" | bash`
   # feeds <program> on stdin, so it is neither a `-c` argument nor an `eval`
   # operand, and the guard's quote-scrub blanks it as data. The right-hand side
   # must carry no flag cluster containing `c` (that spelling is arm 1's, and
@@ -126,18 +136,20 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '("[^"]*"|'\''[^'\'']*'\'')[^|"'\'']*\|[[:space:]]*((sudo|command|env|exec)[[:space:]]+)*([^[:space:]|;&<>]*/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
 
-  # Arm 4 — a heredoc body fed to a bare shell (`bash <<EOF … EOF`,
-  # `cat <<EOF | sh`). This is the mirror image of arm 3: the body is stdin, and
-  # every guard's heredoc scrub deletes it BEFORE extraction because a heredoc is
-  # data in every other position (`cat > notes.md <<EOF`). So the body is
-  # re-derived here from the RAW command, and emitted only when the opener line
-  # names a bare shell as a command word. One body LINE per payload: the guards
-  # match per line and per `;`-bounded span, and joining the body would let a
-  # single `#` comment line swallow the commands after it.
+  # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
+  # This is the mirror image of arm 3: the body is stdin, and every guard's
+  # heredoc scrub deletes it BEFORE extraction because a heredoc is data in every
+  # other position (`cat > notes.md <<EOF`). So the body is re-derived here from
+  # the RAW command, and emitted only when the opener line names a shell as a
+  # command word. One body LINE per payload: the guards match per line and per
+  # `;`-bounded span, and joining the body would let a single `#` comment line
+  # swallow the commands after it. The shell-word matcher reaches awk through the
+  # environment, not `-v`, because awk processes escape sequences in a `-v`
+  # assignment and would eat the regex's own backslashes.
   if [ -n "$raw" ]; then
-    printf '%s\n' "$raw" | awk '
+    printf '%s\n' "$raw" | GENIRO_WV_SHRE='(^|[|;&][[:space:]]*|[[:space:]])'"${_wv_sh}"'([[:space:]]|$)' awk '
       hd {
         line = $0
         if (dash) sub(/^\t+/, "", line)
@@ -151,10 +163,67 @@ _geniro_extract_inner_payloads() {
         sub(/^<<-?[[:space:]]*/, "", tag)
         gsub(/["'\'']/, "", tag)
         hd = 1
-        emit = ($0 ~ /(^|[|;&][[:space:]]*|[[:space:]])(sudo[[:space:]]+|command[[:space:]]+|env[[:space:]]+|exec[[:space:]]+)*([^[:space:]|;&<>]*\/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]|$)/)
+        emit = ($0 ~ ENVIRON["GENIRO_WV_SHRE"])
         next
       }
     ' 2>/dev/null || true
+  fi
+
+  # Arm 5 — a program fed to a shell through process substitution
+  # (`bash <(echo "<program>")`, `sh -s < <(printf '<program>')`). The shell reads
+  # it from the /dev/fd path the substitution names, so it carries no `-c`, no
+  # pipe into the shell and no heredoc — arms 1-4 all miss it. Every quoted
+  # literal inside the substitution is a candidate program, the same limit arm 3
+  # carries: a substitution that COMPUTES its program leaves nothing to read.
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    while IFS= read -r _lit; do
+      [ -z "$_lit" ] && continue
+      _pl="$_lit"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s' "$_m" | grep -oE "${_wv_lit}" 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_sh}"'[^|;&]*[<>]\([^)]*\)' 2>/dev/null || true)"
+
+  # Arm 6 — an interpreter handing a program to a shell. `os.system('<program>')`,
+  # `subprocess.run('<program>', shell=True)` and `child_process.execSync(...)`
+  # spawn a real shell, but the interpreter is not one, so no arm above sees the
+  # call — and the program is not an interpreter FILE op either, so family B below
+  # misses it too. That makes any interpreter a laundering channel for every
+  # payload the guards block directly. The quoted argument IS the shell command.
+  #
+  # Gated on an interpreter COMMAND WORD, because the same text is inert without
+  # one: `echo "os.system('rm -rf x')" > notes.md` authors a file, it does not
+  # shell out, and blocking it would be a false positive on ordinary code
+  # authoring. Nothing extractable is lost — a shell-out inside a script FILE
+  # carries no literal in the command either way.
+  if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+    # A dot is allowed before the op name because that is how the ops are normally
+    # reached (`require('child_process').execSync(…)`); the cost is that a JS
+    # `re.exec("s")` also yields its argument, which re-scans as an inert word.
+    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|system|popen|shell_exec|passthru|proc_open)'
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^(]*\([[:space:]]*//')
+      _pl="${_pl#\\}"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      _pl="${_pl%\\}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_shellout}"'[[:space:]]*\([[:space:]]*\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Ruby's backtick literal is the same shell-out with no call syntax at all.
+    # Narrowed further to a `ruby` command word: elsewhere a backtick span is
+    # ordinary shell command substitution, already visible to the guards as
+    # syntax, and re-extracting it would only add noise.
+    if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)ruby([[:space:]]|$)'; then
+      while IFS= read -r _m; do
+        [ -z "$_m" ] && continue
+        _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
+        [ -n "$_pl" ] && printf '%s\n' "$_pl"
+      done <<< "$(printf '%s\n' "$cmd" | grep -oE '`[^`]*`' 2>/dev/null || true)"
+    fi
   fi
 
   return 0

@@ -176,39 +176,91 @@ expect_parity() {  # <hook-basename> <expected-rc> <label> <command>
 
 # Channel matrix — one probe per indirection shape the helper models, against the
 # guard whose protected paths make the shape observable. 2 = blocked, 0 = allowed.
+#
+# The matrix covers the shape AXES, not one spelling per axis: a shell named by
+# path or in quotes, reached through a wrapper prefix, or fed through a process
+# substitution is the same channel as the bare word, and an interpreter shelling
+# out or writing through an async / non-node runtime is the same channel as the
+# `*Sync` node spelling. Every one of those spellings walked past four to six
+# guards while this matrix was green on bare `sh` alone.
 PROT=".env"
 STATE=".geniro/planning/task/state.md"
 GTREE=".geniro/instructions"
 
 expect_parity file-protection.sh 2 "plain redirect"     "echo x > $PROT"
 expect_parity file-protection.sh 2 "sh -c"              "sh -c 'echo x > $PROT'"
+expect_parity file-protection.sh 2 "path-qualified sh -c" "/bin/sh -c 'echo x > $PROT'"
+expect_parity file-protection.sh 2 "quoted sh -c"       "\"sh\" -c 'echo x > $PROT'"
 expect_parity file-protection.sh 2 "eval"               "eval \"echo x > $PROT\""
 expect_parity file-protection.sh 2 "pipe-to-shell"      "echo \"echo x > $PROT\" | bash"
+expect_parity file-protection.sh 2 "prefix-wrapped pipe" "echo \"echo x > $PROT\" | nohup bash"
+expect_parity file-protection.sh 2 "operand-prefix pipe" "echo \"echo x > $PROT\" | timeout 5 bash"
 expect_parity file-protection.sh 2 "heredoc-to-shell"   "$(printf 'bash <<EOF\necho x > %s\nEOF\n' "$PROT")"
+expect_parity file-protection.sh 2 "process substitution" "bash <(echo \"echo x > $PROT\")"
+expect_parity file-protection.sh 2 "os.system shell-out" "python3 -c \"import os; os.system('echo x > $PROT')\""
 expect_parity file-protection.sh 2 "python open(w)"     "python3 -c \"open('$PROT','w').write('k')\""
 expect_parity file-protection.sh 2 "pathlib open(w)"    "python3 -c \"from pathlib import Path; Path('$PROT').open('w')\""
 expect_parity file-protection.sh 2 "pathlib touch"      "python3 -c \"from pathlib import Path; Path('$PROT').touch()\""
 expect_parity file-protection.sh 2 "node writeFileSync" "node -e \"require('fs').writeFileSync('$PROT','k')\""
+expect_parity file-protection.sh 2 "node appendFile (async)" "node -e \"require('fs').appendFile('$PROT','k',cb)\""
+expect_parity file-protection.sh 2 "node copyFile dest"  "node -e \"require('fs').copyFile('t','$PROT',cb)\""
+expect_parity file-protection.sh 2 "bun runtime"         "bun -e \"require('fs').writeFileSync('$PROT','k')\""
+expect_parity file-protection.sh 2 "deno runtime"        "deno eval \"Deno.writeTextFileSync('$PROT','k')\""
 expect_parity file-protection.sh 2 "shutil.copy"        "python3 -c \"import shutil; shutil.copy('t','$PROT')\""
 expect_parity file-protection.sh 2 "os.rename"          "python3 -c \"import os; os.rename('t','$PROT')\""
 expect_parity file-protection.sh 0 "benign write"       "echo x > src/app.js"
 expect_parity file-protection.sh 0 "benign interp read" "python3 -c \"print(open('src/app.js').read())\""
+expect_parity file-protection.sh 0 "benign quoted mention" "echo \"echo hello > /tmp/note.txt\" | wc -l"
+expect_parity file-protection.sh 0 "benign process substitution" "diff <(sort a.txt) <(sort b.txt)"
 
 expect_parity block-geniro-deletion.sh 2 "sh -c delete"    "sh -c 'rm -rf $GTREE'"
 expect_parity block-geniro-deletion.sh 2 "pipe-to-shell"   "echo \"rm -rf $GTREE\" | bash"
+expect_parity block-geniro-deletion.sh 2 "prefix-wrapped pipe" "echo \"rm -rf $GTREE\" | nohup bash"
+expect_parity block-geniro-deletion.sh 2 "os.system shell-out" "python3 -c \"import os; os.system('rm -rf $GTREE')\""
 expect_parity block-geniro-deletion.sh 2 "interp delete"   "python3 -c \"import shutil; shutil.rmtree('$GTREE')\""
 expect_parity block-geniro-deletion.sh 2 "interp move"     "python3 -c \"import shutil; shutil.move('$GTREE','/tmp/gone')\""
+expect_parity block-geniro-deletion.sh 2 "fs.rename (async)" "node -e \"require('fs').rename('$GTREE','/tmp/gone',cb)\""
+expect_parity block-geniro-deletion.sh 2 "fs.promises.rm"  "node -e \"require('fs').promises.rm('$GTREE')\""
+expect_parity block-geniro-deletion.sh 2 "find -exec mv"   "find $GTREE -type f -exec mv {} /tmp/ \\;"
 expect_parity block-geniro-deletion.sh 0 "benign delete"   "rm -f build/out.o"
+expect_parity block-geniro-deletion.sh 0 "benign rename"   "mv src/a.js src/b.js"
+# Authoring a file that MENTIONS a shell-out is not a shell-out: without an
+# interpreter command word there is nothing to launder, and blocking it would be
+# a false positive on ordinary code and documentation writing.
+expect_parity block-geniro-deletion.sh 0 "benign shell-out mention" "echo \"os.system('rm -rf $GTREE')\" > notes.md"
 
 expect_parity enforce-state-helper.sh 2 "sh -c state write"  "sh -c 'echo x > $STATE'"
+expect_parity enforce-state-helper.sh 2 "path-qualified sh -c" "/bin/sh -c 'echo x > $STATE'"
 expect_parity enforce-state-helper.sh 2 "pipe-to-shell"      "echo \"echo x > $STATE\" | bash"
+expect_parity enforce-state-helper.sh 2 "prefix-wrapped pipe" "echo \"echo x > $STATE\" | nohup bash"
 expect_parity enforce-state-helper.sh 2 "interp state write" "python3 -c \"open('$STATE','w').write('k')\""
 expect_parity enforce-state-helper.sh 2 "pathlib state open" "python3 -c \"from pathlib import Path; Path('$STATE').open('w')\""
 expect_parity enforce-state-helper.sh 0 "benign write"       "echo x > notes.txt"
+# A quoted literal spanning a newline that merely MENTIONS a state path: the
+# per-line quote-blanking pass used to read the second line as syntax and block.
+expect_parity enforce-state-helper.sh 0 "multi-line quoted mention" "$(printf 'echo "first line\nmentions %s"\n' "$STATE")"
 
 expect_parity block-dangerous-git.sh 2 "sh -c force push" "sh -c 'git push --force origin main'"
 expect_parity block-dangerous-git.sh 2 "pipe-to-shell"    "echo \"git push --force origin main\" | bash"
+expect_parity block-dangerous-git.sh 2 "prefix-wrapped pipe" "echo \"git push --force origin main\" | timeout 5 bash"
 expect_parity block-dangerous-git.sh 0 "benign push"      "git push origin feature/x"
+
+# enforce-tdd-order needs a RED-phase state file to have any verdict at all; the
+# slug comes from the branch name, so the sandbox pins one.
+git symbolic-ref HEAD refs/heads/parity 2>/dev/null || true
+mkdir -p "$SANDBOX/.geniro/state/tdd"
+printf '## phase\nRED\n' > "$SANDBOX/.geniro/state/tdd/state-parity.md"
+expect_parity enforce-tdd-order.sh 2 "sh -c prod write"   "sh -c 'echo x > src/app.js'"
+expect_parity enforce-tdd-order.sh 2 "pipe-to-shell"      "echo \"echo x > src/app.js\" | bash"
+expect_parity enforce-tdd-order.sh 2 "interp prod write"  "python3 -c \"open('src/app.js','w').write('k')\""
+expect_parity enforce-tdd-order.sh 0 "test-file write"    "echo x > src/app.test.js"
+expect_parity enforce-tdd-order.sh 0 "RED output capture" "npm test > /tmp/out.log"
+rm -rf "$SANDBOX/.geniro/state"
+
+expect_parity security-pattern-check.sh 2 "sh -c authoring"  "sh -c \"printf 'eval(x)' > bad.py\""
+expect_parity security-pattern-check.sh 2 "pipe-to-shell"    "echo \"printf 'eval(x)' > bad.py\" | bash"
+expect_parity security-pattern-check.sh 2 "interp authoring" "node -e \"require('fs').writeFileSync('app.js','eval(userInput)')\""
+expect_parity security-pattern-check.sh 0 "benign authoring" "printf 'print(1)' > ok.py"
 
 cd "$ORIGINAL_PWD" || exit 1
 

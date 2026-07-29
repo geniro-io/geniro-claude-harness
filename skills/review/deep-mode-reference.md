@@ -2,7 +2,7 @@
 
 **Cross-skill common contract.** The activation pattern, the mandatory Workflow mitigations, the fail-safe ladder, the boundary-preservation rules, and the shared anti-rationalization live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` — read it first. This file covers only what `/geniro:review` deepens.
 
-Deep mode (`--deep`, or the "Deep" pick in the Phase 1 §11 review-depth question) multiplies the reviewer and verifier fan-out inside an internal `Workflow(...)`: a thoroughness lever, never a latency one. Two refinements keep its cost off a flat 3× multiplier — **angle-diverse recall** (each per-dim pass searches a distinct region rather than re-running one identical prompt) and **signal-gated precision** (one verifier on the clear majority, the full 3-vote only where the call is contested).
+Deep mode (`--deep`, or the "Deep" pick in the Phase 1 review-depth question — `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §11) multiplies the reviewer and verifier fan-out inside an internal `Workflow(...)`: a thoroughness lever, never a latency one. Two refinements keep its cost off a flat 3× multiplier — **angle-diverse recall** (each per-dim pass searches a distinct region rather than re-running one identical prompt) and **signal-gated precision** (one verifier on the clear majority, the full 3-vote only where the call is contested).
 
 Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verifier passes run and how their results aggregate — it does NOT change the Reporter boundary, the posted-set semantics, the action-gate options, or the `atomic_state_write` contract.
 
@@ -23,7 +23,7 @@ Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verif
 ## 1. Activation + state
 
 - **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`).
-- **Chooser:** when no `--deep` flag is present, the Phase 1 §11 Mode AUQ asks review depth — "Standard" / "Deep — multi-angle review + extra verification". Picking Deep sets the boolean.
+- **Chooser:** when no `--deep` flag is present, the Phase 1 depth question (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §11) asks review depth — "Standard" / "Deep — multi-angle review + extra verification". Picking Deep sets the boolean.
 - **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` so the session-restore hook re-applies it on a compaction-resume.
 - **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the verified survivors whenever eligible findings exist; the two never conflict.
 
@@ -74,24 +74,11 @@ When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no ti
 
 ## 4. The Workflow scripts (shape)
 
-Two fan-outs: the Phase 2 recall script and the Phase 4.2 vote script (may be one script with two phases, or two calls). **Apply every mandatory Workflow mitigation in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at both fan-outs** — raw JSON over `agent({schema})`, the boundary re-asserted in every prompt, path constants outside template literals, `model=` omitted, the registration ladder, no `run_in_background`. Each one prevents an observed failure; read them before writing the script.
+Two fan-outs: the Phase 2 recall script and the Phase 4.2 vote script (may be one script with two phases, or two calls). Both skeletons are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 §Script skeletons — instantiate them rather than re-deriving. Review's substitutions: the stage set is the declared §2.1 dimension grid, the angles are the three in §2, and the dedup key is the intra-dim rule in §5.
 
-**Recall script (Phase 2) — shape:**
+**Apply every mandatory Workflow mitigation in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at both fan-outs** — raw JSON over `agent({schema})`, the boundary re-asserted in every prompt, path constants outside template literals, `model=` omitted, the registration ladder, no `run_in_background`. Each one prevents an observed failure; read them before writing the script.
 
-```
-phase('Deep review — angle-diverse passes')
-const ANGLES = ['common-path', 'boundaries-and-errors', 'interaction']   // §2: 3 distinct, dimension-agnostic angles
-const passes = await pipeline(
-  DIMENSIONS,                                  // the declared §2.1 set
-  d => parallel(ANGLES.map(angle =>            // 3 angle-scoped passes per dim — each searches a distinct region
-    () => agent(reviewerPrompt(d, angle), { label: `${d.slug}:${angle}`, phase: 'Deep review — angle-diverse passes' })
-  )),
-  (anglePasses, d) => dedupeWithinDim(anglePasses, d)   // union + dedup IN-SCRIPT → one per-dim set (seen-in: N/3 angles)
-)
-return passes                                  // per-dim deduped findings (raw JSON text from agents, parsed in-script)
-```
-
-**Vote script (Phase 4.2) — shape (signal-gated per §3):** the parallel first-vote → `needsEscalation` → escalate-to-3-then-`majority` skeleton is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md` §6 (the "Deep verify — signal-gated" block; `agent(prompt)` returning raw JSON, `parseVote` defensive, `majority()` treating parse-fail as abstain). Review differs only in the escalation predicate — it keys on cross-dim `convergence_count` (not the within-dim `seen_in`) and escalates a high-stakes finding only on a `refuted` first vote (not in both directions), because review reports rather than fixes:
+**Review's escalation predicate** — the one skill-specific piece of the vote skeleton. It keys on cross-dim `convergence_count` (not the within-dim `seen_in`) and escalates a high-stakes finding only on a `refuted` first vote, not in both directions, because review reports rather than fixes:
 
 ```
 // review's needsEscalation(first, f) = first abstained (parse-fail) OR first.confidence < 70
@@ -105,7 +92,7 @@ return passes                                  // per-dim deduped findings (raw 
 
 `convergence_count` (Phase 4.1 signal #1; Phase 5.3 ≥3 pitfall auto-emit) counts **distinct dimensions** that reported the same issue — it is a cross-reviewer agreement signal. The 3 angle passes of ONE dimension finding the same issue is one dimension's own passes agreeing, NOT cross-dim convergence.
 
-Therefore: **dedup the 3 angle passes of a dimension into a single per-dim finding set BEFORE Phase 3 computes cross-dim convergence.** The recall script (§4) does this in-script (`dedupeWithinDim`) so the per-dim set the orchestrator receives already collapses intra-dim duplicates. If this dedup is skipped, three angle passes of `bugs` finding the same defect would inflate its `convergence_count` to 3 and trip the §4.1 gate (and the pitfall auto-emit) on a single dimension's repeated output — deep mode would game its own quality gate.
+Therefore: **dedup the 3 angle passes of a dimension into a single per-dim finding set BEFORE Phase 3 computes cross-dim convergence.** The recall skeleton (§4) does this in-script, at its within-stage dedup step, so the per-dim set the orchestrator receives already collapses intra-dim duplicates. If this dedup is skipped, three angle passes of `bugs` finding the same defect would inflate its `convergence_count` to 3 and trip the §4.1 gate (and the pitfall auto-emit) on a single dimension's repeated output — deep mode would game its own quality gate.
 
 Intra-dim dedup match: same file + overlapping line range + same defect class. When 2 of 3 angle passes agree, keep the finding once (note `seen-in: 2/3 angles` in its body as a within-dim reliability signal — distinct from cross-dim `convergence_count`).
 
@@ -128,7 +115,7 @@ Every skill invariant binds inside every workflow step per `${CLAUDE_PLUGIN_ROOT
 
 ## 8. Edge cases
 
-**`--deep` on a trivial diff.** Deep mode still runs (the user asked for it). The cost is real but bounded; the Action gate / triage-out of trivial files (§12 size triage) still applies, so a formatting-only diff is triaged out before the fan-out.
+**`--deep` on a trivial diff.** Deep mode still runs (the user asked for it). The cost is real but bounded; the Action gate / triage-out of trivial files (size triage, `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §12) still applies, so a formatting-only diff is triaged out before the fan-out.
 
 **`--deep` with test authoring approved at the Phase 4.3 gate.** Both apply: the angle-diverse / signal-gated fan-out AND failing-test authoring. The deep verification runs first (Phase 4.2); the test-gate (Phase 4.3) runs on the survivors of the gated verification, so authored tests target verified findings only — a strict improvement.
 

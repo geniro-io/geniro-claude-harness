@@ -1,6 +1,6 @@
 # /geniro:review — Phase 2
 
-Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to Phase 2. The spine keeps the phase headings, the loop invariants, the anti-rationalization table, and the Definition of done — this file carries the Steps.
+Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to Phase 2.
 
 ## Contents
 
@@ -8,6 +8,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to 
   - 2.1 Dimension grid (10 built-in dimensions + N custom)
   - 2.2 Pre-spawn declaration (state.md write before parallel batch)
   - 2.3 Spawn invocation (2.3.1 spawn echo · 2.3.2 fire the batch · criteria files)
+  - 2.4 reserved
   - 2.5 UI-file detection rule (design dim trigger)
   - 2.6 Spec-compliance detection rule
   - 2.7 Build verification (parallel with reviewers)
@@ -92,15 +93,23 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
   - CUSTOM CONTEXT — a custom reviewer whose `custom_reviewers[]` entry carries a non-null `requires_context` ONLY. The orchestrator pre-fetches the declared external data (which the subagent can't reach over MCP) and injects it into that one reviewer's spawn, fail-open if unavailable — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context. Omitted for all built-in dims and for custom reviewers whose `requires_context` is null.
   - PR metadata (pr.body / pr.title / commit messages) — flows via the pr-metadata reviewer's existing context channel; spec-compliance and regressions dims read it through the same channel when fired on a PR ref. No separate `PR CONTEXT:` slot is composed.
   - PRIOR-ROUND FINDINGS (Round-N counter sub-step prior-round-summary, or `none — first review`).
-  - PRIOR-ROUND PR BODY — pr-metadata dim ONLY — the `prior-pr-body` captured at re-review detection (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1); renders `none — first review` on round 1 or when the prior-run handoff has no `pr-body:`. The pr-metadata reviewer's cross-round drift check (check #11) reads this slot.
+  - PRIOR-ROUND PR BODY — pr-metadata dim ONLY — the `prior-pr-body` captured at re-review detection (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 3); renders `none — first review` on round 1 or when the prior-run handoff has no `pr-body:`. The pr-metadata reviewer's cross-round drift check (check #11) reads this slot.
   - PEER-PR CONTEXT — architecture + design + bugs + conventions + optimizations + spec-compliance + regressions dims ONLY.
-  - `## Existing PR review comments` (from `pr-bot-comments-snapshot:`, per §1.1) — bugs + architecture + regressions + security dims ONLY; omitted when null.
-  - `## Existing PR formal reviews` (from `pr-formal-reviews-snapshot:`, per §1.1) — same dims (bugs + architecture + regressions + security); each entry `- <author> (<state>) — <excerpt>`; omitted when null.
+  - `## Existing PR review comments` (from `pr-bot-comments-snapshot:`, per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1.1) — bugs + architecture + regressions + security dims ONLY; omitted when null.
+  - `## Existing PR formal reviews` (from `pr-formal-reviews-snapshot:`, per the same §1.1 ingest) — same dims (bugs + architecture + regressions + security); each entry `- <author> (<state>) — <excerpt>`; omitted when null.
   - Authored rule-file list (per §2.8 detection) — conventions dim ONLY; omitted when the repo has no authored rule files.
   - Dimension-specific criteria file path(s) — one absolute path per line, not the body (see **Criteria files** below).
   - Output schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 
-After the parallel batch returns, narrate completion before transitioning to §3:
+After the parallel batch returns, record how many reviewer spawns actually fired — via `atomic_state_write`, append one `## Tool log` entry:
+
+```
+[Phase 2 spawn batch] fired=<count of Agent reviewer spawns issued>; returned=<count that emitted a structured result>
+```
+
+The Phase 4 §4.0b completeness check compares that `fired` count against `spawn_dims_count`, and it is the only durable record of it: §2.2 persists the declaration (intent), so without this line a compaction-resume into `phase: stratify` has no actual to compare against and the over-fire / under-fire branch cannot evaluate at all.
+
+Then narrate completion before transitioning to Phase 3:
 
 > All <N> reviewers returned. Aggregating findings.
 

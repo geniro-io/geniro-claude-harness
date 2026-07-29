@@ -7,7 +7,21 @@ allowed-tools: [Read, Bash, Glob, Grep, AskUserQuestion]
 argument-hint: "[search query — PR number / phrase / filename — or empty for all] [--code-only]"
 ---
 
-# /find-threads — Discover work-bearing Claude threads and hand them to /analyze-thread
+# /find-threads — discover work-bearing Claude threads and hand them to /analyze-thread
+
+## Contents
+
+- Phases
+- Loop invariants
+- Anti-rationalization
+- Definition of done
+- Budgets & caps
+- ACI per-phase tool surface
+- Phase 1 (discover) · Searching by content
+- Phase 2 (present) · Phase 3 (select & launch)
+- Modifier handling · REFERENCE
+
+---
 
 You are the orchestrator for finding past Claude Code conversation threads that did substantive agentic work and routing the ones the user picks to the existing `/analyze-thread` skill. The sibling `scan.py` enumerates every project's session logs across all config dirs, keeps threads that edited code OR ran a skill OR spawned a subagent (tagging each `edited` or `read-only`, so read-only review/debug/investigate runs are surfaced too), and — when the user passes a query — searches inside the thread bodies and ranks the matches. You present the survivors, take a free-text selection, then launch `/analyze-thread` on the first batch of up to five picks and print any overflow batches as a ready-to-run queue. You only READ session logs — you never modify them, and you never edit `/analyze-thread`.
 
@@ -16,7 +30,7 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 - **A query** (e.g. `2649`, `bright data`, `case-radar.ts`, `didnt post low`) → keep only threads whose body, title, or project path matches, ranked best-first. See **Searching by content** below for what to type.
 - **`--code-only`** → restrict the result set to code-editing threads (the legacy behavior); combines with a query.
 
-**Output:** a titled list of threads, each tagged `edited` or `read-only`, + (on the user's pick) a launched `/analyze-thread <paths…> --format=jsonl` directive for the first five picks and a runnable queue for any overflow.
+**Output:** a titled list of threads, each tagged `edited` or `read-only`, + (on the user's pick) a launched `/analyze-thread <paths…> --format=jsonl` directive for the first batch, plus a queue for any overflow.
 
 ---
 
@@ -44,21 +58,21 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll present the threads as a multiSelect AskUserQuestion so the user just clicks." | A single project holds far more than the 4-option AUQ cap (invariant #3). Selection is a numbered list + free-text reply; the only AUQ is the 3-option launch confirmation. |
-| "The thread is obviously JSONL, so /analyze-thread will detect it — I'll drop `--format=jsonl`." | Current session logs begin with `last-prompt` / `queue-operation` lines, which `/analyze-thread`'s sniff reads as markdown (invariant #2). Every launched and queued command must carry `--format=jsonl`. |
+| "I'll present the threads as a multiSelect AskUserQuestion so the user just clicks." | Invariant #3: a project holds far more threads than the AUQ can offer. Number them in chat and take a free-text reply. |
+| "The thread is obviously JSONL, so /analyze-thread will detect it — I'll drop `--format=jsonl`." | Invariant #2: the sniff misreads a current session log as markdown. Every launched and queued command carries `--format=jsonl`. |
 | "I'll search the bodies myself with `grep -r <query>`." | `grep` skips image-laden `.jsonl` logs as binary unless forced with `-a`, and a per-file shell loop half-fails in this sandbox for the reason `scan.py`'s module docstring gives. Run `scan.py` — one Python process, invariant #6, Phase 1. |
 | "A bare number like `2649` should match those digits anywhere in the body." | That matches UUIDs, cache-token counts, and timestamps that happen to contain `2649` — dozens of false hits. `scan.py` reads a 3–6 digit query as a PR reference (`pull/2649` / `#2649` / `pr-2649`) and only falls back to the raw number when no PR reference exists. |
-| "Rank #1 is obviously the thread — launch it." | Search ranks by proximity, not certainty (invariant #7). A worktree named `pr-2649` mentions the number without being the review. Confirm the top candidates ran the skill the user means before launching. |
-| "I'll only scan `~/.claude/projects`." | Threads run under a second config dir (`$CLAUDE_CONFIG_DIR`, or one listed in `scan.py`'s `EXTRA_ROOTS`) live elsewhere and would be invisible (invariant #6). `scan.py` scans every configured root. |
-| "I'll label each project by decoding its folder name (`-` → `/`)." | That corrupts any project with a literal hyphen in its path (invariant #4). `scan.py` reads the true path from the JSONL `cwd` field. |
+| "Rank #1 is obviously the thread — launch it." | Invariant #7: rank is proximity, not certainty. Confirm the top candidates ran the skill the user means before launching. |
+| "I'll only scan `~/.claude/projects`." | Invariant #6: a thread under a second config dir would be invisible. `scan.py` already scans every configured root. |
+| "I'll label each project by decoding its folder name (`-` → `/`)." | Invariant #4: that corrupts any project whose path has a literal hyphen. `scan.py` reads the true path from the JSONL `cwd` field. |
 | "After `more <project>` I'll re-render that project's threads numbered from 1." | Renumbering on expand makes a pick collide with numbers already given to other rows. Numbers are assigned once across the full kept set; expansion only reveals hidden rows' existing numbers. |
-| "The user picked 9 threads — I'll pass all 9 to one `/analyze-thread` call for the widest recurrence signal." | `/analyze-thread` clamps a run at 5 threads, so the tail is silently dropped. Launch the first 5 in one command and queue the overflow as further commands of up to 5. |
-| "An oversize thread is fine to queue — let the user find out." | `/analyze-thread` refuses files over its 5 MB cap, so the queued command would just fail. Flag oversize threads up front so the user can split them first. |
+| "The user picked 9 threads — I'll pass all 9 to one `/analyze-thread` call for the widest recurrence signal." | `/analyze-thread` clamps a run at its per-run thread cap (its §Budgets & quality gates), so the tail is silently dropped. Launch one full batch and queue the overflow as further batches. |
+| "An oversize thread is fine to queue — let the user find out." | `/analyze-thread` refuses a file over its size cap (its §Budgets & quality gates), so the queued command would just fail. Flag oversize threads up front so the user can split them first. |
 | "The user wants threads worth analyzing — I'll skip the read-only review/debug runs." | The default surfaces `read-only` threads on purpose: a `/geniro:review` or `/geniro:debug` run that edited nothing is exactly what `/analyze-thread` inspects for pipeline failures. Drop them only when the user passes `--code-only`. |
 
 ---
 
-## Definition of Done
+## Definition of done
 
 - [ ] Phase 1: `scan.py` ran across every config root; work-bearing threads kept (edited + read-only, or edited-only under `--code-only`); each row has a kind, title, true `cwd` label, date, turn count, oversize flag (and, for a query, a relevance score + snippet)
 - [ ] Phase 2 (list): rows grouped by project, newest-first, numbered once across the full set (stable on expand), capped at 10/project with "show more"; read-only rows tagged `[read-only]`
@@ -79,7 +93,7 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 | Body search window | first 12 MB of each file | Covers the vast majority of logs whole; a match deeper than 12 MB in a giant log may be missed (acceptable — one early hit still surfaces the thread) |
 | List display cap | newest 10 per project, with "show more" | Past ~10 rows per project the list becomes unscannable; the rest expand on request |
 | Search display cap | top 15 ranked, with "show more" | A common-word query can match every thread; ranking floats the real matches up, so show the best 15 and expand on request |
-| Oversize flag | mark threads > 5 MB | `/analyze-thread` rejects files over its 5 MB hard cap, so flag them rather than silently queueing a command that will be refused |
+| Oversize flag | threads over `/analyze-thread`'s file-size cap (its §Budgets & quality gates) | Flag them rather than silently queueing a command `/analyze-thread` will refuse |
 
 ---
 
@@ -164,7 +178,7 @@ Rules:
 - The header's four counts come from the engine's `#SUMMARY` line, not from tallying rows.
 - Numbers are assigned once across the full kept set and never change. Show the newest 10 rows per project; hidden rows keep their already-assigned numbers and are *revealed*, not renumbered, on `more <project name>`.
 - Tag `read-only` rows with `[read-only]`; `edited` rows carry no tag (they are the common case, so tagging only the minority keeps the list scannable).
-- Mark oversize rows with `[>5 MB]` and note once that `/analyze-thread` refuses files over 5 MB.
+- Mark oversize rows with `[>5 MB]` and note once that `/analyze-thread` refuses them.
 - Keep titles on one line (already truncated to ~100 characters).
 
 ### Search mode (a query)
@@ -233,7 +247,7 @@ Queued — run this after the first finishes:
 /analyze-thread <abs-path-6> <abs-path-7> … --format=jsonl
 ```
 
-List any oversize picks separately under "Too large to analyze as-is (over 5 MB — split first)" with their paths — do NOT put them in the runnable queue, because `/analyze-thread` refuses them at its 5 MB cap and the command would just fail. If every pick is oversize, launch nothing and say so, naming the oversize threads.
+List any oversize picks separately under "Too large to analyze as-is (over 5 MB — split first)" with their paths — do NOT put them in the runnable queue, because `/analyze-thread` refuses them and the command would just fail. If every pick is oversize, launch nothing and say so, naming the oversize threads.
 
 ---
 

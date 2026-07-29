@@ -1,4 +1,4 @@
-# Instructions — Authoring Reference
+# Instructions — authoring reference
 
 Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
@@ -155,7 +155,7 @@ The `memory.md` scaffold carries ONLY the commented `## Memory Backend` stub —
 
 ## 2. Writing effective instructions
 
-### Rule Writing
+### Rule writing
 
 - **State the criterion, not a prohibition** — "Match the error-handling style of the module you're editing" beats "NEVER use bare try/except". A criterion applies to cases you didn't anticipate; a prohibition only covers the one you named, and a capable model reads emphatic caps on a judgment call as a signal to stop thinking rather than to think harder.
 - **Give the reason when a rule is one the model would otherwise talk itself out of** — "Run `pnpm test` before committing — the pre-push hook assumes green tests and skipping leaves CI reviewing stale code." Routine facts (paths, commands, names) need no reason.
@@ -167,7 +167,7 @@ The `memory.md` scaffold carries ONLY the commented `## Memory Backend` stub —
 
 Every rule here is loaded into the model's context on each skill run that matches its scope, alongside the plugin's own instructions. Rules that are plausible but don't apply to the task in hand measurably degrade rule-following, so a rule that only matters for one kind of work belongs in a scoped file rather than in `global.md`.
 
-### Additional Steps Writing
+### Additional Steps writing
 
 - **Use exact phase enum values** from the per-skill mapping — `validate` checks these (the cross-skill `### After worktree-setup` anchor is the sole non-phase exception, below)
 - **Keep steps actionable** — each step describes a concrete action
@@ -175,9 +175,9 @@ Every rule here is loaded into the model's context on each skill run that matche
 - **Best insertion points:** `Before ship` (quality gates), `After implement` (post-checks), `After verify` (refactor wrap-up)
 - **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after any skill creates a new worktree and before subagent fan-out
 
-### Constraint Writing
+### Constraint writing
 
-- **Quantify where possible** — "Maximum 400 lines changed per PR" not "Keep PRs small"
+- **Quantify where possible** — "Maximum 500 lines changed per PR" not "Keep PRs small"
 - **State the consequence** — "Database migrations must be backwards-compatible — breaking migrations block deploy"
 - **Constraints are hard limits** — skills treat these as non-negotiable
 

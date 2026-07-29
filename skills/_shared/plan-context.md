@@ -4,18 +4,18 @@ How `/geniro:review` ingests and threads plan/spec intent through reviewers, the
 
 ## Contents
 
-- §1 — Accepted Input Forms
+- §1 — Accepted input forms
 - §2 — Detection — schema vs prose
 - §3 — Structured-section parser
 - §4 — Prose mode (fallback)
-- §5 — Decision-Marker Convention
-- §6 — Cap Rationale
+- §5 — Decision-marker convention
+- §6 — Cap rationale
 - §7 — Decision Type values (canonical)
-- §8 — Worked Example
+- §8 — Worked example
 
 ---
 
-## 1. Accepted Input Forms
+## 1. Accepted input forms
 
 The orchestrator collects PLAN CONTEXT from up to five sources (item 6 is the empty fallback, not a source), in this **priority order**:
 
@@ -129,7 +129,7 @@ In prose mode, the spec-compliance reviewer runs the reduced check set defined i
 
 ---
 
-## 5. Decision-Marker Convention
+## 5. Decision-marker convention
 
 Project plans commonly label decisions with markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning with such a marker as an authoritative intent statement. This applies in both structured mode (markers may appear in any section body) and prose mode.
 
@@ -151,7 +151,7 @@ When a reviewer encounters a finding that contradicts a marker (e.g., the plan s
 
 ---
 
-## 6. Cap Rationale
+## 6. Cap rationale
 
 Schema-mode ~6000-char total cap exists because:
 
@@ -173,7 +173,7 @@ Review-specific note: `[INTENT-CHECK]` is auto-applied by the Phase 3 §3.3 KEEP
 
 ---
 
-## 8. Worked Example
+## 8. Worked example
 
 **Setup:** PR titled "Add timeline events". PR body includes `geniro-plan: .geniro/planning/feat-timeline/spec.md`.
 

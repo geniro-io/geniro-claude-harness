@@ -253,6 +253,25 @@ expect_allow "bash: sh -c invoking the sanctioned helper allowed" \
   "$(rc_bash 'sh -c "atomic_state_write .geniro/planning/task/state.md"')"
 expect_allow "bash: prose mentioning eval write to a state path allowed" \
   "$(rc_bash 'echo "never run eval echo x > .geniro/planning/task/state.md here"')"
+# A quoted literal spanning a NEWLINE: the per-line quote-blanking pass used to
+# see an unbalanced quote on each half and read the second half as syntax, so a
+# redirect written INSIDE the string blocked while its single-line twin allowed.
+expect_allow "bash: multi-line quoted string containing a redirect allowed" \
+  "$(rc_bash "$(printf 'echo "first line\nsee > .geniro/planning/task/state.md"\n')")"
+expect_allow "bash: single-line equivalent allowed (control)" \
+  "$(rc_bash 'echo "see > .geniro/planning/task/state.md"')"
+expect_block "bash: real redirect after a multi-line quoted string still blocks" \
+  "$(rc_bash "$(printf 'echo "first line\nsecond line"\necho x > .geniro/planning/task/state.md\n')")"
+
+# ===== NotebookEdit branch: notebook_path is read like file_path =====
+rc_notebook() {
+  jq -nc --arg p "$1" '{tool_name: "NotebookEdit", tool_input: {notebook_path: $p, new_source: "x = 1"}}' | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "NotebookEdit into a state path blocks" \
+  "$(rc_notebook '/proj/.geniro/planning/task/state.md')"
+expect_allow "NotebookEdit into a normal notebook allowed" \
+  "$(rc_notebook '/proj/notebooks/analysis.ipynb')"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

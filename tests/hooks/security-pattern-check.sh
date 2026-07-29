@@ -206,6 +206,42 @@ expect_block "Bash spaced-tag heredoc eval into .py blocks" \
 expect_allow "Bash spaced-tag heredoc eval into .md NOT blocked (ext-scoped)" \
   "$(run_bash "$(printf 'cat > notes.md << EOF\neval(input())\nEOF\n')")"
 
+# ===== Bash branch: a payload spanning a newline still pairs with its target ====
+# The echo/printf scan is line-oriented; a quoted literal carrying a newline used
+# to leave the payload on one line and the redirect target on another, so the
+# write was never scanned.
+expect_block "Bash multi-line printf payload into .py blocks" \
+  "$(run_bash "$(printf "printf '%%s' 'eval(x)\nextra' > bad.py\n")")"
+expect_allow "Bash multi-line printf payload into .md NOT blocked (ext-scoped)" \
+  "$(run_bash "$(printf "printf '%%s' 'eval(x)\nextra' > notes.md\n")")"
+
+# ===== Bash branch: interpreter-authored writes are scanned like a redirect =====
+# `node -e "fs.writeFileSync('app.js', '<body>')"` writes the same flagged content
+# without any shell syntax the redirect/heredoc scans can see.
+expect_block "Bash node writeFileSync eval body into .js blocks" \
+  "$(run_bash "node -e \"require('fs').writeFileSync('app.js','eval(userInput)')\"")"
+expect_block "Bash python open(w).write eval body into .py blocks" \
+  "$(run_bash "python3 -c \"open('bad.py','w').write('eval(x)')\"")"
+expect_block "Bash pathlib write_text eval body into .py blocks" \
+  "$(run_bash "python3 -c \"from pathlib import Path; Path('bad.py').write_text('eval(x)')\"")"
+# Extension scoping holds here too, and a read-only interpreter call is untouched.
+expect_allow "Bash node writeFileSync eval body into .md NOT blocked (ext-scoped)" \
+  "$(run_bash "node -e \"require('fs').writeFileSync('notes.md','eval(userInput)')\"")"
+expect_allow "Bash node writeFileSync benign body allowed" \
+  "$(run_bash "node -e \"require('fs').writeFileSync('app.js','console.log(1)')\"")"
+expect_allow "Bash node reading a file allowed" \
+  "$(run_bash "node -e \"console.log(require('fs').readFileSync('app.js','utf8'))\"")"
+
+# ===== NotebookEdit branch: new_source is scanned at notebook_path's extension ====
+run_notebookedit() {
+  jq -nc --arg p "$1" --arg s "$2" '{tool_name: "NotebookEdit", tool_input: {notebook_path: $p, new_source: $s}}' | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "NotebookEdit pickle.load into a .py notebook cell blocks" \
+  "$(run_notebookedit /tmp/nb.py 'import pickle; pickle.loads(blob)')"
+expect_allow "NotebookEdit benign cell allowed" \
+  "$(run_notebookedit /tmp/nb.py 'import json; json.loads(blob)')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

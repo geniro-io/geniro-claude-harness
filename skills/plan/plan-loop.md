@@ -1,4 +1,4 @@
-# Plan Loop
+# Plan loop
 
 Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase order, the gates that bind every phase, and a pointer to the file holding each phase's steps. This file plus the phase files it names are the single source of truth for the loop. Skills cite them; do NOT inline-paste the loop logic.
 
@@ -100,7 +100,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 0.5 — Problem discovery (opt-in, fires only on `--prd`)
 
-`phase: problem-discovery`. Steps in `loop-phase-0.5-problem-discovery.md`: §0.5.1 interview dimensions · §0.5.2 persistence · §0.5.3 feed-forward · §0.5.4 transition. Read the file only when `prd_mode: true`; otherwise Phase 0 transitions straight to Phase 1.
+`phase: problem-discovery`. Steps in `loop-phase-0.5-problem-discovery.md`: §0.5.1 interview dimensions · §0.5.2 persistence · §0.5.3 feed-forward · §0.5.4 transition.
 
 ## Phase 1 — Explore
 
@@ -108,7 +108,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 2 — Visual Companion (UI-conditional)
 
-`phase: visual-companion`. Steps in `loop-phase-2-visual-companion.md`: §2.1 trigger detection · §2.2 UI preview procedure · §2.3 persistence · §2.4 routing-out signal. The §2.1 trigger is evaluated at the §1.5 transition; Read the file only once it matches — no trigger means `phase: clarify` and straight on to Phase 3.
+`phase: visual-companion`. Steps in `loop-phase-2-visual-companion.md`: §2.1 trigger detection · §2.2 UI preview procedure · §2.3 persistence · §2.4 routing-out signal. The §2.1 trigger is evaluated at the §1.5 transition, which also names the phase entered when it does not match.
 
 ## Phase 3 — Grill (decision-tree clarification)
 
@@ -132,7 +132,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 7.5 — Spec challenge
 
-`phase: spec-challenge`. Steps in `loop-phase-7.5-spec-challenge.md`: §7.5.1 invoke the challenge helper · §7.5.2 verdict handling · §7.5.3 advisory + fail-open. Read the file only when the §7.4 gate fires (Big effort tier OR `deep-mode: true`); otherwise the validator transitions `phase: user-approve` directly.
+`phase: spec-challenge`. Steps in `loop-phase-7.5-spec-challenge.md`: §7.5.1 invoke the challenge helper · §7.5.2 verdict handling · §7.5.3 advisory + fail-open. §7.4 owns the gate that decides whether this phase is entered at all.
 
 ## Phase 8 — User approval
 

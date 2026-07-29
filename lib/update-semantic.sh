@@ -37,6 +37,8 @@ if [ -z "${_US_DEPS_LOADED:-}" ]; then
   source "$_us_script_dir/atomic-state-write.sh"
   # shellcheck disable=SC1091
   source "$_us_script_dir/redact-secrets.sh"
+  # shellcheck disable=SC1091
+  source "$_us_script_dir/lock-reclaim.sh"
   _US_DEPS_LOADED=1
 fi
 
@@ -52,14 +54,9 @@ _us_resolve_target() {
 }
 
 # Stale-lock window: a lock older than this (seconds) is presumed abandoned by a
-# crashed/killed holder and reclaimed. Single shared knob across every lock-reclaim
-# site (archive-stale.sh / query-learnings.sh use the same env var) — set
-# GENIRO_LOCK_RECLAIM_SECS to retune all reclaim windows at once. Default 600 (10 min).
-# Sanitized at assignment: a non-numeric override makes the `[ -gt ]` reclaim test
-# error and evaluate false, so an abandoned lock is never reclaimed and every
-# subsequent semantic write wedges behind it.
-_US_STALE_LOCK_SECS="${GENIRO_LOCK_RECLAIM_SECS:-600}"
-case "$_US_STALE_LOCK_SECS" in ''|*[!0-9]*) _US_STALE_LOCK_SECS=600 ;; esac
+# crashed/killed holder and reclaimed. Value, rationale and sanitation live in
+# lib/lock-reclaim.sh, which every lock site in the plugin reads.
+_US_STALE_LOCK_SECS="$(_geniro_lock_reclaim_secs)"
 
 # O_EXCL-style lock acquisition. Returns 0 on acquire, non-zero if held.
 # Before acquiring, reclaim a stale lock whose mtime is older than the stale

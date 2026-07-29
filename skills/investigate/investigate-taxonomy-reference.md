@@ -1,4 +1,4 @@
-# Investigate — Detailed Reference
+# Investigate — detailed reference
 
 Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
@@ -9,7 +9,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.m
 3. Phase 2 research-agent spawn templates (Codebase / Git / Internet)
 4. Phase 3 fresh verifier agent spawn template
 5. Answer-structure templates per question type (How / Why / What-if / Compare / Risk)
-6. Extended examples (Design Rationale, Impact Analysis, Forward-looking integration)
+6. Extended examples (design rationale, impact analysis, forward-looking integration)
 
 ---
 
@@ -113,7 +113,7 @@ Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skil
 
 ## 3. Phase 2 research-agent spawn templates
 
-Each spawn follows SKILL.md §Subagent Spawn Contract. Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
+Each spawn follows `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md` §Subagent spawn contract. Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
@@ -244,7 +244,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ## 4. Phase 3 fresh verifier agent spawn template
 
-The verifier inherits the orchestrator's session tier (OMIT `model=`); the spawn follows SKILL.md §Subagent Spawn Contract.
+The verifier inherits the orchestrator's session tier (OMIT `model=`); the spawn follows `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md` §Subagent spawn contract.
 
 ```
 Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
@@ -378,7 +378,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ## 6. Extended examples
 
-### Example 2: Design Rationale
+### Example 2: Design rationale
 
 ```
 /geniro:investigate why does the project use Redis for sessions instead of JWT?
@@ -390,7 +390,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 → Synthesize: timeline of decision + trade-offs + current state
 → Present: decision history + evidence for/against
 
-### Example 3: Impact Analysis
+### Example 3: Impact analysis
 
 ```
 /geniro:investigate what would break if we upgrade from Express 4 to Express 5?

@@ -47,6 +47,8 @@ if [ -z "${_AS_DEPS_LOADED:-}" ]; then
   source "$_as_script_dir/repo-root.sh"
   # shellcheck disable=SC1091
   source "$_as_script_dir/score-formula.sh"
+  # shellcheck disable=SC1091
+  source "$_as_script_dir/lock-reclaim.sh"
   _AS_DEPS_LOADED=1
 fi
 
@@ -245,13 +247,9 @@ if [ "$_as_direct" = "1" ]; then
   if [ -d "$_as_lock_root/.geniro/knowledge" ] && [ -z "${GENIRO_ARCHIVE_LOCK_HELD:-}" ]; then
     if [ -d "$_as_lock" ]; then
       _as_lock_mtime=$(stat -c %Y "$_as_lock" 2>/dev/null || stat -f %m "$_as_lock" 2>/dev/null || echo 0)
-      # Shared reclaim window — override via GENIRO_LOCK_RECLAIM_SECS (default 600s);
-      # archive-stale.sh + query-learnings.sh reclaim the SAME lock and must agree.
-      # Sanitized before the integer test: a non-numeric override makes `[ -gt ]`
-      # error and evaluate false, so an abandoned lock is never reclaimed and every
-      # subsequent write wedges. Same guard the numeric knobs elsewhere carry.
-      _as_reclaim_secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
-      case "$_as_reclaim_secs" in ''|*[!0-9]*) _as_reclaim_secs=600 ;; esac
+      # The reclaim window is lib/lock-reclaim.sh's — archive-stale.sh and
+      # query-learnings.sh reclaim the SAME lock and cannot hold different values.
+      _as_reclaim_secs="$(_geniro_lock_reclaim_secs)"
       if [ $(( $(date +%s) - _as_lock_mtime )) -gt "$_as_reclaim_secs" ]; then
         rmdir "$_as_lock" 2>/dev/null
       fi
@@ -260,7 +258,11 @@ if [ "$_as_direct" = "1" ]; then
       echo "archive-stale: another rewrite of learnings.jsonl is in progress (lock held: $_as_lock) — skipped. Re-run in a moment." >&2
       exit 3
     fi
-    trap 'rmdir "$_as_lock" 2>/dev/null' EXIT
+    # INT/TERM as well as EXIT: a SIGINT here would otherwise leave the lock held
+    # for the full reclaim window, skipping every archive run in between. The
+    # three peer lock sites (query-learnings.sh, update-semantic.sh,
+    # session-start-restore.sh) all clean on interrupt.
+    trap 'rmdir "$_as_lock" 2>/dev/null' EXIT INT TERM
   fi
   archive_stale_learnings "$@"
   exit $?

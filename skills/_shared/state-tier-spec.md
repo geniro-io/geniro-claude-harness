@@ -89,7 +89,6 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 - `.geniro/actions/` — CRUD (workflow actions)
 - `.geniro/workflow/` — CRUD (integration config)
 - `.geniro/planning/_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`, `_focus-<area>.md` — CRUD global registries (`_` prefix = visual cue for persistent-global)
-- `.geniro/docs/` — CRUD (`/geniro:setup` spin-out targets — `hooks.md`, `mcp.md`, `agent-runtime.md`)
 
 ### Tier-exempt — TDD-cycle state file
 
@@ -228,7 +227,13 @@ open_questions:
 
 **Free-text body fallback:** the body section `## Open Questions` MAY mirror the frontmatter as a human-readable view (Markdown bullet list with `id` anchors), but the frontmatter is the source of truth. Validators check the frontmatter only; the body is informational.
 
-**Secret redaction — every free-form T2 field.** Before the `atomic_state_write`, pipe each free-form text value bound for the handoff — `context`, `evidence[].snippet`, body Evidence / Suggested-fix blocks, `reply_draft` — through `redact_secrets` (`source "${CLAUDE_PLUGIN_ROOT}/lib/redact-secrets.sh"`; API in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/redact-secrets.md`). A security finding that quotes a hardcoded credential otherwise persists the secret verbatim in a file that outlives the run and ships to every downstream consumer; the `[REDACTED:…]` placeholder still locates the leak. Structured fields (ids, paths, enums, timestamps) skip the pipe.
+**Secret redaction — every free-form T2 field.** Before the `atomic_state_write`, pipe every free-form text value bound for the handoff through `redact_secrets` (`source "${CLAUDE_PLUGIN_ROOT}/lib/redact-secrets.sh"`; API in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/redact-secrets.md`). The values, grouped by the structure that owns them:
+
+- Each `open_questions[]` entry — `question`, `context`, `evidence[].snippet`, `options[].description`, `options[].preview`, `recommendation.rationale`.
+- Each finding block in the body — the `Evidence:` codeblock, `Suggested fix:`, and `Verification-evidence:`. `Verification-evidence:` is a literal quote lifted from the cited `file:line`, present on every kept CRITICAL / HIGH / MEDIUM finding, so it carries the same exposure as the reviewer's own `Evidence:` codeblock beside it.
+- Each `comment_resolutions[]` entry — `reply_draft`.
+
+A security finding that quotes a hardcoded credential otherwise persists the secret verbatim in a file that outlives the run and ships to every downstream consumer; the `[REDACTED:…]` placeholder still locates the leak. Structured fields (ids, paths, enums, timestamps) skip the pipe. A new free-form field added to any of these structures joins this list in the same edit — the pipe is defined by what the value is, not by what happened to be enumerated when the field was introduced.
 
 ### Producer-specific extensions
 

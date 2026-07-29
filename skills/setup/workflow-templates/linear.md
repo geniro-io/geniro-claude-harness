@@ -10,7 +10,7 @@ This project uses Linear for issue tracking. Skills read this file at runtime to
 - AI-Disclosure Prefix on Authored Comments
 - Commit Message Format
 - PR Description
-- Implement Skill Behavior
+- Implement skill behavior
 - MCP Setup
 
 ## Argument Detection
@@ -106,7 +106,7 @@ Linear: [ISSUE-ID](https://linear.app/team/issue/ISSUE-ID)
 ```
 in the PR description body.
 
-## Implement Skill Behavior
+## Implement skill behavior
 
 When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching Issue Context` above — the fetched title/description/acceptance criteria flow into Phase 1 (analyze) as planning input. `/geniro:plan` also reads Linear context when a Linear issue ID or URL appears in its `$ARGUMENTS`, persisting it to the spec's `workflow_refs[]`.
 

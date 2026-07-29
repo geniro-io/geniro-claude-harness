@@ -244,7 +244,7 @@ The Standard/TDD mode axis is gone from `/geniro:review`. The post-review test-c
 
 ### `--simplify` flag removed from `/geniro:review`
 
-The `--simplify` flag (and its `simplify-mode` handoff field) is gone from `/geniro:review`. The reuse / quality / efficiency lens it added is now covered by the always-on review dimensions — architecture (reuse, premature abstraction), conventions (modal-pattern drift), optimizations (efficiency), and guidelines (naming, dead code) — at their standard thresholds. Applying a simplification is downstream work (`/geniro:implement` or `/geniro:refactor`), not part of producing a review. Passing `--simplify` no longer changes behavior (it is read as ordinary argument text and ignored); the dedicated `simplify-criteria.md` reference file is removed.
+The `--simplify` flag (and its `simplify-mode` handoff field) is gone from `/geniro:review`. The reuse / quality / efficiency lens it added is now covered by the always-on review dimensions — architecture (reuse, premature abstraction), conventions (modal-pattern drift, and the naming / dead-code scope of the former `guidelines` dimension it now covers), and optimizations (efficiency) — at their standard thresholds. Applying a simplification is downstream work (`/geniro:implement` or `/geniro:refactor`), not part of producing a review. Passing `--simplify` no longer changes behavior (it is read as ordinary argument text and ignored); the dedicated `simplify-criteria.md` reference file is removed.
 
 **Action required:** None — remove `--simplify` from any saved command aliases, actions, or `.geniro/instructions/review*.md` rules that invoke `/geniro:review`; the flag is now inert. A project that relied on the aggressive simplify thresholds still gets the same finding classes from the standard dimensions at their normal thresholds.
 
@@ -364,7 +364,7 @@ find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o
 
 All plugin subagents (`reviewer-agent` / `knowledge-retrieval-agent` / `codebase-explorer-agent` / `test-runner-agent` / `adversarial-tester-agent`) now declare `model: inherit` in frontmatter, and spawn sites OMIT the `model=` argument. *[Updated: `test-runner-agent` and `knowledge-retrieval-agent` have since been re-pinned to `model: sonnet` as mechanical carve-outs per `skills/_shared/model-tiering.md` §carve-outs; `reviewer-agent` / `codebase-explorer-agent` / `adversarial-tester-agent` still declare `model: inherit`.]* If your orchestrator session is on Opus, every reviewer-agent per `/review` and every Phase-3 spawn per `/implement` also runs on Opus — significantly higher cost than the prior hardcoded Sonnet floor. To restore the cheaper baseline, switch orchestrator tier via `/model sonnet` before running `/review` or `/implement`.
 
-Two carve-outs deliberately retain hardcoded tier per `skills/_shared/model-tiering.md`: `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference) and `ui-preview-gate.md` UI-description spawn (Haiku for mechanical transformation work).
+One spawn site deliberately retains a hardcoded tier per `skills/_shared/model-tiering.md`: the `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference).
 
 **Action required:** Informational. If cost-sensitive, set orchestrator tier explicitly per session via `/model sonnet`. User-authored custom reviewers (`.geniro/instructions/review-extra/*.md`) may declare an explicit `model:` field to opt OUT of inherit on a per-reviewer basis.
 
@@ -451,6 +451,8 @@ Per-entry shape: `{kind, issue_id, url, fetched_at, title?, suggested_branch?, s
 
 ### `/plan` per-section AUQ with `preview` field + Phase 2 Visual Companion restored
 
+> **Superseded — historical record only.** The per-section Phase 5 gate described below was replaced by three dependency-ordered cluster gates (Goal & scope / Steps / Safety), one lean question each, and `preview` is now omitted at every `/geniro:plan` AUQ — the consequences of each option are rendered to a chat message before the question instead of into an option side-box. Phase 2's UI-conditional Visual Companion still ships as described. Check a custom `.geniro/instructions/plan.md` against the cluster gates, not against the per-section pattern below.
+
 `/geniro:plan` Phase 5 now opens one AUQ per section with rendered `preview` content (no more "pre-fill all 10 sections" batch). Phase 3 + Phase 4 options also carry `preview` (consequence-of-picking / ASCII data-flow + code identifier + tradeoff). Phase 2 Visual Companion is restored for UI-shaped topics — fires only on UI trigger (Phase 1 surfaced UI files OR topic carries a UI noun) and calls `skills/_shared/ui-preview-gate.md` to produce a textual UI preview before any code is written.
 
 Any user `.geniro/instructions/plan.md` rule referencing the dropped pre-fill batch step or describing Phase 2 as "DROPPED" becomes stale and may mislead the model.
@@ -466,6 +468,8 @@ Any user `.geniro/instructions/plan.md` rule referencing the dropped pre-fill ba
 ---
 
 ### `/review` MANDATORY spawn list + post-spawn verification gate
+
+> **Dimension names since changed — the gate mechanism below is current.** `guidelines` was folded into `conventions` by *"`/geniro:review` merges the `guidelines` and `rules-compliance` dimensions into `conventions`"* (above), and `regressions` has since joined the always-fire set; the always-fire list reads `bugs / security / architecture / tests / optimizations / conventions / regressions` today.
 
 `/geniro:review` Phase 2 step 2.2 now writes `spawn_dims_declared: [...]` + `spawn_dims_count: N` to state.md frontmatter at spawn-batch entry; Phase 4 §4.0 verifies actual spawns match the declaration (catches the silent-skip bug where reviewers reasoned themselves into dropping dimensions). The spawn list is MANDATORY: 7 always (bugs / security / architecture / tests / optimizations / guidelines / conventions) + up to 3 conditional (design / pr-metadata / spec-compliance) + N custom from `.geniro/instructions/review-extra/`. Custom-reviewer discovery moved from Phase 2 entry into Phase 1.5 mechanical pre-pass so Phase 2 has zero cognitive load for it.
 
@@ -607,7 +611,7 @@ Adds `risk_class: low` right after the opening `---` of each affected action's f
 
 **Action required:** For each non-canonical instruction file acting as a custom reviewer, recreate via `/geniro:instructions create review-extra/<slug>` (interview copies the body + adds `slug` / `description` / `model` / `paths` / `severity-default` frontmatter), then `/geniro:instructions delete <old-scope>`.
 
-**Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|memory|implement|plan|review|debug|refactor|onboard|investigate)\.md$'`
+**Auto-detect:** `ls .geniro/instructions/*.md 2>/dev/null | grep -vE '/(global|code-style|memory|implement|plan|review|resolve|debug|refactor|onboard|investigate|reflect)\.md$'`
 
 **Auto-fix:** manual-only — custom reviewer migration requires user judgment to set frontmatter fields (`description`, `model`, `paths`, `severity-default`). Run `/geniro:instructions create review-extra/<slug>` per file.
 
@@ -752,7 +756,7 @@ Older vendored installs may have `.claude/agents/geniro-{backend,frontend,skepti
 rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null
 ```
 
-**Severity:** LOW — orphan files cause a warning when Claude Code lists agents but do not break spawns (2 current agents register independently).
+**Severity:** LOW — orphan files cause a warning when Claude Code lists agents but do not break spawns (the plugin's current agents register independently).
 
 ---
 

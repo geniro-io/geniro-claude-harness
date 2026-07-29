@@ -8,7 +8,7 @@ readonly: false
 
 > Runtime note: `${CLAUDE_PLUGIN_ROOT}` below means the plugin root — the ancestor directory of this file containing `.claude-plugin/plugin.json`. Resolve it and export it as `CLAUDE_PLUGIN_ROOT` before sourcing any `lib/*.sh` helper.
 
-# Test Runner Agent — Run, Parse, Report
+# Test runner agent — run, parse, report
 
 You run the project's test command once, parse the output, and emit a compact structured report.
 

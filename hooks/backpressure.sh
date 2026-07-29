@@ -22,6 +22,12 @@ run_silent() {
     local command="$2"
     local tmp_file
     tmp_file=$(mktemp) || { echo "backpressure: mktemp failed" >&2; return 1; }
+    # A SIGINT/SIGTERM while the wrapped command runs skips every `rm -f` below
+    # and leaks the capture file into $TMPDIR. Bash traps are not function-scoped,
+    # so this one is cleared on both return paths (and self-clears when it fires)
+    # rather than lingering in a caller that sourced this function and clobbering
+    # its own INT trap — the same discipline lib/update-semantic.sh applies.
+    trap 'rm -f "$tmp_file"; trap - INT TERM' INT TERM
     local output_cap="${GENIRO_BACKPRESSURE_CAP:-150}"
     # A non-numeric or <1 cap would make `head -"$output_cap"` diverge across platforms:
     # GNU `head -0` prints nothing and exits 0, but BSD/macOS `head -0` errors. Fall back
@@ -59,6 +65,7 @@ run_silent() {
 
         printf "✓ %s passed (%s)\n" "$description" "$summary"
         rm -f "$tmp_file"
+        trap - INT TERM
         return 0
     else
         local exit_code=$?
@@ -78,6 +85,7 @@ run_silent() {
         fi
 
         rm -f "$tmp_file"
+        trap - INT TERM
         return $exit_code
     fi
 }

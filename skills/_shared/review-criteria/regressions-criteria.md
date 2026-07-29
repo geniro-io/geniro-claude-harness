@@ -166,7 +166,7 @@ Two false-positive classes route to other dims rather than being suppressed here
 - **Cause-path comparison for deleted tests vs. outcome-matching surviving tests.** Belongs to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)". This dim emits the higher-level "test deleted, production stayed" signal; that section handles the cause-path nuance.
 - **Cross-round PR-body vs. diff drift.** Belongs to `pr-metadata-criteria.md` §11 (Description ↔ Code Drift on Re-Review). This dim covers the broader diff-vs-stated-intent direction across all intent sources, not just the PR body across rounds.
 
-When two dims have legitimate overlap on the same hunk, both emit. The Phase 3 filter and Phase 4 stratify steps in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` deduplicate by `file:line + cause`; orthogonal findings on the same hunk survive deduplication.
+When two dims have legitimate overlap on the same hunk, both emit. The consuming skill's filter and stratify steps collapse only same-finding duplicates, so orthogonal findings on the same hunk both survive deduplication.
 
 ## Severity Tagging
 
@@ -198,7 +198,7 @@ The rubric is additive — a single hunk can trigger multiple rows (e.g., a dele
 ## Reference notes
 
 - Reviewer output format: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
-- Phase 1 input inlining (DIFF / PLAN / LINEAR / PEER-PR slots): `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 1.
-- Phase 3 dedup + Phase 4 stratify pipeline: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` Phase 3 and Phase 4.
+- Spawn-prompt input inlining (DIFF / PLAN / LINEAR / PEER-PR slots): `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3.
+- Dedup + stratify pipeline: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §3.1 (dedup key) and §4.1 (admission).
 - Cause-path comparison for deleted tests: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)".
 - Caller-blast for surviving symbols: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §1.5.

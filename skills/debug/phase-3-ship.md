@@ -6,38 +6,26 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 ## Contents
 
-- §3.0 Pre-gate — Resolve Open Questions · §3.1 Present findings · §3.2 Escalation AUQ
+- §3.0 Pre-gate — resolve open questions · §3.1 Present findings · §3.2 Escalation AUQ
 - §3.3 Emit learnings + rule-capture offer · §3.4 Suggest improvements · §3.5 Cleanup · §3.6 Atomic non-resumable updates
 - Definition of done — Scientific Mode
 
-### 3.0 Pre-gate — Resolve Open Questions
+### 3.0 Pre-gate — resolve open questions
 
 Fires FIRST in Phase 3 — before the findings summary, before the escalation AUQ — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`. Open questions surface ambiguity that downstream consumers (typically /geniro:implement) need resolved before applying a fix; resolving them here means the escalation AUQ chooses between a known-shape target rather than between paths that still gate on ambiguity.
 
-**Procedure:**
+**Procedure.** Run the canonical resolve-open-questions procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 — read and filter the unresolved set, render each entry message-first before its own lean `AskUserQuestion` (Always-WAIT), write the resolution back in place via `atomic_state_write`, mirror it into the body `## Resolved Questions`, chain a second call rather than batching when one entry's options exceed the AUQ cap, and re-read the frontmatter afterwards to confirm every entry sits in `{resolved, wontfix}` before §3.1 runs. Its Wontfix path binds here unchanged. The entry fields and the `resolution` sub-fields are `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
-1. Read state.md frontmatter `open_questions[]`. Filter to entries with `status: unresolved`.
+Debug's instantiation of that procedure:
 
-2. For each unresolved entry, render it to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — the decision-queue tracker opens the render when ≥2 entries are unresolved (denominator: the unresolved `open_questions[]` count, already persisted), then the `### 🧭 Decision needed:` title (a plain-English restatement of the entry's `question:` field), the `**In one sentence:**` opener, a conversational lead (what the investigation hit and why it stayed open, drawn from the entry's `source` + `related_hypotheses`), `**Why it matters:**` with an evidence cite, a visual when one maps (§ Finding-type visual map), and the options. Then fire one lean `AskUserQuestion`:
-   - `header`: `"Open question"`
-   - `question`: the plain-English title (the entry's `question:` field sources the title; do not echo it verbatim) + a pointer to the chat block
-   - `options`: synthesized from the entry's context. Examples:
-     - Stall categories (Phase 1 stall gate) → re-render the stall categories surfaced in Phase 1 (the set persisted in this entry's `question:` field) plus the "Abandon" option; do not introduce categories that were not originally surfaced.
-     - Multi-path fix deferred → render the original path options.
-     - Cannot-verify deferred → render "Provide the missing data" / "Mark as accepted limitation" / "Escalate to /geniro:investigate".
-   - Always-WAIT — empty answer = upstream bug, re-ask.
+- **Render source.** A debug entry carries `source` + `related_hypotheses` rather than `related_findings`, so the conversational lead states what the investigation hit and why the question stayed open. Preserve `id`, `source`, `question`, `related_hypotheses` across the resolution write.
+- **Resolution values.** `resolution.asked_in_phase: phase-3-pre-gate`, `resolution.resolved_by: debug`.
+- **Options** are synthesized from the entry's context:
+  - Stall categories (Phase 1 stall gate) → re-render the stall categories surfaced in Phase 1 (the set persisted in this entry's `question:` field) plus the "Abandon" option; do not introduce categories that were not originally surfaced.
+  - Multi-path fix deferred → render the original path options.
+  - Cannot-verify deferred → render "Provide the missing data" / "Mark as accepted limitation" / "Escalate to /geniro:investigate".
 
-3. Update the entry in-place via `atomic_state_write`: `status: resolved`, `resolution.picked`, `resolution.at`, `resolution.asked_in_phase: phase-3-pre-gate`, `resolution.resolved_by: debug`. Preserve `id`, `source`, `question`, `related_hypotheses`.
-
-4. Mirror the resolution into the body `## Resolved Questions` section per the schema example in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
-
-5. When >4 unresolved entries, chain into a second AUQ batch per the AskUserQuestion cap-extension pattern.
-
-6. After the last unresolved entry resolves, verify all `open_questions[].status` are in `{resolved, wontfix}` before proceeding to §3.1. If any `unresolved` remains, loop back to step 2.
-
-**Wontfix path.** If the user picks "Other" with text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream consumers — they're recorded but de-prioritized.
-
-**No-skip rule.** This gate cannot be deferred to /geniro:implement or to the user's manual patch path. /geniro:debug is the producer that surfaced the ambiguity; resolving here makes the handoff actionable. Resolving downstream creates the failure mode this gate exists to prevent. The exception: when §3.2 fires and the user picks "Cannot verify — request specific data from user", that response itself IS a resolution path — emit a new `open_questions[]` entry with `source: phase-3-cannot-verify`, `status: unresolved`, then loop back to step 1 above when data arrives.
+**No-skip rule.** This gate cannot be deferred to /geniro:implement or to the user's manual patch path. /geniro:debug is the producer that surfaced the ambiguity, and a handoff that carries an unresolved question makes the consumer act on a question the user never answered. The exception: when §3.2 fires and the user picks "Cannot verify — request specific data from user", that response itself IS a resolution path — emit a new `open_questions[]` entry with `source: phase-3-cannot-verify`, `status: unresolved`, then re-enter this gate when the data arrives.
 
 Skipped silently when `open_questions[]` has zero `unresolved` entries.
 

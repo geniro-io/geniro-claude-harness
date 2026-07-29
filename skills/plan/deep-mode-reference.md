@@ -39,7 +39,7 @@ Standard §4.2 spawns tier-scaled critics (Trivial skip / Medium 1 comparative /
 - **Escalate to 3 critics** (then majority) when the first critic returns a `blocking` risk — a demotion is now at stake, so it must clear the majority bar: the approach is demoted from `Recommended`-eligible only when **≥2 of 3 critics** return a `blocking` risk. A lone blocking call no longer demotes (it may be a hallucinated blocker); record it as a `major` caveat instead.
 - **Evidence bar per vote** (applied before tallying): a `blocking` vote without a verifying `file:line` citation counts as `major` and does not count toward the ≥2-blocking threshold; a no-risks vote without its `Checked:` line abstains — and on the first critic, an abstention triggers escalation rather than acceptance.
 - If ≥2 critics flag blocking on EVERY candidate, loop back to Phase 3 with a tighter scope question (the standard all-blocked rule, majority-gated).
-- Parse-fail = abstain; quorum < 2 on an escalated approach → one fresh single-pass critic for that approach (deep-mode.md §5).
+- Parse-fail = abstain; quorum < 2 on an escalated approach → one fresh single-pass critic for that approach (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5).
 
 Majority matters where a demotion is at stake — §4.2's purpose is to make the `Recommended` marker reflect feasibility evidence, not author confidence, and a single critic that hallucinates a blocker would otherwise demote the best approach. A clean first critic needs no escalation, so the extra votes are spent only on the approaches a demotion actually threatens.
 
@@ -49,7 +49,7 @@ Majority matters where a demotion is at stake — §4.2's purpose is to make the
 
 ## 5. Workflow shape
 
-Two fan-outs (may be one script with two phases, or separate calls). Build path/context strings as plain constants before any backtick template literal (deep-mode.md §4, path-constants mitigation). Return raw JSON text and parse defensively — never `agent({schema})`.
+Two fan-outs (may be one script with two phases, or separate calls). Apply every mandatory Workflow mitigation in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at both fan-outs — each one prevents an observed failure, so read them before writing the script.
 
 ```
 phase('Deep approaches — panel')
@@ -73,11 +73,11 @@ return { ranked: top3(ranked), critiques }
 // firstFlagsBlocking(raw): parse defensively → true if parse-failed (abstain → escalate) OR a blocking risk carrying its file:line citation
 ```
 
-Each generator/critic prompt re-asserts the read-only contract (no Edit/Write/git; the orchestrator owns the spec write and all `atomic_state_write`), per deep-mode.md §6. OMIT `model=` at every spawn.
+Each generator/critic prompt re-asserts the read-only contract (no Edit/Write/git; the orchestrator owns the spec write and all `atomic_state_write`), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6. OMIT `model=` at every spawn.
 
 ## 6. Fail-safe
 
-Per deep-mode.md §5 — the standard paths are the floor:
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5 — the standard paths are the floor:
 - approach-panel workflow fails → fall back to the single inline §4.1 synthesis (2-3 approaches);
 - critic workflow fails → the standard tier-scaled §4.2 critics;
 - spec-challenge deep run fails → its single-pass batch.

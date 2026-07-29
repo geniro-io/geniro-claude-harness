@@ -1,12 +1,13 @@
 # /geniro:review — Phase 5 & Phase 6
 
-Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to Phase 5. The spine keeps the phase headings, the loop invariants, the anti-rationalization table, and the Definition of done — this file carries the Steps.
+Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to Phase 5.
 
 ## Contents
 
 - Phase 5 — Persist & emit
   - 5.0 Repeat findings (re-run rounds)
   - 5.1 Handoff file write
+  - 5.2 reserved
   - 5.3 Auto-emit pitfall learnings on convergence
   - 5.4 PR comment posting (conditional — gated by Phase 6)
   - 5.5 Idempotent re-entry
@@ -30,13 +31,13 @@ Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`. `<PRIMARY_
 
 **`open_questions[]` rich-field authoring contract.** When composing `open_questions[]` entries from kept findings, fill the optional `context` / `evidence` / `options` / `recommendation` fields per the schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2. The reviewer-agent output already carries Evidence / Why-matters / Suggested-fix / Options per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format — copy them into the open_question entry, do NOT discard them at composition time. Bare `question:` entries trigger the `review-handoff.md` §2.5 Tier 3 fallback (terse AUQ), which the user experiences as the failure mode the rich-field schema was added to prevent. For non-finding open_questions (e.g., process / scope / verification questions surfaced by spec-compliance or pr-metadata reviewers), author `context` + `options` + `recommendation` inline — the reviewer's `## Why this matters` and `## Suggested fix` synthesis fields are still the source material; the consumer has no other way to render the question richly.
 
-**Verify what's verifiable; record only genuine decisions.** Before writing a finding or an `open_questions[]` entry that asks the author to confirm something, check it yourself against the diff, the code, and git history — a finding states a verified fact, it does not ask the reader to verify what /geniro:review can determine (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4). Record an `open_questions[]` entry ONLY for a genuine judgment call whose answer changes what /geniro:review posts (e.g. "are these seeder additions in-scope for this PR?" — the answer determines whether that finding gets posted; the `review-handoff.md` §2.5 Pre-gate surfaces these). Do NOT record a "how should X be fixed?" question — a finding carries its own recommended action, and /geniro:implement decides fix specifics when it fixes.
+**Verify what's verifiable; record only genuine decisions.** Before writing a finding or an `open_questions[]` entry that asks the author to confirm something, check it yourself against the diff, the code, and git history — a finding states a verified fact, it does not ask the reader to verify what /geniro:review can determine (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4). Record an `open_questions[]` entry ONLY for a genuine judgment call whose answer changes what /geniro:review posts (e.g. "are these seeder additions in-scope for this PR?" — the answer determines whether that finding gets posted; the `review-handoff.md` §2.5 Pre-gate surfaces these).
 
 **`step0_status:` producer-side initialization contract.** When writing each PRODUCT-DECISION finding into `## Findings`, also write `step0_status: pending` as the last sub-field of its body block (schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §"Per-finding body schema"). This is the runtime sentinel the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3) flips to `resolved` (or `wontfix`) after the per-finding AUQ pick lands, and the §7.0 Pre-Post guard re-reads to fail-close before posting. Omit the field entirely for non-PRODUCT-DECISION findings — its presence is the marker that the open-decision gate owes them an AUQ.
 
 **`report_status:` producer-side initialization.** Write frontmatter `report_status: draft` on this Phase 5.1 handoff write. The report is provisional — written now so a mid-gate compaction recovers the findings, but not yet authoritative. The Phase 6 finalize step (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) flips it to `final` only after the decision gates clear; the handoff offer and the §7.0 public-post guard refuse to fire against a `draft`.
 
-Write the full handoff frontmatter + body skeleton from the template at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6 "Handoff file template" (the `atomic_state_write` heredoc block). Each finding under `## Findings` renders as the multi-line per-finding body block (NOT a one-liner) per §"Per-finding body schema" in that same reference — the title line is a `- [ ]` addressed-checkbox (written unchecked) the engineer ticks by hand as they resolve the finding, with the detail fields nested beneath it. The Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
+Write the full handoff frontmatter + body skeleton from the template at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6 "Handoff file template" (the `atomic_state_write` heredoc block), following its §"Write/rewrite discipline" and rendering each finding under `## Findings` per §"Per-finding body schema" in that same reference.
 
 ### 5.3 Auto-emit pitfall learnings on convergence
 
@@ -65,7 +66,7 @@ If Phase 5 re-enters after compaction:
 1. Read state.md `non-resumable-actions[]` — if PR post already completed, skip re-post.
 2. Re-read findings from Phase 3 dedup output (held in context OR re-runs Phase 3 if context lost).
 3. Re-write `from-review-<branch>.md` (overwrite — `atomic_state_write` handles atomicity).
-4. Re-writing resets `report_status: draft`; Phase 6 finalize re-runs and re-flips to `final` after the decision gates clear (idempotent — re-entry never leaves a stale `final`).
+4. The rewrite lands `report_status: draft` again and Phase 6 finalize re-flips it once the decision gates clear, per the write/rewrite discipline in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6 — so re-entry never leaves a stale `final`.
 
 ---
 
@@ -73,7 +74,7 @@ If Phase 5 re-enters after compaction:
 
 State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9.
 
-Read §7 (the GitHub reviews-API Post drill) only if the Action gate's pick is "Post Draft PR review" — it is a third of that file, it is unreachable when `pr-ref: none`, and §5.4 already cites the two subsections it needs by anchor. Loop invariant #9 and the §7.0 Pre-Post guard bind only on that same path, so they are satisfied vacuously on every other pick.
+The GitHub reviews-API Post drill (§7.0-§7.8) lives in its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md`. Read it only if the Action gate's pick is "Post Draft PR review" — it is unreachable when `pr-ref: none`, and §5.4 already cites the two subsections it needs by anchor. Loop invariant #9 and the §7.0 Pre-Post guard bind only on that same path, so they are satisfied vacuously on every other pick.
 
 Summary of the Phase 6 chain — each gate is its own AUQ, never collapsed; step 3 is the one silent step:
 
@@ -82,7 +83,7 @@ Summary of the Phase 6 chain — each gate is its own AUQ, never collapsed; step
 3. **Finalize the report (silent — no AUQ).** Flip the report from `draft` to `final` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5. This runs on EVERY pass, not only when gate 2 fired: gates 1 and 2 are both "skipped when none", so a review with zero open questions and zero needs-your-decision findings still arrives here at `draft` — and the Action gate's handoff option and the §7.0 public-post guard both refuse a draft, which would strand a clean review with nothing to offer. Re-verify the §3.5 invariants, then flip.
 4. **Action gate** — render the wrap-up chat message first (all-decided tracker + one-sentence opener + kept-findings severity digest, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4), then fire `AskUserQuestion` with the canonical 4 options. Never collapse into chat text ("Want me to apply these now?" / "Should I push?" / "apply the fix now" / "add the test now") — that bypasses the persisted-pick contract and silently drops options the user might want (e.g., Post Draft PR review). The canonical 4 option labels below are an allowlist: substituting an ad-hoc "apply the fix" / "add the test" / "what next?" option (or applying any fix from /geniro:review) is forbidden — fixes route to `/geniro:implement findings`. Option labels (verbatim, do not paraphrase):
    - `"/geniro:implement findings"` — append ` (Recommended)` when CRITICAL≥1 OR HIGH≥2; exits /geniro:review and the model surfaces `/geniro:implement .geniro/state/handoff/from-review-<branch>.md` as the next command. Its description must disclose that /geniro:implement applies the fixes and asks before committing/pushing — picking it routes the findings, it does not authorize a ship (per the §4 literal description).
-   - `"Post Draft PR review"` — present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted. OMIT only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]` from a prior round.
+   - `"Post Draft PR review"` — the one conditional option; its full presence/OMIT rule (including the `post-disposition` exclusions) is in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4 §Post-option presence.
    - `"Continue rounds (re-review)"` — Round-N escalation gate fires when round ≥3.
    - `"Skip — keep findings on disk"` — append ` (Recommended)` when CRITICAL=0 AND HIGH≤1.
 
@@ -95,5 +96,5 @@ Operational rules:
 - **Terminal cleanup** — when the Phase 4.3 test gate ran, `rm -rf` `<PRIMARY_ROOT>/.geniro/state/review/<branch-slug>/` at the terminal `phase:` write. That directory is keyed by branch, not by run, and holds only the adversarial tester's transient report; nothing else sweeps it (the `/geniro:update` migration walk scans `.geniro/planning` only), so skipping this leaves one directory per reviewed branch forever. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"Who cleans what, and when".
 - **Reporter behavior** — no fix loop inside /geniro:review. /geniro:implement self-review (5-dim parallel) is a separate skill with a separate contract.
 - **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
-- **Pre-Post unresolved-ambiguity guard** (§7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`, OR any kept CRITICAL/HIGH/MEDIUM finding still carries `Validation: refuted` (it should have been filtered at Phase 4.2), OR the report is still `report_status: draft` (the §3.5 finalize step never ran). Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3) being skipped under drift.
+- **Pre-Post unresolved-ambiguity guard** (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` §7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`, OR any kept CRITICAL/HIGH/MEDIUM finding still carries `Validation: refuted` (it should have been filtered at Phase 4.2), OR the report is still `report_status: draft` (the §3.5 finalize step never ran). Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3) being skipped under drift.
 ---

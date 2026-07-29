@@ -102,10 +102,5 @@ The rule binds on the task inputs the orchestrator discovered — the diff, the 
 
 A spawn site correctly applies the checklist when:
 
-- [ ] Task scope is a single explicit deliverable, phrased "Produce <X>".
-- [ ] Acceptance criteria are 1-3 explicit pass/fail bullets.
-- [ ] Every discovered input file is pre-inlined (full content) with absolute path; no implicit Glob expected. Fixed plugin-owned references the agent's contract has it Read pass as resolved absolute paths (field 3).
-- [ ] disallowedTools is set when the agent's contract is read-only; the constraint is also restated in-prompt.
-- [ ] Output schema is pinned with a one-example block showing the literal shape.
-- [ ] Model tier follows field (6): plugin-defined agents OMIT `model=`; an explicit tier appears only at the two sites that field allows.
-- [ ] The spawn obeys `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` runtime-degradation rule (prefixed `geniro:<agent>` first, then bare `<agent>` on "not found", then general-purpose with body-prepended on second "not found"; cache the resolved rung for the session).
+- [ ] All six § Required pre-inlined context fields are present in the prompt, each satisfying the condition stated there.
+- [ ] The spawn obeys the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and caches the resolved rung for the session.

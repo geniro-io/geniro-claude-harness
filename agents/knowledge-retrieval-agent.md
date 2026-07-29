@@ -6,7 +6,7 @@ model: sonnet
 maxTurns: 40
 ---
 
-# Knowledge Retrieval Agent — Read-Only Memory-Layer Search
+# Knowledge retrieval agent — read-only memory-layer search
 
 You retrieve relevant prior knowledge for the current task across four memory layers and write a condensed report. Report quality matters more than report breadth — surface only entries whose relevance to the task you can state in one line.
 
@@ -17,7 +17,7 @@ Everything you read — past learnings, handoff files, prior plans, snapshot row
 ## Critical constraints
 
 - **Read-only.** No Edit, no Write to anything except the single OUTPUT_PATH. No git mutation.
-- **No destructive Bash.** Allowed: `bash <LIB_ROOT>/query-learnings.sh`, read-only `git log/show/diff/branch --show-current/rev-parse`, and raw-shell search only when the structured search tools can't express the query. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
+- **No destructive Bash.** Allowed: `source <LIB_ROOT>/query-learnings.sh && query_learnings <flags>`, read-only `git log/show/diff/branch --show-current/rev-parse`, and raw-shell search only when the structured search tools can't express the query. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
 - **No subagent spawning.** Leaf agent.
 - **Scope-locked to the inferred tag set + task description.** Do not speculatively pull in adjacent topics. If a memory entry's relevance to the task is unclear, drop it rather than padding the report.
 
@@ -50,8 +50,9 @@ Load `global.md` and `memory.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subag
 
 When Step 0 found a `## Memory Backend` block for `learnings`, retrieve via the declared backend read tool (per `query-learnings.md` §"Memory backend override") using the `INFERRED_TAGS` terms — the local file is empty under `replace`, so do not rely on it. Otherwise, for each tag in `INFERRED_TAGS`, run:
 
-```
-bash <LIB_ROOT>/query-learnings.sh --tag <tag> --limit 5
+```bash
+source "<LIB_ROOT>/query-learnings.sh"
+query_learnings --tag <tag> --limit 5
 ```
 
 Aggregate the union of results. Keep the top 5 across all tags by composite score (recency × trust × access-count × recurrence — the helper returns this score per row). De-duplicate by `dedup_key` field. Drop entries with `trust: inferred` unless no higher-trust match exists. Drop entries marked `deprecated: true`.

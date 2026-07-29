@@ -67,5 +67,5 @@ These gates fire on a real triggering event regardless of any flag, modifier, or
 - **Spec-challenge-on-drift** — a refuted cited claim or a blocking feasibility risk found by the pre-edit fact-check stops for the user.
 - **Shared-branch / open-PR ship** — a push to a shared or default branch, or one updating an open PR reached via a handoff, is commit-grade and still gates even under a ship-mode pre-set.
 - **Real merge / rebase conflict** — a clean fast-forward applies the pre-set freshness strategy silently, but an actual conflict surfaces interactively; a strategy pre-set is consent to attempt, not to resolve unseen conflicts.
-- **`/review` re-review gate** — on a re-run, the scope / depth / repeat-finding decision is always re-asked, never silently inherited.
+- **`/review` re-review gate** — on a re-run, the scope and depth decisions are always re-asked, never silently inherited.
 - **`/review` test-confirmation gate** — when testable findings exist, the offer to author failing tests for them fires and waits for approval.

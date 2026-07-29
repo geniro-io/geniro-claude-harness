@@ -1,4 +1,4 @@
-# Plan — AUQ Templates & State Schema Reference
+# Plan — AUQ templates and state-schema reference
 
 Literal `AskUserQuestion` templates and state-schema blocks for the `/geniro:plan` loop. A phase file states its gate's rules and cites the section here that holds the literal template; read the named section when you reach that gate.
 

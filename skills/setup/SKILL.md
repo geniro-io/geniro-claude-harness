@@ -17,7 +17,7 @@ argument-hint: "[optional: path to template directory]"
 - Anti-rationalization
 - Definition of done
 - Budgets — quality-first
-- ACI surface per phase
+- ACI per-phase tool surface
 - Termination case → state mapping
 - Phase 0 — pre-flight
 - Phase 1 — Detect · Phase 2 — Interview · Phase 3 — Generate · Phase 4 — Validate · Phase 5 — Done
@@ -33,7 +33,7 @@ argument-hint: "[optional: path to template directory]"
 
 **Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
 
-**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a gate gets skipped. Re-invoking restores the full body; the singleton state file's `phase:` says where to resume.
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary; the singleton state file's `phase:` says where to resume.
 
 ## Path constraints
 
@@ -99,7 +99,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | | Verification report truncation per the §4.1 subagent-prompt cap | Long reports inflate context without commensurate signal |
 | **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
 
-## ACI surface per phase
+## ACI per-phase tool surface
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
@@ -138,7 +138,10 @@ Deterministic resolution (no AUQ):
 ```
 if exists(<PRIMARY_ROOT>/.geniro/state/setup/state.md):
     rehydrate via ${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh
-    if frontmatter.phase != "done":
+    if frontmatter.phase == "failed":
+        surface the `## Termination reason` body section, then mode = re-run
+        (a failed run has no phase left to resume into — start fresh)
+    elif frontmatter.phase != "done":
         resume from frontmatter.phase
     else:
         mode = re-run (a prior /geniro:setup completed; user is re-invoking)
@@ -223,8 +226,8 @@ skill_inventory:
 - {slug: refactor, purpose: "Zero-behavior-change restructuring"}
 - {slug: onboard, purpose: "Codebase mapping"}
 - {slug: investigate, purpose: "Codebase Q&A"}
-- {slug: reflect, purpose: "on-demand session-history rule mining"}
-- {slug: instructions, purpose: "L4 rules CRUD"}
+- {slug: reflect, purpose: "On-demand session-history rule mining"}
+- {slug: instructions, purpose: "Custom project-rules management (create/edit/delete)"}
 - {slug: actions, purpose: "Workflow-helper CRUD + runner"}
 - {slug: setup, purpose: "Project bootstrap"}
 - {slug: update, purpose: "Plugin update + integrity check"}
@@ -293,21 +296,18 @@ E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package ma
 Use `AskUserQuestion` header "Tracker". The recommended default is whichever tracker Phase 1 detected (else Skip) — e.g. `.github/ISSUE_TEMPLATE/` signals GitHub Issues, a `.gitlab/` directory signals GitLab Issues, a Linear ID or URL in recent commit messages signals Linear.
 
 - Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates.
-- On selection, install `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` from template (or stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
 
-Store as `$ISSUE_TRACKER_CHOICE` for Phase 3.
+Record the pick as `$ISSUE_TRACKER_CHOICE` for Phase 3 and write nothing here: Interview is read-only (§ACI per-phase tool surface), and §3.3 installs the workflow file under the batch approval gate invariant #3 requires.
 
 ### 2.4b Optional integrations — OpenSpec
 
 Fires only when Phase 1 detected OpenSpec (`$OPENSPEC_ROOT` non-empty). When absent, skip silently.
 
-Use `AskUserQuestion` header "OpenSpec", question "This repo uses OpenSpec (at `$OPENSPEC_ROOT`). Have `/geniro:plan` duplicate approved plans into OpenSpec change proposals, and `/geniro:implement` archive them after ship?", options "Yes — add the OpenSpec steps" (Recommended) / "No — skip". On "Yes", append the two instruction blocks to the project's custom-instruction files (creating each from the `instructions-template.md` scaffold first if absent):
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md` → merge its `## Additional Steps` → `### After user-approve` subsection into `<PRIMARY_ROOT>/.geniro/instructions/plan.md`.
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md` → merge its `### After ship` subsection into `<PRIMARY_ROOT>/.geniro/instructions/implement.md`.
+Use `AskUserQuestion` header "OpenSpec", question "This repo uses OpenSpec (at `$OPENSPEC_ROOT`). Have `/geniro:plan` duplicate approved plans into OpenSpec change proposals, and `/geniro:implement` archive them after ship?", options "Yes — add the OpenSpec steps" (Recommended) / "No — skip".
 
-The OpenSpec procedure lives ENTIRELY in these project instruction files — the plugin's `/geniro:plan` and `/geniro:implement` stay tool-agnostic and just execute the user-authored `### After user-approve` / `### After ship` steps via their custom-step anchors. On "No", write nothing.
+The OpenSpec procedure lives ENTIRELY in the project's own instruction files — the plugin's `/geniro:plan` and `/geniro:implement` stay tool-agnostic and just execute the user-authored `### After user-approve` / `### After ship` steps via their custom-step anchors.
 
-Store as `$OPENSPEC_CHOICE` for Phase 3.
+Record the pick as `$OPENSPEC_CHOICE` for Phase 3 and write nothing here — §3.3 merges the template blocks under the batch approval gate.
 
 ### 2.5 Custom instructions
 
@@ -329,11 +329,9 @@ Every outcome the helper reports lands in `## Phase log`, so a sweep that did no
 
 - If the `Auto-fix:` value begins with `manual-only` (matched case-insensitively, so `Manual-only` is caught too): log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
 - Else if the `Auto-fix:` command is destructive (contains `rm`, `-delete`, or `-exec rm`): do NOT apply it silently — a silent destructive sweep can delete working state the user would have chosen to keep. Log to `## Open Questions`: `[<ts>] migration destructive fix NOT auto-applied: <change-name> — run /geniro:update to apply it interactively per-entry`. When any detected path sits inside a task-dir (`.geniro/planning/<task-dir>/` or `.geniro/state/<skill>/<slug>/`) whose `state.md` shows a live task (present, with non-terminal `phase:`/`status:`), append `; <M> detected path(s) belong to a live task — /geniro:update's live-task guard excludes them from the fix`, so the deferred entry carries the liveness context into the walk.
-- Else (non-destructive command): run it silently via `bash -c`. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
+- Else (non-destructive command): run it silently via `bash -c` — auto-fix commands are maintainer-written and tested (the same ones `/geniro:update` surfaces with "Fix it for me"), and a re-run is user-initiated, so a safe mechanical fix needs no question. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
 
 After the sweep, verify per the shared walk §6: re-run the `Auto-detect:` for every entry that was auto-applied above, and for those only — entries deferred to `## Open Questions` and entries logged `manual-only` are intentionally still affected, so re-flagging them would double-log. Any auto-applied entry that is still affected is logged to `## Open Questions`.
-
-**No question during the sweep, but destructive fixes are surfaced, not auto-applied.** Setup re-run is user-initiated, so safe mechanical fixes (renames, field additions, mkdir) apply silently. Destructive fixes (rm/delete-class) are never silently applied — they are logged to `## Open Questions` for the user to apply through `/geniro:update`'s per-entry walk, so the sweep cannot reverse a deletion the user deliberately deferred. Auto-fix commands are maintainer-written and tested (same commands `/geniro:update` surfaces with "Fix it for me").
 
 **Init mode skips this step entirely** — fresh installs write the current schema directly.
 
@@ -377,8 +375,8 @@ Generated CLAUDE.md sections:
 
 - `<PROJECT_ROOT>/CLAUDE.md` — project-specific content only. No section markers — CLAUDE.md is user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts).
 - `<PRIMARY_ROOT>/.geniro/instructions/global.md` — only if user opted in.
-- `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` — per tracker selection.
-- `<PRIMARY_ROOT>/.geniro/instructions/{plan,implement}.md` — only if OpenSpec was detected AND the user enabled it (§2.4b); the `### After user-approve` / `### After ship` blocks merged from the OpenSpec instruction templates.
+- `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` — per `$ISSUE_TRACKER_CHOICE` (§2.4), installed from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` (a stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
+- `<PRIMARY_ROOT>/.geniro/instructions/{plan,implement}.md` — only when `$OPENSPEC_CHOICE` is "Yes" (§2.4b). Merge `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md`'s `## Additional Steps` → `### After user-approve` subsection into `plan.md`, and `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md`'s `### After ship` subsection into `implement.md`, creating either file from the matching scaffold in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 first when absent.
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.

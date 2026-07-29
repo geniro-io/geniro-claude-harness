@@ -14,16 +14,16 @@ argument-hint: "[PR ref (#N or URL), or empty to detect from the current branch]
 - Phases 1-4 overview
 - State machine
 - Loop invariants
+- Anti-rationalization
 - Budgets / quality gates
 - Memory I/O
-- ACI — per-phase tool surface
+- ACI per-phase tool surface
 - PHASE 1: Fetch & triage
 - PHASE 2: Analyze & verify
 - PHASE 3: Clarify
 - PHASE 4: Emit
 - Modifiers
 - Task execution entry / state recovery
-- Anti-rationalization
 - REFERENCE
 
 ---
@@ -34,7 +34,7 @@ You are a read-only spec producer. You read an open pull request's unresolved re
 
 ## Phases
 
-1. **Fetch & Triage (Phase 1)** — resolve the PR, sync the workspace to the freshest code (offer to update to the PR's latest pushed commit + bring the branch up to date with its base) BEFORE any analysis, then read every unresolved review thread (human + bot) and failing CI check and build the item inventory.
+1. **Fetch & Triage (Phase 1)** — resolve the PR, sync the workspace to the freshest code BEFORE any analysis, then read every unresolved review thread (human + bot) and failing CI check and build the item inventory.
 2. **Analyze & Verify (Phase 2)** — per item: classify intent, verify against the code, reproduce the bug-claim or CI failure, assign a verdict (fix / answer-only / needs-clarification / wontfix), then adversarially re-verify each verdict.
 3. **Clarify (Phase 3)** — for the ambiguous items only, render each as a self-contained chat message then ask one lean question; record the answers.
 4. **Emit (Phase 4)** — write `spec.md` (with a Comment Resolution Map) and the handoff (`open_questions[]` + `comment_resolutions[]`), then hand off to `/geniro:implement`.
@@ -54,12 +54,25 @@ You are a read-only spec producer. You read an open pull request's unresolved re
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply throughout /geniro:resolve — including the turn-completion check (an announced-but-unfired question or a stated next step happens now, with tool calls) and the pending-user-question check. The numbered list below is this skill's own additions; a `#N` cited elsewhere in this file or in `resolve-reference.md` points at it.
 
 1. **Read-only producer.** Never Edit/Write source, never post to the PR, never `git push` / `gh pr create`. The `allowed-tools` list omits Edit/Write so this binds at the tool level; state files (`spec.md`, `state.md`, handoff) write through `atomic_state_write`, never the Write tool. The only sanctioned `gh` *write*-adjacent use is the read side of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md`. The Phase 1 workspace-sync git ops (`fetch` / `gh pr checkout` / `merge` / `rebase` / `pull` / `stash`) are permitted — they sync the local tree so the comment analysis runs on fresh code; they edit no source and never push, the same way `/geniro:debug` and `/geniro:refactor` update a branch in place. The full read-only contract this skill binds to — including that an elevated-effort or workflow run never relaxes it — is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-2. **Every verdict is verified before it reaches the spec.** Each `fix`/`wontfix` is re-checked by a fresh, independent `reviewer-agent` — not the same read that assigned the verdict — and one the verifier refutes never ships as written. There is no small-PR shortcut: a single read of a reviewer's comment can misjudge whether the underlying issue is real and reachable, and an inline self-check by the same orchestrator that assigned the verdict carries that same misjudgment.
+2. **Every verdict is verified before it reaches the spec.** Each `fix`/`wontfix` is re-checked by a fresh, independent `reviewer-agent` — not the same read that assigned the verdict — and one the verifier refutes never ships as written.
 3. **Ambiguous comments become open questions, never silent guesses.** A comment whose intended change you cannot determine from the code routes to an `open_questions[]` entry; `/geniro:implement` re-gates those before it edits, so a guess never becomes a fix.
 4. **Idempotency.** Skip any thread already `isResolved == true`; a re-run on the same PR never re-triages a closed thread or re-specs a handled item.
 5. **CI items are fix-Steps only.** A failing check has no thread to resolve (it goes green on the next push), so it becomes a spec Step but carries NO `comment_resolutions[]` entry — only review-comment items do.
 6. **The handoff `comment_resolutions[]` schema is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`.** `/geniro:implement` reads it; producer and consumer change in lockstep.
 7. **Fail-open on every `gh` read.** A failed fetch sets the affected snapshot to null and proceeds with a plain-English caveat — a shallower triage is still valid; a hard stop on a flaky API call is not.
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "I'll triage the comments first and offer to update the branch at the end / leave it to `/geniro:implement`." | Verdicts assigned against a stale tree spec fixes for code the base branch is about to change, and a comment the base already addressed should resolve to wontfix — neither holds if the sync happens after analysis. The workspace sync is Phase 1 Step 2, BEFORE the inventory and verdicts (#2). |
+| "The reviewer is clearly right — skip verifying and write the fix." | A comment can cite a stale line, an already-fixed issue, or an unreachable path. Verifying that the issue is real and reachable in the current head (#2) is what keeps the spec from specifying a fix for a non-issue. Every `fix`/`wontfix` is verified. |
+| "It's a 2-comment PR — I'll eyeball the verdict instead of spawning a verifier." | The verifier always runs, regardless of PR size — an inline self-check is the same orchestrator re-reading its own verdict, which carries the same misjudgment. The tier scales the vote count, not whether a fresh independent `reviewer-agent` runs (#2). |
+| "This comment is ambiguous, but I can guess what they meant." | A guessed change becomes a real edit downstream. Route ambiguity to `open_questions[]` (#3) — `/geniro:implement` re-gates it before editing, so the user decides, not the guess. |
+| "I'll just resolve the threads here while I have the PR open." | `/geniro:resolve` is read-only and never posts (#1). Resolving threads is `/geniro:implement`'s ship sub-step, AFTER the fix lands and behind an action gate. Posting here would close threads whose fixes do not yet exist. |
+| "The bot comments are noise — drop them." | Bot reviewers (CodeRabbit / Greptile / …) are often the bulk of the feedback and benefit most from verify/reproduce (they over-flag). Keep them unless `--humans-only` is passed; tag `is_bot` for the verifier's context, do not filter. |
+| "A failing CI check needs a `comment_resolutions[]` entry so the thread closes." | A check has no thread — it goes green on the next push (#5). Giving it a `comment_resolutions[]` entry would make `/geniro:implement` try to resolve a thread that does not exist. CI items are spec Steps only. |
+| "The fix obviously addresses the comment — `/geniro:implement` can resolve without re-checking." | `/geniro:implement` re-verifies each fix landed (the `verify:` command or the step's files in the pushed diff) BEFORE resolving — a thread resolved against a fix that did not land lies to the reviewer. The producer drafts the reply; the consumer confirms the landing. |
 
 ## Budgets / quality gates
 
@@ -76,7 +89,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 - **L3 snapshot** — `load-semantic` top-2 (`_project.md` + `_CODEBASE_MAP.md`) at the same step; it is what tells you whether a comment's cited path still exists.
 - **L2 learnings** — none emitted (read-only producer; `/geniro:implement` emits at ship).
 
-## ACI — per-phase tool surface
+## ACI per-phase tool surface
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
@@ -92,7 +105,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: resolve`, `LOAD_TIER: pipeline`, `MODE: initial-load`; echo per the helper's contract. Then `load_semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` (default top-2). A project rule like "never wontfix a security bot's comment" only binds the triage if it is read before the verdicts are assigned.
 
 1. **Resolve the PR.** From `$ARGUMENTS` (`#N` / URL), else detect from the branch via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §1 (`gh pr view --json number,url,headRefOid,headRefName,baseRefName,…`). No PR found → fire an AskUserQuestion offering a PR ref or cancel; on cancel write `phase: aborted` and exit. Capture `owner/repo`, `number`, `pr-head-sha` (`headRefOid`), `head-branch` (`headRefName`), `base-branch` (`baseRefName`).
-2. **Sync the workspace to the freshest code** (before any analysis — verifying comments against a stale tree specs fixes for code that is about to change, and syncing first can make some comments moot). Skip the whole step on a compaction-resume (the workspace was synced when the run first started). Fire two offers in sequence; each is an offer, never auto-run; persist each pick to `approvals[]` (category `branch_freshness`); fail-open on any git error with a one-line caveat:
+2. **Sync the workspace to the freshest code.** Skip the whole step on a compaction-resume (the workspace was synced when the run first started). Fire two offers in sequence; each is an offer, never auto-run; persist each pick to `approvals[]` (category `branch_freshness`); fail-open on any git error with a one-line caveat:
    - **a. Local checkout → PR head.** If `git rev-parse HEAD` differs from `pr-head-sha`, the comments reference commits your local tree does not have. Offer `gh pr checkout <number>` (Recommended) / keep current checkout. Detail + dirty-tree handling: `resolve-reference.md` §1.5.
    - **b. PR branch → its base.** Run `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` FRESH-CONTINUE, substituting the PR's `base-branch` for `DEFAULT_BRANCH` (§2 of that file). If the branch is behind its base, offer merge / rebase / skip; the shared file owns the dirty-tree and conflict handling.
 3. **Fetch threads + checks.** Run the read side of `pr-threads.md` (§2 unresolved review threads — humans AND bots; §3 failing CI checks). Persist `pr-ref` / `pr-url` / `pr-head-sha` / `resolved-threads-snapshot` to state.md via `atomic_state_write`.
@@ -141,19 +154,6 @@ For `needs-clarification` items only (skip the phase when none). Each ambiguous 
 ## Task execution entry / state recovery
 
 State file: `.geniro/state/resolve/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules). On entry, `Glob` for it; if present, run the helper § Consumer contract and resume from the next incomplete phase. Validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before resuming. Write each phase transition through `atomic_state_write` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`); a terminal phase (`done`/`aborted`) is final. Unlike the other within-skill skills, `/geniro:resolve` does NOT `rm -rf` its slug dir at terminal exit — the `spec.md` it produces there is the deliverable `/geniro:implement` consumes, so the dir is retained past terminal (as `/geniro:plan` retains its planning task-dir). Retention is not licence to leave scratch behind: run `clean_task_transients .geniro/state/resolve/<slug>` (`${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh`) before every terminal `phase:` write. The `/geniro:update` migration sweep scans only `.geniro/planning`, so nothing else ever removes this run's spec-challenge scratch.
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "I'll triage the comments first and offer to update the branch at the end / leave it to `/geniro:implement`." | Verdicts assigned against a stale tree spec fixes for code the base branch is about to change, and a comment the base already addressed should resolve to wontfix — neither holds if the sync happens after analysis. The workspace sync is Phase 1 Step 2, BEFORE the inventory and verdicts (#2). |
-| "The reviewer is clearly right — skip verifying and write the fix." | A comment can cite a stale line, an already-fixed issue, or an unreachable path. Verifying that the issue is real and reachable in the current head (#2) is what keeps the spec from specifying a fix for a non-issue. Every `fix`/`wontfix` is verified. |
-| "It's a 2-comment PR — I'll eyeball the verdict instead of spawning a verifier." | The verifier always runs, regardless of PR size — an inline self-check is the same orchestrator re-reading its own verdict, which carries the same misjudgment. The tier scales the vote count, not whether a fresh independent `reviewer-agent` runs (#2). |
-| "This comment is ambiguous, but I can guess what they meant." | A guessed change becomes a real edit downstream. Route ambiguity to `open_questions[]` (#3) — `/geniro:implement` re-gates it before editing, so the user decides, not the guess. |
-| "I'll just resolve the threads here while I have the PR open." | `/geniro:resolve` is read-only and never posts (#1). Resolving threads is `/geniro:implement`'s ship sub-step, AFTER the fix lands and behind an action gate. Posting here would close threads whose fixes do not yet exist. |
-| "The bot comments are noise — drop them." | Bot reviewers (CodeRabbit / Greptile / …) are often the bulk of the feedback and benefit most from verify/reproduce (they over-flag). Keep them unless `--humans-only` is passed; tag `is_bot` for the verifier's context, do not filter. |
-| "A failing CI check needs a `comment_resolutions[]` entry so the thread closes." | A check has no thread — it goes green on the next push (#5). Giving it a `comment_resolutions[]` entry would make `/geniro:implement` try to resolve a thread that does not exist. CI items are spec Steps only. |
-| "The fix obviously addresses the comment — `/geniro:implement` can resolve without re-checking." | `/geniro:implement` re-verifies each fix landed (the `verify:` command or the step's files in the pushed diff) BEFORE resolving — a thread resolved against a fix that did not land lies to the reviewer. The producer drafts the reply; the consumer confirms the landing. |
 
 ## REFERENCE
 

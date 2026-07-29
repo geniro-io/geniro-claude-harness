@@ -1,4 +1,4 @@
-# Verification Checks
+# Verification checks
 
 The `/geniro:setup` verification subagent reads this file during Phase Validate and runs every check below against the generated `CLAUDE.md`. The subagent has Read-only tools (Read, Bash read-only, Glob, Grep) — it reports DRIFT items for the orchestrator to fix in a regeneration round; it never edits any file itself.
 

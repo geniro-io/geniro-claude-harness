@@ -234,7 +234,7 @@ If the `gh api` call fails (non-zero exit, HTTP error, missing scopes, secondary
 Append to state file `## Errors`:
 
 ```yaml
-- phase: persist
+- phase: action-gate
 stage: pr-review-comment-post
 error: <verbatim gh stderr>
 consequence: post-aborted-no-state-mutation

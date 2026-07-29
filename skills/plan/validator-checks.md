@@ -1,4 +1,4 @@
-# Phase 7 Validator — 13 checks
+# Phase 7 validator — 13 checks
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules executed orchestrator-side, near-zero token usage.
 

@@ -151,14 +151,17 @@ If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follo
 
 Used by:
 - `/geniro:review` Phase 4.3 Step 2 (Test-gate "Let me pick" branch)
+- `/geniro:review` Phase 6 include-deferred gate, "Let me pick" branch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4.6)
+- `/geniro:implement` Phase 3 minor-findings gate, "Let me pick" branch
+- `/geniro:refactor` Phase 1 HIGH-risk step approval, the reject-specific-steps branch (the picked units are plan steps, not findings)
 
-The multi-select shape is canonical for the Test-gate Pick branch, which selects a subset of findings as input to a downstream agent rather than as discrete approval decisions per finding. The PR-comment per-finding gate uses the Single-finding gate above with a calling-skill-set fixed menu (Post / Skip / Stop posting) — see that section's "Used by" list.
+The multi-select shape is canonical wherever a gate selects a SUBSET of an already-rendered set — findings to feed a downstream agent, findings to carry into a handoff, steps to skip — rather than taking a discrete approval decision per item. The PR-comment per-finding gate uses the Single-finding gate above with a calling-skill-set fixed menu (Post / Skip / Stop posting) — see that section's "Used by" list.
 
 ### Required AUQ shape
 
 - **`multiSelect: true`**.
 - **`question`**: a single sentence stating the picking task — set by the calling skill (e.g. `"Pick findings to author tests for"`, `"Pick findings to post as PR comments"`).
-- **`options[]`** — one per eligible finding:
+- **`options[]`** — one per eligible item (a finding at every site except `/geniro:refactor`, where the items are HIGH-risk plan steps):
  - **`label`**: call sites set their own label format. When a label needs to convey decision-type (e.g. the Test-gate Pick, where decision-type is what matters when picking findings to author tests for), render it in plain English — "auto-fixable" (FIX-NOW), "testable" (TESTABLE), "needs your decision" (PRODUCT-DECISION), "confirm intent" (INTENT-CHECK) — rather than the raw `decision: <type>` tag, since the label is user-facing; keep the raw taxonomy tag in `description` or `preview` if a call site needs it. Severity drives sort order at the call site, not label content.
  - **`description`**: 1-line per current call-site spec — call sites set their own.
  - **`preview`**: leave empty or a one-line recap only. Per § Message-first rendering, render each eligible finding's self-contained block to chat before the pick loop so the user picks from explained findings, not side-box snippets.
