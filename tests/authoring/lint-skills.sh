@@ -38,6 +38,19 @@ report_fail() { HARD_FAILS=$((HARD_FAILS + 1)); echo "FAIL: $1" >&2; }
 report_warn() { WARNS=$((WARNS + 1)); echo "WARN: $1"; }
 rel() { printf '%s' "${1#"$REPO_ROOT"/}"; }
 
+SIZE_BASELINE="tests/authoring/skill-size-baseline.txt"
+
+# --update-baseline records every skill at its current size and exits, before any
+# check runs. It lives in this script rather than a sibling so a recorded number can
+# never be produced by a different word-count rule than the one that reads it back.
+if [ "${1:-}" = "--update-baseline" ]; then
+  for f in skills/*/SKILL.md .claude/skills/*/SKILL.md; do
+    [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(wc -w < "$f" | tr -d ' ')"
+  done | LC_ALL=C sort > "$SIZE_BASELINE"
+  echo "Recorded $(grep -c . "$SIZE_BASELINE") skill sizes in $SIZE_BASELINE"
+  exit 0
+fi
+
 echo "=== HARD checks ==="
 
 # 1. Non-Latin (Cyrillic) letters — the documented real contamination risk.
@@ -96,27 +109,54 @@ echo "=== ADVISORY checks (warn only) ==="
 #    compacts them identically, so an unmeasured meta-skill silently drops its
 #    own user gates, anti-rationalization table and Definition of Done past the
 #    boundary — exactly the failure the check exists to surface.
+#    Reported as a RATCHET against `tests/authoring/skill-size-baseline.txt`, not
+#    as an absolute bar. The rule this check mechanizes says an oversize file is
+#    "a signal to check what is load-bearing and where it sits, not a defect in
+#    itself" — so re-reporting the same accepted size every run is noise, and a
+#    warning that can never go green stops being read at all. The baseline IS the
+#    record that a size was checked and accepted; the warning fires when a file
+#    grows past it, or when a file with no recorded baseline exceeds the
+#    guideline. Refresh it with `--update-baseline` after deciding a growth is
+#    load-bearing — never by trimming content to make the number go away.
 FRONTLOAD_WORDS=3000
 WHOLEFILE_WORDS=5000
+
+baseline_words() {  # <relpath> -> its accepted word count, or empty if unrecorded
+  [ -f "$SIZE_BASELINE" ] || return 0
+  awk -v p="$1" '$1 == p { print $2; exit }' "$SIZE_BASELINE"
+}
+
+# Name the last H2 that still fits inside the front-load budget, so the warning says
+# WHICH sections stop being re-attached rather than just that the file is big.
+frontload_cut() {
+  awk -v lim="$FRONTLOAD_WORDS" '
+    /^## / { last = $0 }
+    { w += NF; if (w > lim && !done) { print last; done = 1 } }
+  ' "$1"
+}
+
 check_skill_sizes() {
-  local f n cut
+  local f n r base cut
   for f in "$@"; do
     [ -f "$f" ] || continue
+    r=$(rel "$f")
     n=$(wc -w < "$f" | tr -d ' ')
-    if [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
-      report_warn "$(rel "$f"): $n words (whole-file guideline <=$WHOLEFILE_WORDS)"
+    base=$(baseline_words "$r")
+    if [ -n "$base" ]; then
+      [ "$n" -le "$base" ] && continue
+      report_warn "$r: grew to $n words (accepted baseline $base) — re-check what is load-bearing and where it sits, then refresh the baseline; do not trim to the number"
+    elif [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
+      report_warn "$r: $n words (whole-file guideline <=$WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then record it"
+    else
+      continue
     fi
     if [ "$n" -gt "$FRONTLOAD_WORDS" ]; then
-      # Name the last H2 that still fits inside the front-load budget, so the warning
-      # says WHICH sections stop being re-attached rather than just that the file is big.
-      cut=$(awk -v lim="$FRONTLOAD_WORDS" '
-        /^## / { last = $0 }
-        { w += NF; if (w > lim && !done) { print last; done = 1 } }
-      ' "$f")
-      [ -n "$cut" ] && report_warn "$(rel "$f"): compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"
+      cut=$(frontload_cut "$f")
+      [ -n "$cut" ] && report_warn "$r: compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"
     fi
   done
 }
+
 check_skill_sizes skills/*/SKILL.md .claude/skills/*/SKILL.md
 
 # Corpus shape, not per-file compliance: a median that creeps up is the signal to
@@ -194,6 +234,12 @@ LC_ALL=C awk '
   }
   {
     path = $0; fence = 0
+    # agents/*.md are injected whole as a subagent system prompt. skill-structure.md
+    # §File-size limits: relocating a rule there to a cited file "converts free prompt
+    # tokens into the same tokens plus a Read the agent may skip — and a rule it skips
+    # is silently gone". So a rule shared by N agents MUST be restated in each of them;
+    # counting those restatements as duplication argues for the unsafe fix.
+    if (path ~ /^agents\//) next
     while ((getline line < path) > 0) {
       if (line ~ /^[ \t]*```/) { fence = 1 - fence; continue }
       if (fence) continue
@@ -209,6 +255,19 @@ LC_ALL=C awk '
         t = norm(part[i])
         if (length(t) < 40) continue            # too short to be a real rule
         if (!normative(t)) continue
+        # A sentence carrying a canonical cross-reference IS the prescribed fix, not
+        # the defect: N files citing one helper is single-sourcing working correctly.
+        # Without this the check reports its own remedy as a violation.
+        if (t ~ /\$\{claude_plugin_root\}/ || index(t, "\302\247")) continue
+        # A trailing colon marks a label introducing a list ("Quality gates (escalate
+        # to user, do not abort):"), not a rule stated in that file.
+        if (t ~ /:$/) continue
+        # Self-referential sentences ("Skills cite this file; do NOT inline-paste the
+        # procedure") resolve to a different subject in every file that carries them,
+        # so counting them across files is a category error — 14 _shared helpers each
+        # declaring their own load contract is the convention, not one rule copied 14
+        # times. A genuinely duplicated rule does not say "this file".
+        if (index(t, "this file")) continue
         if ((t SUBSEP path) in seen) continue   # count FILES, not occurrences
         seen[t SUBSEP path] = 1
         cnt[t]++

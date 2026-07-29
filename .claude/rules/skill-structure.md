@@ -23,6 +23,8 @@ Sources for every number below: Anthropic [Skill best-practices](https://platfor
 
 The ~3,000-word front-load budget is the one figure with a mechanism behind it: Claude Code re-attaches only the first 5,000 tokens of each skill after compaction, which is roughly 3,000 words of table-dense markdown. The whole-file numbers are guidelines. An oversize file is a signal to check what is load-bearing and where it sits, not a defect in itself — never trim load-bearing content to hit a number.
 
+Because of that, the lint measures **growth, not absolute size**: `tests/authoring/skill-size-baseline.txt` records the size each skill was last checked at and accepted, and the warning fires only when a file exceeds its own record (or when an unrecorded file is over the guideline). Re-reporting an accepted size every run trains the reader to ignore the check, which costs more than the overage does. When a growth is load-bearing, run `bash tests/authoring/lint-skills.sh --update-baseline` to accept it — that command is the record that the judgment was made.
+
 ## Reference graph
 
 - **Depth ≤ 1 hop from SKILL.md to reference / helper.** SKILL.md may link to `*-reference.md` or to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/*.md` helpers. Those targets may NOT link back into another skill body (`skills/<other>/SKILL.md` or its references) for runtime instructions — cross-skill coordination lives in `_shared/`, never in a foreign skill's reference file. **Inside `_shared/`, peers may cross-link freely** for topological context (e.g., `state-tier-spec.md` ↔ `atomic-state-write.md` ↔ `validate-state-file.md` reference each other because they describe one cohesive subsystem). The 1-hop ceiling constrains the SKILL → reference edge; `_shared/` is a flat namespace whose helpers navigate among themselves. Claude still does partial reads on transitively-discovered files, so chains longer than ~3 hops from SKILL.md to leaf degrade — avoid those.
@@ -130,7 +132,7 @@ Constraints:
 
 Before committing edits to `skills/**/*.md` or `agents/**/*.md`:
 
-1. **Run `bash tests/authoring/lint-skills.sh`.** It mechanizes the checkable rules here — hard-fails on non-Latin text, dangling `${CLAUDE_PLUGIN_ROOT}` file references, and unknown spawn names; warns on word-count targets, anti-rationalization tables over 15 rows, and line-number cross-refs. Read an over-target warning as "check what is load-bearing and where it sits", not as "cut until the number goes away".
+1. **Run `bash tests/authoring/lint-skills.sh`.** It mechanizes the checkable rules here — hard-fails on non-Latin text, dangling `${CLAUDE_PLUGIN_ROOT}` file references, and unknown spawn names; warns on anti-rationalization tables over 15 rows, line-number cross-refs, and any SKILL.md that grew past its recorded size. Read a growth warning as "check what is load-bearing and where it sits", not as "cut until the number goes away" — then `--update-baseline` to accept the new size.
 2. **Reference depth.** Any file this edit makes a skill cite must not itself pull runtime instructions from another skill's body (§Reference graph).
 3. **TOC presence.** A runtime-Read file grown past ~1,200 words has a Contents block near the top. `agents/*.md` are exempt — they are injected, not Read.
 4. **No pseudo-code duplication.** A pseudo-code block added to SKILL.md must not also live in the sibling reference file — cite the single source instead.

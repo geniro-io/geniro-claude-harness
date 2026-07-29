@@ -1,0 +1,17 @@
+.claude/skills/analyze-thread/SKILL.md 5976
+.claude/skills/audit-plugin/SKILL.md 2987
+.claude/skills/find-threads/SKILL.md 3609
+.claude/skills/improve-template/SKILL.md 6952
+skills/actions/SKILL.md 5563
+skills/debug/SKILL.md 3026
+skills/implement/SKILL.md 3756
+skills/instructions/SKILL.md 5333
+skills/investigate/SKILL.md 6549
+skills/onboard/SKILL.md 2975
+skills/plan/SKILL.md 3013
+skills/refactor/SKILL.md 7119
+skills/reflect/SKILL.md 2537
+skills/resolve/SKILL.md 3297
+skills/review/SKILL.md 3174
+skills/setup/SKILL.md 5301
+skills/update/SKILL.md 3945
