@@ -1,4 +1,4 @@
-# PR Metadata Review Criteria
+# PR metadata review criteria
 
 Quality checks for the **PR's own title and description** (not the code diff). The diff is reviewed by the other diff-anchored dimensions; this dimension audits the prose authored by the PR creator — clarity, completeness, expected sections, and alignment with what actually changed.
 

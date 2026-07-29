@@ -9,7 +9,7 @@
 ## What this helper does — and what it doesn't
 
 **It does:**
-- Formats a canonical `[layer-conflict]` notice block (soft conflict, skill continues using precedence-winning value).
+- Formats a canonical conflict notice block (soft conflict, skill continues using precedence-winning value).
 - Formats a hard-conflict text block intended for embedding in `AskUserQuestion` (L4 rule contradicts L3 reality, skill halts).
 
 **It does NOT:**
@@ -66,27 +66,29 @@ At least one of `--l4` / `--l3` / `--l2` should be supplied; otherwise the notic
 ### Soft conflict notice (`emit_conflict_notice`)
 
 ```
-[layer-conflict] subject: http library
-  L4 rule (project rules) .geniro/instructions/global.md: use axios
-  L3 fact (project snapshot) .geniro/planning/.fingerprint.json + _project.md: vite.config.ts present, no axios in package.json
-  L2 history (past learnings) learnings.jsonl dedup_key=a1b2c3d4: migrated to fetch on 2025-08-20
-  → Skill is following L4 (precedence). Consider /geniro:instructions edit global.md.
+Conflict on: http library
+  Your project rules (.geniro/instructions/global.md): use axios
+  Your project snapshot (.geniro/planning/.fingerprint.json + _project.md): vite.config.ts present, no axios in package.json
+  Past learnings (learnings.jsonl dedup_key=a1b2c3d4): migrated to fetch on 2025-08-20
+  → Following your project rules, which take precedence. Consider /geniro:instructions edit global.md.
 ```
+
+The layer that wins renders by its plain-English name ("your project rules" / "your project snapshot" / "past learnings"), never as a bare layer code — the user is being told which source the run is trusting, and a code they have to look up defeats the notice.
 
 ### Hard conflict block (`hard_conflict_block`)
 
 ```
-Hard cross-layer conflict on: http library
+Conflict that needs your decision: http library
 
-The layers disagree and precedence (project rules > project snapshot > past learnings) alone cannot resolve this — your project rule contradicts current project-snapshot reality. Which is intent?
+Your project rules and your project snapshot disagree, and the usual precedence (project rules win, then the snapshot, then past learnings) cannot settle it — the rule contradicts what the codebase currently looks like. Which one is your intent?
 
-  - L4 rule (project rules) (.geniro/instructions/global.md): use axios
-  - L3 fact (project snapshot) (.geniro/planning/_project.md): axios removed from package.json; fetch in use
+  - Your project rules (.geniro/instructions/global.md): use axios
+  - Your project snapshot (.geniro/planning/_project.md): axios removed from package.json; fetch in use
 
-After you decide, /geniro:instructions edit global.md to refresh L4.
+After you decide, /geniro:instructions edit global.md to refresh your project rules.
 ```
 
-The hard-conflict block is **plain text** intended for embedding into `AskUserQuestion`'s `question` parameter; the skill itself wires the options (typically: "L4 is correct (refresh L3)", "L3 is correct (update L4)", "Abort").
+The hard-conflict block is **plain text** intended for embedding into `AskUserQuestion`'s `question` parameter; the skill itself wires the options (typically: "The project rules are right — refresh the snapshot", "The snapshot is right — update the rules", "Abort").
 
 ## Conflict-resolution flow (the canonical skill pattern)
 

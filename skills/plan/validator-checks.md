@@ -82,7 +82,7 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Rule:** section 9 (Validation) has body content; either references a test type (`unit`, `integration`, `e2e`) OR specifies a manual-verification procedure.
 
-**Sub-rule (`verify:` shape, optional field):** if a section 9 criterion carries a `verify:` field, it must be a non-empty command string. Shape-only — the validator never executes the command; /geniro:implement runs it at end-of-phase. A criterion without `verify:` still passes — the check never requires the field. Attaching one wherever a single read-only command can prove the criterion is the authoring default (`${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` §9), an authoring bar rather than a validation bar.
+**Sub-rule (`verify:` shape, optional field):** if a section 9 criterion carries a `verify:` field, it must be a non-empty command string. Shape-only — the validator never executes the command; /geniro:implement runs it at end-of-phase. A criterion without `verify:` still passes — the check never requires the field. Attaching one wherever a single read-only command can prove the criterion is the authoring default (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §9), an authoring bar rather than a validation bar.
 
 **Heuristic:** body-non-empty + keyword/regex match; for each `verify:` occurrence, assert the remainder of the line is non-empty after trimming whitespace.
 
@@ -108,11 +108,9 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 **Fix hint on fail:** "Found placeholder token '<token>' at line <N>. Replace with actual content OR remove the line."
 
-> **Two checks — `contradiction_heuristic` and `scope_creep_marker` — were retired.** Both were false-positive-prone heuristics whose real defect is caught downstream: the token set-intersection flagged benign shared words (a module name legitimately partly in / partly out of scope) while missing real semantic contradictions; the step-path check false-flagged files a step only cites as read-only evidence, which check #3 actively requires. A true in/out contradiction is caught by the Phase 8 human whole-spec render, and real scope over-reach by `/geniro:review` on the actual diff. The remaining Additional checks were renumbered contiguously.
-
 ### 11. `schema_completeness`
 
-**Rule:** all 11 sections present with correct header text (case-sensitive match against the spec in `spec-template.md`). NO extra top-level sections beyond the 11 + the optional body sections `## Considered Alternatives`, `## Milestones`, `## Problem & Evidence`, and `## Comment Resolution Map`. The optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); `## Comment Resolution Map` appears only on `/geniro:resolve`-produced specs; a normal spec omits both and still passes.
+**Rule:** all 11 sections present with correct header text (case-sensitive match against the spec in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`). NO extra top-level sections beyond the 11 + the optional body sections `## Considered Alternatives`, `## Milestones`, `## Problem & Evidence`, and `## Comment Resolution Map`. The optional sections are allowed-optional — present or absent both pass; the check never requires any of them. `## Problem & Evidence` appears only on PRD-mode specs (`/geniro:plan --prd`); `## Comment Resolution Map` appears only on `/geniro:resolve`-produced specs; a normal spec omits both and still passes.
 
 **Heuristic:** parse all `## ` top-level headers; compare to the canonical list (11 required + 4 allowed-optional). A header outside that set fails; a missing optional section does not.
 

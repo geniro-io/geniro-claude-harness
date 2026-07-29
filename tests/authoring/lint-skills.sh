@@ -10,13 +10,16 @@
 #     2. Dangling plugin-root file references — ${CLAUDE_PLUGIN_ROOT}/<path> and the
 #        $PLUGIN_PATH/<path> form (target must exist).
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
+#     4. Reference-graph inversion — a skills/<other-skill>/ path inside skills/_shared/.
+#     5. Rootless agents/ or skills/ file references in skills/ or agents/.
 #   ADVISORY (warn only, exit 0 contribution) — guideline checks the maintainer
 #   reads but never auto-trims to satisfy (size targets are guidelines, not limits):
-#     4. SKILL.md word count vs the front-load budget and whole-file guideline,
-#        across BOTH skill populations (shipped skills/ and internal .claude/skills/).
-#     5. Anti-rationalization tables over the 15-row guideline.
-#     6. Decaying line-number cross-references (file.md:NNN).
-#     7. Normative sentences repeated across 3+ files (say it once, in one place).
+#     6. SKILL.md word count vs the front-load budget and whole-file guideline,
+#        across BOTH skill populations (shipped skills/ and internal .claude/skills/),
+#        plus agents/*.md against their own whole-file guideline.
+#     7. Anti-rationalization tables over the 15-row guideline.
+#     8. Decaying line-number cross-references (file.md:NNN).
+#     9. Normative sentences repeated across 3+ files (say it once, in one place).
 #
 # Portability: pure POSIX-ish bash + BSD/GNU-portable grep (no -P / PCRE).
 # Cyrillic detection uses a byte-class match (UTF-8 lead bytes 0xD0/0xD1) so it
@@ -44,10 +47,10 @@ SIZE_BASELINE="tests/authoring/skill-size-baseline.txt"
 # check runs. It lives in this script rather than a sibling so a recorded number can
 # never be produced by a different word-count rule than the one that reads it back.
 if [ "${1:-}" = "--update-baseline" ]; then
-  for f in skills/*/SKILL.md .claude/skills/*/SKILL.md; do
+  for f in skills/*/SKILL.md .claude/skills/*/SKILL.md agents/*.md; do
     [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(wc -w < "$f" | tr -d ' ')"
   done | LC_ALL=C sort > "$SIZE_BASELINE"
-  echo "Recorded $(grep -c . "$SIZE_BASELINE") skill sizes in $SIZE_BASELINE"
+  echo "Recorded $(grep -c . "$SIZE_BASELINE") skill and agent sizes in $SIZE_BASELINE"
   exit 0
 fi
 
@@ -93,10 +96,64 @@ done <<< "$spawns"
 rm -f "$valid_agents"
 [ "$unknown" -eq 0 ] && echo "OK: all subagent_type spawns resolve to a real agent or builtin"
 
+# 4. Reference-graph inversion — skill-structure.md §Reference graph: skills cite
+# DOWNWARD into skills/_shared/, never the reverse. A helper that names a skill
+# body as the canonical home of a rule it consumes inverts the graph: the helper
+# is loaded by skills that have no reason to read that skill, and the rule then
+# lives in a file its own consumers do not open. This class recurred across three
+# consecutive audits because nothing mechanized it.
+# `_shared/` peers citing each other is the intended shape and must not fire.
+#
+# What is flagged is the AUTHORITY shape only — a helper introducing a skill path
+# as the source of a rule ("per <path>", "see <path>", "defined in <path>").
+# §Reference graph forbids pulling runtime instructions upward while explicitly
+# allowing topological context, so the naming-a-consumer shape ("Consumer:
+# <path>", "Referenced from <path>", "the Phase 3 filter in <path> dedups") is
+# correct and must stay silent: 20 of the 21 hits a bare path-shape match
+# produced on this corpus were that shape, and a check that cries wolf 20 times
+# is one maintainers learn to route around rather than obey.
+# A rule sourced upward without an introducing preposition is not mechanically
+# distinguishable from a consumer note; /audit-plugin's D4 dimension covers that
+# residue by reading, which is the right tool for a semantic distinction.
+inversions=0
+inv_hits=$(grep -rnoiE '(per|see|defined in|specified in|documented in|canonical in|authoritative in|owned by)[[:space:]]+`?(\$\{CLAUDE_PLUGIN_ROOT\}/)?skills/[A-Za-z0-9_-]+/' skills/_shared 2>/dev/null \
+  | awk -F: '{ m = $0; sub(/^[^:]*:[^:]*:/, "", m); if (m !~ /skills\/_shared\//) print $1 ":" $2 ": " m }' \
+  | while IFS=: read -r f l rest; do
+      # A "see <path>" INSIDE a consumer annotation points at where the consumer
+      # applies the rule, not at where the rule is defined — the helper still owns
+      # it. Judge the whole line, not the preposition.
+      sed -n "${l}p" "$f" 2>/dev/null | grep -qiE '^[[:space:]]*[-*]?[[:space:]]*(consumers?:|referenced from)' && continue
+      printf '%s:%s:%s\n' "$f" "$l" "$rest"
+    done || true)
+while IFS= read -r h; do
+  [ -z "$h" ] && continue
+  report_fail "reference-graph inversion: $h — a skills/_shared/ helper cites a skill body as the SOURCE of a rule it consumes; re-home the rule into _shared/ and have the skill cite downward"
+  inversions=$((inversions + 1))
+done <<< "$inv_hits"
+[ "$inversions" -eq 0 ] && echo "OK: no skills/_shared/ helper sources a rule from a skill body"
+
+# 5. Rootless agent/skill file references. A bare `agents/<name>.md` or
+# `skills/<x>/<y>.md` resolves against the CONSUMER's repo, where neither
+# directory exists, so the runtime Read silently misses. Only ${CLAUDE_PLUGIN_ROOT}/
+# (or the $PLUGIN_PATH/ form /geniro:update uses) resolves in an install.
+# Two false positives are excluded by construction: a directory mentioned in prose
+# carries no file extension and cannot match; and a path already inside a rooted
+# reference is preceded by `/`, which the leading character class rejects — the
+# same exclusion that keeps repo-local `.claude/skills/...` paths (correctly bare)
+# out of the check.
+rootless=0
+rootless_hits=$(grep -rnoE '(^|[^A-Za-z0-9_./{$-])(agents|skills)/[A-Za-z0-9._/-]+\.(md|sh|js|json)' skills agents 2>/dev/null || true)
+while IFS= read -r h; do
+  [ -z "$h" ] && continue
+  report_fail "rootless plugin file reference: $h — prefix it with \${CLAUDE_PLUGIN_ROOT}/ or it dangles in a consumer install"
+  rootless=$((rootless + 1))
+done <<< "$rootless_hits"
+[ "$rootless" -eq 0 ] && echo "OK: every agents/ and skills/ file reference is plugin-root-rooted"
+
 echo
 echo "=== ADVISORY checks (warn only) ==="
 
-# 4. SKILL.md size, measured in WORDS per skill-structure.md §File-size limits.
+# 6. SKILL.md size, measured in WORDS per skill-structure.md §File-size limits.
 #    Not lines: a skill body here runs 9-21 words/line depending on table density,
 #    so a line count ranks files backwards (setup 571L/5267W vs resolve 142L/3044W).
 #    The front-load budget is the load-bearing figure — Claude Code re-attaches only
@@ -120,6 +177,12 @@ echo "=== ADVISORY checks (warn only) ==="
 #    load-bearing — never by trimming content to make the number go away.
 FRONTLOAD_WORDS=3000
 WHOLEFILE_WORDS=5000
+# Agents get their own, tighter whole-file guideline and NO front-load budget:
+# an agent body is injected whole as a subagent system prompt, not Read, so there
+# is no compaction boundary to fall past — the entire file is either in the
+# prompt or the spawn never happened. What the number bounds is per-spawn prompt
+# cost, and a reviewer body is re-injected 7-11 times in one /review run.
+AGENT_WHOLEFILE_WORDS=2500
 
 baseline_words() {  # <relpath> -> its accepted word count, or empty if unrecorded
   [ -f "$SIZE_BASELINE" ] || return 0
@@ -168,25 +231,44 @@ check_skill_sizes() {
 
 check_skill_sizes skills/*/SKILL.md .claude/skills/*/SKILL.md
 
+# Same ratchet, agent guideline, no compaction-boundary line — see AGENT_WHOLEFILE_WORDS.
+check_agent_sizes() {
+  local f n r base
+  for f in "$@"; do
+    [ -f "$f" ] || continue
+    r=$(rel "$f")
+    n=$(wc -w < "$f" | tr -d ' ')
+    base=$(baseline_words "$r")
+    if [ -n "$base" ]; then
+      [ "$n" -le "$base" ] && continue
+      report_warn "$r: grew to $n words (accepted baseline $base) — an agent body is re-injected on every spawn; re-check what is load-bearing, then refresh the baseline"
+    elif [ "$n" -gt "$AGENT_WHOLEFILE_WORDS" ]; then
+      report_warn "$r: $n words (agent whole-file guideline <=$AGENT_WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then record it"
+    fi
+  done
+}
+check_agent_sizes agents/*.md
+
 # Corpus shape, not per-file compliance: a median that creeps up is the signal to
 # act on, and one oversize skill among lean ones is a different problem from all of
 # them drifting together. INFO, not a warning — it never needs "fixing" on its own.
 # Reported per population: the two have different sizes and different owners, so a
 # single merged median would hide a drift in either one.
 corpus_info() {
-  local label="$1"; shift
+  local label="$1" lim="$2" limname="$3"; shift 3
   local f words
   words=$(for f in "$@"; do [ -f "$f" ] && wc -w < "$f"; done | tr -d ' ')
   [ -n "$words" ] || return 0
-  echo "INFO: $label word counts — $(printf '%s\n' "$words" | sort -n | awk -v lim="$FRONTLOAD_WORDS" '
+  echo "INFO: $label word counts — $(printf '%s\n' "$words" | sort -n | awk -v lim="$lim" -v limname="$limname" '
     {a[NR]=$1; if ($1 > lim) over++}
-    END {printf "median %d, range %d-%d, %d of %d over the ~%d-word front-load budget",
-         (NR%2 ? a[(NR+1)/2] : int((a[NR/2]+a[NR/2+1])/2)), a[1], a[NR], over+0, NR, lim}')"
+    END {printf "median %d, range %d-%d, %d of %d over the ~%d-word %s",
+         (NR%2 ? a[(NR+1)/2] : int((a[NR/2]+a[NR/2+1])/2)), a[1], a[NR], over+0, NR, lim, limname}')"
 }
-corpus_info "skills/*/SKILL.md (shipped)" skills/*/SKILL.md
-corpus_info ".claude/skills/*/SKILL.md (internal meta-skills)" .claude/skills/*/SKILL.md
+corpus_info "skills/*/SKILL.md (shipped)" "$FRONTLOAD_WORDS" "front-load budget" skills/*/SKILL.md
+corpus_info ".claude/skills/*/SKILL.md (internal meta-skills)" "$FRONTLOAD_WORDS" "front-load budget" .claude/skills/*/SKILL.md
+corpus_info "agents/*.md (spawn system prompts)" "$AGENT_WHOLEFILE_WORDS" "whole-file guideline" agents/*.md
 
-# 5. Anti-rationalization tables over the 15-row guideline.
+# 7. Anti-rationalization tables over the 15-row guideline.
 for f in skills/*/SKILL.md; do
   [ -f "$f" ] || continue
   rows=$(sed -n '/^## [Aa]nti-[Rr]ationalization/,/^## /p' "$f" | grep -cE '^\|' || true)
@@ -196,7 +278,7 @@ for f in skills/*/SKILL.md; do
   fi
 done
 
-# 6. Decaying line-number cross-references (file.md:NNN) — section/content anchors survive edits; line numbers do not.
+# 8. Decaying line-number cross-references (file.md:NNN) — section/content anchors survive edits; line numbers do not.
 # -o extracts just the `file.md:NNN` match (with a grep file:line locator prefix);
 # advisory only, so a rare URL-with-port (foo.md:8080) miscount is acceptable.
 linerefs=$(grep -rnoE '[A-Za-z0-9_-]+\.md:[0-9]+' skills 2>/dev/null || true)
@@ -205,7 +287,7 @@ if [ -n "$linerefs" ]; then
   report_warn "found $count line-number cross-reference(s) (file.md:NNN) in skills/ — prefer content anchors"
 fi
 
-# 7. The same normative sentence in 3+ files — the mechanical form of "say it
+# 9. The same normative sentence in 3+ files — the mechanical form of "say it
 #    once, in the right place". Redundancy across layers costs context budget
 #    twice and, when the copies drift apart, forces the model to deliberate over
 #    which one governs instead of acting. A cross-reference to the canonical file

@@ -63,7 +63,7 @@ The asymmetry has one root cause: in plan mode the spec is a draft the calling s
 
 Read `SPEC_PATH` fully. Build the verifiable-claim set from the three places a spec asserts something checkable against the code:
 
-1. **Section 6 (Steps).** Each step cites ≥1 `file:line` reference (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md` — Phase 7 validator check #3 enforces this). Each citation is a claim: "the thing this step describes lives at this file:line and behaves as stated." Meta-steps without a citation (e.g. "create a new branch") carry no factual claim — skip them.
+1. **Section 6 (Steps).** Each step cites ≥1 `file:line` reference (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` — Phase 7 validator check #3 enforces this). Each citation is a claim: "the thing this step describes lives at this file:line and behaves as stated." Meta-steps without a citation (e.g. "create a new branch") carry no factual claim — skip them.
 2. **Section 4 (Assumptions).** Each assumption is an explicit factual predicate about the codebase or environment ("the `users` table has a `deleted_at` column", "the job runs at most once per minute"). Each is a claim.
 3. **Frontmatter `budget` and `effort_tier`.** These are estimate-claims (write volume, time budget, row counts, tier sizing). A miscounted estimate — one off by an order of magnitude — is a defect class this pass exists to catch, so estimate-claims enter the set.
 4. **Frontmatter `workflow_refs[]` linked-ticket constraints.** When the spec frontmatter carries `workflow_refs[]` (linked tracker tickets — `/geniro:implement` fetches their bodies at workspace setup, before any edit), the ticket bodies' explicit constraints are first-class fact-check inputs: locked decision tables, role / permission matrices, and "do not change X" statements. Each such constraint is a claim about what the planned change must respect, verified against the planned change here BEFORE the first edit. A ticket read only after the push cannot stop a change that contradicts it — by then the contradiction has shipped. Pulling the constraints into the claim set moves that read to the one point where it can still change the outcome.
@@ -102,11 +102,11 @@ confidence: 1 | 2 | 3 | 4 | 5
 evidence: "<literal quote from the cited file:line that confirms or refutes the asserted fact>"
 ```
 
-`evidence` MUST be a literal quote from the cited file. A paraphrase-only verdict ("the code looks consistent with the claim") is refused and re-prompted — "the agent reported PASS" is not evidence per the evidence standard.
+`evidence` is a literal quote from the cited file. A paraphrase-only verdict ("the code looks consistent with the claim") is refused and re-prompted — "the agent reported PASS" is not evidence per the evidence standard.
 
 ### Spawn batch
 
-Compose the verifier prompt to reuse `agents/reviewer-agent.md` verify-finding mode as-is — frame the spec claim as the "finding body" and state the polarity flip ("verify the asserted FACT is true, not that a defect exists") in the prompt. No agent edit is needed: the agent's verify-finding mode accepts 1-3 same-file findings, and a single claim-like body — the degenerate one-finding form spec-challenge always uses — plus cited slice + caller grep + sibling tests already yields the `validation / confidence / evidence` schema; the polarity lives in the prompt framing, not the agent's schema.
+Compose the verifier prompt to reuse `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` verify-finding mode as-is — frame the spec claim as the "finding body" and state the polarity flip ("verify the asserted FACT is true, not that a defect exists") in the prompt. No agent edit is needed: the agent's verify-finding mode accepts a cluster of same-file findings, and a single claim-like body — the degenerate one-finding form spec-challenge always uses — plus cited slice + caller grep + sibling tests already yields the `validation / confidence / evidence` schema; the polarity lives in the prompt framing, not the agent's schema.
 
 Spawn via the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro:reviewer-agent` → bare → general-purpose-with-body). OMIT `model=` so verifiers inherit the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Send ALL verifier spawns in ONE assistant response — separate turns serialize execution and double wall-time; the parallel-spawn invariant applies here exactly as in `/geniro:review` Phase 4.2.
 

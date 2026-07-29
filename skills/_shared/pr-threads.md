@@ -90,5 +90,5 @@ Every call here is **fail-open**: a failed read sets the affected snapshot to nu
 ## 7. Caller contract
 
 - **Read side (`/geniro:resolve` Phase 1):** read-only. The skill's `allowed-tools` excludes Edit/Write; this helper's read calls are the skill's only `gh` use.
-- **Write side (`/geniro:implement` Ship sub-step):** an external write to a public surface — the caller MUST gate it behind an `AskUserQuestion` (the action gate), exactly like `gh pr create` / `git push`. This helper performs the write; it does NOT own the gate. After a successful write, the caller appends a `pr-comment-posted` entry to state.md `non-resumable-actions[]`.
+- **Write side (`/geniro:implement` Ship sub-step):** an external write to a public surface — the caller gates it behind an `AskUserQuestion` (the action gate), exactly like `gh pr create` / `git push`. This helper performs the write; it does NOT own the gate. After a successful write, the caller appends a `pr-comment-posted` entry to state.md `non-resumable-actions[]`.
 - **Schema:** the read side populates, and the write side consumes, the handoff `comment_resolutions[]` array defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields. `thread_id` flows to §5, `comment_id` to §4, `verify:` / `fix_step_anchor` decide whether the fix landed before a resolve.

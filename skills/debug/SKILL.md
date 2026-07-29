@@ -7,13 +7,34 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Wor
 argument-hint: "[bug description | verify <diff-range> | verify last changes] [--deep]"
 ---
 
-# Debug: Scientific-Method Investigation
+# Debug: scientific-method investigation
+
+## Contents
+
+- Your role — investigate, don't ship
+- State machine
+- Loop invariants
+- Universal rule: all choice questions use AskUserQuestion
+- Anti-rationalization
+- Budgets — quality-first
+- Subagent model tiering
+- Evidence Standard
+- Definition of done
+- ACI per-phase tool surface
+- Memory I/O schedule
+- State file schema
+- Phase 0 (mode detection) · Phase 1 (investigate) · Phase 2 (propose) · Phase 3 (ship) · Adversarial Mode
+- REFERENCE
+
+---
 
 Use this skill to systematically debug complex issues. Replaces guessing with evidence gathering and hypothesis testing across 3 phases.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
 **Progressive load.** This file is the spine — role, invariants, gates, budgets, tool surface. Each phase's Steps live in a sibling file you Read on entry to that phase; the phase sections below carry the paths.
+
+**Section-reference convention.** A bare `§N.M` names a sub-step of Phase N and lives in that phase's file (`${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-N-*.md`), never in this spine. A `§N` written after a file path names that file's own top-level section.
 
 ---
 
@@ -36,9 +57,9 @@ Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with debug-specific bindings:
 
 - **Invariant #3 (permission before side-effect)** — /geniro:debug performs NO `git push` / `gh pr create`; the no-ship boundary holds under a dynamic `Workflow(...)` or ultracode mode too, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-- **Invariant #4 (bounded results)** — `adversarial-tester-agent` output ~4000 chars per finding block, truncation marker; schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
+- **Invariant #4 (bounded results)** — `adversarial-tester-agent` output is bounded by the hard cap on authored tests its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`); finding schema per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.
 - **Invariant #5 (escalation gates)** — stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate via AUQ; never fabricate a conclusion.
-- **Invariant #6 (grounded in observations)** — every `Result:` field in `## Hypotheses` cites a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`; "symptom matches" is correlation, not causation.
+- **Invariant #6 (grounded in observations)** — every `Result:` field in `## Hypotheses` cites a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` (§ Evidence Standard below carries the confirmation bar).
 
 This skill adds one invariant:
 
@@ -52,7 +73,7 @@ This skill adds one invariant:
 
 ## Universal rule: all choice questions use AskUserQuestion
 
-Route every user-facing choice in this skill through the `AskUserQuestion` tool — never downgrade to inline `(A)/(B)` options in chat, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. The enumerated gates are examples, not an exhaustive list; the anti-rationalization row below carries why.
+Route every user-facing choice in this skill through the `AskUserQuestion` tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which owns the rule and the reason. The gates enumerated below are this skill's, not the complete set; the anti-rationalization row below carries why.
 
 ---
 
@@ -67,7 +88,7 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 | "I'll reason about edges instead of authoring tests" | Reasoning is reviewer-mindset. Adversarial mode AUTHORS executable failing tests because reasoning misses what running code catches. |
 | "The agent reported F→P, I'll trust it" | Orchestrator MUST independently re-run authored tests (A4 step 4). Self-reported F→P is evidence, not proof. Same rule applies to scientific-mode hypothesis confirmation — re-run the test / re-read the file:line / re-execute the query yourself before advancing to Isolate. |
 | "The findings are in state.md, I'll just ask the escalation question" | state.md is a scratchpad, not a user-facing report. §3.1 requires an explicit findings summary in chat AND persisted to `from-debug-<branch>.md` before the escalation AUQ. The state file IS the handoff channel — inlining the summary into the escalation command lets copies drift. |
-| "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per Evidence Standard kind 1-5 (captured command output, file:line snippet, log line, query result, user-provided artifact). |
+| "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | No-access-by-default is the same fabrication shortcut as inconclusive-by-default: a limit on your own reach is a claim and carries the same artifact requirement (Evidence Standard). Attempt the read with the tools you have and capture what fails; the §1.5 missing-data gate opens on that captured failure. Handing the user a manual checklist your own shell answers in seconds skips the probe that would have settled it. |
 | "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at §3.5 Cleanup and leave no regression guard. §2.4 mandates the reproduction be authored as a unit/integration test in the project's framework. Escape hatch (Reproduction Decision) is opt-in for genuinely non-reproducible cases only. |
 | "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | The Universal Rule above makes the tool mandatory for ANY choice question — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
@@ -115,11 +136,9 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 ## Evidence Standard
 
-Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — schema, forbidden phrases, and artifact kinds 1-5 are defined there. This skill applies that standard at every hypothesis-confirmation, fix-verification, and reproduction-test capture.
+Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — schema, forbidden phrases, and the artifact kinds are defined there. This skill applies that standard at every hypothesis-confirmation, fix-verification, and reproduction-test capture.
 
-**Debug-specific framing — hypothesis-confirmation artifact kinds.** A hypothesis is **confirmed** only when its `Result:` field cites one of the artifact kinds from the shared rule. Hypothesis-tracking is the most evidence-rigorous flow in the plugin: every entry in state.md § `## Hypotheses` Result must attach a captured artifact per the artifact-kind table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning is correlation; only reproduction with a captured artifact confirms causation.
-
-When evidence for a hypothesis looks out of reach (no DB access, no production logs, no credentials, no environment access), attempt it with the tools you have and capture what fails — a limit on your own reach is a claim carrying the same artifact requirement. Route that captured failure into the §1.5 missing-data gate to ask the user for the artifact; do NOT mark the hypothesis inconclusive by default.
+**Debug-specific framing — hypothesis confirmation.** A hypothesis is **confirmed** only when its `Result:` field cites an artifact from that file's § What counts as an artifact. Hypothesis-tracking is the most evidence-rigorous flow in the plugin: reasoning is correlation; only reproduction with a captured artifact confirms causation.
 
 ---
 
@@ -141,7 +160,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - Explicitly blocked: any Edit/Write to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
 
 **Phase 1 (Investigate):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, read-only `gh pr list` / `gh pr view` / `gh pr diff` for the §1.2 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, read-only `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
 - Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant #8); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
 - Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching without user confirmation.
@@ -158,7 +177,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 
 **Adversarial Mode (A4 spawn):**
 - `adversarial-tester-agent` runs under the spawn-agent ladder.
-- Agent's tool surface inherited via the agent's frontmatter (owned by `agents/adversarial-tester-agent.md`).
+- Agent's tool surface inherited via the agent's frontmatter (owned by `${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`).
 - Orchestrator's re-verification step uses read-only Bash (run test command).
 
 **Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard (`${CLAUDE_PLUGIN_ROOT}/HOOKS.md`). Runtime denies stay enforced regardless of ACI doc.
@@ -179,7 +198,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 | Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence` — §2.5) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis` — §3.3) |
 
-`update-semantic` is NOT called. Debug investigates existing code; it does not add modules, move files, or rename — those are /geniro:implement and /geniro:refactor concerns.
+`update-semantic` is not called. Debug investigates existing code; it does not add modules, move files, or rename — those are /geniro:implement and /geniro:refactor concerns.
 
 ---
 

@@ -6,7 +6,7 @@ This file is the canonical template for a `/geniro:actions create` output. The p
 
 | Variable | Source | Example |
 |---|---|---|
-| `{{name}}` | user-provided action name (kebab-case, ≤64 chars) | `pr-notify-slack` |
+| `{{name}}` | user-provided action name, satisfying `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md` §Name validation | `pr-notify-slack` |
 | `{{description}}` | derived from interview Q1 + Q2, shaped by §Authoring rules below | `Use when a PR is opened and you want to summarize it in #eng-reviews. Skip for force-pushed branches.` |
 | `{{model}}` | inferred from complexity; default `inherit` | `inherit` |
 | `{{allowed_tools}}` | derived from Q3 (output/side-effects) | `[Read, Bash(gh *), AskUserQuestion]` |
@@ -69,4 +69,4 @@ created-by: geniro:actions
 - **Steps** are numbered and concrete. Each step names the tool or shell command (e.g., "Run `gh pr view {{argument}} --json title,body`"), not vague verbs ("look at the PR").
 - **One-level deep**: if a step needs sub-detail, inline it; do NOT chain to another `.md` file. Claude's partial reads can miss content nested through references.
 - **Secrets**: never inline tokens. Reference env vars (e.g., `$SLACK_BOT_TOKEN`). The Geniro file-protection hook blocks `.env`/`*.key`/`*.pem` writes.
-- **Side effects**: if the action writes to external systems (Slack, GitHub, files outside `.geniro/`), the action's `description` SHOULD name them — a run is not re-confirmed (`/geniro:actions` Phase 5.3), so the description is where the user learns what to expect.
+- **Side effects**: if the action writes to external systems (Slack, GitHub, files outside `.geniro/`), the action's `description` SHOULD name them — a run is not re-confirmed (`/geniro:actions` Phase 4.3), so the description is where the user learns what to expect.

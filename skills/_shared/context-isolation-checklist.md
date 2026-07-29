@@ -1,8 +1,17 @@
-# Context Isolation Checklist
+# Context isolation checklist
 
 Co-cited with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every Agent() spawn site. spawn-agent.md handles agent-name resolution + runtime degradation; this file handles prompt richness. Together they ensure subagents never inherit orchestrator session state.
 
 This file is the single source of truth for the pre-inlined-context contract every Agent() spawn must satisfy. Skills cite this file; do NOT inline-paste the checklist.
+
+## Contents
+
+- Why this exists — the three failure modes a bare prompt produces
+- When this applies — every Agent() spawn; codebase research uses `codebase-research-agent`
+- Required pre-inlined context — the six fields every prompt carries
+- Forbidden patterns — prompt shapes that guarantee a re-do
+- Anti-rationalization
+- Definition of Done
 
 ## Why this exists
 
@@ -16,7 +25,7 @@ Pre-inlining the six required fields below collapses all three failure modes.
 
 ## When this applies
 
-Satisfy the checklist on every Agent() spawn. A bare-prompt spawn forces the agent to re-discover everything from scratch, which is exactly the rediscovery / wrong-schema / unwanted-mutation set of failures listed above.
+Satisfy the checklist on every Agent() spawn.
 
 ### Codebase research — use `codebase-research-agent`
 
@@ -49,7 +58,7 @@ Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-re
 
 ## Required pre-inlined context
 
-Include all six fields in every Agent() prompt — a missing field is the gap that produces the rediscovery, wrong-schema, or unwanted-mutation failure described in §Why this exists.
+Include all six fields in every Agent() prompt — a missing field is the gap the §Why-this-exists failures come through.
 
 **(1) Task scope.** Exactly what the agent must produce — single deliverable, no expansion. Phrase as "Produce <X>" not "Investigate <Y>". Scope-creep prevention: if the orchestrator would accept two different deliverables from the same prompt, the scope is under-specified. Cross-reference `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` for in-agent scope guards.
 

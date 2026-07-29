@@ -6,7 +6,7 @@ State.md `phase: section-approve` during this phase.
 
 ### 5.1 Section template
 
-Use the **fixed 11-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/plan/spec-template.md`:
+Use the **fixed 11-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`:
 
 1. Objective
 2. Scope — Included
@@ -22,7 +22,7 @@ Use the **fixed 11-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/pl
 
 Every spec.md has exactly the same 11 sections — schema-stable downstream consumers.
 
-For Trivial tasks, sections 4 / 5 / 10 may have body content "none — task scope precludes" with brief rationale. Headers MUST exist; bodies MAY be "none with rationale".
+For Trivial tasks, sections 4 / 5 / 10 may have body content "none — task scope precludes" with brief rationale. Keep every header present even then; downstream consumers rely on section presence, so a dropped header breaks them where an empty body does not.
 
 ### 5.2 Cluster approval — message-first, one decision per cluster
 

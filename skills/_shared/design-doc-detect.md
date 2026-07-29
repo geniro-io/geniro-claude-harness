@@ -1,4 +1,4 @@
-# Design-Doc Detection
+# Design-doc detection
 
 Authoritative algorithm for resolving the first non-flag token of `$ARGUMENTS` to one of: `DESIGN_DOC`, `IDEA`, `CODE_REFERENCE`. Consumers cite this file at Phase 1 entry.
 

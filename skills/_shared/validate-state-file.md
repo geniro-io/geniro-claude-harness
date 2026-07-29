@@ -3,9 +3,9 @@
 **Helper for state-file frontmatter validation.** Skills source this from Bash before resume / after recovery to verify a state file is well-formed.
 
 - **Library:** `lib/validate-state-file.sh`
-- **Schema reference:** `skills/_shared/state-tier-spec.md`
+- **Schema reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`
 - **Design rationale:** `ARCHITECTURE.md` §State Files
-- **Write helper:** `skills/_shared/atomic-state-write.md`
+- **Write helper:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 
 ---
 

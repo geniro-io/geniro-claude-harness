@@ -4,6 +4,16 @@ Authoritative for evidence-attached findings, completion claims, and reviewer-ag
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the schema or the forbidden-phrases list.
 
+## Contents
+
+- Why this exists — the three hallucinated-success failure modes
+- When evidence is required — the claim classes that need a block
+- Evidence Block schema — the verbatim shape, plus §What counts as an artifact (the five kinds)
+- Forbidden phrases — the tokens the Stop hook scans, and scoping a claim to its command
+- Stop hook reliability disclaimer — why the hook is a reminder, not the gate
+- Anti-rationalization
+- Definition of Done
+
 ## Why this exists
 
 LLM orchestrators and subagents reliably hallucinate success when not held to captured artifacts. Three observed failure modes:
@@ -24,7 +34,7 @@ Evidence Block schema + verification cache invalidation rules + per-skill consum
 
 ## Evidence Block schema
 
-Every claim that requires evidence MUST attach this block, verbatim shape:
+Every claim that requires evidence attaches this block in the verbatim shape below — the fixed shape is what lets the Stop hook and every downstream reader find the command, the exit code, and the tail:
 
 ```
 ## Evidence Block
@@ -36,7 +46,9 @@ Tail (last 3 lines):
   <line N>
 ```
 
-What counts as an artifact:
+### What counts as an artifact
+
+The kinds below are the complete set. A claim requiring evidence is backed by one of them; anything outside this table is a hypothesis, not an artifact. Cite this section by name rather than re-listing the kinds — a second copy of the list is what drifts.
 
 | # | Kind | Example |
 |---|---|---|
@@ -45,6 +57,9 @@ What counts as an artifact:
 | 3 | Log line or stack trace from the running system | `2026-04-01T12:34Z ERROR ... NullPointerException at ...` |
 | 4 | Query result against the actual datastore | `SELECT count(*) FROM sessions WHERE user_id=42 → 0 rows` |
 | 5 | User-provided artifact (screenshot, log paste, captured request body, env-var dump) | user pastes the request body that triggered the bug |
+| 6 | External documented fact, cited by resolvable source URL and quoted at the point of use | upstream changelog entry / RFC clause / vendor doc paragraph, with the URL |
+
+Kind 6 covers claims about the world outside the repo, where no local probe can settle the question. It admits only what a reader can re-open and check: a URL that resolves plus the quoted passage the claim rests on. A remembered fact, a summarized page, or a URL without the quote is a hypothesis — the failure mode is a confidently-worded recollection that no longer matches what the source says.
 
 Reasoning, "the symptom matches", "the agent reported PASS", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only a captured artifact (kind 1, 3, or 4) confirms causation. An artifact showing that every failing case shares an attribute establishes a discriminator, not a cause; before that reading reaches a deliverable, run the one probe whose result differs depending on which reading is true.
 

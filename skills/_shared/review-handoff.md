@@ -1,4 +1,4 @@
-# /geniro:review Phase 6 — Action-Gate Handoff
+# /geniro:review Phase 6 — action-gate handoff
 
 Detailed contract for `/geniro:review` Phase 6 (Action Gate Handoff). The `/geniro:review` SKILL.md retains a 2-3 line summary + a pointer here; cross-skill consumers (`/geniro:implement` handoff resolution, `_shared/` gate helpers, criteria files) read individual sections by § anchor.
 
@@ -17,7 +17,7 @@ Within `m6-v2`/`v3`, a producer that verified only HIGH findings emits verificat
 - §1 — Reporter behavior (no fix loop)
 - §2 — Gate chain (firing order)
 - §2.5 — Pre-gate: resolve open questions (Invariant A)
-- §2.6 — Handoff file template (written in Phase 5.1)
+- §2.6 — Handoff file template (written in Phase 5.1), incl. the PR-state snapshot-field contract
 - §3 — Step 0: open-decision per PRODUCT-DECISION finding (Invariant B initial flip)
 - §3.5 — Finalize report (draft → final) before the handoff is offered
 - §4 — Action gate (consolidated decision)
@@ -51,7 +51,7 @@ Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a differen
 
 **Firing order:**
 
-1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry, fired in sequence (cap-extension per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension — within a single entry only, never batching entries). Always-WAIT. MUST complete before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
+1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry, fired in sequence (cap-extension per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension — within a single entry only, never batching entries). Always-WAIT, and it completes before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip. Two picks drill into sub-gates of their own path, not extra top-level gates: "Post Draft PR review" drills into the §7 Post drill, and "/geniro:implement findings" drills into the §4.6 include-deferred gate when `## Deferred — sub-threshold` is non-empty.
 4. **Failing tests:** fires once per gate-chain pass when the state file's `## Authored Tests` section is non-empty — picks the commit policy for AI-authored tests; a later chat-text commit/push request re-fires it (§6). Firing order relative to Action gate conditional:
@@ -110,7 +110,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 5. Each entry gets its own `AskUserQuestion` call, fired in sequence with a message-first render before each (per step 2); cap-extension per § Cap-extension applies within a single entry only, never batching entries into one call.
 
-6. After the last entry resolves, every `open_questions[]` entry MUST be in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
+6. After the last entry resolves, every `open_questions[]` entry is in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
 
 ---
 
@@ -149,13 +149,13 @@ pr-body: <verbatim body|null>
 plan-context-ref: <abs-path|null>
 linear-task-ref: <ENG-123|null>
 linear-parent-ref: <ENG-100|null>
-resolved-threads-snapshot: [<path:line entries|null>]
-pr-bot-comments-snapshot: [<path:line entries|null>]   # read by §7.1 dedup check 2
+resolved-threads-snapshot: [<path:line entries|null>]        # read by §7.1 dedup check 1
+pr-bot-comments-snapshot: [<path:line entries|null>]         # read by §7.1 dedup check 2
 pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3
 prior-round-summary: <text|null>                       # written/read across re-run rounds (§7)
 approvals: []
 non-resumable-actions: []
-open_questions:                       # MUST be present; MAY be empty []
+open_questions:                       # always present; may be empty []
   - id: q1                            # short stable anchor
     source: <reviewer-dim or producer-step>
     question: <verbatim question text>
@@ -172,13 +172,13 @@ open_questions:                       # MUST be present; MAY be empty []
 
 ## Summary
 - Branch: <branch>
-- Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §2.1 (a `/geniro:review`-only path; omitted when the review covered the whole PR)
+- Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" (omit the clause when the review covered the whole PR). Naming the ancestor and its thread counts is what distinguishes a deliberately narrowed scope from a review that silently skipped files
 - Round: <N>
 - Risk-tier: <standard|high>
 - Dimensions spawned: [<the `actual` set per §"Dimensions spawned — `declared` vs `actual`" below, naming any declared-but-missing dimension with its skip reason>]
 - Mechanical pre-pass: [lint:N, schema:M, secrets:K]
 - Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
-- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; repeats stay in `## Findings` per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7)
+- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; a repeat stays in `## Findings` like any other kept finding — see the per-finding body schema below)
 
 ## Findings
 
@@ -252,6 +252,14 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 
 ---
 
+**PR-state snapshot fields — the dedup contract.** The three `*-snapshot:` fields above capture the PR's pre-existing review surface at triage time, and the §7.1 already-on-PR dedup is their only consumer. Their shapes differ because their sources do:
+
+- `resolved-threads-snapshot:` — `path:line` entries, one per PR review thread already marked resolved. Carries a line, so §7.1 check 1 matches by range overlap.
+- `pr-bot-comments-snapshot:` — `path:line` entries, one per still-open bot review comment. Also carries a line, so check 2 applies the same range-overlap rule.
+- `pr-formal-reviews-snapshot:` — `reviewer:body` entries, one per human or author formal review. Free prose with NO line, which is why check 3 falls back to the conservative basename-plus-keyword match instead of a range rule.
+
+Each field is `null` when the producer had nothing to capture (no PR ref, or `gh` unavailable at triage). A `null` or absent snapshot means "nothing to dedup against" — the dependent check is skipped, never treated as "no overlap found". A rewrite that drops these fields silently re-enables double-posting, which is why the §2.6 rewrite discipline names them explicitly.
+
 **Dimensions spawned — `declared` vs `actual`.** Two dimension sets exist during a review run, and the Summary line records the second:
 
 - **`declared`** — the dimension set the producer committed to BEFORE firing the parallel reviewer batch, persisted to frontmatter as `spawn_dims_declared` (with `spawn_dims_count` as its length). It is the intent.
@@ -292,13 +300,13 @@ Each finding under `## Findings` renders as the multi-line per-finding body bloc
 
 The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding gate) flips from `pending` → `resolved` after the user's AUQ pick lands. Phase 5.1 writes every PRODUCT-DECISION finding with `step0_status: pending`; §3 step 4 flips it to `resolved`. §7.0 re-reads `## Findings` and aborts the Post drill on any remaining `pending` — the defensive analog of the `open_questions[].status: unresolved` check, since the AUQ chip labels (`"Open question"` for §2.5, `"Open decision"` for §3) are not tags and must never leak into a PR comment as if they were.
 
-**Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every kept finding (CRITICAL / HIGH / MEDIUM) that lands in `## Findings`. Phase 4.2 produces one verify-finding verdict per §4.1 survivor regardless of severity (verifier spawns cluster up to 3 same-file findings); verdicts of `validation: refuted` are filtered before reaching the handoff, so any finding present here carries `Validation: confirmed`, `Validation: clarified`, or — when the verifier failed to spawn after retry — the orchestrator-assigned `Validation: unverified` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5). `unverified` is a legal present value meaning the verifier never ran: consumers keep the finding, treat it as NOT postable (excluded from the §7.1 post set), and surface a one-line warning that it was not independently verified. The fields are ABSENT on LOW findings — including a LOW `PRODUCT-DECISION` admitted via §4.1 Path B (decision-type) — because no LOW finding enters the Phase 4.2 verifier (§4.2 runs on every kept CRITICAL / HIGH / MEDIUM finding, admitted by Path A or Path B; LOW is the only severity it skips). A Path-B LOW `PRODUCT-DECISION` still carries `step0_status: pending` (it IS a PRODUCT-DECISION, so the §3 open-decision gate fires for it) but no `Validation`/verification fields. When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions. A `[USER-ELECTED]` promotion out of `## Deferred — sub-threshold` (§4.6) follows the same rules: a promoted LOW carries no verification fields; a promoted evidence-less MEDIUM carries all four fields on the finding-verification.md §4.5 spawn-failure convention — `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "user-elected promotion — verifier never ran"`, `Recommended-action:` mirroring its original Decision Type — because the verifier never ran for a deferred entry and user election does not verify it; an accounted state excluded from the §7.1 post set like any other `unverified` finding.
+**Verification fields — presence rules.** The four `Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence` fields are MANDATORY on every kept finding (CRITICAL / HIGH / MEDIUM) that lands in `## Findings`. Phase 4.2 produces one verify-finding verdict per §4.1 survivor regardless of severity (co-located survivors share a spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4); verdicts of `validation: refuted` are filtered before reaching the handoff, so any finding present here carries `Validation: confirmed`, `Validation: clarified`, or — when the verifier failed to spawn after retry — the orchestrator-assigned `Validation: unverified` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5). `unverified` is a legal present value meaning the verifier never ran: consumers keep the finding, treat it as NOT postable (excluded from the §7.1 post set), and surface a one-line warning that it was not independently verified. The fields are ABSENT on LOW findings — including a LOW `PRODUCT-DECISION` admitted via §4.1 Path B (decision-type) — because no LOW finding enters the Phase 4.2 verifier (§4.2 runs on every kept CRITICAL / HIGH / MEDIUM finding, admitted by Path A or Path B; LOW is the only severity it skips). A Path-B LOW `PRODUCT-DECISION` still carries `step0_status: pending` (it IS a PRODUCT-DECISION, so the §3 open-decision gate fires for it) but no `Validation`/verification fields. When `Validation: clarified`, the verifier judged the original reviewer's finding partially correct but mis-classified; the `Recommended-action:` value carries the corrected routing and supersedes the original `Decision Type:` for §3 gate firing and downstream consumer decisions. A `[USER-ELECTED]` promotion out of `## Deferred — sub-threshold` (§4.6) follows the same rules: a promoted LOW carries no verification fields; a promoted evidence-less MEDIUM carries all four fields on the finding-verification.md §4.5 spawn-failure convention — `Validation: unverified`, `Verification-confidence: 1`, `Verification-evidence: "user-elected promotion — verifier never ran"`, `Recommended-action:` mirroring its original Decision Type — because the verifier never ran for a deferred entry and user election does not verify it; an accounted state excluded from the §7.1 post set like any other `unverified` finding.
 
 **Verification fields — back-compat for legacy handoffs.** Two legacy cases produce findings without the four verification fields:
 1. `m6-v1` (pre-Phase-4.2) writers — no findings carry verification fields at any severity.
 2. `m6-v2` writers that verified only HIGH findings — HIGH findings carry verification fields; CRITICAL and MEDIUM findings do not.
 
-Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution step) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so missing-field MUST NOT block the Post drill that worked before the field existed.
+Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution step) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so a missing field does not block the Post drill that worked before the field existed.
 
 **Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /geniro:implement Step 12) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /geniro:review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
 
@@ -323,7 +331,7 @@ The schema exists because two consumers parse these entries: the §7 post drill 
 
 ## 3. Step 0 — Open-decision gate (per-finding, Always-WAIT)
 
-Before recommending which skill to run, surface every `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment to the user — they pick the resolution path; orchestrator NEVER picks on their behalf. The orchestrator must not auto-resolve multi-path findings even when the reviewer's `recommendation:` field appears obvious.
+Before recommending which skill to run, surface every `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment to the user — they pick the resolution path, and the orchestrator does not resolve a multi-path finding on their behalf even when the reviewer's `recommendation:` field looks obvious.
 
 **For each kept finding with `Decision Type: PRODUCT-DECISION` (read from state file):**
 
@@ -401,7 +409,7 @@ AskUserQuestion(
 )
 ```
 
-After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator NEVER auto-invokes /geniro:implement.
+After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator never auto-invokes /geniro:implement.
 
 **Post-option presence.** "Post Draft PR review" is present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag) AND not kept off the PR (`post-disposition: off-pr`) AND not resolved to need no action (`post-disposition: no-action`) — an all-LOW review still presents it. Omit it only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]`, OR every remaining finding is `post-disposition: off-pr` or `no-action`. Posting is an external write to a public surface — this gate is mandatory before ANY review posting: fire it and wait; never auto-post (even a draft), never publish, never substitute a chat-text "submit it yourself" line for the pick. Picking it IS the approval; the post creates a PENDING draft the user submits themselves (per §7.4). The Action gate is mutually exclusive — user chooses ONE path.
 
@@ -453,7 +461,7 @@ Persist user pick to `approvals[]` with category `round_n_escalation`, written v
 
 ## 6. Failing-tests gate
 
-This is the commit-POLICY gate — it decides whether to commit/push the tests already authored, and it fires unconditionally whenever the handoff's `## Authored Tests` section is non-empty, even when the Action gate already completed or the session is wrapping up. A chat-text request to commit or push the authored tests — at any later point — is answered by firing THIS gate, never by executing directly: chat text is never a gate. It is distinct from the test-AUTHORING gate that offered to write those tests during stratify (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md` §3) and populated `## Authored Tests`. Do not conflate the two.
+This is the commit-POLICY gate — it decides whether to commit/push the tests already authored, and it fires unconditionally whenever the handoff's `## Authored Tests` section is non-empty, even when the Action gate already completed or the session is wrapping up. A chat-text request to commit or push the authored tests — at any later point — is answered by firing THIS gate, never by executing directly: chat text is never a gate. It is distinct from the earlier test-AUTHORING gate, which offered to write those tests during the stratify phase and populated `## Authored Tests`. Do not conflate the two: authoring produced the files, this gate decides where they go.
 
 Firing order relative to the Action gate is conditional per the gate chain (§2).
 

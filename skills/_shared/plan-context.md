@@ -1,4 +1,4 @@
-# Plan Context Reference
+# Plan context reference
 
 How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions dimensions. Schema-aware loader that parses the spec's 11-section `spec.md` format when present, falling back to prose detection when no frontmatter is found.
 
@@ -39,7 +39,7 @@ geniro_kind: design-doc
 geniro_schema_version: m5-v1   # or m5-v2 / m5-v3 / m5-v4 — all accepted
 ```
 
-→ switch to **structured-section parser**. All of `m5-v1`, `m5-v2`, `m5-v3`, and `m5-v4` carry the same 11-section body schema; `m5-v2` and `m5-v3` expose `workflow_refs[]` in frontmatter (`/geniro:plan` writes them by default when a tracker reference is fetched), and `m5-v3` additionally enriches each `workflow_refs[]` entry with parent-epic + sibling chain context (parent title/status/scope, sibling sub-task statuses, a `chain_fetched_at` timestamp). `m5-v4` adds the optional `launch_config` block — `/geniro:plan`'s pre-set of `/geniro:implement`'s launch settings (workspace / deep mode / branch-freshness / ship mode, plus an optional tracker-status pre-set when a tracker ticket is linked; canonical `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`), absent = `/implement` asks interactively. Every block is additive-optional. Downstream readers MUST accept all four versions.
+→ switch to **structured-section parser**. All of `m5-v1`, `m5-v2`, `m5-v3`, and `m5-v4` carry the same 11-section body schema; `m5-v2` and `m5-v3` expose `workflow_refs[]` in frontmatter (`/geniro:plan` writes them by default when a tracker reference is fetched), and `m5-v3` additionally enriches each `workflow_refs[]` entry with parent-epic + sibling chain context (parent title/status/scope, sibling sub-task statuses, a `chain_fetched_at` timestamp). `m5-v4` adds the optional `launch_config` block — `/geniro:plan`'s pre-set of `/geniro:implement`'s launch settings (workspace / deep mode / branch-freshness / ship mode, plus an optional tracker-status pre-set when a tracker ticket is linked; canonical `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`), absent = `/implement` asks interactively. Every block is additive-optional. Downstream readers accept all four versions — a reader that rejects a newer one falls back to prose mode and loses the structured context it could have used.
 
 If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR `geniro_schema_version` is missing OR is a value other than `m5-v1` / `m5-v2` / `m5-v3` / `m5-v4` → fall back to **prose mode**.
 
@@ -125,7 +125,7 @@ When no sources resolve, the entire field collapses to:
 PLAN CONTEXT: none
 ```
 
-In prose mode, spec-compliance reviewer runs checks 1-9 only (skips checks #10 Done Condition + #11 Tools Required — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` prose fallback). Emit a structured `open_questions[]` entry with `id: spec-compliance-prose-fallback`, `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
+In prose mode, the spec-compliance reviewer runs the reduced check set defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §"Prose fallback" — that file owns which checks survive, so do not re-enumerate them here. Emit a structured `open_questions[]` entry with `id: spec-compliance-prose-fallback`, `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
 
 ---
 

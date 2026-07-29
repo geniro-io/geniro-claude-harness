@@ -9,8 +9,10 @@
 # `${!arr[@]}` in redact_secrets expanded to VALUES under zsh, mis-iterating
 # the pattern loop and blanking every sanitized field.
 #
-# This suite sources each sibling-sourcing helper under BOTH shells and
-# exercises the end-to-end emit + redact + query path under zsh.
+# This suite sources EVERY lib/ helper under BOTH shells — plainly, and again
+# under `set -u`, which is where an unguarded ${BASH_SOURCE[0]} stops expanding
+# to "" and starts aborting the whole file — and exercises the end-to-end emit +
+# redact + query path under zsh.
 #
 # Run: bash tests/memory/zsh-source-compat.sh
 
@@ -60,6 +62,44 @@ for shell in zsh bash; do
   check_source "$shell" archive-stale.sh      archive_stale_learnings
   check_source "$shell" validate-state-file.sh validate_state_file
   check_source "$shell" atomic-state-write.sh atomic_state_write
+  check_source "$shell" repo-root.sh          _geniro_repo_root
+  check_source "$shell" hash.sh               _geniro_sha256
+  check_source "$shell" branch-slug.sh        _geniro_branch_slug
+  check_source "$shell" resolve-conflicts.sh  emit_conflict_notice
+  check_source "$shell" write-vectors.sh      _geniro_extract_inner_payloads
+  check_source "$shell" clean-task-transients.sh clean_task_transients
+done
+
+# score-formula.sh exports a jq definition block rather than a function, so it is
+# checked on the variable it publishes.
+for shell in zsh bash; do
+  new_sandbox
+  if (cd "$SANDBOX_DIR" && "$shell" -c "source '$REPO_ROOT/lib/score-formula.sh' && [ -n \"\$GENIRO_SCORE_JQ_DEFS\" ]" >/dev/null 2>&1); then
+    pass "$shell: source lib/score-formula.sh defines GENIRO_SCORE_JQ_DEFS"
+  else
+    fail "$shell: source lib/score-formula.sh did not define GENIRO_SCORE_JQ_DEFS"
+  fi
+done
+
+# --- 1b. EVERY lib helper must survive `set -u`, under both shells.
+#        The failure this catches is silent in the check above: an unguarded
+#        ${BASH_SOURCE[0]} expands to the empty string under a permissive zsh and
+#        only aborts (rc=126, whole block dead) once the caller runs with `set -u`
+#        — which the Bash tool does. Enumerated by glob, not by hand, so a newly
+#        added lib/ helper is covered the moment it lands.
+for helper in "$REPO_ROOT"/lib/*.sh; do
+  [ -f "$helper" ] || continue
+  hname="$(basename "$helper")"
+  for shell in zsh bash; do
+    new_sandbox
+    out=$( (cd "$SANDBOX_DIR" && "$shell" -c "set -u; source '$helper'") 2>&1 )
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      pass "$shell: source lib/$hname under 'set -u' succeeds"
+    else
+      fail "$shell: source lib/$hname under 'set -u' failed (rc=$rc): $out"
+    fi
+  done
 done
 
 # --- 2. End-to-end emit under zsh: entry lands in the SANDBOX log (repo root
@@ -128,6 +168,28 @@ case "$out" in
   *)
     fail "zsh: direct execution did not reach main (rc=$rc out='$out')" ;;
 esac
+
+# --- 6. clean-task-transients direct-invocation guard under zsh: the same
+#        sourced-vs-executed split as archive-stale.sh, verified by effect —
+#        sourcing must leave the scratch alone, direct execution must remove the
+#        T1 transients while preserving the T1.5 durables.
+new_sandbox
+mkdir -p "$SANDBOX_DIR/task"
+: > "$SANDBOX_DIR/task/.kr-out.md"
+: > "$SANDBOX_DIR/task/spec.md"
+(cd "$SANDBOX_DIR" && zsh -c "source '$REPO_ROOT/lib/clean-task-transients.sh'" >/dev/null 2>&1)
+if [ -f "$SANDBOX_DIR/task/.kr-out.md" ]; then
+  pass "zsh: sourcing clean-task-transients.sh does not trigger the direct-run cleanup"
+else
+  fail "zsh: sourcing clean-task-transients.sh ran the cleanup"
+fi
+
+(cd "$SANDBOX_DIR" && zsh "$REPO_ROOT/lib/clean-task-transients.sh" task >/dev/null 2>&1)
+if [ ! -f "$SANDBOX_DIR/task/.kr-out.md" ] && [ -f "$SANDBOX_DIR/task/spec.md" ]; then
+  pass "zsh: direct execution of clean-task-transients.sh removes T1 scratch, keeps T1.5 durables"
+else
+  fail "zsh: direct execution of clean-task-transients.sh did not clean as expected"
+fi
 
 echo
 echo "Tests run:    $TESTS_RUN"

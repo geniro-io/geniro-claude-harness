@@ -9,13 +9,31 @@ argument-hint: "[optional: path to template directory]"
 
 # Setup: AI-driven plugin setup
 
+## Contents
+
+- Path constraints
+- Subagent model tiering
+- Loop invariants
+- Anti-rationalization
+- Definition of done
+- Budgets — quality-first
+- ACI surface per phase
+- Termination case → state mapping
+- Phase 0 — pre-flight
+- Phase 1 — Detect · Phase 2 — Interview · Phase 3 — Generate · Phase 4 — Validate · Phase 5 — Done
+- State file schema
+- Memory I/O
+- Cross-references
+
+---
+
 4-phase loop: **Detect → Interview → Generate → Validate**. Turns an unfamiliar repository into a Geniro-ready project in one supervised run. **Singleton bootstrap** — one canonical state file at `<PRIMARY_ROOT>/.geniro/state/setup/state.md` (no `<slug>/` subdir, no parallel runs). Supports `init` (first time) and `re-run` (refresh after stack changes). Uninstall is out of scope.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
 **Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
 
-**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a run silently skips a gate. Re-invoking restores the full body; the singleton state file's `phase:` says where to resume.
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context.** Claude Code re-attaches only the first ~5,000 tokens of a skill after a summary — the later phase sections fall below that line and are gone for the rest of the session, and working from the summary's recollection of a phase instead of its actual steps is how a gate gets skipped. Re-invoking restores the full body; the singleton state file's `phase:` says where to resume.
 
 ## Path constraints
 
@@ -49,7 +67,7 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 
 ## Anti-rationalization
 
-| Reasoning | Why it's wrong |
+| Your reasoning | Why it's wrong |
 |---|---|
 | "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
 | "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
@@ -408,20 +426,21 @@ Transition to Phase 4.
 ### 4.1 Verification subagent spawn
 
 ```
-Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the spawn-agent.md ladder applies only if promoted to a plugin-defined agent
-model="sonnet", # hardcode carve-out per _shared/model-tiering.md — tier and its reason stated in §Subagent model tiering; keep the pin, it is part of this spawn's read-only contract
+Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the ${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md ladder applies only if promoted to a plugin-defined agent
+model="sonnet", # hardcode carve-out per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md — tier and its reason stated in §Subagent model tiering; keep the pin
 prompt="""
-You are a READ-ONLY verifier. Do not create, edit, or delete any file, and run no mutating
-shell command — report DRIFT items and let the orchestrator regenerate the affected sections.
-An edit from here would overwrite content the orchestrator is about to rewrite from the
-detected project facts. Read, read-only Bash, Glob, and Grep are the whole job.
+You are a READ-ONLY verifier. The Agent tool has no per-spawn tool allowlist, so this
+paragraph is the whole read-only floor: do not create, edit, or delete any file, and run no
+mutating shell command — report DRIFT items and let the orchestrator regenerate the affected
+sections. An edit from here would overwrite content the orchestrator is about to rewrite from
+the detected project facts. Read, read-only Bash, Glob, and Grep are the whole job.
 
 Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
 
 First, Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md and run every check it
 defines (cross-language contamination, template artifact, generic-placeholder) — that
-file is the single source for the contamination + template-residue criteria, with a per-language
-wrong-token table that catches stack drift this inline list cannot.
+file is the single source for the contamination, template-residue and placeholder criteria, and
+its per-language wrong-token table catches stack drift no fixed grep list would.
 
 Then run these additional checks:
 1. Every command in the `## Commands` section runs locally (try `bash -n` syntax check; do not execute).
@@ -429,14 +448,14 @@ Then run these additional checks:
 3. No Geniro-plugin content. Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md §3.2 "What does
    NOT go in CLAUDE.md" — that list is the single source — and report every item on it that
    appears in the generated file. CLAUDE.md is project-only.
-4. Template variable residue grep: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`.
-5. No `<!-- geniro-setup-managed -->` or `<!-- geniro-setup-end -->` markers (legacy — CLAUDE.md is user-owned).
 
 Output a markdown report:
 ## PASS items (one per line)
 ## DRIFT items (one per line with file:line)
 
-Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT).
+Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT) — the bounded-results
+invariant in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md, bound here by loop
+invariant #4.
 
 Anchor: stay within current cwd; verify with `pwd && git branch --show-current` on first Bash call.
 """

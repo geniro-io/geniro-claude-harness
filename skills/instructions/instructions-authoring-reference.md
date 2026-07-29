@@ -1,6 +1,6 @@
 # Instructions — Authoring Reference
 
-Detail sections extracted from `skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
 ## Contents
 
@@ -42,7 +42,7 @@ Detail sections extracted from `skills/instructions/SKILL.md`: the per-scope fil
 # Memory
 
 ## Memory Backend
-<!-- Optional. Route agent learnings through a custom backend. Default = built-in .geniro file. The `read` tool MUST be read-only. -->
+<!-- Optional. Route agent learnings through a custom backend. Default = built-in .geniro file. The `read` tool has to be read-only — it runs unattended during retrieval. -->
 - layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <read-only mcp tool>
 ```
 
@@ -131,7 +131,7 @@ What to NOT flag:
 **Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
 
 ```markdown
-<!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
+<!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands have to be read-only — the verification step runs them unattended. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
 <!-- - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."` -->
 <!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
 ```
@@ -142,7 +142,7 @@ What to NOT flag:
 # Memory
 
 ## Memory Backend
-<!-- Optional. Route agent learnings (L2) through a custom backend (a memory MCP, vector store, knowledge graph). Default = built-in .geniro/knowledge/learnings.jsonl. The `read` tool MUST be read-only. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md -->
+<!-- Optional. Route agent learnings (L2) through a custom backend (a memory MCP, vector store, knowledge graph). Default = built-in .geniro/knowledge/learnings.jsonl. The `read` tool has to be read-only — it runs unattended during retrieval. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md -->
 <!-- - layer: learnings -->
 <!--   mode: mirror            # mirror = file + backend (default); replace = backend only -->
 <!--   write: mcp tool `mcp__memory__upsert` -->
@@ -213,8 +213,6 @@ Count words, not lines — a table-dense file and a prose-dense file with the sa
 ## 5. Per-skill phase enums
 
 An `Additional Steps` subsection must name a real phase from the owning skill's state machine — `### After <phase>` / `### Before <phase>`, lowercase-hyphenated (subsection prose may use any case; validate normalizes). A subsection naming a phase that does not exist fails silently in the loader: the step is never reached and the user gets no error, which is why validate-mode checks it.
-
-**Maintenance:** each row below mirrors that skill's `## State machine` section in `skills/<skill>/SKILL.md`, which is the source of truth. A skill that adds or renames a phase updates its own state machine first, then this row.
 
 | Scope | Phase enum | Example subsection names |
 |---|---|---|

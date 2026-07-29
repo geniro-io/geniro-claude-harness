@@ -10,7 +10,7 @@
 #
 #   A. /plan → /review:  spec.md frontmatter `workflow_refs[]` must satisfy /review's parser
 #      WHEN PRESENT, and be treated-as-absent (never false-fail) when missing or on m5-v1.
-#      Contract: skills/plan/spec-template.md:67,70-79 (4 required keys: kind/issue_id/url/
+#      Contract: skills/_shared/spec-template.md:67,70-79 (4 required keys: kind/issue_id/url/
 #      fetched_at; optional otherwise; omitted on inline-task specs) + skills/review/SKILL.md:117
 #      ("Accept both m5-v1 (treat field as absent) and m5-v2 (read entries)").
 #
@@ -558,7 +558,7 @@ grep -qE '`kind`' "$WF_SCHEMA" \
 # C2b (B1 seam): the optional per-criterion `verify:` field must stay documented on BOTH ends —
 # producer (spec-template §9 documents it + the validator pins its shape) and consumer (/implement
 # runs it). A doc edit that drops either end silently breaks the spec→implement acceptance-check seam.
-grep -qE '`?verify:`?' "$REPO_ROOT/skills/plan/spec-template.md" \
+grep -qE '`?verify:`?' "$REPO_ROOT/skills/_shared/spec-template.md" \
   && grep -qE 'verify:' "$REPO_ROOT/skills/plan/validator-checks.md" \
   && grep -qE 'verify:' "$REPO_ROOT/skills/implement/implement-reference.md" \
   && pass "C2b /plan documents optional section-9 verify: + validator pins its shape + /implement consumes it" \

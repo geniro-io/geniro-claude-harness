@@ -1,6 +1,6 @@
 # /geniro:review — Severity and confidence calibration
 
-Canonical decision rules consumed by `agents/reviewer-agent.md` AND every `*-criteria.md` file. Per-dim criteria files may specialize severity to dim-specific signals, but they honor the inclusion + exclusion lists below — a criteria file that loosens them lets a dim re-classify a doc/cosmetic finding above LOW, corrupting the shared taxonomy that downstream consumers (verifier, stratifier, /geniro:implement) depend on.
+Canonical decision rules consumed by `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` AND every `*-criteria.md` file. Per-dim criteria files may specialize severity to dim-specific signals, but they honor the inclusion + exclusion lists below — a criteria file that loosens them lets a dim re-classify a doc/cosmetic finding above LOW, corrupting the shared taxonomy that downstream consumers (verifier, stratifier, /geniro:implement) depend on.
 
 ## Contents
 
@@ -191,11 +191,11 @@ The Phase 4.2 per-finding verifier is the disproof step on every §4.1 survivor 
 
 Per-dim criteria files may tighten this rubric (e.g., `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` caps at HIGH and suppresses LOW) but must not loosen it — loosening lets sub-threshold findings surface past the shared gate. Specifically:
 
-- A criteria file MUST NOT classify documentation / PR-description / cosmetic suggestions above LOW
-- A criteria file MUST NOT widen CRITICAL beyond the §1 inclusion list
-- A criteria file MAY add dim-specific HIGH/MEDIUM signals (e.g., regressions: deleted-symbol caller-blast → HIGH; optimizations: >1000 rows → HIGH)
+- Documentation, PR-description, and cosmetic suggestions stay at LOW in every criteria file. Lifting one above LOW is how a dim smuggles a paper cut past the shared gate and onto the PR surface.
+- CRITICAL stays exactly the §1 inclusion list. Widening it in one dim out-ranks the taxonomy every downstream consumer reads, so the same defect scores differently depending on which reviewer found it.
+- Dim-specific HIGH/MEDIUM signals are welcome — regressions: deleted-symbol caller-blast → HIGH; optimizations: >1000 rows → HIGH.
 
-When a per-dim file specializes severity, it MUST cite §1 above as the canonical taxonomy and document only the dim-specific specialization — not redefine the tiers.
+A per-dim file that specializes severity cites §1 as the canonical taxonomy and documents only its own specialization. Restating the tiers locally is how the taxonomy forks: the local copy drifts, and two dims then disagree about what MEDIUM means.
 
 ---
 

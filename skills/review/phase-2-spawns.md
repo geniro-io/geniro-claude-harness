@@ -39,13 +39,13 @@ State.md `phase: llm-spawn`.
 
 - 7 always-rows (bugs, security, architecture, tests, optimizations, conventions, regressions) fire on every run.
 - 3 conditional rows (design, pr-metadata, spec-compliance) fire when their trigger column is satisfied.
-- N custom rows fire per the spawn-specs already discovered in Phase 1.5 §1.5.4 (zero discovery work at Phase 2 entry — read the count from state.md frontmatter `custom_reviewers`).
+- N custom rows fire per the spawn-specs already discovered in Phase 1.5 §1.5.4 — the state.md frontmatter `custom_reviewers` entries whose `paths_matched` is `true` (zero discovery work at Phase 2 entry; that count is N).
 
 Total batch size = always-fire + triggered conditional + custom rows. Trimming this set silently is the documented anti-pattern — see §Anti-rationalization. Post-spawn verification in Phase 4 §4.0 catches drift.
 
 **Refresh L4 instructions** at Phase 2 entry — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `MODE: refresh`. Compaction since the previous load may have silently dropped the rules.
 
-**Read custom-reviewer specs** from state.md frontmatter `custom_reviewers[]` — populated in Phase 1.5 §1.5.4 via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` discovery. Append one `Agent(subagent_type="reviewer-agent",...)` per spec to the same parallel batch as the built-ins.
+**Read custom-reviewer specs** from state.md frontmatter `custom_reviewers[]` — populated in Phase 1.5 §1.5.4 via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` discovery. Each entry carries the short scalars (`slug`, `paths_matched`, `model`, `source_path`, `severity_default`, `requires_context`); the criteria body is not persisted, so **Read each entry's `source_path` here** to recover it — that body is the `CRITERIA:` slot of its spawn. Resolve the path cwd-local first, then under `<PRIMARY_ROOT>` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), matching the discovery glob. A `source_path` that no longer resolves means the user's file moved or was deleted mid-run: drop that one reviewer, note it under `## Caveats` by slug, and fire the rest — spawning a custom dimension with an empty rubric produces findings against no criteria at all. Append one `Agent(subagent_type="reviewer-agent",...)` per surviving spec to the same parallel batch as the built-ins.
 
 ### 2.2 Pre-spawn declaration (state.md write before parallel batch)
 
@@ -89,7 +89,7 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
   - Mechanical pre-pass findings (Phase 1.5) as prior-context under `## Mechanical Pre-pass Findings`.
   - PLAN CONTEXT — spec-compliance + regressions dims ONLY (other dims see `PLAN CONTEXT: <plan tag fields only>` per the schema-aware reference).
   - LINEAR CONTEXT — spec-compliance + pr-metadata + architecture + regressions dims ONLY. Omitted for other dims.
-  - CUSTOM CONTEXT — a custom reviewer (`custom:<slug>`) that declares `requires-context:` ONLY. The orchestrator pre-fetches the declared external data (which the subagent can't reach over MCP) and injects it into that one reviewer's spawn, fail-open if unavailable — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context. Omitted for all built-in dims and for custom reviewers without the field.
+  - CUSTOM CONTEXT — a custom reviewer whose `custom_reviewers[]` entry carries a non-null `requires_context` ONLY. The orchestrator pre-fetches the declared external data (which the subagent can't reach over MCP) and injects it into that one reviewer's spawn, fail-open if unavailable — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context. Omitted for all built-in dims and for custom reviewers whose `requires_context` is null.
   - PR metadata (pr.body / pr.title / commit messages) — flows via the pr-metadata reviewer's existing context channel; spec-compliance and regressions dims read it through the same channel when fired on a PR ref. No separate `PR CONTEXT:` slot is composed.
   - PRIOR-ROUND FINDINGS (Round-N counter sub-step prior-round-summary, or `none — first review`).
   - PRIOR-ROUND PR BODY — pr-metadata dim ONLY — the `prior-pr-body` captured at re-review detection (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1); renders `none — first review` on round 1 or when the prior-run handoff has no `pr-body:`. The pr-metadata reviewer's cross-round drift check (check #11) reads this slot.
@@ -106,7 +106,7 @@ After the parallel batch returns, narrate completion before transitioning to §3
 
 Surface any `status: failed` entries by their plain-English dim name (e.g., "PR metadata reviewer failed — see `## Errors`"), not by raw slug.
 
-**Criteria files** — pass the path, never the body, and do not read them here. Across a full grid these rubrics run to tens of thousands of words; pre-reading them to inline drags every word through the orchestrator's own context as pass-through payload, and `reviewer-agent` holds `Read` and reads whatever paths its prompt names (its §Step 1). Inline a body only where no readable path exists, and say so in the slot. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so that spawn passes content as before.
+**Criteria files** — pass the path, never the body, and do not read them here. Across a full grid these rubrics run to tens of thousands of words; pre-reading them to inline drags every word through the orchestrator's own context as pass-through payload, and `reviewer-agent` holds `Read` and reads whatever paths its prompt names (its §Step 1). Inline a body only where no readable path exists, and say so in the slot. Custom reviewers are the standing exception: their rubric lives in the user's own `.geniro/instructions/review-extra/` file, which a subagent running in a linked worktree may not be able to resolve, so that spawn passes the body read at §2.1 as `CRITERIA:` content.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `optimizations-criteria.md` · `regressions-criteria.md`
 - conventions dim — all three paths passed together: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` (per-file style rubrics) · `conventions-criteria.md` (repo-modal patterns) · `rules-compliance-criteria.md` (authored-rule citations)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/design-criteria.md` (conditional per §2.5)

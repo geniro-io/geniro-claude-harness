@@ -1,6 +1,6 @@
 # Onboard — Detailed Reference
 
-Detail sections extracted from `skills/onboard/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/onboard/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
 ## Contents
 

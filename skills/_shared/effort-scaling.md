@@ -1,4 +1,4 @@
-# Effort Scaling
+# Effort scaling
 
 Canonical complexity rubric for routing tasks to the correct pipeline depth.
 

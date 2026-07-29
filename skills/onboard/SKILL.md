@@ -9,6 +9,23 @@ argument-hint: "[optional: --focus area1,area2 --depth N]"
 
 # Onboard: rapid codebase orientation
 
+## Contents
+
+- Arguments
+- Outputs — the 8-section `_CODEBASE_MAP.md` template
+- State machine
+- Loop invariants
+- Anti-rationalization
+- Quality-first budgets
+- Phase 1 — Discover
+- Phase 2 — Map
+- State file schema
+- ACI per-phase tool surface
+- Definition of done
+- Examples
+
+---
+
 2-phase loop (Discover → Map). Generates a structured map that serves as a reference for the session.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
@@ -63,6 +80,19 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **`## Tool log` section in state.md:** selective logging — log L3 writes (`_CODEBASE_MAP.md` write via `update-semantic`), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash skipped.
+
+## Anti-rationalization
+
+| Your reasoning | Why it's wrong |
+|---|---|
+| "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
+| "I need more detail on this module" | The codebase map captures architecture, not implementation. Keep it under 1000 lines. |
+| "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
+| "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
+| "The repo has 5000 files but I'll just scan everything — better safe than sorry." (or: "it's monorepo-scale, so bypass the cap silently") | Mass-scan violates the bounded-scan contract. The read budget exists for tokens + speed: sample the most relevant files and record what was covered in `## Scope`. Expansion is explicit — `--cap N` up front, or the §1.3 Step 2 AUQ — so raising the cap on your own authority, silently or otherwise, defeats the cost-control intent. |
+| "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
+| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Hard caps abort legitimate complex discovery mid-stride. Quality-first — no hard caps. The read budget bounds the cost, `--cap N` raises it, and a repo too large for the sample to represent escalates via AUQ. User has agency without being interrupted to get it. |
+| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress and the user re-runs from scratch. The `## Tool log` in particular is what records the scan process — which directories were covered, which raised permission errors — so a failed onboard stays diagnosable without repeating the whole scan. |
 
 ## Quality-first budgets
 
@@ -293,25 +323,10 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)
 - [ ] State.md cleaned up per §2.5
+
 ---
 
 ## Examples
 
 Three worked invocation examples (monorepo focus scan / returning-after-months refresh / feature-planning focus) in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §2.
 
----
-
-## Anti-rationalization
-
-| Your reasoning | Why it's wrong |
-|---|---|
-| "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
-| "I need more detail on this module" | The codebase map captures architecture, not implementation. Keep it under 1000 lines. |
-| "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
-| "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
-| "The repo has 5000 files but I'll just scan everything — better safe than sorry." | Mass-scan violates the bounded-scan contract. The read budget exists for tokens + speed: sample the most relevant files and record what was covered in `## Scope`. A user who wants more passes `--cap N`; raising it yourself is not your call. |
-| "Quick mode would be nice here — I'll informally produce a focus-only output." | There is no quick mode. The single-mode flow + `--focus` scope-limiter covers all legitimate needs. Inventing a quick-mode bypass mid-run breaks the single-mode contract. |
-| "Add a wall-time kill cap so long-running discovery aborts cleanly." | Hard caps abort legitimate complex discovery mid-stride. Quality-first — no hard caps. The read budget bounds the cost, `--cap N` raises it, and a repo too large for the sample to represent escalates via AUQ. User has agency without being interrupted to get it. |
-| "/geniro:onboard scan should bypass the 50-file cap silently if the codebase is monorepo-scale." | The cap is explicit — ≤50 default; user-confirmable expansion. Silent bypass defeats the cost-control intent. |
-| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress; user re-runs from scratch. |
-| "Audit trail isn't needed for local /geniro:onboard runs — the map IS the record." | The map captures architecture; the state.md `## Tool log` captures the scan process (which directories scanned, permissions errors, time taken). Without the log, debugging a failed onboard is impossible. The SessionStart hook re-injects on compaction; without the log, post-mortem requires re-running the scan from scratch. |

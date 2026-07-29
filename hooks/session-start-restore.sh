@@ -16,6 +16,15 @@
 
 set -uo pipefail
 
+# Announce inactivity if jq is missing, like every sibling hook. Without the
+# check this hook runs to completion, dies at the final `jq -n`, prints an empty
+# line and exits 0 — so the entire restore silently produces nothing and the
+# user believes their task state was resumed.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '{"systemMessage":"Geniro hook inactive: jq not found on PATH, so saved task state is NOT being restored. Install jq to restore it."}\n'
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------
 # Input plumbing
 # ---------------------------------------------------------------------------
@@ -843,6 +852,11 @@ if [ -f "$_learnings_log" ]; then
 
       # Atomic lock acquisition. Failure = another tab is running it; skip.
       if mkdir "$_lock_dir" 2>/dev/null; then
+        # A SIGINT/SIGTERM between here and the rmdir below would orphan the lock
+        # and silently suppress auto-archive until the reclaim window elapses.
+        # The three peer acquisition sites (archive-stale.sh, query-learnings.sh,
+        # update-semantic.sh) all trap; this one is the outlier.
+        trap 'rmdir "$_lock_dir" 2>/dev/null' EXIT INT TERM
         _archive_rc=0
         # GENIRO_ARCHIVE_LOCK_HELD=1 — this hook already holds the mkdir lock;
         # without the flag the helper's direct-invocation branch would see the
@@ -857,8 +871,10 @@ if [ -f "$_learnings_log" ]; then
           _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
         fi
 
-        # Release lock.
+        # Release lock, and drop the trap so a later EXIT does not rmdir a lock
+        # another tab has since acquired.
         rmdir "$_lock_dir" 2>/dev/null
+        trap - EXIT INT TERM
 
         # Extract archived count from helper's stderr line:
         # "archive-stale: flipped deprecated:true on N entries:"

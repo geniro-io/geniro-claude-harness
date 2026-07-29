@@ -214,7 +214,7 @@ echo '{"name":"foo"}' > package.json
 update_fingerprint
 echo '{"name":"changed"}' > package.json
 err=$(load_semantic 2>&1 >/dev/null)
-if echo "$err" | grep -q '\[L3 drift\].*package.json'; then
+if echo "$err" | grep -q 'Project snapshot may be out of date.*package.json'; then
   pass "diverged file → drift warning on stderr"
 else
   fail "drift warning missing or wrong; got: '$err'"

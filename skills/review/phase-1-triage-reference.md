@@ -43,12 +43,10 @@ Two situations reach this sub-step, and they are NOT the same. A **compaction-re
 
 Collect these signals before deciding:
 
+The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, `PROTECTED_BRANCH` — are defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-signals.md` and detected identically here; the rows below are this skill's own additions.
+
 | Signal | How detected |
 |---|---|
-| `CURRENT_BRANCH` | `git branch --show-current` |
-| `CURRENT_TOPLEVEL` | `git rev-parse --show-toplevel` |
-| `IN_WORKTREE` | `CURRENT_TOPLEVEL` is registered in `git worktree list --porcelain` AND is NOT the porcelain `bare` row or the main worktree row. Porcelain registry is the source of truth; the `.claude/worktrees/<slug>/` path convention is a sanity check, NOT the primary signal. |
-| `PROTECTED_BRANCH` | `CURRENT_BRANCH ∈ {main, master, develop, trunk}` (per-project override via `.geniro/safety.json`) |
 | `EXISTING_REVIEW_STATE` | Glob `.geniro/state/handoff/from-review-<CURRENT_BRANCH>.md` ⇒ "prior /geniro:review run on this branch" |
 | `REVIEW_HANDOFF` | Alias for `EXISTING_REVIEW_STATE` — re-running /geniro:review means the user is in fix-up or follow-up review mode |
 | `DEBUG_HANDOFF` | Path `.geniro/state/handoff/from-debug-<CURRENT_BRANCH>.md` exists ⇒ "/geniro:debug just authored repro tests for this branch" |
@@ -418,7 +416,7 @@ PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn 
 
 ## 9. Step 0.7 — Risk-tier stratification
 
-Size-only triage (>8 files / >400 LOC) misses high-stakes small diffs. Stratify by risk tier alongside size.
+Size-only triage (the §12 size threshold) misses high-stakes small diffs. Stratify by risk tier alongside size.
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for Hard Escalation Signals" — single source of truth for the 9 canonical signals (new entity / new endpoint or route / auth or permissions changes / new module / 3+ modules coordinated / open-closed violation / new async or background work / new external integration or env vars / ambiguous intent).
 2. Scan changed files + diff content for matches.
@@ -464,11 +462,13 @@ Persist the pick: frontmatter `deep-mode: <true|false>` + `approvals[]` category
 
 ## 12. Size triage
 
-After context settled, classify files when diff has >8 files or >400 LOC:
+**The size threshold — canonical home for the number, cited from every other site: >8 files OR >400 LOC.** That is roughly where one flat diff stops fitting a single reading pass: below it a reviewer holds the whole change at once and grouping only adds structure for nothing, above it the middle of the payload is where findings get missed. Both consumers below key off this one boundary.
+
+After context settled, classify files once the diff crosses it:
 
 - **Trivial**: Renames, formatting-only, import reordering, generated files, lock files → skip full review (mention in summary as "triaged out").
 - **Substantive**: Logic changes, new code, API changes, security-sensitive → full review.
 
 Done inline by orchestrator (read each diff hunk, classify) — no subagent.
 
-The size threshold also controls how each reviewer reads the diff — Standard vs Batched **payload** (≤8 files AND ≤400 LOC → Standard; >8 files OR >400 LOC → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.
+The same threshold controls how each reviewer reads the diff — Standard vs Batched **payload** (under it → Standard; over it → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.

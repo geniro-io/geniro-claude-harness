@@ -1,8 +1,16 @@
-# Root-Cause Gate
+# Root-cause gate
 
 Canonical AskUserQuestion gate that fires when a finding or proposed change is classified `[SYMPTOM]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`. Auto-patching a symptom without confirming the underlying cause silently handles a defect the user never confirmed: a real bug ships, no audit trail, and the visible defect re-emerges later via a different surface.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the gate logic.
+
+## Contents
+
+- When this fires — the `[SYMPTOM]` trigger predicate
+- Always-WAIT contract — no mode or lane skips this gate
+- Required AUQ shape (single-select) — the three options, verbatim
+- Result handling — how each pick re-tags the finding or exits the skill
+- Anti-rationalization
 
 ## When this fires
 

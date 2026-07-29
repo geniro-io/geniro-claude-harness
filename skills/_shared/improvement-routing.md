@@ -1,4 +1,4 @@
-# Improvement Routing (canonical)
+# Improvement routing (canonical)
 
 ## Contents
 

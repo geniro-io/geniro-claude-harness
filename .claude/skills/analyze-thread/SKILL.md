@@ -27,7 +27,7 @@ You are the orchestrator for analyzing a saved Claude conversation thread and su
 
 A batch run changes what each phase iterates over, never the phase contract: the same checks, filter tags, and gates apply per thread, and only Phase 3's merge step is batch-specific.
 
-The canonical taxonomy and per-check detection logic live in `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md`. SKILL.md keeps the phase narrative; the reference holds the per-check spec.
+The canonical taxonomy and per-check detection logic live in `.claude/skills/analyze-thread/checks-reference.md`. SKILL.md keeps the phase narrative; the reference holds the per-check spec.
 
 ---
 
@@ -41,25 +41,27 @@ The Phase 4 handoff target (`/improve-template`) is a sibling skill, not a subag
 
 ## State Persistence
 
-After completing each phase, write a checkpoint to `.geniro/state/analyze-thread/state-<slug>.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules — base it on the analyzed thread, never the project name; §Task execution entry gives the single- and batch-mode forms):
+After completing each phase, write a checkpoint to `.geniro/state/analyze-thread/<slug>/state.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules — base it on the analyzed thread, never the project name; §Task execution entry gives the single- and batch-mode forms). Use `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — direct Edit/Write to state paths trips the `enforce-state-helper` hook.
 
+The full T1.5 frontmatter opens on line 1 per the helper § Producer contract. Plain-text `Branch:` / `Worktree:` / `Timestamp:` header lines push the `---` fence off line 1 and fail `validate_state_file` with exit 2 — the validator that §Task execution entry runs before every resume, so a checkpoint written that way is one this skill cannot read back.
+
+```yaml
+---
+tier: T1.5
+producer: analyze-thread
+schema-version: 1
+branch: <git branch --show-current OR detached-<short-sha>>
+worktree: <git rev-parse --show-toplevel>
+timestamp: <ISO-8601 UTC>
+phase: <last completed phase>
+status: in-progress
+non-resumable-actions: []
+---
 ```
-Branch: <git branch --show-current OR detached-<short-sha>>
-Worktree: <git rev-parse --show-toplevel>
-Timestamp: <ISO-8601 UTC>
-Phase [N] completed: [phase name]
-Mode: [single | batch]
-Threads: [one line per thread — <thread_id> · <path> · <format> · <geniro-run> · <findings raw>]
-Skipped: [one line per skipped thread — <thread_id> · <reason>]
-Findings raw: [batch total from Phase 2]
-Findings kept: [count from Phase 3, post-merge]
-```
 
-Use `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — direct Edit/Write to state paths trips the `enforce-state-helper` hook.
+Body: `Mode: [single | batch]`; one line per thread (`<thread_id> · <path> · <format> · <geniro-run> · <findings raw>`); one line per skipped thread with its reason; the Phase 2 raw findings count and the Phase 3 post-merge kept count.
 
-Capital `Branch:` / `Worktree:` / `Timestamp:` are mandatory per the helper § Producer contract.
-
-On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state-<slug>.md")`. If present, run the helper § Consumer contract (Case A/B/C/D mismatch handling). After "proceed", read the file and resume from the next incomplete phase.
+On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug>/state.md")`. If present, run the helper § Consumer contract (Case A/B/C/D mismatch handling). After "proceed", read the file and resume from the next incomplete phase.
 
 ---
 
@@ -69,7 +71,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 2. **Mechanical before judged.** Phase 2 runs mechanical checks first because they are cheap, deterministic, and high-precision; the LLM-judge pass is then seeded with mechanical results so it does not re-discover them.
 3. **One LLM-judge spawn per thread, all spawned in ONE assistant response, each carrying the taxonomy inline.** A single judge sees one thread's excerpts plus that thread's seeded mechanical findings — splitting into per-check spawns multiplies cost without improving signal (MAST showed one o1 pass at 94% accuracy / κ=0.77). In a batch, issue every thread's judge call in the same assistant turn, NOT one per turn — separate turns serialize the run and multiply wall-clock by the thread count. **This is the single rule for how the taxonomy reaches the judge:** the judge is a spawned subagent that shares none of your context and cannot be assumed to resolve `${CLAUDE_PLUGIN_ROOT}` inside its own run, so the taxonomy travels as inlined text — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run — never as a bare path it may fail to open, which would leave it judging against nothing and say so nowhere. Inline the short form only: §§1-3 detection logic, §5, §6 and §7 are orchestrator-side and would blow the 8 K seed budget.
 4. **A defect in N threads is one finding, not N.** Phase 3 merges the same check firing on the same root cause across threads into a single finding whose recurrence count is evidence of severity, not a duplicate to discard. Recurrence is the batch's whole point: one thread cannot distinguish an instruction the model happened to skip once from an instruction it skips systematically.
-5. **Never analyze this session's own log.** Its trace has no conclusion to judge, and analyzing the run that is doing the analyzing yields findings about the analysis in progress. Identify it by session id, not by timestamp (§Phase 1 Step 1) — other sessions touch their logs while merely sitting open, so an age cutoff drops finished threads and still misses nothing this rule does not already catch.
+5. **Never analyze this session's own log.** Its trace has no conclusion to judge, and analyzing the run that is doing the analyzing yields findings about the analysis in progress. Identify it by session id, not by timestamp (§Phase 1 Step 1).
 6. **Filter before user.** Phase 3 drops REDUNDANT and FALSE-POSITIVE findings BEFORE the Phase 4 presentation. The user sees only TRUE-POSITIVE + UNCERTAIN. Filtered items appear in a separate "Filtered" section for transparency.
 7. **Per-finding AUQ for UNCERTAIN, batch AUQ for confidence-high.** Mechanical-detected with high confidence go into the default-approve bucket the user can deselect; LLM-judged with low/medium confidence each get their own AUQ.
 8. **No silent auto-default.** Empty AUQ answers indicate an upstream tool bug and must be re-asked — never auto-default to "skip".
@@ -88,11 +90,8 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 | "Findings_raw is 80, but they look real — present them all" | The 60-cap is a parser-sanity tripwire, not a UX preference. 80 raw findings on one thread means either Phase 1 Step 2 misdetected the input format, so every check is reading the wrong fields, or every check is firing (taxonomy bug). Halt and have the user re-verify input. |
 | "The user said 'analyze this thread', they obviously want fixes too — I'll edit the source files directly" | Read-only is invariant #1. This skill detects; `/improve-template` fixes. Cross-skill responsibility separation is documented in CLAUDE.md `## Skill routing` — collapsing it makes the analyzer a refactorer, breaking the user's mental model. |
 | "I already know what's in `checks-reference.md` from training data — don't bother reading it" | The reference file is the source of truth; it can be edited by the user between runs. Loading it at Phase 2 entry ensures the detection logic matches the current taxonomy, not a stale snapshot. |
-| "Empty AUQ answer = user wants to skip" | Per `feedback_canonical_rules.md` and the universal AUQ rule: empty answers indicate an upstream tool bug. Re-ask. Never auto-default. |
-| "I'll give the judge the path to `checks-reference.md` instead of inlining it — saves the seed tokens" | Invariant #3 is the rule: short-form taxonomy inline. A spawned subagent shares none of your context and may not resolve `${CLAUDE_PLUGIN_ROOT}`; a path it cannot open produces a judge that reports findings against no taxonomy and never signals the degradation. Trim by leaving out the orchestrator-side sections, not by replacing the text with a path. |
 | "No argument given — I'll ask the user which thread they meant" | Every input shape resolves without a question (Phase 1 Step 1): empty means the last 3 work-bearing threads. Asking re-imposes the browse-and-paste step the batch default exists to remove, and the user who typed no argument has already told you what they want. |
-| "The newest log is the freshest data — analyze it first" | The newest log is this session's own (invariant #5): every finding it yields describes the analysis in progress rather than past work. Exclude it by session id. Do not generalize that into an age cutoff — idle open tabs touch their logs constantly, so a timestamp filter drops finished threads while adding nothing. |
-| "Three threads flagged the same check — that's the same finding twice, drop the duplicates" | Within one thread, yes. Across threads it is the strongest signal the batch produces: a defect reproduced in independent runs is systematic, not incidental. Merge into one finding carrying its recurrence count (invariant #4); dropping the extra occurrences discards exactly the evidence that justifies the fix. |
+| "The newest log is the freshest data — analyze it first" | The newest log is this session's own (invariant #5): every finding it yields describes the analysis in progress rather than past work. Exclude it by session id, not by timestamp. |
 
 ---
 
@@ -115,7 +114,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/state
 | 1 Parse | Read, Bash (`scan.py`, `head`, `file`, `jq`, `wc`) | Bash runs the thread-discovery scan in batch mode, then format sniffing and JSONL parsing; Read for the thread file |
 | 2 Detect | Bash (`jq`, `grep`, `awk`), Agent | Bash for mechanical checks; Agent for the per-thread LLM-judge spawns, issued together in one response |
 | 3 Filter | (orchestrator inline) | No tools — orchestrator reads the Phase 2 output, merges across threads, and tags each finding |
-| 4 Present | AskUserQuestion, Write | AUQ for the per-finding gates and the final handoff AUQ; Write for the T2 handoff file (via atomic-write helper) |
+| 4 Present | AskUserQuestion, Bash | AUQ for the per-finding gates and the final handoff AUQ; Bash runs `atomic_state_write` for the handoff file — a direct `Write` to a `.geniro/state/` path is hard-blocked by the state-helper hook |
 
 Glob is permitted across phases for state-file lookup and helper resolution but is not the workhorse tool.
 
@@ -123,22 +122,15 @@ Glob is permitted across phases for state-file lookup and helper resolution but 
 
 ## Definition of Done
 
-- [ ] Phase 1 Step 1: thread set resolved from `$ARGUMENTS` with no question asked; batch mode excluded this session's own log by id and skipped oversize logs, naming the skips; count clamped to 5; resolved set echoed to the user
-- [ ] Phase 1: per thread — format detected, events list normalized, geniro-run flag set, metadata extracted
-- [ ] Phase 1 checkpoint written via `atomic_state_write`, recording the resolved set
-- [ ] Phase 2 mechanical checks all run per thread (per `checks-reference.md` §§1-3 — Mechanical checks A/B/C-class)
-- [ ] Phase 2 LLM-judge: one Agent call per thread, all issued in ONE assistant response, OMITted `model=`, short-form taxonomy inlined per invariant #3 alongside that thread's mechanical results and excerpts; any judge that returned nothing usable is noted as a mechanical-only thread
-- [ ] Phase 2 checkpoint written; every finding carries its `thread_id`; per-thread findings_raw under the 60-cap
-- [ ] Phase 3 Step 1: cross-thread merge applied; recurring defects collapsed to one finding with `threads: [...]`; recurrence raised confidence but never severity
-- [ ] Phase 3 Step 2: each finding tagged TRUE-POSITIVE / UNCERTAIN / REDUNDANT / FALSE-POSITIVE
-- [ ] Phase 3 checkpoint written; post-merge findings_kept under the 25-cap (or truncated with tail note)
-- [ ] Phase 4 Step 1: findings table printed with the Analyzed/Skipped thread list and Confirmed / Uncertain / Filtered sections
-- [ ] Phase 4 Step 2: per-finding AUQ fired for each UNCERTAIN; sequential, not batched
-- [ ] Phase 4 Step 3: final handoff-routing AUQ fired
-- [ ] Phase 4 Step 4: handoff file written via `atomic_state_write` if user chose to emit
-- [ ] Phase 4 Step 5: `/improve-template` invoked if user chose "launch now"
-- [ ] Phase 4 Step 6: state-<slug>.md cleaned up per helper § Cleanup contract
-- [ ] No mutations to the analyzed thread file or any project file outside `.geniro/state/` and `.geniro/state/handoff/`
+These are the load-bearing exit gates — the checks that, if skipped, ship a wrong result. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
+
+- [ ] The thread set resolved from `$ARGUMENTS` with no question asked, excluded this session's own log by id, and named every clamped or skipped thread to the user
+- [ ] Phase 2 LLM-judge: one Agent call per thread, all issued in ONE assistant response, with the short-form taxonomy inlined per invariant #3 — a judge that returned nothing usable is reported as a mechanical-only thread, never as a full judged pass
+- [ ] Phase 3 cross-thread merge ran before triage: recurring defects collapsed to one finding with `threads: [...]`, recurrence raising confidence but never severity
+- [ ] Every UNCERTAIN finding got its own AUQ, fired sequentially rather than batched into one multiSelect
+- [ ] Handoff written via `atomic_state_write` when the user chose to emit, with one `open_questions[]` entry per kept finding
+- [ ] State file cleaned up per the helper § Cleanup contract
+- [ ] No mutations to the analyzed thread file or any project file outside `.geniro/state/`
 
 ---
 
@@ -174,7 +166,7 @@ It prints one TSV row per thread — `mtime · date · oversize · kind · turns
 
 Do NOT filter on `mtime` age. A recent timestamp means a session tab is open, not that a run is in progress — idle sessions keep touching their logs, so an age cutoff silently drops finished threads that are the most interesting ones. The only log that must be excluded is this one.
 
-Post-process the scan output in a single command, never a per-file shell loop: on macOS the zsh sandbox strips `PATH` inside a `while` / `for` body, so `tail`/`cut`/`awk` vanish partway through and the run half-fails.
+Post-process the scan output in one command, never a per-file shell loop — the sandbox constraint that makes such a loop half-fail is documented in `scan.py`'s module docstring.
 
 Clamp N to the 5-thread cap and say so if the user asked for more. If the scan yields nothing — a fresh machine, no work-bearing threads — report that plainly and stop; there is nothing to analyze and no question worth asking.
 
@@ -231,7 +223,7 @@ Record, per thread: file path, format, byte count, events count, geniro-run flag
 
 ### Step 1: Run mechanical checks
 
-For each `[M]` check in `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md` (see § Mechanical checks reference table), run the documented detection logic. Detection logic is one of three shapes:
+For each `[M]` check in `.claude/skills/analyze-thread/checks-reference.md` (see § Mechanical checks reference table), run the documented detection logic. Detection logic is one of three shapes:
 
 - **jq predicate** over the JSONL events (e.g., A6 over-spawn detects identical `tool_input` across two `tool_use` events in the same assistant turn).
 - **grep pattern** over the event content (e.g., G2 `--no-verify` scan).
@@ -242,9 +234,9 @@ Each mechanical hit produces a draft finding: `{thread_id, check_id, category, s
 ### Step 2: Spawn the LLM-judge
 
 ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). Pre-inline, per spawn:
-- The short-form taxonomy per invariant #3 — `checks-reference.md` §4 in full plus one line per mechanical check ID, as text in the prompt, never as a path.
+- The short-form taxonomy per invariant #3 — `checks-reference.md` §4 in full plus one line per mechanical check ID.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
-- The top-3 most-suspicious thread excerpts per `[J]` check, sliced to keep total excerpts ≤ 60 K tokens. Suspicion ranking heuristic: events near mechanical-finding clusters, events near `AskUserQuestion` calls, events near phase-boundary narration ("Phase 3:", "shipping", "review").
+- The most-suspicious thread excerpts, ranked and sliced per `checks-reference.md` §7, which carries the weighted signal set and the always-include opening and closing turns. Keep the total ≤ 60 K tokens.
 
 ```
 Agent(subagent_type="general-purpose", prompt="""
@@ -432,7 +424,7 @@ If the user chose "emit handoff only" or "skip": print the handoff path and the 
 
 ### Step 6: Cleanup
 
-Remove `.geniro/state/analyze-thread/state-<slug>.md` per the helper § Cleanup contract — delete only the current branch's slug, never globbing all state files.
+`rm -rf .geniro/state/analyze-thread/<slug>/` per the helper § Cleanup contract — the whole slug directory, and only this run's slug, never globbing sibling slugs.
 
 The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T2 and survives until `/improve-template` consumes it (per the standard handoff lifecycle in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`).
 
@@ -456,7 +448,7 @@ The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T
 On invocation:
 
 1. Resolve the thread set per Phase 1 Step 1, then compute `<slug>`: the thread's short id in single mode, `batch-<newest thread's short id>` in batch mode (never the project name, and never a bare timestamp — a slug must be stable enough for a resume to find it).
-2. `Glob(".geniro/state/analyze-thread/state-<slug>.md")` — if found, run the helper's Case A/B/C/D mismatch UX before resuming.
+2. `Glob(".geniro/state/analyze-thread/<slug>/state.md")` — if found, run the helper's Case A/B/C/D mismatch UX before resuming.
 3. If validating fails (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`), fire the recovery AUQ from that helper.
 4. On clean start: print "Analyzing <basename> — phase 1 of 4", or "Analyzing <N> threads — phase 1 of 4", and proceed.
 
@@ -466,8 +458,8 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 
 ## REFERENCE
 
-- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic
-- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default
+- `.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic
+- `.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules + Case A/B/C/D resume UX
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-file write helper (mandatory)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — pre-resume validator + recovery AUQ
@@ -475,4 +467,4 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare/prefixed/general-purpose degradation ladder
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — `model=` vs OMIT rules
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — message-first per-finding gate protocol (the shape Phase 4 Step 2 fires)
-- `${CLAUDE_PLUGIN_ROOT}/.claude/skills/improve-template/SKILL.md` — handoff consumer
+- `.claude/skills/improve-template/SKILL.md` — handoff consumer

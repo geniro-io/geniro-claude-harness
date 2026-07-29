@@ -1,4 +1,4 @@
-# Load Custom Reviewers — Discovery + Spawn-Spec Helper
+# Load custom reviewers — discovery + spawn-spec helper
 
 ## Contents
 
@@ -19,7 +19,7 @@ Invoke this helper as the LAST step BEFORE the parallel reviewer batch — after
 
 ## Inputs from the consumer skill
 
-The helper has no formal parameter list — it runs in the orchestrator's context and reads what's already there. The consumer skill MUST have these two slots in scope before invoking the helper:
+The helper has no formal parameter list — it runs in the orchestrator's context and reads what's already there. The consumer skill has these two slots in scope before invoking the helper — the helper reads what is already there rather than taking parameters:
 
 - **`CHANGED_FILES`** — a list of file paths the consumer skill pre-built for the parallel batch (the same list the built-in reviewers receive in their `CHANGED FILES:` slot). Used by Step 5's `paths:` filter.
 - **`PRIMARY_ROOT`** — the primary worktree root, computed at this helper-invocation site (never relied on from a prior phase) via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the Mode A snippet sets a Bash shell variable, and Bash environments are reset across compaction and across phase boundaries that re-launch Bash. Used by Step 1's local + main-worktree glob.
@@ -48,7 +48,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A to compu
 
 Walk the actions-skill convention exactly: when running in a linked worktree, glob BOTH `./.geniro/instructions/review-extra/*.md` (local) and `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md` (main). When the same slug appears in both, **local wins** — drop the main-worktree entry from the candidate list. Uncommitted local edits take precedence over the committed primary-worktree version.
 
-If `git` is unavailable or the project has only one worktree, the registry is just `local` — same as `actions/SKILL.md` §Phase 5.0 Step 1.
+If `git` is unavailable or the project has only one worktree, the registry is just `local`.
 
 ### Step 2: Glob the directory
 
@@ -78,21 +78,21 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 9. The body section (after the frontmatter) is empty OR contains fewer than 5 non-blank lines.
 10. The `requires-context:` field is present and is not a non-empty string.
 
-For each invalid file, print one diagnostic line: `[load-custom-reviewers] skipped <path>: <reason>`. Continue processing the rest. One bad file does NOT kill the whole review.
+For each invalid file, print one diagnostic line: `Skipped custom reviewer <path>: <reason>`. Continue processing the rest. One bad file does NOT kill the whole review.
 
 ### Step 5: Apply `paths:` filter
 
 For each VALID file:
 
-- If `paths:` is absent OR is the empty list, the reviewer ALWAYS fires; carry it forward.
+- If `paths:` is absent OR is the empty list, the reviewer fires on every run; carry it forward.
 - If `paths:` is set, build the union of changed-file paths from `CHANGED_FILES` (the same list the built-in reviewers receive). The reviewer fires only if at least one changed file matches at least one of the globs in `paths:`. Use Git-style fnmatch / bash-globstar semantics (`**` for arbitrary depth, `*` for arbitrary chars within a path segment, `{a,b}` for brace alternation, `?` for single char) — matches the conventions used by `.gitignore` and `.claude/rules/<scope>.md` `paths:` frontmatter. Silently drop the reviewer when no changed file matches — this is by design, not an error.
 
 ### Step 6: Enforce caps
 
 After Step 5 filtering, count the surviving reviewers:
 
-- If count > 10, abort the helper with a hard error. Print: `[load-custom-reviewers] hard cap exceeded — <N> active reviewers after path filter; limit is 10. Delete or scope down some files in .geniro/instructions/review-extra/`. The consumer skill MUST propagate this as a fatal error to the user — no review proceeds with >10 custom reviewers active.
-- If count > 6, print a soft warning: `[load-custom-reviewers] <N> custom reviewers active on top of the built-in dimensions — past about 6 customs the extra per-run cost outpaces the coverage they add; consider scoping some with paths: globs so each fires only on the diffs it applies to.` Continue. The threshold counts CUSTOM reviewers only — the built-in dimensions always fire, so a batch is never as small as the custom count alone.
+- If count > 10, abort the helper with a hard error. Print: `Too many custom reviewers — <N> are active after the paths: filter, and the limit is 10. Delete or scope down some files in .geniro/instructions/review-extra/`. The consumer skill propagates this as a fatal error to the user; continuing past the cap spawns a batch whose cost the run never agreed to.
+- If count > 6, print a soft warning: `<N> custom reviewers are active on top of the built-in dimensions — past about 6 custom ones the extra per-run cost outpaces the coverage they add; consider scoping some with paths: globs so each fires only on the diffs it applies to.` Continue. Both numbers on this step — the soft-warn band at 6 and the hard cap at 10 — count CUSTOM reviewers only, never the built-in dimensions, which always fire on top of them. This step is the canonical home for both; other files cite it rather than restating the figures.
 
 ### Step 7: Build spawn-specs
 

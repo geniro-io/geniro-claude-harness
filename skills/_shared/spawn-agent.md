@@ -1,4 +1,4 @@
-# Spawn Agent — Runtime Degradation Rule
+# Spawn agent — runtime degradation rule
 
 ## Contents
 
@@ -9,7 +9,7 @@
 - §Worked example
 - §Anti-rationalization
 
-Canonical rule for invoking the plugin's custom agents (`reviewer-agent`, `adversarial-tester-agent`). Referenced from every skill that spawns one.
+Canonical rule for invoking the plugin's custom agents — the agents under `${CLAUDE_PLUGIN_ROOT}/agents/`. Referenced from every skill that spawns one.
 
 ## The problem
 
@@ -29,11 +29,13 @@ The "Available agents" list in that error is the ground truth for what works —
 
 **Every Agent() spawn site for a custom plugin agent uses the runtime-detect-and-degrade ladder below.** Skills are written with bare names in their instructions (e.g. `Agent(subagent_type="reviewer-agent", …)`); the orchestrator interprets the bare name as "the agent named X" and applies the ladder at call time. Skill files are NOT rewritten when this ladder changes.
 
+**`model=` is omitted at every rung.** The agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`), and at rung 3 `general-purpose`'s own inherit-from-parent default does the same job. The one exception is a user-authored custom reviewer that declares an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass `model={user-declared-value}` verbatim, at whichever rung resolves. A hardcoded tier anywhere else defeats the user's session-level `/model` choice.
+
 When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
-1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro:<agent>", description="...", prompt="...")`. **OMIT the `model=` argument** — the agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`); pass `model=` only for an explicit non-inherit override (rare — user-authored custom reviewers with a declared tier). This step is the happy path on interactive Claude Code with the plugin marketplace-installed.
+1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro:<agent>", description="...", prompt="...")`. This step is the happy path on interactive Claude Code with the plugin marketplace-installed.
 
-2. **If — and only if — the call returns `Agent type 'geniro:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)` (same `model=` policy — OMIT by default). This is the form registered in vendored / harness installs (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
+2. **If — and only if — the call returns `Agent type 'geniro:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)`. This is the form registered in vendored / harness installs (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
 
 3. **If the bare-name attempt also returns "not found"**, re-attempt as:
 
@@ -44,7 +46,7 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
    )
    ```
 
-   Read the agent file with the Read tool, drop the leading `---\n…\n---\n` frontmatter block, and prepend the remaining body to your task prompt with a `---` separator. If the file has no leading `---` line, treat the whole file as the body and prepend verbatim. OMIT `model=` so the `general-purpose` fallback inherits the orchestrator's tier; pass an explicit `model=` only when the caller specified one for the original call. Pass the same `description=` you would have used.
+   Read the agent file with the Read tool, drop the leading `---\n…\n---\n` frontmatter block, and prepend the remaining body to your task prompt with a `---` separator. If the file has no leading `---` line, treat the whole file as the body and prepend verbatim. Pass the same `description=` you would have used.
 
 4. **Cache the resolution for the rest of the session.** Plugin registration is fixed at session init and does not change mid-session. Once you've established whether step 1 or step 2 worked (or both failed), every subsequent plugin-agent spawn in the same session uses that resolved form directly — do NOT re-walk the ladder. The cache does NOT carry across sessions; re-walk at the next session's first spawn.
 
@@ -59,7 +61,7 @@ When any spawn returns empty (zero output tokens / no parseable result):
 1. **Retry once with `model=` omitted** so the subagent inherits the orchestrator's tier and beta configuration — the inherited child runs under the same context window as the parent, so the mismatch cannot recur. This is the canonical default anyway per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`; the hardcoded tier is the thing that broke.
 2. **If the inherit retry is also empty**, the runtime cannot spawn this work — author the output inline in the orchestrator's own context using the same prompt contract. Do not loop a third spawn. For a parallel batch, only the empty agent(s) degrade this way; the agents that returned output are unaffected.
 
-Caller skills that hardcode a tier (the two sanctioned sites in `model-tiering.md`) apply this fallback — the hardcode is a speed/cost preference, never a hard requirement, so it degrades to inherit (then inline) before failing the phase.
+Caller skills that hardcode a tier (the narrow carve-outs in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`) apply this fallback — the hardcode is a speed/cost preference, never a hard requirement, so it degrades to inherit (then inline) before failing the phase.
 
 ## Why prefixed-first
 
@@ -75,8 +77,6 @@ Rungs 1 and 2 are the skill's own `Agent(...)` call with `subagent_type` swapped
 DIMENSION: bugs …          ← the original prompt, verbatim
 ```
 
-No `model=` is passed at any step — the Agent tool resolves the tier via the `model: inherit` directive in the plugin agent's frontmatter (or, at step 3, via `general-purpose`'s own inherit-from-parent default). User-authored custom reviewers that declare an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter are the one exception: pass `model={user-declared-value}` verbatim at every ladder rung.
-
 Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full tool surface — be explicit in the prompt about not editing files for read-only agents like reviewers and skeptics).
 
 ## Anti-rationalization
@@ -90,5 +90,5 @@ Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full to
 | "The agent body is long — I'll summarize it before inlining at step 3" | The agent's system prompt is the contract. Summarizing changes the contract. Inline the body verbatim (frontmatter stripped). |
 | "Read-only agents like reviewer-agent shouldn't run as general-purpose at step 3 because they could now Edit files" | Correct hazard, wrong mitigation. The mitigation is an explicit instruction inside the inlined prompt — most agent files already say "Do not Edit/Write/Bash apart from read-only commands." If yours doesn't, add it before falling back. |
 | "If steps 1 and 2 both fail, I'll just give up and run the work in my own context" | That defeats the parallelism/isolation purpose of the spawn. Always degrade to general-purpose at step 3. The exception is single-agent spawns where the orchestrator was going to wait synchronously anyway — in that case, inline is fine. |
-| "I'll pass `model='sonnet'` (or any other tier) explicitly at the spawn site to be safe" | OMIT `model=` — the agent's frontmatter governs, and a hardcoded tier defeats the user's session-level `/model` choice; rationale + the custom-reviewer exception in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. |
+| "I'll pass `model='sonnet'` (or any other tier) explicitly at the spawn site to be safe" | OMIT `model=` at every rung — a hardcoded tier defeats the user's session-level `/model` choice. The rule and its one exception are in §The rule. |
 | "The spawn came back empty saying the prompt was too long — I'll shorten the prompt and retry." | An empty return (`0 tokens`) with a "too long" message on a *small* prompt is a tier/context-beta mismatch, not a real size problem — shortening won't help (the retry comes back just as empty). Apply the empty-result fallback: retry once with `model=` omitted (inherit the parent's context window), then author the output inline. |

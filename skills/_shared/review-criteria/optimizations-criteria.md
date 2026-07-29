@@ -1,4 +1,4 @@
-# Optimizations Review Criteria
+# Optimizations review criteria
 
 Concrete, measurable performance wins on the changed lines: skip ORM hydration on read-only paths, project columns, parallelize independent awaits, batch per-row writes, hygiene React re-renders, and ship the frontend bundle leanly.
 

@@ -1,6 +1,6 @@
 # Investigate — Detailed Reference
 
-Detail sections extracted from `skills/investigate/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
 
 ## Contents
 
@@ -150,7 +150,7 @@ Verify with `pwd && git branch --show-current` on your first Bash call; abort if
 """)
 ```
 
-The agent's own workflow (`agents/codebase-research-agent.md` § Workflow) handles parsing, evidence gathering, and synthesis; the slots above pin the deliverable shape to the Phase 2 Codebase Analyst schema that the orchestrator's re-verify pass (§4) consumes.
+The agent's own workflow (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` § Workflow) handles parsing, evidence gathering, and synthesis; the slots above pin the deliverable shape to the Phase 2 Codebase Analyst schema that the orchestrator's re-verify pass (§4) consumes.
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 

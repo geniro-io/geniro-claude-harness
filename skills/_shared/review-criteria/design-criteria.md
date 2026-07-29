@@ -1,4 +1,4 @@
-# Design Review Criteria
+# Design review criteria
 
 Visual and interaction quality for UI changes: tokens, spacing, typography, states, responsive, contrast, a11y polish, and exemplar conformance.
 

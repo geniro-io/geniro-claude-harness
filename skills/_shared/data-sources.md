@@ -31,7 +31,7 @@ Human-authorable. Each entry is a label + a `(confirms: <what kind of fact>)` hi
 
 ```markdown
 ## Data Sources
-<!-- Read-only sources to cross-check facts against. Never assume — if a source here can confirm a fact, use it. Commands MUST be read-only. -->
+<!-- Read-only sources to cross-check facts against. Never assume — if a source here can confirm a fact, use it. Commands are read-only — a source that can mutate is not a fact-check. -->
 - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."`
 - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state`
 - **logs** (confirms: production behavior) — action `query-logs`

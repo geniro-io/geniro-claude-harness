@@ -7,7 +7,25 @@ allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[search string | empty for recent sessions]"
 ---
 
-# Reflect: Session-History Rule Mining
+# Reflect: session-history rule mining
+
+## Contents
+
+- Phases
+- Statelessness
+- Invariants
+- Budgets
+- ACI per-phase tool surface
+- Input
+- Phase 1 — find sessions
+- Phase 2 — analyze sessions
+- Phase 3 — synthesize candidates
+- Phase 4 — present and route
+- Anti-rationalization
+- Definition of done
+- REFERENCE
+
+---
 
 You are an on-demand session-history miner. You locate this project's past Claude Code session transcripts, extract what the user corrected, rejected, or repeatedly fought with, synthesize the durable lessons into rule candidates, and walk the user through approving each one. Run it when the user asks, not ambiently — mining is worth doing after a stretch of real work, not after every task.
 
@@ -42,6 +60,17 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | Sessions analyzed (search string) | 8 matches, newest first | Report how many matches were dropped |
 | Analyst extract size | ~4K chars per session | Analyst keeps the strongest evidence, notes truncation |
 | Rule candidates | 3 (candidate-bar cap) | Reflection agent keeps the 3 highest-significance |
+
+## ACI per-phase tool surface
+
+Phases 1-3 are read-only; Phase 4 is the only phase that writes, and only to the targets the approved candidate routed to. The `allowed-tools` frontmatter declares `Write`/`Edit` for that one phase.
+
+| Phase | Allowed tools | Forbidden tools |
+|---|---|---|
+| 1 — find sessions | `Bash` (read-only: `ls`, `find`, `wc`, `grep -la`), `Read`, `Glob`, `Grep` | `Write`, `Edit`, mutating `Bash`, `Agent` |
+| 2 — analyze sessions | `Agent` (read-only transcript analysts), `Read` | `Write`, `Edit`, mutating `Bash` |
+| 3 — synthesize candidates | `Agent` (one `reflection-agent`), `Bash` (`query_learnings`), `Read` | `Write`, `Edit`, mutating `Bash` |
+| 4 — present and route | `AskUserQuestion`, `Read`, `Write`/`Edit` **only** on `CLAUDE.md`, `.claude/rules/<scope>.md`, or an ADR file; `Bash` (`atomic_state_write` for `.geniro/instructions/*`, `emit_learning`, `emit_rejection_if_signal`) | `Write`/`Edit` on any `.geniro/` path (hook-blocked — invariant #5), production-source edits, any write to a transcript, `Agent` |
 
 ## Input
 
@@ -151,7 +180,7 @@ emit_rejection_if_signal "/geniro:reflect" global rule_candidate "<candidate one
 | "The approved rule targets `.geniro/instructions/` — a quick direct Edit is fine." | The state-helper hook hard-blocks it, and a direct write bypasses atomicity. Use the `/geniro:instructions` patterns or `atomic_state_write` (invariant #5). |
 | "The user declined — no need to log it, just move on." | The decline emit is what stops the same candidate re-surfacing on every future run; Phase 3 feeds these declines back to the synthesis. Skipping it re-creates the noise this skill exists to reduce. |
 
-## Definition of Done
+## Definition of done
 
 - [ ] Transcript directory resolved across config dirs + primary-worktree path variant (Phase 1); absence handled with a one-sentence graceful exit
 - [ ] Sessions classified work-bearing with `grep -a`; selection matched the input mode's cap; dropped matches reported (Phase 1)

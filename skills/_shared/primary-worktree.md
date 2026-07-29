@@ -2,6 +2,15 @@
 
 Canonical resolver for cross-session persistent state. Ensures writes/reads land in the main repo's working tree even when the session is in a linked worktree (the gitignored `.geniro/*` would otherwise be lost on `git worktree remove`).
 
+## Contents
+
+- Why this exists — writes lost on worktree removal; authored content invisible to fresh worktrees
+- The resolver — Mode A (orchestrator Bash) and Mode B (Bash-less subagents)
+- Artifacts that must use the resolver (cross-session)
+- Artifacts NOT in scope (task-local — keep cwd-relative)
+- Anti-rationalization
+- Definition of Done
+
 ## Why this exists
 
 The default plugin `.gitignore` keeps `.geniro/*` out of git (only `workflow/`, `instructions/`, and `actions/` are negated). Two consequences:
@@ -54,7 +63,7 @@ TASK_PLANNING_ROOT: <current-cwd>/.geniro/planning # task-local; intentionally c
 
 The agent reads/globs against the inlined absolute path. It never substitutes its own cwd. If a Bash-less agent is given a cwd-relative `.geniro/...` path, it is a spawn-prompt bug — fix the orchestrator, not the agent.
 
-## Artifacts that MUST use the resolver (cross-session)
+## Artifacts that must use the resolver (cross-session)
 
 These are intended to outlive any single task. The resolver applies to both reads and writes.
 
@@ -68,7 +77,7 @@ These are intended to outlive any single task. The resolver applies to both read
 | `.geniro/planning/_CODEBASE_MAP.md` | `/geniro:onboard` | every skill that consults the map (`/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` |
 | `.geniro/planning/_focus-<area>.md` | manual | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
 | `.geniro/workflow/<kind>.md` | manual / `/geniro:setup` | `/geniro:plan`, `/geniro:implement`, `/geniro:review`, `/geniro:refactor` | Tracker integration configs (Linear/Jira/GitHub-Issues/Asana); read with cwd-first / primary-fallback per per-site preambles; written by `/geniro:setup` to `<PRIMARY_ROOT>` |
-| `.geniro/actions/<slug>.md` | manual / `/geniro:actions create` | `/geniro:actions` (list/run/validate/delete) | User-authored workflow-helper actions; dual-glob with local-wins-on-slug-collision per `skills/actions/SKILL.md` Phase 5.0 Step 1; `/geniro:actions` create/edit/delete operate on the `<PRIMARY_ROOT>` copy (run keeps local-wins) |
+| `.geniro/actions/<slug>.md` | manual / `/geniro:actions create` | `/geniro:actions` (list/run/validate/delete) | User-authored workflow-helper actions; glob BOTH the local and `<PRIMARY_ROOT>` copies and, when the same slug appears in both, the local one wins (uncommitted local edits are the newer intent); `/geniro:actions` create/edit/delete operate on the `<PRIMARY_ROOT>` copy (run keeps local-wins) |
 | `.geniro/instructions/<scope>.md` | manual / `/geniro:setup` / `/geniro:instructions create` | every pipeline skill's Phase 1 `load-custom-instructions` invocation | L4 procedural memory (global / code-style / per-skill / review-extra/<slug>); cwd-first / primary-fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §"Resolve `PRIMARY_ROOT` once"; `/geniro:instructions` CRUD and `/geniro:setup` scaffolds write to `<PRIMARY_ROOT>` (loaders keep cwd-first / primary-fallback). An external override (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), when configured, takes precedence over the cwd-first/primary-fallback resolution — see the same loader doc |
 
 ## Artifacts NOT in scope (task-local — keep cwd-relative)

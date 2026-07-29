@@ -22,25 +22,25 @@ out=$(emit_conflict_notice \
   --suggested-action "Consider /geniro:instructions edit global.md.")
 
 case "$out" in
-  *'[layer-conflict] subject: http library'*) pass "soft notice has subject header" ;;
+  *'Conflict on: http library'*) pass "soft notice has subject header" ;;
   *) fail "soft notice missing subject header — got: $out" ;;
 esac
 
 case "$out" in
-  *'L4 rule (project rules) .geniro/instructions/global.md: use axios'*) pass "soft notice has L4 line with source" ;;
+  *'Your project rules .geniro/instructions/global.md: use axios'*) pass "soft notice has L4 line with source" ;;
   *) fail "L4 line malformed" ;;
 esac
 case "$out" in
-  *'L3 fact (project snapshot) .geniro/planning/_project.md: no axios in package.json'*) pass "soft notice has L3 line with source" ;;
+  *'Your project snapshot .geniro/planning/_project.md: no axios in package.json'*) pass "soft notice has L3 line with source" ;;
   *) fail "L3 line malformed" ;;
 esac
 case "$out" in
-  *'L2 history (past learnings) dedup_key=a1b2c3: migrated to fetch'*) pass "soft notice has L2 line with source" ;;
+  *'Past learnings dedup_key=a1b2c3: migrated to fetch'*) pass "soft notice has L2 line with source" ;;
   *) fail "L2 line malformed" ;;
 esac
 
 case "$out" in
-  *'→ Skill is following L4 (precedence). Consider /geniro:instructions edit global.md.'*)
+  *'→ Following your project rules. Consider /geniro:instructions edit global.md.'*)
     pass "soft notice footer with following + suggested-action"
     ;;
   *) fail "soft notice footer malformed — got: $out" ;;
@@ -52,7 +52,7 @@ out=$(emit_conflict_notice \
   --l4 "use webpack" \
   --following L4)
 case "$out" in
-  *'L4 rule (project rules): use webpack'*) pass "soft notice with L4 only (no source) renders L4 rule prefix" ;;
+  *'Your project rules: use webpack'*) pass "soft notice with L4 only (no source) renders L4 rule prefix" ;;
   *) fail "L4-only notice format wrong" ;;
 esac
 case "$out" in
@@ -63,7 +63,7 @@ esac
 # Soft notice — no following
 out=$(emit_conflict_notice --subject "x" --l4 "rule")
 case "$out" in
-  *'Skill is following'*) fail "should NOT have 'Skill is following' when --following absent" ;;
+  *'Following your project rules'*|*'Following your project snapshot'*|*'Following past learnings'*) fail "should NOT have 'Skill is following' when --following absent" ;;
   *) pass "no --following → no footer line" ;;
 esac
 
@@ -74,15 +74,15 @@ out=$(hard_conflict_block \
   --l3 "axios removed; fetch in use" --l3-source ".geniro/planning/_project.md" \
   --suggested-action "After you decide, /geniro:instructions edit global.md to refresh L4.")
 case "$out" in
-  *'Hard cross-layer conflict on: http library'*) pass "hard block header" ;;
+  *'Conflict that needs your decision: http library'*) pass "hard block header" ;;
   *) fail "hard block header missing — got: $out" ;;
 esac
 case "$out" in
-  *'L4 rule (project rules) (.geniro/instructions/global.md): use axios'*) pass "hard block has L4 rule with source" ;;
+  *'Your project rules (.geniro/instructions/global.md): use axios'*) pass "hard block has L4 rule with source" ;;
   *) fail "L4 rule line wrong" ;;
 esac
 case "$out" in
-  *'L3 fact (project snapshot) (.geniro/planning/_project.md): axios removed; fetch in use'*) pass "hard block has L3 fact with source" ;;
+  *'Your project snapshot (.geniro/planning/_project.md): axios removed; fetch in use'*) pass "hard block has L3 fact with source" ;;
   *) fail "L3 fact line wrong" ;;
 esac
 case "$out" in
@@ -136,8 +136,18 @@ fi
 # Empty content (just subject) — should still emit header line
 out=$(emit_conflict_notice --subject "stub")
 case "$out" in
-  *'[layer-conflict] subject: stub'*) pass "subject-only call emits header at minimum" ;;
+  *'Conflict on: stub'*) pass "subject-only call emits header at minimum" ;;
   *) fail "subject-only output: '$out'" ;;
+esac
+
+# T5-8 regression guard: a layer code in RENDERED output fails the fresh-user
+# test. `--following L4` stays a valid flag; only the printed line is checked.
+out=$(emit_conflict_notice --subject "s" --l4 "a" --l3 "b" --l2 "c" --following L4 2>&1)
+out="$out$(hard_conflict_block --subject "s" --l4 "a" --l3 "b" --l2 "c" 2>&1)"
+case "$out" in
+  *"L4 "*|*"L3 "*|*"L2 "*|*"[layer-conflict]"*|*"cross-layer"*)
+    fail "layer code leaked into user-facing render: $out" ;;
+  *) pass "no layer code leaks into rendered conflict output" ;;
 esac
 
 echo

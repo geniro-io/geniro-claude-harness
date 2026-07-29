@@ -11,8 +11,11 @@
 # a `cat > x.py <<EOF ... EOF` heredoc, `printf '...' > x.js`, or `echo '...' |
 # tee x.sh` writes the SAME flagged content without an Edit. It extracts each
 # write's (target, content) pair — the heredoc body, or the echo/printf payload —
-# and runs the same scan scoped to the target path's extension. Commands with no
-# file-write target (no heredoc/redirect/tee writing a file) no-op allow.
+# and runs the same scan scoped to the target path's extension. A write hidden
+# behind shell indirection (`sh -c "..."`, `eval "..."`, a quoted program piped to
+# a bare shell, a heredoc body fed to one) is extracted first and this scan re-runs
+# on that payload. Commands with no file-write target (no heredoc/redirect/tee
+# writing a file) no-op allow.
 #
 # Scope: catches obvious string-level wins at edit time WITHOUT the LLM-cost
 # of an ambient Stop-hook review. Logic-level issues (authz bypass, IDOR,
@@ -70,7 +73,11 @@ find_safety_json() {
 ALLOWED=""
 SAFETY_FILE=$(find_safety_json 2>/dev/null || true)
 if [ -n "$SAFETY_FILE" ] && [ -f "$SAFETY_FILE" ]; then
-  ALLOWED=$(jq -r '.allow_patterns[]? // empty' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
+  # allow_patterns entries name exact pattern IDs. The membership test below is a
+  # substring probe over the space-joined list, so a single entry that CARRIES
+  # whitespace ("harmless write-env alsoharmless") would silently enable every ID
+  # spelled inside it. Reject those at load rather than weaken the probe.
+  ALLOWED=$(jq -r '.allow_patterns[]? | select(type == "string" and (test("[[:space:]]") | not))' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
 fi
 
 is_allowed() {
@@ -244,6 +251,137 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     exit 0
   fi
 
+  # 0) Shell indirection. `sh -c "<payload>"` and `eval "<payload>"` pass a
+  #    program as an ARGUMENT; `echo "<payload>" | bash` and `bash <<EOF … EOF`
+  #    pass it on STDIN. In each case the flagged write lives inside the payload,
+  #    where the heredoc/echo extraction below reads it as a quoted operand of
+  #    `sh`, not as a write with a target — so `sh -c "echo '...' > bad.py"` was
+  #    scanned as nothing while the bare `echo '...' > bad.py` was blocked. Same
+  #    extractor, same re-run contract, as the five sibling Bash guards.
+  _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+  if [ -f "$_geniro_wv_helper" ]; then
+    # shellcheck source=/dev/null
+    source "$_geniro_wv_helper" 2>/dev/null || true
+  fi
+  if ! command -v _geniro_extract_inner_payloads >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_extract_inner_payloads
+_geniro_extract_inner_payloads() {
+  local cmd="${1:-}"
+  local raw="${2:-}"
+  if [ -z "$cmd" ] && [ -z "$raw" ]; then
+    return 0
+  fi
+  local _m _pl
+
+  # Arm 1 — interpreter `-c` payload.
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/])(sh|bash|zsh|dash|ksh|ash)[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+
+  # Arm 2 — `eval` payload. The preceding-character class excludes `-` so a long
+  # option belonging to another tool (`node --eval`, `perl --eval`) is not read
+  # as the shell builtin; those are interpreter payloads, not shell commands.
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?eval[[:space:]]+//')
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_/-])eval[[:space:]]+("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)' 2>/dev/null || true)"
+
+  # Arm 3 — a quoted literal piped into a BARE shell. `echo "<program>" | bash`
+  # feeds <program> on stdin, so it is neither a `-c` argument nor an `eval`
+  # operand, and the guard's quote-scrub blanks it as data. The right-hand side
+  # must carry no flag cluster containing `c` (that spelling is arm 1's, and
+  # with -c the shell ignores stdin). Only a QUOTED left-hand literal is
+  # extractable: a producer that COMPUTES its program (a file read, a network
+  # download) carries no literal this scan can read — the download spelling is
+  # hooks/security-pattern-check.sh's sec-curl-pipe-sh pattern instead.
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    # Drop from the LAST pipe, so a `|` inside the literal survives.
+    _pl=$(printf '%s' "$_m" | sed -E 's/[[:space:]]*[|][^|]*$//')
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '("[^"]*"|'\''[^'\'']*'\'')[^|"'\'']*\|[[:space:]]*((sudo|command|env|exec)[[:space:]]+)*([^[:space:]|;&<>]*/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+
+  # Arm 4 — a heredoc body fed to a bare shell (`bash <<EOF … EOF`,
+  # `cat <<EOF | sh`). This is the mirror image of arm 3: the body is stdin, and
+  # every guard's heredoc scrub deletes it BEFORE extraction because a heredoc is
+  # data in every other position (`cat > notes.md <<EOF`). So the body is
+  # re-derived here from the RAW command, and emitted only when the opener line
+  # names a bare shell as a command word. One body LINE per payload: the guards
+  # match per line and per `;`-bounded span, and joining the body would let a
+  # single `#` comment line swallow the commands after it.
+  if [ -n "$raw" ]; then
+    printf '%s\n' "$raw" | awk '
+      hd {
+        line = $0
+        if (dash) sub(/^\t+/, "", line)
+        if (line == tag) { hd = 0; next }
+        if (emit) print line
+        next
+      }
+      match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+        tag = substr($0, RSTART, RLENGTH)
+        dash = (tag ~ /^<<-/)
+        sub(/^<<-?[[:space:]]*/, "", tag)
+        gsub(/["'\'']/, "", tag)
+        hd = 1
+        emit = ($0 ~ /(^|[|;&][[:space:]]*|[[:space:]])(sudo[[:space:]]+|command[[:space:]]+|env[[:space:]]+|exec[[:space:]]+)*([^[:space:]|;&<>]*\/)?(sh|bash|zsh|dash|ksh|ash)([[:space:]]|$)/)
+        next
+      }
+    ' 2>/dev/null || true
+  fi
+
+  return 0
+}
+# GENIRO-VENDORED-END _geniro_extract_inner_payloads
+  fi
+
+  # Heredoc bodies are DATA for the PAYLOAD extraction (an `sh -c` mentioned
+  # inside a body written to a file is text), so arms 1-3 read the scrubbed
+  # command; arm 4 re-derives the bodies that are fed to a shell from the raw one.
+  # Opener lines are kept, so step 2's redirect/tee target detection still works.
+  SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
+    hd {
+      line = $0
+      if (dash) sub(/^\t+/, "", line)
+      if (line == tag) hd = 0
+      next
+    }
+    match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+      tag = substr($0, RSTART, RLENGTH)
+      dash = (tag ~ /^<<-/)
+      sub(/^<<-?[[:space:]]*/, "", tag)
+      gsub(/["'\'']/, "", tag)
+      hd = 1
+      print
+      next
+    }
+    { print }
+  ')
+  JOINED="${SCRUBBED//\\$'\n'/ }"
+
+  # Re-run THIS scan on each extracted payload; a block inside propagates out.
+  # Nested indirection terminates because each payload is strictly shorter than
+  # the command it came from.
+  _geniro_self="${BASH_SOURCE[0]:-$0}"
+  INNER_PAYLOADS=$(_geniro_extract_inner_payloads "$SCRUBBED" "$COMMAND")
+  if [ -n "$INNER_PAYLOADS" ]; then
+    while IFS= read -r _pl; do
+      [ -z "$_pl" ] && continue
+      if ! printf '%s' "$_pl" | jq -Rs '{tool_name: "Bash", tool_input: {command: .}}' | bash "$_geniro_self"; then
+        exit 2
+      fi
+    done <<< "$INNER_PAYLOADS"
+  fi
+
   # 1) Heredoc bodies paired with their redirect/tee target. Mirrors
   #    file-protection.sh's heredoc detection, but CAPTURES the body (the content
   #    being written) instead of dropping it, and records the redirect/tee target
@@ -307,31 +445,11 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     esac
   done <<< "$RECORDS"
 
-  # 2) Inline echo/printf content redirected to a file, or piped to tee. Drop
-  #    heredoc BODIES first (data — an `echo ... >` inside one is text), keeping
-  #    opener lines; join backslash-newline continuations so a wrapped write stays
-  #    one logical line. Quotes are PRESERVED here (the quoted payload IS the
-  #    content to scan).
-  SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
-    hd {
-      line = $0
-      if (dash) sub(/^\t+/, "", line)
-      if (line == tag) hd = 0
-      next
-    }
-    match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
-      tag = substr($0, RSTART, RLENGTH)
-      dash = (tag ~ /^<<-/)
-      sub(/^<<-?[[:space:]]*/, "", tag)
-      gsub(/["'\'']/, "", tag)
-      hd = 1
-      print
-      next
-    }
-    { print }
-  ')
-  JOINED="${SCRUBBED//\\$'\n'/ }"
-
+  # 2) Inline echo/printf content redirected to a file, or piped to tee. Reads
+  #    $JOINED from step 0 — heredoc bodies dropped (data: an `echo ... >` inside
+  #    one is text), opener lines kept, backslash-newline continuations joined so
+  #    a wrapped write stays one logical line. Quotes are PRESERVED there (the
+  #    quoted payload IS the content to scan).
   while IFS= read -r line; do
     [ -z "$line" ] && continue
     case "$line" in

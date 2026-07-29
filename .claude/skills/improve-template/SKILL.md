@@ -107,7 +107,7 @@ For obvious bug fixes. The user already showed what's broken.
 
 1. Read the affected file(s) to confirm the bug; record their paths and `git rev-parse HEAD` as the baseline for the Phase 5 review prompt
 2. Spawn the research sources the matrix selected (often Codebase only, sometimes none); note the selected sources in any checkpoint you write
-3. Present the fix with evidence, then use the `AskUserQuestion` tool (do NOT output options as plain text) to ask "Approve this fix or investigate deeper?" with options: "Approve — apply the fix" / "Investigate deeper — run full pipeline"
+3. Present the fix with evidence, then use the `AskUserQuestion` tool to ask "Approve this fix or investigate deeper?" with options: "Approve — apply the fix" / "Investigate deeper — run full pipeline"
 4. If approved: apply the fix (directly if 1-2 lines, subagent if more)
 5. Spawn a fresh review agent (Phase 5 Step 1) to verify
 6. Skip to Phase 6
@@ -135,12 +135,13 @@ For obvious bug fixes. The user already showed what's broken.
 
 These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
 
+- [ ] Every SKILL.md this run changed or created was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
+
 ### improve-existing-skill mode
 - [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
 - [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
 - [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md: 8 standard checks (authoring lint / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README/docs + generated-file sync / compaction-redundancy) plus the 6 description-format sub-checks
 - [ ] A fresh agent reviewed the changes in Phase 5 and passed them, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
-- [ ] Every changed SKILL.md was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
 - [ ] The state file is cleaned up, `tests/run-all.sh` passed, and commit-and-push was offered to the user rather than performed unasked
 
 ### create-skill mode
@@ -148,8 +149,7 @@ These are the load-bearing exit gates — the checks that, if skipped, ship an u
 - [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
 - [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
 - [ ] The Phase 4 Step 3 validation gate ran on the new file, including the 6 description-format checks and checks #7 (README/CLAUDE.md/docs sync) and #8 (compaction/redundancy)
-- [ ] A fresh review agent applied the 8-item create-skill checklist and its blockers are fixed
-- [ ] The created SKILL.md was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
+- [ ] A fresh review agent applied the Phase C create-skill checklist and its blockers are fixed
 - [ ] Commit-and-push was offered to the user rather than performed unasked
 
 ---
@@ -201,7 +201,7 @@ RESEARCH_QUESTION: Which recorded decisions, invariants, and operational rules i
 
 DELIVERABLE_SHAPE: table of [{section name + file:line in ARCHITECTURE.md or the cited helper, the decision or rule, how it applies to the issue, already-followed yes/no}]. Research only — do NOT suggest implementation.
 
-SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a short (~220-line) consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract. For survey-depth evidence (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is at `git show 3bb0857~1:report.md` — it was removed from the working tree when the docs were consolidated.
+SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract. For survey-depth evidence (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is at `git show 3bb0857~1:report.md` — it was removed from the working tree when the docs were consolidated.
 
 OUTPUT_PATH: .geniro/state/improve-template/.research-architecture-<slug>.md
 
@@ -383,7 +383,6 @@ Apply the following approved changes:
 ### Definition of Done
 - [ ] All approved changes applied
 - [ ] No unintended side effects on surrounding code
-- [ ] Every changed SKILL.md checked against `.claude/rules/skill-structure.md` § File-size limits
 - [ ] Cross-references to other files still valid
 """, description="Implement: [group name]")
 ```
@@ -397,10 +396,10 @@ Orchestrator runs these checks directly (no subagent). All must pass before Phas
 3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
 4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
 5. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
-6. **Description-format checks (6 sub-checks):** apply when any changed SKILL.md's YAML `description:` field was added or modified; full procedure in the "Description-format validator" section below. Items: length ≤1024 chars (warning), third person (warning), "Use when" trigger clause (warning), "Skip for" anti-trigger clause (note), no `{{placeholder}}` residue (blocker), valid YAML frontmatter (blocker, overlaps with check #4 — counts once).
+6. **Description-format checks (6 sub-checks):** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks, their warning/blocker levels, and the procedure are in § Description-format validator below; check 6 there overlaps with #4 above and counts once.
 7. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md` since it carries the skills-table row. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
    **Generated Cursor agents — blocker, not a warning:** when the change edited any `agents/*.md`, run `scripts/build-cursor-agents.sh` and include the regenerated `cursor/agents/*.md` in the same change set. `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift between the two, so omitting it ships a red build. Fix it by re-running the script rather than spawning a fix agent, and never hand-edit `cursor/agents/`.
-8. **Compaction & redundancy (added text):** scan the lines this change ADDED for weight without payload — a restatement of an instruction already in the file, a re-explanation of standard tool or model behavior, or a hedge with no condition. Propose a tightening only when it fully preserves meaning and behavior — the bar is zero degradation; never trade away a load-bearing nuance, edge case, or behavioral condition to save tokens (the `description` field is out of scope here — the Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
+8. **Compaction & redundancy (added text):** scan the lines this change ADDED for weight without payload — a restatement of an instruction already in the file, a re-explanation of standard tool or model behavior, or a hedge with no condition. Judge any tightening against the Minimum-tokens principle in the Phase 4 Step 2 constraint set (the `description` field is out of scope here — § Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
 
 If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#1 lint advisories, #6 sub-items 1-4, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
@@ -482,7 +481,7 @@ These were NOT introduced by the current changes but were discovered while revie
 | 1 | [path:line] | [description] | [blocker/warning/nit] | [fix] |
 ```
 
-Use the `AskUserQuestion` tool (do NOT output options as plain text) to ask:
+Use the `AskUserQuestion` tool to ask:
 - **Question:** "Want to fix any of these pre-existing bugs?"
 - **Options:**
   - "Fix all of them"
@@ -527,7 +526,7 @@ Scan for user corrections, convention discoveries, and limitations encountered. 
 
 ### Step 4: Suggest commit & push
 
-After cleanup, run `bash tests/run-all.sh` — CI gates on it, so a red suite here is a red pull request. If a suite fails, report which one and stop; the ship options are not offered on a red suite. Otherwise show the user what is currently staged versus unstaged, then use the `AskUserQuestion` tool (do NOT output options as plain text) to offer shipping the changes:
+After cleanup, run `bash tests/run-all.sh` — CI gates on it, so a red suite here is a red pull request. If a suite fails, report which one and stop; the ship options are not offered on a red suite. Otherwise show the user what is currently staged versus unstaged, then use the `AskUserQuestion` tool to offer shipping the changes:
 
 - **Question:** "Ship these template changes?"
 - **Options:**
@@ -587,7 +586,6 @@ Investigate → Filter → Implement pipeline.
 Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
 - All Phase A interview answers reflected in the SKILL.md
 - Description meets all 6 format rules (validator checks 1-6 below)
-- SKILL.md conforms to `.claude/rules/skill-structure.md` § File-size limits, or its overflow is split into a companion reference
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
 - No invented `${CLAUDE_PLUGIN_ROOT}/...` references (every cited path actually exists)
 - Frontmatter valid (name, description, allowed-tools, model)

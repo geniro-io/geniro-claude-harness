@@ -55,15 +55,13 @@ Locate 2-3 existing files that exemplify the pattern the spec is asking you to f
 - New component → search for components with similar prop shapes / state-management patterns
 - New migration → list the most recent migration file as exemplar
 
-Do not inline-Read the exemplars in full. Note their paths and 1-line pattern descriptions in the report.
+Note their paths and 1-line pattern descriptions in the report.
 
 ### Step 3 — Match `.claude/rules/` files
 
 If RULES_DIR does not exist (Glob returns nothing), emit `(no project-scoped rules detected)` in the corresponding output section and skip this step. Otherwise:
 
 Glob `<RULES_DIR>/**/*.md` (rules nest into subdirectories). For each rule file, Read ONLY the frontmatter. Parse the `paths:` field — a YAML list of glob patterns, which is what Claude Code scopes rules by. A repo ported from Cursor may instead carry `globs:` holding one comma-separated string; accept that spelling too. A rule file with neither field is unconditional and matches every file, so include it. Match the patterns against the file list from Steps 1-2, then output the path + a short summary of what the rule covers (parse from the first H1 or the first sentence after frontmatter).
-
-Do not inline-Read rule bodies — the orchestrator JIT-loads them at Phase 2 edit time. Your output is the rule index, not the rule content.
 
 ### Step 4 — Reuse inventory
 
@@ -76,7 +74,7 @@ Cite file:line for REUSE-AS-IS and EXTEND. For NO-ANALOGUE, state in 1 line why 
 
 ### Step 5 — Spec-referenced files
 
-For any file paths literally mentioned in the spec body (e.g., "see `analysis-queue.types.ts`"), search for 3-5 lines of context describing the file's role + key exports. Do not inline-Read the file in full — the orchestrator JIT-Reads it at Phase 2 if needed.
+For any file paths literally mentioned in the spec body (e.g., "see `analysis-queue.types.ts`"), search for 3-5 lines of context describing the file's role + key exports.
 
 ### Step 6 — Risk surface
 
@@ -129,4 +127,3 @@ Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a
 | "I'll inline-Read every file in `## Touchpoints` so my summary is accurate." | Inline-reading the touchpoints defeats the entire purpose of this agent. Grep first; Read only when you cannot answer a specific question from grep context. Whole-file Reads on touchpoints belong in Phase 2 (the orchestrator's job), not Step 1 here. |
 | "I'll list every file in the changed directory to be thorough." | Likely-Touched Files is a signal funnel. If you cannot point to a specific reason a file is touched (named in spec, called from a touchpoint, contains the symbol being added), do not include it. The orchestrator's edit set is bounded by your list. |
 | "I'll skip Step 6 risk-flag scan — risk assessment isn't my job." | Risk signals drive the orchestrator's scope estimate, which gates downstream decisions (e.g., whether adversarial-tester spawns in /implement Phase 3). Skipping Step 6 silently downgrades the orchestrator's quality bar. |
-| "I'll inline-Read each `.claude/rules/<rule>.md` body so I can summarize the constraints precisely." | Rule bodies are JIT-loaded by the orchestrator at edit time. Your job is to identify WHICH rules apply, not to summarize their contents. Reading rule bodies wastes turns and adds nothing the orchestrator will not load on its own when needed. |

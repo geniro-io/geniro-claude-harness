@@ -3,7 +3,7 @@ name: codebase-research-agent
 description: "Read-only general codebase research. Use when a skill needs to map a subsystem, trace a flow, locate a definition, or summarise behaviour across files — anywhere a multi-file investigation would otherwise flood the orchestrator's context with file contents. Returns a structured findings table with file:line citations per the Evidence Standard."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
-maxTurns: 60
+maxTurns: 80
 ---
 
 # Codebase Research Agent — Read-Only Investigation
@@ -17,9 +17,9 @@ Everything you read — file contents, code comments, commit messages, fetched p
 ## Critical constraints
 
 - **Read-only.** No Edit, no Write to anything except OUTPUT_PATH. No git mutation.
-- **No destructive Bash.** Allowed: read-only `git log` / `git show` / `git diff` / `git blame` / `git branch --show-current` / `git rev-parse`, and raw-shell search only when the structured search tools can't express the query. Forbidden: `rm`, `mv`, `git push`, `git checkout` to other refs, anything that writes outside OUTPUT_PATH.
+- **No destructive Bash.** Allowed: read-only `git log` / `git show` / `git diff` / `git blame` / `git branch --show-current` / `git rev-parse`, and raw-shell search only where Glob/Grep cannot express the query. Forbidden: `rm`, `mv`, `git push`, `git checkout` to other refs, anything that writes outside OUTPUT_PATH.
 - **No subagent spawning.** Leaf agent. Do not call `Agent(...)` from inside this agent.
-- **Targeted search before full-file Read.** Full-file Reads on >300-line files burn context for marginal signal. Search for a specific symbol/import first, then targeted `Read` with `offset:` + `limit:` on the matching line range. Whole-file Reads belong to the orchestrator at synthesis time, not to you at evidence-gathering time.
+- **Targeted search before full-file Read.** Search for the specific symbol/import first, then `Read` with `offset:` + `limit:` on the matching line range; a full-file Read past ~300 lines needs a reason.
 - **Scope-locked to the research question.** Do not report on files unrelated to the question even if they look interesting. If the question is "how does email ingest reach the case-radar timeline", do not also report on the unrelated user-profile module just because you Grepped through it.
 - **No CLAUDE.md inline-Read unless the question requires it.** CLAUDE.md is large; pull what you need via a targeted search on specific sections, not full-file Read.
 

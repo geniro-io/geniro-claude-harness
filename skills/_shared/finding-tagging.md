@@ -1,8 +1,16 @@
-# Finding Tagging
+# Finding tagging
 
 Authoritative tag definitions for reviewer-agent output and orchestrator routing. The `[ROOT-CAUSE] / [SYMPTOM] / [UNKNOWN] / [SYMPTOM-ACK]` tags form a finding-classification system parallel to the existing `[CONFIRMED-BY-TEST] / [CHALLENGED-BY-TEST] / [NEW] / [PRE-EXISTING] / [PRODUCT-DECISION]` tag families: same persistence channel (`<task-dir>/state.md` `## Accepted Findings` and `.geniro/state/<skill>/<slug>/state.md`), same audit-trail discipline, different classification axis (cause vs effect, instead of newness or evidence-strength). Tags persist across skill phases and are the trigger predicate for `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md`.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste tag definitions or routing rules.
+
+## Contents
+
+- Tag definitions — `[ROOT-CAUSE]` / `[SYMPTOM]` / `[UNKNOWN]` / `[SYMPTOM-ACK]` and the evidence each needs
+- How agents emit tags — the reviewer-agent `Cause:` sub-field
+- How orchestrators route by tag — which tag fires the root-cause gate, which escalates
+- Persistence schema — the per-finding `cause:` field and its sub-fields
+- Anti-rationalization
 
 ## Tag definitions
 
@@ -17,7 +25,7 @@ The `[ROOT-CAUSE] ⇄ [SYMPTOM-ACK]` transition is also possible at gate result-
 
 ## How agents emit tags
 
-**`agents/reviewer-agent.md` Output Format adds a mandatory `Cause:` sub-field per finding** — one of `[ROOT-CAUSE]`, `[SYMPTOM]`, or `[UNKNOWN]` (the agent never emits `[SYMPTOM-ACK]` — that tag is gate-result-only). The field sits alongside the existing `Decision Type:` / `Origin:` / `Confidence:` fields in the per-finding output block, immediately after `Decision Type:`. The reviewer applies the tag based on the structural signal:
+**`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` Output Format adds a mandatory `Cause:` sub-field per finding** — one of `[ROOT-CAUSE]`, `[SYMPTOM]`, or `[UNKNOWN]` (the agent never emits `[SYMPTOM-ACK]` — that tag is gate-result-only). The field sits alongside the existing `Decision Type:` / `Origin:` / `Confidence:` fields in the per-finding output block, immediately after `Decision Type:`. The reviewer applies the tag based on the structural signal:
 - Surface where the defect is observed → `[SYMPTOM]`.
 - Layer where causation originates → `[ROOT-CAUSE]`.
 - Cannot tell within the dimension's review budget → `[UNKNOWN]`.
@@ -57,7 +65,7 @@ When `cause: SYMPTOM` (or `cause: UNKNOWN` requiring debug escalation), the line
 
 These sub-fields populate the gate's `<symptom>` and `<suspected root cause>` slots in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/root-cause-gate.md` § Required AUQ shape. Rows with `cause: ROOT-CAUSE` or `cause: SYMPTOM-ACK` do NOT need these sub-fields (gate does not fire / already resolved); rows with `cause: UNKNOWN` SHOULD include them as best-effort hypothesis seeds for the downstream `/geniro:debug` invocation.
 
-State files that lack the `cause:` field entirely MUST be treated as `cause: UNKNOWN` (the safe default — fires the upstream-debug escalation rather than auto-proceeding). Log a single-line caveat under `## Caveats` in the rendered report: `state file missing cause classification, treating as UNKNOWN`.
+Treat a state file that lacks the `cause:` field entirely as `cause: UNKNOWN` (the safe default — fires the upstream-debug escalation rather than auto-proceeding). Log a single-line caveat under `## Caveats` in the rendered report: `state file missing cause classification, treating as UNKNOWN`.
 
 ## Anti-rationalization
 

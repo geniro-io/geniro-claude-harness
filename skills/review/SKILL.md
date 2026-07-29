@@ -9,6 +9,23 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]
 
 # Code review skill
 
+## Contents
+
+- Your role — orchestrate, don't review
+- State machine
+- Loop invariants
+- Anti-rationalization
+- Budgets — quality-first
+- Subagent model tiering
+- Spec metadata contract (/geniro:plan → /geniro:review)
+- ACI per-phase tool surface
+- Memory I/O schedule
+- Definition of done
+- Phase 1 / 1.5 / 2 / 3 / 4 / 5 / 6 — one section each, pointing at that phase's file
+- REFERENCE
+
+---
+
 Comprehensive code review using parallel multi-agent analysis. This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage.md` (Phases 1 + 1.5) · `phase-2-spawns.md` (Phase 2) · `phase-3-4-filter-stratify.md` (Phases 3 + 4) · `phase-5-6-emit-handoff.md` (Phases 5 + 6).
 
 **Runtime portability.** Claude Code sets `${CLAUDE_PLUGIN_ROOT}`. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it everywhere and export it in every Bash call. Tool and hook substitutions: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
@@ -127,12 +144,12 @@ The load-bearing exit gates — skipping any makes the review incomplete or unsa
 
 - [ ] Every mandatory reviewer spawned in parallel — 7 always-fire dimensions (including `regressions`) + every triggered conditional one (design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual AND spawn instances == `spawn_dims_count`.
 - [ ] The spawn echo (`Spawning <N> reviewers: ...`), carrying the declared count, went out in the same response that fired the batch (§2.3.1).
-- [ ] A fresh verify-finding verdict exists for EVERY admitted CRITICAL / HIGH / MEDIUM survivor (verifiers cluster up to 3 same-file findings); refuted findings demoted to `## Filtered`.
+- [ ] A fresh verify-finding verdict exists for EVERY admitted CRITICAL / HIGH / MEDIUM survivor (same-file findings cluster into a shared spawn at the cluster size in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4); refuted findings demoted to `## Filtered`.
 - [ ] The multi-signal admission gate was applied — not a single confidence threshold (invariant #6).
 - [ ] Every kept finding carries a severity (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1), a decision type, and a `[NEW]` / `[PRE-EXISTING]` tag.
 - [ ] The needs-your-decision gate fired for every such finding at any severity, and all are resolved or wontfix BEFORE the handoff is offered or anything is posted (§7.0 Pre-Post guard).
 - [ ] `phase:` was stamped via `atomic_state_write` on ENTRY to each phase (invariant #10), so both declarations existed before the gates reading them.
-- [ ] All three pre-pass checks (lint / schema / secret) ran to a recorded outcome, `mechanical_prepass_attempted[]` was declared, and §4.0a confirmed it.
+- [ ] All three pre-pass checks (lint / schema / secret) ran to a recorded outcome — `findings`, `clean`, or `error` — declared in `mechanical_prepass_attempted`, and §4.0a confirmed it.
 - [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
 - [ ] `report_status: draft→final` flipped only after the decision gate cleared; on a Post, `[POSTED-TO-PR]` markers persisted.
 - [ ] The Action gate fired (always-WAIT) with its pick in `approvals[]`; the chained include-deferred gate fired on the `/geniro:implement findings` pick when set-aside minor findings existed; the round-N gate fired when round ≥3.
@@ -146,7 +163,7 @@ The load-bearing exit gates — skipping any makes the review incomplete or unsa
 
 ## Phase 1.5 — Mechanical pre-pass
 
-`phase: mechanical-prepass` · Steps: `phase-1-triage.md` §1.5.1-§1.5.7. Three deterministic checks (lint / schema / secret scan) before any LLM spawn, so reviewers get their output as prior-context. Exit when each check has landed exactly one recorded outcome — findings, or a `## Errors mechanical-prepass-<id>` entry — and `mechanical_prepass_attempted[]` is declared.
+`phase: mechanical-prepass` · Steps: `phase-1-triage.md` §1.5.1-§1.5.7. Three deterministic checks (lint / schema / secret scan) before any LLM spawn, so reviewers get their output as prior-context. Exit when each check has landed exactly one recorded outcome — `findings`, `clean`, or `error` — declared in `mechanical_prepass_attempted`.
 
 ## Phase 2 — LLM reviewer spawns
 

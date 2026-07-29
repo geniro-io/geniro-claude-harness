@@ -83,7 +83,10 @@ run_silent() {
 }
 
 # If script is executed directly (not sourced), run the command
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+# `${BASH_SOURCE[0]:-}` — the header above documents sourcing this file, and a
+# `set -u` shell where BASH_SOURCE is unset (zsh, or bash reading from stdin)
+# would abort the whole source on the bare expansion.
+if [[ "${BASH_SOURCE[0]:-}" == "${0}" ]]; then
     if [ $# -lt 2 ]; then
         echo "Usage: backpressure.sh <description> <command>"
         echo "Example: backpressure.sh 'Unit tests' 'npm test'"

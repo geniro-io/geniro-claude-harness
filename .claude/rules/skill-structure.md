@@ -13,7 +13,7 @@ Sources for every number below: Anthropic [Skill best-practices](https://platfor
 
 ## File-size limits
 
-**Measure a file in words, not lines.** A skill body here runs anywhere from 9 to 21 words per line depending on how much of it is tables and fenced blocks, so a line count says almost nothing about what the file costs: `setup` is 571 lines and 5,267 words, `resolve` is 142 lines and 3,044 words — lines rank them backwards. A line count also invites the wrong fix, since a file can shed 150 lines by tightening tables and come out denser than it started.
+**Measure a file in words, not lines.** Words per line vary several-fold across these bodies depending on how much of each is tables and fenced blocks, so a line count says almost nothing about what a file costs — run `wc -lw skills/*/SKILL.md` and the two rankings disagree, with skills that are longer by lines landing shorter by words. A line count also invites the wrong fix, since a file can shed 150 lines by tightening tables and come out denser than it started.
 
 | File class | Front-load budget | Whole-file guideline | What to do on overflow |
 |---|---|---|---|
@@ -38,7 +38,7 @@ Not every reference is prose. Reach for the highest-fidelity form the content ad
 | Class | Use for | Example in this repo |
 |---|---|---|
 | **Rubric** | Taste and standards a subagent has to apply — "what does a good X look like". Written as criteria a verifier can evaluate one at a time, not as prose advice. Pair with a spawned verifier rather than asking the orchestrator to self-assess. | `skills/_shared/review-criteria/*.md` — per-dimension criteria consumed by one reviewer spawn each, then re-checked by an independent verifier |
-| **Executable spec** | An acceptance criterion a command can decide. Prefer a `verify:` line, a failing test, or a schema over a sentence describing the same condition. | `skills/plan/spec-template.md` §9 `verify:` lines, run by `/implement` Step 5.5 |
+| **Executable spec** | An acceptance criterion a command can decide. Prefer a `verify:` line, a failing test, or a schema over a sentence describing the same condition. | `skills/_shared/spec-template.md` §9 `verify:` lines, run by `/implement` Step 5.5 |
 | **Exemplar** | "Write it like this" — pass the actual file rather than describing its conventions. | `/geniro:implement` Phase 1 exemplar files |
 | **Prose reference** | Procedure, contracts, and rationale that none of the above expresses. The default, not the only option. | most of `_shared/` |
 

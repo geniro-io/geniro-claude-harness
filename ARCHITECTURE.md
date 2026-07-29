@@ -215,7 +215,7 @@ Singleton bootstrap; one state file at `state/setup/state.md`.
 
 - Re-run mode runs a MIGRATION.md sweep before generating content — auto-fix then re-detect.
 - Generated CLAUDE.md is project-specific only (tech stack, commands, conventions, domain) — no plugin info.
-- Verification subagent (Read/Bash/Glob/Grep only — NO Write/Edit) runs an 8-checklist; 3-retry loop → AUQ escalation.
+- Verification subagent (Read/Bash/Glob/Grep only — NO Write/Edit) runs the check set in `skills/setup/verification-checks.md`; 3-retry loop → AUQ escalation.
 - Detect phase is observation-only; Write/Edit forbidden until Generate phase.
 
 ---
@@ -310,7 +310,7 @@ The repository ships as one plugin for two runtimes. `.claude-plugin/plugin.json
 
 ---
 
-## Operational Rules (from report.md)
+## Operational Rules
 
 - Hook blocking requires `exit 2`, not `exit 1` — `exit 1` is fail-open.
 - SKILL.md size is measured in words, not lines (`.claude/rules/skill-structure.md` §File-size limits): everything load-bearing belongs inside the first ~3,000 words, which is all Claude Code re-attaches after a compaction, and ~5,000 words is the whole-file guideline. Both are guidelines — past them, move detail to a sibling `*-reference.md` some runs genuinely skip, rather than trimming load-bearing content.

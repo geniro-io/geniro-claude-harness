@@ -1,8 +1,16 @@
-# UI Preview Gate
+# UI preview gate
 
 A pre-approval procedure that produces a preview of how the UI will look after a change, lets the user critique or rewrite it in their own words, and only then returns control to the caller's approval flow. Callers invoke this when a change touches UI files so the user shapes visual intent BEFORE any code is written.
 
 The preview has two forms. Default: a structured text description. When the caller passes `MOCKUP: true` — it has a live page to publish to — the agent renders a working HTML mockup and emits a compact text digest beside it, because a rendered page carries a UI far more reliably than a paragraph describing one. The digest is not optional in that form: it is the text the caller persists and its downstream sections cite, and a page URL is not citable substrate.
+
+## Contents
+
+- UI-file detection rule — which changed paths make a change UI-touching
+- When to run — the caller's trigger condition
+- Procedure — Step 1 spawn the description agent · Step 1b mockup form · Step 2 present to user · Step 3 revision loop · Step 4 emit the approved description
+- Caller contract — what the caller supplies and what comes back
+- Anti-rationalization
 
 ## UI-file detection rule
 

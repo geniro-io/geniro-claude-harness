@@ -35,7 +35,7 @@ Each match → report as a DRIFT item with file:line so the orchestrator can rew
 
 **Generic-placeholder check:**
 
-The generated CLAUDE.md must be project-specific, not generic boilerplate. Generation builds from the detected project facts (not from a copied template), so scan the output for unfilled placeholder content — `<TODO>`, `<your-...>`, `example.com`, or stack/command names that don't match what was detected. Any generic-placeholder hit → report a DRIFT item so the orchestrator regenerates that section from the detected project facts.
+The generated CLAUDE.md must be project-specific, not generic boilerplate. Generation builds from the detected project facts (not from a copied template), so scan the output for unfilled placeholder content — `<TODO>`, `<your-...>`, `example.com`, or stack/command names that don't match what was detected. Grep for the generator's own residue tokens too: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`, and the legacy section markers `<!-- geniro-setup-managed -->` / `<!-- geniro-setup-end -->` (CLAUDE.md is user-owned and carries no plugin markers). Any generic-placeholder hit → report a DRIFT item so the orchestrator regenerates that section from the detected project facts.
 
 ---
 

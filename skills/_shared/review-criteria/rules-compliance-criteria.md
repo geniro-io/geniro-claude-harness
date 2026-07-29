@@ -1,4 +1,4 @@
-# Rules-Compliance Review Criteria
+# Rules-compliance review criteria
 
 Dimension: `rules-compliance`. Checks whether the diff obeys the project's OWN explicitly-authored rule files — the rules a human wrote to govern how code in this repo is written. Distinct from `conventions` (modal patterns inferred by sampling the codebase) and `spec-compliance` (the plan/spec for this one change). Every finding here quotes the exact rule and names the file it lives in.
 
@@ -36,7 +36,7 @@ Flagging a file for a rule outside its declared scope is a false positive — th
 
 ## 3. What to flag
 
-For each changed file, for each in-scope rule, check the diff against the rule's concrete requirement. Flag a violation when new or changed code contradicts a checkable rule. Each finding MUST:
+For each changed file, for each in-scope rule, check the diff against the rule's concrete requirement. Flag a violation when new or changed code contradicts a checkable rule. Each finding:
 
 - Quote the exact rule (file + the rule line or sentence).
 - Cite the diff line that violates it.

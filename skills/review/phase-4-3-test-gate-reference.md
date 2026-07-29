@@ -59,7 +59,7 @@ This gate is its own `AskUserQuestion` call fired during stratify (per §1 Firin
 **The 3-option set is canonical and rendered verbatim — all three, every run.** Do not drop "Let me pick which findings" because few findings are eligible; do not add an improvised `(Recommended)` to "Skip" or to any option — no option carries a `(Recommended)` suffix.
 
 - **Header:** "Test-gate"
-- **Question:** "Author failing tests to confirm review findings? Tests that pass today demote the corresponding finding to ## Filtered (kept visible, not deleted). The skill never writes tests without your approval."
+- **Question:** "Author failing tests to confirm review findings? A test that passes today moves the matching finding to a set-aside list — it stays visible, nothing is deleted. No tests are written without your approval."
 - **Options (render all three, verbatim):**
 - "Author tests for all eligible findings" — never carries a `(Recommended)` suffix
 - "Let me pick which findings" — always present; never dropped when the eligible set is small
@@ -67,7 +67,7 @@ This gate is its own `AskUserQuestion` call fired during stratify (per §1 Firin
 
 If user picks **"Skip"**, proceed to Phase 5 (no spawn, no state changes, no caveats).
 
-If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — <decision-type in plain English>` (e.g. "automatic fix" / "can be verified with a test" — never the raw taxonomy token, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop); each finding's self-contained block is rendered to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering (option `preview` stays empty or a one-line recap — the side-box truncates and is often absent). AUQ has a 4-option cap; when more than 4 eligible findings exist, batch across multiple chained questions (≤4 per call) — never drop or merge options. Aggregate selections across all calls. If user deselects all, treat as "Skip".
+If user picks **"Pick"**, chain `AskUserQuestion` calls (each with `multiSelect: true`) listing eligible findings. Each option's `label` is `path:line — short title — <decision-type in plain English>` (e.g. "automatic fix" / "can be verified with a test" — never the raw taxonomy token, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Multi-select pick loop); each finding's self-contained block is rendered to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering (option `preview` stays empty or a one-line recap — the side-box truncates and is often absent). When more than 4 eligible findings exist, chain follow-up calls per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension. If user deselects all, treat as "Skip".
 
 Persist user pick to `approvals[]` with category `test_gate_choice`.
 

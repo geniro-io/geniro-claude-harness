@@ -1,4 +1,4 @@
-# Spec Compliance Review Criteria
+# Spec compliance review criteria
 
 Conformance audit of the diff **against the plan / spec** — what the spec promised but the diff omits (checks 1-11), and what the diff implements contrary to the spec's stated behavior (check 12). The diff's code quality (correctness, security, architecture, tests, optimizations, guidelines, conventions, design) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF conformance only. The spec is the **primary rubric** for what the change intended; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored. But the spec is a fallible human artifact, not ground truth: a divergence between spec and diff can mean the diff is wrong OR the spec is wrong. Before flagging an omission or contradiction as a defect against the implementation, rule out that the code deliberately and correctly departed from a spec premise the live code contradicts (see §Spec-premise validation) — otherwise a correct implementation gets blamed for the spec's own error.
 
@@ -33,7 +33,7 @@ When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schem
 - Section 10: Rollback-Recovery
 - Section 11: Done Condition
 
-Findings MUST cite the specific section (or frontmatter field) violated/missing — e.g., `Evidence: section 2 (Scope.Included) names "src/api/auth/*" but diff touches no auth file`. The 11 checks below name the canonical section anchors.
+Every finding cites the specific section (or frontmatter field) violated/missing — e.g., `Evidence: section 2 (Scope.Included) names "src/api/auth/*" but diff touches no auth file`. The checks below name the canonical section anchors.
 
 **Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9 and 12. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
 

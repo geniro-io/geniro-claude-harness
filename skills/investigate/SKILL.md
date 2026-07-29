@@ -9,6 +9,23 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 # Investigate: deep codebase Q&A
 
+## Contents
+
+- State machine
+- Loop invariants
+- Anti-rationalization
+- Quality-first budgets
+- Subagent model tiering · Subagent Spawn Contract
+- Evidence Standard
+- ACI per-phase tool surface
+- Git constraint
+- Definition of done
+- Phase 1 (Classify+Scope) · Phase 2 (Investigate+Verify) · Phase 3 (Synthesize+Review+Present)
+- State file schema
+- Examples
+
+---
+
 3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, verifies with a fresh agent, and presents the answer.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
@@ -23,10 +40,14 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 
 ## Loop invariants
 
-The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply (the invariant numbers below match that file), with three skill-specific notes:
-1. **Invariant #4 (bounded structured tool results)** — research-agent outputs (Codebase / Git / Internet) each capped at ~8K chars with truncation marker if exceeded.
-2. **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
-3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply, with two investigate-specific bindings:
+
+- **Invariant #4 (bounded structured tool results)** — research-agent outputs (Codebase / Git / Internet) each capped at ~8K chars with truncation marker if exceeded.
+- **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
+
+This skill adds one invariant:
+
+8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier + save-routing focused agents), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
 
@@ -42,7 +63,7 @@ Check these rationalizations before drifting from the procedure.
 | "I'll spawn agents one at a time to save tokens" | Parallel agents go in ONE response — multiple Agent calls in the same assistant turn. Sequential turns waste wall-clock time for no token savings. |
 | "All three agents converge on the same claim — that's confirmed" | Convergent self-reports are still self-reports. Phase 2 Step 2 re-verify requires the orchestrator to independently re-read / re-run / re-grep before treating any agent claim as evidence. |
 | "The reasoning chain is tight, that's enough evidence" | Reasoning is hypothesis, not evidence. Only the artifact kinds (file:line snippet, captured output, log line, query result, user data) clear the Evidence Standard. |
-| "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence. Phase 3 Step 1 confidence-driven action requires verified / re-verify / ask-user / omit — there is no "ship with caveat" path. |
+| "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence — route the claim through the Phase 3 confidence-driven action ladder, which has no "ship with caveat" exit. |
 | "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
 | "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
 | "Auto-promote /geniro:investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
@@ -70,19 +91,19 @@ Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering
 
 ## Subagent Spawn Contract
 
-Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh verifier agent, and Phase 3 Step 4a save-routing agents — must satisfy the 6-field pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` (task scope / acceptance criteria / file paths with content / prohibited tools / output schema / model tier); subagents that skip a field re-discover from scratch and drift from intended scope. The checklist is the authoritative requirement; the spawn templates below pre-populate every field. Subagents do NOT inherit the orchestrator's session state, so each field must be pre-inlined. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; the Git Historian, Internet Researcher, fresh verifier, and save-routing agents are general-purpose spawns.
+Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh verifier agent, and Phase 3 Step 4a save-routing agents — satisfies the six pre-inlined fields in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`, because a spawn missing a field makes the subagent re-discover scope from scratch and drift. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; the Git Historian, Internet Researcher, fresh verifier, and save-routing agents are general-purpose spawns.
 
 ## Evidence Standard
 
-A claim is evidence-backed ONLY when it cites a canonical artifact kind. Kinds 1-5 follow the canonical Evidence Standard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`): kind 1 = captured command output, kind 2 = file:line + verified snippet, kind 3 = log line / stack trace, kind 4 = datastore query result, kind 5 = user-provided artifact. /geniro:investigate adds one kind for its external-research mode:
+A claim is evidence-backed only when it cites a canonical artifact kind. Kinds 1-5 are defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. /geniro:investigate adds one kind for its external-research mode:
 
 | # | Kind | Example |
 |---|---|---|
 | 6 | External documented fact (WebFetch / WebSearch source URL + verbatim quote) | `https://docs.example.com/api → 'rate limit is 100 req/min'` |
 
-Reasoning, paraphrased agent claims, "looks consistent", convergent agent self-reports, and "I inferred from context" are NOT evidence. They are hypotheses that still need verification.
+Reasoning, paraphrased agent claims, "looks consistent", convergent agent self-reports, and "I inferred from context" are not evidence — they are hypotheses that still need verification.
 
-If the orchestrator's tools cannot produce evidence for a load-bearing claim, the claim is unverified — DO NOT synthesize an answer around it. Use the Phase 2 Step 2 verification gate or the Phase 2 Step 3 missing-data gate (AskUserQuestion) instead.
+If the orchestrator's tools cannot produce evidence for a load-bearing claim, the claim is unverified: an answer synthesized around it reads as authoritative while resting on nothing. Use the Phase 2 Step 2 verification gate or the Phase 2 Step 3 missing-data gate (AskUserQuestion) instead.
 
 ## ACI per-phase tool surface
 
@@ -115,9 +136,6 @@ Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `
 
 These are the load-bearing exit gates — the checks that, if skipped, make the answer unsound or the no-ship boundary unsafe. Per-phase mechanics (classification, scoping, agent spawns, synthesis) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
 
-- [ ] External-lookup routing offered when classification is Internet-only (Phase 1 Step 1.5); `/deep-research` suggested, never auto-invoked
-- [ ] Glossary-mismatch check executed against CLAUDE.md Domain Context (Phase 1 Step 2.5); resolved via AskUserQuestion with `approvals[]` persistence if mismatch found
-- [ ] JIT retrieval cadence applied (Phase 1 Step 2.6)
 - [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
 - [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
 - [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 3 Step 3)
@@ -243,7 +261,7 @@ WebSearch+WebFetch agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`
 
 ### Step 2: Verify — orchestrator re-checks each load-bearing claim
 
-Before synthesizing the answer, the ORCHESTRATOR (not a subagent) independently re-verifies every claim that will end up as evidence in the answer. Agent self-reports are inputs, not proof.
+Before synthesizing the answer, the orchestrator (not a subagent) independently re-verifies every claim that will end up as evidence in the answer.
 
 #### Extract load-bearing claims
 
@@ -293,9 +311,9 @@ After Phase 2 Step 2/3 complete (every load-bearing claim verified or routed):
 
 #### Cross-reference
 
-- Identify where agents agree — convergent agent reports are still self-reports, NOT verified evidence; carry them into Phase 2 Step 2 re-verification.
+- Identify where agents agree — carry the convergent claims into Phase 2 Step 2 re-verification.
 - Identify where agents disagree or have gaps — flag for Phase 2 Step 2 re-verification or the Phase 2 Step 3 missing-data gate.
-- Single-source claims do NOT get a "lower confidence" label — they get the same Phase 2 Step 2 re-verification treatment as any other claim.
+- Single-source claims get no "lower confidence" label — they get the same Phase 2 Step 2 re-verification treatment as any other claim.
 
 #### Draft the answer
 
@@ -303,12 +321,12 @@ Structure the answer based on question type. Five literal markdown templates (Ho
 
 #### Confidence-driven action (no caveats-as-substitute)
 
-For each major claim, check it has a verified artifact per the Evidence Standard. Confidence labels are NOT a substitute for evidence — they drive action:
+For each major claim, check it has a verified artifact per the Evidence Standard. A confidence label is not a substitute for evidence — it drives an action:
 
 - **Verified** (artifact 1-5 produced + Phase 2 Step 2 re-check passed): include the claim with the artifact cited inline.
 - **Unverified but verifiable**: re-enter Phase 2 Step 2 with a specific re-check before drafting.
 - **Unverified and only the user can supply the artifact**: route through the Phase 2 Step 3 missing-data gate.
-- **Unverifiable** (no path to evidence): omit the claim. Note the gap explicitly in the answer's "Open questions" section. Do NOT ship a labelled "low-confidence" claim as a substitute for evidence.
+- **Unverifiable** (no path to evidence): omit the claim and note the gap explicitly in the answer's "Open questions" section — a claim shipped under a "low-confidence" label still reads as an answer, and the reader acts on it.
 
 ### Step 2: Fresh verifier agent
 
@@ -327,7 +345,7 @@ If blockers are found, fix and re-verify with another fresh agent. **Max 1 re-re
 Present the synthesized, reviewed answer to the user. Include:
 - The structured answer from Step 1 (post-review fixes applied).
 - A "Sources" section listing key files examined and agents used — every cited artifact (file:line, command output, query result, user-provided data) is listed.
-- An "Open questions" section listing any sub-questions that could not be evidence-backed AND were not resolvable via the missing-data gate. Be explicit about what data would settle each one — do NOT paper over with a "low-confidence" caveat.
+- An "Open questions" section listing any sub-questions that could not be evidence-backed AND were not resolvable via the missing-data gate. Be explicit about what data would settle each one.
 
 ### Step 4: Save-routing AUQ
 

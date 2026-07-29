@@ -9,6 +9,23 @@ argument-hint: "[task description | spec.md path | empty to resume | 'continue']
 
 # Implement Skill — 3-Phase Autonomous Loop
 
+## Contents
+
+- Phases overview + REFERENCE
+- State machine — `phase:` enum, terminal states, termination reasons
+- Loop invariants (canonical 1-7 plus 8-10)
+- Anti-rationalization
+- Budgets — quality-first framing
+- ACI per-phase tool surface
+- Handoff contract (inbound) — the open-questions gate
+- State persistence
+- Memory I/O
+- PHASE 1 / PHASE 2 / PHASE 3
+- Modifier handling
+- Task execution entry
+
+---
+
 You are an autonomous executor. Consume an externally-provided spec (or inline task description), make every required code edit, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`. One orchestrator owns the Phase 2 edits; only a genuinely independent, self-contained slice is ever delegated.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — then substitute it everywhere and export it in every Bash call. Tool and hook substitutions: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
@@ -36,6 +53,7 @@ State.md frontmatter `phase:` transitions (`from-phase → to-phase | trigger`):
 | (entry) | analyze | Phase 1 start |
 | analyze | implement | spec parsed, handoffs resolved |
 | analyze | (analyze) | surface failures inline; no separate escalation state |
+| analyze | aborted | a Phase 1 cancel pick (terminal): the worktree-mismatch "Abort — I'm in the wrong place", the no-ticket-ID "Cancel — I'll get a ticket first", or the spec-challenge "Abort — re-plan via /geniro:plan" |
 | implement | self-review | Phase 2 todos done, tests green |
 | implement | phase-2-escalated | test fix-loop exhausted / not converging |
 | phase-2-escalated | debug-handoff \| self-review \| aborted | the escalation AUQ pick: escalate to debug (terminal) \| accept failures \| abort (terminal) |
@@ -52,13 +70,13 @@ Each `git push` / `gh pr create` / posted comment appends to `non-resumable-acti
 
 **Non-terminal states**: `analyze`, `implement`, `self-review`, `ship`. **Escalation (paused) states**: `phase-2-escalated`, `phase-3-escalated` — a fix-loop exhausted and an AUQ is open. On resume the recovery re-surfaces "task was paused — last AUQ options" so the user re-picks without losing context.
 
-**Termination reason convention.** When `phase: aborted` is reached, write one line to state.md body under `## Termination reason`: `repeated-failure: phase-N retry-limit` / `safety-denied: <rule>` / `tool-unavailable: <tool>`. The SessionStart hook re-injects this on resume.
+**Termination reason convention.** When `phase: aborted` is reached, write one line to state.md body under `## Termination reason`: `repeated-failure: phase-N retry-limit` / `safety-denied: <rule>` / `tool-unavailable: <tool>` / `user-cancelled: <wrong-worktree | no-ticket-id | spec-replan>` for the three Phase 1 cancel picks above. The SessionStart hook re-injects this on resume. A Step 0 cancel that fires before Phase 1 Step 4 created the task directory has no state.md to write — say so in plain English and exit; nothing was mutated and there is nothing to resume.
 
 ---
 
 ## Loop invariants
 
-The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across all 3 phases. Two apply with implementation-specific bounds: invariant 4 caps reviewer-agent output at ~4000 chars per dimension (Bash output >8000 chars summarized before downstream use); invariant 5's bounded retry loops are 3 rounds in Phase 2 and 3 rounds in Phase 3, escalating early when the loop is not converging — canonical trigger list, and the once-per-run dedupe that spans both loops, in `phase-2-implement.md` §Step 6. This skill adds three invariants:
+The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across all 3 phases. Two apply with implementation-specific bounds: invariant 4 binds reviewer-agent output to the per-dimension report cap its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap), and Bash output past 8000 chars is summarized before downstream use; invariant 5's bounded retry loops are 3 rounds in Phase 2 and 3 rounds in Phase 3, escalating early when the loop is not converging — canonical trigger list, and the once-per-run dedupe that spans both loops, in `phase-2-implement.md` §Step 6. This skill adds three invariants:
 
 8. **Investigation reads delegated to subagents.** Phase 1 inline-Reads only the custom instructions (3 files), the project snapshot (2 files), spec.md body, and state.md. `.claude/rules/*.md` bodies, exemplar source files, past-learning entries, and prior plans are spawned out to the `knowledge-retrieval-agent` + `codebase-explorer-agent` pair (the explorer takes spec.md and returns a REUSE/EXTEND/NO-ANALOGUE inventory) and read back as condensed reports. Inline-reading the rest is the documented context-bloat regression.
 9. **One todo in_progress at a time.** Phase 2's TodoWrite decomposition enforces sequential focus. Marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop).

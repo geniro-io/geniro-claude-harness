@@ -31,23 +31,36 @@ clean_task_transients() {
   local task_dir="${1:-}"
   [ -n "$task_dir" ] || return 0
   [ -d "$task_dir" ] || return 0
-  # .research-*.md covers .research-out.md, /geniro:plan's per-facet
-  # .research-<facet>.md, and the Phase 4 .research-critique-*.md critiques.
   rm -f \
     "$task_dir"/.kr-out.md \
     "$task_dir"/.ce-out.md \
     "$task_dir"/.tr-out.md \
     "$task_dir"/.adversarial-out.md \
     "$task_dir"/.spec-challenge-out.md \
-    "$task_dir"/.research-*.md \
     "$task_dir"/notes.md \
     "$task_dir"/playwright-verify.png \
     2>/dev/null
+  # .research-*.md covers .research-out.md, /geniro:plan's per-facet
+  # .research-<facet>.md, and the Phase 4 .research-critique-*.md critiques.
+  # Matched with find, not a glob: zsh sets NOMATCH by default, so an unmatched
+  # glob aborts the WHOLE rm — which would silently skip every literal above it
+  # too, making the helper a no-op under the shell the Bash tool often runs.
+  find "$task_dir" -maxdepth 1 -name '.research-*.md' -type f -exec rm -f {} + 2>/dev/null
   return 0
 }
 
 # Allow direct CLI invocation for tests and ad-hoc cleanup:
 #   clean-task-transients.sh .geniro/planning/<task-dir>
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+# bash: executed ⇔ BASH_SOURCE[0] == $0. zsh: sourcing appends ":file" to
+# ZSH_EVAL_CONTEXT; direct execution leaves it "toplevel" (the bash test would
+# mis-read both zsh cases as sourced, since BASH_SOURCE is empty there — and an
+# unguarded ${BASH_SOURCE[0]} aborts the whole source under `set -u`).
+_ctt_direct=0
+if [ -n "${ZSH_VERSION:-}" ]; then
+  case "${ZSH_EVAL_CONTEXT:-toplevel}" in *:file*) ;; *) _ctt_direct=1 ;; esac
+elif [ "${BASH_SOURCE[0]:-}" = "${0:-}" ]; then
+  _ctt_direct=1
+fi
+if [ "$_ctt_direct" = "1" ]; then
   clean_task_transients "${1:-}"
 fi

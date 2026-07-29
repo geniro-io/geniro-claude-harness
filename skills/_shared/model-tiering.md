@@ -1,4 +1,4 @@
-# Model Tiering — Canonical Rule
+# Model tiering — canonical rule
 
 Single source of truth for picking a `model=` when spawning subagents from any skill in this plugin.
 
@@ -23,13 +23,13 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
 1. **User-authored custom reviewers** (`.geniro/instructions/review-extra/<slug>.md` with an explicit `model:` field). That's the user's own opt-in — their declaration overrides inherit. Absent declaration in custom-reviewer frontmatter = inherit (NOT a hidden default to Sonnet).
 
 2. **Plugin-defined mechanical-only spawn sites** whose workload is a fixed check-and-report:
-   - `skills/setup/SKILL.md` verification subagent → `model="sonnet"` — runs a fixed check list against the generated CLAUDE.md and emits PASS / DRIFT lines. No hypothesis generation and no judgment call: the orchestrator re-decides from those lines, so output quality does not scale with orchestrator tier. Same mechanical shape as the category-3 agents below, hardcoded at the spawn site because this spawn has no agent file to carry the tier in frontmatter.
+   - `/geniro:setup`'s Phase 4 verification subagent → `model="sonnet"` — runs a fixed check list against the generated CLAUDE.md and emits PASS / DRIFT lines. No hypothesis generation and no judgment call: the orchestrator re-decides from those lines, so output quality does not scale with orchestrator tier. Same mechanical shape as the category-3 agents below, hardcoded at the spawn site because this spawn has no agent file to carry the tier in frontmatter.
 
    The site carries an inline comment justifying the exemption. Any new hardcode requires the same justification — and the justification names what actually constrains the spawn (a mechanical, re-decidable output), never a tool restriction the spawn call cannot express: the Agent tool takes no `tools=` argument, so a tier defended by a claimed tool budget is defended by nothing. A hardcoded tier is a speed/cost preference, not a hard requirement — apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` so the spawn degrades to inherit (then inline) when the target tier is unavailable in the runtime (e.g. a Haiku spawn from a 1M-context Opus/Sonnet session returns `0 tokens`, since Haiku has no 1M-context variant).
 
 3. **Plugin-defined mechanical / recoverable-evidence agents** that declare a concrete cheaper tier in their OWN frontmatter (so every spawn site still OMITs `model=` and the frontmatter governs — the universal spawn-site rule is unchanged):
-   - `agents/test-runner-agent.md` → `model: sonnet` — runs the test command and parses stdout into a fixed `{ALL_GREEN|HAS_FAILURES|INFRA_ERROR}` verdict plus capped failure snippets. No hypothesis generation or judgment: the orchestrator re-decides from the verdict and re-greps the saved log, so output quality does not scale with orchestrator intelligence. Pure mechanics.
-   - `agents/knowledge-retrieval-agent.md` → `model: sonnet` — mechanical search-and-cite across the memory layers; its one relevance filter is a one-line, hard-capped, citation-recoverable gate, so a weaker model's failure mode is bounded padding (which the orchestrator filters via the citations), not missed knowledge.
+   - `${CLAUDE_PLUGIN_ROOT}/agents/test-runner-agent.md` → `model: sonnet` — runs the test command and parses stdout into a fixed `{ALL_GREEN|HAS_FAILURES|INFRA_ERROR}` verdict plus capped failure snippets. No hypothesis generation or judgment: the orchestrator re-decides from the verdict and re-greps the saved log, so output quality does not scale with orchestrator intelligence. Pure mechanics.
+   - `${CLAUDE_PLUGIN_ROOT}/agents/knowledge-retrieval-agent.md` → `model: sonnet` — mechanical search-and-cite across the memory layers; its one relevance filter is a one-line, hard-capped, citation-recoverable gate, so a weaker model's failure mode is bounded padding (which the orchestrator filters via the citations), not missed knowledge.
 
    Both pin **`sonnet`, never `haiku`**: the fallback tier table below would place these mechanical workloads at haiku, but Haiku 4.5 has no 1M-context variant, so a haiku-frontmatter agent returns `0 tokens` when spawned from a 1M-context Opus/Sonnet session. Sonnet is the safe floor. These are deliberate cost optimizations on genuinely mechanical agents — distinct from the reviewer / codebase-research / codebase-explorer / reflection / adversarial-tester agents, whose output quality scales with orchestrator intelligence and which therefore stay `inherit` (pinning those cheaper is the paternalism anti-pattern below).
 
@@ -67,7 +67,7 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 
 Add this one-liner near the top of any delegating skill:
 
-> **Subagent model selection:** Follow `skills/_shared/model-tiering.md`. Plugin subagent spawns OMIT `model=`; the two narrow hardcode carve-outs are documented inline at their spawn sites.
+> **Subagent model selection:** Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Plugin subagent spawns OMIT `model=`; the narrow hardcode carve-outs are documented inline at their spawn sites.
 
 ## Anti-rationalization
 

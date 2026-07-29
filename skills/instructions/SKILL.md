@@ -9,6 +9,26 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 # Instructions: custom instruction management
 
+## Contents
+
+- Loop invariants
+- Anti-rationalization
+- Definition of done
+- Budgets — quality-first
+- ACI surface per phase
+- Termination case → state mapping
+- Valid scope set
+- File shapes
+- Frontmatter field reference (`review-extra/<slug>.md`)
+- Phase 1 — parse intent
+- Phase 2 — execute (mode dispatch) + Batch Mode
+- Modes: list / create / edit / validate / delete
+- Memory I/O
+- Writing effective instructions
+- Cross-references
+
+---
+
 3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
@@ -33,7 +53,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 ## Anti-rationalization
 
-| Reasoning | Why it's wrong |
+| Your reasoning | Why it's wrong |
 |---|---|
 | "I'll auto-fix `validate` issues to save the user a step" | No — auto-fix would silently mutate user-authored content. `validate` reports; user fixes via `edit`. |
 | "I'll silently overwrite existing instruction file" | No — for `create` on existing, present overwrite/edit-instead/cancel via AUQ. |
@@ -104,9 +124,9 @@ Three shapes across the scope set. The schema itself is owned by the loader that
 - **`memory`** — its own `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only; no Rules / Constraints / Additional Steps.
 - **`review-extra/<slug>`** — directory-style, one file per custom reviewer, with YAML frontmatter (fields below) plus a `# Criteria` body.
 
-The optional `## Data Sources` section declares read-only sources the verification step in `/geniro:plan` and `/geniro:implement` cross-checks load-bearing facts against (related-task chain statuses + the spec's cited claims). Each entry is a label + a `(confirms: <fact kind>)` hint + ONE source: a backticked read-only shell command, an MCP tool name, or an action name. The full contract — discovery, read-only screening, the max-source cross-check, and per-fact outcomes — lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`. Applies to `global` and the per-skill scopes; absent = no declared sources (verification falls back to the built-in code / git / tracker sources).
+The optional `## Data Sources` section — valid in `global` and the per-skill scopes — declares the read-only sources the `/geniro:plan` and `/geniro:implement` verification steps cross-check load-bearing facts against; its entry shape, discovery, and read-only screening are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`, and an absent section just means no declared sources.
 
-`memory.md` is loaded alongside `global.md` for every skill. The `## Memory Backend` section routes the L2 learnings layer through a custom backend — typically a memory MCP — so agentic knowledge is stored/retrieved there instead of, or alongside, the built-in `.geniro/knowledge/learnings.jsonl`. Each entry names a `layer` (`learnings`), a `mode` (`mirror` = file + backend, the default; `replace` = backend only), and a `write` + read-only `read` MCP-tool (or action). The full routing contract — orchestrator-consumed at the `emit-learning` / `query-learnings` call-sites, redact-before-store, read-only-screened, fail-open to the file — lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`. Absent file/block = built-in file, unchanged.
+`memory.md` is loaded alongside `global.md` for every skill, and its `## Memory Backend` section routes the learnings layer through a custom backend (typically a memory MCP); the entry shape and the full routing contract are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`, and an absent file or block leaves the built-in `.geniro/knowledge/learnings.jsonl` in use unchanged.
 
 ## Frontmatter field reference (`review-extra/<slug>.md`)
 

@@ -200,6 +200,8 @@ The `block-config-weakening.sh` PreToolUse hook — which hard-blocked edits to 
 
 ### `/geniro:review` re-runs can collapse unchanged repeat findings into a Carried-over section
 
+> **Superseded — historical record only.** The Carried-over section and the repeat-handling choice this entry introduces were both removed by *"`/geniro:review` re-runs no longer collapse repeats into a Carried-over section"* (above). Nothing described below still fires — an unchanged repeat stays in the main `## Findings` list, and the `rereview_repeat_handling` approvals category is retired. Follow the removal entry, not this one. No action.
+
 A round ≥2 `/geniro:review` re-run now offers a "Repeat findings" choice at the re-review gate: move unchanged repeats (issues raised in an earlier round and never fixed, surfacing identically this round) into a collapsed `## Carried-over from round <N>` handoff section, or keep every repeat in the main findings list. The choice routes presentation only — under either pick every repeat stays in the report and in the handoff, and a repeat that strengthened since last round (fresh convergence, a newly-reachable code path, or a verifier confirmation absent before) still promotes back to the active `## Findings` list. The pick persists as a new `approvals[]` category `rereview_repeat_handling`. A first review or fresh-PR round has no prior round to carry over from, so the section and the choice never appear there.
 
 **Action required:** None — first-review and fresh-PR runs are unaffected; the new section and gate only appear on a round ≥2 re-run, and the collapse is opt-in per run.

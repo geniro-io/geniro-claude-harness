@@ -7,7 +7,23 @@ allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep]
 argument-hint: "[--dry-run]"
 ---
 
-# /geniro:update — Update Plugin
+# /geniro:update — update plugin
+
+## Contents
+
+- Path constraints
+- Loop invariants
+- Anti-rationalization
+- Budgets — quality-first
+- ACI surface per phase
+- Termination case → message
+- User-content snapshot
+- Phase 1 — pre-check · Phase 2 — update · Phase 3 — post-check · Phase 4 — migration
+- Done — final report
+- Memory I/O
+- REFERENCE
+
+---
 
 4-phase loop: **Pre-check → Update → Post-check → Migration**. Stateless.
 
@@ -347,7 +363,7 @@ After last entry: terminate and emit final report.
 
 When the shared walk reports the file as malformed (§3 there), skip the rest of Phase 4 and emit its warning line here: `[warn] MIGRATION.md present but malformed — proceeding without walk`.
 
-**Auto-fix safety:** "Fix it for me" runs ONLY the `Auto-fix:` commands documented in MIGRATION.md — no improvised mutations. Each `Auto-fix:` command is written by the plugin maintainer and tested. The single sanctioned deviation is the live-task guard above: restricting a delete-class command to the orphan subset of its detected paths (same operation, narrower target set) — widening scope, changing the operation, or improvising a different fix stays forbidden. Entries whose `Auto-fix:` value is `manual-only` (matched case-insensitively) require user action — print the manual steps instead.
+**Auto-fix safety:** each `Auto-fix:` command is written by the plugin maintainer and tested, so "Fix it for me" runs those commands and nothing else — an improvised fix is untested against the install it is about to mutate.
 
 ## Done — final report
 

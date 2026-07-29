@@ -4,6 +4,17 @@ Canonical procedure for consuming the plugin's maintainer-authored `MIGRATION.md
 
 Consumers: `/geniro:update` Phase 4 (per-entry interactive walk) and `/geniro:setup` §3.0 (re-run migration sweep). Each consumer owns its own **apply policy** — what happens to an entry once this procedure has classified it as applicable — and states that policy in its own skill body. Everything up to and including the classification lives here; cite this file rather than inlining a second copy, so the two consumers cannot drift apart on the shell-safety rules in §4.
 
+## Contents
+
+- §1 Caller contract — invocation slots and what comes back
+- §2 Locate the file
+- §3 Parse — walk every entry, never gate on the version heading
+- §4 Run the auto-detect — the `N/A` guard, bash, isolation
+- §5 Classify — applicable or not
+- §6 Verify after a fix
+- §7 Anti-rationalization
+- §8 Definition of Done
+
 ## 1. Caller contract
 
 | Slot | Meaning |
