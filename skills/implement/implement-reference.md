@@ -151,6 +151,7 @@ No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 
 | free-form description, no path match | Inline-task mode: treat `$ARGUMENTS` as a raw spec description; Phase 1 produces a minimal inline plan and proceeds. |
 | ambiguous (bare slug that could be a task name OR a description) | AUQ with 2-3 disambiguation options. Persist outcome to state.md frontmatter `approvals[]` with `category: disambiguate_arguments`. |
 | natural-language modifier present (`don't push`, `draft only`, `stop after review`, `with PR`, `commit only`) | Honored semantically by Phase 3 Ship sub-step (a bare `with PR`/`open PR` with no draft-vs-ready qualifier routes to the ship-mode gate rather than skipping it — see the Ship sub-step modifier table). Modifier survives in $ARGUMENTS and is consulted at relevant decision points. No CLI flag rewrite needed. |
+| per-unit-review modifier present (`--confirm-each`, `confirm each change`, `check with me on each change`, `review each change with me`) | Turns on the Phase 3 pre-commit change-unit walk (§"Confirm-each walk"). Consulted at the Ship sub-step, so the modifier survives in $ARGUMENTS like the ship-mode ones. |
 
 **Workflow-integration plumbing.** Workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A). Glob both `./.geniro/workflow/*.md` (cwd-local — uncommitted local edits win) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback) to find all available tracker integrations. If files exist with argument-detection patterns (e.g., Linear issue IDs, GitHub URLs), apply their patterns FIRST — they may inject extra context (issue body, status transition) before the semantic-parse table above runs. Integrations are non-blocking: if a workflow's backend (e.g., MCP) is unavailable, log a warning and proceed without.
 
@@ -674,6 +675,31 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 8. **Cleanup.** Stop only the dev server step 1 started (the recorded PID); a server the user already had running stays up, since killing it takes down work outside this task.
 
 **Reporting:** summarize in 3-5 lines — interaction result, console/network status, responsive issues (if swept), screenshot path. If issues were found, render them to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — the issue list as a mini-table (risk · symptom you'd see · severity, the risk-finding shape from the same contract's §Finding-type visual map), each issue described in plain English with the screenshot it appears in referenced by path — then fire the lean `AskUserQuestion` with options: "Fix and re-verify" (route through Adjustment Routing Small tweak path below — this section re-fires after the next clean review if UI files remain in the diff), "Ship anyway with noted issues" (append to state.md `## Visual Verification Notes` and proceed to ship-mode AUQ), or "Abort" (`phase: aborted` terminal).
+
+---
+
+### Confirm-each walk
+
+Ship sub-step 1.5, on `--confirm-each` runs only — absent the modifier the section is a silent no-op. It runs after the review converged and before the commit: the diff is finished, tested, and reviewed, so each unit is a whole change the user can judge and undo on its own.
+
+**The change unit.** Spec-driven run: one unit per spec section-6 Step, carrying the files that Step touched. Inline-task run (no Steps): group the diff into coherent per-file or per-concern units — a file whose edits serve one purpose is one unit, and a purpose spread across files (a rename, or one endpoint's handler + route + test) is one unit rather than three. Name each unit in plain English; a changed file no unit claims joins the unit whose purpose it serves.
+
+**Per unit.** Render the unit to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — what the unit changes and why, the files it touches, and its diff hunks as the visual — then fire ONE lean `AskUserQuestion` (header: `"Review this change"`) about that unit alone, per the same file's §Single-finding gate (one item per call, the pre-fire scrub, §Cap-extension). Options:
+
+- **"Looks good"** — accept the unit as it stands; move to the next.
+- **"Adjust it"** — the correction arrives in the user's next message.
+- **"Undo this change"** — restore only this unit's files.
+- **"Explain further"** — the reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option; writes no decision and consumes no adjust round.
+
+**Adjust branch.** Collect the correction, re-apply THIS unit only (Edit-driven, no agent spawns, no other unit touched), re-verify it, then re-render the unit and re-ask. Bounded at 3 adjust rounds per unit: entering a fourth, say so in plain English and re-ask without the adjust option, so the unit closes on accept or undo instead of looping.
+
+**Undo branch.** Restore the unit's paths by name — `git restore --source=HEAD -- <path>`, one pathspec per file. Never a bare `.` or `*` pathspec: it discards every uncommitted change in the tree including the units already accepted, and the git guardrail hook blocks it. Drop the restored files from the CHANGED_FILES set step 2 stages.
+
+**Persist each pick** to state.md `approvals[]` via `atomic_state_write` in the turn it is made — `{category: change_unit_confirmation, unit: <plain-English unit name>, picked: <chosen option>, at: <ISO-8601 UTC>}`. A unit that already carries an entry is re-applied on resume, never re-asked, so a compaction mid-walk resumes at the first unanswered unit.
+
+**Close on current evidence.** When any adjust or undo changed the tree, re-spawn `test-runner-agent` once after the last unit settles and quote THAT Verdict in the ship report — a walk that edits code after Phase 3's green run leaves the recorded result stale. A Verdict other than ALL_GREEN routes through the existing Phase 2 rollback rule.
+
+**Not ship consent.** Accepting every unit approves the changes the walk rendered, nothing further: the step-4 ship-mode AUQ still fires, because an approval covers only the action classes the user was shown and never compounds (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`).
 
 ---
 

@@ -4,7 +4,7 @@ description: "Use when shipping a new feature, endpoint, page, or significant ch
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, EnterWorktree, ExitWorktree, Workflow]
-argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep]"
+argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep] [--confirm-each]"
 ---
 
 # Implement: 3-phase autonomous loop
@@ -92,7 +92,7 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "/geniro:implement should ask user before each Edit — safety first." | Phase 2 is the execution phase, and pre-approval lives upstream: the spec.md /geniro:plan emitted IS the pre-approval. Per-Edit AUQs defeat the spec-driven autonomy this skill is designed for. |
+| "/geniro:implement should ask user before each Edit — safety first." | Phase 2 is the execution phase, and pre-approval lives upstream: the spec.md /geniro:plan emitted IS the pre-approval, so per-Edit AUQs defeat the spec-driven autonomy this skill is designed for. Mid-flight edits are also not reviewable units — a half-applied change is an intermediate state the user cannot judge, and declining one strands the tree between two coherent shapes. Per-unit review is served instead by the `--confirm-each` modifier: its walk runs pre-commit in Phase 3 over the finished diff, where each unit is complete, verified, and revertible on its own. |
 | "Phase 2 should fan out subagents — parallel backend/frontend agents, or one subagent per todo — to save wall-time or keep context lean." | Fan-out of COUPLED work is the documented anti-pattern: parallel agents editing tightly-interdependent code (shared contracts, types, imports) produce style drift, duplicated implementations, and contradictions lint/compile cannot catch. The sanctioned form is Phase 2's delegation rule — only an independent, self-contained slice with a disjoint file set, and only such slices in parallel; everything coupled stays with the one orchestrator, which reads every delegate's diff before accepting it. |
 | "Mark all todos in_progress at start so the orchestrator can interleave work." | Forbidden by Loop invariant #9. Mark the next todo `in_progress` only after the current todo completes. |
 | "Skip TodoWrite — it's overhead; the orchestrator knows the spec already." | TodoWrite gives the user real-time per-unit progress visibility; without it, Phase 2 is a black box until tests run. Not optional. |
@@ -221,7 +221,7 @@ State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step. **On
 
 Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministically. Two tables own the rows at their point of use:
 
-- **Workspace + adversarial-tester modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 0b "Inline modifier overrides".
+- **Workspace and run-behavior modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 0b "Inline modifier overrides".
 - **Ship-mode modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Inline modifiers from $ARGUMENTS".
 
 When no ship-mode modifier is present, the ship-mode AUQ fires. On conflicting modifiers, last-occurrence wins; emit a soft notice naming both detected variants.
