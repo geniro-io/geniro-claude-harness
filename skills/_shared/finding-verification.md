@@ -130,7 +130,7 @@ For each cluster:
   5. Add to parallel-spawn batch.
 
 After loop:
-  Send ALL spawn calls in ONE assistant response (parallel).
+  Send the accumulated batch (the invariant below governs how).
   - Use `Agent(subagent_type="geniro:reviewer-agent", ...)` per the ladder in
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
   - OMIT `model=` (orchestrator tier inherits via frontmatter `model: inherit`) per
