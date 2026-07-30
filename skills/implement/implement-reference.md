@@ -688,16 +688,16 @@ Ship sub-step 1.5, on `--confirm-each` runs only — absent the modifier the sec
 
 - **"Looks good"** — accept the unit as it stands; move to the next.
 - **"Adjust it"** — the correction arrives in the user's next message.
-- **"Undo this change"** — restore only this unit's files.
+- **"Undo this change"** — take only this unit's files back to how they were before the run.
 - **"Explain further"** — the reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option; writes no decision and consumes no adjust round.
 
 **Adjust branch.** Collect the correction, re-apply THIS unit only (Edit-driven, no agent spawns, no other unit touched), re-verify it, then re-render the unit and re-ask. Bounded at 3 adjust rounds per unit: entering a fourth, say so in plain English and re-ask without the adjust option, so the unit closes on accept or undo instead of looping.
 
-**Undo branch.** Restore the unit's paths by name — `git restore --source=HEAD -- <path>`, one pathspec per file. Never a bare `.` or `*` pathspec: it discards every uncommitted change in the tree including the units already accepted, and the git guardrail hook blocks it. Drop the restored files from the CHANGED_FILES set step 2 stages.
+**Undo branch.** Take the unit's files back to their pre-run state, naming each path explicitly. A path that exists in `HEAD` is restored from it (`git restore --source=HEAD -- <path>`); a path this run created has no `HEAD` version — that restore fails on it, so delete the file instead. A unit can hold both, and created files are the normal case here (a new module, or a test the adversarial-tester authored). Never a bare `.` or `*` pathspec: it discards every uncommitted change in the tree including the units already accepted, and the git guardrail hook blocks it. Drop the undone files from the CHANGED_FILES set step 2 stages.
 
 **Persist each pick** to state.md `approvals[]` via `atomic_state_write` in the turn it is made — `{category: change_unit_confirmation, unit: <plain-English unit name>, picked: <chosen option>, at: <ISO-8601 UTC>}`. A unit that already carries an entry is re-applied on resume, never re-asked, so a compaction mid-walk resumes at the first unanswered unit.
 
-**Close on current evidence.** When any adjust or undo changed the tree, re-spawn `test-runner-agent` once after the last unit settles and quote THAT Verdict in the ship report — a walk that edits code after Phase 3's green run leaves the recorded result stale. A Verdict other than ALL_GREEN routes through the existing Phase 2 rollback rule.
+**Close on current evidence.** When any adjust or undo changed the tree, re-spawn `test-runner-agent` once after the last unit settles and quote THAT Verdict in the ship report — a walk that edits code after Phase 3's green run leaves the recorded result stale. A Verdict other than ALL_GREEN sends the run back to Phase 2's fix loop — `phase: implement`, the `ship → implement` edge in `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §State machine — never to the commit. The picks already in `approvals[]` survive that rollback, so the walk resumes instead of re-asking a settled unit.
 
 **Not ship consent.** Accepting every unit approves the changes the walk rendered, nothing further: the step-4 ship-mode AUQ still fires, because an approval covers only the action classes the user was shown and never compounds (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`).
 

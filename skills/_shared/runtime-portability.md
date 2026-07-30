@@ -42,9 +42,9 @@ If Cursor is the host and the plugin's Cursor hook set is installed (see `cursor
 
 No context is auto-injected on resume. When asked to resume or continue a task, locate the task's `state.md` yourself, run `validate_state_file` on it, then follow the skill's own state-recovery entry (`phase:` frontmatter). Re-read the custom-instruction files and any persisted `approvals: []` before acting — nothing re-surfaces them for you.
 
-## Skills that require Claude Code
+## What requires Claude Code
 
-`/geniro:reflect` (Claude Code transcript layout) and `/geniro:update` (`claude plugin` CLI and install registry) function only under Claude Code. When invoked elsewhere, state that plainly and exit without side effects.
+`/geniro:reflect`'s past-session shapes — a search string, or an empty argument — read session transcripts from the Claude Code on-disk layout, and `/geniro:update` needs the `claude plugin` CLI and install registry. Both function only under Claude Code; when invoked elsewhere, state that plainly and exit without side effects. `/geniro:reflect --this-session` runs here — it mines the running conversation and reads no transcript file — provided the host has a delegation facility: its synthesis spawn is the isolation that shape depends on, so the inline-agent substitution above does not cover it.
 
 ## Skill and agent naming
 

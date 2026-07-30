@@ -1,6 +1,6 @@
 ---
 name: reflection-agent
-description: "Post-task improvement synthesizer. Spawned by /geniro:reflect (user-invoked, on-demand) to extract durable project-rule candidates from recent work — a diff, a finding set, or session-transcript extracts — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
+description: "Post-task improvement synthesizer. Spawned by /geniro:reflect (user-invoked, on-demand) to extract durable project-rule candidates from recent work — a diff, a finding set, or session extracts drawn from past transcripts or from the running session — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
 model: inherit
 readonly: true
 ---
