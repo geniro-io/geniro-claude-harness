@@ -9,7 +9,7 @@ Helpers reference this spec:
 ## Contents
 
 - Tier model — the four tiers and their lifecycle contracts
-- Path roots — which files live under each tier (plus the tier-exempt TDD-cycle and verification-cache state files)
+- Path roots — which files live under each tier (plus the tier-exempt TDD-cycle state file)
 - No ad-hoc state files under `.geniro/state/` — free-form files bypass the validator, restore hook, and cleanup
 - Frontmatter contract — common-base + tier-specific required fields
 - T2 `open_questions` array schema — the handoff gate substrate
@@ -23,7 +23,7 @@ Helpers reference this spec:
 
 ## Tier model
 
-Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract — with two documented exceptions, the TDD-cycle state file and the verification cache (see §Path roots → Tier-exempt).
+Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract — with one documented exception, the TDD-cycle state file (see §Path roots → Tier-exempt).
 
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
@@ -93,7 +93,6 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 ### Tier-exempt — TDD-cycle state file
 
 - `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; the PreToolUse hook `enforce-tdd-order.sh` reads it; subagents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase so the hook can gate `Edit`/`Write` at the right moment (the hook reads `## phase` alone — it does not store or compare a per-cycle target path) — it is not a frontmatter-bearing durable artifact and is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
-- `.geniro/planning/<task-dir>/.verify-cache.json` — the cross-phase build/lint/test PASS cache (full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-cache.md`). Like the TDD-cycle file it is single-writer (orchestrator-only; subagents emit `## Checks Report` sections instead of writing it), written via `mktemp` + `mv -f` rather than `atomic_state_write`, carries no frontmatter, and is never passed through `validate_state_file`. It is a regenerable cache — discarded on any invalidation per verification-cache.md §Invalidation rules, not a durable artifact.
 
 ### No ad-hoc state files under `.geniro/state/`
 
@@ -119,8 +118,8 @@ Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never 
 
 | Tier | Additional required fields |
 |---|---|
-| T1 | `phase`, `status`, `non-resumable-actions` |
-| T1.5 | `phase`, `status`, `non-resumable-actions` (same shape as T1; differs in lifecycle) |
+| T1 | none in practice — real T1 files carry no frontmatter (§Path roots → T1) and never reach the validator. A file that nonetheless declares `tier: T1` is validated against the T1.5 field set. |
+| T1.5 | `phase`, `status`, `non-resumable-actions` |
 | T2 | `consumer`, `open_questions` (array; MAY be empty `[]` when producer surfaced none) |
 | T3 | `concurrency` (enum `append-only\|crud`) |
 
@@ -136,9 +135,9 @@ Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never 
 | `geniro_kind` | Producer schema marker — informational only |
 | `geniro_schema_version` | Producer schema-version marker — informational only. For spec.md (`geniro_kind: design-doc`) the additive-optional frontmatter blocks bump it: `m5-v2`/`m5-v3` carry `workflow_refs[]` (tracker linkage + chain enrichment), `m5-v4` carries the optional `launch_config` block (`/geniro:plan`'s pre-set of `/geniro:implement`'s launch settings; canonical `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`). All of `m5-v1`..`m5-v4` are valid downstream; each block is additive-optional (absent = unchanged behavior). |
 
-### T1 optional `approvals` array
+### T1.5 optional `approvals` array
 
-Persisted AUQ outcomes for compaction-survival. Only **one-time** decisions (e.g., `$ARGUMENTS` disambiguation, ship-mode). Context-dependent decisions (escalation, retry choices) are NOT persisted.
+Persisted AUQ outcomes for compaction-survival — written to T1.5 `state.md` files, and carried onto T2 handoffs by the producers that write one. Only **one-time** decisions (e.g., `$ARGUMENTS` disambiguation, ship-mode). Context-dependent decisions (escalation, retry choices) are NOT persisted.
 
 ```yaml
 approvals:

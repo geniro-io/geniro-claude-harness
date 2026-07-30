@@ -4,7 +4,7 @@ description: "Use when starting fresh in an unfamiliar codebase and need rapid o
 context: main
 model: inherit
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
-argument-hint: "[optional: --focus area1,area2 --depth N]"
+argument-hint: "[optional: --focus area1,area2 --depth N --cap N]"
 ---
 
 # Onboard: rapid codebase orientation
@@ -57,8 +57,6 @@ When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate det
 
 **Map quality bar:** under 1000 lines, skimmable in 5 minutes.
 
-**Compatibility:** `<PRIMARY_ROOT>/.geniro/planning/CODEBASE_MAP.md` (without underscore) is read once at Phase 1 for context, then the new write lands at the underscored canonical path `_CODEBASE_MAP.md`.
-
 ## State machine
 
 ```
@@ -73,11 +71,14 @@ Terminal states: `done`, `map-truncated`, `aborted`, `routed`. The SessionStart 
 
 ## Loop invariants
 
-The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply throughout /geniro:onboard. Three skill-specific notes:
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply throughout /geniro:onboard, with two onboard-specific bindings:
 
-1. **Bounded structured tool results** — repo-scan output (file list, directory tree) is bounded; long lists truncated with marker.
-2. **Errors → structured observations** — permission errors during scan, missing access become structured `## Errors` body section entries.
-3. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+- **Invariant #4 (bounded structured tool results)** — repo-scan output (file list, directory tree) is bounded; long lists truncated with marker.
+- **Invariant #7 (errors → structured observations)** — permission errors during scan and missing access become `## Errors` body section entries.
+
+This skill adds one invariant:
+
+8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **`## Tool log` section in state.md:** selective logging — log L3 writes (`_CODEBASE_MAP.md` write via `update-semantic`), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash skipped.
 
@@ -113,7 +114,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 - Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskUserQuestion (the §2.3.5 improvement-candidate presentation) / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
 - Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
-Existing safety hooks apply across all phases (file-protection / git-guardrail / `.geniro/` deletion guard).
+The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 

@@ -40,7 +40,9 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` § Visual rendering language — the shared visual language for gate messages rendered to chat before a lean question
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — the PRODUCT-DECISION ADR-path (4th AskUserQuestion option, included only when ADR-eligible)
 
-**Section-reference convention:** within this SKILL.md, bare `§N.M` refs point to local Phase sub-sections (Phase 1, Phase 2, Phase 3 respectively); `§ <name>` refs name a section inside the cited `_shared` helper. `refactor-reference.md` numbers its own top-level sections 1-3 (State machine / Schema / Spawn template), so any Phase reference there is written `Phase N §N.M` to avoid colliding with those.
+**Phase bodies.** Phase 1's Steps stay in this file; Phase 2 and Phase 3 live in sibling files, Read on entry to that phase and again on any resumption of it, including after a compaction: `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`.
+
+**Section-reference convention:** bare `§N.M` refs point to Phase sub-sections — `§1.M` here in the spine, `§2.M` in `phase-2-apply.md`, `§3.M` in `phase-3-verify.md`; `§ <name>` refs name a section inside the cited `_shared` helper. `refactor-reference.md` numbers its own top-level sections 1-3 (State machine / Schema / Spawn template), so any Phase reference there is written `Phase N §N.M` to avoid colliding with those.
 
 ---
 
@@ -58,7 +60,7 @@ state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path).
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
 
-**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary; state.md `phase:` says where to resume.
+**After a compaction, re-Read the current phase's body file before continuing it** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. state.md `phase:` says which file that is.
 
 ---
 
@@ -111,7 +113,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | Per-step retry (orchestrator-inline Blocked Step Protocol) | 3 | Mark BLOCKED, continue to next step |
 | Session-level blocked ratio | 30% (post-rejection denominator) | AUQ — keep what worked & escalate / revert / force-continue. User picks. |
 | Phase 3 fix-loop | 1 round | Re-spawn reviewer once; if still failing, AUQ (escalate / accept / abort). |
-| Reviewer output size | ~4000 chars per dim | Truncation with marker (canonical invariant #4). |
+| Reviewer output size | the per-dimension report cap in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap | Truncation with marker (canonical invariant #4). |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -173,7 +175,7 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
 
-**Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard. Runtime denies stay enforced.
+The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 
@@ -325,7 +327,7 @@ Synthesis matrix per smell:
 
 KEEP smells enter plan-build. FILTERED smells are noted in state.md `## Filtered smells` section with the synthesis reason. No fail-open caveat needed — dedup and judgment run in orchestrator's main context.
 
-### 1.6 Risk classification + plan build + approval AUQ
+### 1.6 Risk classification, plan build, and approval
 
 Orchestrator builds the plan from the smell-evidence inline output (Medium+) or directly from scope-files (Trivial/Small):
 
@@ -352,171 +354,13 @@ state.md transitions: `plan` → `apply` once approval complete. `## Plan` body 
 
 ## Phase 2 — apply
 
-state.md `phase: apply`. The orchestrator executes the approved plan, one step at a time, with per-step validation. The zero-behavior-change guarantee is enforced via the per-step regression test pass.
-
-### 2.1 Refresh custom instructions on entry
-
-On Phase 2 entry, single `load-custom-instructions(MODE: refresh, scope: refactor + global + code-style — pipeline tier, 3 files)` call. Phase 3 inherits the Phase 2 refresh (no code-writing in Phase 3).
-
-### 2.2 Per-step execution (orchestrator-inline)
-
-The orchestrator executes the approved plan inline, one step at a time — no subagent spawn. Sequential per-step refactoring needs continuous state across steps, which a spawned subagent loses; running inline preserves state continuity and halves test runs via the per-step regression-skip predicate.
-
-**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 3 — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. The orchestrator applies this verbatim inline.
-
-**Pre-loop setup:**
-
-- Read the approved plan from state.md `## Plan steps` (skipping any HIGH steps the user rejected in the Phase 1 §1.6 approval gate).
-- Read code-style content as echoed by the load-custom-instructions loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
-- Resolve test commands: `<test_cmd_affected>` from CLAUDE.md's Essential Commands (per-step gate; falls back to `<test_cmd>` if undefined); `<test_cmd>` for final regression.
-- Anchor: verify `pwd && git branch --show-current` once at entry; abort if either differs from baseline.
-
-**Per-step loop** (orchestrator runs sequentially for each pending step):
-
-For each step N in `## Plan steps` where `status: pending`:
-
-1. **Re-read the target files** (Read tool) — capture current state of files affected by step N.
-2. **Pre-condition check** (orchestrator applies skip predicate per `refactor-patterns.md` Phase 3 Step 2):
-- REQUIRED if N == 1, OR `last_post_check == unset|REVERTED`, OR external edits intervened
-- SKIPPED if N > 1 AND `last_post_check == PASS` (no edits intervene between sequential transformations — the previous step's post-check already validated the same baseline)
-- When required: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check step <N>" "<test_cmd_affected>"`. On fail: stop and report (broken baseline).
-3. **Apply change** (Edit tool, surgical, scope-bounded to step's `files_affected`).
-4. **Post-condition check**: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Post-check step <N>" "<test_cmd_affected>"`. Persist result to state.md `## Plan steps` row as `last_post_check: PASS|FAIL` (atomic_state_write).
-5. **Result handling**:
-- **PASS**: mark `status: complete`, `attempts: <N>`, `last_post_check: PASS`. Continue to next step.
-- **FAIL**: enter Blocked Step Protocol (below).
-
-**Blocked Step Protocol** — run the three bounded attempts in `refactor-patterns.md` §Blocked Step Protocol, orchestrator-inline. On the revert after attempt 3, write `status: blocked`, `attempts: 3`, `last_post_check: REVERTED` and the blocked-rationale row to state.md, then continue to the next step — never stop the session. `last_post_check: REVERTED` is what makes the next step's pre-condition check fire (predicate (b) above); omitting it silently skips the baseline re-verification after a revert touched the tree.
-
-A catastrophic Edit failure (filesystem error, unreadable target) is the one exit from this loop: revert the refactor's changes per §Git constraint with user confirmation, then escalate to the user with the failure context — retrying a transformation against a tree the tool cannot write leaves the working tree half-applied.
-
-State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
-
-### 2.3 Session-level cap + escalation AUQ
-
-After execution returns, count BLOCKED-to-executed ratio (post-user-rejection denominator: approved plan steps minus user-rejected HIGH-risk steps). **If ≥30% BLOCKED:** stop and escalate in two steps per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — render the run outcome to a chat message first (`**In one sentence:**` opener + a blocked-steps mini-table: step · what blocked it · retries used), then fire the lean `AskUserQuestion` header "Stuck":
-
-- **Keep what worked and escalate the rest** — proceed to Phase 3 with blocked-steps list noted; user runs `/geniro:implement` separately for blocked items. state.md → `phase: verify` with `## Accepted Blocks` body section.
-- **Revert all changes** — `git restore --source=HEAD -- <each path from git diff --name-only>` (per §Git constraint; with user confirmation). state.md → `phase: reverted` (terminal).
-- **Force-continue (not recommended)** — proceed to Phase 3 with blocked work treated as accepted. state.md → `phase: verify`.
-
-Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `phase: apply-escalated` with timestamp + blocked-ratio + blocked-steps list before AUQ; transitions per user pick. The open-question render surfaces this on resume.
-
-### 2.4 Final regression run + Evidence Block
-
-After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change guarantee held.
-
-If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git restore --source=HEAD -- <each path from git diff --name-only>` (per §Git constraint) after explicit user confirmation. state.md → `phase: reverted` (terminal).
-
-If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
-
-**L2 emit on retry exit.** When Phase 2 exits AND `blocked_count ≥ 2` (≥2 plan steps reported BLOCKED per orchestrator-inline Blocked Step Protocol, regardless of whether overall ratio triggered escalation), call `emit-learning` with type=`retry_failure_sequence`, trust=`verified`, required `ext.{phase: "refactor-apply", attempts: [{round: <step-index>, failure: "<blocked-rationale from state.md ## Plan steps row>"}], resolution}`. `resolution` ∈ `{passed, escalated, aborted}` — passed when regression green AND <30% blocked; escalated when fired AND user picked "Keep what worked" or "Force-continue"; aborted on reverted/aborted state. Sliding-window cap per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types, which owns the window size and the flip-then-append order. Single-blocked-step exits (blocked_count == 1) do NOT emit. Scope = the worktree-relative path of the largest-affected file.
+state.md `phase: apply`. The orchestrator executes the approved plan one step at a time, each transformation gated by its own regression run. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`** — it carries the Steps (§2.1 instruction refresh · §2.2 per-step execution and the Blocked Step Protocol · §2.3 the ≥30%-blocked escalation · §2.4 final regression + the retry-exit emit), and every `Phase 2 §2.M` citation in this skill resolves there. Exit: `phase: verify` on a green regression run, `phase: apply-escalated` at the blocked cap, `phase: reverted` when the user reverts.
 
 ---
 
 ## Phase 3 — verify
 
-state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. No `git push` / `gh pr create` — refactor never ships code, only produces a working-tree diff (deliverable) and a state-file audit trail.
-
-### 3.1 Diff sanity (all tiers)
-
-Run `git diff --name-only` and `git diff --stat`. Cross-check state.md `## Plan steps` rows' `files_affected` aggregated list against the actual diff — flag mismatches.
-
-If final regression failed AND user picked "Revert all changes", state.md is already `phase: reverted` — skip to cleanup (no review needed).
-
-### 3.2 Independent reviewer-agent + custom reviewers (Medium+)
-
-Skipped for Trivial and Small per Step 3.
-
-**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash before invoking the custom-reviewer helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
-
-For Medium and Big: spawn a fresh reviewer-agent (focus areas — accidental public-API changes / test assertion mutations / invariant drift / new coupling / dead-code removal that had references) PLUS any custom reviewers discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (matched by `paths:` filter against changed files). All spawns go in ONE parallel batch — same assistant response. The reviewer-agent reads `bugs-criteria.md`, `architecture-criteria.md`, `tests-criteria.md` itself; do NOT pre-read into orchestrator context.
-
-Full spawn template (acceptance criteria, pre-inlined `code-style.md`, focus areas, criteria-file list, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §3.
-
-### 3.3 Orchestrator disposition logic
-
-**PRODUCT-DECISION findings → escalate (always wait for the user, every tier):**
-
-Escalate every PRODUCT-DECISION finding to `/geniro:implement`; never gate-and-fix it in-skill (§Anti-rationalization carries why).
-
-Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per its § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per § Finding-type visual map — then fire the lean `AskUserQuestion`. 4 fixed options (ADR-eligibility determines whether 4th option included):
-
-1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: routed` (terminal — recovery treats as complete; the decision was handed to /geniro:implement). Without a terminal write here the run would resume re-surfacing an already-resolved escalation.
-2. **Revert this refactor and start over** — `git restore --source=HEAD -- <each path from git diff --name-only>` (per §Git constraint) with user confirmation. state.md → `reverted` (terminal).
-3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
-4. **(ADR-eligible only)** **Document as ADR** — spawn a focused ADR-drafting agent (OMIT `model=` — inherits the orchestrator's session tier per the canonical model-tiering rule and the table row in the Subagent Model Tiering section) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
-
-**ADR-eligibility check (before adding 4th option):** include the "Document as ADR" option ONLY when the rejected refactor candidate meets all three criteria from `improvement-routing.md` § ADR target: (1) hard to reverse, (2) surprising without context, (3) result of genuine trade-offs. Examples that qualify: rejecting "split this god-class into 3 modules because the team prefers single-file feature ownership" (the *rejection* is the durable decision); rejecting "switch from inheritance to composition here because the existing inheritance is load-bearing for the plugin system." Examples that do NOT qualify: rejecting a duplicate-extraction smell because the duplication is intentional (Rule of Three not yet met) — that's a learning, not an ADR. If unsure, omit the ADR option; routing to Knowledge is always safe.
-
-**Approvals-persistence:** before firing the PRODUCT-DECISION AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: refactor_product_decision` matching the finding (use finding `path:lines` + decision-type as disambiguator). If found, use prior `picked` value. If not found, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_write` BEFORE executing the chosen action.
-
-Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings — never batch multiple findings into a single question.
-
-**CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
-
-Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" / "Document remaining findings and keep the diff as-is" / "Revert all changes". state.md → `verify-escalated` with timestamp + 1-round fix attempt summary.
-
-**MEDIUM findings only → note in completion summary; proceed.**
-
-**No findings → proceed.**
-
-### 3.4 Completion summary
-
-Output the markdown block directly in chat. No persistence to a handoff file — diff IS the deliverable.
-
-On the Trivial and Small tiers, drop the "Filtered smells" and "Review Findings" sections entirely: neither the smell-evidence filter nor the reviewer batch runs at those tiers, so both would render empty.
-
-```markdown
-## Refactor Complete
-
-### Transformations Applied (N)
-- [file:line] — [what changed] — risk: [LOW/MEDIUM/HIGH] — consumers: N
-
-### Blocked Steps (N)
-- [file:line] — [what was attempted] — reason: [failure summary]
-
-### Filtered smells (intentional patterns) (N)
-- [smell] — [reason filtered]
-
-### Review Findings
-- CRITICAL: N, HIGH: M, MEDIUM: K
-- Disposition: [proceeded / 1-round fix loop / escalated / ADR documented]
-
-### Validation
-- Tests: PASS/FAIL
-- Baseline delta: [before→after test count]
-
-### Files Modified: N
-- [file path]: [one-line summary]
-
-### Deferred
-- [low-priority item deferred, or a HIGH-risk step you declined]
-
-### Next steps
-[The diff is in your working tree. Commit it yourself, or run `/geniro:implement` to ship with a review gate.]
-```
-
-### 3.5 Emit learnings
-
-At Phase 3 exit:
-
-- **`emit-learning`** — called by /geniro:refactor for two emit types per canonical contract:
-- **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /geniro:refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified`.
-- **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
-- **Echo + ordering:** after a successful emit, echo `Recorded learning: <summary>` to the user, and fire the emit before declaring Phase 3 done — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". A silent emit trailing the phase's done declaration is the documented drop vector.
-
-**Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
-
-### 3.6 Cleanup
-
-After Phase 3 completes:
-
-- **All tiers:** `rm -rf .geniro/state/refactor/<slug>/` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope") for the current branch's slug only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — the whole slug dir, so any scratch written under it goes with `state.md` (nothing there is read after the run, and the migration sweep does not scan `.geniro/state/`). Useful content already saved (transformations, discoveries) via L2 emit + chat summary. Do NOT delete sibling slugs from concurrent refactor sessions on other branches.
-- **No handoff file to delete or persist**.
-- Kill any background processes started during the run (test watchers, profilers).
-
-Cleanup is best-effort — failed commands silently OK.
+state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`** — it carries the Steps (§3.1 diff sanity · §3.2 the reviewer batch · §3.3 disposition, including the PRODUCT-DECISION escalation and the ADR path · §3.4 completion summary · §3.5 learnings · §3.6 cleanup), and every `Phase 3 §3.M` citation in this skill resolves there. Exit: a terminal state — `done`, `verify-summary-only`, `reverted`, `routed`, `adr-documented`, or `verify-escalated` when the 1-round fix loop exhausts. No `git push` / `gh pr create`: refactor never ships code, only a working-tree diff and a state-file audit trail.
 
 ---
 

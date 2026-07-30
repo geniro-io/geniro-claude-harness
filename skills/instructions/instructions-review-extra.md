@@ -15,9 +15,9 @@
   - Step 9: Confirm
 - Worked example — an adversarial reviewer for high-risk paths (a complete, copy-adaptable `review-extra/adversarial.md`).
 
-Companion file to `SKILL.md` for the `review-extra` directory-style scope. The parent SKILL.md keeps the scope-resolution, list, edit, validate, and delete logic; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-9). Load this file when the resolved scope is `review-extra` and the action is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per SKILL.md Step 0.5).
+Companion file to `SKILL.md` for the `review-extra` directory-style scope. `SKILL.md` keeps the scope resolution and the sibling `mode-<op>.md` files keep the list / edit / validate / delete Steps; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-9), which replaces the singleton-file flow in `mode-create.md` for this one scope. Load this file when the resolved scope is `review-extra` and the mode is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per SKILL.md Step 0.5).
 
-See `SKILL.md` for the load-bearing rules referenced below: validation rules (`## — Mode: validate`, `### Step 2 — Lint rule set` — the `review-extra/<slug>.md` row in the per-scope table), file structure (`## File shapes` for the loaded instruction files, and `## Frontmatter field reference (review-extra/<slug>.md)` for this scope's own schema), count caps cross-references.
+For the load-bearing rules referenced below: the validation rules are in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-validate.md` §Step 2 — Lint rule set (the `review-extra/<slug>.md` row in the per-scope table); the file structure is in `SKILL.md` §File shapes (for the loaded instruction files) and §Frontmatter field reference (for this scope's own schema).
 
 ## Custom reviewer authoring (review-extra)
 
@@ -31,7 +31,7 @@ Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a diffe
 - **Declare `requires-context:` if the reviewer needs live external data.** A reviewer that matches the diff against a Notion page, a Linear issue, or an API response can't fetch that data itself — it runs in a subagent with no MCP access. Write a natural-language `requires-context:` directive naming the source and what to extract; the orchestrator fetches it and injects it as a `CUSTOM CONTEXT:` block before the reviewer runs (fail-open if the source is unavailable). Without it, a reviewer whose criteria reference external data silently sees none and produces empty or hallucinated findings.
 - **Test the reviewer on one diff before committing it.** Invoke `/geniro:review` against a known-good PR and a known-bad PR and confirm findings appear and look right. A misfiring reviewer pollutes every subsequent review with noise.
 - **Omit `model:` unless this reviewer needs a deliberate tier pin.** Omitted means the reviewer inherits the orchestrator's tier (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`), which is right for most semantic checks. Declare `haiku` only for narrow pattern matchers (regex-like checks) where speed matters; declare `opus` only for deep architectural concerns that must run strong even from a cheaper session.
-- **Sweet-spot count is 4-6 custom reviewers.** The skill warns when you'd create the 7th (i.e., exceed the sweet spot) and hard-refuses at the 11th (see "Count caps" below). Too many narrow reviewers fragment attention; consolidate when two reviewers' criteria overlap.
+- **Keep the count inside the band `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 defines.** That section owns both the soft-warn band and the hard cap; the create flow warns at the first file past the band and hard-refuses at the first past the cap (§Step 3 below). Too many narrow reviewers fragment attention; consolidate when two reviewers' criteria overlap.
 
 ## Mode: create — review-extra variant
 
@@ -54,29 +54,28 @@ On any validation failure, re-ask via `AskUserQuestion` with the error message i
 
 ### Step 3: Check count caps
 
-Count existing files in `.geniro/instructions/review-extra/`:
+Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 for the soft-warn band and the hard cap — that step is the runtime enforcer and the single home of both numbers. Then count the existing files:
 
 ```bash
 ls "$PRIMARY_ROOT"/.geniro/instructions/review-extra/*.md 2>/dev/null | wc -l
 ```
 
-- If creating the 7th file (existing count == 6), warn via `AskUserQuestion`:
-- **Question:** "Custom reviewer count will be 7 — the sweet spot is 4-6 reviewers, so you'd be exceeding it. Proceed?"
+- If this file would be the first one past the soft-warn band, warn via `AskUserQuestion`:
+- **Question:** "Custom reviewer count will be {{N}} — past the sweet spot of {{band}} reviewers. Proceed?"
 - **Options:**
-- label: "Proceed anyway" — description: "Create the 7th reviewer despite exceeding the sweet spot"
+- label: "Proceed anyway" — description: "Create it despite exceeding the sweet spot"
 - label: "Cancel" — description: "Don't create — consider consolidating overlapping reviewers first"
 
 On "Cancel", stop without writing.
 
-- If creating the 11th file (existing count == 10), hard-refuse — print:
+- If this file would be the first one past the hard cap, hard-refuse — print:
 ```
-Hard cap reached: 10 custom reviewers maximum.
+Hard cap reached: {{cap}} custom reviewers maximum.
 
 Existing slugs in .geniro/instructions/review-extra/:
 - {{slug-1}}
 - {{slug-2}}
 ...
-- {{slug-10}}
 
 Delete one with `/geniro:instructions delete review-extra <slug>` before adding another.
 ```

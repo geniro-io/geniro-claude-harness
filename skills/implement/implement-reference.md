@@ -7,7 +7,7 @@ This file contains templates, examples, and detailed procedures referenced by SK
 ## Contents
 
 - Phase 1: Step 0a signal detection
-- Phase 1: Step 0c AUQ templates
+- Phase 1: Step 0c setup-question templates
 - Phase 1: Step 0 setup detail
 - Phase 1: $ARGUMENTS semantic-parse table
 - Phase 1: Spec discovery walk-list
@@ -46,7 +46,7 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 
 ---
 
-## Phase 1: Step 0c AUQ templates
+## Phase 1: Step 0c setup-question templates
 
 Literal question shapes for the Step 0c workspace-setup AUQ. SKILL.md §PHASE 1 Step 0c owns when each fires; these are the verbatim templates.
 
@@ -290,7 +290,7 @@ The frontmatter key set varies by producer, so re-emit whichever keys the file y
 | `debug` | `geniro_kind`, `geniro_schema_version`, `mode`, `authored_tests[]` (sub-step 9 reads this back — drop it and the F→P-test extraction finds nothing) |
 | `resolve` | `comment_resolutions[]` (sub-step 10 stashes it for the Ship "Resolve PR review threads" step), `pr-ref`, `pr-url`, `pr-head-sha` |
 
-Common to all producers: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `approvals`, `non-resumable-actions`, and the other `open_questions[]` entries. Re-emit every body section (`## Findings`, `## Authored Tests`, …) unchanged too — dropping one silently truncates producer state a downstream re-review reads back. Within the resolved entry, `id` / `source` / `question` / `related_findings` / `related_hypotheses` stay as written.
+Common to all producers: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `approvals`, `non-resumable-actions`, and the other `open_questions[]` entries. Re-emit every body section (`## Findings`, `## Authored Tests`, …) unchanged too — dropping one silently truncates producer state a downstream re-review reads back. Within the resolved entry, every field other than `status` and `resolution` stays as written — do not work from a remembered list of field names, because an entry may carry any of the optional fields the canonical set declares (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2), and the write is a full-file overwrite, so an unnamed one is simply dropped.
 
 Canonical schema for all of it: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
@@ -589,7 +589,7 @@ else:
 1. Do NOT silently push or claim completion.
 2. **Render the unresolved findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — a separate, already-emitted chat message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 unresolved findings, open the message with the decision-queue progress tracker (`✔` decided · `●` deciding now · `○` ahead — one stop per finding with a short plain-English tag). Each finding gets the visual-form block: the `### 🧭 Decision needed:` title, the `**In one sentence:**` opener, a conversational lead expanding what the code does and what the concern is, `**Why it matters:**` with its evidence cite, and a visual per the same contract's §Finding-type visual map. The per-dimension findings summary lives in this render — never inside the question.
 3. Then fire the lean `AskUserQuestion` (header: `"Resolve findings"`) with these options:
-   - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). Caller resumes via `/geniro:debug` using state.md as a T2 handoff.
+   - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). No handoff file is written: `/geniro:debug` opens its own investigation from `$ARGUMENTS` and reads no planning `state.md`, so state.md here is the run's audit trail, not a consumer-parsed handoff. Close by naming the unresolved findings in chat so the user can carry them into the `/geniro:debug` invocation.
    - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
    - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
 

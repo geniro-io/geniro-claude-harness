@@ -97,7 +97,7 @@ A workflow is an execution wrapper, not a contract override — why that binds, 
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "Deep mode runs everything 3× in parallel, so it finishes faster." | Parallelism does not reduce wall-clock under the `min(16, cores-2)` cap — 3× the agents fill the same waves (no speedup) or spill into more (slowdown). Deep mode is a thoroughness lever, never a latency one. Sell it as quality. |
+| "Deep mode runs everything 3× in parallel, so it finishes faster." | It buys quality, never latency — §1 has the concurrency-cap arithmetic. Sell it to the user as thoroughness. |
 | "I'm inside a Workflow now, so the skill's no-Edit / no-ship boundary is just guidance." | The workflow parallelizes the fan-out, not the contract. Every skill invariant binds inside every workflow step (§6). The contract evaporating under the wrapper is the documented failure this prevents. |
 | "Use agent({schema}) for the votes — structured output is cleaner." | The StructuredOutput tool-call drops ~⅔ of the time on long / converged agents, silently losing votes and findings. Return raw JSON text and parse defensively; a parse failure is an abstention, not a refute. |
 | "Two verifiers abstained and one refuted — that's a majority to drop." | Abstentions count toward neither side. One refute out of one parseable vote is not a majority — quorum failed, so fail-safe to a single fresh single-pass verifier. Never demote on abstentions. |

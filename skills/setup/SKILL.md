@@ -19,10 +19,10 @@ argument-hint: "[optional: path to template directory]"
 - Budgets — quality-first
 - ACI per-phase tool surface
 - Termination case → state mapping
+- Memory I/O
 - Phase 0 — pre-flight
 - Phase 1 — Detect · Phase 2 — Interview · Phase 3 — Generate · Phase 4 — Validate · Phase 5 — Done
 - State file schema
-- Memory I/O
 - Cross-references
 
 ---
@@ -31,9 +31,9 @@ argument-hint: "[optional: path to template directory]"
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
-**Anti-goal:** Do NOT become an encyclopedia generator. Every section of the generated CLAUDE.md must justify why it lives inline rather than in `.geniro/docs/<topic>.md`.
+**Anti-goal:** Do NOT become an encyclopedia generator. CLAUDE.md is auto-loaded on every run in this project, so every section has to justify that recurring cost — keep what changes how a task is executed, and leave anything the model can read on demand from the project's own docs where it already lives.
 
-**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary; the singleton state file's `phase:` says where to resume.
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only a skill's front-loaded prefix is re-attached after a summary; the singleton state file's `phase:` says where to resume.
 
 ## Path constraints
 
@@ -74,7 +74,7 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 | "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
 | "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
 | "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
-| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the §3.2 exclusion list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |
+| "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the `verification-checks.md` §Excluded content list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |
 | "I'll add preference questions to the interview to customize defaults" | No — skill defaults are built into each skill. Setup detects the codebase and generates CLAUDE.md; it does not configure skill behavior. |
 | "The user said 'looks good' — setup is done, skip Phase Done cleanup" | No — Phase Done deletes the state file (which has zero value once DONE). Forgetting to delete leaves stale state for the next re-run. |
 
@@ -82,7 +82,7 @@ The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-in
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase sections; this list is the final correctness/contract check, not a re-listing of every step.
 
-- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on the §3.2 exclusion list checked and absent
+- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content checked and absent
 - [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
@@ -107,7 +107,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | `interview` | `AskUserQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
 | `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod) | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
 | `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent) | `Write`, `Edit` |
-| `done` (cleanup) | `Bash` (rm of state file) | everything else |
+| `done` (cleanup) | `Bash` (rm of state file), `AskUserQuestion` (the §5.2 map-the-codebase question), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
 
 External sends are not part of `/geniro:setup` ACI. Users wire those via `/geniro:actions` if needed.
 
@@ -120,6 +120,15 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 | Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort / start-over (re-detect)" |
 | Generation hit write-protection | `failed` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
 | Bootstrap completed without drift | `done` | not written |
+
+## Memory I/O
+
+| Layer | Read at | Write at | Notes |
+|---|---|---|---|
+| CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Project-only content per `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content. Preserves user customizations via orchestrator-inline merge |
+| L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
+| L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
+| L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 
 ## Phase 0: Pre-flight
 
@@ -258,34 +267,13 @@ Before opening any AUQ, read state frontmatter `approvals[]`. For each AUQ slot,
 
 ### 2.2 Confirm detection
 
-Present what was detected:
+Render the detection summary to a chat message before asking anything. It carries, in this order:
 
-```
-I analyzed your codebase. Here's what I found:
+- **Tech Stack**, **Package Manager**, **Test Runner**, **Linter** — one line each, from the §1.4 evidence. A signal Detect could not resolve reads `unknown`; never fill it by inference.
+- **Validation Commands** — the resolved build / test / lint / typecheck command, verbatim, one per line. Omit a command the project does not define rather than inventing one.
+- **From project documentation** — the domain facts §1.4 extracted (purpose, entities, architecture) with the source files named. Omit this block entirely when `$PROJECT_KNOWLEDGE` is empty.
 
-Tech Stack: TypeScript. Next.js. Prisma. React. Tailwind CSS
-Package Manager: pnpm
-Test Runner: Vitest
-Linter: ESLint + Prettier
-
-Validation Commands:
-build: pnpm run build
-test: pnpm run test
-lint: pnpm run lint
-typecheck: pnpm exec tsc --noEmit
-
-From project documentation:
-Project: Multi-tenant SaaS platform
-Domain entities: Tenants, Workspaces, Projects, Members
-Architecture: Event-driven between services, REST API v2
-(Source: README.md, docs/architecture.md, openapi.yaml, turbo.json)
-
-Is this correct, or want to adjust?
-```
-
-If `$PROJECT_KNOWLEDGE` is empty, omit the "From project documentation" section.
-
-AUQ options: `Looks correct` / `Adjust some things`. If adjust, ask specifically what to change.
+Then `AskUserQuestion`: `Looks correct` / `Adjust some things`. If adjust, ask specifically what to change.
 
 ### 2.3 Codebase confirmations (only if Detect was ambiguous)
 
@@ -319,37 +307,19 @@ Transition to Phase 3.
 
 ### 3.0 Migration sweep (re-run only)
 
-If `mode == re-run`, run a migration sweep before generating content. This ensures the `.geniro/` directory structure is current before CLAUDE.md and instructions are regenerated.
+When `mode == re-run`, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` now and run its §3.0 sweep before generating content — that file carries every re-run-only procedure this run needs (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules, §5.4 restart warning).
 
-Walk `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — that helper parses the entries, runs each `Auto-detect:` behind its `N/A` guard, and classifies each entry as applicable or not. Its walk-every-entry rule is what makes the sweep complete: a user re-running `/geniro:setup` could be coming from any prior version.
-
-Every outcome the helper reports lands in `## Phase log`, so a sweep that did nothing is distinguishable from a sweep that never ran: `[<ts>] migration sweep skipped: MIGRATION.md absent` / `... unparseable`, and `[<ts>] migration skipped (not affected): <change-name>` per entry the detect cleared.
-
-**Apply policy.** For each applicable entry, branch on the `Auto-fix:` value in this order — test `manual-only` FIRST, because a `manual-only` value carries prose, not a runnable command, so it must not fall through to a branch that runs it via `bash -c`:
-
-- If the `Auto-fix:` value begins with `manual-only` (matched case-insensitively, so `Manual-only` is caught too): log to `## Phase log`: `[<ts>] migration manual-only: <change-name> — will be addressed by Phase 3 regeneration or user action`.
-- Else if the `Auto-fix:` command is destructive (contains `rm`, `-delete`, or `-exec rm`): do NOT apply it silently — a silent destructive sweep can delete working state the user would have chosen to keep. Log to `## Open Questions`: `[<ts>] migration destructive fix NOT auto-applied: <change-name> — run /geniro:update to apply it interactively per-entry`. When any detected path sits inside a task-dir (`.geniro/planning/<task-dir>/` or `.geniro/state/<skill>/<slug>/`) whose `state.md` shows a live task (present, with non-terminal `phase:`/`status:`), append `; <M> detected path(s) belong to a live task — /geniro:update's live-task guard excludes them from the fix`, so the deferred entry carries the liveness context into the walk.
-- Else (non-destructive command): run it silently via `bash -c` — auto-fix commands are maintainer-written and tested (the same ones `/geniro:update` surfaces with "Fix it for me"), and a re-run is user-initiated, so a safe mechanical fix needs no question. Log to `## Phase log`: `[<ts>] migration fix applied: <change-name>`.
-
-After the sweep, verify per the shared walk §6: re-run the `Auto-detect:` for every entry that was auto-applied above, and for those only — entries deferred to `## Open Questions` and entries logged `manual-only` are intentionally still affected, so re-flagging them would double-log. Any auto-applied entry that is still affected is logged to `## Open Questions`.
-
-**Init mode skips this step entirely** — fresh installs write the current schema directly.
+**Init mode skips this step entirely** — fresh installs have no prior schema and write the current one directly.
 
 ### 3.1 Pre-write existing-content audit (re-run only)
 
-If `mode == re-run`:
-
-1. Read existing `CLAUDE.md`.
-2. Identify project-specific sections (Tech Stack, Commands, Conventions, Domain Context).
-3. For each: merge detected updates into existing content via orchestrator-inline merge (preserve user edits + update facts).
-4. If existing CLAUDE.md carries anything on the §3.2 exclusion list from a prior `/geniro:setup` version — **remove it silently**. It is plugin noise the plugin already loads on its own.
-5. Display merged diff to user; AUQ if diff is non-trivial.
+When `mode == re-run`, run the audit in `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` §3.1 — it merges detected updates into the existing `CLAUDE.md` instead of overwriting it. Read the file here if this phase resumed after a compaction.
 
 If `mode == init`, skip the pre-write audit and proceed to §3.2.
 
 ### 3.2 CLAUDE.md generation — project-only content
 
-CLAUDE.md is a **project file**, not a plugin manual. It contains ONLY information specific to THIS repository. Geniro plugin information (skills, hooks, path rules, MCP dependencies) lives in the plugin's own files and is loaded automatically — it does NOT belong in CLAUDE.md.
+CLAUDE.md is a **project file**, not a plugin manual. It contains ONLY information specific to THIS repository. Before generating, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content — the single enumeration of the plugin content that must not appear in the generated file — and keep every item out.
 
 Generated CLAUDE.md sections:
 
@@ -362,21 +332,12 @@ Generated CLAUDE.md sections:
 | Project Conventions | Naming, patterns, code style rules | `.editorconfig`, ESLint/Prettier config, `CONTRIBUTING.md` |
 | Domain Context | Key entities, API patterns, business terms | Project docs, API specs, `.env.example` variable names |
 
-**What does NOT go in CLAUDE.md** (the single enumeration — §3.1, §3.4, §4.1, and the Definition of done all resolve to this list):
-- Geniro skill table (already in plugin SKILL.md files)
-- Path rules / `~` expansion warning (already in plugin CLAUDE.md)
-- Safety hooks summary or allowlist (already in plugin hooks/)
-- MCP dependencies table (already in plugin settings.json)
-- Agent invocation ladder (already in plugin spawn-agent.md)
-- Updating instructions (already in plugin update/SKILL.md)
-- Any `<!-- geniro-setup-managed -->` markers (CLAUDE.md is user-owned)
-
 ### 3.3 Write targets
 
 - `<PROJECT_ROOT>/CLAUDE.md` — project-specific content only. No section markers — CLAUDE.md is user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts).
 - `<PRIMARY_ROOT>/.geniro/instructions/global.md` — only if user opted in.
 - `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` — per `$ISSUE_TRACKER_CHOICE` (§2.4), installed from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` (a stub for non-Linear). Include the AI-Disclosure Prefix section in every workflow file — tracker comments posted from these files need it so human reviewers can tell an AI-authored update from a teammate's.
-- `<PRIMARY_ROOT>/.geniro/instructions/{plan,implement}.md` — only when `$OPENSPEC_CHOICE` is "Yes" (§2.4b). Merge `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md`'s `## Additional Steps` → `### After user-approve` subsection into `plan.md`, and `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md`'s `### After ship` subsection into `implement.md`, creating either file from the matching scaffold in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 first when absent.
+- `<PRIMARY_ROOT>/.geniro/instructions/{plan,implement}.md` — only when `$OPENSPEC_CHOICE` is "Yes" (§2.4b). Merge `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md`'s `## Additional Steps` → `### After user-approve` subsection into `plan.md`, and `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md`'s `### After ship` subsection into `implement.md`, creating either file from its scaffold in `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/instruction-file-scaffolds.md` first when absent.
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
@@ -385,12 +346,7 @@ All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) +
 
 ### 3.4 Conflict-resolution merge rules (re-run only)
 
-Section merge runs **orchestrator-inline** — no subagent spawn. Rules:
-
-1. Preserve all user customizations.
-2. Apply factual updates from detection (e.g., new commands detected, stack changes).
-3. If conflict (same statement contradicted), surface both versions via AUQ — let user pick.
-4. Do not add geniro-specific content during merge — apply the §3.2 exclusion list.
+Section merge runs **orchestrator-inline** — no subagent spawn. The four merge rules are in `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` §3.4; Read the file here if this phase resumed after a compaction.
 
 ### 3.5 Runtime directories + gitignore
 
@@ -443,9 +399,8 @@ its per-language wrong-token table catches stack drift no fixed grep list would.
 Then run these additional checks:
 1. Every command in the `## Commands` section runs locally (try `bash -n` syntax check; do not execute).
 2. Every claimed file path in `## Tech Stack` exists.
-3. No Geniro-plugin content. Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md §3.2 "What does
-   NOT go in CLAUDE.md" — that list is the single source — and report every item on it that
-   appears in the generated file. CLAUDE.md is project-only.
+3. No Geniro-plugin content — report every entry of verification-checks.md's §Excluded content
+   list that appears in the generated file. CLAUDE.md is project-only.
 
 Output a markdown report:
 ## PASS items (one per line)
@@ -521,7 +476,7 @@ Next:
 
 (re-run mode prepends a "Migration sweep" section listing applied auto-fixes and any manual-only items requiring user action, then a "Changed since last setup" section with the section-level diff summary.)
 
-### 5.2 Onboard AUQ
+### 5.2 Offer to map the codebase
 
 After printing the final report, ask the user if they want to map the codebase:
 
@@ -542,34 +497,19 @@ Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`, then remove the now-empty 
 
 ### 5.4 Restart-session warning (re-run only, plugin-version delta)
 
-```
-⚠ Restart your Claude Code session before using any other Geniro skill.
-
-Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once at session start. The plugin
-update brought a new install path, but in-memory skill bodies still reference
-the old one. Restart and you're done.
-```
-
-Only emitted when `mode == re-run` AND the current `.claude-plugin/plugin.json` version differs from the `plugin_version:` recorded in the prior state file. Init runs write `plugin_version` fresh and never emit this; a prior state file that predates the field (no `plugin_version:`) yields no computable delta, so no warning fires.
+Fires only when `mode == re-run` AND the current `.claude-plugin/plugin.json` version differs from the `plugin_version:` recorded in the prior state file. Init runs write `plugin_version` fresh and never emit this. The warning text and the missing-field case are in `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` §5.4; Read the file here if this phase resumed after a compaction.
 
 ## State file schema
 
 Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1.5 tier, with one deliberate, named exception to that tier's survives-past-ship rule: `/geniro:setup` deletes the file at Phase Done (§5.3). Bootstrap state describes a one-shot run that is over — no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. The exception is scoped to this one path; every other T1.5 file survives. Full frontmatter + body-section schema: `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-state-reference.md` — read it before every state write.
 
-## Memory I/O
-
-| Layer | Read at | Write at | Notes |
-|---|---|---|---|
-| CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Project-only content per the §3.2 exclusion list. Preserves user customizations via orchestrator-inline merge |
-| L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
-| L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
-| L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
-
 ## Cross-references
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file, deleted at Phase Done per the named exception in §State file schema) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` — every re-run-only procedure (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules, §5.4 restart warning); an `init` run never reads it.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — the §3.0 re-run sweep's parse / auto-detect / classify / re-verify procedure, shared with `/geniro:update`'s per-entry walk.
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — the contamination + template-residue check set the §4.1 verification subagent reads and runs (single source for the per-language wrong-token table).
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — §Excluded content (what must never reach CLAUDE.md, applied at §3.2 generation and at Validate) plus the contamination + template-residue check set the §4.1 verification subagent runs (single source for the per-language wrong-token table).
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/instruction-file-scaffolds.md` — the `plan.md` / `implement.md` scaffolds §3.3 writes before merging an OpenSpec block into a file that does not exist yet.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; the verification subagent's `sonnet` carve-out is stated in §Subagent model tiering (section merge runs orchestrator-inline, no separate model assignment).

@@ -116,8 +116,8 @@ These files describe one cohesive contract — when the `launch_config` shape, a
 - `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` — the shape-only enum check.
 - `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` — the end-of-plan opt-in write (§8.3.5 capture, §8.4 step 2 write).
 - `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` — the opt-in question wording.
-- `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` — the Step 0 read-and-apply path.
+- `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` — the Step 0g read-and-apply path.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — the `approvals[]` category schema.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` — the plan→implement priming contract.
 - `${CLAUDE_PLUGIN_ROOT}/ARCHITECTURE.md` — the cross-skill architecture overview.
-- `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md` — the skill-set summary rows for `/plan` and `/implement`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md` — the cross-skill launch-modifier rows.

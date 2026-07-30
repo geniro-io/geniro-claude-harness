@@ -386,6 +386,8 @@ Process answers in sequence. Add KEPT items to the confirmed list; record DROPPE
 
 ### Step 3: Final user gate on confirmed list
 
+Skipped under `--no-handoff`: every outcome this gate offers ends in a handoff that modifier rules out. Print the confirmed list, then go to Step 6.
+
 Print the updated confirmed list (including newly-promoted UNCERTAIN items). Fire ONE final `AskUserQuestion`:
 
 - **Question:** "Confirmed findings ready. How to hand off?"
@@ -451,9 +453,8 @@ The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T
 
 | Modifier in `$ARGUMENTS` | Effect |
 |---|---|
-| `--last=N` (or a bare integer) | Batch mode over the last N work-bearing threads, clamped to the 5-thread cap. Same as passing nothing, which uses N=3. |
 | `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses every judged check. Pairs well with a large batch, where the judges dominate cost. |
-| `--no-handoff` | Phase 4 Step 4 skipped; the findings report is printed and no handoff file is written. Useful when the user wants to read findings without committing to fix anything. |
+| `--no-handoff` | Phase 4 Steps 3-4 skipped; the findings report is printed, cleanup runs, and no handoff file is written. Useful when the user wants to read findings without committing to fix anything. |
 | `--strict` | Tighten Phase 3 filter: treat medium-confidence findings as TRUE-POSITIVE not UNCERTAIN (skips per-item AUQ, includes them by default). Use when running on a thread the user already trusts to be problematic. |
 | `--lenient` | Loosen Phase 3 filter: treat high-confidence judged findings as UNCERTAIN (forces AUQ). Use on threads where many findings are likely benign. |
 | `--format=jsonl` / `--format=markdown` | Skip Phase 1 Step 2 auto-detect and force the format. Use when sniffing misclassifies. |

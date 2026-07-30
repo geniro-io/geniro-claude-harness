@@ -76,7 +76,7 @@ Body sections:
 - `## Smells Detected` — (Medium+) orchestrator-inline output from Phase 1 §1.4
 - `## Filtered smells` — (Medium+) smells dropped by the SKILL.md Phase 1 §1.5 smell-evidence filter, each with its synthesis reason
 - `## Plan` — ordered steps + risk + consumer counts + KEEP/FILTER decisions
-- `## Plan steps` — per-step execution rows (schema at SKILL.md Phase 2 §2.2), distinct from `## Plan`; orchestrator updates each row's `status` / `attempts` / `last_post_check` after each step
+- `## Plan steps` — per-step execution rows (schema at `phase-2-apply.md` Phase 2 §2.2), distinct from `## Plan`; orchestrator updates each row's `status` / `attempts` / `last_post_check` after each step
 - `## Apply Summary` — executed / blocked / final-suite status
 - `## Accepted Blocks` — (optional, path "Keep what worked")
 - `## Review Findings` — (Medium+, after Phase 3) CRITICAL/HIGH/MEDIUM lists

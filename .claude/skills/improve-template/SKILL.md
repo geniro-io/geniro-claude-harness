@@ -110,7 +110,7 @@ Classify the request — this picks both the pipeline depth AND which research s
 
 **ARCHITECTURE.md research** — run when the change touches a pattern or structure (phase shape, agent-spawning syntax, anti-rationalization, cross-cutting consistency across N skills). Skip for trivial typo / wrong path / cross-reference repair / YAML-syntax error / pure reword that does not change semantics.
 
-**Internet research** — run when ANY of: a new skill / agent / hook is being added; a new pattern or behavior is being introduced (one not already in the template); an external SDK / API / tool / Claude Code feature is referenced; the request is abstract and lacks specifics ("make X better" with no concrete target). Skip when the request is internal-only logic of our skills, a reword/clarify/rename/reorder of existing instructions, or a bug fix the user has already located.
+**Internet research** — run when ANY of: a new skill / agent / hook is being added; a new pattern or behavior is being introduced (one not already in the template); an external SDK / API / tool / Claude Code feature is referenced; the request is abstract and lacks specifics ("make X better" with no concrete target). Skip when the request is internal-only logic of the plugin's skills, a reword/clarify/rename/reorder of existing instructions, or a bug fix the user has already located.
 
 Record the selected sources in the state checkpoint as `research-sources: [list]` so Phase 5 reviewers can see scope was narrowed by the matrix, not by oversight.
 
@@ -201,7 +201,7 @@ Search for:
 For each finding, provide:
 - Source (URL or reference)
 - Key pattern or technique
-- Direct applicability to our issue
+- Direct applicability to the issue
 - Evidence strength (strong/moderate/weak)
 
 Return findings as a structured table. Do NOT suggest implementation — research only.
@@ -378,18 +378,11 @@ Apply the following approved changes:
   notes, exceptions, caveats, or conditions below/after the original. Adding
   "NOTE: also handle X" or "Exception: when Y, do Z" creates context distance and
   instruction rot. The original instruction should read correctly on its own.
-- **Minimum-tokens principle** (per `.claude/rules/skill-prose.md` §Assume a capable
-  model): write the change at the lowest token cost that fully preserves meaning and
-  behavior — prefer tightening an existing line over adding a new one — and in the
-  sections you touch also REMOVE what the model derives itself: a rule already stated
-  elsewhere in the file, re-explained standard tool or model behavior, platform command
-  recipes, shell idiom hand-holding, prescribed loop shapes where goal + bound suffices,
-  chewed-up substeps for a one-step goal. Excess detail isn't just token cost: it primes
-  one mechanism and confuses the run when the environment wants another. Two bounds on
-  the removal — a tightening that drops a load-bearing nuance, edge case, or behavioral
-  condition is a degradation, not a compaction, so keep the longer wording; and contracts
-  stay: schemas, paths, thresholds, canonical option labels, and explain-WHY on
-  rationalization-prone rules are not "detail". Signal density, not size, is the target.
+- **Minimum tokens:** read `.claude/rules/skill-prose.md` §"Assume a capable model" before you edit
+  (repo-relative path, you have Read access) and apply it to every section you touch. That section is
+  the only source for what counts as removable detail and for what earns its place — do not restate
+  its list into the file you edit. Prefer tightening an existing line over adding a new one, and
+  subtract in the sections you touch; signal density, not size, is the target.
 
 ### Definition of Done
 - [ ] All approved changes applied
@@ -516,7 +509,7 @@ Present to the user:
 ```
 ## Changes Applied
 
-| File | Change | Lines |
+| File | Change | Words |
 |------|--------|-------|
 | [path] | [what changed] | [before → after word count] |
 

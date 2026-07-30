@@ -160,14 +160,6 @@ expect_block "bash: helper in seg 1 does not whitelist redirect in seg 2 (&&)" \
 expect_allow "bash: lone atomic_state_write invocation still allowed" \
   "$(rc_bash 'atomic_state_write .geniro/state/review/s/state.md < body.txt')"
 
-# ===== verify-cache.json is a documented mktemp+mv artifact — exempt (T1-7) =====
-expect_allow "verify-cache.json write is exempt (Edit/Write)" \
-  "$(rc_path '/proj/.geniro/planning/task-dir/.verify-cache.json')"
-expect_allow "verify-cache mktemp temp form is exempt" \
-  "$(rc_path '/proj/.geniro/planning/task-dir/.verify-cache.cache.aB3xYz')"
-expect_allow "bash: redirect into verify-cache.json is exempt" \
-  "$(rc_bash 'echo x > .geniro/planning/task-dir/.verify-cache.json')"
-
 # ===== Bash branch: interpreter-mediated writes (vector 10) =====
 # A script writing the file is not shell syntax, and a heredoc body is scrubbed
 # as data before vectors 1-9 run — so `python3 - "$S" <<'PY' … open(p,'w') … PY`

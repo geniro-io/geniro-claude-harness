@@ -26,10 +26,12 @@ Or direct invocation:
 
 An entry becomes a stale candidate iff:
 
-1. **score < 0.1** — using the same scoring formula as `query-learnings --score-min` (canonical definition in query-learnings.md §Score formula).
-2. **age > 180 days** — measured from entry's `ts` field.
+1. **Score below the staleness floor** — using the same scoring formula as `query-learnings --score-min` (canonical definition in query-learnings.md §Score formula).
+2. **Age past the staleness horizon** — measured from the entry's `ts` field.
 3. **access_count == 0** — entry has never been returned by a query that called `record_access`.
 4. **not already deprecated** — `(.deprecated // false) == false`. Already-deprecated entries are skipped so re-runs report 0 candidates (idempotency).
+
+The floor and the horizon are literals in `lib/archive-stale.sh`'s jq filter, stated there with the reasoning behind each; the helper echoes both in its own output (below), so read the numbers from the run rather than from this page.
 
 The four-way AND ensures conservative bias — high-trust recent or frequently-accessed entries are protected even if individually old.
 
@@ -57,9 +59,9 @@ archive-stale: flipped deprecated:true on 87 entries:
 All entries preserved on-disk (audit trail). Re-run safe (idempotent — already-deprecated entries skipped).
 ```
 
-**No candidates** (rc=1):
+**No candidates** (rc=1). The real message substitutes the live §Criteria thresholds for the placeholder below, which is where to read their current values:
 ```
-archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + access_count==0)
+archive-stale: 0 stale candidates (no entries match <score / age / access_count thresholds>)
 ```
 
 ## Safety invariants
@@ -69,7 +71,7 @@ archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + acces
 - **Auto-runs on SessionStart** when threshold met AND file changed since last archive. Manual invocation also supported (typical: `--dry-run` to preview).
 - **Idempotent.** Already-deprecated entries are skipped (criterion 4 in §Criteria). Re-runs are safe and report 0 candidates.
 - **Atomic write.** Uses tmp + POSIX `rename(2)` for the final write. Mid-run interruption leaves either the old or new file, never a partial one.
-- **Multi-tab safe.** When invoked via hook, runs under a `mkdir`-acquired POSIX-atomic lock at `.geniro/knowledge/.archive-stale.lock`. Direct invocations acquire the same lock themselves (rc=3 when held), and `record_access` counter rewrites share it too — the hook, direct runs, and counter bumps are mutually excluded. A caller that *sources* this helper and calls `archive_stale_learnings()` directly owns locking itself (the function never auto-locks — see the header contract). Concurrent SessionStart events lose the race and skip silently; only one tab does work. Stale-lock TTL = 600s (orphans from crashed processes auto-cleaned).
+- **Multi-tab safe.** When invoked via hook, runs under a `mkdir`-acquired POSIX-atomic lock at `.geniro/knowledge/.archive-stale.lock`. Direct invocations acquire the same lock themselves (rc=3 when held), and `record_access` counter rewrites share it too — the hook, direct runs, and counter bumps are mutually excluded. A caller that *sources* this helper and calls `archive_stale_learnings()` directly owns locking itself (the function never auto-locks — see the header contract). Concurrent SessionStart events lose the race and skip silently; only one tab does work. A lock orphaned by a crashed process is reclaimed once its mtime exceeds the shared reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, single-sourced with its rationale in `lib/lock-reclaim.sh`).
 
 ## Environment
 

@@ -103,7 +103,10 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 - LOW: Unused import that triggers a lint warning
 
 ### pr-metadata
-- CRITICAL: PR title misrepresents the diff (e.g., title says "refactor", diff adds new feature)
+
+The dim's ceiling is HIGH: §1's CRITICAL inclusion list admits no PR-prose class, and §6 forbids a per-dim file widening it. A misrepresentation that reads as severe is the §1 HIGH "intent source contradicts the diff" case.
+
+- HIGH: PR title misrepresents the diff (e.g., title says "refactor", diff adds new feature)
 - HIGH: Missing test plan when test files are modified
 - MEDIUM: Missing required field per repo's PR template (e.g., `risk_class:` declared in CONTRIBUTING.md)
 - LOW: PR description could include the linked Linear ticket; commit message could be more verbose

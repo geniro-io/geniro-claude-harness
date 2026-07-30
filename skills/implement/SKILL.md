@@ -133,7 +133,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | **Every spawned subagent** (knowledge-retrieval, codebase-explorer, test-runner, reviewer, adversarial-tester) | Exactly its own `agents/<name>.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one | Agent (all are leaf agents — no nesting); git mutation; destructive Bash; Edit / Write beyond the agent's declared surface — the adversarial-tester writes test-file paths only, never production source; the read-only agents write only their own OUTPUT_PATH |
 | **Phase 3 Ship sub-step** | `git commit`, `git push`, `gh pr create` — each gated by the push-grade doctrine (§Anti-rationalization, ship-mode row); `gh api` thread reply + `resolveReviewThread` (resolve-handoff only — action-gated, after the push, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` write side) | External commits before AUQ resolution |
 
-**Existing safety layer:** file-protection hook, git-guardrail hook, and `.geniro/` deletion guard apply across ALL phases regardless of this matrix.
+The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 

@@ -180,7 +180,7 @@ Re-read the cited code before answering. Confirmation without empirical re-read 
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1 before assigning severity. It is the single source for the tiers (CRITICAL / HIGH / MEDIUM / LOW — there is no NIT tier) and carries an inclusion AND an exclusion list per tier; a summary here would drop the exclusions, which are exactly what keeps documentation, naming, and cosmetic findings at LOW.
 
-The most common miscalibration is inflating LOW → MEDIUM to surface a finding past the filter. The orchestrator's multi-signal admission gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) provides four independent signals for a correct finding to surface — do not inflate severity to game the filter.
+The most common miscalibration is inflating LOW → MEDIUM to surface a finding past the filter. Assign the tier the evidence supports; §Step 4: Emit findings has the reason inflation is unnecessary.
 
 ### Decision Type guidance
 

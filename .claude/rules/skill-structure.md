@@ -115,7 +115,7 @@ Sections 1-9 are the spine: they are what the model checks every turn, and what 
 | Reference a phase | `/geniro:plan Phase 5` | `plan-loop.md:319-322` |
 | Reference a sub-step | content-anchored: "the Phase 4.3 F→P invariant" | "step at line 350" |
 | Reference a shared helper | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/<name>.md` | bare filename without root |
-| Reference an agent contract | `${CLAUDE_PLUGIN_ROOT}/agents/<name>.md` §Output Format | line-numbered ref |
+| Reference an agent contract | `${CLAUDE_PLUGIN_ROOT}/agents/<name>.md` §Output Format or §Output Schema — open the agent and cite the heading it carries | line-numbered ref |
 
 Line numbers decay within the same edit; section numbers and content anchors survive.
 

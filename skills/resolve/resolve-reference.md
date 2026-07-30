@@ -106,7 +106,4 @@ Appended to the standard 11-section `spec.md` as an allowed extra body section. 
 
 The array lives in `from-resolve-<branch>.md` frontmatter and MAY be `[]`. Its per-entry schema — the fields `thread_id`, `comment_id`, `source`, `author`, `path`, `line`, `verdict`, `reply_draft`, `resolve_after_fix`, `verify`, `fix_step_anchor`, `status`, plus their enums and the producer/consumer responsibilities — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields (change in lockstep with `/geniro:implement`). Read the field definitions there before the Phase 4 write rather than reconstructing them here.
 
-`/geniro:implement` consumption (its Ship sub-step):
-1. For `verdict: fix` — re-verify the fix landed (run `verify:`, else confirm `fix_step_anchor`'s files are in the pushed diff). Not landed → `status: skipped`, thread untouched.
-2. Action-gate the batch (one AskUserQuestion), then via `pr-threads.md` write side post `reply_draft` (§4) and, for `resolve_after_fix: true`, resolve the thread (§5). `wontfix` posts the reply but never resolves.
-3. Mark `status: posted`; append a `pr-comment-posted` entry to state.md `non-resumable-actions[]`.
+What `/geniro:implement` then does with each entry at its Ship sub-step is that same section's Consumer responsibilities; the producer's job ends at writing the array.

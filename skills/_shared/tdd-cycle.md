@@ -1,6 +1,6 @@
 # TDD cycle
 
-Canonical RED→GREEN→REFACTOR procedure. Consumer: `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` § RED phase. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
+Canonical RED→GREEN→REFACTOR procedure. Consumer: `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A4. RED-phase workflow. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
 

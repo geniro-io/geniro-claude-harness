@@ -2,6 +2,24 @@
 
 The `/geniro:setup` verification subagent reads this file during Phase Validate and runs every check below against the generated `CLAUDE.md`. The subagent has Read-only tools (Read, Bash read-only, Glob, Grep) — it reports DRIFT items for the orchestrator to fix in a regeneration round; it never edits any file itself.
 
+The orchestrator reads it too, at Phase Generate: §Excluded content is the single enumeration of what must never reach `CLAUDE.md`, so the step that writes the file and the step that checks it work from one list.
+
+---
+
+## Excluded content
+
+`CLAUDE.md` is a **project file**, not a plugin manual. Everything below already lives in the plugin's own files and is loaded automatically, so copying it into `CLAUDE.md` spends tokens on every run for content the model already has:
+
+- Geniro skill table (already in plugin SKILL.md files)
+- Path rules / `~` expansion warning (already in plugin CLAUDE.md)
+- Safety hooks summary or allowlist (already in plugin hooks/)
+- MCP dependencies table (already in plugin settings.json)
+- Agent invocation ladder (already in plugin spawn-agent.md)
+- Updating instructions (already in plugin update/SKILL.md)
+- Any `<!-- geniro-setup-managed -->` markers (CLAUDE.md is user-owned)
+
+Generation (SKILL.md §3.2), the re-run pre-write audit and merge rules, the Phase Validate check below, and the Definition of done all resolve to this list.
+
 ---
 
 **Cross-language contamination check (critical):**

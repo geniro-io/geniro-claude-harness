@@ -182,24 +182,51 @@ _geniro_extract_inner_payloads() {
   fi
   local _m _pl _lit
 
-  # ONE shell-word matcher for every arm. The wrapper prefix consumes its own
-  # flags, `VAR=value` assignments, durations and `{}` placeholders — never an
-  # arbitrary word, which would let any two-word command read as a shell.
-  local _wv_pfx='((sudo|doas|command|env|exec|nohup|nice|timeout|stdbuf|ionice|xargs)([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*[[:space:]]+)*'
+  # ONE shell-word matcher for every arm, and every part of it is DERIVED rather
+  # than enumerated — including the SHAPE of the shell word itself, not just the
+  # list of channels it appears in.
+  #
+  # A WRAPPER is any command word whose own arguments are flags, `VAR=value`
+  # assignments, durations or `{}` placeholders. `sudo`, `nohup`, `timeout 5` and
+  # `env FOO=bar` fall out of that shape — and so do `setsid`, `busybox`,
+  # `unshare`, `firejail` and whatever ships next, each of which a NAME list would
+  # have to grow for one at a time (and did not: `setsid bash` and `busybox sh`
+  # both walked past every guard). Keeping the ARGUMENT shape constrained is what
+  # stops an ordinary two-word command (`grep foo bash`) from reading as a
+  # wrapped shell.
+  local _wv_wrd='[^-[:space:];|&<>"'\''=][^[:space:];|&<>"'\'']*'
+  local _wv_wargs='([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*'
+  local _wv_pfx="(${_wv_wrd}${_wv_wargs}[[:space:]]+)*"
   local _wv_shq='["'\'']?'
   local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
   # One quoted literal; and the payload operand form, which may also be bare.
   local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
   local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
+  # A quote and its negation, for building a sed script whose delimiter is `#`.
+  local _wv_q='["'\'']' _wv_nq='[^"'\'']'
+  # Any flag cluster; the `-c` cluster in particular (ANY cluster containing c —
+  # -c, -lc, -euc); and a token that is provably NOT a `c` cluster (a short
+  # cluster with no c, a long option, a redirection, or a plain operand).
+  local _wv_flag='-[^[:space:];|&<>]*'
+  local _wv_cflag='-[A-Za-z]*c[A-Za-z]*'
+  local _wv_nonc='(-[a-bd-zA-BD-Z0-9]*|--[^[:space:];|&]*|[^-[:space:];|&][^[:space:];|&]*)'
 
-  # Arm 1 — interpreter `-c` payload.
+  # Arm 1 — interpreter `-c` payload. The `-c` cluster need not sit adjacent to
+  # the shell word (`sh -x -c`, `bash --norc -c`) and the payload need not sit
+  # adjacent to `-c` (`sh -c -- '<payload>'`): each adjacency is ONE spelling of
+  # the channel, and requiring either emptied the extraction on all the others.
+  local _wv_cpfx="${_wv_sh}([[:space:]]+${_wv_flag})*[[:space:]]+${_wv_cflag}([[:space:]]+${_wv_flag})*[[:space:]]+"
   while IFS= read -r _m; do
     [ -z "$_m" ] && continue
-    _pl=$(printf '%s' "$_m" | sed -E 's/^.*[[:space:]]-[A-Za-z]*c[A-Za-z]*[[:space:]]+//')
+    # Strip the matched PREFIX, anchored at the shell word. A greedy `^.*-c `
+    # strip cuts at the LAST `-c`-shaped token instead — and `wc -c`, `sort -c`,
+    # `grep -c` and `tar -c` inside the payload are ordinary commands, so
+    # appending one benign second command disarmed the arm completely.
+    _pl=$(printf '%s' "$_m" | sed -E "s#^[^[:alnum:]_]?${_wv_cpfx}##")
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_sh}"'[[:space:]]+-[A-Za-z]*c[A-Za-z]*[[:space:]]+'"${_wv_arg}" 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_cpfx}${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 2 — `eval` payload. The preceding-character class excludes `-` so a long
   # option belonging to another tool (`node --eval`, `perl --eval`) is not read
@@ -216,10 +243,14 @@ _geniro_extract_inner_payloads() {
   # feeds <program> on stdin, so it is neither a `-c` argument nor an `eval`
   # operand, and the guard's quote-scrub blanks it as data. The right-hand side
   # must carry no flag cluster containing `c` (that spelling is arm 1's, and
-  # with -c the shell ignores stdin). Only a QUOTED left-hand literal is
-  # extractable: a producer that COMPUTES its program (a file read, a network
-  # download) carries no literal this scan can read — the download spelling is
-  # hooks/security-pattern-check.sh's sec-curl-pipe-sh pattern instead.
+  # with -c the shell ignores stdin) — expressed as "every following token is
+  # provably not a c cluster", NOT as "the shell word ends the pipeline". The
+  # latter is a spelling: one trailing `2>/dev/null`, `--`, `-` or `--posix`,
+  # the most ordinary things to append to a command, dropped the payload.
+  # Only a QUOTED left-hand literal is extractable: a producer that COMPUTES its
+  # program (a file read, a network download) carries no literal this scan can
+  # read — the download spelling is hooks/security-pattern-check.sh's
+  # sec-curl-pipe-sh pattern instead.
   while IFS= read -r _m; do
     [ -z "$_m" ] && continue
     # Drop from the LAST pipe, so a `|` inside the literal survives.
@@ -227,7 +258,7 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\"}"; _pl="${_pl%\"}"
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
-  done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+-[a-bd-zA-BD-Z0-9]+)*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+'"${_wv_nonc}"')*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
 
   # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
   # This is the mirror image of arm 3: the body is stdin, and every guard's
@@ -248,11 +279,11 @@ _geniro_extract_inner_payloads() {
         if (emit) print line
         next
       }
-      match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+      match($0, /<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
         tag = substr($0, RSTART, RLENGTH)
         dash = (tag ~ /^<<-/)
         sub(/^<<-?[[:space:]]*/, "", tag)
-        gsub(/["'\'']/, "", tag)
+        gsub(/[\\"'\'']/, "", tag)
         hd = 1
         emit = ($0 ~ ENVIRON["GENIRO_WV_SHRE"])
         next
@@ -289,11 +320,16 @@ _geniro_extract_inner_payloads() {
   # shell out, and blocking it would be a false positive on ordinary code
   # authoring. Nothing extractable is lost — a shell-out inside a script FILE
   # carries no literal in the command either way.
-  if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+  #
+  # The left boundary is the same non-word class the shell matcher uses, not a
+  # hand-listed set of separators: `(python3 …)` in a subshell and
+  # `out=$(python3 …)` in a command substitution disabled this arm and BOTH
+  # interpreter families below while the class enumerated `[|;&[:space:]]|/`.
+  if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
     # A dot is allowed before the op name because that is how the ops are normally
     # reached (`require('child_process').execSync(…)`); the cost is that a JS
     # `re.exec("s")` also yields its argument, which re-scans as an inert word.
-    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|system|popen|shell_exec|passthru|proc_open)'
+    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|spawn(Sync)?|fork|system|popen|shell_exec|passthru|proc_open)'
     while IFS= read -r _m; do
       [ -z "$_m" ] && continue
       _pl=$(printf '%s' "$_m" | sed -E 's/^[^(]*\([[:space:]]*//')
@@ -304,11 +340,28 @@ _geniro_extract_inner_payloads() {
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
     done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_shellout}"'[[:space:]]*\([[:space:]]*\\?'"${_wv_lit}" 2>/dev/null || true)"
 
+    # Arm 6b — the same shell-out written as an ARGV SEQUENCE.
+    # `subprocess.run(['sh','-c','<program>'])` and
+    # `spawnSync('sh',['-c','<program>'])` reach exactly the same shell, but the
+    # program is the element AFTER `-c`, not the call's FIRST argument — so 6a's
+    # "the payload is argument one" shape laundered every payload written this
+    # way. Keyed on the shell word plus the `-c` element rather than on the call
+    # name, so an unlisted spawner cannot hide it either.
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E "s#^.*${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}*##")
+      _pl="${_pl#\\}"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      _pl="${_pl%\\}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
+
     # Ruby's backtick literal is the same shell-out with no call syntax at all.
     # Narrowed further to a `ruby` command word: elsewhere a backtick span is
     # ordinary shell command substitution, already visible to the guards as
     # syntax, and re-extracting it would only add noise.
-    if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)ruby([[:space:]]|$)'; then
+    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])ruby([[:space:]]|$)'; then
       while IFS= read -r _m; do
         [ -z "$_m" ] && continue
         _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
@@ -365,8 +418,10 @@ _geniro_interp_write_targets() {
   [ -z "$cmd" ] && return 0
   # Runtime roster. bun and tsx implement node:fs verbatim and deno ships its own
   # Deno.* file API, so a roster frozen at the 2019 set lets one word bypass the
-  # whole channel.
-  if ! printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript|awk|gawk|mawk)([[:space:]]|$)'; then
+  # whole channel. The left boundary is the same non-word class the shell matcher
+  # uses: enumerating separators omitted `(` and backtick, so a subshell or a
+  # command substitution around the interpreter disabled this whole family.
+  if ! printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript|awk|gawk|mawk)([[:space:]]|$)'; then
     return 0
   fi
 
@@ -386,7 +441,7 @@ _geniro_interp_write_targets() {
   # past that guard just by being written in Python or Node.
   local _wops_second='(shutil\.copy[A-Za-z0-9_]*|shutil\.move|os\.rename|os\.replace|File\.rename|FileUtils\.(cp|mv|copy|move)|(copyFile|rename|cp)(Sync)?)'
   local unresolved=0 has_awk=0 lit resolved
-  if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(awk|gawk|mawk)([[:space:]]|$)'; then
+  if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(awk|gawk|mawk)([[:space:]]|$)'; then
     has_awk=1
   fi
 
@@ -468,6 +523,38 @@ _geniro_interp_write_targets() {
 }
 # GENIRO-VENDORED-END _geniro_interp_write_targets
 fi
+if ! command -v _geniro_join_quoted_newlines >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_join_quoted_newlines
+_geniro_join_quoted_newlines() {
+  local cmd="${1:-}"
+  [ -z "$cmd" ] && return 0
+  printf '%s\n' "$cmd" | awk '
+    { buf = buf $0 "\n" }
+    END {
+      n = length(buf); q = ""; out = ""; seg = ""; cmt = 0; prev = "\n"
+      for (i = 1; i <= n; i++) {
+        c = substr(buf, i, 1)
+        if (cmt) {
+          out = out c
+          if (c == "\n") cmt = 0
+        } else if (q == "") {
+          if (c == "#" && index("\n \t;&|(", prev) > 0) { cmt = 1; out = out c }
+          else if (c == "\"" || c == "'\''") { q = c; seg = c }
+          else { out = out c }
+        } else if (c == "\n") {
+          seg = seg " "
+        } else {
+          seg = seg c
+          if (c == q) { out = out seg; q = ""; seg = "" }
+        }
+        prev = c
+      }
+      if (q != "") { printf "%s", buf } else { printf "%s", out }
+    }
+  ' 2>/dev/null || printf '%s\n' "$cmd"
+}
+# GENIRO-VENDORED-END _geniro_join_quoted_newlines
+fi
 
 if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: shell-side writes into protected paths ----
@@ -476,7 +563,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     exit 0
   fi
   # Heredoc bodies are DATA, not shell syntax — a `> .env` inside one is text.
-  # Drop body lines (between <<TAG / <<-TAG / <<'TAG' and the closing TAG)
+  # Drop body lines (between <<TAG / <<-TAG / <<'TAG' / <<\TAG and the closing TAG)
   # before any extraction; the line carrying the << operator itself is kept, so
   # `cat <<EOF > .env` still yields its redirect target.
   SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
@@ -486,11 +573,11 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       if (line == tag) hd = 0
       next
     }
-    match($0, /<<-?[[:space:]]*["'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
+    match($0, /<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
       tag = substr($0, RSTART, RLENGTH)
       dash = (tag ~ /^<<-/)
       sub(/^<<-?[[:space:]]*/, "", tag)
-      gsub(/["'\'']/, "", tag)
+      gsub(/[\\"'\'']/, "", tag)
       hd = 1
       print
       next
@@ -514,16 +601,30 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     done <<< "$INNER_PAYLOADS"
   fi
 
-  # Join backslash-newline continuations, then collapse newlines (mirrors
-  # block-dangerous-git.sh) so multi-line commands can't split a write apart.
+  # Join backslash-newline continuations.
   JOINED="${SCRUBBED//\\$'\n'/ }"
-  ONELINE="${JOINED//$'\n'/ }"
+
+  # A quoted literal may itself span a newline, and the per-line blanking below
+  # would then see an unbalanced quote on each half and scan the second half as
+  # syntax. Join the newlines INSIDE such a span first (lossless: a newline
+  # inside quotes never separates two commands), leaving every command-separating
+  # newline for the pass below. Contract: lib/write-vectors.sh.
+  JOINED=$(_geniro_join_quoted_newlines "$JOINED")
 
   # Quoted string literals are also data (`echo "see > .env"` writes nothing).
   # Blank them out before extraction. Trade-off: a deliberately QUOTED redirect
   # target (`> ".env"`) is no longer caught — accepted; the accidental
   # overwrite shapes this guard exists for are unquoted.
-  ONELINE=$(printf '%s' "$ONELINE" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+  #
+  # Scrubbed per LINE, newlines INTACT, and only THEN collapsed. Collapsing
+  # first let two ordinary prose apostrophes on two different lines
+  # (`# don't` … `# won't`) pair into one "literal" that swallowed the real
+  # command between them — a fail-open on benign input, not on an attack.
+  JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+
+  # Collapse the remaining (command-separating) newlines so multi-line commands
+  # can't split a write apart (mirrors block-dangerous-git.sh).
+  ONELINE="${JOINED//$'\n'/ }"
 
   CANDIDATES=""
   add_candidate() {
@@ -555,7 +656,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       add_candidate "$tok"
     done
     set +f
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])tee[[:space:]]+[^|;&]*' || true)"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])tee[[:space:]]+[^|;&]*' || true)"
 
   # 3) In-place sed: file arguments of a `sed -i` span are overwritten. An
   #    UNQUOTED script token (s/.../.../, y|...|...) is skipped — it is sed
@@ -575,7 +676,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       add_candidate "$tok"
     done
     set +f
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])sed[[:space:]]+[^|;&]*' || true)"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])sed[[:space:]]+[^|;&]*' || true)"
 
   # 4) cp/mv: only the DESTINATION (last non-flag token) is a write — copying
   #    FROM a protected file is a read and stays allowed.
@@ -590,7 +691,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     done
     set +f
     case "$last" in ""|cp|mv|*/cp|*/mv) : ;; *) add_candidate "$last" ;; esac
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])(cp|mv)[[:space:]]+[^|;&]*' || true)"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(cp|mv)[[:space:]]+[^|;&]*' || true)"
 
   # 5) dd of=target
   while IFS= read -r tok; do
@@ -615,7 +716,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       add_candidate "$tok"
     done
     set +f
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])truncate[[:space:]]+[^|;&]*' || true)"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])truncate[[:space:]]+[^|;&]*' || true)"
 
   # 7) shred FILE... — destroys/overwrites each FILE in place. Skip -n/-s count
   #    and size operands.
@@ -634,7 +735,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       add_candidate "$tok"
     done
     set +f
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])shred[[:space:]]+[^|;&]*' || true)"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])shred[[:space:]]+[^|;&]*' || true)"
 
   # 8) install / rsync SRC... DEST — the DEST (last non-flag token) is written,
   #    like cp/mv; an install `-t DIR` / `--target-directory DIR` writes into DIR.
@@ -662,7 +763,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     else
       case "$last" in ""|install|rsync|*/install|*/rsync) : ;; *) add_candidate "$last" ;; esac
     fi
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])(install|rsync)[[:space:]]+[^|;&]*' || true)"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(install|rsync)[[:space:]]+[^|;&]*' || true)"
 
   # 9) ln -f ... LINK — the LINK (last non-flag token) is created/overwritten
   #    when -f/--force is present (without -f, ln refuses to clobber an existing
@@ -679,7 +780,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     done
     set +f
     case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[|;&[:space:]])ln[[:space:]]+[^|;&]*' || true)"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])ln[[:space:]]+[^|;&]*' || true)"
 
   # 10) Interpreter-mediated writes: a scripting runtime opening a file for
   #     writing, or an awk program redirecting `print` into one. Vectors 1-9 read

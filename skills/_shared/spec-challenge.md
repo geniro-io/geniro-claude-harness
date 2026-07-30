@@ -204,13 +204,10 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 
 ## 11. Definition of Done
 
-- [ ] Stage A extracts claims from Section 6 citations, Section 4 assumptions, frontmatter `budget`/`effort_tier`, and (when present) frontmatter `workflow_refs[]` linked-ticket constraints.
-- [ ] Stage B spawns exactly one verifier per cited claim, all in ONE assistant response, via the spawn-agent ladder with `model=` omitted.
-- [ ] Each verifier receives isolated context (cited slice + 1-hop caller grep + 1-2 sibling tests) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 caps and emits `validation / confidence / evidence` with a literal file:line quote.
-- [ ] Stage C (ALTERNATIVES) runs in plan mode and is skipped in implement mode.
-- [ ] Stage D red-team findings are each anchored to a file:line or a §4 result and classified blocking / non-blocking.
-- [ ] Stage E verdict is MODE-correct (plan: keep / keep-with-modifications / re-plan; implement: clean / defects-found) and grounded per the evidence standard.
-- [ ] plan mode folds keep-with-modifications fixes into the spec and the calling skill re-runs its validator; the helper does NOT approve.
-- [ ] implement mode never rewrites the spec; fires the proceed / fix / abort AUQ only on `defects-found`, stays silent on `clean`, and persists the pick to `approvals[]`.
-- [ ] One plain-English echo line per stage; a clean implement-mode pass surfaces only the proceeding line.
-- [ ] When `DEEP: true`, Stage B runs 3 verifiers per claim with majority aggregation (parse-fail = abstain; quorum <2 → single-pass fallback) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md`; `DEEP: false`/absent runs the single-pass batch unchanged.
+The stages above define the procedure; these are the exit gates that stay checkable once the pass is over.
+
+- [ ] Every extracted claim got its own verifier, spawned in ONE assistant response, each seeing only its isolated slice — and every returned verdict carries a literal quote from the cited file, never a paraphrase.
+- [ ] Every red-team finding is anchored to a file:line or a §4 result; an unanchorable one was dropped rather than reported.
+- [ ] plan mode: keep-with-modifications fixes are folded into the spec, the calling skill re-ran its validator afterwards, and this helper issued no approval.
+- [ ] implement mode: the spec is byte-identical to what it was on entry; the proceed / fix / abort AUQ fired only on `defects-found`, and its pick is in `approvals[]`.
+- [ ] One plain-English echo line per stage that ran.
