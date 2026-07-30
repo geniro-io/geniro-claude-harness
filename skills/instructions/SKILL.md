@@ -16,20 +16,21 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 - Definition of done
 - Budgets — quality-first
 - ACI per-phase tool surface
+- Memory I/O
 - Termination case → state mapping
 - Valid scope set
 - File shapes
 - Frontmatter field reference (`review-extra/<slug>.md`)
-- Phase 1 — parse intent
-- Phase 2 — execute (mode dispatch) + batch mode
-- Modes: list / create / edit / validate / delete
-- Memory I/O
+- Phase 1 — parse intent, resolve scope, dispatch to a mode
+- Batch mode
 - Writing effective instructions
 - Cross-references
 
 ---
 
-3-phase stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Operations: `list`, `create`, `edit`, `validate`, `delete`. Stateless: every invocation is a single transaction; no state file.
+Stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Five modes: `list`, `create`, `edit`, `validate`, `delete`; Phase 1 resolves exactly one of them per invocation. Stateless: every invocation is a single transaction; no state file.
+
+**Mode bodies.** Each mode's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-<op>.md`. Read the one Phase 1 dispatches to, and again on any resumption of it — the four it did not dispatch to are never read.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
@@ -39,7 +40,7 @@ Code rules split three ways depending on **when** they should fire:
 - **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads on matching glob — fires even outside Geniro pipelines).
 - **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
 
-**After a compaction, re-invoke this skill before running a mode whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary, and this skill is stateless, so re-invoking restores the full body and the transaction restarts from Phase 1.
+**After a compaction, re-Read the dispatched mode's body file before continuing it** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. This skill is stateless, so if which mode was running is also gone, re-invoke and restart the transaction from Phase 1.
 
 ## Loop invariants
 
@@ -65,10 +66,10 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 ## Definition of done
 
-- [ ] Intent detected from freeform arguments (or default to `list`)
+- [ ] Mode detected from freeform arguments (or default to `list`)
 - [ ] Scope(s) resolved — single or batch — within 3 AUQ retry cap
-- [ ] File operations completed successfully
-- [ ] User confirmed before any destructive operation (delete)
+- [ ] The dispatched mode's body file was Read and its Steps completed
+- [ ] User confirmed before running the destructive mode (`delete`)
 - [ ] Validation checked structure, phase names, scope validity, dropped-skill refs, and description rules
 - [ ] All user interactions used `AskUserQuestion` — no plain-text questions
 - [ ] review-extra files validated against slug uniqueness, built-in collision, model/severity-default value sets, paths syntax, and count caps
@@ -83,10 +84,21 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, all `mcp__*`, network |
-| `execute` | `Read`, `Bash` (`atomic_state_write`, `mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Write`, `Edit` (`.geniro/instructions/*` is a persistent-CRUD path — a direct write is hard-blocked by the state-helper hook; see Mode: create Step 5), `Agent` (no subagents), `mcp__github__*`, network egress |
+| `execute` | `Read`, `Bash` (`atomic_state_write`, `mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Write`, `Edit` (`.geniro/instructions/*` is a persistent-CRUD path — a direct write is hard-blocked by the state-helper hook; see `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-create.md` §Step 5), `Agent` (no subagents), `mcp__github__*`, network egress |
 | `done` | (terminal report) | (none) |
 
 External sends: not in `/geniro:instructions` ACI ever.
+
+## Memory I/O
+
+`/geniro:instructions` is the **CRUD frontend for L4 (procedural memory)**.
+
+| Layer | Read | Write | Notes |
+|---|---|---|---|
+| CLAUDE.md (not a memory layer) | not read | not written | That's `/geniro:setup`'s domain |
+| L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/geniro:instructions`'s entire surface |
+
+**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.
 
 ## Termination case → state mapping
 
@@ -145,9 +157,9 @@ The single source for every field's value set and length cap — validate-mode's
 
 **Step 0.5 — Locate the instructions directory.** Compute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, re-running it in every Bash call that uses the variable (Mode A owns the recompute-per-call rule); every `.geniro/instructions/...` path in the rest of this skill is prefixed `"$PRIMARY_ROOT"/`. Instruction files are cross-session content — a cwd-relative write from a linked worktree is lost when the worktree is removed. When `PRIMARY_ROOT` is not `.`: create/edit/delete success lines show the resolved absolute path, create/edit lines append `— written to the main repo checkout so it survives this worktree's removal.`, and if a same-named file exists at the cwd-local `.geniro/instructions/` path with different content, print one notice after create/edit: `Note: this worktree has its own copy of <file>, which takes precedence here when rules load.` Notice only — no question, no block.
 
-### Action detection
+### Mode detection
 
-| Intent | Aliases | Maps to |
+| Mode | Aliases | Resolves to |
 |--------|---------|---------|
 | List | show, view, list, display, what instructions, current | `list` |
 | Create | add, new, create, set up, start | `create` |
@@ -195,15 +207,13 @@ For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO requi
 - `edit review-extra` / `delete review-extra` no slug AND multiple files exist → AUQ which slug. If >4 files, chain follow-ups per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` cap-extension rule.
 - `validate review-extra` ignores slug — always validates the whole directory. Print one-line notice if a slug was passed.
 
-If multi-scope, proceed to **batch mode**. Otherwise proceed to the resolved command section.
+### Dispatch
 
-## Phase 2: Execute (mode dispatch, single-scope)
-
-Branch to the matching `## — Mode: <op>` section (`list` / `create` / `edit` / `validate` / `delete`).
+Single scope: **Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-<op>.md`** for the resolved mode (`list` / `create` / `edit` / `validate` / `delete`) and follow its Steps. Read only that one, and Read it again on any resumption of the run — the Steps are not in this file, so a run that skips the Read has nothing to execute. Multi-scope: run §Batch mode below, which walks the same mode file once per scope.
 
 ## Batch mode
 
-For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same command flow. Across the stable scope set the multi-scope chain stays under 4 AUQ rounds.
+For multi-scope (e.g., "edit global and review", "add rules to all"), process each scope sequentially through the same mode flow. Across the stable scope set the multi-scope chain stays under 4 AUQ rounds.
 
 Print summary after all scopes complete:
 
@@ -215,271 +225,6 @@ Print summary after all scopes complete:
 | global | edit | Updated — added 2 rules |
 | review | edit | Updated — added 1 constraint |
 ```
-
-## — Mode: list
-
-### Step 1 — Scan directory
-
-```bash
-ls -la "$PRIMARY_ROOT"/.geniro/instructions/ 2>/dev/null
-ls -la "$PRIMARY_ROOT"/.geniro/instructions/review-extra/ 2>/dev/null
-```
-
-### Step 2 — Present results
-
-If empty:
-
-```
-No instruction files found.
-
-Run `/geniro:instructions create global` to create your first instruction file,
-or `/geniro:instructions create code-style` for project-wide style rules.
-```
-
-Else, one row per scope in the §Valid scope set table — including the not-yet-created ones, so the user sees the whole surface — with `review-extra/` as a nested group and a totals footer:
-
-```
-Custom instructions in .geniro/instructions/ (project: my-project):
-
-global.md 348 B modified 3 days ago
-memory.md (none)
-implement.md (none — create with /geniro:instructions create implement)
-... one row per remaining scope ...
-review-extra/ (directory — 2 files)
-├── sql-bindings.md 1.6 KB modified 4 days ago
-└── accessibility-aria.md 2.1 KB modified 1 day ago
-
-<total> scopes total · <n> active · <n> not-yet-created
-```
-
-Add `--with-content` flag to dump file bodies inline (truncated at ~2000 chars per file).
-
-## — Mode: create
-
-### Step 1 — Check for existing file
-
-```bash
-cat "$PRIMARY_ROOT"/.geniro/instructions/<scope>.md 2>/dev/null
-```
-
-If file exists: AUQ "File exists — overwrite, edit instead, or cancel?". Branch accordingly.
-
-### Step 2 — Ensure directory exists
-
-```bash
-mkdir -p "$PRIMARY_ROOT"/.geniro/instructions
-mkdir -p "$PRIMARY_ROOT"/.geniro/instructions/review-extra # if scope == review-extra
-```
-
-### Step 3 — Gather project context
-
-When the request does not already name a concrete rule, read enough of the project — CLAUDE.md, the build and test scripts, the linter and formatter configs — that Step 4's suggestions name this project's real tooling instead of placeholders.
-
-### Step 4 — Scope-specific scaffold + interview
-
-Each scope gets a **scope-specific scaffold** with example Rules to make the empty-file moment less confusing. The four scaffolds (`code-style` / `implement` / `global` / `memory`) plus their stub-inclusion notes live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — render the matching scaffold first, always.
-
-The interview is for requests that arrive vague. When the invocation already names an actionable rule ("add a rule that we run `pnpm test` before shipping"), place it in the scaffold under the block type §Block-type detection resolved and go straight to Step 5 — re-interviewing a user who already answered spends three questions to reach the line they handed over. Otherwise use `AskUserQuestion`:
-
-- **Question:** "Add what kind of rules?"
-- **Options (scope-tailored):** Documentation / Quality gates / Workflow steps / Free-form (Other path)
-
-Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into a specific criterion the model can weigh, per the rule-writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2 — name the command or path, and give the reason where the rule is one the model would otherwise talk itself out of (e.g. "make sure we test" → "Cover each new public function with a test; run `npm test` before shipping — CI reviews the last green run, not the working tree").
-
-### Step 5 — Generate the file
-
-Apply the writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2. Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, route the file through `atomic_state_write` targeting `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
-
-### Step 6 — Confirm
-
-Print:
-
-```
-Created `.geniro/instructions/<scope>.md`
-
-This file will be loaded by <affected skills list> at the start of each run.
-Edit via `/geniro:instructions edit <scope>`; lint via `/geniro:instructions validate`.
-```
-
-For `review-extra`, follow the slug-bearing flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`.
-
-## — Mode: edit
-
-### Step 1 — Resolve scope (Phase 1) + Read existing file
-
-If missing, branch to `create`. Else display current body inline.
-
-### Step 2 — Pick the edit path
-
-- **Question:** "How would you like to edit `<scope>`?"
-- **Options:**
-- `Apply the change you described` — offered when the invocation already names a concrete change ("change the test command in my implement rules to `pnpm test:ci`"). Draft the edited body, show what changed, and gate the write on the same AUQ as the dialogue path.
-- `Open in editor (external)` — Print absolute path; instruct user to edit externally and re-run `/geniro:instructions validate <scope>` when done. Exit.
-- `Rewrite via dialogue` — Interview-style sequence of AUQs (Add a Rule / Add an Additional Step / Add a Constraint / Remove a Rule by number / Done). Apply edits to an in-memory copy; final write AUQ-gated.
-- `Cancel`
-
-### Step 3 — Re-validate (review-extra only)
-
-After editing a `review-extra` file, re-run the lint rule set against the edited file. If any rule fails, AUQ revert vs keep-and-fix-later.
-
-### Step 4 — Show updated file
-
-```
-Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next time you run `/geniro:<scope>` (or any affected skill for global.md), unless this worktree has its own differing copy of the file — that copy takes precedence here.
-```
-
-### Body section invariants (post-edit)
-
-- `## Rules` section present (may be empty list).
-- `## Additional Steps` section present (omitted for the rules-only scopes `code-style`, `review-extra/<slug>`, `onboard`, `investigate`; for `global` the section is optional and, when present, carries only the cross-skill `### After worktree-setup` event anchor).
-- `## Constraints` section present (may be empty list).
-- Frontmatter (for `review-extra/<slug>.md`) parses YAML cleanly.
-
-Violations are not auto-fixed; `validate` surfaces them on next invocation.
-
-## — Mode: validate
-
-### Step 1 — Scan + scope
-
-`validate` accepts `<scope>` arg (validate one file) or no arg (validate all). Read-only; never mutates.
-
-**flag:** `--max-lines N` overrides the default 300-LOC threshold (Step 2, matching the §File-size guidance split point). Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
-
-### Step 2 — Lint rule set
-
-**Structural checks (apply to all scopes):**
-
-| Check | Severity | Example violation |
-|---|---|---|
-| File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
-| `## Rules` heading present (skip for `memory.md` — it carries the `## Memory Backend` block only) | HIGH | File has body but no `## Rules` header |
-| `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead; skip for `memory.md`) | HIGH | Missing `## Constraints` |
-| File ≤ 300 lines (threshold env-overridable, see Step 1) | LOW | Anthropic Claude Code memory guidance: "longer files consume more context and reduce adherence". Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
-
-**Reference checks:**
-
-| Check | Severity |
-|---|---|
-| No references to dropped skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) | HIGH |
-| No references to dropped phase names (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM |
-| `Additional Steps` subsections match per-skill phase enum (the cross-skill `### After worktree-setup` anchor in `global.md` is the one non-phase exception) | MEDIUM |
-
-**Per-scope checks:**
-
-| Scope | Extra checks |
-|---|---|
-| `review-extra/<slug>.md` | Frontmatter parses as YAML and every field satisfies §Frontmatter field reference — the single source for the value sets and the description length cap. Severity: CRITICAL when `slug` fails its regex, mismatches the filename, or collides with a built-in dimension (the loader then silently runs the built-in and the custom criteria never fire); HIGH for any other field violation. Description quality is graded separately below. |
-| `code-style.md` | At least 1 rule under `## Rules` — LOW warning if empty (no-op file) |
-
-**`## Data Sources` lint rules** (applied to `global.md` and per-skill scopes when a `## Data Sources` section is present):
-
-| Rule | Severity |
-|---|---|
-| A shell-command entry fails the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 — it carries a mutating verb, hides its action behind command substitution / a wrapped CLI, or is a SQL command that is not SELECT-shaped (the screen's verb set is single-homed there; do not re-list it here) | HIGH — a mutating data-source command could run against production. Emit: "Data Sources entry `<label>` carries a mutating or un-screenable command — sources must be read-only (the verification step runs them automatically). Make it a read-only query or remove it (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §read-only screening)." |
-| A malformed entry — no source (missing the backticked command / MCP-tool name / action name), or no `(confirms: ...)` hint | MEDIUM — the entry can't be used |
-
-The HIGH severity matches the spec `verify:` read-only doctrine: a data-source shell command runs unattended during fact verification, so a mutating one is the same prod-risk class the `/geniro:implement` side-effect screen guards. `## Data Sources` is optional — absence is not a finding.
-
-**`## Memory Backend` lint rules** (applied to `memory.md` when a `## Memory Backend` section is present):
-
-| Rule | Severity |
-|---|---|
-| A `## Memory Backend` block in any file OTHER than `memory.md` (e.g. left in `global.md` or a per-skill file — those are not loaded for the memory layer) | MEDIUM |
-| `memory.md` carries `## Rules` / `## Constraints` / `## Additional Steps` (the memory scope is for the backend block only) | LOW |
-| An entry missing `layer`, or `layer` not `learnings` (`learnings` is the only routed layer) | MEDIUM |
-| `mode` present but not `mirror` / `replace` | MEDIUM |
-| The `read` tool/command fails the read-only screen in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §4 (the query op must be read-only; the `write` op is the declared mutator and is exempt) | HIGH — it runs unattended during retrieval |
-| An entry missing `write` or `read` | MEDIUM |
-
-`## Memory Backend` is optional — absence is not a finding (memory uses the built-in file).
-
-**Description quality rules** — grade the `description:` of `review-extra/<slug>.md` against the three rows in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md`, which owns them and their severity.
-
-**`requires-context` lint rules** (applied to `review-extra/<slug>.md`):
-
-| Rule | Severity |
-|---|---|
-| Criteria body or `description` references live external data (`mcp__`, the words "Notion" / "Linear" / "Jira", "fetch from", "the API", or an `http(s)://` URL) but no `requires-context:` is declared | MEDIUM — emit: "Criteria reference live external data, but no `requires-context:` is declared. This reviewer runs in a subagent without MCP access and will see no external data — declare `requires-context:` so the orchestrator fetches it (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context)." |
-| `requires-context:` present but not a non-empty string | HIGH |
-
-This is the guard that catches the silent-empty-findings trap at authoring time: a reviewer whose criteria say "match the diff against the Notion incident report" but which never declares the dependency will spawn into a subagent that can't fetch it, producing empty or hallucinated findings with no error.
-
-### Step 3 — Per-skill phase mapping
-
-Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 and check every `Additional Steps` subsection in the target file against the phase enum listed there for its scope, including the severities for free-form and dropped-phase anchors. That section is the single source; the one exception it records is `### After worktree-setup`, a cross-skill event anchor valid only in `global.md`.
-
-### Step 4 — Count caps (review-extra)
-
-- **Soft warning** if >6 files: `⚠ Count {N} exceeds the 4-6 sweet-spot — consider consolidating overlapping reviewers.`
-- **Hard error** if >10 files: `✗ Count {N} exceeds hard cap of 10 — the loader will refuse to load all reviewers.`
-- These thresholds (sweet-spot 4-6, hard cap 10) mirror the create-flow caps defined canonically in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Step 3 AND the runtime enforcer `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 (which actually aborts the review past the cap) — change all three together so the create-flow, validate-mode, and enforcer caps never diverge.
-
-### Step 5 — Output format
-
-```
-$ /geniro:instructions validate
-
-Validation results: 4 files checked, 3 issues found.
-
-✓ global.md no issues
-⚠ implement.md 1 MEDIUM
-└── Line 14: "### After Phase 4 (Implement)" → should be "### After implement"
-⚠ code-style.md 1 LOW
-└── File is 380 lines (>300). Anthropic guidance: longer files reduce adherence.
-Suggestions: split into code-style-database.md + code-style-api.md, or trim redundant rules.
-⚠ review-extra/sql-bindings.md 1 LOW
-└── Frontmatter description: missing "Skip for" boundary clause (LOW)
-
-To fix: /geniro:instructions edit implement
-/geniro:instructions edit code-style
-/geniro:instructions edit review-extra sql-bindings
-```
-
-When any `CRITICAL` or `HIGH` is present, lead the report with a blocking verdict — `✗ Needs fixing: <N> blocking issue(s)` above the per-file lines. `MEDIUM`/`LOW` are warnings and leave the verdict clean.
-
-### No auto-fix
-
-`validate` reports; it does not mutate. Auto-fix would silently rewrite user-authored instruction content, which is never overwritten without explicit user action.
-
-## — Mode: delete
-
-### Step 1 — Resolve + read existing file
-
-If missing: print "nothing to delete" and exit. Else continue.
-
-### Step 2 — Confirm
-
-AUQ 2-option: `Confirm delete` / `Cancel`. Show file size + last-modified for context. For `review-extra/<slug>.md`, the slug must be specified (no bulk-delete).
-
-### Step 3 — Execute
-
-```bash
-rm -f "$PRIMARY_ROOT"/.geniro/instructions/<scope>.md
-# OR for review-extra:
-rm -f "$PRIMARY_ROOT"/.geniro/instructions/review-extra/<slug>.md
-```
-
-The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/instructions/<scope>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk `rm -rf .geniro/instructions/` is blocked.
-
-Clean up empty parent dirs silently:
-
-```bash
-rmdir "$PRIMARY_ROOT"/.geniro/instructions/review-extra/ 2>/dev/null
-rmdir "$PRIMARY_ROOT"/.geniro/instructions/ 2>/dev/null
-```
-
-For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delete review-extra <slug>` per-file; bulk delete protected by guard hook."
-
-## Memory I/O
-
-`/geniro:instructions` is the **CRUD frontend for L4 (procedural memory)**.
-
-| Layer | Read | Write | Notes |
-|---|---|---|---|
-| CLAUDE.md (not a memory layer) | not read | not written | That's `/geniro:setup`'s domain |
-| L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/geniro:instructions`'s entire surface |
-
-**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.
 
 ## Writing effective instructions
 
@@ -496,3 +241,4 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for instruction files
 - `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` — file shapes, create scaffolds, writing principles, and the per-skill phase enums validate-mode checks `Additional Steps` anchors against (§5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` — the three description-quality rows validate-mode grades a `review-extra/<slug>.md` description against
+- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-list.md` · `mode-create.md` · `mode-edit.md` · `mode-validate.md` · `mode-delete.md` — the five mode bodies Phase 1 dispatches to

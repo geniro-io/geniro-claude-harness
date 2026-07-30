@@ -166,7 +166,7 @@ Per skills/_shared/evidence-standard.md, every completion claim ("done", "passin
     <line N>
 
 This is a soft reminder layer (Stop hooks fire ~50-80% of the time). Authoritative enforcement is
-per-skill (reviewer-agent finding emit-time, verification-cache invalidation, Edit|Write TDD-order).
+per-skill (reviewer-agent finding emit-time, Evidence Standard re-validation, Edit|Write TDD-order).
 Bypass this warning by adding "evidence-stop" to .geniro/safety.json allow_patterns.
 EOF
   # Stop-hook stderr on exit 0 lands only in the verbose transcript — the

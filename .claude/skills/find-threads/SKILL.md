@@ -19,7 +19,7 @@ argument-hint: "[search query — PR number / phrase / filename — or empty for
 - ACI per-phase tool surface
 - Phase 1 (discover) · Searching by content
 - Phase 2 (present) · Phase 3 (select & launch)
-- Modifier handling · REFERENCE
+- REFERENCE
 
 ---
 
@@ -248,16 +248,6 @@ Queued — run this after the first finishes:
 ```
 
 List any oversize picks separately under "Too large to analyze as-is (over 5 MB — split first)" with their paths — do NOT put them in the runnable queue, because `/analyze-thread` refuses them and the command would just fail. If every pick is oversize, launch nothing and say so, naming the oversize threads.
-
----
-
-## Modifier handling
-
-| `$ARGUMENTS` | Effect |
-|---|---|
-| empty | List every work-bearing thread (edited + read-only) across all config dirs, grouped by project. |
-| a query (`2649` / `bright data` / `case-radar.ts`) | Content search inside thread bodies + titles + project paths, ranked best-first. See **Searching by content** for what to type. A bare 3–6 digit query is treated as a PR reference. |
-| `--code-only` (alone or with a query, e.g. `--code-only 2649`) | Restrict the result set to code-editing threads — the legacy behavior; read-only review/debug/investigate runs are dropped. |
 
 ---
 

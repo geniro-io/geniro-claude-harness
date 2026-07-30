@@ -177,7 +177,7 @@ Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantic
 | "The file probably hasn't changed since the last load — skip." | The user may have edited it mid-session via `/geniro:instructions edit`. The Read is the only source of truth. |
 | "I'll skip the echo to save tokens." | The echo is the user-visible proof the Read fired. A silent load is indistinguishable from a skipped load. No exceptions. |
 | "This skill doesn't write code, so `code-style.md` doesn't apply — skip it even though `LOAD_TIER: pipeline`." | The `LOAD_TIER` field is the contract — `rules-only` consumers don't request `code-style.md` and the helper handles it. Do not make ad-hoc skip decisions per turn. |
-| "I'll batch the three Reads into a Glob to save a tool call." | Glob doesn't ingest content. The Read content is what applies — Glob alone won't trigger application. |
+| "I'll batch the Reads into a Glob to save a tool call." | Glob doesn't ingest content. The Read content is what applies — Glob alone won't trigger application. |
 | "The file doesn't exist on this project — error out." | File-not-found is the silent-skip case. Print the "No `<name>` found — skipping." echo and continue. |
 | "The echo line is informational; I can drop it if the project has no instructions." | Then the user can't distinguish a missing file from a skipped Read. Always echo, even on skip. |
 | "Refresh wording from old code says 'since Phase 1' — I'll keep it." | Some skills (debug) have no Phase 1. "Since the previous load" is the canonical anchor-free wording — update on contact. |

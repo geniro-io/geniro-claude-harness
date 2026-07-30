@@ -92,7 +92,7 @@ Every kept finding posts, apart from these exclusions. The test-confirmation gat
 
 ### 7.2 Granularity gate
 
-**Non-skippable whenever the post set would exclude any finding.** Once the user picks "Post", severity does not gate postability — every eligible finding (CRITICAL / HIGH / MEDIUM / LOW / deferred) is in the post set unless it leaves via an accounted path: a user pick in this gate (or its §7.3 follow-up), a §7.1 dedup exclusion that wrote a `## Filtered` `reason:`, a §7.1 disposition exclusion (`post-disposition: off-pr` or `no-action`), or a §7.1 verification exclusion (`Validation: unverified` — the field itself is the recorded reason). There is no other path. The orchestrator never narrows the post set at §7.4 payload time on its own judgment — an unaccounted exclusion (a finding silently dropped with no user pick and no recorded reason) is the failure this gate prevents. So this AUQ fires whenever the §7.1-filtered eligible set is non-empty; it is skipped only when §7.1 already emptied the set (handled above — Skip semantics).
+**Non-skippable whenever the §7.1-filtered eligible set is non-empty.** Once the user picks "Post", severity does not gate postability — every eligible finding (CRITICAL / HIGH / MEDIUM / LOW / deferred) is in the post set unless it leaves via an accounted path: a user pick in this gate (or its §7.3 follow-up), a §7.1 dedup exclusion that wrote a `## Filtered` `reason:`, a §7.1 disposition exclusion (`post-disposition: off-pr` or `no-action`), or a §7.1 verification exclusion (`Validation: unverified` — the field itself is the recorded reason). There is no other path. The orchestrator never narrows the post set at §7.4 payload time on its own judgment — an unaccounted exclusion (a finding silently dropped with no user pick and no recorded reason) is the failure this gate prevents. The one skip is when §7.1 already emptied the set (handled above — Skip semantics).
 
 Chain a follow-up `AskUserQuestion` with header "Post mode":
 
@@ -101,7 +101,7 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 - "Send all (Recommended)" — single batched review event minimizes per-finding AUQ calls and dodges secondary rate limits with a single POST.
 - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include.
 
-**Definition of Done (§7.2 gate):** every finding in the §7.1-filtered eligible set either posts, or carries a recorded reason for its absence — a user "Skip this finding" / "Stop posting" pick from §7.3, a §7.1 `## Filtered` `reason:`, `post-disposition: off-pr`, `post-disposition: no-action`, or `Validation: unverified`. A finding excluded with none of these is an unaccounted drop; do not POST until it is accounted.
+**Definition of Done (§7.2 gate):** every finding in the §7.1-filtered eligible set either posts or left via one of the accounted paths listed above. Do not POST while any finding is unaccounted for.
 
 ### 7.3 Per-finding gate
 

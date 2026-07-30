@@ -17,8 +17,8 @@ argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
 - Anti-rationalization
 - Budgets — quality-first framing
 - State persistence
-- Memory I/O
 - ACI per-phase tool surface
+- Memory I/O
 - Task execution entry
 
 ---
@@ -89,15 +89,16 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 ## Loop invariants
 
-These invariants apply throughout all phases; phase numbers and tool surface differ.
+The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across every phase, with plan-specific bindings:
 
-1. **One result per tool call.** Every AskUserQuestion / Write / Bash / Agent spawn produces exactly one structured result. Failed AUQ (empty-answer bug) → fall back to plain-text re-ask; never auto-default.
-2. **Args validated before execution.** Bash commands constructed from $ARGUMENTS or state.md fields pass input sanity-checks before running.
-3. **Permission before side-effect.** Phase 6 `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the only mutation in the loop. `git commit` deferred to Phase 8 post-approval. No auto-mutations elsewhere — the frontmatter `allowed-tools` omits `Edit`, and the `enforce-state-helper` PreToolUse hook hard-blocks any direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so every state write routes through `atomic_state_write`.
-4. **Bounded and structured tool results.** Phase 1 research-agent output capped at ~4000 chars per agent; longer truncated with marker. Output schema: `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
-5. **Escalation gates, not silent abort.** Every cap in §Budgets surfaces to the user with an explicit option set instead of aborting. NO Class-A hard kill caps.
-6. **Final answer grounded in observations.** Phase 5 section content cites Phase 1 explore findings (`file:line` references), not generic prose — the Phase 7 validator includes a "citations present" check that fails an uncited section.
-7. **Errors, denials, cancellations, timeouts → structured observations.** Phase 1 research-agent failures → structured entry in state.md `## Errors`. Phase 0 cancel → `## Termination reason`. Phase 7 validator findings → `## Open Questions`. Never silently skipped.
+- **Invariant #1 (one result per tool call)** — a failed `AskUserQuestion` (the empty-answer bug) falls back to a plain-text re-ask; never auto-default.
+- **Invariant #3 (permission before side-effect)** — Phase 6's `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the loop's only mutation, and `git commit` is deferred to Phase 8 post-approval. The frontmatter `allowed-tools` omits `Edit`, and the `enforce-state-helper` PreToolUse hook hard-blocks any direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so every state write routes through `atomic_state_write`.
+- **Invariant #4 (bounded results)** — Phase 1 research-agent output carries the per-spawn cap declared in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2, which owns that value; schema `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
+- **Invariant #6 (grounded in observations)** — Phase 5 section content cites Phase 1 explore findings by `file:line`, not generic prose; the Phase 7 validator's citation check fails an uncited section.
+- **Invariant #7 (structured observations)** — a Phase 1 research-agent failure lands in state.md `## Errors`; a Phase 0 cancel in `## Termination reason`; Phase 7 validator findings in `## Open Questions`.
+
+This skill adds one invariant:
+
 8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Turn-completion check (canonical, un-numbered).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard: never stop on an announced-but-unfired question.
@@ -130,11 +131,11 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Phase 3 grill checkpoint | summarize-and-continue every ~6 questions OR at branch completion (no fixed question cap) | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
+| Phase 3 grill checkpoint | the checkpoint trigger per §3.4 — no fixed question cap | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
 | Phase 5 per-cluster revision rounds | 3 | §5.2 | Cluster AUQ re-fires without Revise — approve-as-rendered / explain-further / cancel; an unresolved change carries to the Phase 8 gate. |
 | Phase 7 → Phase 6 auto-revision rounds | 3 | §7.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | 3 | §8.3 | AUQ — accept-as-is / re-revise / abort. |
-| Phase 1 research-agent output size | ~4000 chars per agent | invariant #4 | Truncation with marker, not abort. |
+| Phase 1 research-agent output size | per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2 | invariant #4 | Truncation with marker, not abort. |
 
 **Question cadence:** Phase 3 uncapped; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
 
@@ -186,25 +187,13 @@ fi
 
 ---
 
-## Memory I/O
-
-Call signatures live in each site's phase file (spine §Phase files).
-
-**Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` (L4) · the project snapshot via `load_semantic` (L3) · past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (`mcp__linear__get_issue`, etc.), only when `$ARGUMENTS` carries a tracker URL/ID.
-
-**Writes:** every state.md and spec.md mutation is T1.5 through `atomic_state_write` (invariant #3). The state.md body-section index — the base sections, the phase that owns each optional one, and the `approvals[]` entry every gate writes — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. L2 emits are conditional, and each supplies its own `trust` at its emit site.
-
-**Cross-layer conflict surfacing:** when L4/L3/L2 reads disagree, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol — soft conflict prints notice and continues; hard conflict halts with AUQ.
-
----
-
 ## ACI per-phase tool surface
 
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskUserQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
 | Phase 0.5 (Problem discovery, `--prd` only) | AskUserQuestion / atomic_state_write (state.md `approvals[]` + `## Problem Framing`) | Edit / Write outside state.md / mutating Bash |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from the frontmatter `allowed-tools`, so the first publish raises the one-time `claude.ai` consent prompt — let it fire rather than pre-allowing the tool) | Edit / Write outside state.md |
+| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from the frontmatter `allowed-tools`, so the first publish raises the one-time `claude.ai` consent prompt — let it fire rather than pre-allowing the tool) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only) | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) | Edit / direct Write / mutating Bash |
@@ -214,6 +203,18 @@ Call signatures live in each site's phase file (spine §Phase files).
 | Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
 
 Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit the orchestrator's tier.
+
+---
+
+## Memory I/O
+
+Call signatures live in each site's phase file (spine §Phase files).
+
+**Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` (L4) · the project snapshot via `load_semantic` (L3) · past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (`mcp__linear__get_issue`, etc.), only when `$ARGUMENTS` carries a tracker URL/ID.
+
+**Writes:** every state.md and spec.md mutation is T1.5 through `atomic_state_write` (invariant #3). The state.md body-section index — the base sections, the phase that owns each optional one, and the `approvals[]` entry every gate writes — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. L2 emits are conditional, and each supplies its own `trust` at its emit site.
+
+**Cross-layer conflict surfacing:** when L4/L3/L2 reads disagree, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol — soft conflict prints notice and continues; hard conflict halts with AUQ.
 
 ---
 

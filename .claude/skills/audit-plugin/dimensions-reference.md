@@ -5,6 +5,8 @@ Per-dimension checklists for `/audit-plugin`. Each dimension defines its file sc
 ## Contents
 
 - Reviewer spawn template
+- Run setup
+- Fix-round execution
 - Severity tiers (shared output classification)
 - Finding output contract (shared reviewer schema)
 - D1 — Mechanical hygiene (deterministic, no LLM)
@@ -59,6 +61,38 @@ Dimension-specific notes:
 - **D6:** paste the no-execution-site and over-constraint candidate lists from the D1 battery into the `### Mechanical pre-pass context` slot, as D3 and D7 already get theirs.
 - **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
 
+## Run setup
+
+Read at Phase 0, alongside this file's rubric sections.
+
+**Inventory** — record file counts + line totals in the state checkpoint:
+
+- Shipped: `skills/**/*.md`, `agents/*.md`, `hooks/*` + `hooks/hooks.json`, `lib/*.sh`, `settings.json`, `scripts/*.sh`.
+- Dual-runtime port: `cursor/**` (generated `cursor/agents/*.md`, `cursor/hooks.json`, `cursor/hooks/claude-hook-shim.sh`, `cursor/README.md`) + `.cursor-plugin/plugin.json`. The shim is a guard-carrying surface — it translates every wired hook's block signal into Cursor's deny response, so it belongs in the safety scope, not only the consistency scope.
+- Repo-local: `.claude/rules/*.md`, `.claude/skills/**/*.md`.
+- Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
+- Tests: `tests/**` (coverage map input for D8). `design/` and `evals/` are out of scope unless `$ARGUMENTS` names them.
+
+**State checkpoint** — write `.geniro/state/audit-plugin/<slug>/state.md`, slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules (audit-plugin is not in that helper's enumerated producer set but adopts its contract shape verbatim). Write via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook), with the full T1.5 YAML frontmatter starting on line 1: `tier: T1.5`, `producer: audit-plugin`, `schema-version: 1`, `branch`, `worktree`, `timestamp`, `phase`, `status`, `non-resumable-actions: []`. Plain-text header lines before the `---` fence fail `validate_state_file`. Each checkpoint records: phase completed, scope, dimensions selected, finding counts.
+
+## Fix-round execution
+
+Read at Phase 5 when a fix path is approved — you already have this file open from Phase 2. The disjoint-scope grouping, the ownership assert, and the 1-round budget are in SKILL.md §Phase 5; this section is what happens after the agents are spawned.
+
+**Three things reliably happen, so plan for them rather than treating each as an exception.**
+
+1. **An agent finds more instances of its defect class outside its own files.** It reports them; you ground-truth the claim with a grep before routing it to the owning agent. Never let it reach across.
+2. **An agent judges a finding's stated fix wrong and says so instead of complying.** Treat that as the mechanism working. Verify the correction yourself, then amend the report row — a fix instruction written from a grep hit can be wrong in ways only the editing agent sees, and a report that ships the wrong instruction teaches the next round the wrong thing.
+3. **A correct fix inside one scope breaks a citation in another.** A heading rename is the usual shape. Prose warnings in the agent briefs do not prevent this — it has happened in consecutive rounds. After the round, re-resolve every `§` citation whose target file changed, and route each repoint to whoever owns the citing file.
+
+**An agent that dies mid-run has usually already written its edits.** Ground-truth the working tree rather than assuming either outcome, and re-verify per finding — a per-finding grep tells you what landed far faster than re-spawning.
+
+**Verification, in order.** Re-run the Phase 1 battery; Read each changed location to confirm the finding is resolved; and re-run any execution harness the findings were established with, since a claim proved by measurement is closed by measurement, not by reading the diff. A suite failing mid-round usually means another agent is mid-write on a file it reads — re-run at the end rather than treating it as a regression.
+
+**Do the once-per-round integration steps last, never per-agent** — they write files every agent would race on: regenerating a build artifact from sources several agents edited, accepting a size baseline, and completing a deletion across the files that referenced the deleted thing.
+
+Large structural items (multi-file refactors, reference-graph re-homing) are better routed to `/improve-template` with the finding rows as `$ARGUMENTS`; say so instead of attempting them inline.
+
 ## Severity tiers (shared output classification)
 
 Dimensions are review lenses; tiers classify the output. Every finding gets exactly one tier.
@@ -103,7 +137,7 @@ A finding without a verifiable `file:line` + verbatim `evidence` is inadmissible
 | hooks.json wiring | Every script referenced in `hooks/hooks.json` exists in `hooks/`; every `hooks/*.sh` + `hooks/*.js` is either registered or documented as library/manual | T1 |
 | Frontmatter fields | Every `skills/*/SKILL.md` has `name`, `description`, `context`, `model`, `allowed-tools`, `argument-hint`; description ≤1024 chars | T2 |
 | File-size guidelines | `wc -w`: SKILL.md past ~3,000 words puts later sections outside the compaction re-attach budget, ~5,000 is the whole-file guideline; `agents/*.md` past ~2,500. All advisory — `tests/authoring/lint-skills.sh` warns only when a SKILL.md grows past its recorded size in `tests/authoring/skill-size-baseline.txt`, and then names the heading its compaction boundary falls at, so a silent run means every size is one a maintainer already accepted. Flag WHAT sits below the boundary, never the number itself | T4 |
-| TOC presence | Any `skills/**/*-reference.md` or `_shared/*.md` >100 lines without a "Contents"/"Sections" block in its first 30 lines | T4 |
+| TOC presence | `wc -w`: any runtime-Read file (`skills/**/*-reference.md`, `_shared/*.md`) past the ~1,200-word threshold `.claude/rules/skill-structure.md` §Reference graph sets, with no "Contents"/"Sections" block near the top. `agents/*.md` are exempt there — injected, not Read | T4 |
 | Orphan candidates | For each `skills/_shared/*.md`, `lib/*.sh`, `agents/*.md`: grep the repo for its basename; zero inbound references → CANDIDATE for D3 adjudication | feed D3 |
 | No-execution-site candidates | Same basenames, but the shape a zero-reference test cannot see: referrers exist yet **none is an execution site** — every hit is another `_shared/` peer, and no `skills/*/SKILL.md`, phase file, or `agents/*.md` names it. A helper two peers cite but no skill ever runs is dead with a non-zero reference count, which is how one survived three audits. Also flag a helper whose referrers disagree about where it fires | feed D6 |
 | Over-constraint candidates | The authoring lint's INFO lines already name every SKILL.md over the front-load budget and the heading its compaction boundary falls at — paste them; they are check-10 candidates. Plus `grep -c` per shipped file for blanket prohibitions in normal prose (`NEVER` / `ALWAYS` / `MUST` outside a table row) — density, not any single hit, is the check-11 signal | feed D6 |
@@ -174,7 +208,7 @@ Tier mapping: bypassable guard / data-loss path → T0; behavioral bug → T1; l
 
 ## D6 — Over-complication & instruction bloat
 
-**Scope:** `skills/`, `agents/`, `.claude/skills/`. The project-local skills ship to nobody, but they load on every plugin-editing session and sit outside every other bloat check, which is where the densest over-specification in the repo accumulates. **Method:** LLM reviewer. The goal is REMOVAL/COMPRESSION candidates — every finding proposes one concrete action: delete, shorten, merge, move to a sibling reference file, or convert a deterministic constraint to a hook/script. Apply the per-line test to every candidate: "would removing this make Claude err?" If not, it is weight without payload. Then apply it a second way, which is where this dimension's largest wins now are: "would replacing this rule with a criterion, or this example with a better-designed interface, make Claude err?" A rule can be unique, correct and still cost more than it buys — checks 11 and 12 carry that half. Target signal density, not raw size — see `.claude/rules/skill-prose.md` §Token budget awareness for the why: what degrades rule-following is the number of plausible-but-inapplicable rules the model has to adjudicate between, not the volume of text, so a near-duplicate or a drifted restatement costs far more than its word count (restatements — check 1 — and cross-file duplicates — check 8 — actively harm, not merely bloat). Where a rule is load-bearing for one kind of task only, prefer scoping it to that work over deleting it.
+**Scope:** `skills/`, `agents/`, `.claude/skills/`. The project-local skills ship to nobody, but they load on every plugin-editing session and sit outside every other bloat check, which is where the densest over-specification in the repo accumulates. **Runs on every audit** — full, path-scoped, single-dimension, or `--quick` — per SKILL.md invariant #6; on a scoped run it inherits the run's scope, and on `--quick` the orchestrator sweeps inline. **Method:** LLM reviewer. The goal is REMOVAL/COMPRESSION candidates — every finding proposes one concrete action: delete, shorten, merge, move to a sibling reference file, or convert a deterministic constraint to a hook/script. Apply the per-line test to every candidate: "would removing this make Claude err?" If not, it is weight without payload. Then apply it a second way, which is where this dimension's largest wins now are: "would replacing this rule with a criterion, or this example with a better-designed interface, make Claude err?" A rule can be unique, correct and still cost more than it buys — checks 11 and 12 carry that half. Target signal density, not raw size — see `.claude/rules/skill-prose.md` §Token budget awareness for the why: what degrades rule-following is the number of plausible-but-inapplicable rules the model has to adjudicate between, not the volume of text, so a near-duplicate or a drifted restatement costs far more than its word count (restatements — check 1 — and cross-file duplicates — check 8 — actively harm, not merely bloat). Where a rule is load-bearing for one kind of task only, prefer scoping it to that work over deleting it.
 
 Checks:
 1. **Restatements.** Same rationale stated ≥2× within one file; "in other words" summaries; rule text duplicating an anti-rationalization row.
@@ -197,13 +231,21 @@ Checks:
 
 12. **Dead instructions (liveness).** Text that can no longer apply at all: an instruction or gate governing a step, phase, sub-command, or flag that no longer exists; a mechanism a refactor replaced, still described in the old terms. Anti-rationalization rows are the densest carrier.
 
-    **Route by referent, at the owner's tier** — this check is the lens, not the home, and filing everything here would downgrade real T1 defects to T4: a schema or frontmatter field → D2 check 3; a phase or step name → D3 check 3; a gate or branch condition → D5a check 2; a replaced mechanism still documented → D3 check 7. Only text with no such owner is reported here.
+    **Route by referent, at the owner's tier** — this check is the lens, not the home, and filing everything here would downgrade real T1 defects to T4: a schema or frontmatter field → D2 §Schema lockstep; a phase or step name → D3 §Dropped phase/step names; a gate or branch condition → D5a §Unfireable gates; a replaced mechanism still documented → D3 §MIGRATION.md / HOOKS.md entries. Only text with no such owner is reported here.
 
     **Name the referent, then check it — hit count is not the verdict.** Grep proves absence only for a named identifier, and only outside `design/` and `evals/`, which quote strings they do not use; hits that merely *document a removal* (MIGRATION.md, a deleted-skills table) are not liveness. A written field always has hits, so classify each as a write, a read, or a schema declaration and report when none is a read. **An anti-rationalization row is not dead because its failure mode is absent from current code — that is what a working guardrail looks like.** Retire a row only when the step it polices is gone or a mechanism now enforces it; the latter is check 11's third shape, not this one.
 
 Tier mapping: T4 by default; pure-style items → T5; a duplicated rule that has drifted into a contradiction → T1. Every removal carries regression risk — propose, never auto-cut; state what behavior would change if the deletion is wrong.
 
 **Return the sweep, not a quota.** This is the repo's only subtracting dimension, so say what the sweep found even when it found nothing — a clean result belongs in the verdict sentence, not padded into a findings row. Zero findings is a valid outcome; a manufactured one is worse than none, because a deletion is the one finding whose wrongness the user cannot notice later.
+
+**The sweep is mandatory; its result is not.** Those two sentences are not in tension, and holding both is the point. D6 runs on **every** audit — a full run, a path-scoped run, a single-dimension run, and a `--quick` run — because a round that simply never looks is how a repo accretes. What is never mandatory is a nonzero count. So the deliverable is the sweep itself, reported whether or not it yielded anything:
+
+- **Name what you examined**, at the granularity of the check: which files you read in full, which of checks 1-12 you applied, and where you looked hardest. A verdict that does not say what was swept is indistinguishable from a sweep that did not happen.
+- **Name what you rejected and why.** A candidate you considered and left — because the answer is genuinely invariant across contexts, because the guardrail is still load-bearing, because the destination of a proposed MOVE is loaded by every run anyway — is a *result*, and it is the most useful thing you can hand the next round. It goes in the verdict, not the table. This is also what stops the next reviewer re-litigating it.
+- **Say plainly when a subtraction pass found nothing.** "Swept `_shared/` and the four meta-skills in full against checks 1-12; the two candidates were X and Y, both rejected for <reason>" is a complete and successful D6 result.
+
+The failure this rule prevents is the silent no-op: a round where subtraction was in scope, nothing was reported, and no one can tell afterwards whether the repo was clean or the dimension was skipped.
 
 ## D7 — Magic numbers & duplicated constants
 
@@ -212,13 +254,21 @@ Tier mapping: T4 by default; pure-style items → T5; a duplicated rule that has
 Seed grep (orchestrator runs, pastes matches into the prompt): `grep -rhoE '(≤|>=|<=|≥|max |cap |within )[0-9]+|[0-9]+ (retries|rounds|lines|files|questions|attempts|seconds|chars|tokens)' skills/ agents/ .claude/skills/ | sort | uniq -c | sort -rn | head -80` — `-h`, not `-n`: a `file:line:` prefix makes every line unique, so `uniq -c` would count nothing and the multi-homed-constant signal vanishes; the reviewer greps locations for the candidates it pursues. Plus `grep -rnE '[0-9]{3,}' hooks/ lib/ --include='*.sh' | grep -v ':[[:space:]]*#'` (POSIX class, not `\s` — BSD grep treats `\s` as a literal `s`).
 
 Checks:
-1. **Unexplained thresholds.** A numeric limit with no adjacent rationale and no citation to a canonical source. The fix is an inline WHY or a citation — keep the number itself.
-2. **Multi-homed constants.** The same threshold stated in ≥2 files (drift risk even while values agree). Fix: pick one home, others cite it.
-3. **Contradicting constants.** The same concept with DIFFERENT values in different files (this is a T1, not T4).
-4. **Shell literals.** Hardcoded sizes/timeouts in hooks/lib without a comment or env-override; duplicated literals that must move in lockstep.
-5. **Stale numbers in prose.** Counts that drift with the repo ("the 11 skills", "43 helpers", "6 sub-checks") — verify each against reality; prefer rewording to avoid hardcoded counts where the list lives elsewhere.
+**Two dispositions, and the split is the whole discipline of this dimension.** A number that lives in exactly one place and explains itself is doing its job — the fix is an inline WHY or a citation, and the number stays. A number that is *restated*, or that *counts something the repo changes*, or that *ordinals a list an edit can reorder*, cannot stay correct: it has no single home to be fixed in. Checks 1, 3 and 4 keep the number. Checks 2, 5 and 6 remove it. Do not blur the two — stripping a self-explaining single-homed threshold costs a rationale the model was relying on and buys nothing.
 
-Tier mapping: contradicting constants → T1; multi-homed / unexplained → T4; stale prose counts → T3.
+Keep-the-number checks:
+
+1. **Unexplained thresholds.** A numeric limit with no adjacent rationale and no citation to a canonical source. The fix is an inline WHY or a citation — keep the number itself.
+2. **Contradicting constants.** The same concept with DIFFERENT values in different files (this is a T1, not T4).
+3. **Shell literals.** Hardcoded sizes/timeouts in hooks/lib without a comment or env-override; duplicated literals that must move in lockstep.
+
+Remove-the-number checks — the drift-prone classes. For these, "add a WHY" is not an acceptable fix, because the defect is that the value exists in more than one place at all:
+
+4. **Multi-homed constants.** The same threshold stated in ≥2 files, **even while the values agree** — agreement today is drift tomorrow. Fix: one home keeps the number, every other site cites it. A file that names another file as the owner and then restates the value anyway is this check's most common shape, and the restatement is what to delete.
+5. **Prose counts of repo contents.** A count of things the repo contains — skills, agents, hooks, helpers, test suites, dimensions, reviewers, assertions, bypass IDs, load-set files. Measure each against reality, then **reword so the count is not stated**: the list lives elsewhere, so the sentence should point at it rather than tally it. "the seven per-skill scopes" becomes "the per-skill scopes"; "the same batch as the 7-10 built-ins" becomes "the same batch as the consumer's built-in dimensions". Re-stating the corrected number only resets the clock on the same defect.
+6. **Drifting ordinals.** A hardcoded step, phase, check, sub-phase, or invariant NUMBER used as a cross-reference. Inserting or removing one item silently invalidates every reference past it, and a renumbering pass that misses one site produces a citation that resolves to the wrong step — worse than one that dangles, because nothing detects it. Fix: content anchors per `.claude/rules/skill-structure.md` §Cross-skill references ("the F→P invariant", not "step 4.3"). Two carve-outs stay numeric: a number that is part of a **contract** other files grep for (a schema version, a phase-enum value, an exit code), and a **contiguity requirement** a validator enforces (a check set that must run 1..N). Flag the reference, not the heading it points at.
+
+Tier mapping: contradicting constants → T1; multi-homed / unexplained / drifting ordinals → T4; stale prose counts → T3.
 
 ## D8 — Safety & test coverage
 
@@ -242,12 +292,12 @@ Verified healthy by prior audit — re-flagging these is a false positive:
 
 - **Resolving `§N` section anchors** — content anchors are the endorsed cross-reference form; only dangling/inverted ones are defects.
 - **Caps inside anti-rationalization right-hand cells** when accompanied by reasoning.
-- **Justified magic numbers with adjacent WHY** (convergence ≥2/≥3, ≤5-question cap, ≤50-file scan cap, 4096 PIPE_BUF, retry counts with backoff rationale) — keep numeric.
+- **Justified magic numbers with adjacent WHY** (convergence ≥2/≥3, ≤5-question cap, ≤50-file scan cap, 4096 PIPE_BUF, retry counts with backoff rationale) — keep numeric. This endorsement covers a **single-homed** value only; it is not a defence for a restated one. D7 checks 4-6 (multi-homed constants, prose counts of repo contents, drifting ordinals) are outside it, and an adjacent WHY does not rescue them — a rationale duplicated into two files drifts exactly as fast as the number it explains.
 - **Author-facing tier/layer codes (T1/L4/m6-v2) in architecture docs** (`CLAUDE.md` §State Files / §Memory Layers, `state-tier-spec.md`) — the plain-English rule binds user-facing strings, not author-facing architecture sections.
 - **Decision-type tags and memory codes in skill-body declarative prose** — only their leakage into user-facing strings is a defect.
-- **Line caps treated as guidelines** — a 510-line SKILL.md is advisory, not a defect demanding cuts.
+- **Size guidelines treated as guidelines** — a SKILL.md a few hundred words past the whole-file guideline is advisory, not a defect demanding cuts.
 - **Deleted-skill names inside CLAUDE.md's replacement table and MIGRATION.md** — documentation of the deletion, not a stale reference.
-- **Rich SKILL.md `description:` fields carrying trigger keywords + what/when** — the description is the sole signal Claude uses to select a skill, so its keywords are load-bearing; trimming them to save tokens degrades selection (a compaction pass's most common own-goal). Flag a description only for exceeding the 1024-char limit (D1) or for body drift (D2 check 2), never for verbosity.
+- **Rich SKILL.md `description:` fields carrying trigger keywords + what/when** — the description is the sole signal Claude uses to select a skill, so its keywords are load-bearing; trimming them to save tokens degrades selection (a compaction pass's most common own-goal). Flag a description only for exceeding the 1024-char limit (D1) or for body drift (D2 §Description-vs-body drift), never for verbosity.
 - **The three deliberately-unwired Cursor hooks** (gate-render, evidence-stop, update-check) — their absence from `cursor/hooks.json` is documented: those events do not map cleanly to a Cursor slot. Only a WIRED guard that fails open under the shim is a defect.
 - **`cursor/agents/*.md` divergence from `agents/*.md` in dropped fields** (`tools`, `maxTurns`, forced `model: inherit`, added `readonly`) — that is the generator's contract, not drift. Real drift is caught by `tests/cursor/build-agents-fresh.sh`; flag only what that test cannot see.
 - **`agents/<name>-reference.md` companions** — body-overflow targets prescribed by `.claude/rules/skill-structure.md`; they carry no agent frontmatter by design and are skipped by the Cursor generator.

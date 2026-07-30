@@ -6,11 +6,11 @@ State.md `phase: validate` during this phase.
 
 ### 7.1 Mechanical pass-through
 
-Phase 7 uses a **deterministic validator** — script-checkable rules executed orchestrator-side. No LLM round-trip per check.
+Phase 7 uses a **deterministic validator** — most of it a script, the rest mechanical rules applied orchestrator-side. No LLM round-trip per check.
 
 ### 7.2 Validator checks
 
-See `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` for the canonical check definitions. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set in sequence and report per check, not as a tally, per that file's §Check API contract.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`: it holds the canonical check definitions, and its §Running the checks carries the command that executes the scripted checks plus the judgment checks you apply yourself. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set and report per check, not as a tally, per that file's §Check API contract.
 
 ### 7.3 Hard-fail handling
 

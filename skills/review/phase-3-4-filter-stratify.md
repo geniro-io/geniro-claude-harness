@@ -63,7 +63,7 @@ fired    = the `fired=` count on the `## Tool log` "[Phase 2 spawn batch]" entry
 missing = declared − actual
 ```
 
-A missing `[Phase 2 spawn batch]` entry is drift, not a pass: §2.3.2 records it precisely so this check survives a compaction-resume into `phase: stratify`. Treat it like an absent declaration — append `## Errors phase-2-spawn-batch-record-missing` and fall back to `fired = |actual|`, which can only detect under-fire.
+On the standard single-pass path a missing `[Phase 2 spawn batch]` entry is drift, not a pass: §2.3.2 records it precisely so this check survives a compaction-resume into `phase: stratify`. Treat it like an absent declaration — append `## Errors phase-2-spawn-batch-record-missing` and fall back to `fired = |actual|`, which can only detect under-fire. In deep mode the entry is absent by design — §2.3.2's batch never fires — so skip this branch along with the `fired` comparison below; `missing` still computes.
 
 `fired` must equal `spawn_dims_count` on the standard single-pass path, in both Standard and Batched payload shape; in deep mode the Workflow's 3 angle-passes per declared dimension are checked per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, not by this count. `fired` above the declared count means per-file-batch multiplication (forbidden by §2.3.2); below it means dropped dimensions. Each mismatch direction routes through its matching branch below.
 

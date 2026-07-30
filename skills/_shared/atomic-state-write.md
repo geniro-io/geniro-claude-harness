@@ -66,8 +66,6 @@ non-resumable-actions: []
 EOF
 ```
 
-**Timestamp sourcing.** Every `timestamp:` / `completed-at:` / time-bearing field comes from a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured in the same Bash call that writes — never a copied example literal, a remembered value, or a rounded estimate. The literal timestamps elsewhere in this doc (and in `state-tier-spec.md`'s examples) are illustrative; an unquoted heredoc as shown above interpolates the live read at write time, which is why the example above uses `$(date -u ...)` rather than a frozen string. These fields order decisions across rounds and compactions, and the restore hook renders `completed-at` when warning about already-fired external actions — an invented time corrupts exactly the audit trail the field exists to provide.
-
 **Exit codes:**
 
 | Code | Meaning |
@@ -111,6 +109,12 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 | 65 | `mkdir -p` failed |
 | 68 | Content exceeds 4094 bytes (content + 2-byte framing would exceed the 4096-byte ceiling) |
 | 69 | Append failed |
+
+---
+
+## Timestamp sourcing
+
+Every `timestamp:` / `completed-at:` / time-bearing field comes from a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured in the same Bash call that writes — never a copied example literal, a remembered value, or a rounded estimate. The literal timestamps elsewhere in this doc (and in `state-tier-spec.md`'s examples) are illustrative; an unquoted heredoc as shown in §API interpolates the live read at write time, which is why that example uses `$(date -u ...)` rather than a frozen string. These fields order decisions across rounds and compactions, and the restore hook renders `completed-at` when warning about already-fired external actions — an invented time corrupts exactly the audit trail the field exists to provide.
 
 ---
 

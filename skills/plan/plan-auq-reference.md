@@ -37,7 +37,7 @@ Four further body sections are optional, each written by the phase that populate
 
 ### `approvals[]` entry shape — every gate below writes this
 
-Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_write`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1 optional `approvals` array" — `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`:
+Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_write`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array" — `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`:
 
 ```yaml
 approvals:
@@ -55,17 +55,7 @@ The sections below name only their `category` slug and the phase they are asked 
 
 ## 1b. Artifact opt-in question (Phase 0, asked once when `--artifact` is absent)
 
-Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Mirrors the shape of the §2a planning-depth question — its own single-question AUQ, no `(Recommended)` marker (the page is a richer surface, not a safer plan). Question text and the two option labels are taken verbatim from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § The opt-in question, which owns them:
-
-```yaml
-- header: "Visual plan"
-  question: "Build a live visual artifact of this plan as it develops? It publishes a private, auto-updating page to claude.ai."
-  options:
-    - label: "Yes — build it and keep it updated"
-      description: "Publishes a private, auto-updating page to claude.ai and revises it as planning proceeds."
-    - label: "No — keep planning in chat only"
-      description: "Plan in chat with no page."
-```
+Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Mirrors the shape of the §2a planning-depth question — its own single-question AUQ under the header "Visual plan", no `(Recommended)` marker (the page is a richer surface, not a safer plan). The question text and both option labels are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § The opt-in question — read them there and use them verbatim.
 
 Empty answer → default OFF: artifact mode stays off and no artifact fields are written, consistent with how the §2a depth question defaults to Standard. On the "Yes" pick, the run is in artifact mode — set `artifact_mode: true` and `artifact_status: pending` in the §1 frontmatter; on "No", leave all artifact fields absent.
 
@@ -133,7 +123,7 @@ Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an
 
 ### 2b. Checkpoint gate and termination summary
 
-The checkpoint trigger (a resolved branch OR ~6 questions since the last checkpoint) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
+The checkpoint trigger is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
 
 Chat message rendered before the checkpoint AUQ:
 
@@ -386,7 +376,7 @@ On "No" → write no `launch_config:` block; persist the declined gate answer to
 
 ### Step 2 — batched capture (only on "Yes")
 
-A batched capture. The four always-present settings (workspace / depth / branch handling / ship mode) fill ONE AUQ call — the 4-question-per-call tool cap. When the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty), a fifth setting — the kickoff tracker-status pre-answer — is added; since that would make five questions, it chains into a SECOND AUQ call rather than displacing one of the four (the 4-question-per-call cap applies; chain, never drop). With no linked tracker ticket, only the first four-question call fires. Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, Standard (`deep_mode: false`), `rebase`, `draft-pr`, and (when offered) `move-to-in-progress`.
+A batched capture. The four always-present settings (workspace / depth / branch handling / ship mode) fill ONE AUQ call — the 4-question-per-call tool cap. When the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty), a fifth setting — the kickoff tracker-status pre-answer — chains into a SECOND AUQ call rather than displacing one of the four: chain, never drop. With no linked tracker ticket, only the first four-question call fires. Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, Standard (`deep_mode: false`), `rebase`, `draft-pr`, and (when offered) `move-to-in-progress`.
 
 ```yaml
 questions:
@@ -430,7 +420,7 @@ questions:
         description: "Stop before any commit or push."
 ```
 
-**Chained second call — only when a tracker ticket is linked** (`workflow_refs[]` non-empty). Fire a SECOND `AskUserQuestion` immediately after the first resolves, carrying the single tracker-status question (do NOT add it to the first call — that would make five questions in one call, past the 4-question cap):
+**Chained second call — only when a tracker ticket is linked** (`workflow_refs[]` non-empty). Fire a SECOND `AskUserQuestion` immediately after the first resolves, carrying the single tracker-status question — never appended to the first call:
 
 ```yaml
 questions:

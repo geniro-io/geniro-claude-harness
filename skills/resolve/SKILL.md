@@ -16,8 +16,8 @@ argument-hint: "[PR ref (#N or URL), or empty to detect from the current branch]
 - Loop invariants
 - Anti-rationalization
 - Budgets / quality gates
-- Memory I/O
 - ACI per-phase tool surface
+- Memory I/O
 - PHASE 1: Fetch & triage
 - PHASE 2: Analyze & verify
 - PHASE 3: Clarify
@@ -83,12 +83,6 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | Clarify AUQ | ONE item per call, fired in sequence (never multiple items batched into one call's `questions[]`); the § Cap-extension chains only a single item's >4 OPTIONS, never the item count |
 | Rounds | Single pass — `/geniro:resolve` produces once; re-invoke on the same PR re-triages only new/unresolved threads (#4) |
 
-## Memory I/O
-
-- **L4 instructions** — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` at `LOAD_TIER: pipeline`, loaded at Phase 1 Step 0.
-- **L3 snapshot** — `load-semantic` top-2 (`_project.md` + `_CODEBASE_MAP.md`) at the same step; it is what tells you whether a comment's cited path still exists.
-- **L2 learnings** — none emitted (read-only producer; `/geniro:implement` emits at ship).
-
 ## ACI per-phase tool surface
 
 | Phase | Allowed | Forbidden |
@@ -97,6 +91,12 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | Phase 2 (Analyze & Verify) | Read / Grep / Glob / Bash (read-only repro, test runs) / Agent (`reviewer-agent` verify-finding — OMIT `model=`) / atomic_state_write | Edit / Write on source / `gh` write |
 | Phase 3 (Clarify) | Read / AskUserQuestion / Agent (`reviewer-agent` verify-finding on a Challenge pick — OMIT `model=`) / atomic_state_write | Edit / Write on source |
 | Phase 4 (Emit) | Read / Grep / Bash (read-only apart from `atomic_state_write` for spec + handoff and `clean_task_transients` on this run's own slug dir) / Agent (spec-claim verifier — OMIT `model=`) | Edit / Write on source / `gh` write / `git push` |
+
+## Memory I/O
+
+- **L4 instructions** — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` at `LOAD_TIER: pipeline`, loaded at Phase 1 Step 0.
+- **L3 snapshot** — `load-semantic` top-2 (`_project.md` + `_CODEBASE_MAP.md`) at the same step; it is what tells you whether a comment's cited path still exists.
+- **L2 learnings** — none emitted (read-only producer; `/geniro:implement` emits at ship).
 
 ---
 

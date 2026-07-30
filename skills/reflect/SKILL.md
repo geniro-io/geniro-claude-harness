@@ -182,15 +182,13 @@ emit_rejection_if_signal "/geniro:reflect" global rule_candidate "<candidate one
 
 ## Definition of done
 
-- [ ] Transcript directory resolved across config dirs + primary-worktree path variant (Phase 1); absence handled with a one-sentence graceful exit
-- [ ] Sessions classified work-bearing with `grep -a`; selection matched the input mode's cap; dropped matches reported (Phase 1)
-- [ ] Current session excluded by the final-user-turn identity check, not by file growth alone (Phase 1 step 4)
-- [ ] One analyst per session, spawned in ONE response, each returning the 4-section extract (Phase 2)
-- [ ] One reflection-agent synthesis via the spawn ladder, fed extracts + dedupe targets + prior declines (Phase 3)
-- [ ] Candidates walked one at a time, message-first render before each question (Phase 4)
-- [ ] Approved candidates written via the routed mechanism before the next render; declined candidates logged via the rejection emit (Phase 4)
-- [ ] Closing echo `Reviewed for improvements: <N> candidate(s)` fired — including at N=0
-- [ ] No transcript modified; no writes beyond approved rules + rejection/learning emits
+These are the load-bearing exit gates — the checks that, if skipped, break the read-only contract, write a rule the user never approved, or let a declined candidate re-surface forever. Per-phase mechanics (transcript discovery, the analyst spawns, the synthesis contract) live in their phase sections; this is the final correctness check, not a re-listing of every step.
+
+- [ ] The current session was excluded by the final-user-turn identity check, not by file growth alone (Phase 1 step 4)
+- [ ] Every approved candidate was written through the mechanism its target routes to — ordinary `Edit`/`Write` only for CLAUDE.md / `.claude/rules/` / an ADR, `atomic_state_write` or the emit helpers for every `.geniro/` path (invariant #5)
+- [ ] Every decline was logged via `emit_rejection_if_signal`, so the same candidate stops re-surfacing
+- [ ] Closing echo `Reviewed for improvements: <N> candidate(s)` fired — including at N=0, where it is the only signal the run completed rather than dropped a step
+- [ ] No transcript modified, moved, or deleted; no write outside the approved rules and the rejection/learning emits
 
 ## REFERENCE
 

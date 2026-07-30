@@ -15,7 +15,7 @@ Canonical rule for discovering and spawning user-authored custom review dimensio
 
 ## When to invoke
 
-Invoke this helper as the LAST step BEFORE the parallel reviewer batch — after resolving the built-in criteria paths, after building the changed-files list, after detecting UI-files / PR-ref conditionals. The result is N additional `Agent(subagent_type="reviewer-agent", ...)` calls that join the SAME parallel batch as the 7-10 built-ins (one assistant turn, parallel execution — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §Parallel-spawn sites).
+Invoke this helper as the LAST step BEFORE the parallel reviewer batch — after resolving the built-in criteria paths, after building the changed-files list, after detecting UI-files / PR-ref conditionals. The result is N additional `Agent(subagent_type="reviewer-agent", ...)` calls that join the SAME parallel batch as the consumer's built-in dimensions (one assistant turn, parallel execution — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §Parallel-spawn sites).
 
 ## Inputs from the consumer skill
 

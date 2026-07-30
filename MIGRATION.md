@@ -475,9 +475,9 @@ Any user `.geniro/instructions/plan.md` rule referencing the dropped pre-fill ba
 
 T2 handoff (`from-review-<branch>.md`) gains structured `open_questions[]` frontmatter (`{id, source, question, related_findings, status: unresolved | resolved | wontfix, resolution}`). A 3-gate safety chain prevents posting or implementing with unresolved questions: Phase 6 Pre-gate (producer-side, fires FIRST in Phase 6) + Pre-Post-PR guard (defensive, before `gh api` POST) + Consumer-side `/implement` Phase 1 Step 12 (refuses to leave Phase 1 with unresolved entries). `/geniro:debug` Phase 3 gains the same Pre-gate pattern at the same producer position.
 
-Old T2 hand-off files lack `spawn_dims_declared[]` / `spawn_dims_count` / `open_questions[]` fields; downstream readers (orchestrator inspection, `/update` walk) treat missing fields as "no declaration" or "no open questions" and proceed safely.
+Old T2 handoff files lack `spawn_dims_declared[]` / `spawn_dims_count` / `open_questions[]` fields; downstream readers (orchestrator inspection, `/update` walk) treat missing fields as "no declaration" or "no open questions" and proceed safely.
 
-**Action required:** None — backward compatible. New `/review` and `/debug` runs gain the fields organically. If you have manual workflows that parse T2 hand-off files, update them to read the new fields when present.
+**Action required:** None — backward compatible. New `/review` and `/debug` runs gain the fields organically. If you have manual workflows that parse T2 handoff files, update them to read the new fields when present.
 
 **Auto-detect:** N/A — new fields populate on next `/review` or `/debug` run.
 

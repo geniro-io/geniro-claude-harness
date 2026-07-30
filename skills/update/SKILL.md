@@ -17,10 +17,10 @@ argument-hint: "[--dry-run]"
 - Budgets — quality-first
 - ACI per-phase tool surface
 - Termination case → message
+- Memory I/O
 - User-content snapshot
 - Phase 1 — pre-check · Phase 2 — update · Phase 3 — post-check · Phase 4 — migration
 - Done — final report
-- Memory I/O
 - REFERENCE
 
 ---
@@ -29,7 +29,7 @@ argument-hint: "[--dry-run]"
 
 **Runtime requirement.** This skill drives the `claude plugin` CLI and the Claude Code install registry, and functions only under Claude Code. When invoked from another runtime (e.g. Cursor), state that updates are managed by that runtime's own plugin mechanism and exit without side effects.
 
-**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only the first ~5,000 tokens of a skill are re-attached after a summary, and `/geniro:update` keeps no state file, so re-read the phase you were in before continuing it.
+**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only a skill's front-loaded prefix is re-attached after a summary, and `/geniro:update` keeps no state file, so re-read the phase you were in before continuing it.
 
 ## Path constraints
 
@@ -67,7 +67,7 @@ This skill adds one invariant:
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
-| `pre-check` | `Read`, `Bash` (`cat`, `grep`, `python3 -c "json.load"`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent`, all `mcp__*` |
+| `pre-check` | `Read`, `Bash` (`cat`, `grep`, `find`, `shasum`/`sha256sum`, `stat`, `python3 -c "json.load"`, plus the one sanctioned write: the Step 2 baseline snapshot redirected into `/tmp`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, any mutating `Bash` outside that snapshot write, `Agent`, all `mcp__*` |
 | `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
 | `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh), `Glob` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
 | `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
@@ -88,6 +88,16 @@ External sends: not in `/geniro:update` ACI ever.
 | MIGRATION.md walked, user aborted mid-walk | `aborted: user aborted migration walk at step <N>` |
 | Already on latest version | `info: already on latest version (<version>)` — done |
 | Hooks/registry write blocked | `aborted: blocked by hook — see <hint>` |
+
+## Memory I/O
+
+| Layer | Read | Write | Notes |
+|---|---|---|---|
+| CLAUDE.md (project context) | not read | not written | `/geniro:setup re-run` handles CLAUDE.md refresh; `/geniro:update` only emits a recommendation if user-project CLAUDE.md may be stale |
+| L2 learnings.jsonl | not read | not written | `/geniro:update` is operational, not knowledge-producing |
+| L3 semantic files | not read | not written | N/A |
+| L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
+| `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
 
 ## User-content snapshot
 
@@ -162,8 +172,7 @@ Then take the baseline snapshot:
 ```bash
 CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
-# PRIMARY_ROOT is set by the Mode A resolver, which runs inside THIS Bash call —
-# each Bash call is a fresh shell, so a value resolved in an earlier call is gone.
+# PRIMARY_ROOT is set by the Mode A resolver, which runs inside THIS Bash call.
 
 # --- paste the §User-content snapshot definitions here ---
 
@@ -172,7 +181,7 @@ _gu_snapshot "$PRIMARY_ROOT" > "$(_gu_snapshot_file "$PRIMARY_ROOT")" || true
 
 The redirect is best-effort — a benign trailing `find`/read status must not read as failure. Survival is verified by the Phase 3 Step 2 diff, not by this exit code.
 
-### Step 3 — Version-confirm AUQ
+### Step 3 — Confirm the update with the user
 
 Use `AskUserQuestion`:
 
@@ -201,7 +210,6 @@ Pass `--scope user` explicitly. The plugin is meant to be available in every dir
 After the update, confirm a `user`-scope install record still exists. A prior update run (before the `--scope user` pin) may have left the plugin project-scoped only — in which case it loads nowhere except that one project. Re-install at user scope to repair it:
 
 ```bash
-# Re-resolve REGISTRY — each Bash call runs in a fresh shell, so the Phase 1 definition does not survive.
 REGISTRY="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
 
 HAS_USER_SCOPE=$(python3 -c "
@@ -225,9 +233,8 @@ When the repair runs, tell the user in plain English that the plugin's global in
 ### Step 2 — Discover new plugin path
 
 ```bash
-# Re-resolve REGISTRY — each Bash call runs in a fresh shell, so the Phase 1 definition
-# does not survive. CURRENT_VERSION cannot be re-read: plugin.json now holds the NEW
-# version, so substitute the literal value Phase 1 Step 1 read.
+# CURRENT_VERSION cannot be re-read: plugin.json now holds the NEW version, so
+# substitute the literal value Phase 1 Step 1 read.
 REGISTRY="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
 CURRENT_VERSION="<the version read in Phase 1 Step 1>"
 
@@ -284,7 +291,6 @@ Transition to Phase 3.
 If the new plugin publishes `$PLUGIN_PATH/.claude-plugin/manifest.sha256`, verify each file via `sha256sum -c` (or `shasum -a 256 -c` on macOS, which ships no `sha256sum`). Otherwise (no manifest published), sanity-check that key files exist:
 
 ```bash
-# Fresh shell — re-assign from the value Phase 2 Step 2 echoed.
 PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
 
 HASH_FAIL=0
@@ -337,7 +343,6 @@ If diff non-empty, AUQ:
 ### Step 3 — Refresh update cache
 
 ```bash
-# Fresh shell — re-assign from the value Phase 2 Step 2 echoed.
 PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
 
 GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \
@@ -355,7 +360,6 @@ Transition to Phase 4.
 ## Phase 4 — migration
 
 ```bash
-# Fresh shell — re-assign from the values Phase 2 Step 2 echoed.
 PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
 NEW_VERSION="<the version Phase 2 Step 2 echoed>"
 
@@ -423,16 +427,6 @@ After restart, run /geniro:setup — re-run mode will:
 
 If you have multiple repos with .geniro/, run /geniro:setup in each one after restart.
 ```
-
-## Memory I/O
-
-| Layer | Read | Write | Notes |
-|---|---|---|---|
-| CLAUDE.md (project context) | not read | not written | `/geniro:setup re-run` handles CLAUDE.md refresh; `/geniro:update` only emits a recommendation if user-project CLAUDE.md may be stale |
-| L2 learnings.jsonl | not read | not written | `/geniro:update` is operational, not knowledge-producing |
-| L3 semantic files | not read | not written | N/A |
-| L4 `.geniro/instructions/*.md` | snapshot+integrity check (Phase 1 Step 2; Phase 3 Step 2) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
-| `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
 
 ## REFERENCE
 

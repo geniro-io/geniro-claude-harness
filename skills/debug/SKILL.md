@@ -156,15 +156,15 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - Explicitly blocked: production-source Edit/Write outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
-- Allowed: Read / Write (T2 handoff persistence via `atomic_state_write`), `emit-learning` helper invocation, `AskUserQuestion`.
-- Explicitly blocked: `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
+- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.5 cleanup) / AskUserQuestion.
+- Explicitly blocked: Edit/Write, `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
 **Adversarial Mode (A4 spawn):**
 - `adversarial-tester-agent` runs under the spawn-agent ladder.
 - Agent's tool surface inherited via the agent's frontmatter (owned by `${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`).
 - Orchestrator's re-verification step uses read-only Bash (run test command).
 
-**Existing safety layer** applies across ALL phases: file-protection hook, git-guardrail hook, `.geniro/` deletion guard (`${CLAUDE_PLUGIN_ROOT}/HOOKS.md`). Runtime denies stay enforced regardless of ACI doc.
+The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 
