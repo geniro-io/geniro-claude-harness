@@ -557,9 +557,22 @@ _render_open_questions_block() {
 
 # Render frontmatter `approvals[]` into Block 5d bullets.
 # No filter — producer controls which categories persist.
+#
+# `why` and `result` render when the entry carries them, because a resumed session
+# that sees only `picked` can replay a decision but cannot tell whether it still
+# holds, and `result` is what distinguishes a decision that was acted on from one
+# that was merely recorded before the run stopped.
+#
+# `evidence` deliberately stays out of this block. It is the falsifiability anchor
+# for a reader re-checking the premise, and that reader has the state file open;
+# rendering it here would grow a block that fires on every compaction and resume,
+# for context the two lines above already orient. An empty string is truthy in jq,
+# so each field is compared against "" rather than tested for presence.
 _render_approvals_block() {
   jq -rR 'fromjson? // empty
     | "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked in phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
+      + (if (.why // "") != "" then "\n      why: \(.why)" else "" end)
+      + (if (.result // "") != "" then "\n      result: \(.result)" else "" end)
   ' 2>/dev/null
 }
 

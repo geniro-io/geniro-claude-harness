@@ -143,7 +143,7 @@ Emits an `additionalContext` block-set:
 - Validation-failure recovery directive (when `validate_state_file` reports a structural error).
 - Helper-missing notice (when the validator binary itself is absent).
 - Structured non-resumable-actions warning per state.md frontmatter (`git-push`, `pr-created`, `pr-comment-posted`, `pr-comment-amended`, `pr-review-comment-batch`, `git-commit`, `slack-notify-sent`, `release-tagged`, unknown-action fallback).
-- Unresolved errors from state.md `## Errors`, pending `## Open Questions`, and persisted `approvals:` from state.md frontmatter.
+- Unresolved errors from state.md `## Errors`, pending `## Open Questions`, and persisted `approvals:` from state.md frontmatter — each entry's category, pick, phase and timestamp, plus its `why` and `result` when the producer recorded them. `evidence` stays in the file rather than the block.
 - Resume protocol (suppressed when the resolved task is in a terminal state).
 - Auto-archive of stale L2 entries (default ON, hash-gated + mkdir-locked for multi-tab safety; opt-out via `safety.json` `memory.auto_archive_stale: false`); when entries are flipped the `systemMessage` gains an "auto-archived: N" suffix.
 - Verification-coverage line — the verified-fraction of live (non-deprecated) learnings (`verified: N/total (P%)`), computed independently of the auto-archive threshold so it surfaces every session (default ON, opt-out via `safety.json` `memory.show_coverage: false`); when present the `systemMessage` gains a "memory verified: N/total (P%)" suffix.

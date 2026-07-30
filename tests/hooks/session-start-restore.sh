@@ -477,6 +477,76 @@ echo "$ac" | grep -q '\[ship_mode\] User picked: "open PR"' \
   && pass "Block 5d: approval rendering" \
   || fail "Block 5d: approval rendering wrong"
 
+# An entry carrying none of the three optional fields must render exactly the two
+# lines it always did — no stray "why:" label, no empty-value noise.
+echo "$ac" | grep -q 'why:' \
+  && fail "Block 5d: rendered a why: label for an entry that carries no why" \
+  || pass "Block 5d: optional fields absent render nothing"
+
+# ---------------------------------------------------------------------------
+# 12b. Block 5d renders the optional why / result, and omits evidence
+# ---------------------------------------------------------------------------
+# `why` and `result` are what let a resumed session judge whether a recorded
+# decision still holds, so they have to reach the block or the fields are dead
+# weight. `evidence` deliberately does not: it stays in the file for a reader
+# re-checking the premise, and this block fires on every compaction and resume.
+# An empty string is truthy in jq, so the empty `why` below is the real trap —
+# a presence test would print a bare label for it.
+
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: ship
+status: in-progress
+non-resumable-actions: []
+approvals:
+  - category: ship_mode
+    picked: "open PR"
+    at: 2026-05-19T14:00:00Z
+    asked_in_phase: ship
+    why: "the branch already had an open PR reviewers were watching"
+    evidence: "gh pr view reported state OPEN"
+    result: "PR 412 updated, no new PR created"
+  - category: deep_mode_choice
+    picked: "Standard"
+    at: 2026-05-19T14:05:00Z
+    asked_in_phase: analyze
+    why: ""
+---
+
+body
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q 'why: the branch already had an open PR' \
+  && pass "Block 5d: renders why when recorded" \
+  || fail "Block 5d: why not rendered"
+
+echo "$ac" | grep -q 'result: PR 412 updated' \
+  && pass "Block 5d: renders result when recorded" \
+  || fail "Block 5d: result not rendered"
+
+echo "$ac" | grep -q 'gh pr view reported state OPEN' \
+  && fail "Block 5d: evidence leaked into the block — it belongs in the file only" \
+  || pass "Block 5d: evidence stays out of the block"
+
+# The second entry carries `why: ""`. jq treats "" as truthy, so a presence test
+# would emit `why: ` with nothing after it.
+echo "$ac" | grep -qE 'why:[[:space:]]*$' \
+  && fail "Block 5d: an empty why rendered a bare label" \
+  || pass "Block 5d: an empty-string why renders nothing"
+
+echo "$ac" | grep -q '\[deep_mode_choice\] User picked: "Standard"' \
+  && pass "Block 5d: an entry with only the required fields still renders" \
+  || fail "Block 5d: entry with empty optional field stopped rendering"
+
 # ---------------------------------------------------------------------------
 # 13. No false positives — empty state.md body produces no 5b/5c/5d blocks
 # ---------------------------------------------------------------------------
