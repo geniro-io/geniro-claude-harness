@@ -355,7 +355,7 @@ geniro/
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
 │                                # load-custom-instructions, query/emit-learnings, etc.)
-├── hooks/                       # 9 safety hooks + statusline + update check
+├── hooks/                       # 8 safety hooks + statusline + update check
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer

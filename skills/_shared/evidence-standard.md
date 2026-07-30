@@ -9,8 +9,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 - Why this exists — the three hallucinated-success failure modes
 - When evidence is required — the claim classes that need a block
 - Evidence Block schema — the verbatim shape, plus §What counts as an artifact (the six kinds) and §Evidence ladder (how far one reaches)
-- Forbidden phrases — the tokens the Stop hook scans, and scoping a claim to its command
-- Stop hook reliability disclaimer — why the hook is a reminder, not the gate
+- Forbidden phrases — the tokens a claim may not carry unbacked, and scoping a claim to its command
 - Anti-rationalization
 
 ## Why this exists
@@ -86,9 +85,11 @@ A passing-test claim serves the same underlying requirement — show that the pr
 
 **A limit on your own reach is a claim and carries the same artifact requirement.** Attempt the read once with the tools you have and cite the failure before routing it to the user — the missing-data gates open on a failed attempt, not on an assumption, and the environment this session can reach — the repo, its logs, its configured services — is yours to probe before declaring the data out of reach.
 
+**Enforcement lives in consumption, not in a hook.** This standard is enforced where evidence is produced and read: every reviewer-agent finding requires an Evidence Block at emit-time, and an orchestrator re-runs validation itself rather than trusting a prior PASS report. Nothing inspects a completion claim after the fact, so an unbacked one is never caught later — the block has to be attached when the claim is written. TDD order is the separate case that IS hook-enforced: `enforce-tdd-order.sh` gates PreToolUse `Edit` / `Write` against `.geniro/state/tdd/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`.
+
 ## Forbidden phrases
 
-The `Stop` hook (`require-evidence-on-completion.sh`) scans final responses for these tokens. Do NOT use them without an attached Evidence Block in the same message:
+Do NOT use these tokens without an attached Evidence Block in the same message:
 
 - `"Great!"`, `"Perfect!"`, `"Done!"` — performative success without proof.
 - `"ready to ship"`, `"all tests pass"`, `"validation complete"`, `"shipped"` — completion claims without proof.
@@ -97,11 +98,7 @@ Replace with the captured Evidence Block + a one-line summary that cites the exi
 
 **Scope the claim to what the command covered.** State a check claim at the width of the command that produced it — a vet run over two packages supports "vet passes on the logger package and one service", not "vet passes"; an artifact covering the verified subset of an open checklist supports "all HIGH-severity cells verified live; 13 lower-severity items tracked", not "verification is complete". The claim keeps that width in every artifact it lands in: chat, ship report, commit message, PR body. A claim wider than its Evidence Block outruns its own proof, and a reader of the PR cannot see which command ran — an unscoped claim is a forbidden phrase even with an Evidence Block attached.
 
-Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, but the hook does NOT scan them — they produced too many false positives on benign sentences ("Should I run tests?"). Treat them as authoring guidance, not an enforced gate.
-
-## Stop hook reliability disclaimer
-
-Stop hooks fire only approximately 50–80% of the time, so treat `require-evidence-on-completion.sh` as a soft reminder layer, not as the enforcement gate. PreToolUse `Edit|Write` is enforced by `enforce-tdd-order.sh`, which reads the state file at `.geniro/state/tdd/state-<slug>.md` per the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`. THAT pair (hook + state file) is the authoritative TDD-order enforcement; the Stop hook is warn-only. Analogously, the Evidence Standard's true enforcement is the per-skill consumption — every reviewer-agent finding requires an Evidence Block at emit-time, and orchestrators re-run validation themselves rather than trusting prior PASS reports.
+Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, and they are authoring guidance rather than a prohibition — a benign sentence like "Should I run tests?" carries one without claiming anything.
 
 ## Anti-rationalization
 

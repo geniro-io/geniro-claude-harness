@@ -55,8 +55,8 @@ TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo 
 # say so and exit 0 rather than silently passing every edit — otherwise a
 # perl-less host looks "clean" when the guard is actually inert. The notice goes
 # out as a stdout systemMessage, like the jq-absent branch above: hook stderr on a
-# rc=0 exit is not surfaced to the user (require-evidence-on-completion.sh carries
-# the same finding), and the Cursor shim discards it outright.
+# rc=0 exit is not surfaced to the user at all, and the Cursor shim discards it
+# outright — so a notice written to stderr here would reach nobody.
 if ! command -v perl >/dev/null 2>&1; then
   printf '{"systemMessage":"Geniro hook inactive: perl not found on PATH, so the security-pattern scan is NOT running. Install perl to restore it."}\n'
   exit 0
