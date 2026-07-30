@@ -6,7 +6,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 - Phase 3 entry — custom-instruction refresh, green-light verification, `PRIMARY_ROOT` resolve
 - Steps 1-5 — Round 1 parallel spawn, collect findings, bounded fix loop, escalation, post-convergence gates (minor findings, then test quality)
-- Ship sub-step 1-9 — visual verification, the opt-in change-unit confirm walk, commit, learnings, ship-mode AUQ, `non-resumable-actions[]`, PR thread resolution, snapshot update, integration/cleanup, ship report + pre-terminal check
+- Ship sub-step 1-9 — visual verification, commit, learnings, ship-mode AUQ, `non-resumable-actions[]`, PR thread resolution, snapshot update, integration/cleanup, ship report + pre-terminal check
 - Adjustment routing (post-ship feedback)
 
 ---
@@ -55,9 +55,6 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 State.md `phase: ship` on entry.
 
 1. **Pre-Ship Visual Verification** — fires only when frontend files in scope AND Playwright MCP available. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Pre-Ship Visual Verification".
-
-1.5. **Confirm each change — only when `--confirm-each` is present in `$ARGUMENTS`;** skip silently otherwise, and the rest of Phase 3 is unchanged either way. Walk the finished diff with the user one change unit at a time before anything is committed — accept, adjust, undo, or explain further per unit. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Confirm-each walk": it owns unit derivation, the per-unit render and question, both action branches, the `approvals[]` entry, the closing re-verification, and how far accepting a unit reaches.
-
 2. **Commit.** Verify the live `git branch --show-current` matches the intended branch before staging — do not trust the session-start branch snapshot (stale across compaction); on mismatch, fire the branch-check `AskUserQuestion` (full procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Step 2 — Commit") rather than committing. Then stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). If `git status` shows production files modified outside that set — edits this run did not author — do NOT auto-fold them; fire an `AskUserQuestion` to confirm whether they belong in this commit before staging. Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata.
 3. **Emit learnings.** Fire this before the Ship-mode AUQ — the learning describes the change just committed and doesn't depend on the push outcome, so emitting here makes it part of finalizing the work rather than a postscript that gets dropped once the PR is open (the documented sparse-learnings cause).
 

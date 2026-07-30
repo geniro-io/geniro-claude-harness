@@ -79,7 +79,6 @@ When a finding genuinely has nothing to map, the 2-5 line evidence snippet IS th
 Used by:
 - `/geniro:review` Phase action-gate (PRODUCT-DECISION resolution; PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
 - `/geniro:implement` Phase 3 self-review fix loop (resolving findings that need the user's decision)
-- `/geniro:implement` Phase 3 Ship sub-step, the `--confirm-each` walk (one change unit per call; calling-skill-set fixed menu: Looks good / Adjust it / Undo this change)
 - `/geniro:refactor` escalation
 - `/geniro:resolve` Phase 3 Clarify gate (one ambiguous PR-comment item per call; the "Challenge this comment" option re-verifies the comment)
 

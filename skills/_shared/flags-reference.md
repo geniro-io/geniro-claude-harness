@@ -12,7 +12,7 @@ The single catalog of every flag and modifier `/geniro:plan`, `/geniro:implement
 
 ## How to read these tables
 
-Each row names a flag or modifier, the values it accepts, what it sets, and how that changes the run's questions — one of the three kinds above: the question a pre-set answers, the step a gate-adding row (`--prd`, `--confirm-each`) adds, or "No question" for a row that changes neither. Modifiers are matched semantically from `$ARGUMENTS` (no strict CLI grammar). When two conflicting modifiers appear (e.g. `new-branch` and `current-branch`), last-occurrence wins and a soft notice names both detected variants.
+Each row names a flag or modifier, the values it accepts, what it sets, and how that changes the run's questions — one of the three kinds above: the question a pre-set answers, the step a gate-adding row (`--prd`) adds, or "No question" for a row that changes neither. Modifiers are matched semantically from `$ARGUMENTS` (no strict CLI grammar). When two conflicting modifiers appear (e.g. `new-branch` and `current-branch`), last-occurrence wins and a soft notice names both detected variants.
 
 ## /geniro:plan
 
@@ -31,14 +31,13 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 
 ## /geniro:implement
 
-`argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep] [--confirm-each]"`
+`argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep]"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Forces the workspace path — cut a fresh branch, work in place on the current branch, cut a worktree, or run in the current directory. | The Step 0 workspace question. |
 | `--deep` | present / absent | Deepens two phases — a multi-angle self-review with verification escalated only where the call is contested, and a 3× fact-check of the spec's cited claims before the first edit. | The Standard/Deep depth question (folded into the Step 0 workspace question). |
 | `--no-adversarial` | present / absent | Disables the adversarial-tester spawn in the self-review phase. | No question — drops the extra reviewer slot in the review round. |
-| `--confirm-each` / `confirm each change` | present / absent | Turns on a walk over the finished diff, one change unit at a time, run just before the commit. | Adds a per-unit gate (accept / adjust / undo / explain further) before anything is committed; the ship-mode question still fires afterwards. |
 | `don't push` / `no push` / `commit only` | one value | Commit succeeds, no push. | The ship-mode question. |
 | `draft only` / `draft PR` / `open draft` | one value | Push and open a draft PR. | The ship-mode question. |
 | `ready PR` / `ready-for-review` / `non-draft PR` | one value | Push and open a PR ready for review. | The ship-mode question. |

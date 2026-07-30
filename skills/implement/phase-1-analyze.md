@@ -104,7 +104,6 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 | `no-worktree` / `here` | Force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
 | `--no-adversarial` | Disables Phase 3 adversarial-tester spawn for this run (skips the 6th slot in Round 1). |
 | `--deep` / `deep` | Sets `deep-mode: true` — the deeper Phase 1 + Phase 3 paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. |
-| `--confirm-each` / `confirm each change` | Turns on the Phase 3 pre-commit walk over the finished diff — the user accepts, adjusts, or undoes each change unit before anything is committed (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` Ship sub-step 1.5). |
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
 

@@ -34,13 +34,11 @@ Restart the session afterward. No project state under `.geniro/` changes — ins
 
 ---
 
-### New opt-in shapes: `/geniro:reflect --this-session` and `/geniro:implement --confirm-each`
+### New opt-in shape: `/geniro:reflect --this-session`
 
 `/geniro:reflect` gains a third input shape. `--this-session` mines the session you are running in rather than past transcripts on disk: nothing is selected from disk, the corrections are extracted inline from the live conversation, and synthesis still runs in the same isolated agent. Because it reads no transcript file, this shape works outside Claude Code too — the search-string and empty shapes still need Claude Code's transcript layout.
 
-`/geniro:implement` gains a `--confirm-each` modifier. With it, the run walks the finished diff with you one change unit at a time just before the commit — accept, adjust, undo, or ask for more explanation on each unit. Accepting units is not ship consent: the ship-mode question fires afterwards exactly as it would without the modifier.
-
-**Action required:** None. Both are additive and off by default — an invocation that does not type the new argument behaves exactly as before, and no state-file schema changed.
+**Action required:** None. The shape is additive and off by default — an invocation that does not type it behaves exactly as before, and no state-file schema changed.
 
 **Auto-detect:** N/A — behavior change in the shipped skills with no project-state impact.
 
