@@ -263,7 +263,7 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "npm 
 
 On success: emits `✓ <description> passed (<summary>)`, where `<summary>` is a detected framework test count or `<N> lines of output`. On failure: filters and caps output at `GENIRO_BACKPRESSURE_CAP` lines (default 150). Manages its own `mktemp` lifecycle; no persistence.
 
-Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/phase-2-spawns.md`](skills/review/phase-2-spawns.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
+Current sourcing call sites: [`skills/refactor/phase-2-apply.md`](skills/refactor/phase-2-apply.md) (the pre- and post-condition checks at steps 3 and 4), [`skills/review/phase-2-spawns.md`](skills/review/phase-2-spawns.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md). `skills/refactor/SKILL.md` names the helper in prose but does not source it — the sourcing lives in that skill's phase-2 body.
 
 ## Testing
 
