@@ -132,11 +132,13 @@ The stable scope set:
 
 Three shapes across the scope set. The schema itself is owned by the loader that parses these files at runtime — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract; the shapes below and the annotated templates are authoring scaffolds written against it, so a schema change lands there first. The templates for all three, plus the per-scope create scaffolds, live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — read that section before rendering a scaffold or judging a body's structure.
 
-- **Singleton scopes** (`global`, `code-style`, every per-skill scope) — `## Rules`, `## Additional Steps` → `### After <phase>` / `### Before <phase>`, `## Constraints`, and the optional `## Data Sources`.
+- **Singleton scopes** (`global`, `code-style`, every per-skill scope) — `## Rules`, `## Additional Steps` → `### After <phase>` / `### Before <phase>`, `## Constraints`, and the optional `## Data Sources` and `## Verification Surface`.
 - **`memory`** — its own `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only; no Rules / Constraints / Additional Steps.
 - **`review-extra/<slug>`** — directory-style, one file per custom reviewer, with YAML frontmatter (fields below) plus a `# Criteria` body.
 
 The optional `## Data Sources` section — valid in `global` and the per-skill scopes — declares the read-only sources the `/geniro:plan` and `/geniro:implement` verification steps cross-check load-bearing facts against; its entry shape, discovery, and read-only screening are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`, and an absent section just means no declared sources.
+
+The optional `## Verification Surface` section — same scopes — declares what each of the project's checks covers and what it leaves uncovered, so a run picks the check that actually demonstrates a criterion and states the result at that check's width; its entry shape and consumption contract are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md`, and an absent section changes nothing.
 
 `memory.md` is loaded alongside `global.md` for every skill, and its `## Memory Backend` section routes the learnings layer through a custom backend (typically a memory MCP); the entry shape and the full routing contract are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`, and an absent file or block leaves the built-in `.geniro/knowledge/learnings.jsonl` in use unchanged.
 
@@ -188,6 +190,7 @@ A `create`/`edit` request implies WHICH block to author, not just which scope. M
 | "run X every time a new worktree is created" / a per-worktree workspace bootstrap (e.g. build a per-worktree code index for an MCP) | `## Additional Steps` → `### After worktree-setup` (a cross-skill event anchor, not a phase) | `global` |
 | "hard limit" / "must not exceed" / a gate | `## Constraints` | the named scope |
 | "verify facts against my <source>" / "cross-check status from <db/MCP>" | `## Data Sources` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`) | `global` or per-skill |
+| "the unit suite doesn't cover X" / "only the integration run proves Y" / "what our checks actually verify" | `## Verification Surface` | `global` or per-skill |
 | "change how memory/knowledge works" / "store learnings in my MCP" / "use a custom memory backend" | `## Memory Backend` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`) | `memory` (its own dedicated file) |
 
 When the block type is ambiguous, ask in the Step 4 interview; default a vague "add a rule" to `## Rules`. The `## Additional Steps` anchor must name a real phase-enum value for the scope, prefixed `After` or `Before` (enums in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5) — for a `/plan` post-approval step use `### After user-approve`. The sole exception is `### After worktree-setup`: a cross-skill event anchor (hosted in `global.md`, not a per-skill file) that fires when any skill creates a new worktree rather than at a phase boundary.
