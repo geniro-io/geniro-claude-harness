@@ -75,6 +75,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 **Excludes:**
 - Real defects (those are MEDIUM+)
 - Cosmetic suggestions that hide a substantive problem (a "could be more readable" finding that masks a hidden bug is MEDIUM, not LOW)
+- A finding whose `Decision Type` is `PRODUCT-DECISION`. Its severity stays as scored, LOW included, but it is never cosmetic — it names a call that is the user's to make. This is the disqualifier the all-cosmetic signal in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4 checks against, so a run holding one is not an all-cosmetic run however it scores.
 
 The plugin has no separate NIT tier — LOW covers both "minor real issue" and "cosmetic suggestion". Per §5 below, LOW findings are written to `## Deferred — sub-threshold` for awareness and reach neither the PR-comment surface nor the fix list BY DEFAULT — an explicit user pick lifts that gate (the Post drill's "Send all", or the include-deferred gate on the "/geniro:implement findings" path; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.2 / §4.6), because severity gates default disposition, not user-elected disposition. One exception to the deferral itself: a LOW finding whose `Decision Type` is `PRODUCT-DECISION` is kept and surfaced regardless of severity (it names the user's call, not the reviewer's), per §5 Path B.
 

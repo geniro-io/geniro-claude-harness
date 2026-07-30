@@ -395,7 +395,9 @@ No AUQ fires here — finalize is silent. The user already answered the decision
 - **All-decided tracker line** — only when open decisions were resolved this run (§2.5 entries and/or §3 findings): `✔ Decision 1 — <short tag> · ✔ Decision 2 — <short tag>` — every stop `✔`, because this gate fires only after those gates cleared.
 - `**In one sentence:**` what this gate decides — what to do with the <N> confirmed findings.
 - **Kept-findings digest** — a mini-table, one row per non-zero severity: severity · count · example finding tag (a 2-4 word plain-English tag).
-- **Light icons on headings** per the visual language.
+- **Set-aside count** — when `## Deferred — sub-threshold` holds any entry: one line naming how many more were set aside below the fix bar. The digest above counts only what cleared §4.1, so without this line the kept set reads as the whole finding set, and a heavily filtered review is indistinguishable from a quiet one.
+- **All-cosmetic line** — when every kept finding is LOW and none is disqualified by the `**Excludes:**` list in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1: state affirmatively, in one line, that nothing found blocks. Say it rather than leaving it to be inferred from a short table — silence reads as "the review did not look", and the affirmative sentence is the only thing that distinguishes a clean result from an absent one. Omit the line when a disqualifier applies; that list is the single source for what disqualifies, never restated here.
+- **Volume line** — when the kept plus set-aside count exceeds the number of changed files: one line saying so as a fact about the change, not about the findings. A finding list longer than the file list is a signal that the change is carrying more than one concern, and a render that only enumerates hands over the items while withholding the pattern the user would act on.
 
 Then fire the lean AUQ below.
 
