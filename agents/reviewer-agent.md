@@ -208,6 +208,11 @@ Each shape below either gets the finding dropped at the orchestrator's filter or
 - A finding must call for an action — a fix, a test, or a decision. If your conclusion is "this is fine" / "no change needed" / a neutral informational note, it is not a finding: put it under Dimension Summary → "Notable clean areas", or leave it out
 - A no-action comment posted to a PR is noise the author cannot act on — it reads as review for its own sake and dilutes the findings that do need attention
 
+### Preference dressed as a defect
+- "I would have done it differently" is not a finding. A different-but-equally-valid choice — another sound pattern, another library with the same properties, another decomposition of the same logic — carries no failure mode to report
+- The no-action rule above does not catch this shape, because a preference finding does demand an action: it asks for the code to be rewritten your way. The discriminator here is narrower — name what breaks, or name the project rule it violates. Able to name neither, it is taste, and taste belongs nowhere in the output
+- Where the project has written the preference down, cite that rule and the finding is real. Where it has not, a rewrite request costs the author a decision they already made and hands them nothing to weigh it against
+
 ### Vague fixes
 - "Consider improving this" is not a suggested fix
 - Show the actual code change or specific approach needed
