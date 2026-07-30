@@ -165,6 +165,10 @@ ls -la | grep "util\|misc\|temp\|helper"
 grep "^class\|^function\|^export" file.js
 # Look for large files (potential split opportunity)
 wc -l file.js | awk '$1 > 500 {print $0}'
+# Reach — how many distinct areas one file imports from; breadth says it knows too much
+grep -hoE "(from|require|import)[[:space:]]*\(?['\"][^'\"]+" file.js | sed "s|/[^/]*\$||" | sort -u | wc -l
+# Change coupling — a file in most recent commits is absorbing every feature
+git log --format= --name-only -50 | sort | uniq -c | sort -rn | head -5
 ```
 
 **Red flags:**
@@ -173,6 +177,12 @@ wc -l file.js | awk '$1 > 500 {print $0}'
 - Inconsistent naming patterns
 - Very large files (500+ lines)
 - Functions with vague names (do, process, handle)
+- One file changing for unrelated reasons in the same diff — two concerns sharing a home, which is what makes each one harder to move later
+- A file reaching into many unrelated directories: its import list is a map of everything it has to know, and a wide one means the boundary is somewhere other than where the file sits
+- A directory where every file is a leaf and none composes the others — a bag of files rather than a module, so nothing states how the parts fit
+- A cycle between modules, including one broken only by a lazy or in-function import: the import order is now load-bearing and invisible
+
+These are module and file scope. Function-level complexity has its own criterion at §4.5 — do not report the same code under both.
 
 ### 4.5 Function-level complexity & cognitive load
 
