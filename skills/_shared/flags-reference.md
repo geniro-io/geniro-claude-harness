@@ -1,6 +1,6 @@
 # Flags & presets — cross-skill catalog
 
-The single catalog of every flag and modifier that pre-sets an otherwise-interactive question across `/geniro:plan`, `/geniro:implement`, and `/geniro:review`. A flag or modifier removes routine setup friction by answering a question in advance; it never pre-authorizes a safety gate.
+The single catalog of every flag and modifier `/geniro:plan`, `/geniro:implement`, and `/geniro:review` accept. Three kinds: most remove routine setup friction by answering a question in advance; a few deliberately add an interactive step the default run does not have; the rest change what the run does — its context, or how many agents it spawns — and ask nothing either way. None of the three reaches a safety gate: a flag never pre-authorizes one, and one that adds a gate never substitutes for one.
 
 ## Contents
 
@@ -12,13 +12,13 @@ The single catalog of every flag and modifier that pre-sets an otherwise-interac
 
 ## How to read these tables
 
-Each row names a flag or modifier, the values it accepts, what it presets, and which interactive question that pre-set removes. Modifiers are matched semantically from `$ARGUMENTS` (no strict CLI grammar). When two conflicting modifiers appear (e.g. `new-branch` and `current-branch`), last-occurrence wins and a soft notice names both detected variants.
+Each row names a flag or modifier, the values it accepts, what it sets, and how that changes the run's questions — one of the three kinds above: the question a pre-set answers, the step a gate-adding row (`--prd`) adds, or "No question" for a row that changes neither. Modifiers are matched semantically from `$ARGUMENTS` (no strict CLI grammar). When two conflicting modifiers appear (e.g. `new-branch` and `current-branch`), last-occurrence wins and a soft notice names both detected variants.
 
 ## /geniro:plan
 
 `argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"`
 
-| Flag / modifier | Values | What it presets | Which question it skips |
+| Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
 | `--prd` | present / absent | Turns on the problem-discovery interview (problem / evidence / target user / hypothesis / success metrics / MoSCoW) and the spec's optional `## Problem & Evidence` section. | Adds the Phase 0.5 interview; absent = no problem-first pre-phase. |
 | `--deep` | present / absent | Deepens the approach search (wider candidate set) and adds majority-vote verification of the spec's cited claims. Higher quality, higher cost. | The Standard/Deep depth question (asked at the Phase 3 clarify wrap-up). |
@@ -33,7 +33,7 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 
 `argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep]"`
 
-| Flag / modifier | Values | What it presets | Which question it skips |
+| Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Forces the workspace path — cut a fresh branch, work in place on the current branch, cut a worktree, or run in the current directory. | The Step 0 workspace question. |
 | `--deep` | present / absent | Deepens two phases — a multi-angle self-review with verification escalated only where the call is contested, and a 3× fact-check of the spec's cited claims before the first edit. | The Standard/Deep depth question (folded into the Step 0 workspace question). |
@@ -51,7 +51,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 
 `argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep]"`
 
-| Flag / modifier | Values | What it presets | Which question it skips |
+| Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
 | `--deep` | present / absent | Reviews each check from several angles and majority-verifies findings where the call is contested. Higher quality, higher cost. Without it, Standard runs one reviewer pass per dimension — N reviewers for this diff (computed at ask time). | The Mode / depth question (the depth pick is folded into the Phase 1 Mode question). |
 | `--plan <path>` | a spec path | Supplies the spec so the specification-compliance reviewer can check the diff against it. This is a context input, not a question pre-set. | No question — adds spec context to the reviewers. |
