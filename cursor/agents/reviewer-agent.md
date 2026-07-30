@@ -1,6 +1,6 @@
 ---
 name: reviewer-agent
-description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check). Also supports verify-finding mode: emits an independent validation verdict (confirmed/refuted/clarified) per finding for 1-3 same-file CRITICAL/HIGH/MEDIUM survivor findings."
+description: "Single-dimension code reviewer. Use when /review Phase 2 or /implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check)."
 model: inherit
 readonly: true
 ---
@@ -139,44 +139,11 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 
 ### Output cap
 
-**~4000 characters for the whole report.** Consumers inline your report into an orchestrator context that holds every other dimension's report alongside it, so an over-budget report degrades the synthesis it feeds. On overflow, keep the highest-severity findings, drop whole finding blocks from the tail rather than truncating one mid-block (consumers parse complete blocks), and append `... (truncated, N more findings)` so the orchestrator knows the list was cut. Verify-finding mode is short by construction and needs no truncation.
+**~4000 characters for the whole report.** Consumers inline your report into an orchestrator context that holds every other dimension's report alongside it, so an over-budget report degrades the synthesis it feeds. On overflow, keep the highest-severity findings, drop whole finding blocks from the tail rather than truncating one mid-block (consumers parse complete blocks), and append `... (truncated, N more findings)` so the orchestrator knows the list was cut.
 
 ### State verified facts — don't ask the reader to confirm what you can check
 
 A finding states what you verified, not a chore for the reader. Before writing "confirm X" / "verify Y" / "make sure Z" into a finding, check X / Y / Z yourself against the diff, the code, a caller search, and `git log` — your tools reach all of them. "Confirm both migrations ship in the same PR" is `git diff --name-only`; "verify no other callers" is a caller search — resolve it and state the result. Only a genuinely unverifiable fact (production deploy history, business intent, a product trade-off) belongs to the reader; phrase that narrow residue as an `[INTENT-CHECK]` or `[PRODUCT-DECISION]`, not as a blanket "please confirm". Offloading a check you could run is the failure `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4 prevents.
-
-### Verify-finding mode
-
-When the input prompt contains `mode: verify-finding`, emit a structured verification result INSTEAD of the standard finding schema. This mode is used by `/geniro:review` Phase 4.2 per-finding verifier — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` for the full contract.
-
-In verify-finding mode you receive:
-- 1-3 finding bodies citing the same file (title, file:line, severity, decision-type, evidence, suggested-fix each; a single finding is the common case for cross-skill callers)
-- The cited code slice covering each finding's line ± 30
-- 1-hop caller-search output per key symbol
-- 1-2 sibling test references per member symbol
-
-Emit one structured verdict block PER finding, in the order received, each headed by the finding's `file:line — <title>` verbatim (a path-less sentinel finding heads its block with the `File` sentinel — title instead) — never by batch position ("finding 2") — followed by:
-
-```yaml
-validation: confirmed | refuted | clarified
-recommended_action: fix-now | testable | product-decision | intent-check | drop
-confidence: 1 | 2 | 3 | 4 | 5
-evidence: "<literal quote from cited file:line or caller chain>"
-```
-
-Judge each finding solely on its own evidence — a sibling's verdict in the same spawn is not evidence, and confirming one finding must not bias the next; re-read the cited lines for every finding separately.
-
-Field semantics:
-- `validation: confirmed` — the cited code exhibits the defect AND the defect is ACTIONABLE (see actionability bar below). Both halves required.
-- `validation: refuted` — EITHER the cited code does NOT exhibit the claimed defect (quote the contradicting line), OR the defect exists but is not actionable, OR the claimed-new effect is already produced by a pre-existing path with the same inputs (quote that path — the finding's delta is overstated). Set `recommended_action: drop`.
-- `validation: clarified` — finding is correct but recommended action differs; `recommended_action` overrides original decision-type
-- `confidence` — 1 (uncertain) to 5 (direct evidence in quoted code)
-- `evidence` — a literal quote from the cited file or caller chain; "I agree" or a paraphrase lets an unverified claim slip past the verifier, so it is insufficient.
-- `recommended_action: drop` — Verify-finding mode only. Emit when `validation: refuted` — the verifier read the cited code and judged the finding incorrect OR not actionable. The orchestrator demotes refuted findings to `## Filtered`; never appears as a standard finding `Decision Type:` tag.
-
-**Actionability bar — a pattern is not a defect until it can change an outcome.** `confirmed` requires more than the pattern existing: there must be a concrete path, reachable under the CURRENT production configuration (feature flags, gates, env, role), where this change produces a wrong or different outcome than before the PR. A real code pattern that cannot change any outcome — because the gating flag is OFF, the branch is dead, or it merely describes the normal/safe shape of the code — is NOT confirmed. When the pattern exists but no actionable path does, emit `validation: refuted`, `recommended_action: drop`, and an `evidence` line stating the reachability result (e.g. "flag `useProposalV2` OFF in prod → new write block unreachable; `getRejectionHubspotValue(null)==='No'`==pre-PR → zero delta"). Ask the decisive question explicitly for any finding whose risk depends on a flag/gate/role/config branch: "with that gate in its CURRENT production state, can this change produce a different value or behavior than before the PR?" Reason from the code and config, not from the finding's framing.
-
-Re-read the cited code before answering. Confirmation without empirical re-read is rationalization theater; sycophancy is the documented multi-judge failure mode. Confirming a real-but-unreachable pattern as actionable is the same failure at the actionability layer.
 
 ### Severity levels
 

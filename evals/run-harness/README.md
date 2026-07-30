@@ -124,11 +124,11 @@ incrementally, so the Phase 2 reviewer fan-out is captured either way. Assert ag
 T=runs/review-batched-1/transcript.jsonl
 
 # 1. Phase 2 reviewer spawn count == the declared dimension count (spawn_dims_count in
-#    the target repo's .geniro/planning/*/state.md), NOT dims x file-groups. Excludes
-#    Phase 4.2 verify-finding spawns, which also use reviewer-agent.
+#    the target repo's .geniro/planning/*/state.md), NOT dims x file-groups. Phase 4.2
+#    verifiers are a different agent (finding-verifier-agent), so subagent_type alone
+#    separates them — no need to inspect prompt text.
 jq -r 'select(.type=="assistant" and .parent_tool_use_id==null)
-  | .message.content[]? | select(.type=="tool_use" and (.name=="Agent" or .name=="Task")
-      and ((.input.prompt // "" | test("mode: verify-finding")) | not))
+  | .message.content[]? | select(.type=="tool_use" and (.name=="Agent" or .name=="Task"))
   | .input.subagent_type // "?"' "$T" | grep -c reviewer-agent
 
 # 2. One-message batch: every Phase 2 reviewer spawn shares one message.id

@@ -126,4 +126,5 @@ R2	criteria	1	skills/_shared/review-criteria/pr-metadata-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/spec-compliance-criteria.md
 
 # ---- R2: agent bodies (10 dimension spawns + 5 verifier spawns) ----
-R2	agent-body	15	agents/reviewer-agent.md
+R2	agent-body	10	agents/reviewer-agent.md
+R2	agent-body	5	agents/finding-verifier-agent.md

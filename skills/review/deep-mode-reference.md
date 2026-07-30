@@ -27,7 +27,7 @@ Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verif
 - **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` so the session-restore hook re-applies it on a compaction-resume.
 - **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the verified survivors whenever eligible findings exist; the two never conflict.
 
-When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (single reviewer batch; one verify-finding verdict per survivor via file-clustered verifier spawns) — deep mode adds no overhead to standard runs.
+When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (single reviewer batch; one `finding-verifier-agent` verdict per survivor via file-clustered verifier spawns) — deep mode adds no overhead to standard runs.
 
 ---
 
