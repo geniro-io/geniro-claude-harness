@@ -8,7 +8,7 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 - Why this exists — the three hallucinated-success failure modes
 - When evidence is required — the claim classes that need a block
-- Evidence Block schema — the verbatim shape, plus §What counts as an artifact (the five kinds)
+- Evidence Block schema — the verbatim shape, plus §What counts as an artifact (the six kinds) and §Evidence ladder (how far one reaches)
 - Forbidden phrases — the tokens the Stop hook scans, and scoping a claim to its command
 - Stop hook reliability disclaimer — why the hook is a reminder, not the gate
 - Anti-rationalization
@@ -59,6 +59,24 @@ The kinds below are the complete set. A claim requiring evidence is backed by on
 | 6 | External documented fact, cited by resolvable source URL and quoted at the point of use | upstream changelog entry / RFC clause / vendor doc paragraph, with the URL |
 
 Kind 6 covers claims about the world outside the repo, where no local probe can settle the question. It admits only what a reader can re-open and check: a URL that resolves plus the quoted passage the claim rests on. A remembered fact, a summarized page, or a URL without the quote is a hypothesis — the failure mode is a confidently-worded recollection that no longer matches what the source says.
+
+### Evidence ladder — how far the artifact reaches
+
+The kinds above are a set, not a ranking. They say what counts as an artifact; they say nothing about how much any one of them settles. Two findings can both carry a legal artifact and be nowhere near equally settled: a failing test that flips when the suspected cause is removed is close to certain, while a vendor changelog quote is someone else's report about a system nobody here observed. Both are evidence. They do not deserve the same confidence, and today they read identically.
+
+| Rung | What you have |
+|---|---|
+| 1 | You ran a probe whose result differs depending on which reading is true, and it came back |
+| 2 | You observed the behavior in the running system, without being able to reproduce it on demand |
+| 3 | You read the source of truth directly and quoted the passage the claim rests on |
+| 4 | Someone else captured the artifact and handed it to you |
+| 5 | The fact is documented outside this system and you quoted it |
+
+The ordering is for a **causal** claim — why something behaves the way it does. For a claim about what a file says, reading that file and quoting it IS rung 1; nothing sits closer to it. Rank against the claim, not against the table.
+
+Report the rung alongside the block: `Evidence-rung: <n> — <what a higher rung would have taken>`.
+
+The second half is the point. A rung on its own reads as a grade. A rung plus the missing step tells the reader whether the gap is closable or was simply not attempted — "rung 3, reproducing it needs a seeded tenant this environment has no way to create" and "rung 3, no probe attempted" are the same rung and call for opposite decisions. Naming the missing step is also what stops the rung from becoming a place to settle: written down, "no probe attempted" is visibly a choice rather than a limit.
 
 Reasoning, "the symptom matches", "the agent reported PASS", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only a captured artifact (kind 1, 3, or 4) confirms causation. An artifact showing that every failing case shares an attribute establishes a discriminator, not a cause; before that reading reaches a deliverable, run the one probe whose result differs depending on which reading is true.
 
