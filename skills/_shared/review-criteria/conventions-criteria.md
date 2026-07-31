@@ -158,7 +158,7 @@ Which kinds of imports a file kind is allowed. Controllers that never import dir
 # Do controllers import from db/ in this repo?
 grep -lE "from ['\"].*\\bdb/" src/controllers/*.ts
 # Do UI components hit api/ directly?
-grep -lE "from ['\"].*\\bservices/api" src/components/**/*.tsx
+grep -rlE "from ['\"].*\\bservices/api" src/components/
 # Reverse-direction sniff
 grep -rn "from '@/app'" src/domain/ src/core/ 2>/dev/null
 # If 0 of 8 siblings cross the boundary — and the diff does — that is the finding.

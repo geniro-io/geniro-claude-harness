@@ -22,13 +22,13 @@ OWASP-aligned security analysis: injection attacks, authentication/authorization
 
 **How to detect:**
 ```bash
-# SQL string concatenation patterns
-grep -n "SELECT.*\+" file.js | grep -v "parameterized\|?"
-grep -n "INSERT.*\+" file.js | grep -v "VALUES\s*\?"
+# SQL built by concatenation. Use -E: in a basic-regex grep, `.*\+` is an invalid repetition
+# operand and the command aborts with an error instead of searching.
+grep -nE "(SELECT|INSERT|UPDATE|DELETE).*\+" file.js | grep -v "parameterized"
 # Shell execution
 grep -n "exec\|system\|spawn" file.js | grep -v "escape\|quote\|shellwords"
 # Dynamic queries
-grep -n "query.*\+" file.js
+grep -nE "query.*\+" file.js
 ```
 
 **Red flags:**

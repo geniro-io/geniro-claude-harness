@@ -23,9 +23,7 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 
 **How to detect:**
 ```bash
-# Find property access patterns
-grep -n "^\s*[a-zA-Z_][a-zA-Z0-9_]*\." file.js | grep -v "if\|?.\|&&\|??"
-# Find array indexing without guards
+# Indexing with no length/existence guard on the line
 grep -n "\[[0-9]\+\]" file.js | grep -v "length\|size"
 ```
 
@@ -71,8 +69,8 @@ grep -n "indexOf\|slice\|substring" file.js
 
 **How to detect:**
 ```bash
-# Loose equality in comparisons
-grep -nE "==\s|!=\s" file.js | grep -v "==="
+# Loose equality — the character classes exclude `===` and `!==`; a `grep -v "==="` filter keeps every `!==`
+grep -nE "[^=!<>]==[^=]|[^!]!=[^=]" file.js
 # Type operations on variables
 grep -n "typeof\|instanceof" file.js | grep -v "if\|assert"
 ```
@@ -111,7 +109,7 @@ grep -nE "\.catch\(\s*\(\s*\)?\s*=>\s*(\[\]|null|\{\}|undefined)" file.js
 grep -nE "except\s*:\s*pass|except\s+Exception\s*:\s*pass" file.py
 grep -nE "catch\s*\([^)]*\)\s*\{\s*\}" file.js
 # Default-on-error returns inside catch/except
-grep -nA3 "catch\|except" file.js | grep -nE "return\s*(\[\]|null|0|\{\})"
+grep -nA3 "catch\|except" file.js | grep -E "return\s*(\[\]|null|0|\{\})"
 # Network/IO calls — check for an accompanying timeout option
 grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | grep -v "timeout\|signal"
 ```
@@ -135,13 +133,12 @@ grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | gr
 
 **How to detect:**
 ```bash
-# Find inverted conditions
-grep -n "if\s*(\s*!" file.js | grep -A2 "return\|throw"
-# Find unreachable code (a line immediately after a return/break/throw at block level)
-grep -nA1 -E "^\s*(return|break|throw)\b" file.js
-# Switch/match — confirm a default / catch-all arm exists
+# Unreachable code — a statement (not a closing brace or comment) immediately after return/break/throw/continue
+awk 'prev ~ /^[[:space:]]*(return|break|throw|continue)[^;]*;[[:space:]]*$/ && NF && $0 !~ /^[[:space:]]*([})\]]|\/\/|\/\*|\*|case |default|else|elif|when |catch|finally)/ {print NR": "$0} {prev=$0}' file.js
+# Switch/match — read each hit's arms and confirm a default / catch-all exists
 grep -nE "switch\s*\(|\bmatch\b" file.js
 ```
+Inverted conditionals and wrong operators have no grep shape — `if (!x) return` is the correct guard idiom far more often than it is a defect, so read the condition against what the branch does.
 
 ### 7. Resource Leaks
 - File handles not closed
@@ -209,8 +206,8 @@ Distinct from §8 (which flags missing bounds / limits): here the arithmetic its
 grep -nE "(==|!=)\s*-?[0-9]+\.[0-9]+" file.js
 # Float arithmetic on money-named variables
 grep -nE "(price|amount|total|cost|balance|tax|rate|cents?)\b.*[-*/+]" file.js
-# Division / parse / external numeric input used without a NaN/Infinity guard
-grep -nE "parseFloat|parseInt|Number\(|/[^/*]" file.js | grep -viE "isNaN|isFinite|Number\.isInteger|toFixed"
+# Numeric parse / coercion of external input used without a NaN/Infinity guard
+grep -nE "parseFloat|parseInt|Number\(" file.js | grep -viE "isNaN|isFinite|Number\.isInteger|toFixed"
 ```
 
 **Red flags:**

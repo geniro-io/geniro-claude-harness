@@ -29,8 +29,9 @@ grep -nE "^\s*[a-z]\s*=" file.js
 grep -nE "var (x|y|z|data|temp|result|obj|arr|str)\b" file.js
 # Check naming inconsistency (camelCase vs snake_case mix)
 grep -oE "(const|let|var) [A-Za-z_][A-Za-z0-9_]*" file.js | awk '{print ($2 ~ /_/ ? "snake" : "camel")}' | sort | uniq -c
-# Find magic numbers
-grep -nE "[0-9]{2,}" file.js | grep -v "200\|404\|timestamp\|size"
+# Magic numbers — a multi-digit literal inline in a comparison or argument, minus named-constant
+# declarations. A bare digit grep instead reports every version string and CSS length in the file.
+grep -nE "(==|<|>|<=|>=|\(|,)[[:space:]]*[0-9]{2,}" file.js | grep -vE "^[0-9]+:[[:space:]]*(const|let|var|static|final)"
 ```
 
 **Red flags:**
@@ -51,7 +52,6 @@ grep -nE "[0-9]{2,}" file.js | grep -v "200\|404\|timestamp\|size"
 ```bash
 # Find generic function names
 grep -nE "function (do|process|handle|execute|run|work|test)\(" file.js
-grep -nE "(async |)function\s+[a-z0-9]+\(" file.js | grep -v "get\|create\|fetch\|validate\|check"
 # Look for generic class names
 grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
 ```
@@ -75,8 +75,6 @@ grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
 awk '/^\t/{tabs++} /^ /{spaces++} END{print "tab-indented:", tabs+0, "space-indented:", spaces+0}' file.js
 # Check line length
 awk 'length > 120 {print NR": length=" length}' file.js
-# Check brace style consistency
-grep -n "{\|}" file.js | head -10
 ```
 
 **Red flags:**
@@ -96,8 +94,8 @@ grep -n "{\|}" file.js | head -10
 
 **How to detect:**
 ```bash
-# Find functions without comments
-grep -n "^function\|^async function\|^ [a-z].* {" file.js
+# Declarations whose preceding line is not a comment or doc-block close
+awk 'prev !~ /(\*\/|"""|^[[:space:]]*(\/\/|#))/ && /^[[:space:]]*(export )?(async )?(function|class|def |public )/ {print NR": "$0} {prev=$0}' file.js
 # Find obvious comments
 grep -n "//" file.js | grep -E "increment|add one|set variable"
 # Find TODO/FIXME
@@ -147,12 +145,10 @@ Do not flag from the comment alone — read the code the comment describes and c
 
 **How to detect:**
 ```bash
-# Find similar code patterns
-grep -n "for.*in\|forEach\|map\|reduce" file.js
-# Look for repeated constant values
-grep -nE ":\s*['\"].*['\"]\s*[,;}]" file.js | cut -d: -f2 | sort | uniq -c | sort -rn
-# Find duplicate function definitions
-grep "function\|const.*=" file.js | awk '{print $1}' | sort | uniq -c | sort -rn
+# Same symbol defined twice
+grep -oE "(function|def|fn|func)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*" file.js | sort | uniq -d
+# Copy-paste probe — identical non-trivial lines repeated in one file
+grep -vE '^[[:space:]]*(//|#|$)' file.js | sed 's/^[[:space:]]*//' | sort | uniq -c | awk '$1 > 2 && length($0) > 40'
 ```
 
 **Red flags:**
@@ -171,14 +167,14 @@ grep "function\|const.*=" file.js | awk '{print $1}' | sort | uniq -c | sort -rn
 
 **How to detect:**
 ```bash
-# Find unused imports
-grep -n "^import\|^require" file.js
+# Named imports referenced nowhere but their own import line
+for n in $(grep -oE "^import[^;]*" file.js | grep -oE "\{[^}]*\}" | tr -d '{}' | tr ',' '\n' | awk '{print $1}'); do
+[ "$(grep -cw "$n" file.js)" -le 1 ] && echo "unused: $n"
+done
 # Find wildcard imports
 grep -n "import \*\|from '.*\*'" file.js
 # Count imports per file
 grep -c "^import\|^require" file.js
-# Check for unused variables
-grep -n "import {.*} from\|const.*require" file.js
 ```
 
 **Red flags:**
@@ -199,11 +195,8 @@ grep -n "import {.*} from\|const.*require" file.js
 ```bash
 # Find 'any' usage in TypeScript
 grep -n ": any\|as any" file.ts
-# Find missing type annotations
-grep -n "function.*{" file.ts | grep -v ":"
-# Check for loose types
-grep -n "Object\|Function" file.ts
 ```
+No grep separates a deliberately-untyped signature from a missing annotation, so read the changed signatures directly — or take the type-checker's own output where the project runs one (`noImplicitAny`, `mypy`).
 
 **Red flags:**
 - Functions without parameter types (TypeScript)
