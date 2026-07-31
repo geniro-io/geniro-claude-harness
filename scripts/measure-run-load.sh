@@ -58,7 +58,38 @@ if [ ! -f "$MANIFEST" ]; then
   exit 65
 fi
 
-profiles=$(grep -v '^#' "$MANIFEST" | grep -v '^[[:space:]]*$' | cut -d"$TAB" -f1 | sort -u)
+# The single definition of "a data row". A `#` one column in is still a comment,
+# and the profile list is built from this same stream — a comment that survived it
+# would be read as profile names, one per word.
+manifest_rows() {
+  grep -v '^[[:space:]]*#' "$MANIFEST" | grep -v '^[[:space:]]*$'
+}
+
+# Four non-empty fields is the shape the arithmetic needs, and a row short one is
+# not a smaller run — it is an unmeasured one. A blank first field belongs to no
+# profile and so contributes to nothing at exit 0; a blank path scores nothing. Both
+# report a smaller total than the run they name, which is the failure the stale-row
+# check exists to prevent, so they get the same treatment: refuse to measure.
+malformed=$(awk -F"$TAB" '
+  /^[[:space:]]*#/ { next }
+  /^[[:space:]]*$/ { next }
+  NF != 4 || $1 == "" || $2 == "" || $3 == "" || $4 == "" { print "    line " NR ": " $0 }
+' "$MANIFEST")
+if [ -n "$malformed" ]; then
+  echo "$(basename "$0"): malformed manifest rows in $MANIFEST — every data row needs four non-empty tab-separated fields:" >&2
+  printf '%s\n' "$malformed" >&2
+  exit 65
+fi
+
+profiles=$(manifest_rows | cut -d"$TAB" -f1 | sort -u)
+
+# No discovered profiles means nothing was measured. `--all` would iterate zero
+# times and exit 0 having printed nothing, and the suite reads that 0 as proof every
+# path in every profile resolves — total staleness reported as a clean run.
+if [ -z "$profiles" ]; then
+  echo "$(basename "$0"): no profile rows in $MANIFEST — the file is empty or holds only comments" >&2
+  exit 65
+fi
 
 if [ -z "$want" ]; then
   echo "usage: $(basename "$0") [--detail] <profile>|--all" >&2
@@ -70,22 +101,33 @@ fi
 # group it. Splitting measurement from aggregation keeps both halves obvious.
 measure_profile() {
   _mp_profile="$1"
-  _mp_missing=0
 
-  grep -v '^#' "$MANIFEST" | grep -v '^[[:space:]]*$' | while IFS="$TAB" read -r p component mult path; do
+  manifest_rows | while IFS="$TAB" read -r p component mult path; do
     [ "$p" = "$_mp_profile" ] || continue
+    # Validate the multiplier BEFORE using it. `[ "$mult" -gt 1 ]` exits 2 on a
+    # non-integer, which reads as "not greater" and scores an x3 spawn count at 1x;
+    # and a leading zero is not a valid decimal literal to $(( )), so `08` fails the
+    # expansion and takes the row's whole `echo` with it — the row leaves the report
+    # with no marker at all. A count the arithmetic cannot use is the same failure as
+    # a path that no longer exists: the printed number describes a different run from
+    # the one it names. So it takes the same route MISSING does.
+    case "$mult" in
+      ''|*[!0-9]*|0*)
+        echo "BADMULT${TAB}0${TAB}$path (multiplier: $mult)"
+        continue
+        ;;
+    esac
     if [ ! -f "$REPO_ROOT/$path" ]; then
       echo "MISSING${TAB}0${TAB}$path"
       continue
     fi
     words=$(wc -w < "$REPO_ROOT/$path" | tr -d '[:space:]')
-    if [ "$mult" -gt 1 ] 2>/dev/null; then
+    if [ "$mult" -gt 1 ]; then
       echo "${component}${TAB}$((words * mult))${TAB}$path x$mult"
     else
       echo "${component}${TAB}${words}${TAB}$path"
     fi
   done
-  return $_mp_missing
 }
 
 report_profile() {
@@ -105,9 +147,9 @@ report_profile() {
   # Fixed component order so two reports diff cleanly; any component the manifest
   # introduces later still prints, after the known ones.
   echo "$_rp_rows" | awk -F"$TAB" -v detail="$detail" '
-    { order[$1] = order[$1]; words[$1] += $2; files[$1] += 1; rows[$1] = rows[$1] sprintf("      %-64s %8d\n", $3, $2) }
+    { words[$1] += $2; files[$1] += 1; rows[$1] = rows[$1] sprintf("      %-64s %8d\n", $3, $2) }
     END {
-      n = split("orchestrator criteria agent-body MISSING", known, " ")
+      n = split("orchestrator criteria agent-body MISSING BADMULT", known, " ")
       for (i = 1; i <= n; i++) {
         k = known[i]
         if (k in words) { emit(k); seen[k] = 1 }
@@ -123,33 +165,49 @@ report_profile() {
     }
   '
 
+  _rp_rc=0
+
   # A MISSING component means the manifest points at a file that is gone.
   if echo "$_rp_rows" | grep -q "^MISSING${TAB}"; then
     echo ""
     echo "  stale manifest rows — these paths no longer exist:" >&2
     echo "$_rp_rows" | grep "^MISSING${TAB}" | cut -d"$TAB" -f3 | sed 's/^/    /' >&2
-    return 1
+    _rp_rc=1
   fi
-  return 0
+
+  # A BADMULT component means the row's spawn count is not a positive integer, so
+  # its per-run cost is unknown rather than small.
+  if echo "$_rp_rows" | grep -q "^BADMULT${TAB}"; then
+    echo ""
+    echo "  invalid multiplier — these rows carry no positive integer spawn count:" >&2
+    echo "$_rp_rows" | grep "^BADMULT${TAB}" | cut -d"$TAB" -f3 | sed 's/^/    /' >&2
+    _rp_rc=1
+  fi
+
+  return $_rp_rc
 }
 
 rc=0
 if [ "$want" = "--all" ]; then
   first=1
-  for p in $profiles; do
+  # Line-wise, not `for p in $profiles`: unquoted word-splitting turns any profile
+  # name carrying a space — or any stray word that reached the list — into several
+  # profiles, and measures a real one twice if a duplicate word matches it.
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
     [ $first -eq 1 ] || echo ""
     first=0
     report_profile "$p" || rc=1
-  done
+  done <<< "$profiles"
 else
-  case "$profiles" in
-    *"$want"*) ;;
-    *)
-      echo "$(basename "$0"): no such profile: $want" >&2
-      echo "profiles: $(echo "$profiles" | tr '\n' ' ')" >&2
-      exit 64
-      ;;
-  esac
+  # Whole-line match. A substring test lets a prefix of a real profile (`R` against
+  # a list holding `R1`) past the guard, so a mistyped profile dies further in with
+  # the exit code a stale manifest uses instead of the documented 64.
+  if ! printf '%s\n' "$profiles" | grep -qxF -- "$want"; then
+    echo "$(basename "$0"): no such profile: $want" >&2
+    echo "profiles: $(echo "$profiles" | tr '\n' ' ')" >&2
+    exit 64
+  fi
   report_profile "$want" || rc=1
 fi
 

@@ -60,13 +60,44 @@ ANCHOR_BASELINE="tests/authoring/anchor-baseline.txt"
 # heading lines only. That yields a count with some noise in it, which is exactly
 # why check 10 is a RATCHET on the count rather than a report of sites: a constant
 # offset does not matter when only a CHANGE is actionable.
+#
+# Only REAL headings resolve an anchor. A heading-shaped line inside a fenced code
+# block is not one, and accepting it is the one error a ratchet cannot survive: a
+# false negative books a deleted heading as still present, so the count does not move
+# and the breakage the check exists to catch passes silently. This corpus carries 520
+# heading-shaped lines inside fences against 2,048 real headings — a fifth of the
+# population — and `# Cleanup contract: rm -rf …` in a bash block is exactly the shape
+# that resolves a citation whose heading was renamed away. Check 9 below tracks fence
+# state with the same toggle for the same reason.
+_real_headings() {
+  awk '
+    /^[ \t]*```/ { fence = 1 - fence; next }
+    fence        { next }
+    /^# |^## |^### |^#### / { print }
+  ' "$1" 2>/dev/null
+}
+
 anchor_unresolved() {
-  grep -rhoE '[A-Za-z0-9_${}/.-]+\.md`?[^§]{0,3}§[^`",;)]{1,48}' \
+  # No -h: each hit carries the file that cites it, because a citation written as a
+  # bare basename (`review-handoff.md §…`, the sibling shape) resolves against the
+  # citing file's own directory, not the repo root. 121 of 666 hits are that shape,
+  # and testing them only against the root skipped every one of them.
+  grep -roE '[A-Za-z0-9_${}/.-]+\.md`?[^§]{0,3}§[^`",;)]{1,48}' \
     skills agents .claude/skills 2>/dev/null \
     | sed 's|\${CLAUDE_PLUGIN_ROOT}/||' \
-    | while IFS= read -r _hit; do
+    | while IFS= read -r _line; do
+        _citer=${_line%%:*}
+        _hit=${_line#*:}
         _p=$(printf '%s\n' "$_hit" | sed 's|\.md.*|\.md|')
-        [ -f "$_p" ] || continue
+        if [ ! -f "$_p" ]; then
+          if [ -f "$(dirname "$_citer")/$_p" ]; then
+            _p="$(dirname "$_citer")/$_p"
+          elif [ -f "skills/_shared/$_p" ]; then
+            _p="skills/_shared/$_p"
+          else
+            continue
+          fi
+        fi
         # Strip the quotes some citations wrap the anchor in, then the sentence
         # punctuation that follows it. Without the trailing-punctuation strip a
         # citation reading "§Codebase research." never matches "### Codebase
@@ -75,14 +106,28 @@ anchor_unresolved() {
         _a=$(printf '%s\n' "$_hit" \
           | sed 's|.*§||; s|^"||; s|".*||; s|^[[:space:]]*||; s|[[:space:]]*$||; s|[.,:;]*$||')
         [ -n "$_a" ] || continue
+        _h=$(_real_headings "$_p")
         case "$_a" in
           [0-9]*)
             _n=$(printf '%s' "$_a" | sed 's|[^0-9.].*||; s|\.$||')
-            grep -qE "^#{2,4} ${_n}[.):[:space:]]" "$_p" && continue
+            printf '%s\n' "$_h" | grep -qE "^#{2,4} ${_n}[.):[:space:]]" && continue
             ;;
           *)
-            _s=$(printf '%s' "$_a" | awk '{ printf "%s", $1; if (NF > 1) printf " %s", $2 }')
-            grep -E '^#{1,4} ' "$_p" 2>/dev/null | grep -qiF "$_s" && continue
+            # Punctuation is stripped AFTER the truncation as well as before it. A
+            # period lands mid-string whenever prose continues past the anchor
+            # ("§Output Format. The block …"), where the trailing strip above cannot
+            # reach it — it survives into the two-word key and "Output Format." then
+            # matches no heading. That artifact alone accounted for roughly half the
+            # unresolved count, which is the difference between a ratchet guarding
+            # real breakage and one padded with its own noise.
+            _s=$(printf '%s' "$_a" \
+              | awk '{ printf "%s", $1; if (NF > 1) printf " %s", $2 }' \
+              | sed 's|[.,:;]*$||')
+            [ -n "$_s" ] || continue
+            # `--`: an anchor beginning with a dash (a future `§--deep mode`) otherwise
+            # reaches grep as an option, exits 2, and books a verbatim-matching
+            # citation as dangling — a warning blaming a rename that never happened.
+            printf '%s\n' "$_h" | grep -qiF -- "$_s" && continue
             ;;
         esac
         printf '%s\t%s\n' "$_p" "$_a"

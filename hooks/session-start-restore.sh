@@ -566,13 +566,30 @@ _render_open_questions_block() {
 # `evidence` deliberately stays out of this block. It is the falsifiability anchor
 # for a reader re-checking the premise, and that reader has the state file open;
 # rendering it here would grow a block that fires on every compaction and resume,
-# for context the two lines above already orient. An empty string is truthy in jq,
-# so each field is compared against "" rather than tested for presence.
+# for context the two lines above already orient.
+#
+# Both optional fields go through `_content` first. An empty string is truthy in jq,
+# but the empty string is only ONE of the ways a state file says "nothing here": the
+# frontmatter parser hands over the raw scalar it read, so `why: "  "` makes the same
+# empty claim while arriving non-empty, `null` and `~` are YAML's own words for an
+# absent value, and a block scalar (`why: |`) arrives as the bare marker because the
+# parser reads the marker line and drops the continuation lines under it. Rendering
+# any of those puts a reason in front of a resumed session that no producer wrote —
+# and for `result` it is worse than noise: an absent result is the signal that a
+# decision was recorded but never acted on, so a rendered `~` inverts it.
 _render_approvals_block() {
-  jq -rR 'fromjson? // empty
+  jq -rR '
+    def _content(v):
+      ((v // "") | tostring | gsub("^[[:space:]]+|[[:space:]]+$"; "")) as $t
+      | if ($t == "") or ($t == "~") or (($t | ascii_downcase) == "null")
+           or ($t | test("^[|>][0-9]*[-+]?$"))
+        then "" else $t end;
+    fromjson? // empty
+    | _content(.why) as $why
+    | _content(.result) as $result
     | "  - [\(.category // "?")] User picked: \"\(.picked // "?")\"\n      (asked in phase: \(.asked_in_phase // "?") · at: \(.at // "?"))"
-      + (if (.why // "") != "" then "\n      why: \(.why)" else "" end)
-      + (if (.result // "") != "" then "\n      result: \(.result)" else "" end)
+      + (if $why != "" then "\n      why: \($why)" else "" end)
+      + (if $result != "" then "\n      result: \($result)" else "" end)
   ' 2>/dev/null
 }
 

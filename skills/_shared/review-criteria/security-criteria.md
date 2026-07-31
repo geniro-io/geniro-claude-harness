@@ -72,8 +72,10 @@ grep -n "req\.\|jwt\|session" file.js | grep -v "verify\|validate\|decode"
 
 **How to detect:**
 ```bash
-# Look for hardcoded values
-grep -in "password\|secret\|api[_-]?key\|token\|credential" file.js | grep -v "config\|env\|process"
+# Look for hardcoded values. Use -E: in a basic-regex grep `?` is a literal, so
+# `api[_-]?key` matches none of apiKey / api_key / api-key, and the surviving
+# alternatives make the probe look like it works.
+grep -inE "password|secret|api[_-]?key|token|credential" file.js | grep -v "config\|env\|process"
 # Check for secrets in logs
 grep -n "console\|log\|print" file.js | grep -i "password\|secret\|key\|token"
 # Environment variable usage
