@@ -26,10 +26,10 @@ Skip entirely unless at least one file in the predicted affected-files list matc
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent for the description (a transform of spec/plan into a structured description). OMIT `model=` so it inherits the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — a hardcoded cross-tier spawn can return an immediate empty result, so apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` if the spawn returns nothing. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
+Spawn a general-purpose subagent for the description. Pin `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the spec already decided what the UI does, and this spawn only transforms it into a structured description. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
 
 ```
-Agent(disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(model="sonnet", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Describe UI Before Implementation
 
 Produce a textual, structured description of how the UI will LOOK after this change — so the user can review it and request changes BEFORE any code is written.
@@ -109,7 +109,7 @@ Write the approved text where the caller designates, or hold it in-memory when t
 | "The plan already describes the UI, skip the preview" | Plans describe files and steps. They do not describe what the user will see. The preview gate surfaces visual intent BEFORE code is written — that is its whole job. |
 | "No UI files matched — skip" | Correct — skip. The gate is conditional by design, enforced by the caller. |
 | "The user will approve anyway — skip" | Preview is cheap. Rebuilding UI after approval is expensive. Never skip when the rule matches. |
-| "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (OMIT `model=` so it inherits the orchestrator's tier per the procedure above). Orchestrator tokens are the most expensive resource. |
+| "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (`model="sonnet"` per the procedure above). Orchestrator tokens are the most expensive resource. |
 | "3 revision rounds isn't enough, keep looping" | If 3 rounds did not converge, the real issue is plan-level, not preview-level. Route to plan adjustment. |
 | "I'll tack on a 'also note X' after the approved description" | Rewrite the description in full via another revision round. Appended notes rot and get missed by implementation agents. |
 | "The mockup is on the page, so the digest is redundant" | The persisted text is what the caller's downstream sections cite, and a page URL cannot be cited — dropping the digest leaves those sections with nothing to author from. Emit both: the page carries the detail, the digest carries the record. |

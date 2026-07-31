@@ -71,7 +71,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="general-purpose"` with `model=` OMITTED — they inherit the orchestrator's tier, so the user's session-level model choice governs audit depth and cost. The Phase 1 battery and Phase 3 verification are orchestrator-inline: deterministic commands and targeted re-reads don't justify a spawn.
+All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=` — they inherit the orchestrator's tier, so the user's session-level model choice governs audit depth. Phase 5 fix agents pin `model="sonnet"`: an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, since each one receives findings the user already approved and a file allowlist it may not extend. The Phase 1 battery and Phase 3 verification are orchestrator-inline: deterministic commands and targeted re-reads don't justify a spawn.
 
 ---
 

@@ -4,7 +4,7 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 
 ## Contents
 
-- The rule — inherit by default; OMIT `model=`; the three hardcoded-tier categories
+- The rule — inherit by default; OMIT `model=`; the four hardcoded-tier categories
 - Tier table — fallback for runtimes without an orchestrator
 - Escalation signals (orchestrator-side advisory)
 - Runtime escalation (Sonnet → Opus on failure)
@@ -14,11 +14,11 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 
 ## The rule
 
-**Plugin-defined subagents inherit orchestrator tier by default.** Frontmatter declares `model: inherit` (except the mechanical-agent carve-outs in category 3 below, which declare a concrete cheaper tier); spawn sites **OMIT the `model=` argument** in every case — the agent's frontmatter `model:` governs (inherit-agents resolve to the orchestrator tier; carve-out agents resolve to their declared tier). Rationale: the user explicitly chose their orchestrator tier (Opus / Sonnet / Haiku) at session start; subagents should symmetrically match that choice rather than hardcoding a cheaper tier. The user owns the cost / quality trade-off at session level — plugin paternalism ("I'll force Sonnet for cost containment") is the documented anti-pattern.
+**Judgment-grade subagents inherit orchestrator tier by default.** A judgment-grade spawn is one that *decides* something the orchestrator will act on — what the code does, whether a finding is real, which approach to take, what a diff should contain. Frontmatter declares `model: inherit` (except the carve-outs in categories 3-4 below, which declare or pin a concrete cheaper tier); spawn sites **OMIT the `model=` argument** unless a category below names them — the agent's frontmatter `model:` governs (inherit-agents resolve to the orchestrator tier; carve-out agents resolve to their declared tier). Rationale: the user explicitly chose their orchestrator tier (Opus / Sonnet / Haiku) at session start, and the quality of a *decision* scales with the tier that makes it. The user owns the cost / quality trade-off on judgment work — pinning a reviewer or a researcher cheaper is the documented paternalism anti-pattern.
 
 The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="inherit"` at the call site fails input validation with "Invalid tool parameters". Propagate `inherit` by **OMITTING the runtime arg** — Claude Code's Agent tool resolver picks up the orchestrator's tier when `model=` is unset.
 
-**Hardcoded tier is allowed in three narrow categories:**
+**Hardcoded tier is allowed in four narrow categories:**
 
 1. **User-authored custom reviewers** (`.geniro/instructions/review-extra/<slug>.md` with an explicit `model:` field). That's the user's own opt-in — their declaration overrides inherit. Absent declaration in custom-reviewer frontmatter = inherit (NOT a hidden default to Sonnet).
 
@@ -32,6 +32,22 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
    - `${CLAUDE_PLUGIN_ROOT}/agents/knowledge-retrieval-agent.md` → `model: sonnet` — mechanical search-and-cite across the memory layers; its one relevance filter is a one-line, hard-capped, citation-recoverable gate, so a weaker model's failure mode is bounded padding (which the orchestrator filters via the citations), not missed knowledge.
 
    Both pin **`sonnet`, never `haiku`**: the fallback tier table below would place these mechanical workloads at haiku, but Haiku 4.5 has no 1M-context variant, so a haiku-frontmatter agent returns `0 tokens` when spawned from a 1M-context Opus/Sonnet session. Sonnet is the safe floor. These are deliberate cost optimizations on genuinely mechanical agents — distinct from the reviewer / finding-verifier / codebase-research / codebase-explorer / reflection / adversarial-tester agents, whose output quality scales with orchestrator intelligence and which therefore stay `inherit` (pinning those cheaper is the paternalism anti-pattern below).
+
+4. **Execution spawns — `model="sonnet"`, hard-pinned.** A spawn is an execution spawn when the decision is already made and the deliverable is applying it: the orchestrator (or the user, at an approval gate) has settled *what* changes, and the subagent's job is to carry that into files it was handed by name. The tier that decided is the tier that mattered; running the transcription on a reasoning-grade model buys nothing.
+
+   The current sites — each carries an inline comment naming this category:
+
+   | Site | Applies |
+   |---|---|
+   | `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Steps, the delegation rule | one already-decomposed todo slice, against a named disjoint file set |
+   | `${CLAUDE_PLUGIN_ROOT}/skills/investigate/save-routing.md` §Routing classes, the routes 1-3 writers | a pre-inlined term-block / ADR body / learning into one named file |
+   | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1: Spawn the UI description agent | a read-only spec→description transform, no file writes at all |
+   | `.claude/skills/improve-template/SKILL.md` Phase 4 implementers and every fix agent | user-approved findings into named template files |
+   | `.claude/skills/audit-plugin/SKILL.md` Phase 5 fix agents | user-approved findings into their assigned file allowlist |
+
+   **Hard pin, not a cap.** The tier is `sonnet` whatever the orchestrator runs — a Haiku session gets execution upgraded, which is the safe direction, and no spawn site evaluates a conditional. `haiku` is never the pin, for the 1M-context reason in category 3.
+
+   **What this category does NOT cover.** The boundary is decide-vs-apply, not writes-files. An agent that writes files while still deciding their content stays `inherit`: the `adversarial-tester-agent` authors tests but its deliverable is 5-12 *hypotheses*; the ADR-drafting agent in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` reasons about a trade-off before it drafts; the create-skill author agent in `.claude/skills/improve-template/SKILL.md` Phase B composes a skill from an interview rather than transcribing one. Nor does it cover a spawn whose file set the subagent must still discover — a delegate that has to work out *which* files to touch is deciding, and the delegation rule already refuses that shape.
 
 ## Tier table — fallback for runtimes without an orchestrator
 
@@ -67,14 +83,15 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 
 Add this one-liner near the top of any delegating skill:
 
-> **Subagent model selection:** Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Plugin subagent spawns OMIT `model=`; the narrow hardcode carve-outs are documented inline at their spawn sites.
+> **Subagent model selection:** Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Judgment-grade spawns OMIT `model=`; execution spawns pin `model="sonnet"` per category 4. Every hardcode carve-out is documented inline at its spawn site.
 
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll pass `model='sonnet'` explicitly at the reviewer-agent spawn site to ensure cost containment — the user might not realize Opus is expensive." | Forbidden. Plugin subagents inherit orchestrator tier per the Rule. User chose Opus at session start with full knowledge of cost; over-riding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that's the canonical knob, not skill-internal hardcoding. |
+| "I'll pass `model='sonnet'` explicitly at the reviewer-agent spawn site to ensure cost containment — the user might not realize Opus is expensive." | Forbidden. A reviewer decides whether a finding is real, so it is judgment-grade and inherits per the Rule. User chose Opus at session start with full knowledge of cost; over-riding back to sonnet is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier — that's the canonical knob. Category 4 is not a licence to widen this: it covers spawns that apply a decision already made, and a reviewer is never one. |
+| "This spawn writes files, so it's an execution spawn — pin it sonnet." | Writing files is not the test; category 4's test is whether the decision is already made. An agent still working out *what* the content should be — the adversarial-tester's hypotheses, the ADR drafter's trade-off, a delegate that must first find its own file set — is deciding, and decisions inherit. Check category 4's site table: if the spawn isn't in it, adding it needs the same decide-vs-apply argument the listed ones carry. |
 | "Opus is overkill for the `conventions` dimension's style-rubric checks (rubric-based pattern match) — I'll force haiku at the spawn site." | Forbidden. Inherit symmetry holds for all dimensions. User-Opus → conventions on Opus (slight overspend, accepted by user when they chose Opus); user-Sonnet → conventions on Sonnet; user-Haiku → conventions on Haiku (matches the rubric model). Inheriting is correct in all three cases; hardcoding breaks symmetry asymmetrically. |
 | "Custom reviewer's `.geniro/instructions/review-extra/<slug>.md` doesn't declare `model:` — I'll default to sonnet at the spawn site." | When `model:` is OMITTED in the custom reviewer's frontmatter, treat it as "inherit", not "sonnet". Custom reviewers follow the same default as built-ins. The user opts INTO a hardcoded tier only by explicitly writing `model: haiku` / `model: opus` in their custom-reviewer frontmatter — that's their declaration, honor it. |
-| "Plugin subagent spawning fails because the Agent tool doesn't accept `model='inherit'`." | Correct — the tool doesn't. The fix is to OMIT `model=` entirely, not to fall back to a hardcoded value. Tool resolver picks up orchestrator tier when arg is unset. Hardcoding a fallback (e.g., `model='sonnet'`) defeats the inherit contract. |
+| "Plugin subagent spawning fails because the Agent tool doesn't accept `model='inherit'`." | Correct — the tool doesn't. At an inherit spawn site the fix is to OMIT `model=` entirely, not to fall back to a hardcoded value: the resolver picks up orchestrator tier when the arg is unset, and hardcoding a fallback defeats the inherit contract. A category 1-4 site is different — its tier is declared, so it passes that tier verbatim. |
 | "User is on Haiku; subagents on Haiku will produce low-quality output for reasoning dimensions." | User chose Haiku — they accepted the trade-off. Plugin paternalism ("I know better, bump to Sonnet") defeats the user's tier choice. If a reviewer-agent on Haiku misses bugs, surface this in the Phase 6 handoff summary ("findings count: 2 — note: orchestrator tier is Haiku; consider /model switch to Sonnet for deeper review"), not by silent override. |

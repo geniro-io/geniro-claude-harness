@@ -87,7 +87,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn site — the orchestrator's session tier propagates.
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every research and verification spawn — the orchestrator's session tier propagates to the work that decides the answer. The Phase 3 Step 4a save-routing writer spawns are the exception: they pin `model="sonnet"` per category 4, since they write content the user already approved into a path the orchestrator resolved.
 
 ## Subagent spawn contract
 
