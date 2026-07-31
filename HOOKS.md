@@ -31,11 +31,11 @@ Both alias folds are load-bearing. Normalizing only the path key is a silent byp
 
 Wired for Cursor: all six Bash guards on `beforeShellExecution` — the destructive-git guard, the `.geniro/` deletion guard, protected-file writes, state-helper enforcement, TDD-order enforcement, and the security pattern scan — and four of those six again on `preToolUse` file-write events (protected-file writes, TDD-order, state-helper, security pattern scan), plus session-start restore. The destructive-git and `.geniro/`-deletion guards are shell-only in BOTH runtimes: they inspect a command string, and a file-write event carries a path with no command to read — the same split `hooks/hooks.json` uses.
 
-**Deliberately not wired for Cursor** — the runtime has no compatible slot, so the conventions apply as instructions per [`skills/_shared/runtime-portability.md`](skills/_shared/runtime-portability.md) instead: the gate-render guard (`AskUserQuestion` has no hook event), the evidence-on-completion reminder (no `Stop` event), and the marketplace update check (Claude Code's `claude plugin` registry only). Add a new hook to `cursor/hooks.json` only when its event maps cleanly onto the translation map at the top of the shim.
+**Deliberately not wired for Cursor** — the runtime has no compatible slot, so the conventions apply as instructions per [`skills/_shared/runtime-portability.md`](skills/_shared/runtime-portability.md) instead: the gate-render guard (`AskUserQuestion` has no hook event) and the marketplace update check (Claude Code's `claude plugin` registry only). Add a new hook to `cursor/hooks.json` only when its event maps cleanly onto the translation map at the top of the shim.
 
 ## Hook scripts
 
-The plugin ships 9 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
+The plugin ships 8 safety / lifecycle hooks, 1 sourced utility library, and 2 Node-based feature scripts:
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
@@ -46,7 +46,6 @@ The plugin ships 9 safety / lifecycle hooks, 1 sourced utility library, and 2 No
 | [`enforce-state-helper.sh`](hooks/enforce-state-helper.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` | exit 2 = block | Blocks direct writes to canonical state paths under `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`. The Bash branch catches shell-side writes into the same paths — the same vector set as `file-protection.sh` (redirection, `tee`, `sed -i`, `cp`/`mv` destinations, `dd of=`, `truncate`, `shred`, `install`/`rsync` destinations, `ln -f` link targets, interpreter-mediated writes) plus the shell-indirection channels it re-runs itself on. Reads stay allowed; commands invoking `atomic_state_write` / `atomic_state_append` pass. Suggests the helpers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`. Bypass: `enforce-state-helper`. |
 | [`enforce-gate-render.sh`](hooks/enforce-gate-render.sh) | PreToolUse `AskUserQuestion` | exit 2 = block | Blocks a gate question fired with no visible assistant message in the current turn — the user would be answering blind — on either of two triggers: it references content "above", OR it carries finding-gate evidence shorthand (a PRODUCT-DECISION tag, convergence wording, or a finding-ID like `F5`/`M1b` with finding-gate co-text). Reverse-scans the transcript to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race); fails open on missing jq (loud), missing transcript, cap overflow, or garbage transcript. A block is NOT a user denial — stderr instructs render-then-re-ask (bypass: `gate-render`) |
 | [`security-pattern-check.sh`](hooks/security-pattern-check.sh) | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` | exit 2 = block | Cheap regex scan for high-signal security anti-patterns in file content (eval/exec, pickle, yaml.load, shell=True, curl\|sh, TLS bypass, XSS sinks, weak crypto). Per-pattern bypass: `sec-eval-exec`, `sec-pickle`, `sec-yaml-unsafe`, `sec-shell-injection`, `sec-curl-pipe-sh`, `sec-tls-bypass`, `sec-xss-sink`, `sec-weak-crypto`. Scope-limited to applicable file extensions per pattern. Logic-level issues (authz bypass, IDOR, race conditions) are not regex-detectable and require `/geniro:review`. |
-| [`require-evidence-on-completion.sh`](hooks/require-evidence-on-completion.sh) | Stop `*` | warn-only (always exit 0) | Scans last assistant message for completion phrases without an Evidence Block (bypass: `evidence-stop`) |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); skips state.md candidates already in a terminal `phase:`/`status:` during resolution, so a finished task is never surfaced as resumable AND cannot shadow an in-flight task on the same branch in a later resolution tier; pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Also runs L2 auto-archive. Read-only on state.md; the only writes are `learnings.jsonl` (auto-archive flip) + `.archive-stale.{hash,lock}`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
 | [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | Two-row width-justified status line (model — effort · task · topic · 5h limit · cost · update / dir · context · last prompt) |
@@ -143,7 +142,7 @@ Emits an `additionalContext` block-set:
 - Validation-failure recovery directive (when `validate_state_file` reports a structural error).
 - Helper-missing notice (when the validator binary itself is absent).
 - Structured non-resumable-actions warning per state.md frontmatter (`git-push`, `pr-created`, `pr-comment-posted`, `pr-comment-amended`, `pr-review-comment-batch`, `git-commit`, `slack-notify-sent`, `release-tagged`, unknown-action fallback).
-- Unresolved errors from state.md `## Errors`, pending `## Open Questions`, and persisted `approvals:` from state.md frontmatter.
+- Unresolved errors from state.md `## Errors`, pending `## Open Questions`, and persisted `approvals:` from state.md frontmatter — each entry's category, pick, phase and timestamp, plus its `why` and `result` when the producer recorded them. `evidence` stays in the file rather than the block.
 - Resume protocol (suppressed when the resolved task is in a terminal state).
 - Auto-archive of stale L2 entries (default ON, hash-gated + mkdir-locked for multi-tab safety; opt-out via `safety.json` `memory.auto_archive_stale: false`); when entries are flipped the `systemMessage` gains an "auto-archived: N" suffix.
 - Verification-coverage line — the verified-fraction of live (non-deprecated) learnings (`verified: N/total (P%)`), computed independently of the auto-archive threshold so it surfaces every session (default ON, opt-out via `safety.json` `memory.show_coverage: false`); when present the `systemMessage` gains a "memory verified: N/total (P%)" suffix.
@@ -214,16 +213,6 @@ Mechanical backstop for the message-first gate contract (`skills/_shared/gate-re
 
 **Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `gate-render` skips the guard.
 
-### require-evidence-on-completion.sh
-
-**Event:** Stop `*`. **Stdin:** `.last_assistant_message` (with a `.transcript_path` fallback that reverse-scans for the last assistant record). **Block exit:** never blocks — warn-only (`exit 0` + stderr).
-
-Scans the last assistant message for completion-claim phrases ("shipped", "all tests pass", "ready to ship", "Done!") that are not backed by an Evidence Block, and emits a stderr reminder citing `skills/_shared/evidence-standard.md`. A genuine tool-only turn (no assistant text to scan) exits silently. Stop hooks fire roughly 50-80% of the time, so this is a soft reminder layer, not enforcement — the goal is to nudge the model toward attaching evidence to completion claims, not to block.
-
-**Fail-open cases:** missing jq, missing/unreadable transcript, or an unparseable message — all exit 0 (a convenience reminder must never wedge the session).
-
-**Per-project allowlist:** walks up from cwd for `.geniro/safety.json` `allow_patterns[]`; pattern ID `evidence-stop` skips the warning.
-
 ### geniro-check-update.js
 
 **Event:** SessionStart. **Block exit:** never blocks. **Timeout:** 5s.
@@ -263,7 +252,7 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Tests" "npm 
 
 On success: emits `✓ <description> passed (<summary>)`, where `<summary>` is a detected framework test count or `<N> lines of output`. On failure: filters and caps output at `GENIRO_BACKPRESSURE_CAP` lines (default 150). Manages its own `mktemp` lifecycle; no persistence.
 
-Current sourcing call sites: [`skills/refactor/SKILL.md`](skills/refactor/SKILL.md), [`skills/review/phase-2-spawns.md`](skills/review/phase-2-spawns.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md).
+Current sourcing call sites: [`skills/refactor/phase-2-apply.md`](skills/refactor/phase-2-apply.md) (the pre- and post-condition checks at steps 3 and 4), [`skills/review/phase-2-spawns.md`](skills/review/phase-2-spawns.md), [`skills/review/phase-4-3-test-gate-reference.md`](skills/review/phase-4-3-test-gate-reference.md), [`skills/_shared/refactor-patterns.md`](skills/_shared/refactor-patterns.md). `skills/refactor/SKILL.md` names the helper in prose but does not source it — the sourcing lives in that skill's phase-2 body.
 
 ## Testing
 

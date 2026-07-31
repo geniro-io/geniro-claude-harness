@@ -15,7 +15,7 @@
   - Step 9: Confirm
 - Worked example — an adversarial reviewer for high-risk paths (a complete, copy-adaptable `review-extra/adversarial.md`).
 
-Companion file to `SKILL.md` for the `review-extra` directory-style scope. `SKILL.md` keeps the scope resolution and the sibling `mode-<op>.md` files keep the list / edit / validate / delete Steps; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-9), which replaces the singleton-file flow in `mode-create.md` for this one scope. Load this file when the resolved scope is `review-extra` and the mode is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per SKILL.md Step 0.5).
+Companion file to `SKILL.md` for the `review-extra` directory-style scope. `phase-1-parse.md` keeps the scope resolution and the sibling `mode-<op>.md` files keep the list / edit / validate / delete Steps; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-9), which replaces the singleton-file flow in `mode-create.md` for this one scope. Load this file when the resolved scope is `review-extra` and the mode is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` Step 0.5).
 
 For the load-bearing rules referenced below: the validation rules are in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-validate.md` §Step 2 — Lint rule set (the `review-extra/<slug>.md` row in the per-scope table); the file structure is in `SKILL.md` §File shapes (for the loaded instruction files) and §Frontmatter field reference (for this scope's own schema).
 
@@ -136,7 +136,7 @@ What to NOT flag:
 
 ### Step 9: Confirm
 
-Show the created file content and report (per SKILL.md Step 0.5: when the main repo checkout is not the current directory, show the resolved absolute path and append `— written to the main repo checkout so it survives this worktree's removal.`):
+Show the created file content and report (per `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` Step 0.5: when the main repo checkout is not the current directory, show the resolved absolute path and append `— written to the main repo checkout so it survives this worktree's removal.`):
 
 ```
 Created `.geniro/instructions/review-extra/{{slug}}.md`.

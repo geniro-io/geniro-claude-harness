@@ -34,6 +34,10 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.
 ## Data Sources
 <!-- Optional. Read-only sources to cross-check load-bearing facts against. -->
 - **<label>** (confirms: <what kind of fact>) — `<read-only shell command>` OR MCP tool `<name>` OR action `<name>`
+
+## Verification Surface
+<!-- Optional. What each project check covers, and what it leaves uncovered. -->
+- `<check command>` — covers: <ground the check demonstrates>. Does not cover: <ground it leaves unproven>
 ```
 
 **`memory`** — the dedicated `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only:
@@ -109,6 +113,9 @@ What to NOT flag:
 
 ## Data Sources
 <!-- append the Data-Sources stub below -->
+
+## Verification Surface
+<!-- append the Verification-Surface stub below -->
 ```
 
 **`global.md` scaffold:**
@@ -126,6 +133,9 @@ What to NOT flag:
 
 ## Data Sources
 <!-- append the Data-Sources stub below -->
+
+## Verification Surface
+<!-- append the Verification-Surface stub below -->
 ```
 
 **Data-Sources stub** — the single copy. Append it verbatim under the `## Data Sources` heading of the `global` and per-skill scaffolds (not `code-style` or `review-extra`, which are rules-only / criteria-only) so users discover the verification primitive. Leave the entries commented — an empty block is the safe default.
@@ -134,6 +144,14 @@ What to NOT flag:
 <!-- Optional. Read-only sources to cross-check load-bearing facts against (task statuses, the spec's cited claims). Commands have to be read-only — the verification step runs them unattended. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md -->
 <!-- - **prod-db** (confirms: task / feature status) — `psql "$DATABASE_URL_RO" -c "SELECT ..."` -->
 <!-- - **deploy-state** (confirms: did it ship?) — MCP tool `mcp__deploys__get_release_state` -->
+```
+
+**Verification-Surface stub** — the single copy, appended verbatim under the `## Verification Surface` heading of the same two scaffolds (`global` and per-skill), on the same commented-by-default basis. Both clauses are required per entry: the does-not-cover half is what bounds how wide a claim about a green run may be stated, and it is the half a reader cannot derive from the command name.
+
+```markdown
+<!-- Optional. One bullet per check: the command, the ground it covers, and the ground it does NOT cover. A MANUAL row names ground no command reaches. Contract: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md -->
+<!-- - `pnpm test:unit` — covers: logic inside a module, mocked at every boundary. Does not cover: the wiring between modules, or anything the mocks stand in for. -->
+<!-- - MANUAL — the payment flow against the provider sandbox. No automated layer covers it. -->
 ```
 
 **`memory.md` scaffold:**

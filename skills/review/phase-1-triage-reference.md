@@ -153,8 +153,12 @@ When the workspace AUQ fires, persist the answer to state.md `approvals[]`:
 approvals:
   - category: review_workspace_setup
     picked: "Create review worktree"
-    timestamp: <ISO-8601>
+    at: <ISO-8601 UTC>
+    asked_in_phase: triage
+    why: <optional — why this was the answer, when `picked` alone would not say>
 ```
+
+Field names are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array". The timestamp key is `at`, not `timestamp` — the SessionStart restore hook reads `.at` when it renders the entry, so an entry keyed `timestamp` loses its time to every later reader.
 
 On a compaction-resume or a Round 2+ re-run, the recorded **workspace** answer is read and re-applied in §0-pre — BEFORE passive detection and any workspace action — so the persisted workspace pick binds before the tree is detected fresh (depth and re-review scope are re-asked on a fresh re-run per §0-pre, not inherited).
 

@@ -147,7 +147,18 @@ approvals:
     picked: <chosen option>
     at: <ISO-8601 UTC>
     asked_in_phase: <phase name>
+    why: <what made this the answer>            # optional
+    evidence: <file:line, quote, or command output>   # optional
+    result: <what acting on the pick produced>  # optional
 ```
+
+**The last three fields are optional, and they change what the record is for.** The first six let a resumed session replay a decision. They do not let it check whether the decision still holds — `picked:` alone cannot distinguish a choice that is still right from one whose premise moved. So:
+
+- `why` — the reason this was the answer at the time, in one sentence. A later reader re-reads the reason, not just the outcome.
+- `evidence` — the ground truth the reason rested on: a `file:line`, a literal quote, or a command's output. This is what makes the entry falsifiable; a `why` with no `evidence` is an assertion.
+- `result` — what happened when the pick was acted on. Written after the action, so it commonly lands in a later write than the rest of the entry. Its absence on a resumed run is a signal in itself: the decision was recorded but its consequence was not, which is where an interrupted run left off.
+
+Omit any of the three when there is nothing real to put in it. An empty `why` is better than a restatement of `picked`, and a fabricated `evidence` is worse than none — see the provenance rule below, which governs all nine fields.
 
 **Provenance — every entry records a real decision.** Write an `approvals[]` entry only for a question actually asked and answered in a run (the AUQ's resolved answer), or as an explicitly-labeled inheritance of a prior recorded entry (e.g. `picked: "<value>" (carried from round 1)`). Never synthesize an entry for a question that was not asked: `approvals[]` is the compaction-safe record of user decisions, so a fabricated entry makes a later session auto-skip a gate against a decision the user never made — the exact failure this field exists to prevent. An inherited entry carries the inherited VALUE unchanged; recording a different value under an inheritance label is fabrication, not inheritance.
 

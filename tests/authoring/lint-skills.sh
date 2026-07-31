@@ -42,6 +42,97 @@ report_warn() { WARNS=$((WARNS + 1)); echo "WARN: $1"; }
 rel() { printf '%s' "${1#"$REPO_ROOT"/}"; }
 
 SIZE_BASELINE="tests/authoring/skill-size-baseline.txt"
+ANCHOR_BASELINE="tests/authoring/anchor-baseline.txt"
+
+# Emit `<cited-path><TAB><anchor>` for every PATH-ADJACENT section citation whose
+# anchor resolves to no heading in the cited file. Used by check 10.
+#
+# Scoped to path-adjacent citations on purpose. A `§` sitting next to a file path
+# names a section in THAT file, which is decidable. A bare `§` — the larger half
+# of the anchors in this repo — may name a section in the citing file, in a file
+# named a paragraph earlier, or in none; `skills/setup/SKILL.md` cites one file and
+# then writes an anchor that resolves only in itself. That binding is not
+# mechanically recoverable, so bare anchors are out of scope here and belong to
+# /audit-plugin's read-based dimensions.
+#
+# The anchor's right boundary is also undecidable — prose continues past it with
+# no delimiter — so this function matches on the anchor's first two words against
+# heading lines only. That yields a count with some noise in it, which is exactly
+# why check 10 is a RATCHET on the count rather than a report of sites: a constant
+# offset does not matter when only a CHANGE is actionable.
+#
+# Only REAL headings resolve an anchor. A heading-shaped line inside a fenced code
+# block is not one, and accepting it is the one error a ratchet cannot survive: a
+# false negative books a deleted heading as still present, so the count does not move
+# and the breakage the check exists to catch passes silently. This corpus carries 520
+# heading-shaped lines inside fences against 2,048 real headings — a fifth of the
+# population — and `# Cleanup contract: rm -rf …` in a bash block is exactly the shape
+# that resolves a citation whose heading was renamed away. Check 9 below tracks fence
+# state with the same toggle for the same reason.
+_real_headings() {
+  awk '
+    /^[ \t]*```/ { fence = 1 - fence; next }
+    fence        { next }
+    /^# |^## |^### |^#### / { print }
+  ' "$1" 2>/dev/null
+}
+
+anchor_unresolved() {
+  # No -h: each hit carries the file that cites it, because a citation written as a
+  # bare basename (`review-handoff.md §…`, the sibling shape) resolves against the
+  # citing file's own directory, not the repo root. 121 of 666 hits are that shape,
+  # and testing them only against the root skipped every one of them.
+  grep -roE '[A-Za-z0-9_${}/.-]+\.md`?[^§]{0,3}§[^`",;)]{1,48}' \
+    skills agents .claude/skills 2>/dev/null \
+    | sed 's|\${CLAUDE_PLUGIN_ROOT}/||' \
+    | while IFS= read -r _line; do
+        _citer=${_line%%:*}
+        _hit=${_line#*:}
+        _p=$(printf '%s\n' "$_hit" | sed 's|\.md.*|\.md|')
+        if [ ! -f "$_p" ]; then
+          if [ -f "$(dirname "$_citer")/$_p" ]; then
+            _p="$(dirname "$_citer")/$_p"
+          elif [ -f "skills/_shared/$_p" ]; then
+            _p="skills/_shared/$_p"
+          else
+            continue
+          fi
+        fi
+        # Strip the quotes some citations wrap the anchor in, then the sentence
+        # punctuation that follows it. Without the trailing-punctuation strip a
+        # citation reading "§Codebase research." never matches "### Codebase
+        # research", and the residue fills with hits that are only punctuation
+        # deep — noise that would blunt the ratchet it is measured against.
+        _a=$(printf '%s\n' "$_hit" \
+          | sed 's|.*§||; s|^"||; s|".*||; s|^[[:space:]]*||; s|[[:space:]]*$||; s|[.,:;]*$||')
+        [ -n "$_a" ] || continue
+        _h=$(_real_headings "$_p")
+        case "$_a" in
+          [0-9]*)
+            _n=$(printf '%s' "$_a" | sed 's|[^0-9.].*||; s|\.$||')
+            printf '%s\n' "$_h" | grep -qE "^#{2,4} ${_n}[.):[:space:]]" && continue
+            ;;
+          *)
+            # Punctuation is stripped AFTER the truncation as well as before it. A
+            # period lands mid-string whenever prose continues past the anchor
+            # ("§Output Format. The block …"), where the trailing strip above cannot
+            # reach it — it survives into the two-word key and "Output Format." then
+            # matches no heading. That artifact alone accounted for roughly half the
+            # unresolved count, which is the difference between a ratchet guarding
+            # real breakage and one padded with its own noise.
+            _s=$(printf '%s' "$_a" \
+              | awk '{ printf "%s", $1; if (NF > 1) printf " %s", $2 }' \
+              | sed 's|[.,:;]*$||')
+            [ -n "$_s" ] || continue
+            # `--`: an anchor beginning with a dash (a future `§--deep mode`) otherwise
+            # reaches grep as an option, exits 2, and books a verbatim-matching
+            # citation as dangling — a warning blaming a rename that never happened.
+            printf '%s\n' "$_h" | grep -qiF -- "$_s" && continue
+            ;;
+        esac
+        printf '%s\t%s\n' "$_p" "$_a"
+      done
+}
 
 # --update-baseline records every skill at its current size and exits, before any
 # check runs. It lives in this script rather than a sibling so a recorded number can
@@ -51,6 +142,8 @@ if [ "${1:-}" = "--update-baseline" ]; then
     [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(wc -w < "$f" | tr -d ' ')"
   done | LC_ALL=C sort > "$SIZE_BASELINE"
   echo "Recorded $(grep -c . "$SIZE_BASELINE") skill and agent sizes in $SIZE_BASELINE"
+  anchor_unresolved | grep -c . > "$ANCHOR_BASELINE"
+  echo "Recorded $(cat "$ANCHOR_BASELINE") unresolved path-adjacent section anchors in $ANCHOR_BASELINE"
   exit 0
 fi
 
@@ -405,6 +498,41 @@ if [ "$dup_total" -gt 0 ]; then
 else
   echo "OK: no normative sentence repeated across 3+ files"
 fi
+
+# 10. Section-anchor citations that resolve to no heading — ratchet, not a report.
+#     Step 12-class breakage: a commit deletes or renames a heading and every `§`
+#     citation aimed at it dangles silently. No existing check sees it — the
+#     plugin-root check above proves the FILE exists, never that the section does.
+#
+#     ADVISORY by construction, and it must stay that way. HARD is defined at the
+#     top of this file as zero-false-positive, and this check cannot clear that
+#     bar: the anchor's right boundary is undecidable, so its count carries noise
+#     it has no way to remove.
+#
+#     The ratchet is what makes a noisy count useful. A recorded figure turns the
+#     residue into a constant and reports only movement, so the check says "you
+#     broke one" rather than re-reading the same standing list every run — the
+#     cries-wolf failure noted further up, which maintainers learn to route
+#     around. Accept a new figure with --update-baseline, the same deliberate
+#     gesture the size ratchet uses.
+anchor_out="$(mktemp)"
+anchor_unresolved > "$anchor_out" 2>/dev/null || true
+anchor_now=$(grep -c . "$anchor_out" || true)
+anchor_was=""
+[ -f "$ANCHOR_BASELINE" ] && anchor_was=$(awk 'NR == 1 && $1 ~ /^[0-9]+$/ { print $1; exit }' "$ANCHOR_BASELINE")
+
+if [ -z "$anchor_was" ]; then
+  report_warn "no recorded section-anchor figure — $anchor_now path-adjacent anchor(s) resolve to no heading; run --update-baseline to start the ratchet"
+elif [ "$anchor_now" -gt "$anchor_was" ]; then
+  report_warn "path-adjacent section anchors resolving to no heading rose to $anchor_now (recorded $anchor_was) — a heading was renamed or deleted and its citers now dangle"
+  sort "$anchor_out" | uniq -c | sort -rn | head -5 | awk '{
+    n = $1; f = $2; $1 = ""; $2 = ""; sub(/^  */, "")
+    printf "        %dx  %s  §%s\n", n, f, $0
+  }'
+else
+  echo "OK: no new dangling section anchors ($anchor_now vs recorded $anchor_was)"
+fi
+rm -f "$anchor_out"
 
 echo
 echo "==================================================="

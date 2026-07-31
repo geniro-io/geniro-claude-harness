@@ -102,10 +102,10 @@ A test that passes the first time you run it (without any production change) is 
 
 **How to detect:**
 ```bash
-# Find test files corresponding to changed files
-ls tests/ | grep -i "auth\|login\|payment"
-# Check if tests exist for modified code
-for file in src/*.js; do [ ! -f "tests/$(basename "$file")" ] && echo "No test: $file"; done
+# Does any test file reference the changed file's basename? Search by pathspec — a fixed
+# tests/<same-name> layout holds in almost no repo and reports every file as untested there.
+b=$(basename file.js .js)
+git grep -ln "$b" -- '*test*' '*spec*' || echo "No test references: $b"
 # Look for test skips
 grep -n "skip\|xit\|xdescribe\|pending" test_file.js
 # Count assertions per test
@@ -154,8 +154,6 @@ grep -c "expect\|assert\|should" test_file.js
 ```bash
 # Find vague test names (whole-word vague markers; not a bare "test" which re-matches every test_ name)
 grep -n "test_.*\|it\s*(\s*'[^']*should.*\|fit\|fdescribe" test_file.js | grep -wiE "do|work|works|pass|stuff|thing"
-# Look for complex setup
-grep -B10 "expect\|assert" test_file.js | grep -c "setup\|fixture\|mock"
 # Find mocked dependencies
 grep -n "jest.mock\|sinon.stub\|mock\|spy" test_file.js
 ```
@@ -179,21 +177,16 @@ grep -n "jest.mock\|sinon.stub\|mock\|spy" test_file.js
 
 **How to detect:**
 ```bash
-# Find async tests without await
-grep -n "async.*=>\|function.*async" test_file.js
-grep -A5 "async.*=>" test_file.js | grep -v "await\|done\|return"
+# Async test declarations — read each hit's body for a missing await
+grep -nE "(it|test|describe)\(.*async" test_file.js
 # Promise tests without .catch
 grep -n "\.then\|\.catch" test_file.js | grep -v "\.catch("
-# Tests with setTimeout
+# Tests with real timers
 grep -n "setTimeout\|setInterval" test_file.js | grep -v "jest.useFakeTimers\|sinon.useFakeTimers"
-# Find untested event emitters / streams
-grep -n "on('data\|on('error\|on('end\|pipe(" src/*.js | while read line; do
-fname=$(echo "$line" | cut -d: -f1 | xargs basename)
-grep -q "$fname" tests/*.js || echo "No async stream test: $line"
-done
 # Find callback-style async without promise wrappers
 grep -n "callback\|cb(" test_file.js | grep -v "promisify\|async\|await"
 ```
+For event-emitter / stream sources, take the emitter names from the changed file and run them through the coverage probe in §8 — a per-emitter test lookup is the same "is this referenced by any test" question.
 
 **Red flags:**
 - Async test functions without `await`
@@ -234,14 +227,14 @@ grep -n "callback\|cb(" test_file.js | grep -v "promisify\|async\|await"
 
 **How to detect:**
 ```bash
-# Check test directory structure
-find tests/ -type f | head -20
+# Where the repo keeps tests — unit and integration separated, or interleaved with source
+git ls-files | grep -iE '(^|/)(tests?|spec|__tests__)/|\.(test|spec)\.' | head -20
 # Look for setup/teardown
 grep -n "beforeEach\|afterEach\|setUp\|tearDown" test_file.js
 # Count test suites
 grep -c "describe\|TestCase\|class.*Test" test_file.js
 # Look for fixtures or test data
-grep -n "fixture\|TestData\|MOCK_\|test_" test_file.js
+grep -n "fixture\|TestData\|MOCK_" test_file.js
 ```
 
 **Red flags:**

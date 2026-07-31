@@ -1,0 +1,130 @@
+# Pinned reference runs for scripts/measure-run-load.sh.
+#
+# One row per file a run loads:  profile <TAB> component <TAB> multiplier <TAB> path
+#
+# `multiplier` is how many times the run pays for that file. It is 1 for anything
+# the orchestrator Reads once and the spawn count for an agent body, because a
+# body is injected whole as each subagent's system prompt (.claude/rules/skill-
+# structure.md §File-size limits) — the one term where static size and per-run
+# cost come apart.
+#
+# The composition below is a JUDGEMENT about which files a run actually loads,
+# recorded as data precisely so it can be argued with one line at a time. The
+# script contributes only the arithmetic; it holds no numbers of its own.
+#
+# R1 — the floor. Seven always-fire dimensions, no spec, no PR, no deep mode, no
+#      verifiers, no custom reviewers. Nothing conditional is triggered.
+# R2 — the ceiling for built-in dimensions. All ten fire (the seven always plus
+#      design, pr-metadata and spec-compliance), a spec and a PR are present, and
+#      the survivor set draws five verifier spawns.
+#
+# On the spec's "11 dimensions" for R2: the built-in grid at
+# skills/review/phase-2-spawns.md §2.1 holds ten rows, so eleven counts one
+# custom reviewer. A custom reviewer's criteria file is user-authored and lives
+# outside this repo, so its words cannot be measured here. R2 therefore pins the
+# ten built-ins and says so, rather than inventing a row.
+#
+# Excluded from both profiles, deliberately: the adversarial-tester spawn (its
+# Phase 4.3 gate is approval-bound, so it is not part of a floor or a ceiling),
+# the deep-mode paths (both profiles are single-pass), and memory-backend.md
+# (loaded only when a project declares a backend).
+
+# ---- R1: orchestrator ----
+R1	orchestrator	1	skills/review/SKILL.md
+R1	orchestrator	1	skills/review/phase-1-triage.md
+R1	orchestrator	1	skills/review/phase-1-triage-reference.md
+R1	orchestrator	1	skills/review/phase-2-spawns.md
+R1	orchestrator	1	skills/review/phase-3-4-filter-stratify.md
+R1	orchestrator	1	skills/review/phase-5-6-emit-handoff.md
+R1	orchestrator	1	skills/_shared/loop-invariants.md
+R1	orchestrator	1	skills/_shared/evidence-standard.md
+R1	orchestrator	1	skills/_shared/gate-rendering.md
+R1	orchestrator	1	skills/_shared/per-finding-question.md
+R1	orchestrator	1	skills/_shared/review-handoff.md
+R1	orchestrator	1	skills/_shared/severity-calibration.md
+R1	orchestrator	1	skills/_shared/spawn-agent.md
+R1	orchestrator	1	skills/_shared/model-tiering.md
+R1	orchestrator	1	skills/_shared/state-tier-spec.md
+R1	orchestrator	1	skills/_shared/primary-worktree.md
+R1	orchestrator	1	skills/_shared/workspace-signals.md
+R1	orchestrator	1	skills/_shared/branch-naming.md
+R1	orchestrator	1	skills/_shared/branch-freshness.md
+R1	orchestrator	1	skills/_shared/load-custom-instructions.md
+R1	orchestrator	1	skills/_shared/load-custom-reviewers.md
+R1	orchestrator	1	skills/_shared/reporter-boundary.md
+R1	orchestrator	1	skills/_shared/scope-anchor.md
+R1	orchestrator	1	skills/_shared/effort-scaling.md
+R1	orchestrator	1	skills/_shared/context-isolation-checklist.md
+R1	orchestrator	1	skills/_shared/within-skill-state-handoff.md
+R1	orchestrator	1	skills/_shared/emit-learning.md
+R1	orchestrator	1	skills/_shared/runtime-portability.md
+R1	orchestrator	1	skills/_shared/flags-reference.md
+
+# ---- R1: per-dimension criteria (seven always-fire dims; conventions owns three files) ----
+R1	criteria	1	skills/_shared/review-criteria/bugs-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/security-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/architecture-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/tests-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/optimizations-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/guidelines-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/conventions-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/rules-compliance-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/regressions-criteria.md
+
+# ---- R1: agent bodies (7 dimension spawns, no verifiers) ----
+R1	agent-body	7	agents/reviewer-agent.md
+
+# ---- R2: orchestrator (R1's set plus what a spec, a PR and a verify pass add) ----
+R2	orchestrator	1	skills/review/SKILL.md
+R2	orchestrator	1	skills/review/phase-1-triage.md
+R2	orchestrator	1	skills/review/phase-1-triage-reference.md
+R2	orchestrator	1	skills/review/phase-2-spawns.md
+R2	orchestrator	1	skills/review/phase-3-4-filter-stratify.md
+R2	orchestrator	1	skills/review/phase-5-6-emit-handoff.md
+R2	orchestrator	1	skills/review/phase-4-3-test-gate-reference.md
+R2	orchestrator	1	skills/_shared/loop-invariants.md
+R2	orchestrator	1	skills/_shared/evidence-standard.md
+R2	orchestrator	1	skills/_shared/gate-rendering.md
+R2	orchestrator	1	skills/_shared/per-finding-question.md
+R2	orchestrator	1	skills/_shared/review-handoff.md
+R2	orchestrator	1	skills/_shared/review-handoff-post.md
+R2	orchestrator	1	skills/_shared/severity-calibration.md
+R2	orchestrator	1	skills/_shared/spawn-agent.md
+R2	orchestrator	1	skills/_shared/model-tiering.md
+R2	orchestrator	1	skills/_shared/state-tier-spec.md
+R2	orchestrator	1	skills/_shared/primary-worktree.md
+R2	orchestrator	1	skills/_shared/workspace-signals.md
+R2	orchestrator	1	skills/_shared/branch-naming.md
+R2	orchestrator	1	skills/_shared/branch-freshness.md
+R2	orchestrator	1	skills/_shared/load-custom-instructions.md
+R2	orchestrator	1	skills/_shared/load-custom-reviewers.md
+R2	orchestrator	1	skills/_shared/reporter-boundary.md
+R2	orchestrator	1	skills/_shared/scope-anchor.md
+R2	orchestrator	1	skills/_shared/effort-scaling.md
+R2	orchestrator	1	skills/_shared/context-isolation-checklist.md
+R2	orchestrator	1	skills/_shared/within-skill-state-handoff.md
+R2	orchestrator	1	skills/_shared/emit-learning.md
+R2	orchestrator	1	skills/_shared/runtime-portability.md
+R2	orchestrator	1	skills/_shared/flags-reference.md
+R2	orchestrator	1	skills/_shared/finding-verification.md
+R2	orchestrator	1	skills/_shared/plan-context.md
+R2	orchestrator	1	skills/_shared/workflow-refs-schema.md
+R2	orchestrator	1	skills/_shared/ui-preview-gate.md
+
+# ---- R2: per-dimension criteria (all ten built-in dims) ----
+R2	criteria	1	skills/_shared/review-criteria/bugs-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/security-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/architecture-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/tests-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/optimizations-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/guidelines-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/conventions-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/rules-compliance-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/regressions-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/design-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/pr-metadata-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/spec-compliance-criteria.md
+
+# ---- R2: agent bodies (10 dimension spawns + 5 verifier spawns) ----
+R2	agent-body	10	agents/reviewer-agent.md
+R2	agent-body	5	agents/finding-verifier-agent.md

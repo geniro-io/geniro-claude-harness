@@ -5,7 +5,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 ## Contents
 
 - Step 1 — scan + scope, and the `--max-lines` flag
-- Step 2 — the lint rule set: structural / reference / per-scope checks, plus the `## Data Sources`, `## Memory Backend`, description-quality and `requires-context` rule sets
+- Step 2 — the lint rule set: structural / reference / per-scope checks, plus the `## Data Sources`, `## Verification Surface`, `## Memory Backend`, description-quality and `requires-context` rule sets
 - Step 3 — per-skill phase mapping
 - Step 4 — custom-reviewer count caps
 - Step 5 — output format, and the no-auto-fix rule
@@ -52,6 +52,14 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 | A malformed entry — no source (missing the backticked command / MCP-tool name / action name), or no `(confirms: ...)` hint | MEDIUM — the entry can't be used |
 
 The HIGH severity matches the spec `verify:` read-only doctrine: a data-source shell command runs unattended during fact verification, so a mutating one is the same prod-risk class the `/geniro:implement` side-effect screen guards. `## Data Sources` is optional — absence is not a finding.
+
+**`## Verification Surface` lint rules** (applied to `global.md` and per-skill scopes when a `## Verification Surface` section is present):
+
+| Rule | Severity |
+|---|---|
+| A command entry carrying a covers clause but no does-not-cover clause (a `MANUAL` row is exempt — it names ground no command reaches, so it has no command boundary to state) | MEDIUM — half an entry per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md` §Entry shape: it tells a run what to execute and leaves it free to overstate the result. Emit: "Verification Surface entry `<command>` names what it covers but not what it does not cover — the second clause is the boundary a claim about a green run is stated at. Add it, or remove the entry (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md` §Entry shape)." |
+
+`## Verification Surface` is optional — absence is not a finding (no declared mapping leaves claim-scoping unchanged).
 
 **`## Memory Backend` lint rules** (applied to `memory.md` when a `## Memory Backend` section is present):
 

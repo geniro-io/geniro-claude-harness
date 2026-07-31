@@ -56,7 +56,7 @@ TRANSCRIPT="$PROJ/transcript.jsonl"
 # only thing a class can change is whether the bypass fires. Prints 2 when the
 # guard fires, 0 when it does not.
 probe() {  # <hook-basename>
-  local hook="$HOOKS/$1" out
+  local hook="$HOOKS/$1"
   case "$1" in
     file-protection.sh)
       jq -nc '{tool_name:"Write", tool_input:{file_path:".env", content:"x"}}' | bash "$hook" >/dev/null 2>&1
@@ -82,17 +82,6 @@ probe() {  # <hook-basename>
           tool_input:{questions:[{question:"Full explanation above. Approve?", options:[{label:"Approve"},{label:"Cancel"}]}]}}' \
         | bash "$hook" >/dev/null 2>&1
       echo $? ;;
-    require-evidence-on-completion.sh)
-      # Warn-only Stop hook: it always exits 0, so "fired" is the warning itself.
-      # Normalized to 2 so one expectation table covers every guard. The output is
-      # captured before grepping — piping straight into `grep -q` closes the pipe
-      # early and `pipefail` then reports the hook's SIGPIPE, not the match.
-      out=$(jq -nc '{last_assistant_message:"All tests pass, ready to ship."}' | bash "$hook" 2>&1)
-      if printf '%s' "$out" | grep -q 'evidence-stop'; then
-        echo 2
-      else
-        echo 0
-      fi ;;
     *) echo "probe: unknown hook $1" >&2; echo 1 ;;
   esac
 }
@@ -104,8 +93,7 @@ block-geniro-deletion.sh:rm-geniro-tree
 enforce-state-helper.sh:enforce-state-helper
 enforce-tdd-order.sh:tdd-order
 security-pattern-check.sh:sec-eval-exec
-enforce-gate-render.sh:gate-render
-require-evidence-on-completion.sh:evidence-stop"
+enforce-gate-render.sh:gate-render"
 
 # The security scan is Perl-implemented and exits 0 when perl is absent, which
 # would read as "bypassed" for every class. Drop it rather than report a verdict

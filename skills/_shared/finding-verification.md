@@ -1,6 +1,6 @@
 # /geniro:review Phase 4.2 — Per-finding empirical-reproduction verifier
 
-Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — is verified by a file-clustered fresh `reviewer-agent` spawn in verify-finding mode: survivors citing the same file share one spawn (cluster cap and its rationale in §4; a solo survivor or a sentinel-`File` finding spawns singly), with one independent verdict per finding. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result per finding. Isolated context per verifier (NOT the full reviewer bundle — the isolation boundary is the originating reviewer's bundle, not cluster siblings) prevents anchoring and sycophancy. Every §4.1 survivor is verified — no tier-scaling, no severity-scaling. The §4.1 multi-signal gate constrains most of the survivor set to findings with Evidence-Block-grade citations, because signal #2 is mandatory for MEDIUM — so a code-anchored MEDIUM always carries a concrete file:line to re-read. A CRITICAL or HIGH may be admitted on convergence or confidence alone, with a thin citation and no Evidence Block: losing a high-severity defect costs more than carrying an unproven one, and supplying the missing quote is this verifier's job (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 — the Evidence Block is a post-verification invariant, not an admission-time one). Where such a finding names no line, slice the cited file from its first referenced symbol instead, and say in the verdict that the anchor was reconstructed. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice (§2 path-less branch).
+Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM — is verified by a file-clustered fresh `finding-verifier-agent` spawn: survivors citing the same file share one spawn (cluster cap and its rationale in §4; a solo survivor or a sentinel-`File` finding spawns singly), with one independent verdict per finding. The verifier re-reads the cited code, grepped callers, and 1-2 sibling tests, and emits a structured verification result per finding. Isolated context per verifier (NOT the full reviewer bundle — the isolation boundary is the originating reviewer's bundle, not cluster siblings) prevents anchoring and sycophancy. Every §4.1 survivor is verified — no tier-scaling, no severity-scaling. The §4.1 multi-signal gate constrains most of the survivor set to findings with Evidence-Block-grade citations, because signal #2 is mandatory for MEDIUM — so a code-anchored MEDIUM always carries a concrete file:line to re-read. A CRITICAL or HIGH may be admitted on convergence or confidence alone, with a thin citation and no Evidence Block: losing a high-severity defect costs more than carrying an unproven one, and supplying the missing quote is this verifier's job (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 — the Evidence Block is a post-verification invariant, not an admission-time one). Where such a finding names no line, slice the cited file from its first referenced symbol instead, and say in the verdict that the anchor was reconstructed. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice (§2 path-less branch).
 
 ## Contents
 
@@ -130,8 +130,8 @@ For each cluster:
   5. Add to parallel-spawn batch.
 
 After loop:
-  Send ALL spawn calls in ONE assistant response (parallel).
-  - Use `Agent(subagent_type="geniro:reviewer-agent", ...)` per the ladder in
+  Send the accumulated batch (the invariant below governs how).
+  - Use `Agent(subagent_type="geniro:finding-verifier-agent", ...)` per the ladder in
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
   - OMIT `model=` (orchestrator tier inherits via frontmatter `model: inherit`) per
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
@@ -152,7 +152,7 @@ A verifier can fail to produce a verdict at all: the spawn errors out even after
 - It is excluded from any PR post set and surfaced under `## Caveats`: "N findings could not be independently verified — the verifier agent failed to run; they are kept in the report but will not be posted to the PR."
 - Write a state.md `## Errors` entry via `atomic_state_write`: `phase: stratify`, `error: verifier-spawn-failed`, plus the affected finding IDs.
 
-Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for verify-finding spawns — the orchestrator holds the full reviewer bundle, which is exactly the anchoring context the §2 isolation contract forbids, so an inline self-check would be an anchored confirmation, not a verification. `unverified` states the truth instead: this finding was never independently checked.
+Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for a verifier spawn — the orchestrator holds the full reviewer bundle, which is exactly the anchoring context the §2 isolation contract forbids, so an inline self-check would be an anchored confirmation, not a verification. `unverified` states the truth instead: this finding was never independently checked.
 
 `unverified` is orchestrator-assigned only — a verifier agent never emits it. Consumer-side semantics (legal since `m6-v2`; kept, not postable, one-line warning) live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`.
 
@@ -192,4 +192,4 @@ After all verifiers return, the orchestrator processes each finding's verdict bl
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — agent registration ladder.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — OMIT `model=` rule.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` — handoff schema consumer.
-- `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` — base agent contract the verifier mode extends.
+- `${CLAUDE_PLUGIN_ROOT}/agents/finding-verifier-agent.md` — the agent this contract spawns.

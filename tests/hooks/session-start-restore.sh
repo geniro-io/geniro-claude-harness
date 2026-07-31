@@ -477,6 +477,172 @@ echo "$ac" | grep -q '\[ship_mode\] User picked: "open PR"' \
   && pass "Block 5d: approval rendering" \
   || fail "Block 5d: approval rendering wrong"
 
+# An entry carrying none of the three optional fields must render exactly the two
+# lines it always did — no stray "why:" label, no empty-value noise.
+echo "$ac" | grep -q 'why:' \
+  && fail "Block 5d: rendered a why: label for an entry that carries no why" \
+  || pass "Block 5d: optional fields absent render nothing"
+
+# ---------------------------------------------------------------------------
+# 12b. Block 5d renders the optional why / result, and omits evidence
+# ---------------------------------------------------------------------------
+# `why` and `result` are what let a resumed session judge whether a recorded
+# decision still holds, so they have to reach the block or the fields are dead
+# weight. `evidence` deliberately does not: it stays in the file for a reader
+# re-checking the premise, and this block fires on every compaction and resume.
+# An empty string is truthy in jq, so the empty `why` below is the real trap —
+# a presence test would print a bare label for it.
+
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: ship
+status: in-progress
+non-resumable-actions: []
+approvals:
+  - category: ship_mode
+    picked: "open PR"
+    at: 2026-05-19T14:00:00Z
+    asked_in_phase: ship
+    why: "the branch already had an open PR reviewers were watching"
+    evidence: "gh pr view reported state OPEN"
+    result: "PR 412 updated, no new PR created"
+  - category: deep_mode_choice
+    picked: "Standard"
+    at: 2026-05-19T14:05:00Z
+    asked_in_phase: analyze
+    why: ""
+---
+
+body
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q 'why: the branch already had an open PR' \
+  && pass "Block 5d: renders why when recorded" \
+  || fail "Block 5d: why not rendered"
+
+echo "$ac" | grep -q 'result: PR 412 updated' \
+  && pass "Block 5d: renders result when recorded" \
+  || fail "Block 5d: result not rendered"
+
+echo "$ac" | grep -q 'gh pr view reported state OPEN' \
+  && fail "Block 5d: evidence leaked into the block — it belongs in the file only" \
+  || pass "Block 5d: evidence stays out of the block"
+
+# The second entry carries `why: ""`. jq treats "" as truthy, so a presence test
+# would emit `why: ` with nothing after it.
+echo "$ac" | grep -qE 'why:[[:space:]]*$' \
+  && fail "Block 5d: an empty why rendered a bare label" \
+  || pass "Block 5d: an empty-string why renders nothing"
+
+echo "$ac" | grep -q '\[deep_mode_choice\] User picked: "Standard"' \
+  && pass "Block 5d: an entry with only the required fields still renders" \
+  || fail "Block 5d: entry with empty optional field stopped rendering"
+
+# ---------------------------------------------------------------------------
+# 12c. Block 5d — every spelling of "no reason recorded", not just `""`
+# ---------------------------------------------------------------------------
+# The guard is `(.why // "") != ""`, and it recognizes exactly one contentless
+# value: the empty string. The frontmatter parser hands jq the raw scalar it read,
+# so every other way of writing "nothing here" arrives as a non-empty string and
+# prints. `why: "  "` makes the same claim as the `why: ""` case above and gets the
+# bare label that case rules out; `null` and `~` are YAML's own words for an absent
+# value, and rendering one puts a reason in front of a resumed session that no
+# producer ever wrote.
+
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: ship
+status: in-progress
+non-resumable-actions: []
+approvals:
+  - category: ship_mode
+    picked: "open PR"
+    at: 2026-05-19T14:00:00Z
+    asked_in_phase: ship
+    why: "  "
+  - category: deep_mode_choice
+    picked: "Standard"
+    at: 2026-05-19T14:05:00Z
+    asked_in_phase: analyze
+    why: null
+  - category: minor_findings
+    picked: "fix now"
+    at: 2026-05-19T14:07:00Z
+    asked_in_phase: review
+    result: ~
+---
+
+body
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -q '\[minor_findings\] User picked: "fix now"' \
+  && pass "Block 5d: all three entries render" \
+  || fail "Block 5d: the third entry did not render — the fixture, not the guard, is being measured"
+
+echo "$ac" | grep -qE 'why:[[:space:]]*$' \
+  && fail "Block 5d: a whitespace-only why rendered a bare 'why:' label — the same empty claim as why: \"\", which the case above already requires to render nothing" \
+  || pass "Block 5d: a whitespace-only why renders nothing"
+
+echo "$ac" | grep -qE 'why:[[:space:]]*(null|~)[[:space:]]*$' \
+  && fail "Block 5d: 'why: null' rendered the literal word null as the reason a decision was made — YAML null is an absent value, and the block presents it to the resumed session as recorded rationale" \
+  || pass "Block 5d: a null why renders nothing"
+
+echo "$ac" | grep -qE 'result:[[:space:]]*(null|~)[[:space:]]*$' \
+  && fail "Block 5d: 'result: ~' rendered '~' as what acting on the pick produced — an absent result is the signal that the decision was recorded but never acted on, and this spelling of absent reads as a recorded outcome instead" \
+  || pass "Block 5d: a tilde result renders nothing"
+
+# A reason too long for one line is written as a block scalar, and the frontmatter
+# parser reads only the marker: the continuation lines match no rule and fall
+# through. What reaches the block is `why: |` — a label whose content was dropped.
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: ship
+status: in-progress
+non-resumable-actions: []
+approvals:
+  - category: ship_mode
+    picked: "open PR"
+    at: 2026-05-19T14:00:00Z
+    asked_in_phase: ship
+    why: |
+      the branch already had an open PR reviewers were watching,
+      so a second one would have split the review in half
+---
+
+body
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+echo "$ac" | grep -qE 'why:[[:space:]]*[|>][[:space:]]*$' \
+  && fail "Block 5d: a block-scalar why rendered the YAML marker as the reason ('why: |') and dropped the two lines under it — the block must carry the reason or say nothing, never a marker standing in for one" \
+  || pass "Block 5d: a block-scalar why does not render its YAML marker as the reason"
+
 # ---------------------------------------------------------------------------
 # 13. No false positives — empty state.md body produces no 5b/5c/5d blocks
 # ---------------------------------------------------------------------------

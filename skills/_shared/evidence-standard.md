@@ -8,9 +8,8 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 
 - Why this exists — the three hallucinated-success failure modes
 - When evidence is required — the claim classes that need a block
-- Evidence Block schema — the verbatim shape, plus §What counts as an artifact (the five kinds)
-- Forbidden phrases — the tokens the Stop hook scans, and scoping a claim to its command
-- Stop hook reliability disclaimer — why the hook is a reminder, not the gate
+- Evidence Block schema — the verbatim shape, plus §What counts as an artifact (the six kinds) and §Evidence ladder (how far one reaches)
+- Forbidden phrases — the tokens a claim may not carry unbacked, and scoping a claim to its command
 - Anti-rationalization
 
 ## Why this exists
@@ -60,6 +59,24 @@ The kinds below are the complete set. A claim requiring evidence is backed by on
 
 Kind 6 covers claims about the world outside the repo, where no local probe can settle the question. It admits only what a reader can re-open and check: a URL that resolves plus the quoted passage the claim rests on. A remembered fact, a summarized page, or a URL without the quote is a hypothesis — the failure mode is a confidently-worded recollection that no longer matches what the source says.
 
+### Evidence ladder — how far the artifact reaches
+
+The kinds above are a set, not a ranking. They say what counts as an artifact; they say nothing about how much any one of them settles. Two findings can both carry a legal artifact and be nowhere near equally settled: a failing test that flips when the suspected cause is removed is close to certain, while a vendor changelog quote is someone else's report about a system nobody here observed. Both are evidence. They do not deserve the same confidence, and today they read identically.
+
+| Rung | What you have |
+|---|---|
+| 1 | You ran a probe whose result differs depending on which reading is true, and it came back |
+| 2 | You observed the behavior in the running system, without being able to reproduce it on demand |
+| 3 | You read the source of truth directly and quoted the passage the claim rests on |
+| 4 | Someone else captured the artifact and handed it to you |
+| 5 | The fact is documented outside this system and you quoted it |
+
+The ordering is for a **causal** claim — why something behaves the way it does. For a claim about what a file says, reading that file and quoting it IS rung 1; nothing sits closer to it. Rank against the claim, not against the table.
+
+Report the rung alongside the block: `Evidence-rung: <n> — <what a higher rung would have taken>`.
+
+The second half is the point. A rung on its own reads as a grade. A rung plus the missing step tells the reader whether the gap is closable or was simply not attempted — "rung 3, reproducing it needs a seeded tenant this environment has no way to create" and "rung 3, no probe attempted" are the same rung and call for opposite decisions. Naming the missing step is also what stops the rung from becoming a place to settle: written down, "no probe attempted" is visibly a choice rather than a limit.
+
 Reasoning, "the symptom matches", "the agent reported PASS", and "the user described it verbally" are NOT evidence — they are hypotheses that still need verification. Symptom-matching is correlation; only a captured artifact (kind 1, 3, or 4) confirms causation. An artifact showing that every failing case shares an attribute establishes a discriminator, not a cause; before that reading reaches a deliverable, run the one probe whose result differs depending on which reading is true.
 
 **A negative result is evidence only after the probe is shown able to return a positive.** Before reporting "there is no X" or "that window is clean", run the same probe against a case that must match — a known-present value, a time range with known activity — and cite that positive alongside the empty result. Without it, an empty result establishes that the probe found nothing, not that nothing is there.
@@ -68,9 +85,11 @@ A passing-test claim serves the same underlying requirement — show that the pr
 
 **A limit on your own reach is a claim and carries the same artifact requirement.** Attempt the read once with the tools you have and cite the failure before routing it to the user — the missing-data gates open on a failed attempt, not on an assumption, and the environment this session can reach — the repo, its logs, its configured services — is yours to probe before declaring the data out of reach.
 
+**Enforcement lives in consumption, not in a hook.** This standard is enforced where evidence is produced and read: every reviewer-agent finding requires an Evidence Block at emit-time, and an orchestrator re-runs validation itself rather than trusting a prior PASS report. Nothing inspects a completion claim after the fact, so an unbacked one is never caught later — the block has to be attached when the claim is written. TDD order is the separate case that IS hook-enforced: `enforce-tdd-order.sh` gates PreToolUse `Edit` / `Write` against `.geniro/state/tdd/state-<slug>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`.
+
 ## Forbidden phrases
 
-The `Stop` hook (`require-evidence-on-completion.sh`) scans final responses for these tokens. Do NOT use them without an attached Evidence Block in the same message:
+Do NOT use these tokens without an attached Evidence Block in the same message:
 
 - `"Great!"`, `"Perfect!"`, `"Done!"` — performative success without proof.
 - `"ready to ship"`, `"all tests pass"`, `"validation complete"`, `"shipped"` — completion claims without proof.
@@ -79,11 +98,9 @@ Replace with the captured Evidence Block + a one-line summary that cites the exi
 
 **Scope the claim to what the command covered.** State a check claim at the width of the command that produced it — a vet run over two packages supports "vet passes on the logger package and one service", not "vet passes"; an artifact covering the verified subset of an open checklist supports "all HIGH-severity cells verified live; 13 lower-severity items tracked", not "verification is complete". The claim keeps that width in every artifact it lands in: chat, ship report, commit message, PR body. A claim wider than its Evidence Block outruns its own proof, and a reader of the PR cannot see which command ran — an unscoped claim is a forbidden phrase even with an Evidence Block attached.
 
-Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, but the hook does NOT scan them — they produced too many false positives on benign sentences ("Should I run tests?"). Treat them as authoring guidance, not an enforced gate.
+Where the project declares a `## Verification Surface`, read that width off the declaration instead of inferring it: the entry matching the command that ran carries the does-not-cover clause the claim is stated at, and a criterion no entry covers is reported as uncovered rather than absorbed into the nearest green command. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md`. Absent the block, scope from the command itself as above.
 
-## Stop hook reliability disclaimer
-
-Stop hooks fire only approximately 50–80% of the time, so treat `require-evidence-on-completion.sh` as a soft reminder layer, not as the enforcement gate. PreToolUse `Edit|Write` is enforced by `enforce-tdd-order.sh`, which reads the state file at `.geniro/state/tdd/state-<slug>.md` per the procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md`. THAT pair (hook + state file) is the authoritative TDD-order enforcement; the Stop hook is warn-only. Analogously, the Evidence Standard's true enforcement is the per-skill consumption — every reviewer-agent finding requires an Evidence Block at emit-time, and orchestrators re-run validation themselves rather than trusting prior PASS reports.
+Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, and they are authoring guidance rather than a prohibition — a benign sentence like "Should I run tests?" carries one without claiming anything.
 
 ## Anti-rationalization
 

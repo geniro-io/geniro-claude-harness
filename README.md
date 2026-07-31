@@ -312,7 +312,6 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec, bypass `push-delete`) |
 | **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/`, `git worktree remove`, `git add -f` on `.geniro/` paths |
 | **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions set + CLAUDE.md so context survives compaction |
-| **Evidence-on-completion** | `Stop` hook (warn-only) — scans last assistant message for completion phrases that lack an Evidence Block |
 | **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files, including shell-side writes |
 | **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
 | **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — regex scan of edit content and shell commands for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
@@ -330,7 +329,7 @@ Or run `/geniro:update` inside Claude Code — preserves user content, walks any
 
 ## Using with Cursor
 
-The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 7 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`'s past-session shapes, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
+The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 8 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`'s past-session shapes, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
 
 ## Plugin Structure
 
@@ -339,7 +338,7 @@ geniro/
 ├── .claude-plugin/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # Marketplace manifest (plugin source entry)
-├── agents/                      # 7 specialized agent definitions (reviewer / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / reflection / test-runner)
+├── agents/                      # 8 specialized agent definitions (reviewer / finding-verifier / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / reflection / test-runner)
 ├── skills/                      # 13 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning
@@ -356,7 +355,7 @@ geniro/
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
 │                                # load-custom-instructions, query/emit-learnings, etc.)
-├── hooks/                       # 9 safety hooks + statusline + update check
+├── hooks/                       # 8 safety hooks + statusline + update check
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer

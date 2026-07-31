@@ -72,17 +72,6 @@
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/require-evidence-on-completion.sh",
-            "statusMessage": "Scanning for completion claims without Evidence Block..."
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "hooks": [

@@ -33,7 +33,7 @@ grep -nE "(text|bg|border|ring|fill|stroke)-\[#" file.tsx
 
 **How to detect:**
 ```bash
-grep -nE "\b(p|m|gap|space|inset|top|right|bottom|left)[trblxy]?-\[" file.tsx
+grep -nE "\b(p|m|gap|space|inset|top|right|bottom|left)[trblxy]?-\[" file.tsx | grep -v "var(--"
 ```
 **Red flag:** any arbitrary spacing value in a project with a defined scale.
 
@@ -44,7 +44,9 @@ grep -nE "\b(p|m|gap|space|inset|top|right|bottom|left)[trblxy]?-\[" file.tsx
 
 **How to detect:**
 ```bash
-grep -nE "font-\[|text-\[|fontFamily|@font-face|@import.*fonts" file.tsx
+# An arbitrary-value bracket holding a design token is the CORRECT pattern — without the
+# var(--…) exclusion every tokenized line in the file reports as a violation.
+grep -nE "font-\[|text-\[|fontFamily|@font-face|@import.*fonts" file.tsx | grep -v "var(--"
 ```
 **Red flag:** typographic values that bypass the scale on a project with one.
 
@@ -113,9 +115,10 @@ grep -nE "<button[^>]*>\s*<(svg|Icon)" file.tsx
 
 **How to detect:**
 ```bash
-grep -nE "rounded-|shadow-|border-" exemplar.tsx > /tmp/exemplar.txt
-grep -nE "rounded-|shadow-|border-" new_file.tsx > /tmp/new.txt
-diff /tmp/exemplar.txt /tmp/new.txt
+# Compare the token SETS, not the lines: a line-numbered diff reports every line as changed
+# because the numbers differ, and shared temp-file names collide across parallel reviewers.
+diff <(grep -ohE "rounded-[a-z0-9-]*|shadow-[a-z0-9-]*|border-[a-z0-9-]*" exemplar.tsx | sort -u) \
+     <(grep -ohE "rounded-[a-z0-9-]*|shadow-[a-z0-9-]*|border-[a-z0-9-]*" new_file.tsx | sort -u)
 ```
 **Red flag:** a button, card, or surface that looks nothing like its siblings.
 

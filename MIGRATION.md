@@ -34,6 +34,20 @@ Restart the session afterward. No project state under `.geniro/` changes — ins
 
 ---
 
+### `evidence-on-completion` Stop hook removed
+
+The `require-evidence-on-completion.sh` Stop hook — which scanned the last assistant message for completion-claim phrases ("shipped", "all tests pass", "ready to ship") not backed by an Evidence Block and emitted a stderr reminder — has been removed, along with its `evidence-stop` allowlist pattern ID. It was warn-only and never blocked. Stop hooks fire roughly 50-80% of the time, so as a reminder it was unreliable by construction while still costing a registration, a documentation section, and a test suite to maintain. The Evidence Standard is unchanged and its enforcement was never the hook: `skills/_shared/evidence-standard.md` is enforced in consumption — a reviewer-agent attaches an Evidence Block at emit-time, and an orchestrator re-runs validation itself rather than trusting a prior PASS report. What is gone is a reminder that fired on some turns, not a gate.
+
+**Action required:** Optional — if your project's `.geniro/safety.json` `allow_patterns` lists `evidence-stop`, that entry is now an inert no-op and can be removed. Leaving it in place causes no harm.
+
+**Auto-detect:** `grep -l 'evidence-stop' .geniro/safety.json 2>/dev/null`
+
+**Auto-fix:** Manual-only — remove the `"evidence-stop"` string from `.geniro/safety.json` `allow_patterns` if present (a user-file JSON edit; left in place it is harmless).
+
+**Severity:** LOW — the hook lived in the plugin (auto-removed on update), it never blocked anything, and the only user-side residue is an inert allowlist entry.
+
+---
+
 ### New opt-in shape: `/geniro:reflect --this-session`
 
 `/geniro:reflect` gains a third input shape. `--this-session` mines the session you are running in rather than past transcripts on disk: nothing is selected from disk, the corrections are extracted inline from the live conversation, and synthesis still runs in the same isolated agent. Because it reads no transcript file, this shape works outside Claude Code too — the search-string and empty shapes still need Claude Code's transcript layout.

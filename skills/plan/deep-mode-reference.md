@@ -26,9 +26,10 @@ Standard Phase 4.1 synthesizes the Phase 1 explore + Phase 3 answers into 2-3 ap
 
 - **Generate** — spawn 3-4 approach generators in parallel, each pinned to a DISTINCT lens so the candidate set spans the design space rather than one author's first instinct: `minimal-change` (smallest diff that satisfies the objective), `reuse-first` (maximize existing-abstraction reuse), `risk-first` (minimize blast radius / maximize reversibility), and a domain-relevant fourth where it applies (e.g. `performance-first`). Each generator receives the same Phase 1 explore + Phase 3 answer context.
 - **Dedup + score** — union the candidates, drop near-identical ones in-script (same core mechanism + same touched surface = one), then a scoring pass ranks the deduped set on four axes — feasibility, blast radius, reversibility, and cost (the deep-mode scoring rubric; the standard §4.2 critic stage that follows re-checks feasibility against the codebase).
+- **Graft** — walk the ranked losers once before the top candidates go forward, looking for a component the winner lacks and could take whole: a cheaper migration path, a safer rollback, a better failure mode. Fold that component into the winner instead of discarding it along with its candidate. A losing approach is rarely wrong in every part, and the panel's value is the width of the field it searched — dropping a candidate entire drops the parts of it that beat the winner, which is the width being thrown away at the last step. Graft only a component that stands on its own; one that needs the loser's mechanism to work is a different approach rather than an improvement, and belongs in the ranking, not inside the winner. Record each graft in the candidate's prose so the §4.3 render shows the user an approach they can trace.
 - **Synthesize** — the orchestrator takes the top 2-3 ranked candidates into the standard §4.2 critic stage and the §4.3 approach AUQ. The user still picks from 2-3 rendered approaches; deep mode raises the odds those 2-3 are the best of a wider field.
 
-Recall dedup runs BEFORE the §4.2 critics, so a duplicated approach never consumes a critic slot twice.
+Recall dedup runs BEFORE the §4.2 critics, so a duplicated approach never consumes a critic slot twice. The graft runs before them too, so a critic judges the approach in the form the user will actually be offered rather than one it no longer has.
 
 ## 3. Precision — Phase 4 feasibility critics (signal-gated majority)
 
@@ -60,16 +61,17 @@ const candidates = (await parallel(LENSES.map(lens => () =>
   agent(generatorPrompt(lens, exploreCtx, clarifyCtx), { label: `gen:${lens}`, phase: 'Deep approaches — panel' })
 ))).filter(Boolean).flatMap(parseApproaches)         // raw JSON → approach objects; parse-fail drops that lens
 const ranked = scoreAndDedup(candidates)              // in-script: dedup near-identical, rank on the four axes (feasibility/blast-radius/reversibility/cost)
+const field = graftFromLosers(ranked)                 // in-script: fold a standalone component from a ranked loser into the winner; skip any component that needs the loser's mechanism
 
 phase('Deep critics — signal-gated feasibility')
-const critiques = await parallel(top3(ranked).map(a => () => (async () => {
+const critiques = await parallel(top3(field).map(a => () => (async () => {
   const firstRaw = await agent(criticPrompt(a, 0), { label: `critic:${a.slug}:v0`, phase: 'Deep critics — signal-gated feasibility' })
   if (!firstFlagsBlocking(firstRaw)) return { slug: a.slug, verdict: feasibilityOf([firstRaw]) }   // clean first critic → accept 1
   const rest = await parallel([1,2].map(i => () =>                                                  // blocking flagged → majority of 3
     agent(criticPrompt(a, i), { label: `critic:${a.slug}:v${i}`, phase: 'Deep critics — signal-gated feasibility' })))
   return { slug: a.slug, verdict: majorityFeasibility([firstRaw, ...rest]) }                        // ≥2 blocking → blocking; parse-fail = abstain
 })()))
-return { ranked: top3(ranked), critiques }
+return { ranked: top3(field), critiques }
 // firstFlagsBlocking(raw): parse defensively → true if parse-failed (abstain → escalate) OR a blocking risk carrying its file:line citation
 ```
 
@@ -89,7 +91,8 @@ Each degrades with a plain-English caveat, never a hard stop. Phase 7.5 is alrea
 | Your reasoning | Why it's wrong |
 |---|---|
 | "The panel generated 4 approaches — present all 4 in the §4.3 AUQ so the user sees everything." | The AUQ cap and the gate-frugality contract still hold: render the top 2-3 ranked, deduped candidates. The panel widens the FIELD searched, not the number of options the user weighs. Dumping 4-plus options is the click-fatigue the gate contract prevents. |
-| "Three generators happened to land on the same approach — that's strong signal, rank it highest." | Three lenses converging on one mechanism is correlated generation, not independent feasibility evidence. Dedup it to ONE candidate before scoring (§2); the feasibility signal comes from the §3 critics, not from generator agreement. |
+| "Three generators happened to land on the same approach — that's strong signal, rank it highest." | Three lenses converging on one mechanism is correlated generation, not independent feasibility evidence. Dedup it to ONE candidate before scoring (§2); the feasibility signal comes from the §3 critics, not from generator agreement. Dedup is not the graft that follows it, and conflating them loses the panel's width: dedup collapses candidates that ARE the same approach, while the graft takes a standalone part from one that genuinely differs and still lost. |
+| "The graft stage means folding the best of every losing approach into the winner." | A component qualifies only if it stands alone — a cheaper migration, a safer rollback, a better failure mode that works unchanged inside the winner's mechanism. A part that needs its own approach's mechanism to function is not a graft; taken anyway it produces a candidate no generator proposed and no critic judged, which is the worst-of-both outcome the ranking exists to avoid. Leave it in the ranking and let the user pick that approach instead. |
 | "One critic called the approach blocking — demote it, that's the safe choice." | In deep mode a single blocking vote does not demote — it takes ≥2 of 3 (§3). A lone hallucinated blocker demoting the best approach is exactly the failure majority-voting prevents; record the lone call as a `major` caveat and let the user see it. |
 | "Run one critic per approach in deep mode to save cost — the panel already ranked them." | The single-critic path is gated, not blanket: a first critic that flags a `blocking` risk escalates to the majority of 3 (§3), because a demotion is then at stake and one hallucinated blocker must not sink the best approach. Acceptance on one critic happens only when it flags NO blocker. Blanket single-critic re-opens the lone-hallucinated-blocker failure the majority prevents. |
 | "Deep mode should also write the spec 3× and pick the best draft." | Deep mode is scoped to ANALYSIS — wider approach search (recall) and harder fact-checking (precision). The spec WRITE is single-author by design; multiplying it would fork the durable artifact and break the section-approval gate. The quality lever is the approach panel + the spec-challenge, not redundant spec drafts. |

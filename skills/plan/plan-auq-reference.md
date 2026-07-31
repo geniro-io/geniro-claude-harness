@@ -37,7 +37,7 @@ Four further body sections are optional, each written by the phase that populate
 
 ### `approvals[]` entry shape — every gate below writes this
 
-Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_write`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array" — `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`:
+Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_write`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array" — six required fields, `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`, plus three optional ones, `why` / `evidence` / `result`:
 
 ```yaml
 approvals:
@@ -47,9 +47,12 @@ approvals:
     picked: "Standard"
     at: 2026-05-17T10:50:00Z
     asked_in_phase: clarify
+    why: "Two of the three open decisions were already settled by the explore pass, so the extra verification passes had little left to contest."
 ```
 
-The sections below name only their `category` slug and the phase they are asked in; §5b adds a nested `launch_config:` sub-block, the one gate whose entry carries more than the six fields. Write the entry before rendering the next question, so a context reset mid-sequence preserves every answer already given.
+Record `why` on a gate whose answer a later reader could not reconstruct from `picked` alone — a scope call, a tier hold, a pick made against the recommendation. Add `evidence` when the reason rests on something checkable, and `result` once the pick has been acted on. Omit all three where the pick speaks for itself; a `why` that paraphrases `picked` is noise the reader still pays for.
+
+The sections below name only their `category` slug and the phase they are asked in; §5b adds a nested `launch_config:` sub-block, the one gate whose entry carries a field beyond the nine. Write the entry before rendering the next question, so a context reset mid-sequence preserves every answer already given.
 
 ---
 

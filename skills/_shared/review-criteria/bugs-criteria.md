@@ -23,9 +23,7 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 
 **How to detect:**
 ```bash
-# Find property access patterns
-grep -n "^\s*[a-zA-Z_][a-zA-Z0-9_]*\." file.js | grep -v "if\|?.\|&&\|??"
-# Find array indexing without guards
+# Indexing with no length/existence guard on the line
 grep -n "\[[0-9]\+\]" file.js | grep -v "length\|size"
 ```
 
@@ -71,8 +69,8 @@ grep -n "indexOf\|slice\|substring" file.js
 
 **How to detect:**
 ```bash
-# Loose equality in comparisons
-grep -nE "==\s|!=\s" file.js | grep -v "==="
+# Loose equality — the character classes exclude `===` and `!==`; a `grep -v "==="` filter keeps every `!==`
+grep -nE "[^=!<>]==[^=]|[^!]!=[^=]" file.js
 # Type operations on variables
 grep -n "typeof\|instanceof" file.js | grep -v "if\|assert"
 ```
@@ -111,7 +109,7 @@ grep -nE "\.catch\(\s*\(\s*\)?\s*=>\s*(\[\]|null|\{\}|undefined)" file.js
 grep -nE "except\s*:\s*pass|except\s+Exception\s*:\s*pass" file.py
 grep -nE "catch\s*\([^)]*\)\s*\{\s*\}" file.js
 # Default-on-error returns inside catch/except
-grep -nA3 "catch\|except" file.js | grep -nE "return\s*(\[\]|null|0|\{\})"
+grep -nA3 "catch\|except" file.js | grep -E "return\s*(\[\]|null|0|\{\})"
 # Network/IO calls — check for an accompanying timeout option
 grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | grep -v "timeout\|signal"
 ```
@@ -135,13 +133,12 @@ grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | gr
 
 **How to detect:**
 ```bash
-# Find inverted conditions
-grep -n "if\s*(\s*!" file.js | grep -A2 "return\|throw"
-# Find unreachable code (a line immediately after a return/break/throw at block level)
-grep -nA1 -E "^\s*(return|break|throw)\b" file.js
-# Switch/match — confirm a default / catch-all arm exists
+# Unreachable code — a statement (not a closing brace or comment) immediately after return/break/throw/continue
+awk 'prev ~ /^[[:space:]]*(return|break|throw|continue)[^;]*;[[:space:]]*$/ && NF && $0 !~ /^[[:space:]]*([})\]]|\/\/|\/\*|\*|case |default|else|elif|when |catch|finally)/ {print NR": "$0} {prev=$0}' file.js
+# Switch/match — read each hit's arms and confirm a default / catch-all exists
 grep -nE "switch\s*\(|\bmatch\b" file.js
 ```
+Inverted conditionals and wrong operators have no grep shape — `if (!x) return` is the correct guard idiom far more often than it is a defect, so read the condition against what the branch does.
 
 ### 7. Resource Leaks
 - File handles not closed
@@ -209,8 +206,8 @@ Distinct from §8 (which flags missing bounds / limits): here the arithmetic its
 grep -nE "(==|!=)\s*-?[0-9]+\.[0-9]+" file.js
 # Float arithmetic on money-named variables
 grep -nE "(price|amount|total|cost|balance|tax|rate|cents?)\b.*[-*/+]" file.js
-# Division / parse / external numeric input used without a NaN/Infinity guard
-grep -nE "parseFloat|parseInt|Number\(|/[^/*]" file.js | grep -viE "isNaN|isFinite|Number\.isInteger|toFixed"
+# Numeric parse / coercion of external input used without a NaN/Infinity guard
+grep -nE "parseFloat|parseInt|Number\(" file.js | grep -viE "isNaN|isFinite|Number\.isInteger|toFixed"
 ```
 
 **Red flags:**
@@ -241,6 +238,28 @@ Walk the change's purpose against the states a working version encounters:
 - Walk the success path, then ask which state above has no corresponding branch.
 
 **Finding shape:** "`<fn@file:line>` handles the populated case, but `<concrete reachable scenario>` reaches `<file:line>` with `<empty | concurrent | failed>` input, producing `<crash | wrong result | data loss | hang>`." Name why THIS change reaches the state (e.g. "this PR adds the endpoint that hits the empty-list path"), so the failure is a delta the PR introduces, not a pre-existing gap the verifier will refute. Severity by impact (this dimension may emit CRITICAL): CRITICAL on data loss or a crash on a reachable common path; HIGH / MEDIUM otherwise. Tag `[FIX-NOW]` when it is plainly a bug; `[PRODUCT-DECISION]` when whether to handle the case at all is a judgment call.
+
+### 10. Root cause vs symptom — does the change fix the cause or hide it?
+
+A change can make a failure stop appearing without making it stop happening. That is a defect in its own right, and a distinct one: the code is correct at the line it touches, the tests pass, and the same fault will surface again somewhere with less context around it. This lens reads the fix against the fault, not against the spec.
+
+Shapes to look for:
+- **A guard at the read site for a value the write site produced wrong** — the null check stops the crash and leaves the record wrong in the database.
+- **A retry around a deterministic failure** — retrying something that fails the same way every time buys latency, not success.
+- **A caught-and-logged exception where the caller needed to know** — the flow continues past a step that did not happen.
+- **A default substituted for missing configuration** — the run proceeds under a value nobody chose, and the missing config stays missing.
+- **A widened type, cast, or ignore directive where the value genuinely arrives in the wrong shape** — the checker stops objecting and the shape mismatch survives.
+- **A tolerance loosened, timeout raised, or assertion relaxed to make a failing test pass** — the test now passes on the behavior it was written to reject.
+
+**The bar that keeps this from becoming taste:** name the upstream site where the cause lives, with `file:line`, AND name what is still wrong once the change is in place — a value still incorrect, a state still unreachable, a caller still uninformed. Both halves are required. Without the upstream site it is a hunch about intent; without the surviving consequence it may simply be defense in depth, which is legitimate. "This looks like a band-aid" is not a finding.
+
+Two cases that are NOT this: a deliberate boundary guard whose comment or contract says the upstream value is untrusted, and a stop-gap the change itself labels as temporary with a reference to the real fix. Both are choices, not misreadings.
+
+**How to detect:**
+- For each defensive addition in the diff, trace one hop upstream: where did the bad value or missed step originate, and does the diff touch that place?
+- For each relaxed check, ask what the original check was asserting and whether that assertion is still true.
+
+**Finding shape:** "`<file:line>` handles `<symptom>`, but the cause is at `<upstream file:line>` where `<what goes wrong>`. With this change in place, `<what remains broken>`." Severity by what survives: HIGH when the surviving fault corrupts or loses data, or leaves a security or authz decision made on a wrong value; MEDIUM when it leaves an incorrect value in a path a user or caller reads; LOW when the consequence is a confusing log or a masked diagnostic. Tag `[FIX-NOW]` when the upstream fix is plainly mechanical and in scope; `[PRODUCT-DECISION]` when fixing the cause means changing behavior someone chose, or reaches outside the change's stated scope.
 
 ## Common false positives
 

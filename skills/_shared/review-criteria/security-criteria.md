@@ -22,13 +22,13 @@ OWASP-aligned security analysis: injection attacks, authentication/authorization
 
 **How to detect:**
 ```bash
-# SQL string concatenation patterns
-grep -n "SELECT.*\+" file.js | grep -v "parameterized\|?"
-grep -n "INSERT.*\+" file.js | grep -v "VALUES\s*\?"
+# SQL built by concatenation. Use -E: in a basic-regex grep, `.*\+` is an invalid repetition
+# operand and the command aborts with an error instead of searching.
+grep -nE "(SELECT|INSERT|UPDATE|DELETE).*\+" file.js | grep -v "parameterized"
 # Shell execution
 grep -n "exec\|system\|spawn" file.js | grep -v "escape\|quote\|shellwords"
 # Dynamic queries
-grep -n "query.*\+" file.js
+grep -nE "query.*\+" file.js
 ```
 
 **Red flags:**
@@ -72,8 +72,10 @@ grep -n "req\.\|jwt\|session" file.js | grep -v "verify\|validate\|decode"
 
 **How to detect:**
 ```bash
-# Look for hardcoded values
-grep -in "password\|secret\|api[_-]?key\|token\|credential" file.js | grep -v "config\|env\|process"
+# Look for hardcoded values. Use -E: in a basic-regex grep `?` is a literal, so
+# `api[_-]?key` matches none of apiKey / api_key / api-key, and the surviving
+# alternatives make the probe look like it works.
+grep -inE "password|secret|api[_-]?key|token|credential" file.js | grep -v "config\|env\|process"
 # Check for secrets in logs
 grep -n "console\|log\|print" file.js | grep -i "password\|secret\|key\|token"
 # Environment variable usage
