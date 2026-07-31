@@ -1,6 +1,6 @@
 ---
 name: instructions
-description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step; also for declaring read-only fact-verification sources (## Data Sources) or routing the agent's memory/learnings through a custom backend like an MCP (## Memory Backend). Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
+description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step; also for declaring read-only fact-verification sources (## Data Sources), recording what each project check covers and leaves uncovered so results are not overstated (## Verification Surface), or routing the agent's memory/learnings through a custom backend like an MCP (## Memory Backend). Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]

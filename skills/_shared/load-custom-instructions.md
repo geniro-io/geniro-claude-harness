@@ -79,7 +79,7 @@ For each file in the load set, in order:
 1. Call the **Read** tool on the file:
  - **External dir active (`EXTERNAL_DIR` non-empty):** Read `<EXTERNAL_DIR>/<file>` (flat layout per the base-dir resolution above — no fallback in external mode; step 2a does not apply).
  - **In-repo (no external dir):** Read `.geniro/instructions/<file>` (cwd-relative) — the cwd-first / `PRIMARY_ROOT`-fallback behavior. A configured-but-missing external dir already failed open (the probe emitted the caveat), so the loop runs here in in-repo mode.
-2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `memory.md` only). Skip step 2a.
+2. **If Read succeeds:** count its `## Rules` entries (N — bullet lines under that heading) and `## Constraints` entries (M — bullet lines under that heading); record its `## Additional Steps` subsections (each named after a phase boundary); count and capture its `## Data Sources` entries (D — bullet lines under that heading, when the section is present); record its `## Verification Surface` entries (per check, the covers and does-not-cover clauses, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `memory.md` only). Skip step 2a.
 2a. **If Read errors with file-not-found AND no external dir is active AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, count entries as in step 2 AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
 3. **If file is still not found** (cwd missing AND fallback missing or unavailable): treat as a silent skip — no error, no warning, just the missing-file echo line.
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
@@ -150,9 +150,12 @@ The four files this helper loads (`global.md`, `memory.md`, `<SKILL_SLUG>.md`, `
 
 ## Data Sources
 - **label** (confirms: <fact kind>) — read-only source (shell command / MCP tool / action)
+
+## Verification Surface
+- `<check command>` — covers: <ground the check demonstrates>. Does not cover: <ground it leaves unproven>
 ```
 
-`## Data Sources` is optional and `global.md`-or-per-skill-scoped; `## Rules` / `## Constraints` / `## Additional Steps` appear in `global.md` and per-skill files. The `## Memory Backend` block lives in its own dedicated `memory.md` file (loaded alongside `global.md` by every consumer):
+`## Data Sources` and `## Verification Surface` are optional and `global.md`-or-per-skill-scoped; `## Rules` / `## Constraints` / `## Additional Steps` appear in `global.md` and per-skill files. The `## Memory Backend` block lives in its own dedicated `memory.md` file (loaded alongside `global.md` by every consumer):
 
 ```markdown
 # Memory

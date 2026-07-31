@@ -98,6 +98,8 @@ Replace with the captured Evidence Block + a one-line summary that cites the exi
 
 **Scope the claim to what the command covered.** State a check claim at the width of the command that produced it — a vet run over two packages supports "vet passes on the logger package and one service", not "vet passes"; an artifact covering the verified subset of an open checklist supports "all HIGH-severity cells verified live; 13 lower-severity items tracked", not "verification is complete". The claim keeps that width in every artifact it lands in: chat, ship report, commit message, PR body. A claim wider than its Evidence Block outruns its own proof, and a reader of the PR cannot see which command ran — an unscoped claim is a forbidden phrase even with an Evidence Block attached.
 
+Where the project declares a `## Verification Surface`, read that width off the declaration instead of inferring it: the entry matching the command that ran carries the does-not-cover clause the claim is stated at, and a criterion no entry covers is reported as uncovered rather than absorbed into the nearest green command. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md`. Absent the block, scope from the command itself as above.
+
 Uncertainty markers (`"should"`, `"probably"`, `"seems to"`) are weak completion language too, and they are authoring guidance rather than a prohibition — a benign sentence like "Should I run tests?" carries one without claiming anything.
 
 ## Anti-rationalization
