@@ -48,6 +48,20 @@ The `require-evidence-on-completion.sh` Stop hook — which scanned the last ass
 
 ---
 
+### New opt-in shape: `/geniro:reflect --this-session`
+
+`/geniro:reflect` gains a third input shape. `--this-session` mines the session you are running in rather than past transcripts on disk: nothing is selected from disk, the corrections are extracted inline from the live conversation, and synthesis still runs in the same isolated agent. Because it reads no transcript file, this shape works outside Claude Code too — the search-string and empty shapes still need Claude Code's transcript layout.
+
+**Action required:** None. The shape is additive and off by default — an invocation that does not type it behaves exactly as before, and no state-file schema changed.
+
+**Auto-detect:** N/A — behavior change in the shipped skills with no project-state impact.
+
+**Auto-fix:** Manual-only — none required.
+
+**Severity:** LOW — new opt-in behavior only; nothing existing changes.
+
+---
+
 ## v2.78.0
 
 ### Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead

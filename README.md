@@ -231,11 +231,12 @@ Read-only PR-feedback triage → fix-plan producer (4-phase loop: Fetch & Triage
 
 ### `/geniro:reflect` — Session-history rule mining
 
-On-demand session-history miner. Locates the project's past Claude Code session transcripts, selects recent work-bearing sessions (or grep-matches a search string), spawns parallel read-only transcript analysts, then synthesizes one reflection-agent pass against the candidate bar + prior declines. Approved candidates route per the improvement-routing ladder (CLAUDE.md / `.claude/rules/` / `.geniro/instructions/` / learnings); declines are recorded so they stop re-surfacing. Stateless, read-only on transcripts; zero candidates is a valid outcome.
+On-demand session-history miner, in three input shapes. Empty selects the recent work-bearing sessions and a search string grep-matches the sessions that mention it — both locate past Claude Code transcripts on disk and spawn one read-only analyst per session. `--this-session` mines the session you are running in instead: nothing is read from disk, and the corrections are extracted inline because the running session lives only in the orchestrator's context. All three then synthesize one reflection-agent pass against the candidate bar + prior declines, so the judgment stays in an isolated agent either way. Approved candidates route per the improvement-routing ladder (CLAUDE.md / `.claude/rules/` / `.geniro/instructions/` / learnings); declines are recorded so they stop re-surfacing. Stateless and read-only; zero candidates is a valid outcome. Mining past transcripts needs Claude Code's on-disk layout; `--this-session` reads no transcript and runs anywhere.
 
 ```
 /geniro:reflect
 /geniro:reflect ci-flakiness            # grep-match sessions touching a topic
+/geniro:reflect --this-session          # mine the corrections from this running session
 ```
 
 ### `/geniro:instructions` — Custom instruction management
@@ -278,13 +279,13 @@ When invoked from a linked git worktree, `run` falls back to the main worktree's
 
 ## Flags & presets
 
-Some skills take flags and modifiers that answer a setup question in advance, so the run starts without stopping to ask. They cover setup only — the safety gates (adopting a new dependency, blowing past the planned scope, unresolved questions from a prior review, a real merge conflict, pushing to a shared branch) always stop for you regardless of any flag.
+Some skills take flags and modifiers that change how a run behaves. Most answer a setup question in advance so the run starts without stopping; a couple do the opposite and add a check-in the default run does not have; a few change what the run does and ask nothing either way. None of them touches the safety gates (adopting a new dependency, blowing past the planned scope, unresolved questions from a prior review, a real merge conflict, pushing to a shared branch) — those always stop for you regardless of any flag.
 
 - **`/geniro:plan`** — `--prd` (run a problem-first discovery interview), `--deep` (wider approach search + claim verification), `--artifact` (build a live visual plan page). Plan also accepts the implement launch modifiers (`worktree` / `no-worktree` / `current-branch` / `new-branch`, the ship choices `commit only` / `draft only` / `ready-for-review` / `stop after review`, and `freshness:merge|rebase|skip`) and saves them into the spec so `/geniro:implement` runs hands-free.
-- **`/geniro:implement`** — workspace (`new-branch` / `current-branch` / `worktree` / `no-worktree`), `--deep` (deeper self-review + pre-edit fact-check), `--no-adversarial`, and ship choices (`don't push` / `draft only` / `ready-for-review` / `stop after review`). A spec written by `/plan` can pre-answer all of these at once.
+- **`/geniro:implement`** — workspace (`new-branch` / `current-branch` / `worktree` / `no-worktree`), `--deep` (deeper self-review + pre-edit fact-check), `--no-adversarial`, and ship choices (`don't push` / `draft only` / `ready-for-review` / `stop after review`). A spec written by `/plan` can pre-answer the setup choices among these at once.
 - **`/geniro:review`** — `--deep` (multi-angle review + extra verification), `--plan <path>` (check the diff against a spec), and the workspace modifiers.
 
-Full catalog for `/geniro:plan`, `/geniro:implement` and `/geniro:review` — every flag, the values it takes, and the question it skips — in [`skills/_shared/flags-reference.md`](skills/_shared/flags-reference.md); that file covers those three skills only. Flags on the other skills are declared in each skill's `argument-hint` and documented in its body (e.g. `/geniro:debug --deep`).
+Full catalog for `/geniro:plan`, `/geniro:implement` and `/geniro:review` — every flag, the values it takes, and how it changes where the run stops to ask you something — in [`skills/_shared/flags-reference.md`](skills/_shared/flags-reference.md); that file covers those three skills only. Flags on the other skills are declared in each skill's `argument-hint` and documented in its body (e.g. `/geniro:debug --deep`).
 
 ## Skills deleted
 
@@ -328,7 +329,7 @@ Or run `/geniro:update` inside Claude Code — preserves user content, walks any
 
 ## Using with Cursor
 
-The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 8 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
+The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 8 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`'s past-session shapes, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
 
 ## Plugin Structure
 

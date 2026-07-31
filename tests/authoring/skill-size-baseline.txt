@@ -19,7 +19,7 @@ skills/investigate/SKILL.md 5558
 skills/onboard/SKILL.md 2978
 skills/plan/SKILL.md 2938
 skills/refactor/SKILL.md 5047
-skills/reflect/SKILL.md 2722
+skills/reflect/SKILL.md 2933
 skills/resolve/SKILL.md 3260
 skills/review/SKILL.md 3310
 skills/setup/SKILL.md 4848

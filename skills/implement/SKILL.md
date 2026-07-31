@@ -221,7 +221,7 @@ State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step. **On
 
 Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministically. Two tables own the rows at their point of use:
 
-- **Workspace + adversarial-tester modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 0b "Inline modifier overrides".
+- **Workspace and run-behavior modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 0b "Inline modifier overrides".
 - **Ship-mode modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Inline modifiers from $ARGUMENTS".
 
 When no ship-mode modifier is present, the ship-mode AUQ fires. On conflicting modifiers, last-occurrence wins; emit a soft notice naming both detected variants.
