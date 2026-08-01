@@ -43,7 +43,7 @@ Each escalation edge leaves the phase whose gate writes it: `phase-1-escalated` 
 
 **Non-terminal states:** `mode-detect`, `investigate`, `propose`, `ship`, `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures gates skip already-answered).
 
-**Escalation states:** `phase-1-escalated`, `phase-2-escalated`. The recovery surfaces these to the user as "task was paused — last AUQ options:" so the user re-picks without losing context.
+**Escalation states:** `phase-1-escalated`, `phase-2-escalated`. The recovery surfaces these to the user as "task was paused — your previous options:" so the user re-picks without losing context.
 
 The `## Termination reason` body section is written on `aborted` / `adversarial-aborted` terminals.
 
