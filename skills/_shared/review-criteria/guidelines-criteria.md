@@ -6,14 +6,13 @@ Code style, naming conventions, documentation, consistency, and compliance with 
 
 ## Contents
 
-- What to Check
+- What to check
 - Common false positives
-- Review Checklist
-- Severity Tagging
+- Severity tagging
 
 ---
 
-## What to Check
+## What to check
 
 ### 1. Naming Conventions
 - Variable names unclear or misleading (`data`, `x`, `temp`, `result`)
@@ -24,11 +23,6 @@ Code style, naming conventions, documentation, consistency, and compliance with 
 
 **How to detect:**
 ```bash
-# Find single-letter or vague variables
-grep -nE "^\s*[a-z]\s*=" file.js
-grep -nE "var (x|y|z|data|temp|result|obj|arr|str)\b" file.js
-# Check naming inconsistency (camelCase vs snake_case mix)
-grep -oE "(const|let|var) [A-Za-z_][A-Za-z0-9_]*" file.js | awk '{print ($2 ~ /_/ ? "snake" : "camel")}' | sort | uniq -c
 # Magic numbers — a multi-digit literal inline in a comparison or argument, minus named-constant
 # declarations. A bare digit grep instead reports every version string and CSS length in the file.
 grep -nE "(==|<|>|<=|>=|\(|,)[[:space:]]*[0-9]{2,}" file.js | grep -vE "^[0-9]+:[[:space:]]*(const|let|var|static|final)"
@@ -48,14 +42,6 @@ grep -nE "(==|<|>|<=|>=|\(|,)[[:space:]]*[0-9]{2,}" file.js | grep -vE "^[0-9]+:
 - Class names that don't represent their purpose
 - Private methods without clear naming
 
-**How to detect:**
-```bash
-# Find generic function names
-grep -nE "function (do|process|handle|execute|run|work|test)\(" file.js
-# Look for generic class names
-grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
-```
-
 **Red flags:**
 - Functions: `doSomething`, `processData`, `handleIt`, `executeTask`
 - Classes: `UtilityManager`, `DataService`, `GeneralHandler`
@@ -73,8 +59,6 @@ grep -n "class [A-Z]" file.js | grep -E "Utils|Manager|Handler|Service"
 ```bash
 # Check indentation consistency (tabs vs leading spaces — portable, no GNU `cat -A`)
 awk '/^\t/{tabs++} /^ /{spaces++} END{print "tab-indented:", tabs+0, "space-indented:", spaces+0}' file.js
-# Check line length
-awk 'length > 120 {print NR": length=" length}' file.js
 ```
 
 **Red flags:**
@@ -96,12 +80,6 @@ awk 'length > 120 {print NR": length=" length}' file.js
 ```bash
 # Declarations whose preceding line is not a comment or doc-block close
 awk 'prev !~ /(\*\/|"""|^[[:space:]]*(\/\/|#))/ && /^[[:space:]]*(export )?(async )?(function|class|def |public )/ {print NR": "$0} {prev=$0}' file.js
-# Find obvious comments
-grep -n "//" file.js | grep -E "increment|add one|set variable"
-# Find TODO/FIXME
-grep -n "TODO\|FIXME\|XXX\|HACK" file.js
-# Check for JSDoc
-grep -B2 "^function\|^class" file.js | grep -c "/\*\*"
 ```
 
 **Red flags:**
@@ -113,21 +91,11 @@ grep -B2 "^function\|^class" file.js | grep -c "/\*\*"
 
 ### 4.5. Comment Accuracy & Comment-Rot
 
-A comment that lies is worse than no comment — the reader trusts it and reasons from a false premise. Three shapes, all documentation-class (LOW/MEDIUM per the Severity Tagging section below):
+A comment that lies is worse than no comment — the reader trusts it and reasons from a false premise. Three shapes, all documentation-class (LOW/MEDIUM per the Severity tagging section below):
 
 - **Contradicts the code** — the comment describes behavior the code no longer has ("returns null on miss" above a function that now throws; "sorted ascending" above a descending sort).
 - **Stale reference** — names a renamed symbol, a moved path, or a removed flag/parameter ("see `oldHelper()`" when it was renamed; "set `--legacy` to enable" when the flag was deleted; a doc-comment `@param` for an argument the signature dropped).
 - **Low-value restatement** — the comment merely re-states the line it sits on, adding no intent or rationale (`i++ // increment i`). Distinct from §4's "comments that state the obvious" only in emphasis; route the finding through whichever phrasing fits.
-
-**How to detect:**
-```bash
-# Doc-comment params vs actual signature (TS/JS)
-grep -nE "@param\s+\w+" file.js
-# References to symbols/flags that may no longer exist — verify each against current code
-grep -nE "see |@see |use the |pass --|set --" file.js
-# Restatement comments
-grep -nE "//\s*(increment|decrement|set |return |loop |add one)" file.js
-```
 
 Do not flag from the comment alone — read the code the comment describes and confirm the mismatch before emitting. A comment about a `why` (business reason, edge-case rationale) that still holds is correct even when terse.
 
@@ -143,14 +111,6 @@ Do not flag from the comment alone — read the code the comment describes and c
 - Tests with duplicate setup code
 - Constants defined in multiple places
 
-**How to detect:**
-```bash
-# Same symbol defined twice
-grep -oE "(function|def|fn|func)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*" file.js | sort | uniq -d
-# Copy-paste probe — identical non-trivial lines repeated in one file
-grep -vE '^[[:space:]]*(//|#|$)' file.js | sed 's/^[[:space:]]*//' | sort | uniq -c | awk '$1 > 2 && length($0) > 40'
-```
-
 **Red flags:**
 - Same code block appears 2+ times
 - Multiple places doing same validation
@@ -164,18 +124,6 @@ grep -vE '^[[:space:]]*(//|#|$)' file.js | sed 's/^[[:space:]]*//' | sort | uniq
 - Circular import patterns
 - Incorrect import paths
 - Too many imports in single file
-
-**How to detect:**
-```bash
-# Named imports referenced nowhere but their own import line
-for n in $(grep -oE "^import[^;]*" file.js | grep -oE "\{[^}]*\}" | tr -d '{}' | tr ',' '\n' | awk '{print $1}'); do
-[ "$(grep -cw "$n" file.js)" -le 1 ] && echo "unused: $n"
-done
-# Find wildcard imports
-grep -n "import \*\|from '.*\*'" file.js
-# Count imports per file
-grep -c "^import\|^require" file.js
-```
 
 **Red flags:**
 - `import * as everything from 'module'`
@@ -191,12 +139,7 @@ grep -c "^import\|^require" file.js
 - No input validation at API boundaries
 - Missing null/undefined checks for external input
 
-**How to detect:**
-```bash
-# Find 'any' usage in TypeScript
-grep -n ": any\|as any" file.ts
-```
-No grep separates a deliberately-untyped signature from a missing annotation, so read the changed signatures directly — or take the type-checker's own output where the project runs one (`noImplicitAny`, `mypy`).
+**How to detect:** No grep separates a deliberately-untyped signature from a missing annotation, so read the changed signatures directly — or take the type-checker's own output where the project runs one (`noImplicitAny`, `mypy`).
 
 **Red flags:**
 - Functions without parameter types (TypeScript)
@@ -238,22 +181,7 @@ No grep separates a deliberately-untyped signature from a missing annotation, so
 
 7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW — the Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) will still surface correct findings via convergence or evidence-grounding.
 
-## Review Checklist
-
-- [ ] Variable names clear and descriptive
-- [ ] Function names describe what they do
-- [ ] Class names represent their purpose
-- [ ] Code formatting consistent
-- [ ] Complex logic has explanatory comments
-- [ ] Comments match the code they describe (no stale references or contradictions)
-- [ ] Public APIs documented
-- [ ] No significant code duplication
-- [ ] Imports are necessary and used
-- [ ] Type annotations complete (if applicable)
-- [ ] Code follows project style guide
-- [ ] No TODO without issue reference
-
-## Severity Tagging
+## Severity tagging
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 

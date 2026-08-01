@@ -4,15 +4,15 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 
 ## Contents
 
-- What to Check
+- What to check
 - Common false positives
-- Cross-PR API Conflicts (peer-PR context)
-- Review Checklist
-- Severity Guidelines
+- Cross-PR API conflicts (peer-PR context)
+- Review checklist
+- Severity guidelines
 
 ---
 
-## What to Check
+## What to check
 
 ### 1. Null/Undefined Handling
 - Variables used without null checks before property access
@@ -20,12 +20,6 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 - Conditional checks that don't cover all null cases
 - Destructuring assignments without defaults
 - Array/object indexing without length/existence check
-
-**How to detect:**
-```bash
-# Indexing with no length/existence guard on the line
-grep -n "\[[0-9]\+\]" file.js | grep -v "length\|size"
-```
 
 **Common patterns:**
 - `obj.field` without `obj` null check
@@ -38,14 +32,6 @@ grep -n "\[[0-9]\+\]" file.js | grep -v "length\|size"
 - Substring positions: start/end indices
 - Pagination: limit/offset calculations
 - Timeout/delay calculations
-
-**How to detect:**
-```bash
-# Loop patterns
-grep -nE "for\s*\(\s*.*\s*(<=|>=|<|>|==)" file.js
-# Range validation
-grep -n "indexOf\|slice\|substring" file.js
-```
 
 ### 3. State Management Issues
 - Async state updates without synchronization
@@ -71,8 +57,6 @@ grep -n "indexOf\|slice\|substring" file.js
 ```bash
 # Loose equality — the character classes exclude `===` and `!==`; a `grep -v "==="` filter keeps every `!==`
 grep -nE "[^=!<>]==[^=]|[^!]!=[^=]" file.js
-# Type operations on variables
-grep -n "typeof\|instanceof" file.js | grep -v "if\|assert"
 ```
 
 ### 5. Error Handling Gaps
@@ -101,19 +85,6 @@ Distinct from §5 (errors caught but not propagated): here the error path RUNS a
 - **Missing timeouts** — a `fetch` / HTTP client / DB query / socket read with no timeout, so a hung dependency stalls the caller indefinitely instead of failing fast.
 - **Missing rollback / cleanup on partial failure** — a multi-step write (transaction, file move, batch insert) that fails midway and leaves the system in a half-applied state because no rollback / compensating action runs.
 
-**How to detect:**
-```bash
-# Swallowing fallback handlers
-grep -nE "\.catch\(\s*\(\s*\)?\s*=>\s*(\[\]|null|\{\}|undefined)" file.js
-# Catch-all that drops the exception
-grep -nE "except\s*:\s*pass|except\s+Exception\s*:\s*pass" file.py
-grep -nE "catch\s*\([^)]*\)\s*\{\s*\}" file.js
-# Default-on-error returns inside catch/except
-grep -nA3 "catch\|except" file.js | grep -E "return\s*(\[\]|null|0|\{\})"
-# Network/IO calls — check for an accompanying timeout option
-grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | grep -v "timeout\|signal"
-```
-
 **Red flags:**
 - An error branch returns the same shape as success, so the caller has no way to detect the failure
 - `.catch` / `except` body that neither logs, rethrows, nor records the failure
@@ -135,8 +106,6 @@ grep -nE "fetch\(|axios\.|requests\.(get|post)|http\.(get|request)" file.js | gr
 ```bash
 # Unreachable code — a statement (not a closing brace or comment) immediately after return/break/throw/continue
 awk 'prev ~ /^[[:space:]]*(return|break|throw|continue)[^;]*;[[:space:]]*$/ && NF && $0 !~ /^[[:space:]]*([})\]]|\/\/|\/\*|\*|case |default|else|elif|when |catch|finally)/ {print NR": "$0} {prev=$0}' file.js
-# Switch/match — read each hit's arms and confirm a default / catch-all exists
-grep -nE "switch\s*\(|\bmatch\b" file.js
 ```
 Inverted conditionals and wrong operators have no grep shape — `if (!x) return` is the correct guard idiom far more often than it is a defect, so read the condition against what the branch does.
 
@@ -151,23 +120,6 @@ Inverted conditionals and wrong operators have no grep shape — `if (!x) return
 - Temporary files not cleaned up
 
 **How to detect:**
-```bash
-# File handles: open without close
-grep -n "open\|createReadStream\|createWriteStream" file.js | grep -v "close\|destroy\|end"
-# Event listeners without cleanup
-grep -n "\.on(\|\.addEventListener(" file.js
-grep -n "\.off(\|\.removeListener\|\.removeEventListener(" file.js
-# Compare counts — more on than off is suspicious
-# Timers without clear
-grep -n "setTimeout\|setInterval" file.js | grep -v "clearTimeout\|clearInterval"
-# Database connections
-grep -n "connect\|createPool\|getConnection" file.js | grep -v "release\|end\|close\|destroy"
-# Child processes
-grep -n "spawn\|exec\|fork" file.js | grep -v "kill\|close\|exit"
-# Temp files
-grep -n "mktemp\|tmpfile\|createTempFile\|tmp\." file.js | grep -v "unlink\|remove\|cleanup\|rimraf"
-```
-
 - Look for `open` without `close` in same scope
 - Find `on` without `off` or `removeListener`
 - Check `setTimeout/setInterval` without `clear`
@@ -199,16 +151,6 @@ Distinct from §8 (which flags missing bounds / limits): here the arithmetic its
 - **Lossy int <-> float coercion** — a large integer (ID, timestamp, counter) flowing through a float that cannot represent it exactly (an IEEE-754 double / JS `Number` loses integer precision above 2^53); integer-division truncation where a fraction was intended (or a fraction where integer math was intended).
 - **NaN / Infinity propagation** — an unchecked division, `0/0`, `log` / `sqrt` of a negative, or a failed numeric parse yields `NaN` / `Infinity` that flows downstream silently. `NaN` compares false to everything including itself, so a guard like `if (x > 0)` neither catches nor routes it — it slips through every branch.
 - **Unit / scale confusion** — mixing values of different unit or magnitude in one expression (ms vs s, bytes vs KiB, percent vs fraction): the arithmetic is precise but the quantity is wrong.
-
-**How to detect:**
-```bash
-# Exact equality against a float literal (often a computed value)
-grep -nE "(==|!=)\s*-?[0-9]+\.[0-9]+" file.js
-# Float arithmetic on money-named variables
-grep -nE "(price|amount|total|cost|balance|tax|rate|cents?)\b.*[-*/+]" file.js
-# Numeric parse / coercion of external input used without a NaN/Infinity guard
-grep -nE "parseFloat|parseInt|Number\(" file.js | grep -viE "isNaN|isFinite|Number\.isInteger|toFixed"
-```
 
 **Red flags:**
 - A float compared with `==` / `!=` where one side is the result of arithmetic
@@ -287,7 +229,7 @@ Two cases that are NOT this: a deliberate boundary guard whose comment or contra
 - Check comments or git history
 - Only flag if causes demonstrated bugs
 
-## Cross-PR API Conflicts (peer-PR context)
+## Cross-PR API conflicts (peer-PR context)
 
 When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for API-shape collisions with the current PR's changed files:
 
@@ -297,22 +239,11 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for API-
 
 A valid finding shape: "PR #N (peer) modifies `<symbol>` at `<file:line>`; current diff also modifies the same symbol with incompatible <shape | type | side-effect> — coordinate ordering / merge resolution before shipping both". Severity HIGH when shipping both causes runtime breakage; MEDIUM when it's a stale-state coordination concern.
 
-## Review Checklist
+## Review checklist
 
-- [ ] All variables used have null/undefined checks
-- [ ] Loop boundaries are correct (< vs <=, length checks)
-- [ ] Async state updates are synchronized
-- [ ] Type comparisons are correct (=== for strict)
-- [ ] All errors are caught and handled
-- [ ] No masking defaults or swallowing fallbacks hide a failure from the caller
-- [ ] Network/IO calls have timeouts; multi-step writes have rollback on partial failure
-- [ ] Logic flows are correct (no inverted conditions); conditionals/switches are complete (else/default present, exhaustive match, no unhandled state)
-- [ ] Resources are cleaned up (files, listeners, timers); no fire-and-forget async calls
-- [ ] Edge cases handled (empty, single item, max values, unicode strings, timezone/DST)
-- [ ] Numeric/float math is precise (no exact-equality on floats, money not in binary float, NaN/Infinity guarded, no lossy large-int coercion)
 - [ ] Real-world states the change will hit are handled (empty / concurrent / partial-failure / dependency-down), evidenced by a concrete reachable scenario
 
-## Severity Guidelines
+## Severity guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 

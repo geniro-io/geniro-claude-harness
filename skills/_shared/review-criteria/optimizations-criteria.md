@@ -4,17 +4,17 @@ Concrete, measurable performance wins on the changed lines: skip ORM hydration o
 
 ## Contents
 
-- Scope Boundary — Defers to `architecture-criteria.md`
-- What to Check
+- Scope boundary — defers to `architecture-criteria.md`
+- What to check
 - Common false positives
-- Stack-Agnostic Patterns
-- Cross-PR Hot-Path Work (peer-PR context)
-- Review Checklist
-- Severity Guidelines
+- Stack-agnostic patterns
+- Cross-PR hot-path work (peer-PR context)
+- Review checklist
+- Severity guidelines
 
 ---
 
-## Scope Boundary — Defers to `architecture-criteria.md`
+## Scope boundary — defers to `architecture-criteria.md`
 This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` (Performance & Scalability). Defer to that section; do not duplicate findings:
 
 1. **N+1 query patterns** — queries inside loops without batching → architecture
@@ -25,7 +25,7 @@ This dimension owns *micro-level* optimization wins observable on the diff. The 
 6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
 If a finding fits one of those six, emit it as an architecture finding (its Performance & Scalability section) instead. Optimizations stays focused on the six categories below.
 
-## What to Check
+## What to check
 
 ### 1. ORM Hydration Skip
 - Read-only paths (JSON-serialize-only endpoints, list views, exports) that hydrate full ORM Documents/Entities when plain objects suffice
@@ -205,7 +205,7 @@ grep -nB2 -A1 "for\|while" file.ts | grep "\.set("
 5. **Prisma / Drizzle "missing lean"** — these ORMs return POJOs by default; only projection (`select`) applies. Don't flag a missing skip-hydration call where there's no hydration to skip — recommend `select` / `omit` instead, or stay silent.
 6. **Single-use `Promise.all` adjacent awaits** — sometimes serial is intentional: the second call depends on the first's success or its side-effects, or the team wants explicit failure ordering. Verify independence (read the variables, follow the data flow) before flagging.
 
-## Stack-Agnostic Patterns
+## Stack-agnostic patterns
 
 The two axes apply across stacks:
 - **Skip wrapper-object construction** (axis 1): Mongoose `.lean`, MikroORM `disableIdentityMap`, TypeORM `getRawMany`, Sequelize `raw:true`, Doctrine `HYDRATE_ARRAY`, Django `.values`, Rails `.pluck`, SQLAlchemy `with_entities`
@@ -215,7 +215,7 @@ Some ORMs only have axis 2 (Prisma, Drizzle) — they return POJOs by default; t
 
 Async parallelization, bulk operations, and bundle/asset patterns are similarly cross-stack: substitute `Promise.all` ↔ `asyncio.gather` ↔ `errgroup.Wait` ↔ `tokio::join!`; substitute `insertMany` ↔ `bulk_create` ↔ `insert_all` ↔ multi-row `INSERT VALUES`. React re-render hygiene is React-specific but the underlying principle (don't recompute when input unchanged) maps to Vue `computed`, Svelte `$:`, SolidJS `createMemo`.
 
-## Cross-PR Hot-Path Work (peer-PR context)
+## Cross-PR hot-path work (peer-PR context)
 
 When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for parallel optimization work on the same hot path:
 
@@ -225,20 +225,11 @@ When the `PEER-PR CONTEXT:` slot is non-`none`, scan kept sibling diffs for para
 
 A valid finding shape: "PR #N (peer) optimizes `<path>` at `<file:line>` via <mechanism>; current diff touches the same path with different / overlapping approach — coordinate optimization strategy before shipping both". Severity MEDIUM (optimization findings cap at HIGH per Severity Guidelines).
 
-## Review Checklist
+## Review checklist
 
-- [ ] Read-only ORM paths use the stack's skip-hydration mechanism (`.lean`, `raw:true`, `HYDRATE_ARRAY`, `.values`, `.pluck`)
-- [ ] Hot-path queries project columns explicitly; no `SELECT *` on wide tables
-- [ ] `.only` / `load_only` not paired with later access of deferred columns
-- [ ] React props don't pass new object/array/function literals to memo'd children every render
-- [ ] Long lists (>100 rows) use virtualization
-- [ ] Routes and heavy libs (charts, editors, PDF) loaded via dynamic import / `React.lazy`
-- [ ] Images use modern formats (WebP/AVIF), `srcset`, explicit `width`/`height`, `loading="lazy"` below the fold
-- [ ] Independent awaits batched via `Promise.all` / `asyncio.gather` (independence verified)
-- [ ] Per-row INSERT/UPDATE in loops replaced with `insertMany` / `bulk_create` / multi-row `VALUES`
 - [ ] Each finding cites a concrete mechanism (round-trip count, hydration cost, render count) — no hand-waved magnitudes
 
-## Severity Guidelines
+## Severity guidelines
 
 - **CRITICAL**: not emitted. Optimization findings are improvements, not correctness bugs — bugs and security own CRITICAL. Any genuinely critical perf regression (unbounded query, sync I/O on hot path) belongs in architecture
 - **HIGH**: per-row INSERT/UPDATE in a loop on a path that processes >100 items; long-list render >1000 rows without virtualization; eager-import of a heavy lib (>100KB minified) used only behind a tab/modal
