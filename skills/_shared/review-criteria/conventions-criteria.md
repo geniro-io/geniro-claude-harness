@@ -188,7 +188,7 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 - Quote style (single vs double)
 - Pure aesthetic naming preferences (`userList` vs `users` when both are clear)
 
-Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) belong to the authored-rule-citation class (`rules-compliance-criteria.md`) per §What to Check step 1.
+Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) belong to the authored-rule-citation class (`rules-compliance-criteria.md`) per §What to check step 1.
 
 **Out of this class — route:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → the style-rubric class (`guidelines-criteria.md`)

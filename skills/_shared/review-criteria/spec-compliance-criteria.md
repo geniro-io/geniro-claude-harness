@@ -43,7 +43,7 @@ When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched a Li
 
 - **Both present (PLAN CONTEXT section 9 AND Linear ACs):** ACs from both sources are merged into a single rubric. Tests must reference behaviors from each. Conflicts (PLAN-AC1 contradicts Linear-AC1) are surfaced as a dedicated finding with severity HIGH, citing both sources verbatim.
 - **Only Linear ACs present (no PLAN CONTEXT OR PLAN CONTEXT lacks section 9):** Linear ACs become the sole rubric. Apply check #4 (Tests for stated acceptance criteria) against the Linear AC list.
-- **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to Check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
+- **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
 
 Findings from Linear-AC mismatches carry the prefix "Linear AC: " in the finding title to distinguish from PLAN CONTEXT ACs (e.g., "Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path"). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
 
@@ -62,9 +62,9 @@ For each candidate divergence, ask: **is the spec's premise still true in the cu
   - **Evidence:** cite TWO live-code facts, each with `file:line` — (1) the fact that contradicts the spec's premise, AND (2) the fact establishing the diff's departure is the *correct* response, not merely that the premise is stale. Quote the spec fragment alongside them. The second citation is the load-bearing guard against under-reporting: "the premise looks stale" is not enough to clear the implementation — you must show the omission is the right call. Cite (1) but not (2) → inconclusive (see below), not a spec-defect.
   - **Also emit a structured `open_questions[]` entry** (`source: spec-compliance`, `status: unresolved`) so the decision actually gates the handoff — an `[INTENT-CHECK]` tag alone surfaces the note in the PR body but fires no interactive decision gate. Phrase: "Spec premise `<premise>` is contradicted by `<code reality>` (`file:line`); the diff correctly departed. Decide: fix the spec, change the code to match the spec, or accept the divergence." This reuses the same channel as §Cross-PR scope split — same `open_questions[]` plumbing, same handoff gating.
 
-- **If the code's departure is NOT grounded** (the spec premise still holds and the diff genuinely skipped a still-valid scoped item, or implemented it contrary to the stated behavior), emit the standard finding per §What to Check at its normal severity.
+- **If the code's departure is NOT grounded** (the spec premise still holds and the diff genuinely skipped a still-valid scoped item, or implemented it contrary to the stated behavior), emit the standard finding per §What to check at its normal severity.
 
-This is skip-when-clean: it only runs when a real divergence surfaces, and it never rewrites the spec — it flags the spec as possibly-wrong and routes the decision to the user via the `open_questions[]` gate above. When the grounding check is inconclusive (you cannot cite BOTH live-code facts — the premise contradiction AND the correctness of the departure), default to the standard finding per §What to Check but note the uncertainty in `Evidence:`.
+This is skip-when-clean: it only runs when a real divergence surfaces, and it never rewrites the spec — it flags the spec as possibly-wrong and routes the decision to the user via the `open_questions[]` gate above. When the grounding check is inconclusive (you cannot cite BOTH live-code facts — the premise contradiction AND the correctness of the departure), default to the standard finding per §What to check but note the uncertainty in `Evidence:`.
 
 ## What to check
 

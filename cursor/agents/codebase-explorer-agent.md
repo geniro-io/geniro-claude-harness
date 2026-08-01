@@ -52,12 +52,7 @@ This becomes your initial file set.
 
 ### Step 2 — Find exemplars (2-3 files)
 
-Locate 2-3 existing files that exemplify the pattern the spec is asking you to follow. Examples:
-- New CRUD endpoint → search for existing endpoints under the same router; pick 1-2 that match the spec's framework conventions
-- New component → search for components with similar prop shapes / state-management patterns
-- New migration → list the most recent migration file as exemplar
-
-Note their paths and 1-line pattern descriptions in the report.
+Locate 2-3 existing files that exemplify the pattern the spec is asking you to follow. Note their paths and 1-line pattern descriptions in the report.
 
 ### Step 3 — Match `.claude/rules/` files
 
@@ -128,4 +123,4 @@ Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a
 |---|---|
 | "I'll inline-Read every file in `## Touchpoints` so my summary is accurate." | Inline-reading the touchpoints defeats the entire purpose of this agent. Grep first; Read only when you cannot answer a specific question from grep context. Whole-file Reads on touchpoints belong in Phase 2 (the orchestrator's job), not Step 1 here. |
 | "I'll list every file in the changed directory to be thorough." | Likely-Touched Files is a signal funnel. If you cannot point to a specific reason a file is touched (named in spec, called from a touchpoint, contains the symbol being added), do not include it. The orchestrator's edit set is bounded by your list. |
-| "I'll skip Step 6 risk-flag scan — risk assessment isn't my job." | Risk signals drive the orchestrator's scope estimate, which gates downstream decisions (e.g., whether adversarial-tester spawns in /implement Phase 3). Skipping Step 6 silently downgrades the orchestrator's quality bar. |
+| "I'll skip Step 6 risk-flag scan — risk assessment isn't my job." | Risk signals drive the orchestrator's scope estimate, which gates downstream decisions (e.g., whether adversarial-tester spawns in /geniro:implement Phase 3). Skipping Step 6 silently downgrades the orchestrator's quality bar. |
