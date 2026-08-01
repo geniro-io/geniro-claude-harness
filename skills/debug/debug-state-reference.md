@@ -224,8 +224,8 @@ The handoff's frontmatter must include `authored_tests: [...]` carrying one entr
 
 `authored_tests: []` (empty array) is the correct form for the zero-red-tests terminal outcome. Body `**Test file:**` lines remain the human-readable mirror; the frontmatter is the contract.
 
-### F→P Invariant (NON-NEGOTIABLE)
-Every test you keep MUST fail 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
+### F→P invariant
+A test that passes today proves nothing about the bug, and a flaky failure proves even less — keep only a test that fails 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
 
 ### Scope
 Diff-only — the orchestrator resolved the scope above. Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.

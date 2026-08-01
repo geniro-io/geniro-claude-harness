@@ -119,7 +119,7 @@ Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/`
 3. **Tier tables T0→T5** — columns: `# | file:line | issue | fix | effort`; convergence noted inline.
 4. **Per-dimension verdicts** — the reviewers' 2-3-sentence verdicts, edited for consistency.
 5. **Filtered** — dropped findings with one-line reasons (transparency; keeps future runs from re-litigating).
-6. **Subtraction sweep** — always present, even when empty (invariant #6): what D6 examined, and every candidate it considered and rejected with the reason. An empty section reads as "the sweep ran and the scope is clean"; an absent one is indistinguishable from a skipped dimension, and next round has no way to tell which happened.
+6. **Subtraction sweep** (invariant #6) — always present, even when empty: what D6 examined, and every candidate it considered and rejected with the reason.
 7. **Single highest-value fix** — one paragraph naming it and why.
 
 On `--quick` runs, omit section 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead. Section 6 still appears, carrying the orchestrator-inline sweep.

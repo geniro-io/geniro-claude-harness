@@ -67,7 +67,7 @@ If exit code is 0 (test passes on current code), REJECT the RED step — the tes
 1. **Author MINIMAL production code to pass the test.** Anti-pattern: anticipating the next behavior in the architect's list. Each cycle is one behavior; resist adding "while I'm here" extensions.
 2. **Run the test command.** Same command as RED — change nothing about the invocation.
 3. **Verify exit code == 0** for the new test AND the full project test suite. Running only the new test is insufficient — the implementation may have regressed sibling behavior. If sibling tests fail, the implementation regressed; spawn a fixer agent (max 1 round) before declaring GREEN, then escalate if still red.
-4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Forbidden phrases (`"all tests pass"`, `"validation complete"`) without an Evidence Block trip the Stop hook.
+4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Forbidden phrases (`"all tests pass"`, `"validation complete"`) without an Evidence Block are enforced in consumption, not by a hook — the orchestrator re-runs the GREEN verification itself rather than trusting an unbacked completion claim.
 5. **Update state file:** `## phase\nGREEN`. Same atomic-write procedure.
 
 ## REFACTOR phase

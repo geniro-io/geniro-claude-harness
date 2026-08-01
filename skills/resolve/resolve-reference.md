@@ -85,7 +85,7 @@ Per item, after reading the cited code and attempting a repro:
 
 ## 3. Spec `## Comment Resolution Map` (Phase 4)
 
-Appended to the standard 11-section `spec.md` as an allowed extra body section. Human-readable; the `comment_resolutions[]` array (§4) mirrors its review-comment rows.
+Appended to `spec.md`'s standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) as an allowed extra body section. Human-readable; the `comment_resolutions[]` array (§4) mirrors its review-comment rows.
 
 ```markdown
 ## Comment Resolution Map

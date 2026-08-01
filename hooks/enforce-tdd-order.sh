@@ -458,7 +458,7 @@ _geniro_wv_resolve() {
     *'$'*) : ;;
     *) printf '%s' "$lit"; return 0 ;;
   esac
-  local resolved="$lit" ref vn val
+  local resolved="$lit" ref vn val val_esc
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
     vn="${ref#\$}"; vn="${vn#\{}"; vn="${vn%\}}"
@@ -466,7 +466,14 @@ _geniro_wv_resolve() {
       | grep -oE "(^|[[:space:];&|])${vn}=[^[:space:];&|\"']+" \
       | tail -1 | sed -E 's/^[^=]*=//' || true)
     if [ -z "$val" ]; then return 1; fi
-    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val}|g; s|[\$]${vn}|${val}|g")
+    # Escape backslash and & before using $val as a sed REPLACEMENT: unescaped,
+    # a backslash in the value mangles the substitution (sed reads it as an
+    # escape) and an & re-inserts the whole matched text instead of the
+    # literal value — either way the write/delete target silently comes out
+    # wrong. Order matters: double backslashes FIRST, then escape &, so the
+    # backslash this step inserts for & is not itself re-doubled.
+    val_esc=$(printf '%s' "$val" | sed 's/\\/\\\\/g; s/&/\\\&/g')
+    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val_esc}|g; s|[\$]${vn}|${val_esc}|g")
   done <<< "$(printf '%s' "$lit" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' || true)"
   printf '%s' "$resolved"
   return 0

@@ -32,11 +32,11 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 ## State machine
 
-state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only`, `aborted`, `routed` (the SessionStart recovery treats all as "task complete — no resume"). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) surface to the user as "task was paused — last AUQ options" so the user re-picks without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up (max 2 rounds).
+state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only`, `aborted`, `routed` (the SessionStart recovery treats all as "task complete — no resume"). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) — written via `atomic_state_write` before the Phase 1 Step 2.5 glossary gate and the Phase 2 Step 3 missing-data gate fire their question — surface to the user as "task was paused — your previous options:" so the user re-picks without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up (max 2 rounds).
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §1.
 
-**After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only a skill's front-loaded prefix is re-attached after a summary; state.md `phase:` says where to resume.
+**After a compaction, re-Read the current phase's body file before continuing it** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. Phase 2 and Phase 3 keep their Steps in a sibling file (state.md `phase:` says which); Phase 1's Steps stay inline in this spine. If state.md `phase:` itself is gone, re-invoke the skill and resume from Phase 1.
 
 ## Loop invariants
 
@@ -216,12 +216,12 @@ Procedure:
 - **No match** — the term may be new domain vocabulary (route to Step 4a save-routing later); proceed without challenge.
 - **Exact match** — the user's term aligns with the glossary; proceed.
 - **Mismatch** — the user's term appears in the glossary but the question's usage suggests a different meaning (e.g., user says "workspace" meaning "browser tab" but glossary defines "workspace" as "tenant container"). Fire the gate.
-4. **If mismatch found:** use `AskUserQuestion` with header "Glossary" before spawning Phase 2 agents:
+4. **If mismatch found:** write `phase: classify-escalated` to state.md via `atomic_state_write` first — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of silently re-running Phase 1 from scratch — then use `AskUserQuestion` with header "Glossary" before spawning Phase 2 agents:
 - **Question**: "Your CLAUDE.md defines `<term>` as `<glossary definition>`. Your question seems to use `<term>` as `<inferred usage>`. Which one should I investigate?"
 - **Options**: "Use the glossary definition" / "Use my new meaning (and note the divergence in the answer)" / "Both — these are genuinely different concepts that share a name (please pick disambiguating names)"
 5. Record the resolution in the answer's Sources section so the synthesized answer carries the disambiguation forward.
 
-**Approvals-persistence:** persist the user's pick to state.md frontmatter `approvals[]` with category `glossary_resolve`. Subsequent compaction-resume reads prior pick from `approvals[]` rather than re-asking. The state.md `## Persisted approvals` body section renders this. Re-ask only if context materially changed (new glossary section added since the pick).
+**Approvals-persistence:** persist the user's pick to state.md frontmatter `approvals[]` with category `glossary_resolve`, and write `phase: classify` back once resolved. Subsequent compaction-resume reads prior pick from `approvals[]` rather than re-asking. The state.md `## Persisted approvals` body section renders this. Re-ask only if context materially changed (new glossary section added since the pick).
 
 Skip this step entirely when CLAUDE.md has no Domain Context section, when the question has no domain-shaped terms, or when all terms are exact matches. When in doubt, skip — false positives waste user time more than false negatives waste investigation budget.
 
@@ -239,159 +239,13 @@ Unique requirement: state.md `## JIT Cadence` body section logs which steps fire
 
 State.md `phase: investigate`. Parallel research-agent spawns + orchestrator re-verify. Exits to Phase 3 only when every load-bearing claim is verified, dropped, or routed through missing-data gate.
 
-### Step 1: Parallel research agents
-
-Spawn 1-3 agents in ONE response — all Agent calls in the same assistant turn, NOT one per turn — matching the literal "Agents needed" set from Phase 1 Step 1. No agent is unconditional; each must pass the Phase 1 Step 2 skip criteria. When only one agent is spawned, it is still spawned via `Agent(...)` (not inlined) so the Phase 3 Step 2 fresh verifier can check its findings against a fresh transcript.
-
-Every spawn below follows §Subagent spawn contract. Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
-
-The Codebase Analyst spawn IS `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research — Phase 2's `[{file, lines, observation}]` deliverable maps onto the agent's `DELIVERABLE_SHAPE: "verified findings table"` slot. Git Historian and Internet Researcher remain `general-purpose` Agent() spawns (different tool surfaces — git read-verbs / WebSearch+WebFetch respectively). For narrow codebase-locator side queries during synthesis (Phase 3) — "where is the cache-key builder defined?" / "find all call sites of X" — also spawn `codebase-research-agent`.
-
-### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
-
-Read-only research agent — the plugin `codebase-research-agent` (tools: Read / Glob / Grep / Bash; writes its findings report to OUTPUT_PATH via Bash, no Edit/Write elsewhere). Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 2 + Relevance) + `Gaps` report. Full spawn template (acceptance criteria, pre-inlined-files convention, investigation strategy, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent A).
-
-### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
-
-Read-only research agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, plus a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`). Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent B).
-
-### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
-
-WebSearch+WebFetch agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`, no local-codebase Bash. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent C).
-
-### Step 2: Verify — orchestrator re-checks each load-bearing claim
-
-Before synthesizing the answer, the orchestrator (not a subagent) independently re-verifies every claim that will end up as evidence in the answer.
-
-#### Extract load-bearing claims
-
-From the agent findings, list each claim that would appear as `Evidence:` in the synthesized answer — file:line references, command outputs, commit hashes, package versions, behavior descriptions.
-
-#### Re-verify each claim against ground truth
-
-For each claim, run the matching check yourself:
-
-| Claim kind | Re-verification |
-|---|---|
-| File:line snippet | Read the file, confirm the snippet text matches at the cited lines |
-| Grep / search result | Re-run the grep yourself, compare hit count and matched lines |
-| Command output | Re-run the command, compare output |
-| Commit / blame | Run `git show <hash>` or `git blame -L <range> <file>`, compare |
-| External fact (library version, API behavior) | Re-fetch the source URL or re-search; compare wording |
-
-A claim is **verified** when the orchestrator's own re-run matches the agent's report. A claim is **unverified** when the orchestrator cannot reproduce the agent's report OR ran the check and it failed to complete (no DB access, no service access, no credentials, no logs — cite the failure). An untried check is not an unverified claim: run it first.
-
-#### Route unverified claims
-
-For each unverified claim, choose ONE:
-- **Drop** it from the answer (the answer must work without this claim)
-- **Request data** from the user via the missing-data gate (Step 3 below) — needed when the claim is load-bearing AND only the user can provide the artifact (production logs, runtime state, screenshots, dataset access, credentials)
-
-Do NOT advance to Phase 3 synthesis until every load-bearing claim is either verified or has a pending user-data request.
-
-### Step 3: Missing-data gate (WAIT for user data)
-
-If Step 2 left any load-bearing claim unverified AND only the user can supply the missing artifact, PAUSE and use the `AskUserQuestion` tool (do NOT output options as plain text — use the tool's structured UI) BEFORE drafting the answer. Header: "Missing data". Phrase the question concretely; offer 2-4 specific options for what data the user can provide. Examples:
-
-- "Paste the failing request/response body" / "Paste the log line at the moment of the bug" / "I don't have it — proceed without"
-- "Confirm the production schema for table X" / "Provide a screenshot of the broken UI" / "I don't have it — proceed without"
-- "Share the relevant rows from dataset Y (CSV / sample paste)" / "I don't have access" / "Skip this sub-question"
-
-If the user picks "I don't have it / skip", drop the corresponding claim — do NOT synthesize around it. If the user provides data, treat it as evidence kind (5) per the Evidence Standard and re-enter Step 2 to re-verify the claim against the new artifact. Loop max twice; if still unverified, drop the claim and explicitly note the gap in the final answer.
-
-State.md `## Open Questions` body section logs missing-data gate question + user pick. State.md transitions: `investigate` → `present` once all claims verified or routed.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-2-investigate.md`** — Steps 1-3: the parallel research-agent spawns (Codebase Analyst / Git Historian / Internet Researcher), the orchestrator's own re-verification pass, and the missing-data gate. Read it again on any resumption of the phase, including after a compaction.
 
 ## Phase 3: Synthesize+Review+Present
 
 State.md `phase: present`. Synthesizes verified findings, a fresh verifier agent re-checks, presents to user, offers save-routing AUQ, emits L2 `discovery` with trust label.
 
-### Step 1: Synthesize draft
-
-After Phase 2 Step 2/3 complete (every load-bearing claim verified or routed):
-
-#### Cross-reference
-
-- Identify where agents agree — carry the convergent claims into Phase 2 Step 2 re-verification.
-- Identify where agents disagree or have gaps — flag for Phase 2 Step 2 re-verification or the Phase 2 Step 3 missing-data gate.
-- Single-source claims get no "lower confidence" label — they get the same Phase 2 Step 2 re-verification treatment as any other claim.
-
-#### Draft the answer
-
-Structure the answer based on question type. Five literal markdown templates (How / Why / What-if / Compare / Risk) — each with the expected sections (Overview / Execution Flow / Key Details for How; Decision / Evidence / Trade-offs for Why; Direct Impact / Ripple Effects / Risks / Recommendation for What-if; per-dimension comparison table for Compare; Risk Assessment table + Mitigations for Risk) — in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §5. Copy the matching template and fill in evidence — follow its section shape so answers stay consistent and reviewable.
-
-### Step 2: Fresh verifier agent
-
-Spawn a fresh verifier agent to verify the draft answer. This agent must NOT have seen the research prompts — it reviews with fresh eyes; it spawns as `general-purpose` directly, per §Subagent spawn contract (OMIT `model=`). Full spawn template (acceptance criteria, pre-inlined-files convention, 6-item verification checklist, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §4.
-
-#### Process review results:
-- **Blockers**: Fix the answer (orchestrator corrects directly — these are text edits, not code).
-- **Warnings**: Add missing context or caveats to the answer.
-- **Nits**: Apply if they improve clarity.
-- **Verified**: Proceed to Step 3.
-
-If blockers are found, fix and re-verify with another fresh agent. **Max 1 re-review round** — track the count in your own scratchpad; at the limit, present what you have to the user with the remaining blockers flagged, and stop.
-
-### Step 3: Present + Sources + Open questions
-
-Present the synthesized, reviewed answer to the user. Include:
-- The structured answer from Step 1 (post-review fixes applied).
-- A "Sources" section listing key files examined and agents used — every cited artifact (file:line, command output, query result, user-provided data) is listed.
-- An "Open questions" section listing any sub-questions that could not be evidence-backed AND were not resolvable via the missing-data gate. Be explicit about what data would settle each one.
-
-### Step 4: Ask what to save
-
-Use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Follow-up" and question "Want to dig deeper?" with options:
-- "Dive deeper into [specific aspect]" — re-enter Phase 2 with narrower scope, reusing the prior findings as context; **max 2 dive-deeper rounds** (persist the count to state.md frontmatter `dive_round:` via `atomic_state_write`, so a compaction-resume mid-dive doesn't silently reset it). At limit, suggest fresh `/geniro:investigate` with refined question.
-- "I have a follow-up question" — start a new investigation.
-- "Save key findings to memory" — persist important discoveries (see Step 4a for routing — CLAUDE.md Domain Context, ADR, learnings.jsonl, or collaboration memory).
-- "Done — answer is sufficient" — print a short `### Next steps` closing block: plain text, no further question, suggesting a follow-up command ONLY where the investigation's outcome makes it genuinely applicable — `/geniro:debug <symptom>` if the answer surfaced a bug, `/geniro:plan <feature>` if it motivates a feature or larger change, `/geniro:implement <task>` if a small direct code change is the clear next move; when nothing applies, close with a single line stating the investigation is complete. Then run Step 5 (learning emit, when its trigger applies) and Step 6 (cleanup), writing `present-summary-only` as the terminal value — ending here without them leaks the state directory and drops the learning.
-
-### Step 4a: Save-routing (when user picks "Save key findings to memory")
-
-Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/save-routing.md` now and follow it — the four routing classes (CLAUDE.md Domain Context / ADR / past learnings / collaboration memory), the focused-agent recipe each one uses, and the one-finding-at-a-time approval walk all live there. The other three Step 4 picks never read it.
-
-Never default every finding to learnings.jsonl, and never batch them into one save action: both are what the routing and the per-finding walk exist to prevent.
-
-### Step 5: Record the answer as a learning (with trust label)
-
-Emit a minimal-scope `discovery` entry, then echo `Recorded learning: <summary>` to the user per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract":
-
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
-emit_learning <<'EOF'
-{
-"producer": "/geniro:investigate",
-"type": "discovery",
-"tags": ["investigate", "<question-derived-tags>"],
-"scope": "global",
-"trust": "<verified|retrieved>",
-"summary": "<one-line answer summary>",
-"ext": {
-"area": "<top-level area>",
-"insight": "<2-3 sentence finding with file:line or URL citation>"
-}
-}
-EOF
-```
-
-**Trust label:**
-- `trust: verified` — investigation was code-grounded only (no WebFetch/WebSearch agents spawned, OR WebFetch results were not load-bearing to the final answer).
-- `trust: retrieved` — WebFetch/WebSearch findings were load-bearing to the final answer.
-- `trust: inferred` — N/A for /geniro:investigate (model-deduced claims do not pass Evidence Standard's confidence-driven action).
-
-Default trust: `retrieved` if WebFetch/WebSearch was load-bearing; `verified` if code-grounded only. No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS sufficient for baseline awareness.
-
-**Trigger:** emit when the investigation produced a substantive structured answer (not a quick reference lookup). Heuristic: ≥2 agents spawned OR question type is one of How / Why / What-if / Compare / Risk. Skip for "quick lookup" classifications (Current-code trace / Commit archaeology / External docs lookup).
-
-### Step 6: Cleanup
-
-Every terminal exit runs this — `done` after save-routing, `present-summary-only` after a "Done — answer is sufficient" pick, `routed` from the Phase 1 Step 1.5 external-lookup exit, `aborted` from either escalation state. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
-
-```bash
-rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true
-```
-
-No handoff file to delete. Chat answer is the deliverable. Persistent artifacts from save-routing (CLAUDE.md, ADRs, learnings.jsonl) STAY.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-3-present.md`** — Steps 1-6: synthesize the draft, the fresh-verifier review round, present + Sources + Open questions, the save-what AUQ (with save-routing at 4a), the learning emit with trust label, and cleanup. Read it again on any resumption of the phase, including after a compaction.
 
 ---
 

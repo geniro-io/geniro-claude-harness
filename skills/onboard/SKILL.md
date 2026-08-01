@@ -3,7 +3,7 @@ name: onboard
 description: "Use when starting fresh in an unfamiliar codebase and need rapid orientation. Scans structure and conventions; produces _CODEBASE_MAP.md with architecture, module graph, critical paths, entry points. Skip for specific Q&A (/geniro:investigate) or bug investigation (/geniro:debug)."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
+allowed-tools: [Read, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: --focus area1,area2 --depth N --cap N]"
 ---
 
@@ -309,10 +309,9 @@ Full 8-section worked example (sample TypeScript/Express project) in `${CLAUDE_P
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the onboarding incomplete or unsafe. The 8-section map content is enforced by the §2 template, not re-listed here.
 
-- [ ] `_CODEBASE_MAP.md` created at `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
+- [ ] `_CODEBASE_MAP.md` created/updated at `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` via `update-semantic`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
 - [ ] At least 3 critical paths traced and documented
 - [ ] Map is <1000 lines and skimmable in 5 minutes (use `--focus` for large repos)
-- [ ] L3 `_CODEBASE_MAP.md` updated via `update-semantic`
 - [ ] Project-snapshot fingerprint refreshed via `update_fingerprint` (per §2.2)
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)

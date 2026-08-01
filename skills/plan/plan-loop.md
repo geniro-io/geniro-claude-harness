@@ -120,7 +120,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 5 — Section approval
 
-`phase: section-approve`. Steps in `loop-phase-5-section-approval.md`: §5.1 section template (the fixed 11-section schema) · §5.2 cluster approval · §5.3 milestone-mode.
+`phase: section-approve`. Steps in `loop-phase-5-section-approval.md`: §5.1 section template (the standard spec schema, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) · §5.2 cluster approval · §5.3 milestone-mode.
 
 ## Phase 6 — Write spec.md
 

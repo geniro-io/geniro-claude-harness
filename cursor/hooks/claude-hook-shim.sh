@@ -55,8 +55,20 @@ INPUT="$(cat 2>/dev/null || true)"
 # the main path. The trap carries INT and TERM as well as EXIT: Cursor kills a
 # hook that overruns its timeout, and a signal death skips an EXIT-only trap,
 # leaving the temp file behind in $TMPDIR on every timed-out run.
-STDERR_FILE="$(mktemp)"
-trap 'rm -f "$STDERR_FILE"' EXIT INT TERM
+#
+# An unguarded mktemp fails the shim OPEN: every `2>"$STDERR_FILE"` redirect
+# below would target an empty/invalid path, error out, and skip the guard
+# script entirely — so `git push --force` and `rm -rf .geniro` pass through
+# with no deny, guards included. Fall back to /dev/null so the guard script
+# still RUNS and its exit code still reaches the deny translation below; the
+# only thing lost on this path is the block's stderr message text, which the
+# existing empty-message fallback ("Blocked by a Geniro guardrail.") already
+# covers. Mirrors hooks/backpressure.sh's own `mktemp || …` guard.
+STDERR_FILE="$(mktemp 2>/dev/null || true)"
+if [ -z "$STDERR_FILE" ] || [ ! -f "$STDERR_FILE" ]; then
+  STDERR_FILE="/dev/null"
+fi
+trap '[ "$STDERR_FILE" = "/dev/null" ] || rm -f "$STDERR_FILE"' EXIT INT TERM
 
 # jq is both the payload translator and the response writer, so without it the
 # shim cannot build a Claude-shaped payload or format a verdict. Say so out

@@ -37,7 +37,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or an absolute path (for project
 
 ## Loop invariants
 
-The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five update-specific bindings:
+The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five update-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 - **Invariant #3 (permission before side-effect)** — the pre-update AUQ (§Phase 1 Step 3) is the explicit gate.
@@ -247,15 +247,15 @@ fi
 PLUGIN_PATH=$(python3 -c "
 import json, sys
 try:
-d = json.load(open('$REGISTRY'))
-entry = d['plugins'].get('geniro@geniro-claude-harness', [])
-# Prefer the user-scope (global) install — the one this skill keeps authoritative.
-# Fall back to the first record only if no user-scope entry exists.
-chosen = next((e for e in entry if e.get('scope') == 'user'), entry[0] if entry else None)
-print(chosen['installPath'] if chosen else '')
+    d = json.load(open('$REGISTRY'))
+    entry = d['plugins'].get('geniro@geniro-claude-harness', [])
+    # Prefer the user-scope (global) install — the one this skill keeps authoritative.
+    # Fall back to the first record only if no user-scope entry exists.
+    chosen = next((e for e in entry if e.get('scope') == 'user'), entry[0] if entry else None)
+    print(chosen['installPath'] if chosen else '')
 except Exception as e:
-print(f'PARSE_ERROR: {e}', file=sys.stderr)
-sys.exit(1)
+    print(f'PARSE_ERROR: {e}', file=sys.stderr)
+    sys.exit(1)
 ")
 
 if [ -z "$PLUGIN_PATH" ]; then
@@ -398,7 +398,7 @@ When the shared walk reports the file as malformed (§3 there), skip the rest of
 Recommend `/geniro:setup` (append the re-setup section below) when ANY of these hold:
 
 - Phase 4 surfaced at least one applicable MIGRATION.md entry — any entry whose `Auto-detect:` returned non-empty for this install (i.e. you fired its AUQ). Applied, deferred, or skipped, that work still needs follow-through.
-- The major (first) version component increased (e.g. `2.13.0 → 3.0.0`). A major release can refresh the skill table or conventions without any per-entry `Auto-detect:` firing, so CLAUDE.md may be stale even at zero applicable entries.
+- The major (first) version component increased (e.g. `2.13.0 → 3.0.0`). A major release can refresh CLAUDE.md's project sections (stack, commands, conventions) without any per-entry `Auto-detect:` firing, so CLAUDE.md may be stale even at zero applicable entries.
 - The Phase 3 user-content survival diff reported `CHANGED`.
 
 Otherwise — a clean minor/patch transition with no applicable entries, no major bump, and user content intact — emit the restart warning alone. Appending a step to regenerate an already-current CLAUDE.md is empty friction.
@@ -422,7 +422,7 @@ Migration walked: <N changes — M applied, K skipped, L deferred>
 
 After restart, run /geniro:setup — re-run mode will:
    • Auto-migrate your .geniro/ directory (rename files, add missing fields) — safe mechanical fixes apply silently; destructive cleanups like orphan deletion are surfaced for your review, not auto-applied, so anything you deferred in this walk is never silently reversed
-   • Regenerate CLAUDE.md with the updated skill table and conventions
+   • Regenerate CLAUDE.md's project sections (stack, commands, conventions)
    • Preserve your custom instructions, actions, and knowledge
 
 If you have multiple repos with .geniro/, run /geniro:setup in each one after restart.
@@ -430,7 +430,7 @@ If you have multiple repos with .geniro/, run /geniro:setup in each one after re
 
 ## REFERENCE
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` — the canonical invariants 1-7 the §Loop invariants bindings extend.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` — the canonical loop invariants the §Loop invariants bindings extend.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — Phase 1 Step 0 rules load.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — Mode A resolver for `PRIMARY_ROOT` (Phase 1 Step 2, Phase 3 Step 2).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — Phase 4 parse / auto-detect / classify / re-verify procedure shared with the `/geniro:setup` re-run sweep.

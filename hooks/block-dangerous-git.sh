@@ -41,6 +41,15 @@ INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
 
 if [ -z "$COMMAND" ]; then
+  # jq is present, but the command extracted empty — either tool_input.command
+  # was genuinely absent, or the payload was malformed JSON the parse above
+  # silently swallowed (`|| echo ""`). A malformed payload must not be a free
+  # pass: run the same coarse fail-closed raw-text scan the jq-absent branch
+  # above uses, so a destructive token still blocks even when parsing broke.
+  if printf '%s' "$INPUT" | grep -qE '\-\-force(-with-lease)?|reset[[:space:]]+--hard|filter-branch'; then
+    echo "Security blocked [jqless-fallback]: a destructive git token (--force / reset --hard / filter-branch) was seen but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
+    exit 2
+  fi
   exit 0
 fi
 

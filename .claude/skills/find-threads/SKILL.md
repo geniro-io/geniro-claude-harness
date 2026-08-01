@@ -74,11 +74,10 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 ## Definition of done
 
-- [ ] Phase 1: `scan.py` ran across every config root; work-bearing threads kept (edited + read-only, or edited-only under `--code-only`); each row has a kind, title, true `cwd` label, date, turn count, oversize flag (and, for a query, a relevance score + snippet)
-- [ ] Phase 2 (list): rows grouped by project, newest-first, numbered once across the full set (stable on expand), capped at 10/project with "show more"; read-only rows tagged `[read-only]`
-- [ ] Phase 2 (search): flat ranked list, top 15 shown with snippets, total-matched count stated, top candidates sanity-checked against the query
-- [ ] Phase 3: free-text selection parsed and echoed; launch-confirmation AUQ fired (with a `header`)
-- [ ] Phase 3: first batch of up to 5 *launchable* picks launched as ONE `/analyze-thread <paths…> --format=jsonl`; any further batches queued (each with `--format=jsonl`); oversize picks listed separately, not queued
+- [ ] Phase 1: `scan.py` ran across every config root and returned the work-bearing set
+- [ ] Phase 2: results rendered per the display rules above, `[read-only]` rows tagged
+- [ ] Phase 3: selection parsed and echoed; launch-confirmation AUQ fired
+- [ ] Phase 3: launchable picks launched as ONE `/analyze-thread <paths…> --format=jsonl`; overflow queued (same flag); oversize picks listed separately, not queued
 - [ ] No session log or any other file modified by this skill
 
 ---

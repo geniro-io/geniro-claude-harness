@@ -60,7 +60,7 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| E4 | Reference to deleted skill / nonexistent phase | warning | plugin | Maintain a deny-list of removed slash commands: `/follow-up`, `/decompose`, `/learnings`, `/brainstorm`, `/deep-simplify`, `/features`, `/cleanup`, `/vendor`. Grep assistant turns for `/geniro:<deny>` or bare `/<deny>`. Also flag references to phases that don't exist in the named skill (e.g., "Phase 7 of /geniro:review" — review has 6 phases). |
+| E4 | Reference to deleted skill / nonexistent phase | warning | plugin | Grep assistant turns for `/geniro:<name>` or bare `/<name>` where `<name>` matches a deleted skill per CLAUDE.md's replacement table / README's skill catalogue. Also flag references to phases that don't exist in the named skill (e.g., "Phase 7 of /geniro:review" — review has 6 phases). |
 | E5 | Hardcoded line refs in instructions written | warning | plugin | Triggered when an `Edit`/`Write` targets `skills/**/SKILL.md` or `.claude/skills/**/SKILL.md`. Grep the new_string / content for patterns like `SKILL.md:\d+`, `line \d+`, `at line \d+`, `:325-345`. Flag matches — content-anchored language is required per `.claude/rules/skill-prose.md`. |
 | E6 | Internal jargon in user-facing prose | nit | plugin | Triggered when text in an `AskUserQuestion.question` / `description` / option `label` / TodoWrite item / final assistant report contains: `L4`, `L3`, `L2`, `L1` (as standalone tokens), `T1`, `T1.5`, `T2`, `T3` (as standalone tokens), bare `KR`, bare `CE`, bare `TR` (when referring to agents). Plain-English forms required per `.claude/rules/skill-prose.md` § "User-facing output uses plain English". |
 
@@ -169,4 +169,4 @@ Sort events by suspicion descending; take top events until 60K-token budget is r
 
 - The check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
 - When `/improve-template` consumes a handoff from `/analyze-thread`, it sees finding IDs verbatim. Keep IDs stable across edits to this file; rename `name` columns freely.
-- The orchestrator reads this file at Phase 2 entry and inlines the short form into every judge prompt (SKILL.md invariant #3 — the judge is a subagent and never opens the file itself). Editing the taxonomy therefore takes effect on the next `/analyze-thread` run with no rebuild.
+- Editing the taxonomy takes effect on the next `/analyze-thread` run with no rebuild — SKILL.md invariant #3 documents how it reaches the judge.

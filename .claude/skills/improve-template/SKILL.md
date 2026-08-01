@@ -22,7 +22,7 @@ argument-hint: "<issue description or area to improve>"
 
 ---
 
-You are the orchestrator for investigating and fixing issues in the Geniro plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You NEVER implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
+You are the orchestrator for investigating and fixing issues in the Geniro plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You never implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
 **Template path:** (repo root — skills/, agents/, hooks/, lib/, scripts/, cursor/)
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
@@ -39,7 +39,7 @@ Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering
 | Spawn | Tier | Why |
 |---|---|---|
 | Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | inherit (OMIT `model=`) | Reasoning-grade research runs at the tier the user chose for the session |
-| Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits orchestrator's main context cleanly per subagent rationalization |
+| Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits the orchestrator's context; a spawn would only buy isolation this work doesn't need |
 | Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `model="sonnet"` | Execution spawns per model-tiering.md category 4 — the user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
 | Phase 5 review agent | inherit (OMIT `model=`) | Fresh reviewer judges at the same tier that authored the changes |
 | Create-skill Phase A duplicate-check + Phase B author agent | inherit (OMIT `model=`) | Semantic comparison and skill authoring are reasoning-grade — the author agent composes a skill from an interview, it does not transcribe one |
@@ -153,7 +153,7 @@ These are the load-bearing exit gates — the checks that, if skipped, ship an u
 ### improve-existing-skill mode
 - [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
 - [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
-- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md: 8 standard checks (authoring lint / outbound refs / inbound refs / YAML / pattern consistency / description-format meta / README/docs + generated-file sync / compaction-redundancy) plus the 6 description-format sub-checks
+- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md, including the description-format sub-checks
 - [ ] A fresh agent reviewed the changes in Phase 5 and passed them, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
 - [ ] The state file is cleaned up, `tests/run-all.sh` passed, and commit-and-push was offered to the user rather than performed unasked
 
@@ -161,7 +161,7 @@ These are the load-bearing exit gates — the checks that, if skipped, ship an u
 - [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
 - [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
 - [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
-- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the 6 description-format checks and checks #7 (README/CLAUDE.md/docs sync) and #8 (compaction/redundancy)
+- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the description-format sub-checks
 - [ ] A fresh review agent applied the Phase C create-skill checklist and its blockers are fixed
 - [ ] Commit-and-push was offered to the user rather than performed unasked
 
@@ -280,7 +280,7 @@ Write checkpoint with approved finding count.
 
 **Purpose:** Adversarial gate BEFORE the user sees findings — catches items that duplicate existing instructions or propose theoretical/over-engineered changes.
 
-Orchestrator-inline validation per finding (no subagent — folded under subagent rationalization; same Anthropic rationale as /review Phase 3 dedup). For each Phase 2-approved finding, the orchestrator:
+Orchestrator-inline validation per finding (no subagent — light synthesis that fits the orchestrator's context, which a spawn would only wrap in isolation this work doesn't need; same rationale as /review Phase 3 dedup). For each Phase 2-approved finding, the orchestrator:
 
 1. **Redundancy check (ALIGNS / CONTRADICTS / NEUTRAL):** Grep target files for instructions covering the same ground. CONTRADICTS = duplicate; ALIGNS = compatible with existing; NEUTRAL = novel-but-non-conflicting.
 2. **Relevance check (APPROPRIATE / OVER-ENGINEERED):** weigh against current scope — APPROPRIATE if needed for stated purpose; OVER-ENGINEERED if YAGNI or defensive polish.
@@ -416,7 +416,7 @@ If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix roun
 
 ### Step 1: Spawn review agent
 
-MUST be a fresh agent — never reuse implementation agents (avoids anchoring bias).
+Must be a fresh agent — never reuse implementation agents (avoids anchoring bias).
 
 ```
 Agent(prompt="""
@@ -582,7 +582,7 @@ Investigate → Filter → Implement pipeline.
    - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
    - Constraints (pre-inlined): description rules from Phase 4 validator below + reference depth ≤1 hop + edit-in-place principle, plus an instruction to read `.claude/rules/skill-structure.md` § File-size limits for the size rule
    - 1-2 exemplar SKILL.md files closest in shape to the proposed skill (e.g., for a small command-style skill, point at `instructions/SKILL.md`; for a multi-phase pipeline, point at `refactor/SKILL.md`)
-   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must be <1024 chars, third person, include 'Use when' AND 'Skip for' clauses. Read `.claude/rules/skill-structure.md` § File-size limits and size the file by it; `skills/implement/implement-reference.md` is the canonical example of the SKILL-plus-reference split it asks for."
+   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must follow `.claude/rules/skill-structure.md` §Frontmatter hygiene (length budget, third person, 'Use when' AND 'Skip for' clauses). Read `.claude/rules/skill-structure.md` § File-size limits and size the file by it; `skills/implement/implement-reference.md` is the canonical example of the SKILL-plus-reference split it asks for."
 
 2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the new description-format checks (see "Description-format validator" below).
 
@@ -594,8 +594,8 @@ Run the standard Phase 5 self-review with a fresh agent that did NOT see the aut
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
 - No invented `${CLAUDE_PLUGIN_ROOT}/...` references (every cited path actually exists)
 - Frontmatter valid (name, description, allowed-tools, model)
-- `When to Use` section explicit and matches the description's triggers
-- `Examples` section concrete (not "use this for things")
+- Sections present follow the order in `.claude/rules/skill-structure.md` §Section ordering
+- Front-loaded sections (role statement, phases overview, loop invariants, anti-rationalization) sit within that section's front-load budget
 
 Process review results per the existing Phase 5 routing (Blockers → fresh fix agent, max 1 round).
 
@@ -611,7 +611,7 @@ Adds 6 format checks to the existing Phase 4 validation gate. Applies to BOTH im
 
 For each changed/created SKILL.md, check the YAML `description:` field:
 
-1. **Length ≤1024 chars**: Anthropic's hard limit on description budget. Warning if violated (not blocker — content matters more than character count). Flag a description only for exceeding this limit, never for verbosity: its trigger keywords + what/when drive skill selection, so trimming them to save tokens degrades discovery.
+1. **Length within budget**: per `.claude/rules/skill-structure.md` §Frontmatter hygiene. Warning if violated (not blocker — content matters more than character count). Flag a description only for exceeding this limit, never for verbosity: its trigger keywords + what/when drive skill selection, so trimming them to save tokens degrades discovery.
 2. **Third person**: description should read as "use when X" / "the skill does Y" — NOT "I will X" / "you should X". Check: grep for `\b(I |my |me |you |your )\b` in the description; if matches, flag as warning.
 3. **"Use when" trigger clause**: description should include a phrase like "Use when …" / "Use for …" / "Trigger when …" — names the conditions that activate the skill. Required (warning if missing).
 4. **"Skip for" anti-trigger clause** (recommended, not required): "Skip for X — use Y instead" — disambiguates against neighbor skills. Adds a recommendation note when missing; not a warning.

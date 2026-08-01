@@ -16,7 +16,7 @@ Companion reference for less-common usage paths of `/geniro:plan`. The main flow
 
 The Phase 0 DESIGN_DOC AUQ has 2 options (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-0-mode-detect.md` §0.2):
 
-- **Start fresh with this as context** (Recommended) — the prior doc is inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. Phase 5 uses the 11-section schema unconditionally — the prior doc is context, not template.
+- **Start fresh with this as context** (Recommended) — the prior doc is inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. Phase 5 uses the standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) unconditionally — the prior doc is context, not template.
 - **Cancel** — exit without writing state.md.
 
 If the user really wants to surgically edit an existing design doc bypassing Phase 1-4, the correct path is to open the doc directly in an editor + manually update sections + re-run `/geniro:plan` only when ready to re-emit. /geniro:plan does NOT have an in-loop "edit existing sections" mode.
@@ -88,7 +88,7 @@ Shared rules consumed by this skill:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — Recommended-label policy for the Phase 4 approach AUQ + multi-select picker schema for Phase 5 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns the UI description agent (`model="sonnet"` per ui-preview-gate.md), runs the preview revision loop (max 3 rounds — against a published mockup in artifact mode, against the text description otherwise), returns the approved text to state.md `## UI Preview`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns the UI description agent (`model="sonnet"` per ui-preview-gate.md), runs the revision loop bounded per ui-preview-gate.md (against a published mockup in artifact mode, against the text description otherwise), returns the approved text to state.md `## UI Preview`.
 - `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — state.md write helper.
 - `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` — state.md validator for resume.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — L4 directive doc (Phase 1 entry refresh).
@@ -96,5 +96,5 @@ Shared rules consumed by this skill:
 - `${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh` — L2 read helper (Phase 1 entry).
 - `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` — L2 write helper (Phase 8 conditional `decision` emit).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` — cross-layer L4/L3/L2 conflict protocol.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` — 11-section schema template (Phase 6 input).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` — the standard spec schema template (Phase 6 input).
 - `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` — mechanical checks (Phase 7 input).

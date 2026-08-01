@@ -19,7 +19,7 @@ AUQ to wait for the user's "done" signal:
 - **Question:** "Have you finished editing `<absolute-path>`?"
 - **Options:**
 - `Done — re-run validation` — Re-read the file and run the validation gate with `edit-in-place` entry mode
-- `Cancel` — Stop without re-validating; leave the file as the user left it
+- `Cancel` — Stop without re-validating; leave the file as the user left it, and remove the snapshot: `rm -f "<absolute-path>.pre-edit.bak"`
 
 ### Step 3 — Re-validate (on Done) + auto-validate
 
@@ -30,6 +30,6 @@ Run `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Validation gat
 - **Question:** "Auto-validation found issues: <list>. What next?"
 - **Options:** `Open editor again` / `Save anyway despite warnings` / `Revert to pre-edit version` (restore via `mv "<path>.pre-edit.bak" "<path>"`)
 
-The auto-validation does NOT block save; it surfaces. User remains in control. On any terminal pick (Save / Revert / Cancel), remove the snapshot: `rm -f "<path>.pre-edit.bak"`.
+The auto-validation does NOT block save; it surfaces. User remains in control. On any terminal pick here (Save anyway / Revert), remove the snapshot: `rm -f "<path>.pre-edit.bak"`.
 
 On a clean verdict: `Edited \`<resolved-path>\`. Run with \`/geniro:actions run <resolved-slug>\`.` When the edited copy is the main-repo one and the current directory is a different worktree, append: "Written to the main repo checkout, so it survives if this worktree is removed."

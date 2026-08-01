@@ -9,7 +9,6 @@
 - §Caller-side mtime check — optimistic-concurrency for T3 CRUD files
 - §Known limitations — symlinks, append race
 - §What this helper does NOT do — validation, locking, rollback, retry
-- §Why per-write atomic — rationale
 - §Portability notes — Linux vs macOS sync
 - §NFS safety — tmp-filename uniqueness
 - §Bypass — power-user allowlist opt-out
@@ -44,7 +43,7 @@
 
 ### `atomic_state_write <target>`
 
-Reads content from stdin, writes atomically via `tmp + fsync + rename + fsync-dir`.
+Reads content from stdin, writes atomically via `tmp + fsync + rename + fsync-dir`, guaranteeing either the pre- or post-write state — never a partial file.
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
@@ -203,12 +202,6 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 - **No locking.** T1 path-scoping and T3 mtime check are the concurrency model. No `flock`, no `.lock` files.
 - **No rollback / backup.** Atomicity guarantees no partial writes; recovery is via skill re-run (T1/T2) or `git checkout` (T3 user content).
 - **No retry on transient errors.** Caller decides.
-
----
-
-## Why per-write atomic
-
-Direct `Edit`/`Write` truncate-and-rewrite, leaving a window where a reader sees a half-written file; this helper's `tmp + fsync + rename + fsync-dir` guarantees either the pre- or post-state, never partial. The PreToolUse hook `enforce-state-helper.sh` (hard-block — exit 2) catches sites that bypass the helper.
 
 ---
 

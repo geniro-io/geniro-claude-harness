@@ -54,7 +54,7 @@ SessionStart hook re-establishes context across `compact|resume|startup`. `clear
 
 - Hook only emits pointers and directives in `additionalContext` — it does NOT load helpers itself. The model executes the refresh protocol on its next turn.
 - Side-effects already completed (git push, PR comment, Slack notify) are surfaced as hard-imperative do-not-repeat warnings via `non-resumable-actions[]` in state frontmatter.
-- Cold startup with no active T1 task suppresses the `systemMessage` one-liner.
+- Cold startup with no active T1.5 task suppresses the `systemMessage` one-liner.
 - Hook is read-only on state.md; only writes to `learnings.jsonl` (auto-archive path).
 
 ---
@@ -205,7 +205,7 @@ Discovery surface; two skills.
 - `/investigate` formalizes 5-step JIT retrieval cadence: classify → scope → select agents → run parallel → orchestrator re-verify.
 - Phase 2 Codebase Analyst spawn IS `codebase-research-agent` (general-purpose plugin agent for cross-skill codebase research; `model: inherit`); Git Historian and Internet Researcher remain `general-purpose` Agent() spawns because of their distinct tool surfaces (git read-verbs / WebSearch+WebFetch).
 - L2 trust label: `verified` for code-grounded, `retrieved` for WebFetch/WebSearch sourced.
-- Both use M1 session-bound T1 layout (`state/<skill>/<slug>/state.md`).
+- Both use M1 session-bound T1.5 layout (`state/<skill>/<slug>/state.md`).
 
 `codebase-research-agent` is the cross-skill codebase-research substrate — used ad-hoc by `/plan`, `/debug`, `/implement` Phase 2, `/review` Phase 1, `/refactor` Phase 1, `/onboard` Phase 1 for any "map a subsystem / trace a flow / locate a definition" query that would otherwise flood the orchestrator's context with file contents. Replaces the built-in `Explore` subagent (Haiku-pinned, exposed to [anthropics/claude-code#38928](https://github.com/anthropics/claude-code/issues/38928) MCP-overflow bug). Canonical guidance + invocation contract: `skills/_shared/context-isolation-checklist.md` § Codebase research.
 
@@ -262,7 +262,7 @@ Three additional L2 entry types + score-based query ranking.
 - `discarded_hypothesis`: emitted by `/debug` Phase 1; sliding-window cap 5 per scope.
 - `user_rejected_suggestion`: emitted by `emit-rejection.sh` after qualifying AUQ resolution.
 - `retry_failure_sequence`: emitted when retries >=2 in `/implement`, `/debug`, `/refactor`.
-- Score-based ranking: recency × trust × access-count × recurrence. A learning's `recurrence_count` (incremented on each dedup-key re-emit by `emit-learning.sh`; absent treated as 1) folds in as a log-dampened factor `1 + ln(max(n,1))`, so absent/1 has no effect. Stale entries (score < 0.1, age > 180d, access_count == 0) auto-archived at SessionStart.
+- Score-based ranking: recency × trust × access-count × recurrence. A learning's `recurrence_count` (incremented on each dedup-key re-emit by `emit-learning.sh`; absent treated as 1) folds in as a log-dampened factor `1 + ln(max(n,1))`, so absent/1 has no effect. Stale-candidate entries auto-archived at SessionStart; criteria owned by `lib/archive-stale.sh` (spec: `skills/_shared/archive-stale.md` §Criteria) — read the numbers from there, not here.
 
 ---
 

@@ -8,7 +8,7 @@ Each SKILL.md preamble carries the bootstrap: when `${CLAUDE_PLUGIN_ROOT}` is un
 
 ## Hooks do not fire — self-enforce the conventions
 
-Claude Code wires `hooks/hooks.json` (PreToolUse guards, SessionStart restore, Stop reminder). Other runtimes never read that file, so every guardrail becomes a binding instruction on you instead of a mechanical block. Before the corresponding action, apply the same check the hook would have applied:
+Claude Code wires `hooks/hooks.json` (PreToolUse guards, SessionStart restore). Other runtimes never read that file, so every guardrail becomes a binding instruction on you instead of a mechanical block. Before the corresponding action, apply the same check the hook would have applied:
 
 | Lost hook | Self-enforce |
 |---|---|

@@ -102,7 +102,7 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 | `current-branch` / `current branch` | Force auto-continue regardless of signals. |
 | `worktree` / `new-worktree` | Force worktree creation path. |
 | `no-worktree` / `here` | Force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
-| `--no-adversarial` | Disables Phase 3 adversarial-tester spawn for this run (skips the 6th slot in Round 1). |
+| `--no-adversarial` | Disables Phase 3 adversarial-tester spawn for this run (skips the adversarial-tester slot in Round 1). |
 | `--deep` / `deep` | Sets `deep-mode: true` — the deeper Phase 1 + Phase 3 paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. |
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
@@ -166,7 +166,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
 2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Spec discovery walk-list"). Its first entry follows a `spec_path:` in whichever handoff Step 0a flagged for this branch — that is the only route to a `/geniro:resolve` spec, which lives outside `.geniro/planning/`. If no handoff `spec_path:`, spec.md, plan.md, or DESIGN_DOC frontmatter is found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` to state.md body).
 3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Persist outcome to state.md frontmatter `approvals[]` with `category: disambiguate_arguments`.
 4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail). If task-dir is fresh, `mkdir -p`. Write the resolved depth into the state.md frontmatter at creation: `deep-mode: true` when EITHER Step 1 parsed `--deep` OR the Step 0 Question-3 depth pick was Deep; `deep-mode: false` for a Standard / empty pick. Append the matching `{category: deep_mode_choice, picked: <deep|standard>, at: <ISO-8601 UTC>}` to `approvals[]` via `atomic_state_write` — the resolved depth must be persisted, not just held in working memory, so a compaction-resume re-applies it.
-5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `implement.md`, and `code-style.md` (3 files); the §Echo contract requires one observable line per file. Both are mandatory.
+5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative `Read` directives on every file in the pipeline load set; the §Echo contract requires one observable line per file. Both are mandatory.
 6. **Load project snapshot.** Phase 1 entry only — Phase 3 does not re-load it.
 
    ```bash

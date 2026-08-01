@@ -1,4 +1,4 @@
-# Evidence Standard
+# Evidence standard
 
 Authoritative for evidence-attached findings, completion claims, and reviewer-agent CRITICAL/HIGH dispositions.
 
@@ -32,7 +32,7 @@ Evidence Block schema + the cross-phase carry rule + per-skill consumption gates
 
 ## Evidence Block schema
 
-Every claim that requires evidence attaches this block in the verbatim shape below — the fixed shape is what lets the Stop hook and every downstream reader find the command, the exit code, and the tail:
+Every claim that requires evidence attaches this block in the verbatim shape below — the fixed shape is what lets downstream readers find the command, the exit code, and the tail:
 
 ```
 ## Evidence Block
