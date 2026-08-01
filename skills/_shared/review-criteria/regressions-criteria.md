@@ -142,7 +142,7 @@ For each finding that needs provenance:
 
 **Example skip.** Hunk only touches lines the current PR added (no pre-existing code blamed). Skip provenance — the current PR author owns the finding.
 
-## Output Format
+## Output format
 
 Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format. Per-finding fields:
 
@@ -167,7 +167,7 @@ Two false-positive classes route to other dims rather than being suppressed here
 
 When two dims have legitimate overlap on the same hunk, both emit. The consuming skill's filter and stratify steps collapse only same-finding duplicates, so orthogonal findings on the same hunk both survive deduplication.
 
-## Severity Tagging
+## Severity tagging
 
 | Signal | Condition | Severity |
 |---|---|---|
