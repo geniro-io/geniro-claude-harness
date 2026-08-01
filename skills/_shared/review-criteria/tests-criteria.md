@@ -4,19 +4,19 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 
 ## Contents
 
-- Test Design Philosophy (canonical)
-- What to Check
+- Test design philosophy (canonical)
+- What to check
 - Common false positives
-- Litmus Test (The Deletion Test)
+- Litmus test (the deletion test)
 - Tests of the scenery — never author, flag for removal
 - Assertion completeness & spec coverage
-- Test Deletions in the Diff (Inverse Deletion Test)
-- Review Checklist
-- Severity Guidelines
+- Test deletions in the diff (inverse deletion test)
+- Review checklist
+- Severity guidelines
 
 ---
 
-## Test Design Philosophy (canonical)
+## Test design philosophy (canonical)
 
 This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), the `adversarial-tester-agent` when authoring F→P tests (`/geniro:implement` Phase 3 self-review (Round 1), `/geniro:debug` Adversarial Mode), and the `/geniro:debug` reproduction-test author. Write the test according to these principles; review the test against them.
 
@@ -91,7 +91,7 @@ A test that passes the first time you run it (without any production change) is 
 
 `/geniro:debug` Adversarial Mode and `/geniro:review`'s Phase 4.3 test-confirmation gate both enforce F→P with 3-run determinism checks; the `adversarial-tester-agent` deletes tests that pass on current code.
 
-## What to Check
+## What to check
 
 ### 8. Coverage Gaps
 - Missing tests for new/modified code paths
@@ -318,7 +318,7 @@ grep -n "fixture\|TestData\|MOCK_" test_file.js
 - One "test" function might test many inputs
 - Count test cases, not test functions
 
-## Litmus Test (The Deletion Test)
+## Litmus test (the deletion test)
 
 For every test, ask: **"If I deleted the core logic this test covers, would the test still pass?"**
 
@@ -397,9 +397,9 @@ The Inverse Deletion Test below guards *deleted* tests from silent coverage loss
 
 **Red flag:** two new tests with identical Arrange shape, the same activated branch, and the same assertion — one is a copy that drifted.
 
-## Test Deletions in the Diff (Inverse Deletion Test)
+## Test deletions in the diff (inverse deletion test)
 
-The existing Litmus Test (above) evaluates a TEST'S strength by mentally deleting the PRODUCTION code. Apply the inverse direction when the diff DELETES one or more tests: evaluate the test's intent by checking what scenario it pinned.
+The existing Litmus test (above) evaluates a TEST'S strength by mentally deleting the PRODUCTION code. Apply the inverse direction when the diff DELETES one or more tests: evaluate the test's intent by checking what scenario it pinned.
 
 For every test removed by the diff (whole file deleted, OR an `it` / `test` / `describe` block removed from an existing file), ask:
 
@@ -438,32 +438,18 @@ Same outcome (`null`). Two different cause paths. Deleting either test as "dupli
 | "There's no surviving test for that cause path, but the production code now also lacks that branch — so there's nothing to test" | When BOTH a defensive branch AND its pinning test get removed together, the "nothing to test" reasoning is circular. The right question is: would a test fail if the defensive branch were restored under the same Arrange conditions? If yes, the removed test was real coverage and the cause path is now unpinned. |
 | "The test name uses thread-local labels (Case 5, Bug A) so it's noise" | Test-name quality is orthogonal to cause-path coverage. A poorly-named test that pins a real cause path is still real coverage — rename it, don't delete it. |
 
-### Litmus Test for the Inverse (the "would restoring the deletion fail any test?" check)
+### Litmus test for the inverse (the "would restoring the deletion fail any test?" check)
 
 If the diff under review removes BOTH a defensive branch (in production code) AND a test that exercised it, the round-trip litmus is: would temporarily reverting JUST the production-code deletion (without restoring the test) cause any SURVIVING test to fail? If no test fails when the defensive branch is restored, the surviving suite has no pin for that branch — the deleted test was the only pin, and removing both together is a coverage regression that no test failure will surface.
 
 This is the inverse of mutation testing: instead of mutating the code to see what tests fail, restore the deleted code to see what tests pass. Surviving tests must include the deleted test's cause-path coverage, or the deletion drops invisible work.
 
-## Review Checklist
+## Review checklist
 
-- [ ] New/modified code has corresponding tests
-- [ ] Tests cover happy path and error cases
-- [ ] Edge cases tested (null, empty, boundaries)
-- [ ] Async code tested with proper await/then (including streams, events, callbacks)
-- [ ] Integration tests exist for critical paths
-- [ ] Test organization is clear and consistent
-- [ ] Mocking is appropriate (not overused)
-- [ ] Critical paths have comprehensive coverage
-- [ ] Flaky tests are identified and fixed
-- [ ] Test setup is clear and maintainable
 - [ ] Litmus test: deleting core logic would cause test failure
-- [ ] Each test asserts everything its name/description claims (no "tests X and Y" with only X asserted)
-- [ ] Expected values are independent of the implementation (literal / worked example / spec — not re-derived by the production algorithm)
 - [ ] Every spec-required behavior (section 9 / Done Condition / acceptance criteria) has a covering test
-- [ ] No two newly-authored tests pin the same cause path and outcome
-- [ ] No new test pins scenery (presentational detail, framework behavior, trivial wiring) or duplicates existing suite coverage — such additions are flagged for removal
 
-## Severity Guidelines
+## Severity guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 

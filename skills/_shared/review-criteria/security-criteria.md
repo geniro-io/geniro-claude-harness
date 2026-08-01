@@ -4,14 +4,14 @@ OWASP-aligned security analysis: injection attacks, authentication/authorization
 
 ## Contents
 
-- What to Check
+- What to check
 - Common false positives
-- Review Checklist
-- Severity Guidelines
+- Review checklist
+- Severity guidelines
 
 ---
 
-## What to Check
+## What to check
 
 ### 1. Injection Vulnerabilities
 - SQL injection: unsanitized queries, string concatenation
@@ -46,16 +46,6 @@ grep -nE "query.*\+" file.js
 - API authentication bypasses
 - Role-based access control (RBAC) gaps
 
-**How to detect:**
-```bash
-# Password validation
-grep -n "password\|pwd" file.js | grep -i "length\|regex\|check"
-# Protected endpoints
-grep -n "function\|app\." file.js | grep -v "auth\|verify\|jwt\|token"
-# Token checks
-grep -n "req\.\|jwt\|session" file.js | grep -v "verify\|validate\|decode"
-```
-
 **Red flags:**
 - Routes without authentication middleware
 - Missing user ID validation (using user-supplied ID vs verified session)
@@ -76,10 +66,6 @@ grep -n "req\.\|jwt\|session" file.js | grep -v "verify\|validate\|decode"
 # `api[_-]?key` matches none of apiKey / api_key / api-key, and the surviving
 # alternatives make the probe look like it works.
 grep -inE "password|secret|api[_-]?key|token|credential" file.js | grep -v "config\|env\|process"
-# Check for secrets in logs
-grep -n "console\|log\|print" file.js | grep -i "password\|secret\|key\|token"
-# Environment variable usage
-grep -n "process.env\|import.meta.env" file.js
 ```
 
 **Red flags:**
@@ -96,16 +82,6 @@ grep -n "process.env\|import.meta.env" file.js
 - Outdated crypto libraries
 - Missing key rotation
 - Weak key derivation
-
-**How to detect:**
-```bash
-# Weak hashing
-grep -in "md5\|sha1\|crc" file.js | grep -v "comment\|description"
-# Crypto library calls
-grep -n "crypto\|encrypt\|hash\|cipher" file.js
-# Random number generation
-grep -n "Math.random\|random" file.js | grep -v "seed"
-```
 
 **Red flags:**
 - MD5 or SHA1 for passwords/tokens
@@ -289,24 +265,11 @@ Every finding must cite the full reachable path — entry point → trigger → 
 - Classic single-hunk vulnerability-class hit → the matching section in §1-§9
 - Chain with any unverified link → not emitted at all; an uncited link is speculation, not evidence
 
-## Review Checklist
+## Review checklist
 
-- [ ] No SQL/command injection vulnerabilities
-- [ ] Authentication required on protected endpoints
-- [ ] Authorization validated for user data access
-- [ ] No hardcoded credentials or secrets
-- [ ] Strong hashing/encryption algorithms used
-- [ ] All user input validated server-side
-- [ ] Output properly encoded/escaped
-- [ ] No sensitive data in logs or errors
-- [ ] Security headers configured
-- [ ] CORS properly restricted
-- [ ] Dependencies checked for vulnerabilities
-- [ ] No debug/development code in production
-- [ ] Suppression directives (`# noqa`, `# nosec`, eslint-disable, config-level rule off) carry inline justification and do not hide unrelated active risk
 - [ ] Composed findings (changed output → unchanged consumer, cascade chains, authenticated abuse) cite every link `file:line` and are reachable under current configuration
 
-## Severity Guidelines
+## Severity guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 

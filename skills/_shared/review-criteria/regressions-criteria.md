@@ -6,16 +6,16 @@ When intent sources (a spec.md, a PR ref, or a tracker ticket) are absent, behav
 
 ## Contents
 
-- What to Check
-- Output Format
+- What to check
+- Output format
 - Common false positives
-- Severity Tagging
+- Severity tagging
 - Anti-rationalization
 - Reference notes
 
 ---
 
-## What to Check
+## What to check
 
 Inputs available to your review:
 

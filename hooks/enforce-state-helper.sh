@@ -87,6 +87,11 @@ matches_state_path() {
   #                            file before mv), generic .tmp suffix
   #   *.swp       — vim swap files
   #   *~          — emacs backup files
+  #   *.pre-edit.bak — /geniro:actions edit-subcommand's own revert snapshot
+  #                    (skills/actions/subcommand-edit.md §Snapshot): a `cp`
+  #                    of the file being edited to a sibling backup, restored
+  #                    via `mv` or removed via `rm -f` on every exit path —
+  #                    not a canonical CRUD target another consumer reads
   #   T1 ephemeral subagent outputs — deterministically transient prose
   #   reports / screenshots, no frontmatter, deleted at the owning run's terminal exit:
   #     .kr-out.md, .ce-out.md, .tr-out.md, .adversarial-out.md, .research-out.md,
@@ -94,7 +99,7 @@ matches_state_path() {
   #     .research-<facet>.md (per-facet research outputs from /plan Phase 1)
   #     notes.md (ad-hoc scratch under <task-dir>/)
   #     playwright-verify.png (pre-Ship visual verification screenshot)
-  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|/\.(kr|ce|tr|adversarial|research|spec-challenge)-out\.md$|/\.research-[^/]+\.md$|/notes\.md$|/playwright-verify\.png$'; then
+  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.(kr|ce|tr|adversarial|research|spec-challenge)-out\.md$|/\.research-[^/]+\.md$|/notes\.md$|/playwright-verify\.png$'; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.
