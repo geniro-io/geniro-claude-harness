@@ -392,7 +392,7 @@ find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o
 
 All plugin subagents (`reviewer-agent` / `knowledge-retrieval-agent` / `codebase-explorer-agent` / `test-runner-agent` / `adversarial-tester-agent`) now declare `model: inherit` in frontmatter, and spawn sites OMIT the `model=` argument. *[Updated: `test-runner-agent` and `knowledge-retrieval-agent` have since been re-pinned to `model: sonnet` as mechanical carve-outs per `skills/_shared/model-tiering.md` §carve-outs; `reviewer-agent` / `codebase-explorer-agent` / `adversarial-tester-agent` still declare `model: inherit`.]* If your orchestrator session is on Opus, every reviewer-agent per `/review` and every Phase-3 spawn per `/implement` also runs on Opus — significantly higher cost than the prior hardcoded Sonnet floor. To restore the cheaper baseline, switch orchestrator tier via `/model sonnet` before running `/review` or `/implement`.
 
-One spawn site deliberately retains a hardcoded tier per `skills/_shared/model-tiering.md`: the `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference).
+One spawn site deliberately retains a hardcoded tier per `skills/_shared/model-tiering.md`: the `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference). *[Updated: two corrections. First, this is no longer the only hardcoded-tier spawn — current doctrine has several execution-spawn `model="sonnet"` pins (`skills/_shared/model-tiering.md` §The rule, category 4, the authoritative site list: `/geniro:implement` Phase 2's bounded code-delegate, `/geniro:investigate`'s save-routing writers, the `ui-preview-gate` description agent, and the `/improve-template` + `/audit-plugin` implementers and fix agents). Second, the "tool budget" framing above does not hold: the Agent tool carries no per-spawn tool allowlist (`ARCHITECTURE.md` §Model tiering), so the setup Phase-4 spawn's read-only floor is enforced only by its spawn-prompt instructions, not by a tool grant — a tier defended by a claimed tool budget is defended by nothing.]*
 
 **Action required:** Informational. If cost-sensitive, set orchestrator tier explicitly per session via `/model sonnet`. User-authored custom reviewers (`.geniro/instructions/review-extra/*.md`) may declare an explicit `model:` field to opt OUT of inherit on a per-reviewer basis.
 
@@ -591,7 +591,7 @@ find .geniro/state/ -maxdepth 1 -type f -exec rm -f {} + 2>/dev/null
 
 ### Removed `user-preferences.md` instruction file
 
-`user-preferences.md` was removed from the plugin in v2.2.0. The file is no longer loaded by any skill — the load-custom-instructions pipeline reads only 3 files: `global.md`, `<skill>.md`, `code-style.md`. Existing `.geniro/instructions/user-preferences.md` files are inert.
+`user-preferences.md` was removed from the plugin in v2.2.0. The file is no longer loaded by any skill — its former role is superseded by the current `load-custom-instructions` pipeline tier (canonical set: `skills/_shared/load-custom-instructions.md` §Procedure). Existing `.geniro/instructions/user-preferences.md` files are inert.
 
 **Action required:** Delete orphan file.
 
@@ -772,16 +772,16 @@ New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write
 
 ### 4 deleted agent files (informational)
 
-Older vendored installs may have `.claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md` copied at install time. These 4 agents were removed in a prior consolidation. The plugin update overwrites the agent directory, but vendored copies under `.claude/agents/` are user-owned and untouched.
+Older vendored installs may have `.claude/agents/geniro-{backend,frontend,skeptic}-agent.md` copied at install time. The `backend`, `frontend`, and `skeptic` agents were removed in a prior consolidation. *[Updated: this entry originally also listed `knowledge-retrieval` among the removed agents — that was wrong; `knowledge-retrieval-agent.md` is a live current agent (`agents/knowledge-retrieval-agent.md`), and the auto-detect/auto-fix below no longer touch it.]* The plugin update overwrites the agent directory, but vendored copies under `.claude/agents/` are user-owned and untouched.
 
 **Action required:** Optional cleanup for vendored installs only.
 
-**Auto-detect:** `ls .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null`
+**Auto-detect:** `ls .claude/agents/geniro-{backend,frontend,skeptic}-agent.md 2>/dev/null`
 
 **Auto-fix:**
 
 ```bash
-rm -f .claude/agents/geniro-{backend,frontend,skeptic,knowledge-retrieval}-agent.md 2>/dev/null
+rm -f .claude/agents/geniro-{backend,frontend,skeptic}-agent.md 2>/dev/null
 ```
 
 **Severity:** LOW — orphan files cause a warning when Claude Code lists agents but do not break spawns (the plugin's current agents register independently).

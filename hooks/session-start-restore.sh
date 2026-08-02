@@ -922,11 +922,13 @@ if [ -f "$_learnings_log" ]; then
         ARCHIVED_COUNT="${ARCHIVED_COUNT:-0}"
 
         if [ "$ARCHIVED_COUNT" -gt 0 ]; then
-          # The "Criteria:" line below mirrors archive-stale.sh's stale filter
-          # (age>180d AND score<0.1 AND access_count==0); that script is the source
-          # of truth — keep this prose in lockstep if the filter is ever retuned.
+          # The criteria PROSE comes from archive-stale.sh's own stderr line
+          # ("archive-stale: criteria: …") rather than being restated here — that
+          # script is the single home for the thresholds, so this can't drift.
+          _archive_criteria=$(printf '%s\n' "$_archive_output" | grep -oE 'archive-stale: criteria: .*' | sed -E 's/^archive-stale: criteria: //' | head -1)
+          _archive_criteria="${_archive_criteria:-see lib/archive-stale.sh}"
           BLOCK5E="ℹ️ Auto-archived $ARCHIVED_COUNT stale L2 entries (deprecated:true; audit trail preserved on-disk).
-Criteria: age>180d AND score<0.1 AND access_count==0.
+Criteria: ${_archive_criteria}.
 learnings.jsonl: $_line_count entries (size unchanged — entries kept, flagged only).
 Opt-out: set \`memory.auto_archive_stale: false\` in .geniro/safety.json."
         fi

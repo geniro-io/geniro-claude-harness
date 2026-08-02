@@ -125,7 +125,7 @@ atomic_state_append() {
   local content_bytes
   content_bytes=$(printf '%s' "$content" | wc -c | tr -d ' ')
   if [ "$content_bytes" -gt "$GENIRO_APPEND_MAX_BYTES" ]; then
-    echo "atomic_state_append: content + framing exceeds 4096 bytes (content ${content_bytes}); atomicity not guaranteed" >&2
+    echo "atomic_state_append: content + framing exceeds the ${GENIRO_APPEND_MAX_BYTES}-byte ceiling (content ${content_bytes}); atomicity not guaranteed" >&2
     return 68
   fi
 

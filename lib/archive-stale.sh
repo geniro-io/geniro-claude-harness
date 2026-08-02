@@ -73,6 +73,12 @@ archive_stale_learnings() {
     return 1
   fi
 
+  # Single home for the stale-criteria PROSE. hooks/session-start-restore.sh
+  # greps this back off stderr (see the "criteria:" line below) rather than
+  # restating the thresholds itself, so retuning them here is the only edit
+  # needed to keep the two in lockstep.
+  local criteria="age>180d AND score<0.1 AND access_count==0"
+
   local now tau
   now=$(date -u +%s)
   tau="${GENIRO_DECAY_TAU_DAYS:-$GENIRO_DECAY_TAU_DAYS_DEFAULT}"
@@ -160,7 +166,7 @@ archive_stale_learnings() {
   [ -z "$coverage_line" ] && coverage_line="coverage: n/a"
 
   if [ "$stale_count" -eq 0 ]; then
-    echo "archive-stale: 0 stale candidates (no entries match score<0.1 + age>180d + access_count==0)" >&2
+    echo "archive-stale: 0 stale candidates (no entries match $criteria)" >&2
     echo "archive-stale: $coverage_line" >&2
     return 1
   fi
@@ -217,6 +223,7 @@ archive_stale_learnings() {
 
   echo "archive-stale: flipped deprecated:true on $stale_count entries:" >&2
   printf '%s\n' "$by_type" >&2
+  echo "archive-stale: criteria: $criteria" >&2
   echo "archive-stale: $coverage_line" >&2
   echo "" >&2
   echo "All entries preserved on-disk (audit trail). Re-run safe (idempotent — already-deprecated entries skipped)." >&2

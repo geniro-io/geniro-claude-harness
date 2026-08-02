@@ -4,15 +4,14 @@ Visual and interaction quality for UI changes: tokens, spacing, typography, stat
 
 ## Contents
 
-- What to Check
+- What to check
 - Common false positives
-- Stack-Agnostic Patterns
-- Review Checklist
-- Severity Guidelines
+- Stack-agnostic patterns
+- Severity guidelines
 
 ---
 
-## What to Check
+## What to check
 
 ### 1. Token Conformance
 - Raw hex/rgb/rgba/hsl values in components instead of semantic tokens
@@ -139,25 +138,11 @@ diff <(grep -ohE "rounded-[a-z0-9-]*|shadow-[a-z0-9-]*|border-[a-z0-9-]*" exempl
 6. **Inline styles for dynamic values** — `style={{ width: progress + '%' }}` is fine; only flag inline styles for static literals.
 7. **Single-state elements** — static badges and labels don't need hover/focus/disabled; state completeness applies only to truly interactive surfaces.
 
-## Stack-Agnostic Patterns
+## Stack-agnostic patterns
 
 Applies to UI code across frameworks: React/JSX with Tailwind, styled-components, CSS Modules, Emotion, vanilla-extract; Vue, Svelte, Solid, Astro templates; plain HTML + CSS/SCSS; Web Components with Shadow DOM. Skip for pure backend, infrastructure-as-code, CLI tools, build scripts, and any file without visual output.
 
-## Review Checklist
-
-- [ ] No raw color literals in token-driven projects
-- [ ] Spacing values come from the scale; no arbitrary magic numbers
-- [ ] Typography uses the type scale; no rogue font imports
-- [ ] No reinvented primitives that duplicate the design system
-- [ ] Interactive elements cover default/hover/active/focus-visible/disabled
-- [ ] Async surfaces cover loading/empty/error
-- [ ] Non-trivial layouts have responsive breakpoint coverage
-- [ ] Contrast meets WCAG AA (4.5:1 normal, 3:1 large/UI)
-- [ ] Semantic HTML before ARIA; focus-visible rings present; icon-only buttons labeled; modals trap focus and handle ESC
-- [ ] New components match the named exemplar (radius, shadow, rhythm)
-- [ ] Hierarchy distinguishes primary/secondary/tertiary; false-positive guards applied (stories, fixtures, marketing, dynamic styles)
-
-## Severity Guidelines
+## Severity guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1. The design dim specializes the canonical tiers to UI/accessibility signals — it MAY add dim-specific HIGH/MEDIUM signals but does not introduce a design-only CRITICAL category (§1 forbids loosening the rubric).
 

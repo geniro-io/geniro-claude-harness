@@ -15,7 +15,7 @@ No trigger → skip Phase 2 entirely. Transition `phase: clarify` and proceed to
 
 ### 2.2 UI preview procedure
 
-Trigger fires → run the procedure documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` end-to-end. That helper spawns the UI description agent, presents the textual preview, runs the revision loop (max 3 rounds), and returns the approved description.
+Trigger fires → run the procedure documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` end-to-end. That helper spawns the UI description agent, presents the textual preview, runs the revision loop, bounded per `ui-preview-gate.md`, and returns the approved description.
 
 Caller contract (this skill's side):
 - Provide the predicted affected-files list (from Phase 1 echo entries with UI-file matches), $ARGUMENTS topic, 1-2 exemplar UI files (path-only — agent reads them itself).

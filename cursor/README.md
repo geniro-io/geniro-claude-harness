@@ -24,14 +24,14 @@ If the plugin is installed in Claude Code from the marketplace, enabling **Setti
 - **The 12 runtime-portable skills.** Each carries a runtime-portability preamble that resolves the plugin root when `${CLAUDE_PLUGIN_ROOT}` is unset, so the shared helpers (`skills/_shared/`) and shell libraries (`lib/`) work unchanged. `/update` is the one exception, and `/reflect` is portable only in its `--this-session` shape — see the Claude-Code-only note below. Degradation contract: `skills/_shared/runtime-portability.md`.
 - **Safety + enforcement hooks** for shell commands and file writes: destructive-git guard, `.geniro/` deletion guard, protected-file writes, security pattern scan, state-helper enforcement, TDD-order enforcement — adapted through `cursor/hooks/claude-hook-shim.sh` (a blocked action returns `{"permission":"deny"}` with the guardrail reason).
 - **Session-start context restore.** The `sessionStart` hook re-injects the active task state and instruction-file list as `additional_context`.
-- **The 7 subagents** for the parallel review/research fan-outs, registered under their bare names.
+- **The subagents in `cursor/agents/`** for the parallel review/research fan-outs, registered under their bare names.
 
 ## What degrades or stays Claude-Code-only
 
 - **Structured decision gates** (`AskUserQuestion`) become plain chat questions with lettered options.
 - **`/reflect`'s past-session shapes and `/update`** require Claude Code (the session-transcript layout on disk / the `claude plugin` CLI) and exit with a notice elsewhere. `/reflect --this-session` runs here: it mines the running conversation and reads no transcript file. Update the Cursor install by pulling the repo (symlink) or re-importing the marketplace entry.
 - **Model tiering, statusline, deep-mode `Workflow` fan-out, worktree tools, plan artifacts** — each has a documented fallback in the skills; nothing breaks.
-- Hook events Cursor does not deliver to plugins in a compatible slot (`AskUserQuestion` gate-render, the Stop-event evidence reminder, the marketplace update check) are not wired; the corresponding conventions apply as instructions per `skills/_shared/runtime-portability.md`.
+- Hook events Cursor does not deliver to plugins in a compatible slot (`AskUserQuestion` gate-render, the marketplace update check) are not wired; the corresponding conventions apply as instructions per `skills/_shared/runtime-portability.md`.
 
 ## Maintaining the Cursor port
 

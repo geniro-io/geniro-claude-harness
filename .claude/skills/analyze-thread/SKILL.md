@@ -26,7 +26,7 @@ argument-hint: "[thread path(s) | thread count | empty = last 3 threads]"
 
 ---
 
-You are the orchestrator for analyzing a saved Claude conversation thread and surfacing the errors Claude made while running a multi-phase pipeline. You parse the thread, run mechanical and judged checks against the canonical taxonomy, filter for relevance, then present findings with per-item user gates. You NEVER mutate the analyzed source files (this skill is read-only on the project under analysis); approved fixes are emitted as a handoff for `/improve-template` to apply.
+You are the orchestrator for analyzing a saved Claude conversation thread and surfacing the errors Claude made while running a multi-phase pipeline. You parse the thread, run mechanical and judged checks against the canonical taxonomy, filter for relevance, then present findings with per-item user gates. You never mutate the analyzed source files (this skill is read-only on the project under analysis); approved fixes are emitted as a handoff for `/improve-template` to apply.
 
 **Input:** one or more thread file paths, a thread count, or nothing — an empty argument analyzes the last 3 work-bearing threads across every project (§Phase 1 Step 1).
 **Output:** a findings report printed to chat + (on user approval) a handoff at `.geniro/state/handoff/from-analyze-thread-<branch>.md` that `/improve-template` consumes.
@@ -86,7 +86,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 
 1. **Read-only on the analyzed source.** The thread file and any project files it references are never mutated by this skill. Mutating skills are `/improve-template` (template fixes) and `/geniro:implement` (consumer-code fixes) — both consume the handoff this skill emits.
 2. **Mechanical before judged.** Phase 2 runs mechanical checks first because they are cheap, deterministic, and high-precision; the LLM-judge pass is then seeded with mechanical results so it does not re-discover them.
-3. **One LLM-judge spawn per thread, all spawned in ONE assistant response, each carrying the taxonomy inline.** A single judge sees one thread's excerpts plus that thread's seeded mechanical findings — splitting into per-check spawns multiplies cost without improving signal (MAST showed one o1 pass at 94% accuracy / κ=0.77). In a batch, issue every thread's judge call in the same assistant turn, NOT one per turn — separate turns serialize the run and multiply wall-clock by the thread count. **This is the single rule for how the taxonomy reaches the judge:** the judge is a spawned subagent that shares none of your context and cannot be assumed to resolve `${CLAUDE_PLUGIN_ROOT}` inside its own run, so the taxonomy travels as inlined text — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run — never as a bare path it may fail to open, which would leave it judging against nothing and say so nowhere. Inline the short form only: §§1-3 detection logic, §5, §6 and §7 are orchestrator-side and would blow the 8 K seed budget.
+3. **One LLM-judge spawn per thread, all spawned in ONE assistant response, each carrying the taxonomy inline.** Splitting into per-check spawns multiplies cost without improving signal (MAST showed one o1 pass at 94% accuracy / κ=0.77), and serializing judge calls across turns multiplies wall-clock by the thread count.
 4. **A defect in N threads is one finding, not N.** Phase 3 merges the same check firing on the same root cause across threads into a single finding whose recurrence count is evidence of severity, not a duplicate to discard. Recurrence is the batch's whole point: one thread cannot distinguish an instruction the model happened to skip once from an instruction it skips systematically.
 5. **Never analyze this session's own log.** Its trace has no conclusion to judge, and analyzing the run that is doing the analyzing yields findings about the analysis in progress. Identify it by session id, not by timestamp (§Phase 1 Step 1).
 6. **Filter before user.** Phase 3 drops REDUNDANT and FALSE-POSITIVE findings BEFORE the Phase 4 presentation. The user sees only TRUE-POSITIVE + UNCERTAIN. Filtered items appear in a separate "Filtered" section for transparency.
@@ -250,8 +250,8 @@ Each mechanical hit produces a draft finding: `{thread_id, check_id, category, s
 
 ### Step 2: Spawn the LLM-judge
 
-ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). Pre-inline, per spawn:
-- The short-form taxonomy per invariant #3 — `checks-reference.md` §4 in full plus one line per mechanical check ID.
+ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve `${CLAUDE_PLUGIN_ROOT}` inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
+- The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the 8 K seed budget.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
 - The most-suspicious thread excerpts, ranked and sliced per `checks-reference.md` §7, which carries the weighted signal set and the always-include opening and closing turns. Keep the total ≤ 60 K tokens.
 

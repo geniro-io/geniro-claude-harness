@@ -39,8 +39,9 @@ When the resolved scope is `review-extra`, follow this slug-bearing flow instead
 
 ### Step 1: Resolve the slug
 
-If the slug was provided on the command line (e.g., `/geniro:instructions create review-extra sql-bindings`), use it directly. Otherwise, use `AskUserQuestion` with no options (free-form via the "Other" path):
-- **Question:** "What slug for this custom reviewer? (lowercase letters, digits, hyphens — e.g., `sql-bindings`, `accessibility-aria`, `pii-logging`)"
+If the slug was provided on the command line (e.g., `/geniro:instructions create review-extra sql-bindings`), use it directly. Otherwise, fire `AskUserQuestion` with illustrative options plus an "Other" path for the real slug:
+- **Question:** "What slug for this custom reviewer? (lowercase letters, digits, hyphens)"
+- **Options:** "sql-bindings" / "accessibility-aria" / "pii-logging" / Other (type the actual slug)
 
 ### Step 2: Validate the slug
 
@@ -89,13 +90,15 @@ mkdir -p "$PRIMARY_ROOT"/.geniro/instructions/review-extra
 
 ### Step 5: Gather the description
 
-Use `AskUserQuestion` with no options (free-form via "Other"):
-- **Question:** "One-line description of what this reviewer checks (shown in review reports and used in the reviewer-agent prompt). E.g., 'All SQL queries use parameterized bindings, never string concatenation.'"
+Fire `AskUserQuestion` with illustrative options plus an "Other" path for the real description:
+- **Question:** "One-line description of what this reviewer checks (shown in review reports and used in the reviewer-agent prompt)."
+- **Options:** "e.g. 'All SQL queries use parameterized bindings, never string concatenation'" / "e.g. 'Every new API route enforces auth middleware'" / "e.g. 'No PII fields logged at INFO level or above'" / Other (type the actual description)
 
 ### Step 6: Gather the criteria body
 
-Explain the body shape before asking. Use `AskUserQuestion` with no options (free-form via "Other"):
+Explain the body shape before asking, then fire `AskUserQuestion` with illustrative options plus an "Other" path for the pasted body:
 - **Question:** "Paste the criteria body. Mirror the `what to flag / what NOT to flag` shape from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md`. Keep it 30-80 lines, focused on concrete code patterns (not abstract principles). Example structure:\n\n```\n# Criteria\n\nWhat to flag:\n- String concatenation that builds a SQL string with a runtime variable\n- ORM.raw calls passing concatenated strings instead of bind parameters\n\nWhat to NOT flag:\n- Static SQL with no variables\n- Schema-migration files that intentionally build CREATE statements\n```\n\nPaste your criteria below:"
+- **Options:** "Start from the example structure above" / "I'll write my own from scratch" / Other (paste the full criteria body)
 
 ### Step 7: Propose the assembled file
 

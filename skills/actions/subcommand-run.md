@@ -6,7 +6,7 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 ### Phase 4.1: Resolve, read, parse
 
-Resolve the target via `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution — it handles the empty-input, exact-slug, free-text and main-worktree-fallback cases and returns `<resolved-path>` / `<resolved-slug>` / `<source>`.
+Resolve the target via `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution — it handles the exact-slug, free-text and main-worktree-fallback cases and returns `<resolved-path>` / `<resolved-slug>` / `<source>`.
 
 Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`, `allowed-tools`, `external-send`, `argument-hint`, `created`). Hold body steps in memory for Phase 4.3.
 
@@ -59,12 +59,13 @@ When the scope checkpoint fired (Phase 4.3), close the summary by recommending a
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 emit_learning <<'EOF'
 {
+"producer": "/geniro:actions",
+"scope": "global",
 "type": "discovery",
 "trust": "verified",
-"skill": "actions",
 "tags": ["actions", "run", "<risk_class>"],
 "summary": "ran <slug> (risk=<risk_class>, external=true)",
-"entry": {"slug": "<slug>", "side_effects": [...]}
+"ext": {"slug": "<slug>", "side_effects": [...]}
 }
 EOF
 ```

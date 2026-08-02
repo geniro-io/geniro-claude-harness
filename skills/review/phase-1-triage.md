@@ -99,7 +99,7 @@ The one spawn-spec field this list deliberately omits is `criteria-content` — 
 
 Phase 2 reads `custom_reviewers[]` from frontmatter and re-reads each `source_path` for the criteria body — no discovery, globbing, path-filtering, or cap-checking at Phase 2 entry (discovery lives here because Phase 1.5 already has Bash tooling primed, keeping the cognitively heavy Phase 2 spawn assembly free of it).
 
-On helper hard-cap error (>10 custom reviewers), surface the error to chat, persist `custom_reviewers: []`, and let Phase 2 fire only the built-ins. A helper batch-size *warning* is advice to the user about how many custom reviewers to keep — it never trims the batch: the §2.1 always-fire rows fire on every run regardless of how many custom reviewers discovery returned.
+On the helper's hard-cap error, surface it to chat, persist `custom_reviewers: []`, and let Phase 2 fire only the built-ins. A helper batch-size *warning* is advice to the user about how many custom reviewers to keep — it never trims the batch: the §2.1 always-fire rows fire on every run regardless of how many custom reviewers discovery returned.
 
 ### 1.5.5 Output handling
 

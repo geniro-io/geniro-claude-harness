@@ -384,7 +384,7 @@ Read-only — never writes files, never mutates git state. Latency ~1-3s base + 
 
 ## 6. Custom-instructions load
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on `global.md`, `review.md`, and `code-style.md` (3 files, pipeline tier); the §Echo contract requires one observable line per file. Both are mandatory.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on every file in the pipeline load set; the §Echo contract requires one observable line per file. Both are mandatory.
 
 ---
 
@@ -415,7 +415,7 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`. If `$ARGUMENTS` contains `--plan <path>`, OR PR body contains `geniro-plan: <path>`, OR walk-up `.geniro/planning/*/spec.md` resolves, OR project files exist (`docs/spec.md`, `docs/plan.md`, `PLAN.md`, `SPEC.md`): load.
 
 Schema-aware:
-1. Read first 20 lines. If `geniro_kind: design-doc` + `geniro_schema_version` is `m5-v1` OR `m5-v2` OR `m5-v3` OR `m5-v4` → structured-section parser (11 sections + frontmatter goal-state; `m5-v2` and `m5-v3` additionally expose `workflow_refs[]` if present, `m5-v3` enriches each entry with parent-epic + sibling chain context, and `m5-v4` adds the optional `launch_config` block — absent = ask interactively). Canonical gate: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` (this list mirrors it; keep them in lockstep).
+1. Read first 20 lines. If `geniro_kind: design-doc` and `geniro_schema_version` is any version `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §2 Detection accepts → structured-section parser (11 sections + frontmatter goal-state; per-version field additions — `workflow_refs[]`, parent-epic + sibling chain context, the optional `launch_config` block — are canonical there, absent = ask interactively).
 2. Else fall back to prose detection with ~3000-char cap.
 
 PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn prompts (Phase 2). Other dimensions don't see it.
@@ -444,7 +444,7 @@ Phase 4.2 verifier coverage is deliberately NOT one of them: every §4.1 survivo
 
 | Helper | Inputs | Outputs |
 |---|---|---|
-| `load-custom-instructions` MODE: refresh | scope = `review` + `global` + `code-style` (3 files) | concatenated rule body |
+| `load-custom-instructions` MODE: refresh | scope = the pipeline load set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` | concatenated rule body |
 | `load-semantic` MODE: refresh | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + fingerprint drift check |
 | `query-learnings` (route per `query-learnings.md` §"Memory backend override" — declared backend read tool under a `## Memory Backend` block; the file is empty under `replace`) | tags inferred from changed-file paths | top-K matching L2 entries (default K=5; filter superseded/deprecated) |
 | `resolve-conflicts` | transitive | hard conflict → AUQ |
@@ -462,7 +462,7 @@ After triage, surface the depth question via `AskUserQuestion` (do NOT print opt
 - **Header:** "Review depth"
 - **Question:** "How deep should the review go?"
 - **Options:**
-- "Standard" — one reviewer pass per dimension — <N> reviewers for this diff (substitute the computed count: 7 always-fire + triggered conditional dimensions + discovered custom reviewers; if custom discovery has not yet run, state the built-in count and append "plus your custom reviewers, if any"); findings filtered and verified once.
+- "Standard" — one reviewer pass per dimension — <N> reviewers for this diff (substitute the computed count: every always-fire dimension per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.1 + triggered conditional dimensions + discovered custom reviewers; if custom discovery has not yet run, state the built-in count and append "plus your custom reviewers, if any"); findings filtered and verified once.
 - "Deep — multi-angle review + extra verification" — reviews each check from several angles and verifies findings with a majority vote, escalated only where the call is contested; higher quality (finds more, validates more reliably) at higher token cost. Posts the same finding set as Standard.
 
 Neither option carries a `(Recommended)` suffix — depth is a per-run pick where the alternative is only costlier, never safer (Deep authors no fix), so the user weighs cost against thoroughness each run. If the question is dismissed (empty answer), default to the cheaper value: Standard (`deep-mode: false`).

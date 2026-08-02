@@ -4,14 +4,13 @@ Design patterns, modularity, coupling, performance, scalability, and technical d
 
 ## Contents
 
-- What to Check
+- What to check
 - Common false positives
-- Review Checklist
-- Severity Guidelines
+- Severity guidelines
 
 ---
 
-## What to Check
+## What to check
 
 ### 1. Module Design & Coupling
 - Circular dependencies between modules
@@ -22,12 +21,8 @@ Design patterns, modularity, coupling, performance, scalability, and technical d
 
 **How to detect:**
 ```bash
-# Count imports per file
-grep -c "^import\|^require\|^from" file.js
 # Find circular imports — use a graph tool; it catches transitive A->B->C->A cycles a grep can't:
 madge --circular src/          # Node/TS  (import-linter for Python, `go list` for Go, etc.)
-# Trace one file's imports by hand to follow a chain:
-grep -E "^(import|from)|require\(" file.js | sort
 ```
 
 **Circular dependency verification:** Don't just grep for import patterns — actually trace the dependency chain. A→B→C→A is circular even though no single file imports from its direct importer. Use `madge --circular` (Node) or equivalent tooling when available.
@@ -161,8 +156,6 @@ Severity MEDIUM when the unrepresentable-state risk is contained to one module a
 ```bash
 # Catch-all modules across the repo — the name is the signal
 git ls-files | grep -iE "(^|/)(utils?|misc|helpers?|common|shared)(/|\.)"
-# Look for large files (potential split opportunity)
-wc -l file.js | awk '$1 > 500 {print $0}'
 # Reach — how many distinct areas one file imports from; breadth says it knows too much
 grep -hoE "(from|require|import)[[:space:]]*\(?['\"][^'\"]+" file.js | sed "s|/[^/]*\$||" | sort -u | wc -l
 # Change coupling — a file in most recent commits is absorbing every feature
@@ -246,15 +239,11 @@ grep -nE '^( {12,}|\t{3,})\S' file.js
 
 **How to detect:**
 ```bash
-# Find nested loops
-grep -n "for.*for\|while.*while" file.js
 # Potential N+1 — a query in the lines following a loop header. The context flag belongs on the
 # file-reading grep; on the filter it scans the piped stream and the recipe finds nothing.
 grep -nA5 -E "for |while |\.map\(|\.forEach\(" file.js | grep -E "query|fetch|request|findOne|findById"
 # ORM N+1 — model access inside a loop body
 grep -nA3 -E "\.map\(|\.forEach\(|for " file.js | grep -E "\.(find|get|load|fetch)"
-# Blocking operations
-grep -n "readFileSync\|query\|request" file.js | grep -v "async"
 ```
 
 **Red flags:**
@@ -271,16 +260,6 @@ grep -n "readFileSync\|query\|request" file.js | grep -v "async"
 - Inconsistent with team/project standards
 - Ad-hoc solutions when proper patterns exist
 - Code that works but is hard to understand/maintain
-
-**How to detect:**
-```bash
-# Find TODO/FIXME comments
-grep -n "TODO\|FIXME\|XXX\|HACK" file.js
-# Deprecated API usage
-grep -n "deprecated\|obsolete" file.js
-# Comments indicating problems
-grep -n "workaround\|temporary\|quick fix" file.js
-```
 
 **Red flags:**
 - Many unresolved TODO comments
@@ -382,24 +361,7 @@ This check **complements** the dedicated spec-compliance dimension rather than d
 - Some coupling is acceptable for simplicity
 - Only flag if causing real problems
 
-## Review Checklist
-
-- [ ] Module dependencies are acyclic
-- [ ] Each module has clear, single purpose
-- [ ] Types make illegal states unrepresentable (invariants enforced at construction, not by convention)
-- [ ] Abstractions properly hide implementation details
-- [ ] SOLID principles generally followed
-- [ ] Code organization is consistent
-- [ ] Functions stay readable — no excessive nesting or cognitive load (per §4.5)
-- [ ] Error handling follows patterns
-- [ ] No obvious performance red flags
-- [ ] Technical debt is documented/addressed
-- [ ] No non-trivial functionality hand-written that an established external library already solves (build-vs-buy)
-- [ ] Code is designed to be testable
-- [ ] Patterns align with codebase standards
-- [ ] When a plan is attached, the change carries an artifact moving toward its stated completion signal
-
-## Severity Guidelines
+## Severity guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 

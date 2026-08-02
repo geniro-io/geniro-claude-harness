@@ -265,6 +265,49 @@ else
   skip "jq-missing cases (could not build a jq-free PATH stub)"
 fi
 
+# --- jq missing but grep/sed/mktemp present -> the guard's own coarse
+# fail-closed scan still denies through the shim. The stub above (bash/cat/
+# dirname only) omits grep and mktemp, so neither the guards' jqless raw-text
+# scan nor the shim's own mktemp can run there — that gap is exactly why a
+# broken shim mktemp (T0 #3) went uncaught. This stub adds grep, sed and
+# mktemp so both paths actually execute, and asserts the coarse scan's verdict
+# reaches the Cursor agent as permission:"deny".
+STUB_BIN2="$TMPDIR_BASE/nojq-full-bin"
+mkdir -p "$STUB_BIN2"
+STUB2_OK=1
+for B in bash cat dirname grep sed mktemp rm; do
+  BP="$(command -v "$B" 2>/dev/null || echo "")"
+  if [ -z "$BP" ]; then STUB2_OK=0; break; fi
+  ln -sf "$BP" "$STUB_BIN2/$B"
+done
+if [ "$STUB2_OK" -eq 1 ]; then
+  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git push --force origin main", cwd:"."}' \
+    | PATH="$STUB_BIN2" bash "$SHIM" block-dangerous-git.sh)"
+  if printf '%s' "$OUT" | jq -e '.permission == "deny"' >/dev/null 2>&1; then
+    pass "jq missing (grep/mktemp present), force-push -> coarse scan denies through the shim"
+  else
+    fail "jq missing (grep/mktemp present), force-push -> expected deny, got: $OUT"
+  fi
+
+  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"rm -rf .geniro", cwd:"."}' \
+    | PATH="$STUB_BIN2" bash "$SHIM" block-geniro-deletion.sh)"
+  if printf '%s' "$OUT" | jq -e '.permission == "deny"' >/dev/null 2>&1; then
+    pass "jq missing (grep/mktemp present), rm -rf .geniro -> coarse scan denies through the shim"
+  else
+    fail "jq missing (grep/mktemp present), rm -rf .geniro -> expected deny, got: $OUT"
+  fi
+
+  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"echo TOKEN=1 > .env", cwd:"."}' \
+    | PATH="$STUB_BIN2" bash "$SHIM" file-protection.sh)"
+  if printf '%s' "$OUT" | jq -e '.permission == "deny"' >/dev/null 2>&1; then
+    pass "jq missing (grep/mktemp present), .env write -> coarse scan denies through the shim"
+  else
+    fail "jq missing (grep/mktemp present), .env write -> expected deny, got: $OUT"
+  fi
+else
+  skip "jq-missing-but-grep/sed/mktemp-present cases (could not build the stub PATH)"
+fi
+
 # --- unknown event is a no-op ---
 OUT="$(jq -nc '{hook_event_name:"afterAgentThought"}' | bash "$SHIM" file-protection.sh)"
 RC=$?

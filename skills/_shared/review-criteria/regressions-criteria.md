@@ -6,16 +6,16 @@ When intent sources (a spec.md, a PR ref, or a tracker ticket) are absent, behav
 
 ## Contents
 
-- What to Check
-- Output Format
+- What to check
+- Output format
 - Common false positives
-- Severity Tagging
+- Severity tagging
 - Anti-rationalization
 - Reference notes
 
 ---
 
-## What to Check
+## What to check
 
 Inputs available to your review:
 
@@ -142,12 +142,12 @@ For each finding that needs provenance:
 
 **Example skip.** Hunk only touches lines the current PR added (no pre-existing code blamed). Skip provenance — the current PR author owns the finding.
 
-## Output Format
+## Output format
 
 Emit findings in the standard reviewer-agent output format defined in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format. Per-finding fields:
 
 - `File:` — `path:line` anchored at the deletion site (for §1 and §3), at the behavior-mutating hunk (for §2), or at the edited path (for §4). When the finding cites a caller or unedited sibling in an unchanged file, name BOTH the anchor site and the cited path in the body — the `File:` anchor stays at the deletion / edited site.
-- `Severity:` — CRITICAL / HIGH / MEDIUM / LOW per the rubric in §Severity Tagging.
+- `Severity:` — CRITICAL / HIGH / MEDIUM / LOW per the rubric in §Severity tagging.
 - `Criteria:` — short label naming the specific check from this file. Suggested values: `Symbol-deletion + caller-blast` (§1) / `Intent-vs-behavior over-reach` (§2) / `Test-coverage delta` (§3) / `Parallel-path symmetry` (§4) / `Regression provenance` (§5).
 - `Evidence:` — quote the deleted hunk verbatim AND cite the surviving caller / surviving production / quoted intent fragment. The reader must be able to reproduce the finding from `Evidence:` alone.
 - `Why this matters:` — name the downstream consequence (compile failure, runtime error, silent behavior change, coverage regression).
@@ -167,7 +167,7 @@ Two false-positive classes route to other dims rather than being suppressed here
 
 When two dims have legitimate overlap on the same hunk, both emit. The consuming skill's filter and stratify steps collapse only same-finding duplicates, so orthogonal findings on the same hunk both survive deduplication.
 
-## Severity Tagging
+## Severity tagging
 
 | Signal | Condition | Severity |
 |---|---|---|

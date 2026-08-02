@@ -3,7 +3,7 @@ name: instructions
 description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step; also for declaring read-only fact-verification sources (## Data Sources), recording what each project check covers and leaves uncovered so results are not overstated (## Verification Surface), or routing the agent's memory/learnings through a custom backend like an MCP (## Memory Backend). Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
+allowed-tools: [Read, Bash, Glob, Grep, AskUserQuestion]
 argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instructions', 'delete review rules']"
 ---
 
@@ -27,7 +27,7 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 ---
 
-Stateless loop: **Parse → Execute → Done**. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Five modes: `list`, `create`, `edit`, `validate`, `delete`; Phase 1 resolves exactly one of them per invocation. Stateless: every invocation is a single transaction; no state file.
+Stateless loop: **Parse → Execute → Done** — every invocation is a single transaction with no state file. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Five modes: `list`, `create`, `edit`, `validate`, `delete`; Phase 1 resolves exactly one of them per invocation.
 
 **Phase body.** Phase 1's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md`. Read it on entry to the phase, and again on any resumption of it, including after a compaction. A `create`/`edit` run also reads `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` from there.
 
@@ -41,7 +41,7 @@ Code rules split three ways depending on **when** they should fire:
 - **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads on matching glob — fires even outside Geniro pipelines).
 - **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
 
-**After a compaction, re-Read the phase body and the dispatched mode's body file before continuing** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. This skill is stateless, so if which mode was running is also gone, re-invoke and restart the transaction from Phase 1.
+**After a compaction, re-Read the phase body and the dispatched mode's body file before continuing** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. If which mode was running is also gone, re-invoke and restart the transaction from Phase 1.
 
 ## Loop invariants
 
@@ -51,7 +51,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 2. **Invariant #3 (permission before side-effect)** — create / edit / delete writes are AUQ-gated.
 3. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final user message.
 
-**Single transaction, no subagents** — `/geniro:instructions` runs entirely in the orchestrator (CRUD is too small for parallelism).
+**No subagents** — `/geniro:instructions` runs entirely in the orchestrator (CRUD is too small for parallelism).
 
 ## Anti-rationalization
 
@@ -78,7 +78,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 ## Budgets — quality-first
 
-No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry scope ambiguity → final AUQ abort, `list --with-content` body truncation at ~2000 chars/file. Architecture constraints: stateless, no subagent spawns.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry scope ambiguity → final AUQ abort, `list --with-content` body truncation per `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-list.md` §Step 2.
 
 ## ACI per-phase tool surface
 
@@ -103,12 +103,12 @@ External sends: not in `/geniro:instructions` ACI ever.
 
 ## Termination case → state mapping
 
-No state file, but failure paths report a structured reason in the final user message.
+Failure paths report a structured reason in the final user message.
 
 | Cause | Format |
 |---|---|
 | User cancelled at any question | `aborted: user cancelled at <step>` |
-| Scope resolution failed after 3 AUQ retries | `aborted: scope unresolved after 3 AUQ rounds` |
+| Scope resolution failed after 3 question retries | `aborted: scope unresolved after 3 rounds of questions` |
 | Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>; see .geniro/safety.json` |
 | Delete blocked by `.geniro/` deletion guard | `aborted: .geniro/ deletion guard blocked rm of <path>; see .geniro/safety.json` |
 
@@ -152,7 +152,7 @@ The single source for every field's value set and length cap — validate-mode's
 - `model` (optional) — `haiku`/`sonnet`/`opus`/`inherit`; omitted = `inherit` (the reviewer runs at the orchestrator's tier, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`). Declare a tier only to deliberately pin this reviewer cheaper or stronger than the session.
 - `paths` (optional) — list of globs.
 - `severity-default` (optional) — `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`; default `MEDIUM`.
-- `requires-context` (optional) — natural-language directive naming the live external data this reviewer needs (a Notion page, a Linear issue, an API response). The reviewer runs in a subagent that can't call MCP, so the orchestrator pre-fetches the data and injects it as a `CUSTOM CONTEXT:` block at spawn time, failing open if it's unavailable (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context). Omit unless the reviewer genuinely needs external data. Example: `requires-context: "Fetch the live Notion Incident Report (latest entry) and provide its incident-pattern list."`
+- `requires-context` (optional) — natural-language directive naming the live external data this reviewer needs (a Notion page, a Linear issue, an API response). The orchestrator pre-fetches the data at spawn time — deterministic hydration into a fixed snapshot, since MCP tool names are per-install and unknowable when the reviewer's tool surface is fixed — and injects it as a `CUSTOM CONTEXT:` block, failing open if it's unavailable (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context). Omit unless the reviewer genuinely needs external data. Example: `requires-context: "Fetch the live Notion Incident Report (latest entry) and provide its incident-pattern list."`
 
 ## Phase 1: Parse intent
 
@@ -168,8 +168,8 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 
 ## Cross-references
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` — the Phase 1 Steps (Step 0 instruction load, Step 0.5 `PRIMARY_ROOT`, mode + scope resolution, scope validation, dispatch, batch walk). Read on entry to the phase, and again on any resumption of it, including after a compaction.
-- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` — the intent → block-type routing table. Read from Phase 1 when the resolved mode is `create` or `edit`, and again on any resumption of an authoring step.
+- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` — the Phase 1 Steps (Step 0 instruction load, Step 0.5 `PRIMARY_ROOT`, mode + scope resolution, scope validation, dispatch, batch walk).
+- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` — the intent → block-type routing table.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — T3 persistent-CRUD tier for `.geniro/instructions/` and the optimistic mtime check
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the L4 procedural-memory loader for `.geniro/instructions/*.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for instruction files

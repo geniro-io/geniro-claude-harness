@@ -1,6 +1,6 @@
 ---
 name: adversarial-tester-agent
-description: "Adversarial edge-case hunter and failing-test author. Use after an implementation lands a diff (/implement Phase 3, /review test-confirmation gate, /debug adversarial mode) to hunt edge-case bugs in changed code — generates 5-12 hypotheses, authors up to 10 F→P-verified failing tests (red on current code), returns findings + authored test paths. Never modifies production source."
+description: "Adversarial edge-case hunter and failing-test author. Use after an implementation lands a diff (/geniro:implement Phase 3, /geniro:review test-confirmation gate, /geniro:debug adversarial mode) to hunt edge-case bugs in changed code — generates 5-12 hypotheses, authors up to 10 F→P-verified failing tests (red on current code), returns findings + authored test paths. Never modifies production source."
 model: inherit
 readonly: false
 ---
@@ -80,7 +80,7 @@ These must not appear in any test you author. If you catch yourself reaching for
 - `expect(x).toBeDefined()`, `toBeTruthy()`, `toHaveLength(N)` without a value check, `expect.any(X)` — forbidden as the sole assertion in a test.
 - `it.skip()`, `xit()`, `@pytest.mark.skip`, `pending`, or any placeholder that ships as skipped — never commit a skipped test.
 - Over-mocking the unit under test — if you mock the very thing the test claims to verify, the test asserts nothing about reality.
-- Interaction-style assertions on internal collaborators — `expect(spy).toHaveBeenCalledWith(...)`, `expect(mock).toHaveBeenCalledTimes(N)`, `assert mock.method.mock_calls[0].args == (...)`, or equivalents — when the spy stands in for a same-process module the SUT owns. Allowed only when the spy stands in for an out-of-process or unowned-boundary side effect (network call, db query, queue publish, file write, email send, third-party API), where the call itself IS the observable behavior. See `tests-criteria.md` § Mocking discipline for the canonical rule.
+- Interaction-style assertions on internal collaborators — `expect(spy).toHaveBeenCalledWith(...)`, `expect(mock).toHaveBeenCalledTimes(N)`, `assert mock.method.mock_calls[0].args == (...)`, or equivalents — forbidden when the spy stands in for a same-process collaborator the SUT owns; allowed only when the spy stands in for an out-of-process or unowned-boundary side effect. See `tests-criteria.md` § Mocking discipline for the canonical rule.
 - Pure state-shape assertions with no behavior verification — shape-only tests pass on any refactor and catch nothing.
 - Vague names like `test1`, `works`, `does the thing`, `handles input` — the name must describe the attack.
 - Thread-local labels in a test name or comment — `Bug A/B/C`, `Hypothesis 1/2`, `Test 1`, `Case X`, `Issue #N from this run`, `regression from review run`, `found by review-gate`, `confirmed by this <skill> run`.

@@ -28,7 +28,7 @@ argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 
 Stateless loop: **Parse → Execute → Done**. Execute branches into exactly one of six sub-commands, so a run passes through Phase 1, one sub-command body, and the terminal report. CRUD frontend + runner over `.geniro/actions/` — user-authored workflow-helper actions stored as plain Markdown files. Six operations: `list`, `create`, `edit`, `run`, `delete`, `validate`.
 
-**Sub-command bodies.** Each sub-command's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-<verb>.md`. Read the one Phase 1 dispatches to, and again on any resumption of it — the five it did not dispatch to are never read. Two procedures more than one sub-command needs are shared in `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md`: §Target resolution (which action file to operate on) and §Validation gate (the create/validate checks).
+**Sub-command bodies.** Each sub-command's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-<verb>.md`. Read the one Phase 1 dispatches to — the five it did not dispatch to are never read. Two procedures more than one sub-command needs are shared in `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md`: §Target resolution (which action file to operate on) and §Validation gate (the create/validate checks).
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
@@ -105,7 +105,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 **Run mode tool gating:** Phase 4.3 intersects the action's frontmatter `allowed-tools:` with this skill's own before any step runs.
 
-Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); they run under the no-confirm contract (Phase 4.2), scoped by the action's `allowed-tools`.
+Action frontmatter MAY include tools outside `/geniro:actions`' own `allowed-tools:` (e.g. `mcp__github__*`); those never fall inside the run-mode intersection above, so a step needing them surfaces at the tool-scope gap AUQ (Phase 4.3) — skipped or the run cancelled — never executed automatically under the no-confirm contract.
 
 ## Memory I/O
 
@@ -123,7 +123,7 @@ Action frontmatter MAY include risky tools (`Bash(curl...)`, `mcp__github__*`); 
 |---|---|
 | Scope checkpoint (Phase 4.3) — user picked "Stop here, keep what's changed" | `aborted: stopped at scope checkpoint after step <N>`; edits stay in place and the Phase 4.4 summary, with its `/geniro:review` recommendation, prints before the transition |
 | User cancelled at any question other than the scope checkpoint above | `aborted: user cancelled at <step>` |
-| Slug resolution failed after 3 AUQ retries | `aborted: slug unresolved after 3 AUQ rounds` |
+| Slug resolution failed after 3 rounds of asking | `aborted: slug unresolved after 3 rounds of asking` |
 | Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
 | Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>` |

@@ -87,6 +87,11 @@ matches_state_path() {
   #                            file before mv), generic .tmp suffix
   #   *.swp       — vim swap files
   #   *~          — emacs backup files
+  #   *.pre-edit.bak — /geniro:actions edit-subcommand's own revert snapshot
+  #                    (skills/actions/subcommand-edit.md §Snapshot): a `cp`
+  #                    of the file being edited to a sibling backup, restored
+  #                    via `mv` or removed via `rm -f` on every exit path —
+  #                    not a canonical CRUD target another consumer reads
   #   T1 ephemeral subagent outputs — deterministically transient prose
   #   reports / screenshots, no frontmatter, deleted at the owning run's terminal exit:
   #     .kr-out.md, .ce-out.md, .tr-out.md, .adversarial-out.md, .research-out.md,
@@ -94,7 +99,7 @@ matches_state_path() {
   #     .research-<facet>.md (per-facet research outputs from /plan Phase 1)
   #     notes.md (ad-hoc scratch under <task-dir>/)
   #     playwright-verify.png (pre-Ship visual verification screenshot)
-  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|/\.(kr|ce|tr|adversarial|research|spec-challenge)-out\.md$|/\.research-[^/]+\.md$|/notes\.md$|/playwright-verify\.png$'; then
+  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.(kr|ce|tr|adversarial|research|spec-challenge)-out\.md$|/\.research-[^/]+\.md$|/notes\.md$|/playwright-verify\.png$'; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.
@@ -392,7 +397,7 @@ _geniro_wv_resolve() {
     *'$'*) : ;;
     *) printf '%s' "$lit"; return 0 ;;
   esac
-  local resolved="$lit" ref vn val
+  local resolved="$lit" ref vn val val_esc
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
     vn="${ref#\$}"; vn="${vn#\{}"; vn="${vn%\}}"
@@ -400,7 +405,14 @@ _geniro_wv_resolve() {
       | grep -oE "(^|[[:space:];&|])${vn}=[^[:space:];&|\"']+" \
       | tail -1 | sed -E 's/^[^=]*=//' || true)
     if [ -z "$val" ]; then return 1; fi
-    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val}|g; s|[\$]${vn}|${val}|g")
+    # Escape backslash and & before using $val as a sed REPLACEMENT: unescaped,
+    # a backslash in the value mangles the substitution (sed reads it as an
+    # escape) and an & re-inserts the whole matched text instead of the
+    # literal value — either way the write/delete target silently comes out
+    # wrong. Order matters: double backslashes FIRST, then escape &, so the
+    # backslash this step inserts for & is not itself re-doubled.
+    val_esc=$(printf '%s' "$val" | sed 's/\\/\\\\/g; s/&/\\\&/g')
+    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val_esc}|g; s|[\$]${vn}|${val_esc}|g")
   done <<< "$(printf '%s' "$lit" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' || true)"
   printf '%s' "$resolved"
   return 0
@@ -647,6 +659,34 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   done <<< "$_sep_split"
   ONELINE="$MASKED"
 
+  # A `cd` INTO the guarded tree hides every later write operand from the
+  # candidate extraction below: `cd .geniro && echo x > knowledge/learnings.jsonl`
+  # spells no `.geniro` path in the redirect target at all, yet writes exactly
+  # where `echo x > .geniro/knowledge/learnings.jsonl` would. Derive that prefix
+  # the same way block-geniro-deletion.sh's CD_PREFIX does (its ~lines 689-738);
+  # add_candidate below re-prefixes each relative operand with it. Each line of
+  # $ONELINE is already one separator-bounded simple command (the split above),
+  # so — unlike the other guard's PADDED single-line form — no further span
+  # extraction is needed here. The LAST such `cd` wins, matching execution order.
+  CD_PREFIX=""
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|*/cd|-*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */.geniro/*) CD_PREFIX="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])cd[[:space:]]+[^|;&]*' || true)"
+
   CANDIDATES=""
   add_candidate() {
     local c="$1"
@@ -655,6 +695,23 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     if [ -n "$c" ]; then
       CANDIDATES="${CANDIDATES}${c}
 "
+      # Re-prefix a plausible RELATIVE operand with the last `cd` target so a
+      # write that only resolves into .geniro/ via the shell's cwd still hits
+      # matches_state_path below. Not re-prefixed: an already-absolute/home/
+      # variable operand, and an operand that already carries a .geniro
+      # segment (needs no help, and stops this from recursing).
+      if [ -n "$CD_PREFIX" ]; then
+        case "$c" in
+          -*|/*|'~'*|'$'*) : ;;
+          *)
+            case "/$c" in
+              */.geniro/*|*/.geniro) : ;;
+              *) CANDIDATES="${CANDIDATES}${CD_PREFIX}/${c}
+" ;;
+            esac
+            ;;
+        esac
+      fi
     fi
   }
 
@@ -692,12 +749,16 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     set +f
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])sed[[:space:]]+[^|;&]*' || true)"
 
-  # 4) cp/mv: only the DESTINATION (last non-flag token) is a write. A cp/mv
-  #    whose SOURCE is itself under .geniro/ is a housekeeping rename/copy of
-  #    content already written through the helper (version-it, pre-edit snapshot,
-  #    revert) — an atomic filesystem move, not a torn-write risk — so the
+  # 4) mv: only the DESTINATION (last non-flag token) is a write. An mv whose
+  #    SOURCE is itself under .geniro/ is a housekeeping rename of content
+  #    already written through the helper (version-it, pre-edit snapshot,
+  #    revert) — an atomic filesystem rename, not a torn-write risk — so the
   #    destination is skipped. A source OUTSIDE .geniro/ keeps blocking: that is
-  #    a content write into the tree around the helper.
+  #    a content write into the tree around the helper. `cp` does NOT share
+  #    this carve-out (split out below as 4b): a copy always performs a fresh
+  #    open+truncate+write at the destination regardless of where its source
+  #    lives, so `cp .geniro/snap.md .geniro/planning/t/state.md` is exactly
+  #    the torn write this guard exists to prevent.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
     last=""
@@ -705,7 +766,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     set -f
     # shellcheck disable=SC2086
     for tok in $span; do
-      case "$tok" in cp|mv|*/cp|*/mv|-*) continue ;; esac
+      case "$tok" in mv|*/mv|-*) continue ;; esac
       [ -z "$first" ] && first="$tok"
       last="$tok"
     done
@@ -721,8 +782,25 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       */../*) : ;;
       */.geniro/*) continue ;;
     esac
-    case "$last" in ""|cp|mv|*/cp|*/mv) : ;; *) add_candidate "$last" ;; esac
-  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(cp|mv)[[:space:]]+[^|;&]*' || true)"
+    case "$last" in ""|mv|*/mv) : ;; *) add_candidate "$last" ;; esac
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])mv[[:space:]]+[^|;&]*' || true)"
+
+  # 4b) cp: only the DESTINATION (last non-flag token) is a write — no
+  #     source-under-.geniro/ carve-out (see 4 above): a copy truncates and
+  #     rewrites the destination exactly as any other cp does, no matter where
+  #     its source lives.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    last=""
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in cp|*/cp|-*) continue ;; esac
+      last="$tok"
+    done
+    set +f
+    case "$last" in ""|cp|*/cp) : ;; *) add_candidate "$last" ;; esac
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])cp[[:space:]]+[^|;&]*' || true)"
 
   # 5) dd of=target
   while IFS= read -r tok; do

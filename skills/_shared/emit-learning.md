@@ -168,7 +168,7 @@ jq -nc \
 
 ## Known limitations
 
-- **Dedup window is 200 lines.** Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/geniro:debug` session, a few per `/geniro:implement` run) the 200-line window covers weeks; if it becomes too short, callers can pre-query `learnings.jsonl` via `query-learnings` and pass `supersedes` explicitly.
+- **Dedup window defaults to 200 lines, via `GENIRO_DEDUP_WINDOW`.** Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/geniro:debug` session, a few per `/geniro:implement` run) the default covers weeks; if it becomes too short, set `GENIRO_DEDUP_WINDOW` wider or have callers pre-query `learnings.jsonl` via `query-learnings` and pass `supersedes` explicitly.
 - **No multi-entry batching.** One JSON object per call. Callers that need to emit many at once should loop.
 - **Sanitization is per-call.** A pattern that fires across multiple ext fields emits multiple audit-log rows. Aggregating is left to readers of the audit log.
 - **No producer→trust auto-default.** The helper does NOT auto-set `trust` based on producer; each caller supplies it explicitly at its emit site (e.g. `/geniro:debug` emits confirmed root causes as `verified`). A missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).

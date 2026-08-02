@@ -254,14 +254,16 @@ emit_learning() {
     rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson i "$ti" --arg v "$tsan" '.tags[$i] = $v')
   done
 
-  # Dedup scan — last 200 entries.
-  local log root
+  # Dedup scan — last N entries (window overridable; see skills/_shared/emit-learning.md).
+  local log root dedup_window
   root=$(_geniro_repo_root)
   log="$root/.geniro/knowledge/learnings.jsonl"
+  dedup_window="${GENIRO_DEDUP_WINDOW:-200}"
+  case "$dedup_window" in ''|*[!0-9]*) dedup_window=200 ;; esac
 
   if [ -f "$log" ]; then
     local last_match
-    last_match=$(tail -n 200 "$log" 2>/dev/null \
+    last_match=$(tail -n "$dedup_window" "$log" 2>/dev/null \
       | jq -Rc --arg k "$dedup_key" 'fromjson? | select(.dedup_key == $k)' 2>/dev/null \
       | tail -n 1)
 

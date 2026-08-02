@@ -16,7 +16,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 
 `validate` accepts `<scope>` arg (validate one file) or no arg (validate all). Read-only; never mutates.
 
-**flag:** `--max-lines N` overrides the default 300-LOC threshold (Step 2, matching the file-size split point in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §File-size guidance). Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
+**flag:** `--max-lines N` overrides the default 300-LOC threshold (Step 2). Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
 
 ### Step 2 — Lint rule set
 

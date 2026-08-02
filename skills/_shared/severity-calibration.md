@@ -116,8 +116,8 @@ The dim's ceiling is HIGH: §1's CRITICAL inclusion list admits no PR-prose clas
 
 The dim owns three defect classes; each keeps its own ceiling, defined in its own criteria file (the `conventions` reviewer reads all three):
 
-- **Style-rubric class** — per-file rubrics, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` §Severity Tagging. Never CRITICAL/HIGH; MEDIUM only on a tooling-load-bearing field, else LOW.
-- **Modal-pattern class** — repo-modal patterns, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity Guidelines (ceiling HIGH on a zero-shot-novel ≥80% modal violation or a crossed 100%-respected boundary; LOW suppressed).
+- **Style-rubric class** — per-file rubrics, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` §Severity tagging. Never CRITICAL/HIGH; MEDIUM only on a tooling-load-bearing field, else LOW.
+- **Modal-pattern class** — repo-modal patterns, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity guidelines (ceiling HIGH on a zero-shot-novel ≥80% modal violation or a crossed 100%-respected boundary; LOW suppressed).
 - **Authored-rule-citation class** — explicit rule files, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` §4. Severity follows the IMPACT of breaking the cited rule (correctness/security invariant → up to CRITICAL; maintainability → MEDIUM; advisory → LOW), never the bare fact that it is a rule.
 
 ---

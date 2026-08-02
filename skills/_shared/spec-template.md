@@ -24,7 +24,7 @@ schema-version: 1 # required
 branch: <git-branch> # required
 timestamp: <ISO-8601 UTC> # required
 geniro_kind: design-doc # design-doc-detect.md contract — required marker
-geniro_schema_version: m5-v3 # schema version — set to m5-v4 when launch_config is present; m5-v3 when >=1 chain-enrichment field is present (parent_ref.title|status|scope, siblings, chain_fetched_at); else m5-v2 (workflow_refs[] w/o enrichment) or m5-v1 (no workflow_refs[]); m5-v1..v4 all valid downstream
+geniro_schema_version: m5-v3 # schema version — version-selection rule canonical in workflow-refs-schema.md § Schema-version compatibility
 task_slug: <slug> # extension
 topic: <one-sentence-topic> # extension
 mode: <IDEA|DESIGN_DOC> # extension
@@ -42,17 +42,17 @@ workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / A
     kind: linear
     issue_id: CI-300
     url: https://linear.app/...
-    title: "Case Radar performance epic" # optional (m5-v3) — epic title
-    status: In Progress # optional (m5-v3) — epic status
-    scope: "Cut Case Radar backfill latency below 5 min across all tenants." # optional (m5-v3) — short epic scope, <=280 chars, trimmed at a sentence boundary
-  siblings: # optional (m5-v3) — depth-1 sibling sub-tasks under the same parent; <=8 entries; omit key when none
+    title: "Case Radar performance epic" # optional (m5-v3)
+    status: In Progress # optional (m5-v3)
+    scope: "Cut Case Radar backfill latency below 5 min across all tenants." # optional (m5-v3)
+  siblings: # optional (m5-v3)
   - issue_id: CI-301
     title: "Add per-user job partitioning"
     status: Done
   - issue_id: CI-302
     title: "Backfill progress telemetry"
     status: In Progress
-  chain_fetched_at: 2026-05-26T10:42:15Z # optional (m5-v3) — when the related-task chain was fetched; staleness-checked INDEPENDENTLY of fetched_at
+  chain_fetched_at: 2026-05-26T10:42:15Z # optional (m5-v3)
 budget: # goal-state block — start
   max_files_to_edit: <int|null>
   max_lines_changed: <int|null>

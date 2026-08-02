@@ -1,6 +1,6 @@
 # L3 semantic-memory write helper
 
-**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), and `/geniro:plan` (manages `_FEATURES.md`).
+**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), `/geniro:plan` (manages `_FEATURES.md`), and `/geniro:onboard` (writes its whole `_CODEBASE_MAP.md` through this helper).
 
 ## API
 

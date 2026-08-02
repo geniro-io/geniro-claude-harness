@@ -1,6 +1,6 @@
 # Spec compliance review criteria
 
-Conformance audit of the diff **against the plan / spec** — what the spec promised but the diff omits (checks 1-11), and what the diff implements contrary to the spec's stated behavior (check 12). The diff's code quality (correctness, security, architecture, tests, optimizations, guidelines, conventions, design) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF conformance only. The spec is the **primary rubric** for what the change intended; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored. But the spec is a fallible human artifact, not ground truth: a divergence between spec and diff can mean the diff is wrong OR the spec is wrong. Before flagging an omission or contradiction as a defect against the implementation, rule out that the code deliberately and correctly departed from a spec premise the live code contradicts (see §Spec-premise validation) — otherwise a correct implementation gets blamed for the spec's own error.
+Conformance audit of the diff **against the plan / spec** — what the spec promised but the diff omits (checks 1-11), and what the diff implements contrary to the spec's stated behavior (check 12). The diff's code quality (bugs, security, architecture, tests, optimizations, conventions, regressions, design, pr-metadata) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF conformance only. The spec is the **primary rubric** for what the change intended; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored. But the spec is a fallible human artifact, not ground truth: a divergence between spec and diff can mean the diff is wrong OR the spec is wrong. Before flagging an omission or contradiction as a defect against the implementation, rule out that the code deliberately and correctly departed from a spec premise the live code contradicts (see §Spec-premise validation) — otherwise a correct implementation gets blamed for the spec's own error.
 
 This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
 
@@ -9,11 +9,11 @@ This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either t
 - schema-aware mode
 - LINEAR CONTEXT supplement (workflow integration)
 - Spec-premise validation
-- What to Check
+- What to check
 - Common false positives
-- Severity Tagging
+- Severity tagging
 - Cross-PR scope split (peer-PR context)
-- Output Anchor
+- Output anchor
 
 ---
 
@@ -43,7 +43,7 @@ When the `LINEAR CONTEXT:` slot is non-`none` (workflow integration fetched a Li
 
 - **Both present (PLAN CONTEXT section 9 AND Linear ACs):** ACs from both sources are merged into a single rubric. Tests must reference behaviors from each. Conflicts (PLAN-AC1 contradicts Linear-AC1) are surfaced as a dedicated finding with severity HIGH, citing both sources verbatim.
 - **Only Linear ACs present (no PLAN CONTEXT OR PLAN CONTEXT lacks section 9):** Linear ACs become the sole rubric. Apply check #4 (Tests for stated acceptance criteria) against the Linear AC list.
-- **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to Check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
+- **Only PLAN CONTEXT present (no Linear OR Linear fetch failed):** unchanged from §What to check rubric. The fail-open caveat from Phase 1 surfaces in `## Caveats`.
 
 Findings from Linear-AC mismatches carry the prefix "Linear AC: " in the finding title to distinguish from PLAN CONTEXT ACs (e.g., "Linear AC: ENG-123 specifies "API returns 404 when user not found"; no test asserts 404 path"). The `Evidence:` field quotes verbatim from the LINEAR CONTEXT block: `LINEAR CONTEXT Acceptance Criteria, item 2: "API returns 404 when user not found"`.
 
@@ -62,11 +62,11 @@ For each candidate divergence, ask: **is the spec's premise still true in the cu
   - **Evidence:** cite TWO live-code facts, each with `file:line` — (1) the fact that contradicts the spec's premise, AND (2) the fact establishing the diff's departure is the *correct* response, not merely that the premise is stale. Quote the spec fragment alongside them. The second citation is the load-bearing guard against under-reporting: "the premise looks stale" is not enough to clear the implementation — you must show the omission is the right call. Cite (1) but not (2) → inconclusive (see below), not a spec-defect.
   - **Also emit a structured `open_questions[]` entry** (`source: spec-compliance`, `status: unresolved`) so the decision actually gates the handoff — an `[INTENT-CHECK]` tag alone surfaces the note in the PR body but fires no interactive decision gate. Phrase: "Spec premise `<premise>` is contradicted by `<code reality>` (`file:line`); the diff correctly departed. Decide: fix the spec, change the code to match the spec, or accept the divergence." This reuses the same channel as §Cross-PR scope split — same `open_questions[]` plumbing, same handoff gating.
 
-- **If the code's departure is NOT grounded** (the spec premise still holds and the diff genuinely skipped a still-valid scoped item, or implemented it contrary to the stated behavior), emit the standard finding per §What to Check at its normal severity.
+- **If the code's departure is NOT grounded** (the spec premise still holds and the diff genuinely skipped a still-valid scoped item, or implemented it contrary to the stated behavior), emit the standard finding per §What to check at its normal severity.
 
-This is skip-when-clean: it only runs when a real divergence surfaces, and it never rewrites the spec — it flags the spec as possibly-wrong and routes the decision to the user via the `open_questions[]` gate above. When the grounding check is inconclusive (you cannot cite BOTH live-code facts — the premise contradiction AND the correctness of the departure), default to the standard finding per §What to Check but note the uncertainty in `Evidence:`.
+This is skip-when-clean: it only runs when a real divergence surfaces, and it never rewrites the spec — it flags the spec as possibly-wrong and routes the decision to the user via the `open_questions[]` gate above. When the grounding check is inconclusive (you cannot cite BOTH live-code facts — the premise contradiction AND the correctness of the departure), default to the standard finding per §What to check but note the uncertainty in `Evidence:`.
 
-## What to Check
+## What to check
 
 ### 1. Scope completeness
 
@@ -254,7 +254,7 @@ Skip or downgrade findings in these cases — they look like rubric violations b
 
 The detection signals above come from `gh pr view --json isDraft,author,title,body,labels` and the PLAN CONTEXT slot already threaded into the prompt at SKILL.md Phase 1 — no additional API roundtrip is needed.
 
-## Severity Tagging
+## Severity tagging
 
 - **CRITICAL** — data-mutating migration with no rollback path (Check 3); semantic shift with fail-closed implications and no boundary assertion in tests (Check 7); flag-gated rollout with no flag wiring (Check 5). These ship broken, unsafe, or unrollable.
 - **HIGH** — scoped item from the plan is missing from the diff (Check 1); migration absent when the plan mentions a schema change (Check 2); multi-writer change with no documented deploy order (Check 6); new config / env var with no config-surface entry (Check 8); Done Condition not realized in the diff (Check 10); Tools Required missing from the environment (Check 11); implementation contradicts the spec's stated behavior for a touched item, with the departure not grounded in live code (Check 12). Reviewers cannot verify or operate the change without these.
@@ -273,7 +273,7 @@ When the `PEER-PR CONTEXT:` slot is non-`none` AND the LINEAR CONTEXT block show
 
 When ALL parent scope items appear covered across current + peer PRs combined, the multi-PR effort is complete — surface a one-line informational note in body `## Caveats`: "Parent epic ENG-100 fully covered by [current + peer-PR list]." No `open_questions[]` entry — there's nothing to resolve.
 
-## Output Anchor
+## Output anchor
 
 Spec-compliance findings have no `path:lines`. Emit each finding with:
 - `File:` field set to the literal string `SPEC-COMPLIANCE` (no path, no line number).

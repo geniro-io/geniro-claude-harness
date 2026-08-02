@@ -6,14 +6,14 @@ This dimension fires only when input is a PR ref (`pr-ref != none`); it is skipp
 
 ## Contents
 
-- What to Check
+- What to check
 - Common false positives
-- Severity Tagging
-- Output Anchor
+- Severity tagging
+- Output anchor
 
 ---
 
-## What to Check
+## What to check
 
 ### 1. Title — Imperative Verb Opener
 
@@ -163,7 +163,7 @@ Skip or downgrade findings in these cases — they look like rubric violations b
 
 The detection signals above come from `gh pr view --json isDraft,author,title,body,labels` — the same call already issued at SKILL.md Phase 1 "Parse input" — so no additional API roundtrip is needed.
 
-## Severity Tagging
+## Severity tagging
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
@@ -175,7 +175,7 @@ This dim's ceiling is HIGH — that file's §1 CRITICAL inclusion list admits no
 
 Do not emit findings for repos that demonstrably do not follow a given convention (modal-pattern detection rules in checks #2 and #9 must show the repo uses the convention before flagging deviations).
 
-## Output Anchor
+## Output anchor
 
 PR-metadata findings have no `path:lines`. Emit each finding with:
 - `File:` field set to the literal string `PR-METADATA` (no path, no line number).

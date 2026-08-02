@@ -383,7 +383,7 @@ _geniro_wv_resolve() {
     *'$'*) : ;;
     *) printf '%s' "$lit"; return 0 ;;
   esac
-  local resolved="$lit" ref vn val
+  local resolved="$lit" ref vn val val_esc
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
     vn="${ref#\$}"; vn="${vn#\{}"; vn="${vn%\}}"
@@ -391,7 +391,14 @@ _geniro_wv_resolve() {
       | grep -oE "(^|[[:space:];&|])${vn}=[^[:space:];&|\"']+" \
       | tail -1 | sed -E 's/^[^=]*=//' || true)
     if [ -z "$val" ]; then return 1; fi
-    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val}|g; s|[\$]${vn}|${val}|g")
+    # Escape backslash and & before using $val as a sed REPLACEMENT: unescaped,
+    # a backslash in the value mangles the substitution (sed reads it as an
+    # escape) and an & re-inserts the whole matched text instead of the
+    # literal value — either way the write/delete target silently comes out
+    # wrong. Order matters: double backslashes FIRST, then escape &, so the
+    # backslash this step inserts for & is not itself re-doubled.
+    val_esc=$(printf '%s' "$val" | sed 's/\\/\\\\/g; s/&/\\\&/g')
+    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val_esc}|g; s|[\$]${vn}|${val_esc}|g")
   done <<< "$(printf '%s' "$lit" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' || true)"
   printf '%s' "$resolved"
   return 0
@@ -560,6 +567,19 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: shell-side writes into protected paths ----
   COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
   if [ -z "$COMMAND" ]; then
+    # jq is present, but the command extracted empty — either tool_input.command
+    # was genuinely absent, or the payload was malformed JSON the parse above
+    # silently swallowed (`|| echo ""`). A malformed payload must not be a free
+    # pass: run the same coarse fail-closed raw-text scan the jq-absent branch
+    # at the top of this file uses, so a protected-file write still blocks even
+    # when parsing broke.
+    RAW_TARGETS=$(printf '%s' "$INPUT" \
+      | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
+      | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
+    if printf '%s' "$RAW_TARGETS" | grep -qE '\.env($|[^A-Za-z0-9])|\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
+      echo "File protection blocked [jqless-fallback]: the tool input names a protected file (.env, *.pem, *.key, credentials.*, secrets.*) but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
+      exit 2
+    fi
     exit 0
   fi
   # Heredoc bodies are DATA, not shell syntax — a `> .env` inside one is text.
@@ -626,6 +646,34 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # can't split a write apart (mirrors block-dangerous-git.sh).
   ONELINE="${JOINED//$'\n'/ }"
 
+  # A `cd` into `.git/` hides the write target from the redirect/tee/…
+  # candidate extraction below: `cd .git && echo x > config` spells no `.git`
+  # path in the write operand at all, yet writes exactly where
+  # `echo x > .git/config` would. Derive that prefix the same way
+  # block-geniro-deletion.sh's CD_PREFIX does (its ~lines 689-738), scoped to a
+  # cd target that is itself under `.git/`; add_candidate below re-prefixes
+  # each relative operand with it. The LAST such `cd` wins, matching execution
+  # order. Filename-matched patterns (.env, *.pem, *.key, …) need no help here
+  # — they match on the operand text alone, cd or not.
+  CD_PREFIX=""
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|*/cd|-*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */.git/*) CD_PREFIX="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])cd[[:space:]]+[^|;&]*' || true)"
+
   CANDIDATES=""
   add_candidate() {
     local c="$1"
@@ -635,6 +683,23 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     if [ -n "$c" ]; then
       CANDIDATES="${CANDIDATES}${c}
 "
+      # Re-prefix a plausible RELATIVE operand with the last `cd .git/…` target
+      # so a write that only resolves into .git/ via the shell's cwd still hits
+      # the write-git-internal check below. Not re-prefixed: an already-
+      # absolute/home/variable operand, and an operand that already carries a
+      # .git segment (needs no help, and stops this from recursing).
+      if [ -n "$CD_PREFIX" ]; then
+        case "$c" in
+          -*|/*|'~'*|'$'*) : ;;
+          *)
+            case "/$c" in
+              */.git/*|*/.git) : ;;
+              *) CANDIDATES="${CANDIDATES}${CD_PREFIX}/${c}
+" ;;
+            esac
+            ;;
+        esac
+      fi
     fi
   }
 

@@ -102,7 +102,7 @@ Return the list to the consumer skill.
 
 ## Hydrating requires-context
 
-Subagents run with a fixed tool surface — `reviewer-agent` declares `tools: [Read, Glob, Grep, Bash]` — and cannot call MCP servers. A custom reviewer that needs live external data (a Notion page, a Linear / Jira issue, an API response) therefore can't fetch it itself, and the fetch can't be added at the spawn site: the tool list is fixed and MCP tool names are per-install, so they're unknowable here. The orchestrator runs in the main context where MCP IS available, so it pre-fetches the data and injects it into the one reviewer's prompt — the same hydrate-and-inject pattern `/geniro:review` already uses for `LINEAR CONTEXT:`.
+Subagents run with a fixed tool surface declared in their frontmatter. A custom reviewer that needs live external data (a Notion page, a Linear / Jira issue, an API response) cannot be relied on to fetch it itself, and the fetch cannot be pinned at the spawn site: MCP tool names are per-install, so the specific tool to call is unknowable here. The orchestrator runs in the main context where MCP IS available, so it pre-fetches the data and injects it into the one reviewer's prompt — the same hydrate-and-inject pattern `/geniro:review` already uses for `LINEAR CONTEXT:`.
 
 Run this once per spawn-spec whose `requires-context` is non-null, AFTER Step 7 builds the specs and BEFORE appending the `Agent()` calls:
 

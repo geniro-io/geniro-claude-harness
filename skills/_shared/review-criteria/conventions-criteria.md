@@ -4,20 +4,20 @@ Statistical pattern inference across siblings. Flags deviations from the modal p
 
 ## Contents
 
-- Methodology — Modal Pattern Inference
-- What to Check
-- What This Dimension Does NOT Cover
-- How to Detect — Worked Example
-- [NEW] vs [PRE-EXISTING] Tagging
+- Methodology — modal pattern inference
+- What to check
+- What this dimension does NOT cover
+- How to detect — worked example
+- [NEW] vs [PRE-EXISTING] tagging
 - Common false positives
-- Stack-Agnostic Patterns
-- Cross-PR Convention Drift (peer-PR context)
-- Review Checklist
-- Severity Guidelines
+- Stack-agnostic patterns
+- Cross-PR convention drift (peer-PR context)
+- Review checklist
+- Severity guidelines
 
 ---
 
-## Methodology — Modal Pattern Inference
+## Methodology — modal pattern inference
 
 Structural conventions emerge from repetition across a codebase, not from an external style guide. Infer them by sampling the existing code and codifying the dominant pattern.
 
@@ -32,7 +32,7 @@ For every pattern category checked, follow this recipe before emitting any findi
 7. **Skip when N<3.** Fewer than 3 siblings makes the modal threshold unreliable. Stay silent — too few samples to call a "house style".
 8. **Cite the supporting samples.** Every emitted finding lists the sibling paths that establish the modal — a finding with no evidence paths is bikeshedding and is not emitted.
 
-## What to Check
+## What to check
 
 ### 1. Sibling-File Consistency
 
@@ -178,7 +178,7 @@ ls "$DIR"/$KIND_GLOB 2>/dev/null | grep -v "$(basename "$CHANGED_FILE")" | head 
 # If fewer than 3 results, broaden to analogous directories before giving up.
 ```
 
-## What This Dimension Does NOT Cover
+## What this dimension does NOT cover
 
 The conventions reviewer is **structural and semantic**. It ignores anything a linter or formatter handles, and anything covered by another dimension.
 
@@ -188,7 +188,7 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 - Quote style (single vs double)
 - Pure aesthetic naming preferences (`userList` vs `users` when both are clear)
 
-Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) belong to the authored-rule-citation class (`rules-compliance-criteria.md`) per §What to Check step 1.
+Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) belong to the authored-rule-citation class (`rules-compliance-criteria.md`) per §What to check step 1.
 
 **Out of this class — route:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → the style-rubric class (`guidelines-criteria.md`)
@@ -197,7 +197,7 @@ Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contra
 - Visual/UI exemplar drift (radius, shadow, spacing rhythm) → `design-criteria.md`
 If a finding fits a style/naming/docs rubric mold, it belongs to the style-rubric class (`guidelines-criteria.md`). If a finding requires sampling siblings and computing a mode (repo-modal patterns / single-exemplar rubric drift / ADR contradictions / file placement / convention guard), it belongs to this modal-pattern class.
 
-## How to Detect — Worked Example
+## How to detect — worked example
 
 A PR adds `src/components/UserCard.tsx`. Reviewer runs the conventions check.
 
@@ -223,7 +223,7 @@ Counter-example: same PR, but only 2 sibling components exist (`Avatar.tsx`, `Ca
 
 Counter-example: 4 of 7 siblings use named exports, 3 use default. 57% — ambiguous split, multiple valid patterns coexist. Skip silently. No finding.
 
-## [NEW] vs [PRE-EXISTING] Tagging
+## [NEW] vs [PRE-EXISTING] tagging
 
 Style findings on legacy code are noise. Use the diff context pre-inlined by the orchestrator (the same field bugs and security reviewers receive) to tag every finding:
 
@@ -244,7 +244,7 @@ Reviewers should never block a PR on [PRE-EXISTING] convention drift. If pre-exi
 8. **Linter-territory categories** — Quote style, semicolons, alphabetization, indentation, line length. See exclusion list above. The linter handles these; conventions does not.
 9. **Tooling configuration files** — `tsconfig.json`, `vite.config.ts`, `package.json`, ESLint config. These are project-level singletons with no meaningful sibling cohort.
 
-## Stack-Agnostic Patterns
+## Stack-agnostic patterns
 
 Most categories generalize across TypeScript/JavaScript, Python, Go, Rust, Ruby, Kotlin, Java, Swift, C#: sibling-consistency, mixing-of-kinds, naming-style, import-grouping, error-handling, module-boundary all read at the conceptual level even when concrete syntax differs (e.g., "modal error-handling pattern" reads as try/catch in JS, Result in Rust, errors-as-values in Go, exceptions in Python).
 
@@ -257,7 +257,7 @@ A few categories are language-specific:
 
 When a category does not apply to the language, skip it — do not force-fit.
 
-## Cross-PR Convention Drift (peer-PR context)
+## Cross-PR convention drift (peer-PR context)
 
 When the `PEER-PR CONTEXT:` slot is non-`none`, siblings in flight on same target branch ARE part of the modal denominator for recent / in-flight patterns. Inspect kept sibling diffs for convention conflicts:
 
@@ -268,23 +268,13 @@ Apply the 80% modal threshold AT THE MERGE-STATE LEVEL — peer PRs in flight do
 
 Do NOT apply the modal threshold to peer PRs as if they were merged siblings — that would inflate the denominator with unmerged code. The signal is "two-way coordination needed", not "modal violation".
 
-## Review Checklist
+## Review checklist
 
-- [ ] Explicit authored rules routed to the authored-rule-citation class (`rules-compliance-criteria.md`); this class sampled repo-modal patterns (read CONTRIBUTING.md + ADRs for modal context)
 - [ ] Step 0 sibling glob run for every changed file; N≥3 confirmed before judging
-- [ ] 80% modal threshold applied per category; ambiguous splits skipped
-- [ ] Sibling-file consistency: helpers placed where ≥80% of siblings put them
-- [ ] Mixing of code kinds matches the directory's modal (colocated vs separated)
-- [ ] Declaration order within file follows the modal section sequence
-- [ ] Naming style (filename casing, private affix) matches the modal; linter-handled rules skipped
-- [ ] Import grouping mode matches the modal (groups, blank lines, type-import policy); formatter-handled cases skipped
-- [ ] Error-handling pattern matches the directory's modal (try/catch vs Result vs Go-style)
-- [ ] Class construction pattern matches the modal (factory vs constructor, member order)
-- [ ] Module/layer boundaries respected — diff does not cross a 100%-respected boundary
 - [ ] Every emitted finding cites `evidence_paths` with concrete sibling paths and `modal_frequency`
 - [ ] [NEW] vs [PRE-EXISTING] tag set on every finding; pre-existing capped at MEDIUM
 
-## Severity Guidelines
+## Severity guidelines
 
 - **CRITICAL**: never. Convention drift is never CRITICAL — bugs and security own that tier. Conventions caps at HIGH.
 - **HIGH**: clear ≥80% modal violation in [NEW] code that introduces a pattern the repo uses nowhere else (zero-shot novel), or crosses a 100%-respected module/layer boundary.

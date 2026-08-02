@@ -104,11 +104,15 @@ The `approvals[]` entry shapes (0d), the edge-case behaviors (0f), and the spec 
 ```yaml
 approvals:
   - category: implement_workspace_setup
+    prompt: "Where should /geniro:implement land its edits?"
+    options: ["New feature branch (Recommended)", "Current branch", "Git worktree"]
     picked: "New feature branch (Recommended)"
     at: <ISO-8601 UTC>
     asked_in_phase: analyze
     why: "the branch already carried a commit from this same work stream"
   - category: implement_workflow_status
+    prompt: "Move to In Progress?"
+    options: ["Yes — move to In Progress", "No — leave as is"]
     picked: "Yes — move to In Progress"
     at: <ISO-8601 UTC>
     asked_in_phase: analyze
@@ -202,7 +206,7 @@ Read-only: `/geniro:implement` never mutates tracker / parent / sibling state fr
 
 ### Knowledge-Retrieval spawn
 
-The orchestrator MUST have resolved `PRIMARY_ROOT` per Phase 1 entry preamble (see SKILL.md §PHASE 1) before substituting the literal `<PRIMARY_ROOT>/` token in these slots. Without that compute, the spawn template ships literal placeholder paths to the agents.
+Resolve `PRIMARY_ROOT` per Phase 1 entry preamble (see SKILL.md §PHASE 1) before substituting the literal `<PRIMARY_ROOT>/` token in these slots — skipping that compute ships literal placeholder paths to the agents.
 
 The orchestrator pre-resolves these slots and inlines them in the prompt:
 
@@ -515,7 +519,7 @@ the bug is fixed. Write the structured findings report to OUTPUT_PATH per the
 §Output Format. Authored test files land under TEST_DIR_HINT — they become
 part of the commit if Phase 3 ships clean.
 
-Critical constraints (enforced by agent frontmatter tools whitelist):
+Critical constraints (prompt-level contract; the whitelist enforces only the no-subagent constraint):
 - No production-source edits — test files only.
 - No git mutation.
 - No destructive Bash.
@@ -537,7 +541,7 @@ Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show
 
 ```
 round = 1
-while round ≤ 3:
+while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Loop invariants (invariant 5)
   spawn this round's agents IN PARALLEL (one assistant response):
     round 1: reviewer-agents + 1 adversarial-tester (unless skipped) + N custom reviewers
     round N+1: only dims that flagged an ACTIONABLE finding in round N + adversarial-tester
@@ -576,7 +580,7 @@ while round ≤ 3:
   re-spawn test-runner-agent; if Verdict != ALL_GREEN, rollback to Phase 2
   round += 1
 else:
-  # round 4 would start — DO NOT enter
+  # round ROUND_CAP+1 would start — DO NOT enter
   escalate via AskUserQuestion
 ```
 
@@ -584,7 +588,7 @@ else:
 
 **Minor and out-of-scope findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving MINOR + OUT-OF-SCOPE findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_write`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix · a `pre-existing` marker on out-of-scope entries. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory. NITs never persist here — they were fixed in-round.
 
-**Adversarial-tester treated as the 6th dimension for fix purposes:**
+**The adversarial-tester slot is treated identically to a reviewer dimension for fix purposes:**
 - Each authored failing test counts as a HIGH finding.
 - After applying fixes, the next test-runner-agent invocation reports whether the adversarial tests now pass.
 - If they pass, the adversarial dim is "clean" for round N+1 (drop from re-spawn).
@@ -723,7 +727,7 @@ emit_rejection_if_signal \
 
 **Step 5 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`, where `action` is a literal from the enum in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum (`git-push`, `pr-created`, `pr-comment-posted`), and `completed-at` comes from `$(date -u +%Y-%m-%dT%H:%M:%SZ)` in the same write call, never model-supplied (`atomic-state-write.md` §Timestamp sourcing). Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
-**Step 9 — Emit the ship report.** After the chosen ship action completes (push / PR create / commit-only) and its side-effect is recorded (step 5), emit a ship report to chat — a human-readable summary of what shipped, carrying the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. This is the run's final deliverable; the terminal `phase:` transition fires only AFTER this report is emitted — a bare status echo ("opened draft PR") is not a ship report and leaves the user without the evidence the Stop hook scans for. The report covers:
+**Step 9 — Emit the ship report.** After the chosen ship action completes (push / PR create / commit-only) and its side-effect is recorded (step 5), emit a ship report to chat — a human-readable summary of what shipped, carrying the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. This is the run's final deliverable; the terminal `phase:` transition fires only AFTER this report is emitted — a bare status echo ("opened draft PR") is not a ship report and leaves the user without the Evidence Block the report contract requires. The report covers:
 
 - **What shipped** — the files / scope changed (the CHANGED_FILES set), one line on the change.
 - **Commit + branch + PR** — commit SHA, branch name, and PR URL quoted verbatim from the actual tool output (`git rev-parse HEAD`, `git branch --show-current`, the `gh pr create` URL line) — never "git push succeeded" without the ref, per Loop invariant #6.

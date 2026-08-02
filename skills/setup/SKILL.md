@@ -55,7 +55,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 
 ## Loop invariants
 
-The canonical loop invariants 1-7 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five setup-specific bindings:
+The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five setup-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
 - **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
@@ -184,16 +184,8 @@ Detect via **lockfile / config presence**, NOT inference:
 | Stack signal | Evidence file(s) | Captured |
 |---|---|---|
 | Node/npm | `package.json` + `package-lock.json` | `pkg_mgr: npm`, `lang: node`, `scripts: {...}` |
-| Node/yarn | `package.json` + `yarn.lock` | `pkg_mgr: yarn` |
-| Node/pnpm | `package.json` + `pnpm-lock.yaml` | `pkg_mgr: pnpm` |
-| Node/bun | `package.json` + `bun.lockb` | `pkg_mgr: bun` |
-| Python/uv | `pyproject.toml` + `uv.lock` | `pkg_mgr: uv`, `lang: python` |
-| Python/poetry | `pyproject.toml` + `poetry.lock` | `pkg_mgr: poetry` |
-| Python/pip | `requirements.txt` | `pkg_mgr: pip` |
-| Rust | `Cargo.toml` + `Cargo.lock` | `lang: rust` |
-| Go | `go.mod` + `go.sum` | `lang: go` |
-| Ruby | `Gemfile` + `Gemfile.lock` | `lang: ruby` |
-| Java | `pom.xml`, `build.gradle*` | `lang: java` |
+
+The same manifest+lockfile pattern captures `pkg_mgr` and `lang` for every other stack (yarn/pnpm/bun for Node; uv/poetry/pip for Python; Cargo.lock for Rust; go.sum for Go; Gemfile.lock for Ruby; pom.xml/build.gradle* for Java).
 
 Each detection records `{ file: <path>, line: <N>, snippet: "<exact text>" }`. No inference without evidence — if `package.json` exists but no lockfile, `pkg_mgr: unknown` (Interview asks).
 
@@ -417,12 +409,9 @@ Anchor: stay within current cwd; verify with `pwd && git branch --show-current` 
 
 ### 4.2 3-retry escalation loop
 
-| Round | Action |
-|---|---|
-| 1 | Spawn subagent. If `DRIFT items` empty → transition to Phase Done. Else → regenerate affected sections (jump back to Phase 3 for those sections only). |
-| 2 | Re-spawn subagent. Same logic. |
-| 3 | Re-spawn subagent. Same logic. |
-| 4 | **AUQ escalation:** `Accept with warnings (finish setup; remaining issues noted for next run) | Abort setup | Start over from the beginning (re-detect the codebase)`. |
+Rounds 1-3: spawn the verification subagent. If `DRIFT items` is empty → transition to Phase Done. Else → regenerate affected sections (jump back to Phase 3 for those sections only) and re-spawn.
+
+Round 4 — **AUQ escalation:** `Accept with warnings (finish setup; remaining issues noted for next run) | Abort setup | Start over from the beginning (re-detect the codebase)`.
 
 `## Open Questions` accumulates DRIFT items across rounds — survives compaction.
 
@@ -434,13 +423,14 @@ On transition to DONE — emit one `discovery` learning row, then echo `Recorded
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 emit_learning <<'EOF'
 {
+"producer": "/geniro:setup",
+"scope": "global",
 "type": "discovery",
 "trust": "verified",
-"skill": "setup",
 "mode": "init",
 "tags": ["setup", "stack", "bootstrap"],
 "summary": "bootstrap complete: node/npm/jest, ship_mode=open-PR-draft, full reviewer set",
-"entry": {
+"ext": {
 "stack": "node/npm",
 "test_runner": "jest",
 "ship_mode_default": "open-pr-draft",
