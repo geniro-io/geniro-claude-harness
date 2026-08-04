@@ -102,7 +102,7 @@ Dimension-specific paste notes:
 
 ## Fix-round execution
 
-Read at Phase 5 when a fix path is approved. The disjoint-scope grouping, the ownership assert, and the 1-round budget are in SKILL.md §Phase 5; this section is what happens after the agents are spawned.
+Read at Phase 5 when a fix path is approved. The disjoint-scope grouping and the ownership assert are in `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md`, and the 1-round budget in SKILL.md §Budgets; this section is what happens after the agents are spawned.
 
 **Three things reliably happen — plan for them rather than treating each as an exception.**
 

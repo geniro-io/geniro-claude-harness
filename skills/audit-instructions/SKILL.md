@@ -115,33 +115,11 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 4 — Report
 
-Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` via `atomic_state_write` — it lives outside the slug directory deliberately, so it survives the Phase 5 cleanup and becomes the next run's Phase 0 input. Structure:
-
-1. **Header** — date, scope, which dimensions ran, sharding.
-2. **Health summary** — what's strong and must not be over-corrected (feeds the next run's do-not-flag list).
-3. **Tier tables T0→T5** — columns: `# | file:line | issue | fix | effort`; convergence noted inline.
-4. **Per-dimension verdicts** — the reviewers' 2-3-sentence verdicts, edited for consistency.
-5. **Filtered** — dropped findings with one-line reasons (transparency; keeps future runs from re-litigating).
-6. **Subtraction sweep** (invariant #6) — always present, even when empty: what the bloat reviewer examined, and every candidate it considered and rejected with the reason.
-7. **Single highest-value fix** — one paragraph naming it and why.
-
-On `--quick` runs, omit section 4 and the convergence notes — no reviewers ran; state "mechanical pre-pass only" in the header. Section 6 still appears, carrying the inline sweep.
-
-In chat, render **every** finding before the action gate — the user approves individual edits to their instruction files, so each one has to be visible, low and cosmetic included. Lead with the highest-value fix, then the full tier tables T0→T5 (same rows as the report, each tier introduced in plain English — "leaked secrets and unsafe directives", "instructions that mislead agents"), then the report path. This render is the decision context for the Phase 5 question: emit it as a visible chat message and fire the question immediately after — never stop between render and question — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard. The set the user is about to approve and the set they can see must be the same set.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md`** — the report structure (written to `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md`, outside the slug dir so it survives cleanup and seeds the next run) and the render-every-finding-to-chat contract that is the Phase 5 decision context. Read it again on any resumption of the phase, including after a compaction. Phase complete when the dated report exists and every kept finding is rendered in chat.
 
 ## PHASE 5 — Action gate
 
-Use AskUserQuestion: "The audit found N issues across your AI instruction files (N₀ leaked secrets or unsafe directives, N₁ instructions that mislead agents, N₂ cross-tool contradictions, ...). How should I proceed?" with options: "Fix critical issues now (Recommended)" (secrets, unsafe directives, and misleading instructions — the top two tiers just rendered) / "Fix everything — every tier" / "Let me pick findings" / "Report only — I'll handle fixes separately".
-
-The critical-only option carries `(Recommended)` because it is the smallest change set that closes every safety and correctness defect, so it is the one the user can still review end-to-end. "Fix everything" is a first-class option, not a fallback — say what it costs (more agents, far more files touched, all in one fix round) and let the user choose.
-
-- **Fix path:** group approved findings into **strictly disjoint file scopes** — two agents editing one file overwrite each other, and a shared instruction file is where a fix round loses work silently. Name each agent's scope as an allowlist and name the files other agents hold, so a finding that spans a boundary gets reported back rather than reached for. Then run invariant #7's ownership check before spawning: every approved finding appears in exactly one agent's list, every file the findings touch falls inside exactly one allowlist, and any finding or file with no owner is echoed and assigned. Spawn one agent per group in ONE response (`model="sonnet"` per §Subagent tiering), with the finding rows, the report path as the finding source of truth, and the constraint set: edit only the approved findings, no scope creep, preserve each file's format contract (frontmatter fields, glob syntax). Max 1 fix round — surviving failures go back to the user. Then run the round out per the reference §Fix-round execution.
-- **Pick path:** present findings per tier with multi-select AskUserQuestion calls (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
-- **Report only:** proceed to cleanup.
-
-**Re-verify:** after the fix round, re-run the Phase 1 battery over the touched files and Read each changed location to confirm the finding is resolved — a fix to a frontmatter file must still parse.
-
-**Cleanup & commit:** delete the current slug's directory `.geniro/state/audit-instructions/<slug>/` per the helper §Cleanup contract (never glob sibling slug directories — they belong to parallel pipelines on other branches). The dated report survives outside the slug dir. Offer via AskUserQuestion: "Commit the instruction-file fixes?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the instruction files changed by approved fixes (never `git add -A`); the report stays local under `.geniro/state/` and is never staged or force-added (a plugin hook blocks `git add -f` on `.geniro/` paths). Follow the repo's commit style; never `--no-verify` / `--amend`.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md`** — the gate question and options, the disjoint-allowlist fix path with invariant #7's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
 
 ## State recovery
 
@@ -163,6 +141,7 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` — surface inventory, dimension rubrics, severity tiers, output contract, do-not-flag list, spawn template, fix-round execution
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` / `phase-5-action-gate.md` — the Phase 4 and Phase 5 steps, read on phase entry
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-write helper API and exit codes
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — resume validation and the recovery question
