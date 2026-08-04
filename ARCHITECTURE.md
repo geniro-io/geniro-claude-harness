@@ -244,6 +244,19 @@ Stateless CRUD + runner over `.geniro/actions/`.
 
 ---
 
+## /audit-instructions
+
+Consumer-facing adaptation of the repo-local `/audit-plugin` pipeline: audits every AI-assistant instruction surface in the consumer repo (Claude Code files, `AGENTS.md`, Cursor, Copilot, Windsurf, Cline, Gemini, Aider, Junie, Zed, Amazon Q, `.geniro/instructions/`), then applies user-approved fixes.
+
+- Same pipeline spine as the plugin audit: deterministic pre-pass → parallel dimension reviewers (accuracy / consistency / bloat / structure / coverage-safety, inherit tier) → orchestrator re-verification of every cited line → tiered report → action gate → `sonnet`-pinned fix agents with disjoint file allowlists, 1 fix round.
+- The rubric is self-contained in `skills/audit-instructions/dimensions-reference.md`: the plugin repo's `.claude/rules/*.md` rubric files do not ship to consumers, so the principles are distilled into the shipped reference rather than cited.
+- The dated report persists at `.geniro/state/audit-instructions/report-<date>.md` — outside the slug dir deliberately, so it survives the slug cleanup and seeds the next run's do-not-flag list (health-summary endorsements + still-open T0-T2 carry).
+- Secrets invariant: a credential found in an instruction file is cited by location and shape only; the value never enters findings tables, the report, chat, or state files.
+- `.geniro/instructions/*.md` are in scope for every dimension, but per-file structural lint routes to `/geniro:instructions validate` — single owner, no duplicated lint.
+- State: `.geniro/state/audit-instructions/<slug>/state.md` per `within-skill-state-handoff.md` (enumerated producer); reviewer findings persist per spawn label so resume never re-spawns completed reviewers.
+
+---
+
 ## /update (M10d)
 
 Stateless update wrapper + integrity check + MIGRATION.md reader.
