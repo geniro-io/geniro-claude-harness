@@ -22,7 +22,7 @@ After the Phase 4.1 multi-signal threshold gate — both its severity-gated Path
 
 The verified set is every kept finding at CRITICAL / HIGH / MEDIUM, whichever path admitted it: a Path-B `PRODUCT-DECISION` at MEDIUM or higher verifies against its own `File: path:lines` anchor like any Path-A survivor, because the handoff schema makes the verification fields mandatory at those severities. LOW is the only severity that skips — a trade-off at LOW is not a defect-to-confirm, and it carries no verification fields downstream.
 
-Skip condition: ONLY when that set is empty. Never skip based on tier — every CRITICAL / HIGH / MEDIUM survivor gets a verifier.
+Skip condition: ONLY when that set is empty. Never skip based on tier — every CRITICAL / HIGH / MEDIUM survivor gets a verifier. Mechanical-origin findings (a deterministic scan's hits, e.g. the secret scan) verify like any other survivor: a regex cannot tell a live credential from a test fixture, and that judgment is precisely what the verifier supplies.
 
 ---
 

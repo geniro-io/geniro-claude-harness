@@ -146,7 +146,7 @@ The directory holds the instruction files **flat** — no `.geniro/instructions/
 
 When an external directory is active it **replaces** the in-repo `.geniro/instructions/` (the two are not merged), and only the skills read from it — editing the files with `/geniro:instructions` still updates the in-repo copy, which you manage yourself. If the configured path is missing, the plugin warns and falls back to the in-repo default, so a bad path never blocks a run.
 
-## Skills (13 total)
+## Skills (14 total)
 
 ### `/geniro:setup` — AI-driven project setup
 
@@ -255,6 +255,16 @@ On-demand session-history miner, in three input shapes. Empty selects the recent
 /geniro:instructions delete debug
 ```
 
+### `/geniro:audit-instructions` — AI-instruction audit
+
+6-phase audit-and-fix pipeline over every AI-assistant instruction surface in the repo: CLAUDE.md (root + nested), AGENTS.md, `.cursor/rules` + legacy `.cursorrules`, Copilot / Windsurf / Cline / Gemini / Aider / Junie / Zed / Amazon Q files, and `.geniro/instructions/`. Deterministic pre-pass (surface discovery, cited-path + command existence, `.mdc`/`.instructions.md` frontmatter validity, legacy-format detection, secret scan — values never captured), then 5 parallel dimension reviewers (accuracy vs repo reality / cross-tool consistency / bloat & over-constraint / structure & scoping / coverage & safety), orchestrator re-verification of every cited line, tiered report (persisted to `.geniro/state/audit-instructions/report-<date>.md`, which seeds the next run's do-not-flag list), then an action gate — approved fixes go to fix agents with disjoint file allowlists, 1 fix round, battery re-run, commit offer. The subtraction sweep runs on every audit and reports what it examined even when empty; secrets are cited by location and shape, never quoted.
+
+```
+/geniro:audit-instructions                # full audit
+/geniro:audit-instructions cursor         # one tool's surfaces only
+/geniro:audit-instructions --quick        # mechanical pre-pass only
+```
+
 ### `/geniro:actions` — Custom workflow-helper management
 
 3-phase stateless CRUD + runner over `.geniro/actions/`. 6 operations: list / create / edit / run / delete / validate. `risk_class: low | medium | high` mandatory frontmatter field; run mode executes the action directly with no confirmation gate — invoking it is the authorization, and `risk_class` is metadata for the list view, delete warning, and lint. `validate` mode shares the rule set with `/instructions validate review-extra`. L2 `discovery` emit on successful runs with `external-send: true`.
@@ -343,7 +353,7 @@ geniro/
 │   ├── plugin.json              # Plugin manifest
 │   └── marketplace.json         # Marketplace manifest (plugin source entry)
 ├── agents/                      # 8 specialized agent definitions (reviewer / finding-verifier / adversarial-tester / knowledge-retrieval / codebase-explorer / codebase-research / reflection / test-runner)
-├── skills/                      # 13 reusable workflow definitions
+├── skills/                      # 14 reusable workflow definitions
 │   ├── setup/                   # AI-driven project setup
 │   ├── plan/                    # spec-first planning
 │   ├── implement/               # autonomous implementation
@@ -355,6 +365,7 @@ geniro/
 │   ├── investigate/             # codebase Q&A
 │   ├── reflect/                 # session-history rule mining
 │   ├── instructions/            # L4 rules CRUD
+│   ├── audit-instructions/      # AI-instruction audit & fix
 │   ├── actions/                 # workflow-helper CRUD + runner
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,

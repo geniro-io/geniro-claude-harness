@@ -549,6 +549,11 @@ while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Lo
 
   collect findings (reviewer dim outputs + adversarial-tester findings +
                     list of authored failing tests on disk)
+  cold-verify (standard mode): each newly collected CRITICAL/HIGH gets one
+                    finding-verifier-agent verdict per phase-3-ship.md Step 2 —
+                    refuted findings leave the fix set, clarified ones are
+                    amended; skip when none; --deep's signal-gated
+                    verification replaces this
   partition (scope before severity — findings carry [NEW|PRE-EXISTING] tags):
     OUT-OF-SCOPE = any finding tagged PRE-EXISTING, at ANY severity — it concerns
                  code this change did not introduce, so fixing it silently expands

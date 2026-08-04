@@ -44,6 +44,7 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
    | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1: Spawn the UI description agent | a read-only spec→description transform, no file writes at all |
    | `.claude/skills/improve-template/SKILL.md` Phase 4 implementers and every fix agent | user-approved findings into named template files |
    | `.claude/skills/audit-plugin/SKILL.md` Phase 5 fix agents | user-approved findings into their assigned file allowlist |
+   | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/SKILL.md` §Phase 5 fix path | user-approved instruction-file findings into their assigned file allowlist |
 
    **Hard pin, not a cap.** The tier is `sonnet` whatever the orchestrator runs — a Haiku session gets execution upgraded, which is the safe direction, and no spawn site evaluates a conditional. `haiku` is never the pin, for the 1M-context reason in category 3.
 

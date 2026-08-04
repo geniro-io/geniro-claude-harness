@@ -73,8 +73,10 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 | Path root | Layout | Producer category |
 |---|---|---|
 | `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
-| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate`, `/geniro:resolve` |
+| `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate`, `/geniro:resolve`, `/geniro:audit-instructions` |
 | `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — `/geniro:setup` |
+
+**Frontmatter-less companion artifact inside a T1.5 skill dir.** `/geniro:audit-instructions` persists dated reports at `.geniro/state/audit-instructions/report-<date>.md` — directly under the skill dir, outside any `<slug>/` subdir. No frontmatter, never passed through `validate_state_file`, written via `atomic_state_write` like every `.geniro/state/` path; it deliberately survives slug cleanup so the next run reads the latest report as its do-not-flag input.
 
 **One named exception to "survives Ship."** `/geniro:setup` deletes its singleton `state/setup/state.md` at its Done phase — the only Geniro state file deleted on success. Bootstrap state describes a one-shot run that is over: no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. The exception is scoped to that one path; every other T1.5 file survives past Ship as the tier defines.
 

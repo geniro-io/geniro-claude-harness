@@ -1,0 +1,15 @@
+# Phase 5 — Action gate (steps)
+
+Read on Phase 5 entry from `/geniro:audit-instructions` SKILL.md; the spine's invariants and budgets stay binding here.
+
+Use AskUserQuestion: "The audit found N issues across your AI instruction files (N₀ leaked secrets or unsafe directives, N₁ instructions that mislead agents, N₂ cross-tool contradictions, ...). How should I proceed?" with options: "Fix critical issues now (Recommended)" (secrets, unsafe directives, and misleading instructions — the top two tiers just rendered) / "Fix everything — every tier" / "Let me pick findings" / "Report only — I'll handle fixes separately".
+
+The critical-only option carries `(Recommended)` because it is the smallest change set that closes every safety and correctness defect, so it is the one the user can still review end-to-end. "Fix everything" is a first-class option, not a fallback — say what it costs (more agents, far more files touched, all in one fix round) and let the user choose.
+
+- **Fix path:** group approved findings into **strictly disjoint file scopes** — two agents editing one file overwrite each other, and a shared instruction file is where a fix round loses work silently. Name each agent's scope as an allowlist and name the files other agents hold, so a finding that spans a boundary gets reported back rather than reached for. Then run invariant #14's ownership check before spawning: every approved finding appears in exactly one agent's list, every file the findings touch falls inside exactly one allowlist, and any finding or file with no owner is echoed and assigned. Spawn one agent per group in ONE response (`model="sonnet"` per SKILL.md §Subagent tiering), with the finding rows, the report path as the finding source of truth, and the constraint set: edit only the approved findings, no scope creep, preserve each file's format contract (frontmatter fields, glob syntax). Max 1 fix round — surviving failures go back to the user. Then run the round out per the reference §Fix-round execution.
+- **Pick path:** present findings per tier with multi-select AskUserQuestion calls (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
+- **Report only:** proceed to cleanup.
+
+**Re-verify:** after the fix round, re-run the Phase 1 battery over the touched files and Read each changed location to confirm the finding is resolved — a fix to a frontmatter file must still parse.
+
+**Cleanup & commit:** delete the current slug's directory `.geniro/state/audit-instructions/<slug>/` per the helper §Cleanup contract (never glob sibling slug directories — they belong to parallel pipelines on other branches). The dated report survives outside the slug dir. Offer via AskUserQuestion: "Commit the instruction-file fixes?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the instruction files changed by approved fixes (never `git add -A`); the report stays local under `.geniro/state/` and is never staged or force-added (a plugin hook blocks `git add -f` on `.geniro/` paths). Follow the repo's commit style; never `--no-verify` / `--amend`.
