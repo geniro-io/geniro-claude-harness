@@ -202,7 +202,7 @@ fi
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
 | Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
 
-Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit the orchestrator's tier.
+Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, a category-4 execution pin per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
 
 ---
 

@@ -45,7 +45,7 @@ The Phase 4, Phase 5, and Phase 8 gate messages render in the shared visual lang
 
 ## Echo contract
 
-Cross-phase: Phase 1 research spawns, the Phase 4 stress-test critics, and the Phase 6 spec write all append an entry of this shape, so it lives in the spine rather than in one phase's file.
+Cross-phase: Phase 1 research spawns, the Phase 3 grill's on-demand research spawns, the Phase 4 stress-test critics, and the Phase 6 spec write all append an entry of this shape, so it lives in the spine rather than in one phase's file.
 
 Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` via `atomic_state_write`:
 

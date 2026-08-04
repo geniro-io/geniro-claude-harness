@@ -54,11 +54,11 @@ Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first
 
 ### 1.5.1 Check 1 — Lint
 
-Detect the project's own lint setup and run its lint command over the changed files, quietest output the tool offers. Capture failures as `{tool, file, line, rule, message}` tuples.
+Detect the project's own lint setup and run its lint command over the changed files through `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Lint" "<lint_cmd>"` — the same containment the Phase 2.7 build check mandates; a lint pass over a broken diff floods context exactly like a build. Capture failures as `{tool, file, line, rule, message}` tuples.
 
 ### 1.5.2 Check 2 — Schema
 
-Run whichever type / schema checks the diff's file types call for — compiler no-emit type check, JSON-Schema or OpenAPI validation, protobuf lint. Capture failures in the same tuple shape.
+Run whichever type / schema checks the diff's file types call for — compiler no-emit type check, JSON-Schema or OpenAPI validation, protobuf lint — through the same `run_silent` containment as check 1: a no-emit type check on a broken diff can emit thousands of lines. Capture failures in the same tuple shape.
 
 ### 1.5.3 Check 3 — Secret scan
 
