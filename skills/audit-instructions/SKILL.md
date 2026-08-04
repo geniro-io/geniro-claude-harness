@@ -33,26 +33,28 @@ You are the audit orchestrator. The audit target is every AI-assistant instructi
 
 ## Loop invariants
 
-1. **No unverified finding ships.** Every reviewer finding is admitted only after you Read the cited `file:line` and confirm the quoted evidence exists there — reviewers hallucinate locations, and one fabricated `path:line` poisons trust in the whole report.
-2. **Report before fix.** Fixes happen only after the Phase 5 gate — an audit that silently edits while scanning destroys the baseline the findings cite.
-3. **Parallel spawns in one response.** All Phase 2 `Agent(...)` calls go in the same assistant turn; sequential turns serialize the batch's wall-time.
-4. **Do-not-flag list is binding.** The reference file's endorsed-patterns list — extended by the prior report's health summary — overrides any reviewer's instinct; re-flagging endorsed patterns is the audit's own false-positive failure mode.
-5. **Secrets are cited, never quoted.** A credential found inside an instruction file is reported by location and shape only. The report file, the chat render, and every state file must never contain the secret value — a report that quotes a secret becomes a second leak that outlives the fix.
-6. **Every run sweeps for subtraction.** The bloat dimension runs on every audit — full, scoped, and `--quick` — and its verdict names what was examined and what was rejected even when it yields no findings. An instruction set accretes through rounds that never looked; an unreported sweep is indistinguishable from a skipped one. The result is never mandated: zero findings is valid, a manufactured deletion is not.
-7. **Every approved finding has an owner.** Before spawning Phase 5 fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding silently assigned to nobody is work the user approved and never received.
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply. This skill adds seven invariants:
+
+8. **No unverified finding ships.** Every reviewer finding is admitted only after you Read the cited `file:line` and confirm the quoted evidence exists there — reviewers hallucinate locations, and one fabricated `path:line` poisons trust in the whole report.
+9. **Report before fix.** Fixes happen only after the Phase 5 gate — an audit that silently edits while scanning destroys the baseline the findings cite.
+10. **Parallel spawns in one response.** All Phase 2 `Agent(...)` calls go in the same assistant turn; sequential turns serialize the batch's wall-time.
+11. **Do-not-flag list is binding.** The reference file's endorsed-patterns list — extended by the prior report's health summary — overrides any reviewer's instinct; re-flagging endorsed patterns is the audit's own false-positive failure mode.
+12. **Secrets are cited, never quoted.** A credential found inside an instruction file is reported by location and shape only. The report file, the chat render, and every state file must never contain the secret value — a report that quotes a secret becomes a second leak that outlives the fix.
+13. **Every run sweeps for subtraction.** The bloat dimension runs on every audit — full, scoped, and `--quick` — and its verdict names what was examined and what was rejected even when it yields no findings. An instruction set accretes through rounds that never looked; an unreported sweep is indistinguishable from a skipped one. The result is never mandated: zero findings is valid, a manufactured deletion is not.
+14. **Every approved finding has an owner.** Before spawning Phase 5 fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding silently assigned to nobody is work the user approved and never received.
 
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "The reviewer quoted the line — no need to re-read it." | Invariant #1: admission requires YOUR Read of the cited location. |
-| "I'll fix this obviously dead path while scanning." | Invariant #2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
+| "The reviewer quoted the line — no need to re-read it." | Invariant #8: admission requires YOUR Read of the cited location. |
+| "I'll fix this obviously dead path while scanning." | Invariant #9: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
 | "I'll spawn reviewers one at a time to manage context." | Reviewer output is capped (§Budgets); the orchestrator holds tables, not the reviewers' reading. Sequential spawns multiply wall-time. |
 | "AGENTS.md is a copy of CLAUDE.md — flag the duplication." | Deliberate mirroring (symlink or generated copy) is the endorsed way to serve many tools from one source. Flag drift BETWEEN the copies, never the mirroring itself. |
 | "CLAUDE.md is only 30 lines — that's a coverage gap." | Brevity is healthy. A coverage finding needs two pieces of evidence: the tool is actively used here, and a specific needed fact is documented nowhere. |
 | "This skill description is keyword-stuffed — trim it." | Trigger keywords are the routing surface the tool selects skills by; trimming them degrades selection. Flag only genuine description-vs-body drift. |
 | "Two files state the same test command and agree, so it's fine." | Agreement today is drift tomorrow. Hand-maintained duplicates are a finding even while values match — propose one home, or a symlink/generation mechanism. |
-| "I found an API key — I'll quote it in the evidence column so the user can verify." | Invariant #5: the report would then contain the secret and outlive the fix. Cite `file:line` and the credential's shape; NEVER the value. |
+| "I found an API key — I'll quote it in the evidence column so the user can verify." | Invariant #12: the report would then contain the secret and outlive the fix. Cite `file:line` and the credential's shape; NEVER the value. |
 | "This file tells agents to use `--no-verify`; maybe the team wants that." | An instruction directing agents around safety mechanisms is the highest-severity finding whether or not it is intentional. Surface it and let the user decide — never silently endorse it. |
 | "The bloat sweep found nothing this round, so there's nothing to report." | A silent no-op is indistinguishable from a skipped sweep. Name what you examined and what you rejected; zero findings is a valid result, an unreported sweep is not. |
 | "There are 40 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
@@ -61,6 +63,8 @@ You are the audit orchestrator. The audit target is every AI-assistant instructi
 | "This rule reads fine — leave it." | Reading fine is not the bar. A rule can be live and correct and still cost more than it buys — a guardrail written for a weaker model, a fixed prohibition where a criterion would serve. The bloat dimension hunts those, not only redundancy. |
 
 ## Budgets
+
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. The limits below are per-step gates, not abort triggers.
 
 | Budget | Value |
 |---|---|
@@ -80,10 +84,10 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
 
 1. **Parse `$ARGUMENTS`:**
    - Empty → full audit (all dimensions, every surface found).
-   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. Invariant #6 still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
-   - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (invariant #6) runs scoped to the same path.
+   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. Invariant #13 still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
+   - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (invariant #13) runs scoped to the same path.
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
-   - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (invariant #6) unless `bloat` already names it.
+   - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (invariant #13) unless `bloat` already names it.
 2. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
 3. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?".
 4. **Build the inventory and write the state checkpoint** per the reference §Run setup — enumerate the §Surface inventory globs, record what exists (with word counts and per-tool activity signals), and checkpoint after every phase.
@@ -119,7 +123,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 5 — Action gate
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md`** — the gate question and options, the disjoint-allowlist fix path with invariant #7's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md`** — the gate question and options, the disjoint-allowlist fix path with invariant #14's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
 
 ## State recovery
 
@@ -130,11 +134,11 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 - [ ] Phase 1 battery ran; output captured in checkpoint
 - [ ] Selected reviewers spawned in one response; outputs collected
 - [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt)
-- [ ] No secret value reproduced in the report, the chat render, or any state file (invariant #5)
-- [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded findings (invariant #6)
+- [ ] No secret value reproduced in the report, the chat render, or any state file (invariant #12)
+- [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded findings (invariant #13)
 - [ ] Report written to `.geniro/state/audit-instructions/report-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
 - [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
-- [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (invariant #7)
+- [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (invariant #14)
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run clean, findings re-checked
 - [ ] Slug-scoped state cleaned up; commit offered for the fixed files only
 
