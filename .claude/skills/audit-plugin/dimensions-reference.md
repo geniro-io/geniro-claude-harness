@@ -36,7 +36,7 @@ Review ONLY your dimension; other dimensions are covered by parallel reviewers.
 {{paste the full D<N> section from dimensions-reference.md}}
 
 ### Severity tiers and output contract
-{{paste §Severity tiers + §Finding output contract from dimensions-reference.md}}
+{{paste §Severity tiers from dimensions-reference.md + §Finding output contract from ${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md}}
 
 ### Do-not-flag list
 {{paste §Do-not-flag list}}
@@ -59,6 +59,7 @@ Dimension-specific notes:
 - **D4 (rules compliance):** instruct the reviewer to load the three `.claude/rules/*.md` files first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
 - **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
 - **D6:** paste the no-execution-site and over-constraint candidate lists from the D1 battery into the `### Mechanical pre-pass context` slot, as D3 and D7 already get theirs.
+- **D8:** paste the dead-matcher candidates from the D1 activation-reachability check.
 - **Sharding:** if a dimension's markdown scope exceeds ~15K lines (full-audit D4/D6 typically do), split into shard A (`skills/*/SKILL.md` + `agents/`) and shard B (the remainder of the dimension's scope — everything NOT in shard A, so no file falls between two positive globs), same prompt, both in the batch.
 
 ## Run setup
@@ -73,25 +74,14 @@ Read at Phase 0, alongside this file's rubric sections.
 - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
 - Tests: `tests/**` (coverage map input for D8). `design/` and `evals/` are out of scope unless `$ARGUMENTS` names them.
 
-**State checkpoint** — write `.geniro/state/audit-plugin/<slug>/state.md`, slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules (audit-plugin is not in that helper's enumerated producer set but adopts its contract shape verbatim). Write via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook), with the full T1.5 YAML frontmatter starting on line 1: `tier: T1.5`, `producer: audit-plugin`, `schema-version: 1`, `branch`, `worktree`, `timestamp`, `phase`, `status`, `non-resumable-actions: []`. Plain-text header lines before the `---` fence fail `validate_state_file`. Each checkpoint records: phase completed, scope, dimensions selected, finding counts.
+**State checkpoint** — write `.geniro/state/audit-plugin/<slug>/state.md` (producer `audit-plugin` — not in the handoff helper's enumerated producer set, but adopting its contract shape verbatim) via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook). Slug and the full slug-scoped T1.5 frontmatter per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules and §Producer contract — the field set, the line-1 rule, and the `validate_state_file` consequences live there. Each checkpoint records: phase completed, scope, dimensions selected, finding counts.
 
 ## Fix-round execution
 
-Read at Phase 5 when a fix path is approved — you already have this file open from Phase 2. The disjoint-scope grouping, the ownership assert, and the 1-round budget are in SKILL.md §Phase 5; this section is what happens after the agents are spawned.
+Read at Phase 5 when a fix path is approved — you already have this file open from Phase 2. The disjoint-scope grouping, the ownership assert, and the 1-round budget are in SKILL.md §Phase 5. The shared discipline — the three things that reliably happen after fix agents spawn, dead-agent ground-truthing, and the verification order — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Fix-round discipline. Plugin-repo specifics:
 
-**Three things reliably happen, so plan for them rather than treating each as an exception.**
-
-1. **An agent finds more instances of its defect class outside its own files.** It reports them; you ground-truth the claim with a grep before routing it to the owning agent. Never let it reach across.
-2. **An agent judges a finding's stated fix wrong and says so instead of complying.** Treat that as the mechanism working. Verify the correction yourself, then amend the report row — a fix instruction written from a grep hit can be wrong in ways only the editing agent sees, and a report that ships the wrong instruction teaches the next round the wrong thing.
-3. **A correct fix inside one scope breaks a citation in another.** A heading rename is the usual shape. Prose warnings in the agent briefs do not prevent this — it has happened in consecutive rounds. After the round, re-resolve every `§` citation whose target file changed, and route each repoint to whoever owns the citing file.
-
-**An agent that dies mid-run has usually already written its edits.** Ground-truth the working tree rather than assuming either outcome, and re-verify per finding — a per-finding grep tells you what landed far faster than re-spawning.
-
-**Verification, in order.** Re-run the Phase 1 battery; Read each changed location to confirm the finding is resolved; and re-run any execution harness the findings were established with, since a claim proved by measurement is closed by measurement, not by reading the diff. A suite failing mid-round usually means another agent is mid-write on a file it reads — re-run at the end rather than treating it as a regression.
-
-**Do the once-per-round integration steps last, never per-agent** — they write files every agent would race on: regenerating a build artifact from sources several agents edited, accepting a size baseline, and completing a deletion across the files that referenced the deleted thing.
-
-Large structural items (multi-file refactors, reference-graph re-homing) are better routed to `/improve-template` with the finding rows as `$ARGUMENTS`; say so instead of attempting them inline.
+- **Once-per-round integration steps:** regenerating `cursor/agents/` from edited `agents/*.md` sources, accepting a size baseline, and completing a deletion across the files that referenced the deleted thing.
+- **Routing:** large structural items (multi-file refactors, reference-graph re-homing) are better routed to `/improve-template` with the finding rows as `$ARGUMENTS`; say so instead of attempting them inline.
 
 ## Severity tiers (shared output classification)
 
@@ -108,19 +98,7 @@ Dimensions are review lenses; tiers classify the output. Every finding gets exac
 
 ## Finding output contract (shared reviewer schema)
 
-Every reviewer returns a Markdown table with EXACTLY these columns, one row per finding, capped at 25 rows (rank by impact; note "N further low-impact items omitted" if capped):
-
-| Column | Content |
-|---|---|
-| `id` | `D<dim>-<n>` (e.g. `D3-4`; sub-reviewers keep their label — `D5a-2`, `D4-shardB-1`) |
-| `tier` | T0-T5 per the table above |
-| `file:line` | Real location — verified by the reviewer with Read before reporting. Use `file:start-end` for ranges. |
-| `issue` | One sentence, plain English |
-| `evidence` | Verbatim quote (≤2 lines) from the cited location — the orchestrator re-verifies this quote exists |
-| `fix` | Concrete suggested change, one sentence |
-| `effort` | S / M / L |
-
-A finding without a verifiable `file:line` + verbatim `evidence` is inadmissible — drop it rather than guessing a location.
+The table schema, row cap, and inadmissibility rule are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Finding output contract — paste that section into reviewer prompts alongside §Severity tiers above.
 
 ---
 
@@ -136,6 +114,7 @@ A finding without a verifiable `file:line` + verbatim `evidence` is inadmissible
 | Deleted-skill refs | `grep -rnE 'geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)' skills/ agents/ hooks/ lib/ cursor/ scripts/` — matches are CANDIDATES for D3 adjudication (CLAUDE.md's deleted-skills table is a legitimate mention) | feed D3 |
 | hooks.json wiring | Every script referenced in `hooks/hooks.json` exists in `hooks/`; every `hooks/*.sh` + `hooks/*.js` is either registered or documented as library/manual | T1 |
 | Frontmatter fields | Every `skills/*/SKILL.md` has `name`, `description`, `context`, `model`, `allowed-tools`, `argument-hint`; description length per `.claude/rules/skill-structure.md` §Frontmatter hygiene | T2 |
+| Activation reachability | Each `.claude/rules/*.md` `paths:` glob matches at least one tracked file — a zero-match glob means the rule silently never loads. Each `hooks.json` matcher names tools and events that exist in Claude Code's surface — a matcher that can never fire is a guard that silently never runs | T1 (zero-match `paths:` glob); dead matchers → CANDIDATES, feed D8 |
 | File-size guidelines | `wc -w`: budgets per `.claude/rules/skill-structure.md` §File-size limits (front-load budget for SKILL.md, whole-file guideline, and the `agents/*.md` cap). All advisory — `tests/authoring/lint-skills.sh` warns only when a SKILL.md grows past its recorded size in `tests/authoring/skill-size-baseline.txt`, and then names the heading its compaction boundary falls at, so a silent run means every size is one a maintainer already accepted. Flag WHAT sits below the boundary, never the number itself | T4 |
 | TOC presence | `wc -w`: any runtime-Read file (`skills/**/*-reference.md`, `_shared/*.md`) past the ~1,200-word threshold `.claude/rules/skill-structure.md` §Reference graph sets, with no "Contents"/"Sections" block near the top. `agents/*.md` are exempt there — injected, not Read | T4 |
 | Orphan candidates | For each `skills/_shared/*.md`, `lib/*.sh`, `agents/*.md`: grep the repo for its basename; zero inbound references → CANDIDATE for D3 adjudication | feed D3 |
@@ -161,7 +140,7 @@ Tier mapping: schema mismatch with behavioral impact → T1; doc drift / duplica
 
 ## D3 — Stale rules & dead references
 
-**Scope:** `skills/`, `agents/`, `.claude/rules/`, `.claude/skills/`, `cursor/`, `scripts/`, top-level docs. **Method:** LLM reviewer seeded with D1 candidate lists.
+**Scope:** `skills/`, `agents/`, `.claude/rules/`, `.claude/skills/`, `cursor/`, `scripts/`, top-level docs. **Method:** LLM reviewer seeded with D1 candidate lists. Where a reference is dead, check git history for a rename before writing the fix — repointing to the survivor beats deleting the mention.
 
 Checks:
 1. **Deleted-skill references** outside the documented replacement tables (adjudicate D1 candidates).
@@ -273,7 +252,7 @@ Tier mapping: contradicting constants → T1; multi-homed / unexplained / drifti
 **Scope:** `hooks/hooks.json`, `hooks/`, `lib/`, `tests/`, `settings.json`, `cursor/hooks.json`, `cursor/hooks/`, plus `skills/` for check 6 only (destructive-op grep). **Method:** LLM reviewer.
 
 Checks:
-1. **Matcher coverage.** Every guard hook's `hooks.json` matcher covers ALL tools that can perform the guarded action (Edit/Write/MultiEdit/NotebookEdit; Bash variants). A guard that misses one tool is bypassable — T0.
+1. **Matcher coverage.** Every guard hook's `hooks.json` matcher covers ALL tools that can perform the guarded action (Edit/Write/MultiEdit/NotebookEdit; Bash variants). A guard that misses one tool is bypassable — T0. The inverse is also a finding: a matcher naming a tool or event that does not exist can never fire, so the guard silently never runs — T1; D1 seeds these.
 2. **Sanitization coverage.** Every field that reaches a persisted artifact passes through `redact-secrets`; new fields added to emit paths are walked by the sanitize loop.
 3. **Fail-open vs fail-closed.** For each guard: what happens when `jq` is missing, stdin is malformed, or safety.json is unparseable? Safety-critical guards should fail closed; convenience hooks may fail open — flag mismatches with the hook's role.
 4. **Bypass-list integrity.** Every documented `allow_patterns` ID is actually checked by its hook; every hook bypass branch has a documented ID (CLAUDE.md + HOOKS.md).

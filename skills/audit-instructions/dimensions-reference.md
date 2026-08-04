@@ -51,7 +51,7 @@ Read at Phase 0 alongside the rubric sections.
 
 **Inventory** — record in the state checkpoint: per tool, the surfaces found (with `wc -w` per file), the activity signal (present/absent), and whether the surface is always-on or scoped per the loading notes above.
 
-**State checkpoint** — write `.geniro/state/audit-instructions/<slug>/state.md`, slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules. Write via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook), with the full T1.5 YAML frontmatter starting on line 1: `tier: T1.5`, `producer: audit-instructions`, `schema-version: 1`, `branch`, `worktree`, `timestamp`, `phase`, `status`, `non-resumable-actions: []`. Plain-text header lines before the `---` fence fail `validate_state_file`. Each checkpoint records: phase completed, scope, dimensions selected, finding counts, reviewer findings-file paths.
+**State checkpoint** — write `.geniro/state/audit-instructions/<slug>/state.md` (producer `audit-instructions`) via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook). Slug and the full slug-scoped T1.5 frontmatter per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules and §Producer contract — the field set, the line-1 rule, and the `validate_state_file` consequences live there. Each checkpoint records: phase completed, scope, dimensions selected, finding counts, reviewer findings-file paths.
 
 ## Reviewer spawn template
 
@@ -69,7 +69,7 @@ by parallel reviewers.
 {{the full D<N> section from dimensions-reference.md}}
 
 ### Severity tiers and output contract
-{{§Severity tiers + §Finding output contract}}
+{{§Severity tiers from this file + §Finding output contract from ${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md}}
 
 ### Do-not-flag list
 {{§Do-not-flag list, plus any patterns the prior report's health summary endorsed}}
@@ -102,17 +102,10 @@ Dimension-specific paste notes:
 
 ## Fix-round execution
 
-Read at Phase 5 when a fix path is approved. The disjoint-scope grouping and the ownership assert are in `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md`, and the 1-round budget in SKILL.md §Budgets; this section is what happens after the agents are spawned.
+Read at Phase 5 when a fix path is approved. The disjoint-scope grouping and the ownership assert are in `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md`, and the 1-round budget in SKILL.md §Budgets; the shared discipline — the three things that reliably happen after fix agents spawn, dead-agent ground-truthing, and the verification order — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Fix-round discipline. Domain specifics for this skill:
 
-**Three things reliably happen — plan for them rather than treating each as an exception.**
-
-1. **An agent finds more instances of its defect class outside its own files.** It reports them; you ground-truth the claim with a grep before routing it to the owning agent. Never let it reach across its allowlist.
-2. **An agent judges a finding's stated fix wrong and says so instead of complying.** Treat that as the mechanism working. Verify the correction yourself, then amend the report row — a fix instruction written from a grep hit can be wrong in ways only the editing agent sees.
-3. **A correct fix in one file breaks a mirror or a cross-reference in another.** Editing `CLAUDE.md` leaves a generated `AGENTS.md` copy stale; renaming a section breaks another surface's pointer to it. After the round, re-check every mirror pair and every cross-surface reference into a changed file, and route each repair to whoever owns the referencing file. A symlink needs nothing; a generated copy needs regenerating — do that once at the end of the round, never per-agent, since it races every agent that edited the source.
-
-**An agent that dies mid-run has usually already written its edits.** Ground-truth the working tree rather than assuming either outcome — a per-finding grep tells you what landed far faster than re-spawning.
-
-**Verification, in order.** Re-run the Phase 1 battery over the touched files (an edited `.mdc` or `.instructions.md` must still parse — a fix that breaks frontmatter converts a stale rule into a silently disabled one); Read each changed location to confirm the finding is resolved; re-check mirror integrity.
+- **Mirrors:** editing `CLAUDE.md` leaves a generated `AGENTS.md` copy stale; a symlink needs nothing, a generated copy needs regenerating — once at the end of the round (the once-per-round integration step), never per-agent.
+- **Format contracts:** an edited `.mdc` or `.instructions.md` must still parse — a fix that breaks frontmatter converts a stale rule into a silently disabled one; the battery re-run catches this.
 
 ## Severity tiers (shared output classification)
 
@@ -131,19 +124,7 @@ The T1/T3 line is behavioral: T1 when an agent following the text does the wrong
 
 ## Finding output contract (shared reviewer schema)
 
-Every reviewer returns a Markdown table with EXACTLY these columns, one row per finding, capped at 25 rows (rank by impact; note "N further low-impact items omitted" if capped):
-
-| Column | Content |
-|---|---|
-| `id` | `D<dim>-<n>` (e.g. `D2-4`; shards keep their label — `D4-shardA-1`) |
-| `tier` | T0-T5 per the table above |
-| `file:line` | Real location — verified by the reviewer with Read before reporting. Use `file:start-end` for ranges. |
-| `issue` | One sentence, plain English |
-| `evidence` | Verbatim quote (≤2 lines) from the cited location — the orchestrator re-verifies this quote exists. For a secret: the location and credential shape only ("line contains what appears to be a live AWS access key"), never the value — the finding table feeds a persisted report. |
-| `fix` | Concrete suggested change, one sentence |
-| `effort` | S / M / L |
-
-A finding without a verifiable `file:line` + `evidence` is inadmissible — drop it rather than guessing a location.
+The table schema, row cap, and inadmissibility rule are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Finding output contract — paste that section into reviewer prompts alongside §Severity tiers above. Domain narrowing for this skill: in the `evidence` column a secret is cited by location and credential shape only ("line contains what appears to be a live AWS access key"), never the value — the finding table feeds a persisted report.
 
 ---
 

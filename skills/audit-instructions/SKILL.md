@@ -84,7 +84,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
    - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (invariant #6) runs scoped to the same path.
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
    - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (invariant #6) unless `bloat` already names it.
-2. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim.
+2. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
 3. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?".
 4. **Build the inventory and write the state checkpoint** per the reference §Run setup — enumerate the §Surface inventory globs, record what exists (with word counts and per-tool activity signals), and checkpoint after every phase.
 
@@ -142,6 +142,7 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` — surface inventory, dimension rubrics, severity tiers, output contract, do-not-flag list, spawn template, fix-round execution
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` / `phase-5-action-gate.md` — the Phase 4 and Phase 5 steps, read on phase entry
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-write helper API and exit codes
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — resume validation and the recovery question
