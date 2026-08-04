@@ -39,6 +39,27 @@ Add to your repo's `.claude/settings.json` so teammates get prompted to install:
 }
 ```
 
+### Staying up to date
+
+By default the plugin does **not** update itself. Claude Code auto-updates only marketplaces on its first-party allowlist, and third-party marketplaces like this one are off unless you opt in. The statusline update check tells you when a new version is out, and `/geniro:update` pulls it and walks any breaking changes in `MIGRATION.md`. That is the recommended path.
+
+To opt into background updates instead, add `autoUpdate` to the marketplace entry in `~/.claude/settings.json` (or your repo's `.claude/settings.json` to opt a whole team in):
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "geniro-claude-harness": {
+      "source": { "source": "github", "repo": "geniro-io/geniro-claude-harness" },
+      "autoUpdate": true
+    }
+  }
+}
+```
+
+The marketplace and its installed plugins then refresh on startup. `/plugin` exposes the same toggle interactively, though a value set in a settings file wins and locks the UI toggle out.
+
+**The tradeoff:** a background update swaps versions without running the `MIGRATION.md` walk, so a release with breaking changes can land silently. Prefer auto-update if you track releases closely and read the changelog; prefer the default if you'd rather be prompted and have `/geniro:update` guide the upgrade. Either way, a rename-level change (like v4.x → v5.0.0 above) still needs a manual reinstall — `claude plugin update` resolves ids exactly and cannot cross a rename.
+
 ## Quick Start
 
 1. **Install** the plugin (see above) and open Claude Code in your project.
