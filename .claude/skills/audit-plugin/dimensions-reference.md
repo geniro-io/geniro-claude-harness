@@ -108,7 +108,7 @@ The table schema, row cap, and inadmissibility rule are canonical in `${CLAUDE_P
 
 | Check | Command / procedure | Tier on failure |
 |---|---|---|
-| Test suites | `bash tests/run-all.sh` | T1 |
+| Test suites | `bash tests/run-all.sh`, run through the test-runner agent (structured pass/fail + failure snippets) | T1 |
 | Authoring lint | `bash tests/authoring/lint-skills.sh` (hard fails → findings; warnings → advisory findings) | T2 / T4 |
 | ShellCheck | Preflight `command -v shellcheck` (absent → "skipped: tool unavailable", never a finding). Then `find lib hooks tests evals cursor scripts -name '*.sh' -exec shellcheck -S error {} +` (errors → T1); re-run `-S warning` (advisory → T4). Keep this path set in lockstep with `.github/workflows/ci.yml` — a path linted here but not in CI (or the reverse) is itself a finding. `find`, not `tests/**/*.sh` — `**` needs globstar and silently misses top-level files without it | T1 / T4 |
 | Deleted-skill refs | `grep -rnE 'geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)' skills/ agents/ hooks/ lib/ cursor/ scripts/` — matches are CANDIDATES for D3 adjudication (CLAUDE.md's deleted-skills table is a legitimate mention) | feed D3 |

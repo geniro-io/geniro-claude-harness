@@ -71,7 +71,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=` — they inherit the orchestrator's tier, so the user's session-level model choice governs audit depth. Phase 5 fix agents pin `model="sonnet"`: an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, since each one receives findings the user already approved and a file allowlist it may not extend. The Phase 1 battery and Phase 3 verification are orchestrator-inline: deterministic commands and targeted re-reads don't justify a spawn.
+All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=` — they inherit the orchestrator's tier, so the user's session-level model choice governs audit depth. They stay general-purpose with the rubric pasted — deliberately not `reviewer-agent`, whose output contract (confidence + decision-type classification) feeds /geniro:review's calibration machinery, not this audit's finding table. Phase 5 fix agents pin `model="sonnet"`: an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, since each one receives findings the user already approved and a file allowlist it may not extend. Phase 3's T0/T1 cold-verify uses the `finding-verifier-agent` ladder (OMIT `model=`), and the Phase 1 suite run goes through the `test-runner-agent` ladder — isolation there buys output containment, not judgment. The rest of the battery and of Phase 3 is orchestrator-inline: deterministic commands and targeted re-reads don't justify a spawn.
 
 ---
 
@@ -87,7 +87,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 
-Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, activation reachability, file-size caps, TOC presence, orphan-candidate grep. Preflight external tools: a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. For each command: capture output verbatim; non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
+Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, activation reachability, file-size caps, TOC presence, orphan-candidate grep. Preflight external tools: a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. Run the test-suites check through a `test-runner-agent` spawn (ladder per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`): it returns a structured pass/fail summary with failure snippets, so a red run's raw stdout never reaches your context — the summary is that check's captured output. For every other command: capture output verbatim. Non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
@@ -102,13 +102,14 @@ Spawn the selected reviewers in ONE response. Each prompt is self-contained — 
 
 Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-<reviewer>.md` (via `atomic_state_write`), where `<reviewer>` is the spawn's unique label — `D2`...`D8`, `D5a`/`D5b`, `D4-shardA`/`D4-shardB` — so no two spawns share a filename and overwrite each other. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
 
-## PHASE 3 — Merge, verify, filter (orchestrator-inline)
+## PHASE 3 — Merge, verify, filter
 
 1. **Merge** all reviewer tables + machine findings, plus the prior report's T0-T2 rows tagged "still open?" in Phase 0 — carried so a re-detection miss can't silently close a safety or correctness finding, and bounded to those tiers because lower ones resurface on their own if they persist. A carried row cites a location but no evidence quote, so step 2 verifies it by re-reading that location for the issue itself; gone means it was fixed since. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
 2. **Verify** every non-machine finding: Read the cited `file:line` ±5 lines; the quoted evidence must appear there and the issue description must match what the code/prose actually says. Quote absent or claim mischaracterizes the source → drop with a one-line note in the report's "Filtered" section.
 3. **Filter**: drop do-not-flag matches; drop T5 findings with no convergence and weak evidence (cosmetic noise floor); collapse repeating patterns (e.g., 14 restatement sites) into ONE finding listing all locations.
 4. **Calibrate tiers** — reviewers over-rate their own dimension; re-check each T0/T1 against the tier table definitions (T0 requires an actual bypass/loss path, T1 an actual behavior delta).
-5. Checkpoint: counts per tier, filtered count.
+5. **Cold-verify the critical tiers.** Every finding still T0 or T1 after calibration gets one independent verdict from a `finding-verifier-agent` spawn (ladder per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, OMIT `model=`); same-file findings cluster into one spawn. Input contract, cluster shape, and anti-sycophancy guards per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 / §4 / §6, treating the audit finding as the finding. Refuted → move to Filtered with the verdict reason; clarified → amend the row; skip the step when no T0/T1 survives. Step 2 catches fabricated citations; this step catches real quotes carrying wrong conclusions — the tiers that drive the "fix safety + correctness now" recommendation are the ones a false positive costs most.
+6. Checkpoint: counts per tier, filtered count, verifier verdicts.
 
 ## PHASE 4 — Report
 
@@ -147,7 +148,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 
 - [ ] Phase 1 battery ran; output captured in checkpoint
 - [ ] Selected reviewers spawned in one response; outputs collected
-- [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt)
+- [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt); every kept T0/T1 carries a cold verifier verdict
 - [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded findings (invariant #6)
 - [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
 - [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
