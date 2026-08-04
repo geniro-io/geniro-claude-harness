@@ -12,7 +12,7 @@ agents/reviewer-agent-reference.md 182
 agents/reviewer-agent.md 3143
 agents/test-runner-agent.md 1090
 skills/actions/SKILL.md 2541
-skills/audit-instructions/SKILL.md 2691
+skills/audit-instructions/SKILL.md 2726
 skills/debug/SKILL.md 2823
 skills/implement/SKILL.md 3697
 skills/instructions/SKILL.md 2244

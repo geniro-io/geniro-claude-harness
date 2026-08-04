@@ -90,7 +90,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 
-Run the full battery from the reference §D1 — surface discovery, cited-path existence, command extraction, frontmatter validity, legacy-format detection, word counts, same-rule grep, secret scan. For each check: capture output; deterministic failures become machine findings (pre-verified — they skip Phase 3 re-reads); the extraction checks produce CANDIDATE lists, not findings.
+Run the full battery from the reference §D1 — surface discovery, cited-path existence, command extraction, frontmatter validity, activation reachability, legacy-format detection, word counts, same-rule grep, secret scan. For each check: capture output; deterministic failures become machine findings (pre-verified — they skip Phase 3 re-reads); the extraction checks produce CANDIDATE lists, not findings.
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
@@ -110,7 +110,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 1. **Merge** all reviewer tables + machine findings, plus the prior report's T0-T2 rows tagged "still open?" — carried so a re-detection miss can't silently close a safety or correctness finding; lower tiers resurface on their own. A carried row has no evidence quote, so step 2 re-reads its location for the issue itself — gone means fixed since. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
 2. **Verify** every non-machine finding: Read the cited `file:line` ±5 lines; the quoted evidence must appear there and the issue description must match what the file actually says. For a secret-exposure finding, confirm the credential shape exists at the location without copying the value anywhere. Quote absent or claim mischaracterizes the source → drop with a one-line note in the report's "Filtered" section.
 3. **Filter**: drop do-not-flag matches; drop cosmetic (T5) findings with no convergence and weak evidence; collapse repeating patterns (e.g., the same stale command cited in six files) into ONE finding listing all locations.
-4. **Calibrate tiers** — reviewers over-rate their own dimension; re-check each T0/T1 against the reference §Severity tiers definitions (T0 requires an actual secret or unsafe directive, T1 an instruction an agent would actually follow into the wrong behavior).
+4. **Calibrate tiers** — reviewers over-rate their own dimension; re-check each T0/T1 against the reference §Severity tiers definitions (T0 requires an actual secret or unsafe directive, T1 an instruction an agent would actually follow into the wrong behavior). Weight by grounding: accuracy, reachability, and staleness findings rest on documented runtime mechanics; bloat and structure findings rest on vendor guidance with mixed measured evidence — when contested, calibrate the latter down, not up.
 5. Checkpoint: counts per tier, filtered count.
 
 ## PHASE 4 — Report
