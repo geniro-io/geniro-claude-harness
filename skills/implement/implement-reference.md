@@ -232,6 +232,8 @@ HANDOFF_DIR: [absolute path]
 TASK_DESCRIPTION: [pre-inlined]
 INFERRED_TAGS: [comma-separated list]
 TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
+PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
+
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the structured
@@ -260,6 +262,8 @@ SPEC_CONTENT: [pre-inlined spec.md body]
 RULES_DIR: [absolute path to .claude/rules/]
 SEMANTIC_MAP: [pre-inlined _CODEBASE_MAP.md body]
 TASK_CHAIN_CONTEXT: [pre-inlined chain block, or omit this line when empty]
+PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
+
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file §Workflow. Write the
@@ -327,6 +331,8 @@ Agent(subagent_type="test-runner-agent", description="Phase 2: Run tests", promp
 WORKTREE: [absolute path]
 TEST_COMMAND: [exact command string]
 CHANGED_FILES: [newline-separated paths]
+PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
+
 OUTPUT_PATH: [absolute path under <task-dir>]
 MAX_FAILURES_REPORTED: 15
 
@@ -513,6 +519,8 @@ CHANGED_FILES: [newline-separated paths]
 TEST_DIR_HINT: [project test directory pattern]
 TEST_FRAMEWORK: [detected framework]
 PRIOR_REVIEW_FINDINGS: [Round 1: 'none — first round'; Round 2+: CRITICAL/HIGH from prior round]
+PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
+
 OUTPUT_PATH: [absolute path under <task-dir>]
 
 Follow the procedure in your agent file. Generate edge-case hypotheses against

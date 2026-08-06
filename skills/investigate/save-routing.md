@@ -11,7 +11,7 @@ Read at Phase 3 Step 4a, and only there: the Step 4 follow-up question has four 
 
 Before writing to a single store, classify each finding to its proper destination per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — never default everything to learnings.jsonl — then surface them one at a time per the per-finding walk below. Check each target store for an existing entry covering the topic first: UPDATE it rather than adding a duplicate.
 
-Every Agent spawn below follows the skill's §Subagent spawn contract — the six pre-inlined fields — and spawns as `general-purpose` directly.
+Every Agent spawn below follows the skill's §Subagent spawn contract — every pre-inlined field — and spawns as `general-purpose` directly.
 
 Anything routed to Claude Code's native memory — by route 3's auto-memory path or route 4 — carries its qualifier in the text: that store has no `trust` field, so a root cause with no captured artifact behind it is written as suspected, naming what would confirm it. Memory outlives the session, and a confidently-worded wrong diagnosis misdirects every later session that recalls it.
 

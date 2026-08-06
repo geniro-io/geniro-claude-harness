@@ -126,7 +126,7 @@ Zero sessions surviving selection → the same one-sentence graceful exit as ste
 
 ## Phase 2: Analyze sessions
 
-With a search string or an empty argument, spawn one `Agent(subagent_type="general-purpose", ...)` transcript analyst per selected session — all spawns in ONE assistant response. Each spawn satisfies the 6-field contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`; OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
+With a search string or an empty argument, spawn one `Agent(subagent_type="general-purpose", ...)` transcript analyst per selected session — all spawns in ONE assistant response. Each spawn satisfies the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`; OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
 
 Each analyst prompt carries:
 

@@ -120,11 +120,11 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 4 — Report
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md`** — the report structure (written to `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md`, outside the slug dir so it survives cleanup and seeds the next run) and the render-every-finding-to-chat contract that is the Phase 5 decision context. Read it again on any resumption of the phase, including after a compaction. Phase complete when the dated report exists and every kept finding is rendered in chat.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the report structure (written to `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md`, outside the slug dir so it survives cleanup and seeds the next run) and the render-every-finding-to-chat contract that is the Phase 5 decision context. Read it again on any resumption of the phase, including after a compaction. Phase complete when the dated report exists and every kept finding is rendered in chat.
 
 ## PHASE 5 — Action gate
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md`** — the gate question and options, the disjoint-allowlist fix path with invariant #14's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the disjoint-allowlist fix path with invariant #14's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
 
 ## State recovery
 

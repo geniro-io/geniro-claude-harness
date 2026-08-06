@@ -170,6 +170,8 @@ Re-ask up to 3 times via AskUserQuestion until valid.
 
 Once the sub-command is resolved, **Read that sub-command's body file** — `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-<verb>.md`, named in its phase section below — and follow it. Read it again on any resumption of the run, including after a compaction: the Steps are not in this file, so a run that skips the Read has nothing to execute. Read only the one dispatched to.
 
+That Read comes before any step of the sub-command and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the dispatched body is this run's phase body, and it holds every pause this skill has. `run` is where that matters most: the sub-command deliberately skips the invocation confirmation, so the tool-scope-gap question and the scope checkpoint inside `subcommand-run.md` are the whole distance between invoking an action and arbitrary side effects. `delete` holds the destructive-op confirmation, and the deletion hook permits a per-file `rm -f` on `.geniro/actions/<slug>.md`, so nothing else stops it. A further file a sub-command body defers to — `actions-reference.md` §Target resolution, §Validation gate — is bound by the same contract.
+
 ## Phase 2: `list` sub-command
 
 **On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-list.md`** — it carries the Steps: build the shared registry index, then print the installed-actions table.

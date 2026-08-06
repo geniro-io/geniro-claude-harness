@@ -299,7 +299,7 @@ Transition to Phase 3.
 
 ### 3.0 Migration sweep (re-run only)
 
-When `mode == re-run`, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` now and run its §3.0 sweep before generating content — that file carries every re-run-only procedure this run needs (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules, §5.4 restart warning).
+When `mode == re-run`, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` now — before any step of the re-run, echoing per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, because it is the sole home of this skill's migration apply policy: which `Auto-fix:` values may reach a shell at all, the `manual-only`-tested-first ordering, and the destructive-command deferral. A run that improvises the sweep runs prose through `bash -c`, which is exactly what that policy exists to prevent. Then run its §3.0 sweep before generating content — that file carries every re-run-only procedure this run needs (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules, §5.4 restart warning).
 
 **Init mode skips this step entirely** — fresh installs have no prior schema and write the current one directly.
 

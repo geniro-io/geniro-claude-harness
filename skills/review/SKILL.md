@@ -26,7 +26,7 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]
 
 ---
 
-This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage.md` (Phases 1 + 1.5) · `phase-2-spawns.md` (Phase 2) · `phase-3-4-filter-stratify.md` (Phases 3 + 4) · `phase-5-6-emit-handoff.md` (Phases 5 + 6).
+This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage.md` (Phases 1 + 1.5) · `phase-2-spawns.md` (Phase 2) · `phase-3-4-filter-stratify.md` (Phases 3 + 4) · `phase-5-6-emit-handoff.md` (Phases 5 + 6). That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
 
 **Runtime portability.** Claude Code sets `${CLAUDE_PLUGIN_ROOT}`. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it everywhere and export it in every Bash call. Tool and hook substitutions: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
@@ -110,7 +110,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site so the session tier propagates (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` carries the rationale and carve-outs). Spawn prefixed-first (`subagent_type="geniro:<agent>"`); only on an `Agent type not found` error or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder (`geniro:<agent>` → bare `<agent>` → `general-purpose` with the agent body inlined) and empty-result fallback, then cache the resolved rung for the session. Neither helper is read on the happy path — this summary is the operative rule until a spawn fails.
 
-Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `finding-verifier-agent` (the per-finding verifier, Phase 4.2), `adversarial-tester-agent` (Phase 4.3). One exception to OMIT: a custom reviewer declaring an explicit `model:` in its `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass that value verbatim. Every Agent prompt satisfies the six pre-inlined fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
+Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `finding-verifier-agent` (the per-finding verifier, Phase 4.2), `adversarial-tester-agent` (Phase 4.3). One exception to OMIT: a custom reviewer declaring an explicit `model:` in its `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass that value verbatim. Every Agent prompt satisfies every pre-inlined field per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
 
 ---
 

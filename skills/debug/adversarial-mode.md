@@ -55,7 +55,7 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 - [ ] Diff scope resolved (range + file list recorded in state.md `## Diff Scope`)
 - [ ] Skip conditions checked (and explicitly reported if skipped)
-- [ ] `adversarial-tester-agent` spawned with all 6 context-isolation slots pre-inlined
+- [ ] `adversarial-tester-agent` spawned with every context-isolation slot pre-inlined
 - [ ] Report written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`
 - [ ] Authored tests independently re-run by the orchestrator; F→P-confirmed tests retained, any passing-today tests deleted
 - [ ] Escalation decision made via AskUserQuestion (or no-bugs-found exit if zero red tests → terminal `adversarial-aborted`)

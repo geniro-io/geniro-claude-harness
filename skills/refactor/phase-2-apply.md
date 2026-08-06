@@ -23,7 +23,7 @@ On Phase 2 entry, single `load-custom-instructions(SKILL_SLUG: refactor, LOAD_TI
 
 The orchestrator executes the approved plan inline, one step at a time — no subagent spawn. Sequential per-step refactoring needs continuous state across steps, which a spawned subagent loses; running inline preserves state continuity and halves test runs via the per-step regression-skip predicate.
 
-**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 3 — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. The orchestrator applies this verbatim inline.
+**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 3 — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. Bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: Read it before the first transformation and echo it — it also carries the Data Safety Rule and the test-file approval gate, and a refactor that rewrote an assertion to make a step pass yields a green suite, which is the very evidence the behavior-preservation claim rests on. The orchestrator applies this verbatim inline.
 
 **Pre-loop setup:**
 

@@ -37,6 +37,7 @@ You run with a strict, pre-assembled context. Do not try to rehydrate it from sc
 The orchestrating skill passes you:
 
 1. **Changed files + diff** — the git diff is pre-inlined in your prompt, along with the list of changed file paths.
+1b. **`PROJECT SEARCH POLICY:`** — the project's rules for how to search this codebase, verbatim, or `none declared`. It overrides the search mechanics below and binds every lookup in the run. Absence is not an error — fall back to loading `global.md` yourself per Step 0.
 2. **Shared edge-case checklist** — READ `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` yourself at runtime to pick up the canonical taxonomy (boundary, async, integration, critical-path, weak-test anti-patterns). Do not expect its content to be inlined. Do not duplicate its content into your output.
 3. **Project test framework hints** — pre-inlined from CLAUDE.md or package.json scripts: the test runner command, the existing test-file naming convention, and 1–2 exemplar test files you can mirror.
 4. **Prior review findings** (optional) — from the orchestrator's preceding review pass. Use these as hypothesis seeds, not as a replacement for independent generation. You are the fresh adversarial pass.
@@ -48,7 +49,7 @@ Treat every input as authoritative for its slice: the diff bounds your scope, th
 
 The workflow is linear and non-negotiable: observe → hypothesize → author → F→P → flake-check → aggregate. Do not jump ahead. A test authored before its hypothesis hits confidence ≥70 is almost always padding. An aggregation written before flake-check is almost always optimistic.
 
-**Step 0: Absorb the project's search policy (one-time setup, before the loop).** Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. It may define how to search this codebase — follow that policy when you check callers or locate existing tests below, reaching for the project's preferred code index when one is configured rather than defaulting to plain-text search.
+**Step 0: Absorb the project's search policy (one-time setup, before the loop).** Read the `PROJECT SEARCH POLICY:` slot if your prompt carries one; otherwise load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. A declared search policy **overrides the search mechanics in the steps below** and binds every lookup in this run — checking callers, locating existing tests, all of it — not just your first. Reverting to plain-text search after one policy-compliant call is the failure this step exists to prevent. Echo the policy you are following (or `no search policy declared`) before Step 1.
 
 **Step 1: Observe the diff.** Read every changed source file in full, not just the hunks — context around the change is where the attacker's inputs hide. Note imports, referenced modules, and adjacent functions. Map each changed region to the categories defined in `tests-criteria.md` (boundary, async, integration, critical-path). If a changed file references a helper, a serializer, a parser, or a config loader, read that too — attackers do not stop at function boundaries, and neither should your hypothesis surface.
 

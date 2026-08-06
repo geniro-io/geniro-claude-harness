@@ -125,6 +125,8 @@ Agent(subagent_type="geniro:codebase-research-agent",
       prompt="""
 RESEARCH_QUESTION: {{user's question — complete sentence}}
 
+PROJECT SEARCH POLICY: {{verbatim global.md search rules, or `none declared`}} — governs every lookup, not just the first
+
 DELIVERABLE_SHAPE: "Findings list where each finding is a block matching {What: <specific finding with file:line>; Evidence: <code snippet or captured grep output, verbatim>; Relevance: <how this answers the RESEARCH_QUESTION>} per Evidence Standard kind 1 or 2. Preceded by a `Files examined` list with line counts."
 
 SCOPE_HINT: {{path globs / module names / file lists derived from the user's target area; empty = whole repo}}
@@ -246,7 +248,7 @@ The verifier inherits the orchestrator's session tier (OMIT `model=`); the spawn
 ```
 Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Verify Investigation Answer (READ-ONLY)
-Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md (4) belt-and-suspenders).
+Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md § Required pre-inlined context, the prohibited-tools field belt-and-suspenders).
 
 **Original question:** {{user's question}}
 WORKTREE: [from `git rev-parse --show-toplevel`]

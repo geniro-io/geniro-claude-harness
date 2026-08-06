@@ -74,7 +74,7 @@ If Phase 5 re-enters after compaction:
 
 State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9.
 
-The GitHub reviews-API Post drill (§7.0-§7.8) lives in its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md`. Read it only if the Action gate's pick is "Post Draft PR review" — it is unreachable when `pr-ref: none`, and §5.4 already cites the two subsections it needs by anchor. Loop invariant #9 and the §7.0 Pre-Post guard bind only on that same path, so they are satisfied vacuously on every other pick.
+The GitHub reviews-API Post drill (§7.0-§7.8) lives in its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md`. Read it only if the Action gate's pick is "Post Draft PR review" — it is unreachable when `pr-ref: none`. On that path read it WHOLE, before the first `gh api` call and echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: the §5.4 anchors reach the POST itself but not the three things that must happen first — the §7.2 granularity question and §7.3 per-finding post/skip gate (non-skippable whenever the filtered set is non-empty), the §7.5 pre-POST scrub against the never-add set, and the `redact_secrets` pass over every free-form segment. Those are sole-homed there, and a finding that quotes a credential re-leaks it onto a surface that outlives the fix. Loop invariant #9 and the §7.0 Pre-Post guard bind only on that same path, so they are satisfied vacuously on every other pick.
 
 Summary of the Phase 6 chain — each gate is its own AUQ, never collapsed; step 3 is the one silent step:
 

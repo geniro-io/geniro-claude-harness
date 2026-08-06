@@ -10,7 +10,7 @@ Phase 7 uses a **deterministic validator** — most of it a script, the rest mec
 
 ### 7.2 Validator checks
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`: it holds the canonical check definitions, and its §Running the checks carries the command that executes the scripted checks plus the judgment checks you apply yourself. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set and report per check, not as a tally, per that file's §Check API contract.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` before running anything, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — it is the sole home of the shell command that actually validates, so a run that narrates "validator passed" without it produces a clean-looking, wholly unvalidated spec. It holds the canonical check definitions, and its §Running the checks carries the command that executes the scripted checks plus the judgment checks you apply yourself. Each check returns `(check_id, status, finding_text, fix_hint)`. Run the full set and report per check, not as a tally, per that file's §Check API contract.
 
 ### 7.3 Hard-fail handling
 
