@@ -105,7 +105,7 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 ### 7.3 Per-finding gate
 
-Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by §7.1 when applicable — the test-confirmation gate applies no filter of its own). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
+Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by §7.1 when applicable — the test-confirmation gate applies no filter of its own). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
 - **Chat render (first):** render the finding to chat per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — a self-contained block instantiating that template. The posting loop over ≥2 eligible findings is a decision queue, so each render opens with the tracker (`✔ Decision 1 — <short tag> · ● Decision 2 of N — <short tag> · ○ …`; the denominator is the eligible-finding count after the §7.1 filter). The user decides whether to post from an explained finding, not a side-box snippet.

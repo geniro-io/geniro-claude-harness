@@ -38,7 +38,7 @@ Caller invokes:
 | `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: effort tier `Trivial\|Small\|Medium\|Big`; `/geniro:implement`: codebase-explorer `change_scope` `trivial\|small\|medium\|big`). Calibrates the synthesis judge's risk tolerance — never an internal gate; whether the pass runs at all is the caller's contract. |
 | `DEEP` | `true` when the calling skill is in deep mode (`deep-mode: true`), else `false` / absent. When `true`, Stage B (§4) runs each cited claim through 3 independent verifiers with majority aggregation instead of 1 — the precision layer per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Orthogonal to `MODE`; raises verification reliability, not the claim set. Missing reads as `false`. |
 
-**Once invoked, no internal tier skip.** The helper never decides to skip itself — the invocation decision was already made by the caller's contract, and re-deciding it here would silently undo a skill-level decision. Cost stays bounded by the spec's own cited-claim set (§3): one verifier per cited claim, scaling to claim count rather than every sentence — a spec citing few claims gets a small batch, one citing many gets a larger one. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, never whether a stage runs.
+**Once invoked, no internal tier skip.** The helper never decides to skip itself — the invocation decision was already made by the caller's contract, and re-deciding it here would silently undo a skill-level decision. Cost stays bounded by the spec's own cited-claim set (§3): every claim is verified, with same-file claims clustered into shared verifier spawns (§4 Spawn batch), so spawn count scales sub-linearly with claim count and never with sentence count. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, never whether a stage runs.
 
 The caller receives back:
 - A verdict (per §7, MODE-specific).
@@ -51,7 +51,7 @@ The caller receives back:
 | Stage | `MODE: plan` (post-write, pre-approval) | `MODE: implement` (Phase 1, pre-edit) |
 |---|---|---|
 | Extract claims (§3) | yes | yes |
-| VERIFY claims (§4) | yes — one verifier per cited claim | yes — same |
+| VERIFY claims (§4) | yes — every claim verified, clustered per §4 | yes — same |
 | ALTERNATIVES (§5) | yes — generate competing approaches, score head-to-head | SKIP — the approach is already approved and locked |
 | RED-TEAM (§6) | yes | yes |
 | SYNTHESIZE (§7) | one judge: keep / keep-with-modifications / re-plan | one judge: clean / defects-found |
@@ -68,13 +68,13 @@ Read `SPEC_PATH` fully. Build the verifiable-claim set from the three places a s
 3. **Frontmatter `budget` and `effort_tier`.** These are estimate-claims (write volume, time budget, row counts, tier sizing). A miscounted estimate — one off by an order of magnitude — is a defect class this pass exists to catch, so estimate-claims enter the set.
 4. **Frontmatter `workflow_refs[]` linked-ticket constraints.** When the spec frontmatter carries `workflow_refs[]` (linked tracker tickets — `/geniro:implement` fetches their bodies at workspace setup, before any edit), the ticket bodies' explicit constraints are first-class fact-check inputs: locked decision tables, role / permission matrices, and "do not change X" statements. Each such constraint is a claim about what the planned change must respect, verified against the planned change here BEFORE the first edit. A ticket read only after the push cannot stop a change that contradicts it — by then the contradiction has shipped. Pulling the constraints into the claim set moves that read to the one point where it can still change the outcome.
 
-Record each claim with its source location and the literal asserted fact. This bounded set is the input to §4 — one verifier per claim, no more. Verifier count scales to the claim count, mirroring how `/geniro:review` verifies every survivor over a pre-bounded survivor set.
+Record each claim with its source location and the literal asserted fact. This bounded set is the input to §4 — every claim verified, none sampled. Spawn count scales with the claim set through §4's clustering, mirroring how `/geniro:review` verifies every survivor over a pre-bounded survivor set.
 
 If the spec cites zero verifiable claims (e.g. a pure meta-step spec), skip §4 and note it in the scratch report; §5/§6/§7 still run.
 
 ## 4. Stage B — VERIFY claims (both modes)
 
-Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-finding verifier contract — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` fully and mirror it. The two differences from `/geniro:review` are the polarity and the source of the "finding":
+Verify every cited claim, clustering claims that cite the same file into shared verifier spawns (see §Spawn batch). This stage reuses the `/geniro:review` per-finding verifier contract — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` fully and mirror it, including its §4 spawn-batch shape (the cluster cap is canonical there). The two differences from `/geniro:review` are the polarity and the source of the "finding":
 
 **Polarity flip.** The `/geniro:review` verifier asks "does the claimed DEFECT exist in the cited code?" The spec-claim verifier asks "is this asserted FACT true in the cited code?" Frame the spec claim as the thing under test; `validation: confirmed` means the fact holds, `validation: refuted` means the cited code contradicts the asserted fact, `validation: clarified` means the fact is partly true but the spec's framing is off (e.g. the column exists but is nullable when the step assumes NOT NULL).
 
@@ -82,15 +82,15 @@ Spawn one verifier per cited claim. This stage reuses the `/geniro:review` per-f
 
 ### Input contract per verifier
 
-Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Each verifier receives ONLY its own claim plus, mirroring `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2:
+Pre-inline isolated context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`. Each verifier receives ONLY its own cluster's claims — for each member claim, mirroring `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2:
 
-- The single claim: source location (Section 6 step / Section 4 assumption / frontmatter field) + the literal asserted fact.
+- The claim: source location (Section 6 step / Section 4 assumption / frontmatter field) + the literal asserted fact.
 - The cited code slice — read the file at the claim's `file:line` and inline it, using the slice cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2. For a Section 4 assumption or a frontmatter estimate with no `file:line`, grep the relevant symbol/table/path and inline the matched region within the same cap.
 - 1-hop caller grep — `grep -rn "<symbol>"` for the cited symbol, capped per §2.
 - 1-2 sibling tests for the same symbol — grep `test/ tests/ __tests__/ spec/`, capped per §2.
-- **A matching declared-source result, when one applies.** Some claims assert state that lives outside the code — a tracker status, a DB row, a deploy / feature-live flag (the `workflow_refs[]` linked-ticket constraints of §3 (Stage A) item 4 and any Section 4 assumption about external state). For those, code is not the maximum source. Before the spawn, the orchestrator applies `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`: if the project declares a `## Data Sources` entry whose `confirms:` hint matches the claim's domain, the orchestrator pre-runs that read-only-screened source and inlines its result into THIS verifier's evidence alongside the code slice. The verifier then confirms the claim against the maximum applicable set — code plus the declared source — not code alone. This is additional evidence to the same verifier, NOT a new verifier per source: the one-verifier-per-claim bound (§3) is unchanged. Fail-open — a source that's unavailable, can't be screened read-only, or errors is omitted with a one-line caveat in the verifier's input, never blocks the spawn. A code-only claim with no matching declared source runs exactly as before.
+- **A matching declared-source result, when one applies.** Some claims assert state that lives outside the code — a tracker status, a DB row, a deploy / feature-live flag (the `workflow_refs[]` linked-ticket constraints of §3 (Stage A) item 4 and any Section 4 assumption about external state). For those, code is not the maximum source. Before the spawn, the orchestrator applies `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`: if the project declares a `## Data Sources` entry whose `confirms:` hint matches the claim's domain, the orchestrator pre-runs that read-only-screened source and inlines its result into THIS verifier's evidence alongside the code slice. The verifier then confirms the claim against the maximum applicable set — code plus the declared source — not code alone. This is additional evidence to the same verifier, NOT a new verifier per source: the claim stays in its existing spawn. Fail-open — a source that's unavailable, can't be screened read-only, or errors is omitted with a one-line caveat in the verifier's input, never blocks the spawn. A code-only claim with no matching declared source runs exactly as before.
 
-Each verifier does NOT receive other claims, the orchestrator's reasoning, or which spec section the claim came from beyond what it needs — isolated context prevents anchoring and sycophancy (the documented multi-judge failure mode).
+A verifier does NOT receive claims outside its cluster, the orchestrator's reasoning, or which spec section a claim came from beyond what it needs — isolated context prevents anchoring and sycophancy (the documented multi-judge failure mode). The cluster cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4 bounds the cross-claim anchoring surface a shared spawn opens.
 
 ### Output contract per verifier
 
@@ -106,7 +106,9 @@ evidence: "<literal quote from the cited file:line that confirms or refutes the 
 
 ### Spawn batch
 
-Compose the verifier prompt for `${CLAUDE_PLUGIN_ROOT}/agents/finding-verifier-agent.md` — frame the spec claim as the finding body and state the polarity flip ("verify the asserted FACT is true, not that a defect exists") in the prompt. The agent's input contract already covers this shape: it takes a single claim-like body — the degenerate one-finding cluster spec-challenge always passes — plus cited slice, caller search, and sibling tests, and returns the `validation / confidence / evidence` schema on either polarity. The polarity lives in the prompt framing, never in the agent's schema.
+Group claims by cited file path per the spawn-batch shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4 — the cluster cap is canonical there; a same-file cluster amortizes one file read and one caller grep across its members. A claim without a `file:line` citation (a Section 4 assumption or frontmatter estimate verified by grep) spawns singly — it has no shared file slice to amortize, the same reason `/geniro:review`'s sentinel findings never cluster.
+
+Compose the verifier prompt for `${CLAUDE_PLUGIN_ROOT}/agents/finding-verifier-agent.md` — frame each spec claim as a finding body and state the polarity flip ("verify the asserted FACT is true, not that a defect exists") in the prompt. The agent's input contract already covers this shape: it takes a cluster of claim-like bodies (a solo claim is the degenerate one-member cluster) plus cited slice, caller search, and sibling tests, and returns one `validation / confidence / evidence` block per claim, keyed by source location, on either polarity. The polarity lives in the prompt framing, never in the agent's schema.
 
 Spawn via the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (prefixed `geniro:finding-verifier-agent` → bare → general-purpose-with-body). OMIT `model=` so verifiers inherit the orchestrator's tier per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Send ALL verifier spawns in ONE assistant response — separate turns serialize execution and double wall-time; the parallel-spawn invariant applies here exactly as in `/geniro:review` Phase 4.2.
 
@@ -114,7 +116,7 @@ Aggregate: any `refuted` claim is a defect; `clarified` is a soft defect (the sp
 
 ### Deep mode — 3× verify + majority (`DEEP: true`)
 
-When the caller passes `DEEP: true`, each cited claim gets **3 independent verifiers** instead of 1, run inside an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` (observe its §4 mandatory mitigations — raw JSON not schema, re-assert the read-only contract in every prompt, OMIT `model=`, path constants outside template literals). Each verifier receives the identical isolated input the single-pass verifier gets (its one claim + cited slice + caller grep + sibling tests); independence is load-bearing, so a verifier never sees the others' votes. Aggregate per claim by majority:
+When the caller passes `DEEP: true`, each cited claim gets **3 independent verifiers**, run inside an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` (observe its §4 mandatory mitigations — raw JSON not schema, re-assert the read-only contract in every prompt, OMIT `model=`, path constants outside template literals). Clustering applies to the single-pass batch only — deep mode verifies each claim individually, mirroring `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4's deep-mode rule. Each verifier receives the identical isolated input a single-pass verifier gets for that claim (the claim + cited slice + caller grep + sibling tests); independence is load-bearing, so a verifier never sees the others' votes. Aggregate per claim by majority:
 
 - Tally the three dispositions across the parseable votes.
 - ≥2 `refuted` → the claim is a **hard defect** (`refuted`).
@@ -193,7 +195,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 |---|---|
 | "This is a Trivial task — skip the challenge to save time." | The caller's gate already decided this run warrants the pass — skipping internally would silently undo a decision made at the skill level. A small spec with one wrong `file:line` is the cheap-but-fatal case the pass exists to catch; the cost is bounded to the spec's cited claims, which for a small spec is a small batch. Tier calibrates the judge's risk tolerance, not whether the pass runs. |
 | "The spec was just written/approved, so its claims are probably correct — confirm them." | "Probably correct" is the exact posture the pass refutes. The three defects that motivated this pass all lived in an approved spec that read as plausible. Re-read the cited code; a claim survives only when the code bears it out. |
-| "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to file:line citations + assumptions + estimates, mirroring how `/geniro:review` verifies every survivor over a bounded set. Wall-time is ~max(spawn-time) because the batch is parallel. Sampling reintroduces the miss the pass eliminates. |
+| "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to file:line citations + assumptions + estimates, and same-file claims already share spawns (§4 Spawn batch), so spawn count is sub-linear in claim count. Wall-time is ~max(spawn-time) because the batch is parallel. Sampling reintroduces the miss the pass eliminates. |
 | "A verifier said the claim looks consistent — that's a confirm." | "Looks consistent" is a paraphrase, not evidence. The output contract requires a literal quote from the cited file. Refuse the paraphrase-only verdict and re-prompt — the evidence standard forbids reasoning-as-evidence. |
 | "In implement mode a claim is refuted, so I'll just fix the spec and keep going." | Implement mode does not rewrite the user's approved spec — that re-opens a signed-off design and forces a producer-schema lockstep. Fire the AskUserQuestion and let the user choose proceed / fix-via-plan / abort. The helper verifies facts; the user owns the design. |
 | "The implement-mode pass came back clean — I'll surface a confirmation question anyway." | A question with nothing to decide is noise and breaks the always-WAIT-restraint norm. On a clean pass, emit the silent advisory line and proceed. Reserve the AUQ for a real refuted-claim-or-blocking-risk decision. |
@@ -206,7 +208,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 
 The stages above define the procedure; these are the exit gates that stay checkable once the pass is over.
 
-- [ ] Every extracted claim got its own verifier, spawned in ONE assistant response, each seeing only its isolated slice — and every returned verdict carries a literal quote from the cited file, never a paraphrase.
+- [ ] Every extracted claim got its own verdict from the parallel verifier batch (claims clustered per §4 Spawn batch, all spawns in ONE assistant response), each verifier seeing only its cluster's isolated slices — and every returned verdict carries a literal quote from the cited file, never a paraphrase.
 - [ ] Every red-team finding is anchored to a file:line or a §4 result; an unanchorable one was dropped rather than reported.
 - [ ] plan mode: keep-with-modifications fixes are folded into the spec, the calling skill re-ran its validator afterwards, and this helper issued no approval.
 - [ ] implement mode: the spec is byte-identical to what it was on entry; the proceed / fix / abort AUQ fired only on `defects-found`, and its pick is in `approvals[]`.

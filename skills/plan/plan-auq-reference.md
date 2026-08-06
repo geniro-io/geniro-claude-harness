@@ -58,13 +58,23 @@ The sections below name only their `category` slug and the phase they are asked 
 
 ## 1b. Artifact opt-in question (Phase 0, asked once when `--artifact` is absent)
 
-Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Mirrors the shape of the §2a planning-depth question — its own single-question AUQ under the header "Visual plan", no `(Recommended)` marker (the page is a richer surface, not a safer plan). The question text and both option labels are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § The opt-in question — read them there and use them verbatim.
+Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Mirrors the shape of the §2a planning-depth question — its own single-question AUQ, no `(Recommended)` marker (the page is a richer surface, not a safer plan). This section owns the question text and both option labels — use them verbatim:
+
+```yaml
+- header: "Visual plan"
+  question: "Build a live visual artifact of this plan as it develops? It publishes a private, auto-updating page to claude.ai."
+  options:
+    - label: "Yes — build it and keep it updated"
+      description: "The page grows with the plan and is revised in place at each phase."
+    - label: "No — keep planning in chat only"
+      description: "Plan in chat with no page."
+```
 
 Empty answer → default OFF: artifact mode stays off and no artifact fields are written, consistent with how the §2a depth question defaults to Standard. On the "Yes" pick, the run is in artifact mode — set `artifact_mode: true` and `artifact_status: pending` in the §1 frontmatter; on "No", leave all artifact fields absent.
 
 Persist the pick to `approvals[]` (§1 entry shape) with category `artifact_choice`, `asked_in_phase: mode-detect`, so a resume after compaction doesn't re-ask.
 
-The full artifact lifecycle (availability detection, create, per-phase update, URL persistence, unavailable/skip handling) is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; this section owns only the opt-in question template and the choice that gets persisted.
+The full artifact lifecycle (availability detection, create, per-phase update, URL persistence, unavailable/skip handling) is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` — Read it only once the run is in artifact mode, starting from the Phase 1 `loop-artifact-call-sites.md` read; this section owns the opt-in question template and the choice that gets persisted.
 
 ---
 
@@ -115,7 +125,7 @@ When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question once at
   question: "How deep should the planning go?"
   options:
     - label: "Standard"
-      description: "Single-pass approach search and one verifier per cited claim."
+      description: "Single-pass approach search and a single verification pass over the spec's cited claims."
     - label: "Deep — wider search + 3-vote verify"
       description: "A judge-panel approach search plus 3x verification of the spec's cited claims with majority vote; higher quality at higher token cost."
 ```

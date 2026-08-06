@@ -13,6 +13,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to 
   - 2.6 Spec-compliance detection rule
   - 2.7 Build verification (parallel with reviewers)
   - 2.8 Rules-file detection rule (conventions dim authored-rule input)
+  - 2.9 Optimizations detection rule (docs/lockfile-only skip)
 
 ---
 
@@ -28,7 +29,7 @@ State.md `phase: llm-spawn`.
 | 2 | security | Always fires — no exception |
 | 3 | architecture | Always fires — no exception |
 | 4 | tests | Always fires — no exception |
-| 5 | optimizations | Always fires — no exception |
+| 5 | optimizations | Fires when any changed file has an executable surface. Skipped only when EVERY changed file is documentation or a generated lockfile (see §2.9) — a diff with no executable surface has no hot path for its rubric to bind on |
 | 6 | conventions | Always fires — no exception. Owns three concern classes: per-file style rubrics (`guidelines-criteria.md`), repo-modal patterns via sibling sampling (`conventions-criteria.md`), and authored-rule citations (`rules-compliance-criteria.md`). When the repo contains authored rule files (see §2.8 rules-file detection), the detected file list is pre-inlined into this dim's prompt and each violation cites the exact rule; when none exist, the dim runs with no authored-rule input (the other two classes unchanged) |
 | 7 | regressions | Always fires — no exception. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` |
 | 8 | design | Fires when UI globs match changed files (see §2.5 UI-file detection rule) |
@@ -38,8 +39,8 @@ State.md `phase: llm-spawn`.
 
 **Spawn-batch size.** Phase 2 spawns a reviewer-agent for every row whose trigger fires — trimming the set silently drops a coverage dimension the user expects:
 
-- 7 always-rows (bugs, security, architecture, tests, optimizations, conventions, regressions) fire on every run.
-- 3 conditional rows (design, pr-metadata, spec-compliance) fire when their trigger column is satisfied.
+- 6 always-rows (bugs, security, architecture, tests, conventions, regressions) fire on every run.
+- 4 conditional rows (optimizations, design, pr-metadata, spec-compliance) fire when their trigger column is satisfied — optimizations' trigger is deliberately broad (skipped only on a docs/lockfile-only diff per §2.9), so it fires on nearly every code diff.
 - N custom rows fire per the spawn-specs already discovered in Phase 1.5 §1.5.4 — the state.md frontmatter `custom_reviewers` entries whose `paths_matched` is `true` (zero discovery work at Phase 2 entry; that count is N).
 
 Total batch size = always-fire + triggered conditional + custom rows. Trimming this set silently is the documented anti-pattern — see §Anti-rationalization. Post-spawn verification in Phase 4 §4.0 catches drift.
@@ -63,7 +64,7 @@ spawn_dims_count: 10
 Plus a `## Tool log` entry:
 
 ```
-[Phase 2 spawn declaration] dim_list=[bugs, security, architecture, tests, optimizations, conventions, regressions, pr-metadata, spec-compliance, custom:manifest-incident-patterns]; count=10; triggers={pr-ref: <ref-or-none>, plan-context: <path-or-none>, linear-task: <id-or-none>, rule-files: <yes-or-none>, custom-reviewers-discovered: <N>}
+[Phase 2 spawn declaration] dim_list=[bugs, security, architecture, tests, optimizations, conventions, regressions, pr-metadata, spec-compliance, custom:manifest-incident-patterns]; count=10; triggers={pr-ref: <ref-or-none>, plan-context: <path-or-none>, linear-task: <id-or-none>, rule-files: <yes-or-none>, optimizations: <fired-or-skipped-docs-only>, custom-reviewers-discovered: <N>}
 ```
 
 This is observability for the Phase 4 §4.0 verification gate — declared-vs-actual is one grep away.
@@ -82,7 +83,7 @@ SKILL.md's Definition of done makes a dropped echo detectable.
 
 Then fire the parallel batch — single message with N parallel `Agent` tool uses, one per dimension. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn. Each spawn:
 
-- `subagent_type: reviewer-agent` (plugin) — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder.
+- `subagent_type: "geniro:reviewer-agent"` — on a not-found error or empty result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, per the deferred-read rule in SKILL.md §Subagent model tiering.
 - OMIT `model=` argument — reviewer-agent declares `model: inherit`. Custom reviewers that declare an explicit tier in their `.geniro/instructions/review-extra/<slug>.md` frontmatter pass that tier verbatim; otherwise OMIT.
 - Pre-inlined context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`:
   - Diff of changed files — all files in both modes; in Batched payload mode organized into ~5-file groups as a structured reading order (highest-risk groups first and last), per the triage reference §12.
@@ -95,7 +96,7 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
   - PRIOR-ROUND FINDINGS (Round-N counter sub-step prior-round-summary, or `none — first review`).
   - PRIOR-ROUND PR BODY — pr-metadata dim ONLY — the `prior-pr-body` captured at re-review detection (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 3); renders `none — first review` on round 1 or when the prior-run handoff has no `pr-body:`. The pr-metadata reviewer's cross-round drift check (check #11) reads this slot.
   - PEER-PR CONTEXT — architecture + design + bugs + conventions + optimizations + spec-compliance + regressions dims ONLY.
-  - `## Existing PR review comments` (from `pr-bot-comments-snapshot:`, per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §1.1) — bugs + architecture + regressions + security dims ONLY; omitted when null.
+  - `## Existing PR review comments` (from `pr-bot-comments-snapshot:`, per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §1.1) — bugs + architecture + regressions + security dims ONLY; omitted when null.
   - `## Existing PR formal reviews` (from `pr-formal-reviews-snapshot:`, per the same §1.1 ingest) — same dims (bugs + architecture + regressions + security); each entry `- <author> (<state>) — <excerpt>`; omitted when null.
   - Authored rule-file list (per §2.8 detection) — conventions dim ONLY; omitted when the repo has no authored rule files.
   - Dimension-specific criteria file path(s) — one absolute path per line, not the body (see **Criteria files** below).
@@ -116,7 +117,8 @@ Then narrate completion before transitioning to Phase 3:
 Surface any `status: failed` entries by their plain-English dim name (e.g., "PR metadata reviewer failed — see `## Errors`"), not by raw slug.
 
 **Criteria files** — pass the path, never the body, and do not read them here. Across a full grid these rubrics run to tens of thousands of words; pre-reading them to inline drags every word through the orchestrator's own context as pass-through payload, and `reviewer-agent` holds `Read` and reads whatever paths its prompt names (its §Step 1). Inline a body only where no readable path exists, and say so in the slot. Custom reviewers are the standing exception: their rubric lives in the user's own `.geniro/instructions/review-extra/` file, which a subagent running in a linked worktree may not be able to resolve, so that spawn passes the body read at §2.1 as `CRITERIA:` content.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `optimizations-criteria.md` · `regressions-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` · `security-criteria.md` · `architecture-criteria.md` · `tests-criteria.md` · `regressions-criteria.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` (conditional per §2.9)
 - conventions dim — all three paths passed together: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` (per-file style rubrics) · `conventions-criteria.md` (repo-modal patterns) · `rules-compliance-criteria.md` (authored-rule citations)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/design-criteria.md` (conditional per §2.5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/pr-metadata-criteria.md` (conditional)
@@ -144,5 +146,9 @@ Feed pass/fail into the Phase 3 §3.3 KEEP/FILTER judgment. Failing build is aut
 ### 2.8 Rules-file detection rule (conventions dim authored-rule input)
 
 Detect at Phase 2 entry, via Glob, whether the repo contains any authored rule file — any of `CLAUDE.md` (root or nested), `.claude/rules/**/*.md`, `.cursor/rules/**/*.mdc`, `.cursorrules`, `.windsurfrules`, `.windsurf/rules/**`, `.github/copilot-instructions.md`, `AGENTS.md`, `.agents.md`. The detected file list feeds the conventions dim's context slot (§2.3) — pre-inlined into that dim's spawn prompt, where the reviewer parses each file's path-scopes (`.mdc` `globs:`, `.claude/rules` `paths:`) and checks the diff against each in-scope rule per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md`, citing the exact rule. When none exist, the conventions dim simply has no authored-rule input — its style-rubric and modal-pattern classes run unchanged.
+
+### 2.9 Optimizations detection rule (docs/lockfile-only skip)
+
+The optimizations dimension reviews hot-path cost on the changed lines, so it skips only a diff with no executable surface: when EVERY changed file is documentation (`*.md` / `*.rst` / `*.txt`, or under a `docs/` tree) or a generated lockfile (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`, `poetry.lock`, `go.sum`, and kin), there is nothing for its rubric to bind on. Any other changed file — source, tests, configuration, templates, scripts — keeps the dimension in the batch; configuration is deliberately in scope because pool sizes, cache TTLs, and worker counts are performance surface. The check is mechanical over the changed-file list, evaluated fresh every run — never a judgment call about whether the diff "looks perf-relevant". Record the outcome in the §2.2 triggers entry (`optimizations: fired | skipped-docs-only`); the declared list carries the result, so the §4.0 declared-vs-actual gate audits the skip like any other conditional dimension.
 
 ---

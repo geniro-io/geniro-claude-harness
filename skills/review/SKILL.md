@@ -108,7 +108,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## Subagent model tiering
 
-Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site so the session tier propagates (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`) — and apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` → bare `<agent>` → `general-purpose` with the agent body inlined), caching the resolved rung for the session.
+Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site so the session tier propagates (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` carries the rationale and carve-outs). Spawn prefixed-first (`subagent_type="geniro:<agent>"`); only on an `Agent type not found` error or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder (`geniro:<agent>` → bare `<agent>` → `general-purpose` with the agent body inlined) and empty-result fallback, then cache the resolved rung for the session. Neither helper is read on the happy path — this summary is the operative rule until a spawn fails.
 
 Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `finding-verifier-agent` (the per-finding verifier, Phase 4.2), `adversarial-tester-agent` (Phase 4.3). One exception to OMIT: a custom reviewer declaring an explicit `model:` in its `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass that value verbatim. Every Agent prompt satisfies the six pre-inlined fields per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
 
@@ -149,7 +149,7 @@ The safety hooks apply across ALL phases; the complete list and what each blocks
 
 Per-phase mechanics live in the phase files; this is the final contract check, and skipping any item leaves the review incomplete or unsafe.
 
-- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual AND spawn instances == `spawn_dims_count`.
+- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual AND spawn instances == `spawn_dims_count`.
 - [ ] The spawn echo (`Spawning <N> reviewers: ...`), carrying the declared count, went out in the same response that fired the batch (§2.3.1).
 - [ ] A fresh `finding-verifier-agent` verdict exists for EVERY admitted CRITICAL / HIGH / MEDIUM survivor (same-file findings cluster into a shared spawn at the cluster size in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4); refuted findings demoted to `## Filtered`.
 - [ ] The multi-signal admission gate was applied — not a single confidence threshold (invariant #6).
@@ -174,7 +174,7 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 
 ## Phase 2 — LLM reviewer spawns
 
-`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.3 and §2.5-§2.8 (§2.4 is reserved). Fire one `reviewer-agent` per triggered dimension as a single parallel batch. Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
+`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.3 and §2.5-§2.9 (§2.4 is reserved). Fire one `reviewer-agent` per triggered dimension as a single parallel batch. Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
 
 ## Phase 3 — Filter & aggregate
 
@@ -196,4 +196,4 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 
 ## REFERENCE
 
-Beyond the four phase files named in the header, each phase file cites its own deeper contracts. Under `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage-reference.md` (Phase 1 input mode / scope / risk-tier / memory load) · `deep-mode-reference.md` (`--deep` recall + vote) · `phase-4-3-test-gate-reference.md`. Under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/`: `finding-verification.md` (Phase 4.2 verifier) · `review-handoff.md` (Phase 6 handoff) · `review-handoff-post.md` (§7 Post drill, Post pick only) · `plan-context.md` · `flags-reference.md`.
+Beyond the four phase files named in the header, each phase file cites its own deeper contracts. Under `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage-reference.md` (Phase 1 input mode / scope / risk-tier / memory load) · `phase-1-pr-reference.md` (PR-side fetches + peer-PR scout, PR-ref runs only) · `deep-mode-reference.md` (`--deep` recall + vote) · `phase-4-3-test-gate-reference.md`. Under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/`: `finding-verification.md` (Phase 4.2 verifier) · `review-handoff.md` (Phase 6 handoff) · `review-handoff-post.md` (§7 Post drill, Post pick only) · `plan-context.md` · `flags-reference.md`.

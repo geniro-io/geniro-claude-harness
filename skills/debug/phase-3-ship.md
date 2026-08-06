@@ -48,7 +48,7 @@ Present a human-readable findings summary before the escalation question fires �
 
 **🔍 Root cause:** [one sentence, plain language — why the bug happens]
 
-[cause → effect flow per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Finding-type visual map, "Debug root cause" row: `<root cause at path:line> ──▸ <intermediate> ──▸ <observed failure>`]
+[cause → effect flow per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Finding-type visual map, "Debug root cause" row: `<root cause at path:line> ──▸ <intermediate> ──▸ <observed failure>`]
 
 **🧪 Reproduction:** [exact steps that trigger the bug]
 

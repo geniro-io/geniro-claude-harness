@@ -14,14 +14,14 @@ agents/test-runner-agent.md 1090
 skills/actions/SKILL.md 2541
 skills/audit-instructions/SKILL.md 2961
 skills/debug/SKILL.md 2823
-skills/implement/SKILL.md 3719
+skills/implement/SKILL.md 3786
 skills/instructions/SKILL.md 2244
 skills/investigate/SKILL.md 3831
 skills/onboard/SKILL.md 2877
 skills/plan/SKILL.md 2858
 skills/refactor/SKILL.md 2899
 skills/reflect/SKILL.md 2933
-skills/resolve/SKILL.md 3185
-skills/review/SKILL.md 3198
+skills/resolve/SKILL.md 3194
+skills/review/SKILL.md 3252
 skills/setup/SKILL.md 4619
 skills/update/SKILL.md 3882

@@ -25,11 +25,11 @@ State.md `phase: triage`. Every step below is specified in full — inputs, deci
 Run these in order (`§` anchors are sections of the triage reference):
 
 1. **Set up the workspace** — settle which working tree the rest of the phase inspects, before anything reads the repo · §0.
-2. **Parse the input** — resolve the review-target shape from `$ARGUMENTS`; a PR ref also drives the thread-state fetch and the existing-review ingest · §1 + §1.1.
+2. **Parse the input** — resolve the review-target shape from `$ARGUMENTS`. When it resolves to a PR ref, also Read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` — it carries the whole PR-side contract (thread-state fetch, existing-review ingest, metadata fetch, peer-PR scout) and no other input shape loads it · §1.
 3. **Resolve the scope** — the reviewed file set, the scope-exclusion note, and the sanity gate that aborts an unresolvable ref or an empty diff before any reviewer spawns · §2 + §2.1.
-4. **Fetch the pull-request metadata** — diff, base/head refs, title/body, head SHA, URL, draft state, author, labels · §3.
+4. **Fetch the pull-request metadata** (PR ref only) — diff, base/head refs, title/body, head SHA, URL, draft state, author, labels · `phase-1-pr-reference.md` §3.
 5. **Fetch the linked issue** — workflow-file detection, tracker-ID match, spec-frontmatter ref merge, and the `LINEAR CONTEXT:` block · §3.5.
-6. **Scout sibling pull requests** (PR ref only) — scored, capped, and inlined as `PEER-PR CONTEXT:` · §4.
+6. **Scout sibling pull requests** (PR ref only) — scored, capped, and inlined as `PEER-PR CONTEXT:` · `phase-1-pr-reference.md` §4.
 7. **Load the custom instructions** · §6.
 8. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope + depth question on a fresh second-or-later round · §7.
 9. **Load the plan context** · §8.

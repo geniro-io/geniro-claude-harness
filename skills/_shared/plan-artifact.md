@@ -6,7 +6,7 @@ Owns the full lifecycle of an opt-in "visual plan artifact" for `/geniro:plan` �
 
 - When to run — the `artifact_mode` gate and the native-only constraint
 - House design language — the native-skill hand-off, treatment, component vocabulary, and the diagram / code-token / state-mark rules every fill reuses
-- The opt-in question — the Phase-0 question fired when `--artifact` is absent
+- The opt-in question — wording lives with the caller (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b)
 - Availability detection & create — the first publish (skeleton page + inspect-for-URL)
 - Update — per-phase revise-and-republish, blanking the Current decision panel once an answer lands
 - Before-gate update — mirroring the pending decision onto the Current decision panel before a gate fires
@@ -64,13 +64,7 @@ Plan content carries states the page has to mark — retired, absent, stale, cur
 
 ## The opt-in question
 
-When the `--artifact` flag is absent from the run's arguments, the caller fires this single `AskUserQuestion` at the start of planning (before exploration), so the page can be built up from the first phase. With the flag present, skip the question — the flag is the opt-in.
-
-- **Question:** "Build a live visual artifact of this plan as it develops? It publishes a private, auto-updating page to claude.ai."
-- **Option A — "Yes — build it and keep it updated"** → the user wants the page.
-- **Option B — "No — keep planning in chat only"** → plan in chat with no page.
-
-Persistence intent: on option A, the run is in artifact mode (`artifact_mode: true`, and the publish hasn't happened yet so the status starts at `pending`); on option B, artifact mode stays off and no artifact fields are written. Either way, record the choice as a saved decision for this run under the category `artifact_choice`, so a resume after compaction doesn't re-ask. The caller owns the frontmatter write via `atomic_state_write`; this section owns only the question text and the choice that gets persisted.
+The opt-in question wording and its persistence rules live with the caller, in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b — the caller fires it without loading this file, so a run that declines the page never pays for the lifecycle machinery below.
 
 ## Availability detection & create
 
