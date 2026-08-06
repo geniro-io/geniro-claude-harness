@@ -252,7 +252,7 @@ Skip or downgrade findings in these cases — they look like rubric violations b
 - **Plan covers a multi-PR effort and this PR is one slice**: when PLAN CONTEXT explicitly enumerates a multi-PR plan (e.g., "PR 1: schema; PR 2: handler; PR 3: backfill") and the PR body cites which slice it is, restrict scope-completeness to the named slice. Items belonging to later slices are not omissions.
 - **Reverts and cherry-picks**: when the title begins with `Revert "` or `Cherry-pick` / `[backport]`, the spec the diff is held against is the parent change, not the original plan. Skip every check unless the revert/backport itself introduces new scope.
 
-The detection signals above come from `gh pr view --json isDraft,author,title,body,labels` and the PLAN CONTEXT slot already threaded into the prompt at SKILL.md Phase 1 — no additional API roundtrip is needed.
+The detection signals above (`isDraft`, `author.login`, `labels`, plus title and body) arrive in your PR-metadata context slot alongside the PLAN CONTEXT slot — the orchestrator fetched them once at Phase 1 and passes them through, so no API roundtrip of your own is needed. If one is missing from the slot, resolve it with a single read-only `gh pr view --json <field>` rather than assuming the class does not apply; when that is also unavailable, name the classifier you could not evaluate in your report instead of reviewing the PR as an ordinary non-draft one.
 
 ## Severity tagging
 

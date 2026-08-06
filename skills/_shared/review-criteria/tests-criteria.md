@@ -2,6 +2,8 @@
 
 Test coverage analysis, edge case handling, test quality, and critical path coverage assessment.
 
+> **Scope:** this dimension judges the TESTS. Whether the production code is *shaped* so it can be tested — the seam, the injectable boundary, logic buried in infrastructure — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §8, which runs in parallel. When heavy mocking is the observation, both dimensions can see it: emit the test-side finding here (is the mock hiding a real assertion?) and leave the seam-side finding to architecture, anchored at the production symbol.
+
 ## Contents
 
 - Test design philosophy (canonical)
@@ -400,6 +402,8 @@ The Inverse Deletion Test below guards *deleted* tests from silent coverage loss
 ## Test deletions in the diff (inverse deletion test)
 
 The existing Litmus test (above) evaluates a TEST'S strength by mentally deleting the PRODUCTION code. Apply the inverse direction when the diff DELETES one or more tests: evaluate the test's intent by checking what scenario it pinned.
+
+> **Overlap with regressions-criteria.md §3 is deliberate.** That dimension also scans deleted tests, from the other end: it asks whether the production symbol a deleted test covered still survives (a coverage regression). This section asks whether the deleted test's *cause path* is still pinned by any surviving test. The two questions land on the same deletion and can produce the same finding, which is expected — Phase 3 dedup merges them. Do not suppress yours on the assumption the other dimension covers it: `/geniro:implement` Phase 3 spawns `tests` without `regressions`, so this section is the only owner of the deleted-test class there.
 
 For every test removed by the diff (whole file deleted, OR an `it` / `test` / `describe` block removed from an existing file), ask:
 

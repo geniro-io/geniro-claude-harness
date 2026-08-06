@@ -285,12 +285,13 @@ Hand-written code that materially reimplements what a maintained, widely-adopted
 
 **Finding shape:** tag `[PRODUCT-DECISION]` — adopting a library is the user's call, so it surfaces regardless of severity. Severity MEDIUM typical; HIGH only when the hand-written code carries real correctness or security risk a battle-tested library would remove; never CRITICAL (a runtime defect in the hand-rolled code is owned by the bugs / security dimension). Name the library *category* that covers the code, never a specific package — candidate research is `/geniro:implement`'s half. Full shape: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: review.
 
-### 8. Testing Architecture
-- Code designed to be difficult to test
-- Heavy use of mocks indicates poor design
-- Brittle tests tied to implementation details
-- No test coverage for critical paths
-- Difficult to set up test context
+### 8. Testability of the production code
+
+> **Boundary with tests-criteria.md:** this section owns whether the PRODUCTION code can be tested — the seams. Judgments about the tests themselves (coverage gaps, brittle assertions tied to implementation, mocking discipline, critical-path coverage) are owned by the `tests` dimension at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`, which runs in parallel in both `/geniro:review` and `/geniro:implement` Phase 3. Emitting them here reports the same defect twice under a dimension that cannot act on it. Anchor every finding here at the production symbol whose shape is the problem, never at a test file.
+
+- Code shaped so it cannot be exercised without heavy mocking — a high mock count is the symptom, and the finding names the seam that forces it, not the mocks
+- Test-context setup that is difficult or impossible to construct (hidden construction, hardcoded dependencies)
+- Logic embedded in infrastructure code with no injectable boundary
 
 **How to detect:**
 - Check if functions are testable (pure or injectable)

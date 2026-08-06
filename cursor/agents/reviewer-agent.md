@@ -47,6 +47,7 @@ The orchestrating skill passes you:
 5. **Diff context**: Git diff summary showing which lines were changed — use this to tag findings as [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code discovered during context reading)
 6. **PLAN CONTEXT** (optional): plan/spec/decision-log content pre-inlined by the orchestrator, carrying design decisions like "D-09: existing X are NOT backfilled." How to absorb it — decision markers govern intent, plus the stale-premise escape hatch — is Step 1.5.
 7. **PRIOR-ROUND FINDINGS** (optional): compact summary of prior-round CRITICAL+HIGH findings on the same PR/diff (each entry: path:lines + one-line description), pre-inlined by the orchestrator on a round 2+ re-review. How to use it — attention bias, no re-reporting, the `none — first review` sentinel — is Step 1.7.
+8. **AUTHORED RULE FILES** (conventions dim only): the repo's own rule files, or the sentinel `none found`. Your criteria file §1 owns its contract.
 
 ## Review process
 
@@ -131,10 +132,11 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 - New findings: [count] | Pre-existing: [count]
 - Systemic patterns: [any recurring issues across files]
 - Notable clean areas: [what was done well in this dimension]
-- Context loaded: criteria=<read|slot|absent|unreadable>, project-rules=<read|slot|absent|unreadable>, search-policy=<read|slot|absent|unreadable>
+- Context loaded: criteria=<read|slot|absent|unreadable>, project-rules=<read|slot|absent|unreadable>, search-policy=<read|slot|absent|unreadable>[, authored-rules=<read|slot|absent|unreadable>]
 ```
 
 The `Context loaded:` line is your Step 1 and Step 1.6 loads stated where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 1.6 echo reaches nobody outside your own run, so this line is the only record the spawn site gets of which rules you reviewed under. Report `project-rules` as `read` only when both instruction files resolved; where one was missing and the other loaded, report the weaker state and name the missing file in §Fallback strategy's list.
+ The bracketed `authored-rules` item belongs to the conventions dim alone — emit it only if you own slot #8, and omit it entirely otherwise.
 
 ### Output cap
 
