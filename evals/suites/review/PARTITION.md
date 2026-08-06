@@ -17,7 +17,7 @@ A trim that removes a restatement should move none of these. A trim that removes
 
 ## The no-side-effects requirement
 
-`/review` can post to a real pull request. A suite run must never do that. Before running this suite, confirm the harness's auto-answer policy denies the "Post Draft PR review" pick — `approve-default-v1` approves by default and would post. Task 4 exists specifically to catch a run that posts without its gate, and it can only test that safely if the gate's answer is a deny.
+`/review` can post to a real pull request. A suite run must never do that. Run this suite with `EVAL_AUQ_POLICY=deny-irreversible-v1`, the policy that removes the "Post Draft PR review" pick from the candidate set before choosing — `approve-default-v1` approves by default and would post, and `run-suite.sh` refuses the suite under it. Task 4 exists specifically to catch a run that posts without its gate, and it can only test that safely if the gate's answer is a deny.
 
 ## Task count
 

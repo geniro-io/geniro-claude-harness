@@ -72,6 +72,7 @@ case " $* " in
 esac
 
 SKILL="geniro:plan"
+SKILL_EXPLICIT=""   # set when --skill is passed; otherwise the suite's skill_name decides
 # Judge pinned for cross-run comparability (meta.json models_resolved_at marks when this was chosen).
 # Passed as --model on every judge call so the recorded judge_model is the model that actually graded —
 # without the pin the judge silently runs at the CLI's ambient default while meta.json claims opus.
@@ -91,7 +92,7 @@ NOTES=""
 _need_val() { [ "$1" -ge 2 ] || { echo "run-suite: $2 requires a value" >&2; exit 64; }; }
 while [ $# -gt 0 ]; do
   case "$1" in
-    --skill) _need_val "$#" "$1"; SKILL="$2"; shift 2;;
+    --skill) _need_val "$#" "$1"; SKILL="$2"; SKILL_EXPLICIT=1; shift 2;;
     --suite) _need_val "$#" "$1"; SUITE="$2"; shift 2;;
     --candidate) _need_val "$#" "$1"; CANDIDATE="$2"; shift 2;;
     --baseline) _need_val "$#" "$1"; BASELINE="$2"; shift 2;;
@@ -122,6 +123,23 @@ case "$TRIALS" in (*[!0-9]*|'') echo "run-suite: --trials must be a positive int
 PLUGIN_ROOT="${PLUGIN_ROOT:-$(cd "$_rs_dir/.." && pwd)}"
 # holdout_partition: the suite filename signals which partition gates promotion (plan §11).
 case "$SUITE" in (*holdout*) HOLDOUT=true;; (*) HOLDOUT=false;; esac
+# Which skill this suite exercises. The suite file's `skill_name` is authoritative: an
+# omitted --skill used to leave SKILL at its `geniro:plan` default, so `--suite
+# suites/review/evals.json` drove /geniro:plan with review prompts, labelled the ledger row
+# `plan`, AND walked past the side-effect guard below — which keys on the skill name and so
+# never fired for the two suites it exists to stop. Derive the name, and treat a --skill
+# that contradicts the suite as an error rather than guessing which one was meant.
+SUITE_SKILL="$(jq -r '.skill_name // empty' "$SUITE")"
+[ -n "$SUITE_SKILL" ] || { echo "run-suite: suite declares no skill_name: $SUITE" >&2; exit 65; }
+if [ -n "$SKILL_EXPLICIT" ]; then
+  if [ "${SKILL#*:}" != "$SUITE_SKILL" ]; then
+    echo "run-suite: --skill '$SKILL' contradicts the suite's skill_name '$SUITE_SKILL' ($SUITE)." >&2
+    echo "  Driving the wrong skill spends a full run on the wrong prompt and mislabels the ledger row." >&2
+    exit 64
+  fi
+else
+  SKILL="geniro:$SUITE_SKILL"
+fi
 SKILL_SHORT="${SKILL#*:}"   # geniro:plan → plan (the ledger `skill`)
 
 # Side-effect guard — fail CLOSED before spending a cent.

@@ -276,8 +276,11 @@ fi
 # /geniro:implement can commit/push/open a PR and /geniro:review can post a PR review. Under
 # approve-default-v1 the driver approves those gates, so the run performs the action for real.
 # The guard must fire BEFORE any spend, and must not fire for /plan (which writes a spec and stops).
+# Drive it through each skill's OWN suite with no --skill flag — that is the real invocation,
+# and it is the path where the guard silently never fired: SKILL sat at its `geniro:plan`
+# default, so the case statement below it never matched implement/review at all.
 for sk in implement review; do
-  out="$( bash "$RS" --skill "geniro:$sk" --suite "$SUITE" \
+  out="$( bash "$RS" --suite "$REPO_ROOT/evals/suites/$sk/evals.json" \
          --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$TMPDIR_BASE/ws-sideeffect-$sk" 2>&1 )"; rc=$?
   if [ "$rc" -eq 64 ] && printf '%s' "$out" | grep -q "REFUSING to run the '$sk' suite" \
      && [ ! -e "$TMPDIR_BASE/ws-sideeffect-$sk/benchmark.json" ]; then
@@ -287,9 +290,31 @@ for sk in implement review; do
   fi
 done
 
+# 11b. The guard keys on the skill name, so where that name comes from is load-bearing.
+# Regression: --skill defaulted to `geniro:plan` and the suite's own `skill_name` was never
+# read, so `--suite suites/review/evals.json` drove /geniro:plan with review prompts, labelled
+# the ledger row `plan`, and walked past the guard above. Omitting --skill must resolve it
+# FROM the suite.
+out="$( EVAL_AUQ_POLICY=deny-irreversible-v1 bash "$RS" --suite "$REPO_ROOT/evals/suites/review/evals.json" \
+       --dry-run --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$TMPDIR_BASE/ws-skillderive" 2>&1 )" || true
+if printf '%s' "$out" | grep -q "skill=geniro:review"; then
+  pass "skill derives from the suite's skill_name when --skill is omitted"
+else
+  fail "skill derivation wrong — expected geniro:review, out: $(printf '%s' "$out" | tr '\n' '|' | cut -c1-200)"
+fi
+
+# 11c. An explicit --skill contradicting the suite is an error, not a silent wrong-skill run.
+out="$( bash "$RS" --skill geniro:plan --suite "$REPO_ROOT/evals/suites/review/evals.json" --dry-run \
+       --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$TMPDIR_BASE/ws-skillmismatch" 2>&1 )"; rc=$?
+if [ "$rc" -eq 64 ] && printf '%s' "$out" | grep -q "contradicts the suite's skill_name"; then
+  pass "--skill contradicting the suite's skill_name is refused (rc 64)"
+else
+  fail "skill mismatch not refused — rc=$rc out: $(printf '%s' "$out" | tr '\n' '|' | cut -c1-200)"
+fi
+
 # A denying policy clears the guard — it must not be an unconditional block on these two skills.
 # Failing past the guard is fine here; what matters is that the REFUSING message is gone.
-out="$( EVAL_AUQ_POLICY=deny-ship-v1 bash "$RS" --skill geniro:implement --suite "$SUITE" \
+out="$( EVAL_AUQ_POLICY=deny-irreversible-v1 bash "$RS" --suite "$REPO_ROOT/evals/suites/implement/evals.json" \
        --candidate AAA --baseline AAA --task-ids 1 --trials 1 --out "$TMPDIR_BASE/ws-denypolicy" 2>&1 )" || true
 if printf '%s' "$out" | grep -q "REFUSING to run"; then
   fail "denying policy still blocked — the guard is unconditional, not policy-sensitive"

@@ -82,7 +82,23 @@ only when the run completed (`subtype=success`).
 | `--out <dir>` | `runs/<runId>` | run-output directory |
 | `--raw` | off | treat `--prompt` as the raw prompt (no `/<skill>` prefix) — for probes |
 
-## The `approve-default-v1` auto-answer policy (`src/auto-answer.ts`)
+## The auto-answer policies (`src/auto-answer.ts`)
+
+Two ship, selected by `EVAL_AUQ_POLICY` (default `approve-default-v1`). An unknown name throws
+rather than falling back — a typo would otherwise silently re-enable approving behavior while
+`run-suite.sh`'s side-effect guard reads the variable as set.
+
+### `deny-irreversible-v1`
+
+`approve-default-v1`'s choice rule applied to a candidate set with every irreversible option
+removed first — the four actions `run-suite.sh` names: commit, push, open a PR, post a PR review.
+Matched on the option **label**, which the skills pin as verbatim canonical allowlists. A denied
+recommendation does not win; it falls through to the safest presented alternative. A gate offering
+nothing else throws, exactly as an option-less gate does: `/geniro:implement`'s ship gate presents
+three options that all ship, so it is refused rather than answered. Required for the `review` and
+`implement` suites.
+
+### `approve-default-v1`
 
 Pick the `(Recommended)` / pre-selected option, **order-stable by the marker, not
 positional**, falling back to the first listed option when none is marked; return the
@@ -95,7 +111,7 @@ This mirrors geniro's `skills/_shared/per-finding-question.md` "Recommended-labe
 (recommended option suffixed ` (Recommended)` **and** positioned first). Keying on the
 marker keeps the policy correct under option re-ordering and lets it resolve `/review`'s
 variable, dynamically-labelled per-finding PRODUCT-DECISION gates — not just `/plan`'s
-fixed approve gate. Covered by `src/auto-answer.test.ts` (10 cases).
+fixed approve gate. Both policies are covered by `src/auto-answer.test.ts` (18 cases).
 
 > Question quality is itself a graded signal — the auto-answer masks a skill that asks
 > *worse* questions. `gates.jsonl` records every gate verbatim so question quality can be
@@ -194,7 +210,7 @@ compare assertion 1's count across the two transcripts.
 
 ```
 src/types.ts            AskUserQuestion input/answer shapes
-src/auto-answer.ts      approve-default-v1 policy (pure, tested)
+src/auto-answer.ts      auto-answer policies: approve-default-v1 + deny-irreversible-v1 (pure, tested)
 src/auto-answer.test.ts 10 policy tests (node:test)
 src/driver.ts           the canUseTool query() driver
 fixtures/build-plan-fixture.sh    realistic mathlib target for /plan
