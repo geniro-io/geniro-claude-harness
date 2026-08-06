@@ -149,7 +149,7 @@ The safety hooks apply across ALL phases; the complete list and what each blocks
 
 Per-phase mechanics live in the phase files; this is the final contract check, and skipping any item leaves the review incomplete or unsafe.
 
-- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual AND spawn instances == `spawn_dims_count`.
+- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual. On the standard single-pass path, §4.0b also confirmed spawn instances == `spawn_dims_count`; in deep mode that comparison is replaced by the angle-pass count check in `deep-mode-reference.md` §2 (the standard-path check does not apply — deep mode never fires the single batch it counts).
 - [ ] The spawn echo (`Spawning <N> reviewers: ...`), carrying the declared count, went out in the same response that fired the batch (§2.3.1).
 - [ ] A fresh `finding-verifier-agent` verdict exists for EVERY admitted CRITICAL / HIGH / MEDIUM survivor (same-file findings cluster into a shared spawn at the cluster size in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4); refuted findings demoted to `## Filtered`.
 - [ ] The multi-signal admission gate was applied — not a single confidence threshold (invariant #6).

@@ -13,11 +13,10 @@ argument-hint: "[task description | spec.md path | empty to resume | 'continue']
 
 - Phases overview + REFERENCE
 - State machine — `phase:` enum, terminal states, termination reasons
-- Loop invariants (canonical, plus 8-10)
+- Loop invariants (canonical, plus 8-10, and the inbound handoff gate)
 - Anti-rationalization
 - Budgets — quality-first framing
 - ACI per-phase tool surface
-- Handoff contract (inbound) — the open-questions gate
 - State persistence
 - Memory I/O
 - PHASE 1 / PHASE 2 / PHASE 3
@@ -82,6 +81,8 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 9. **One todo in_progress at a time.** Phase 2's TodoWrite decomposition enforces sequential focus. Marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop).
 10. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool. It is the tool for ad-hoc cross-file research inside Phase 2 — the per-step "trace this flow" / "find every site calling this helper" queries the Phase 1 codebase-explorer inventory doesn't cover. Rationale + invocation contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
+**Inbound handoff gate.** A `/geniro:review`, `/geniro:debug`, or `/geniro:resolve` handoff for the current branch — `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` and its `from-debug-` / `from-resolve-` siblings — gates Phase 1 exit: every `open_questions[]` entry carrying `status: unresolved` must be resolved with the user and round-tripped back into the producer's file before the run transitions to `phase: implement`. Full contract, schema, and procedure: `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 12.
+
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate: the render is followed immediately by its lean `AskUserQuestion` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard).
 
 **Side-effect — `## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into that body section — shape in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling". Routine Read/Edit/Bash on local files need no logging: the tool_result return is sufficient.
@@ -106,7 +107,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 | "Branch format requires a ticket prefix per global.md — I'll create the Linear / Jira / GitHub-Issues ticket so the slug conforms." | /geniro:implement never creates tracker artifacts. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Mutation responsibility it mutates tracker state (status transitions at Phase 1 kickoff + Phase 3 Ship completion) but creates no tickets, issues, epics, or sub-tasks. A branch-format rule demanding a ticket ID is satisfied by the no-ticket-ID sub-flow's three options — user-provided ID, placeholder slug, or cancellation — never by inventing an upstream artifact. Tracker creation is a human authoring action, not a code-execution side-effect; an agent-created ticket appears in the user's tracker without authorization and triggers downstream artifacts (notifications, dashboard rows, sprint-planning surface area) the user did not approve. |
 | "/geniro:implement should inline-Read every relevant .claude/rules/, exemplar, and prior plan for thoroughness." | Loop invariant #8 bounds the orchestrator's own reads and delegates the rest. `.claude/rules/*.md` bodies and exemplar sources are JIT-loaded in Phase 2 only when an Edit target matches the rule's `paths:` glob, using the path list the codebase-explorer returned. |
 | "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it never writes files or tests you did not create, so content this run did not author means a concurrent external process. Committing from a working tree another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Workspace changed" AUQ (Phase 2 guard) instead of rationalizing the mutation away. |
-| "The task is clear from `$ARGUMENTS` — I'll get oriented with a quick `git status` and start, and pick up the phase file as I go." | Phase 1's body is where Step 0's workspace decision tree and the project-instruction load live, and both are ordered BEFORE any inspection of the tree. Starting with an ad-hoc probe collects none of Step 0a's signals (`CURRENT_BRANCH`, `IN_WORKTREE`, `PROTECTED_BRANCH`), so the decision tree cannot be evaluated even in principle, and the run silently takes an action no branch of that tree authorizes. Read the phase body first and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`. |
+| "The task is clear from `$ARGUMENTS` — I'll get oriented with a quick `git status` and start, and pick up the phase file as I go." / "Resuming into `phase: implement` — Phase 1 already loaded the custom instructions, so Phase 2 can skip its own load." | Phase 1's body is where Step 0's workspace decision tree and the project-instruction load live, and both are ordered BEFORE any inspection of the tree. Starting with an ad-hoc probe collects none of Step 0a's signals (`CURRENT_BRANCH`, `IN_WORKTREE`, `PROTECTED_BRANCH`), so the decision tree cannot be evaluated even in principle, and the run silently takes an action no branch of that tree authorizes. Read the phase body first and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`. The same drift resurfaces at Phase 2 entry on a resume: that Phase 1 load lived in a context the resume does not carry forward, whether the resume followed a compaction or a fresh session reading `phase: implement` from state.md. Phase 2 is the only code-writing phase, so entering it without current project rules means the edits it makes go unreviewed against them until Phase 3 — too late to shape how they were written. `phase-2-implement.md` refreshes the custom instructions on every entry for exactly this reason. |
 
 ---
 
@@ -134,16 +135,6 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | **Phase 3 Ship sub-step** | `git commit`, `git push`, `gh pr create` — each gated by the push-grade doctrine (§Anti-rationalization, ship-mode row); `gh api` thread reply + `resolveReviewThread` (resolve-handoff only — action-gated, after the push, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` write side) | External commits before AUQ resolution |
 
 The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
-
----
-
-## Handoff contract (inbound)
-
-`/geniro:review`, `/geniro:debug`, and `/geniro:resolve` each write a handoff this skill consumes, at `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` — `from-review-<branch>.md`, `from-debug-<branch>.md`, `from-resolve-<branch>.md`. Phase 1 reads every one that exists for the current branch, persists its body to state.md, and parses its frontmatter `open_questions[]` (canonical schema: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2).
-
-**The gate.** Every `open_questions[]` entry carrying `status: unresolved` is resolved with the user — and the answer round-tripped back into the producer's file — BEFORE the run transitions to `phase: implement`. /geniro:implement is the consumer, and the §T2 contract forbids proceeding with Edit/Write while any `unresolved` entry remains: the producer surfaced that ambiguity precisely so it gets settled before code changes. An `open_questions: []` clears the gate — the producer assessed and surfaced none. A missing key clears nothing: it means the producer never reached that step, so the ambiguity question is unanswered rather than answered "no", and §T2's consumer rules say what to do before editing.
-
-Procedure — rendering, the round-trip write, approvals persistence, the `/geniro:debug` authored-tests extraction, and the `/geniro:resolve` comment-resolutions stash — is in `phase-1-analyze.md` §Step 12.
 
 ---
 

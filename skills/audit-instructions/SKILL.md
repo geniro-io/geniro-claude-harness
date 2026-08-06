@@ -11,7 +11,7 @@ argument-hint: "[path | tool (cursor|claude|copilot|agents) | dimension (accurac
 
 ## Contents
 
-- Phases overview · Loop invariants · Anti-rationalization · Budgets · Subagent tiering
+- Phases overview · Loop invariants · Anti-rationalization · Budgets · ACI per-phase tool surface · Subagent tiering
 - Phase 0 (scope & inventory) · Phase 1 (mechanical pre-pass) · Phase 2 (dimension reviewers)
 - Phase 3 (merge, verify, filter) · Phase 4 (report) · Phase 5 (action gate)
 - State recovery · Definition of done · REFERENCE
@@ -68,11 +68,26 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | 5 dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns; shards count against the cap — when sharding every dimension would exceed it, shard the dimensions with the largest candidate lists first; scoped runs spawn only the relevant subset |
+| Reviewer spawns per batch | dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns; shards count against the cap — when sharding every dimension would exceed it, shard the dimensions with the largest candidate lists first; scoped runs spawn only the relevant subset |
 | Shards per dimension | ≤2, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |
 | Reviewer re-spawn on malformed output | 1 retry, then proceed with what parsed |
+
+## ACI per-phase tool surface
+
+Invariant #9 ("Report before fix") is a prose rule; this table is its tool-level enforcement. `Edit`/`Write` on any repo file (state-file writes go through `atomic_state_write` in Bash, never the `Write` tool) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
+
+| Phase | Allowed | Forbidden |
+|---|---|---|
+| `scope-inventory` (0) | `Read`, `Glob`, `Grep`, `Bash` (read-only + `atomic_state_write` for the state checkpoint) | `Edit`, `Write`, mutating `Bash`, `Agent` |
+| `mechanical-pre-pass` (1) | `Read`, `Glob`, `Grep`, `Bash` (read-only battery) | `Edit`, `Write`, mutating `Bash`, `Agent` |
+| `dimension-reviewers` (2) | `Agent` (reviewer spawns), `Bash` (`atomic_state_write` for `findings-<reviewer>.md` persistence) | `Edit`, `Write`, mutating `Bash` outside the state helper |
+| `merge-verify-filter` (3) | `Read`, `Bash` (read-only re-reads), `Agent` (`finding-verifier-agent` spawns) | `Edit`, `Write`, mutating `Bash` |
+| `report` (4) | `Read`, `Bash` (`atomic_state_write` for the dated report) | `Edit`, `Write`, mutating `Bash` outside the state helper, `Agent` |
+| `action-gate` (5) | `AskUserQuestion`, `Agent` (fix agents, spawned only after the gate approves), `Bash` (cleanup + commit offer) | `Edit`/`Write` before the gate fires, or outside an approved fix agent's disjoint allowlist |
+
+External sends are not part of `/geniro:audit-instructions` ACI.
 
 ## Subagent tiering
 
@@ -82,15 +97,16 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
 
 ## PHASE 0 — Scope & inventory
 
-1. **Parse `$ARGUMENTS`:**
+1. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: audit-instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. From the loaded `global.md` `## Rules`, extract the search-governing subset (a code index to query before plain-text search, a required lookup tool, an off-limits directory) into `$PROJECT_SEARCH_POLICY` for the Phase 2 spawn template — `none declared` when `global.md` declares nothing about searching.
+2. **Parse `$ARGUMENTS`:**
    - Empty → full audit (all dimensions, every surface found).
    - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. Invariant #13 still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
    - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (invariant #13) runs scoped to the same path.
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
    - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (invariant #13) unless `bloat` already names it.
-2. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
-3. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?".
-4. **Build the inventory and write the state checkpoint** per the reference §Run setup — enumerate the §Surface inventory globs, record what exists (with word counts and per-tool activity signals), and checkpoint after every phase.
+3. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
+4. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?".
+5. **Build the inventory and write the state checkpoint** per the reference §Run setup — enumerate the §Surface inventory globs, record what exists (with word counts and per-tool activity signals), and checkpoint after every phase.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 

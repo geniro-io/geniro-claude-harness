@@ -304,15 +304,16 @@ emit_learning() {
   line=$(printf '%s' "$rebuilt" | jq -c .)
 
   # Byte count, not character count — ${#line} counts characters, but the append
-  # cap is a byte limit; multibyte content just under 4096 chars can exceed 4096
-  # bytes and silently skip the guard. Reserve 2 bytes for the newline framing
-  # atomic_state_append adds, so the bytes actually written stay within the 4096
-  # ceiling (PIPE_BUF caveat: 4096 on Linux, only 512 on macOS — see
-  # atomic-state-write.md §Constraints).
+  # cap is a byte limit; multibyte content just under GENIRO_APPEND_MAX_BYTES
+  # chars can exceed it in bytes and silently skip the guard. The ceiling here
+  # is GENIRO_APPEND_MAX_BYTES itself (content bytes only, not the PIPE_BUF byte
+  # count) — atomic_state_append reserves the remaining bytes for its own
+  # newline framing, so total bytes written stay within PIPE_BUF (4096 on
+  # Linux, only 512 on macOS — see atomic-state-write.md §Constraints).
   local line_bytes
   line_bytes=$(printf '%s' "$line" | wc -c | tr -d ' ')
   if [ "$line_bytes" -gt "$GENIRO_APPEND_MAX_BYTES" ]; then
-    echo "emit_learning: serialized entry + framing exceeds 4096 bytes (${line_bytes}); atomicity not guaranteed — consider shrinking body" >&2
+    echo "emit_learning: serialized entry + framing exceeds the ${GENIRO_APPEND_MAX_BYTES}-byte ceiling (${line_bytes}); atomicity not guaranteed — consider shrinking body" >&2
     return 68
   fi
 

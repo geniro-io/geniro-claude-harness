@@ -30,7 +30,7 @@ If no arguments: default to `list`.
 
 ## Block-type routing
 
-A `create`/`edit` request implies WHICH block to author, not just which scope. On a resolved `create` or `edit`, Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` here and resolve the block type from its intent → block table before continuing. `list`, `validate`, and `delete` author no block, so they skip that file.
+A `create`/`edit` request implies WHICH block to author, not just which scope. On a resolved `create` or `edit`, Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` here — before resolving the block type — and follow it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`'s echo contract; a skipped Read silently defaults every request to `## Rules`. Resolve the block type from its intent → block table before continuing. `list`, `validate`, and `delete` author no block, so they skip that file.
 
 ## Ambiguity resolution
 
@@ -49,7 +49,7 @@ For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO requi
 
 ## Dispatch
 
-Single scope: **Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-<op>.md`** for the resolved mode (`list` / `create` / `edit` / `validate` / `delete`) and follow its Steps. Read only that one, and Read it again on any resumption of the run — the Steps are not in this file, so a run that skips the Read has nothing to execute. Multi-scope: run §Batch mode below, which walks the same mode file once per scope.
+Single scope: **Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-<op>.md`** for the resolved mode (`list` / `create` / `edit` / `validate` / `delete`) and follow its Steps. Read only that one, and Read it again on any resumption of the run — the Steps are not in this file, so a run that skips the Read has nothing to execute. This Read comes before any step of the mode and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — for `delete`, the mode body holds the destructive-op confirmation and nothing else stops the `rm -f`. Multi-scope: run §Batch mode below, which walks the same mode file once per scope.
 
 ## Batch mode
 

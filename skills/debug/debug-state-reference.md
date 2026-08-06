@@ -202,6 +202,7 @@ Agent(subagent_type="adversarial-tester-agent", prompt="""
 
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
+PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 
 ### Diff (changed files + contents)
 [Pre-inline `git diff <resolved-range>` output AND full contents of every changed source file from Step 1]

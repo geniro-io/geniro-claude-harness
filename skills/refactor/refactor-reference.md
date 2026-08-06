@@ -103,6 +103,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 DIFF: [paste git diff output]
 PLAN-STEPS REPORT: [paste state.md `## Plan steps` rows with final status]
 PROJECT CONVENTIONS: [paste relevant conventions from CLAUDE.md]
+PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 
 ## Code-style instructions
 [content here]

@@ -130,7 +130,7 @@ Parse `$ARGUMENTS` per §Arguments and echo the resolved mode. Transient — no 
 
 On Phase 1 entry:
 
-1. **Refresh custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.
+1. **Load custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.
 2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
 3. **Query past learnings** — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; under `mode: replace` the local file is empty, so only the backend read recalls anything), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag onboard --scope global --limit 5`. Surfaces prior architectural decisions and gotchas relevant to the scan (matches the `scope: global` discovery entries this skill emits in §2.3).
 4. **Cross-layer conflict resolution** — `resolve-conflicts` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
@@ -295,7 +295,9 @@ EOF
 
 `approvals[]` populated when the expand-scope AUQ fires at §1.3 Step 2 (category `expand_scope`).
 
-Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`.
+## State recovery
+
+On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/onboard/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
 
 ---
 
@@ -316,6 +318,7 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)
 - [ ] State.md cleaned up per §2.5
+- [ ] Closing echo `Reviewed for improvements: <N> candidate(s)` fired — including at N=0, per §2.3.5 (mandatory even when the improvement sweep found nothing)
 
 ---
 

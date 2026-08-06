@@ -14,7 +14,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 State.md `phase: implement` on entry.
 
-No custom-instructions or project-snapshot refresh at Phase 2 entry — both remain in context from Phase 1.
+**Refresh the custom instructions on entry** (always, regardless of compaction-marker presence). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`, per its §Echo contract. Phase 2 is the only code-writing phase, and a resume — a compaction, or a fresh session that reads `phase: implement` from state.md — enters it with no rules in context unless this refresh runs; "still in context from Phase 1" holds only within one uninterrupted turn sequence. No project-snapshot reload here — `load_semantic` runs once at Phase 1 entry and Phase 3 does not re-load it either (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 6).
 
 ### Steps
 

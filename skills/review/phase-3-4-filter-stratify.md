@@ -133,7 +133,7 @@ Full prompt template, isolated-context contract, anti-sycophancy guard, and work
 Summary:
 - Filter findings by decision-type per the runtime-behavior classification rule.
 - **Mandatory user-approval gate before any `adversarial-tester-agent` spawn.** Do not spawn without approval — the gate is the load-bearing safety property, since an unapproved spawn authors tests the user never asked for. Persist to `approvals[]` with category `test_gate_choice`.
-- The gate fires whenever eligible findings exist — never bypassed, never deferred to end-of-run. When the eligible set is empty, Phase 4.3 is skipped entirely with no AUQ.
+- The gate fires whenever eligible findings exist — never bypassed, never deferred to end-of-run. When the eligible set is empty, the approval gate and the agent spawn are skipped with no AUQ, but the `## Authored Tests` sentinel write still runs — a bare section reads as an unwritten result, not a clean one (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel).
 - Spawn ONE adversarial-tester-agent with eligible findings as hypothesis seeds. Orchestrator's independent re-run IS the gate; never trust the agent's red/green claim alone.
 - Demote-don't-delete: green tests demote findings to `## Filtered` with `[CHALLENGED-BY-TEST]` tag; original severity preserved for re-elevation.
 - Fail-open: agent failures surface "test-gate fail-open" under `## Caveats` + write `## Errors` entry.

@@ -5,7 +5,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to 
 ## Contents
 
 - Phase 2 — LLM reviewer spawns
-  - 2.1 Dimension grid (10 built-in dimensions + N custom)
+  - 2.1 Dimension grid (built-in dimensions + N custom)
   - 2.2 Pre-spawn declaration (state.md write before parallel batch)
   - 2.3 Spawn invocation (2.3.1 spawn echo · 2.3.2 fire the batch · criteria files)
   - 2.4 reserved
@@ -21,7 +21,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to 
 
 State.md `phase: llm-spawn`.
 
-### 2.1 Dimension grid (10 built-in dimensions + N custom)
+### 2.1 Dimension grid (built-in dimensions + N custom)
 
 | # | Dimension | Spawn rule (always-fire or conditional) |
 |---|---|---|
@@ -39,8 +39,8 @@ State.md `phase: llm-spawn`.
 
 **Spawn-batch size.** Phase 2 spawns a reviewer-agent for every row whose trigger fires — trimming the set silently drops a coverage dimension the user expects:
 
-- 6 always-rows (bugs, security, architecture, tests, conventions, regressions) fire on every run.
-- 4 conditional rows (optimizations, design, pr-metadata, spec-compliance) fire when their trigger column is satisfied — optimizations' trigger is deliberately broad (skipped only on a docs/lockfile-only diff per §2.9), so it fires on nearly every code diff.
+- The always-fire rows in the §2.1 grid's Spawn-rule column (bugs, security, architecture, tests, conventions, regressions) fire on every run.
+- The conditional rows (optimizations, design, pr-metadata, spec-compliance) fire when their Spawn-rule column trigger is satisfied — optimizations' trigger is deliberately broad (skipped only on a docs/lockfile-only diff per §2.9), so it fires on nearly every code diff.
 - N custom rows fire per the spawn-specs already discovered in Phase 1.5 §1.5.4 — the state.md frontmatter `custom_reviewers` entries whose `paths_matched` is `true` (zero discovery work at Phase 2 entry; that count is N).
 
 Total batch size = always-fire + triggered conditional + custom rows. Trimming this set silently is the documented anti-pattern — see §Anti-rationalization. Post-spawn verification in Phase 4 §4.0 catches drift.
@@ -103,7 +103,9 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
   - Dimension-specific criteria file path(s) — one absolute path per line, not the body (see **Criteria files** below).
   - Output schema per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
-After the parallel batch returns, record how many reviewer spawns actually fired — via `atomic_state_write`, append one `## Tool log` entry:
+After the parallel batch returns and before recording the count below, read each reviewer's report for its `Context loaded:` line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Reading the load report back — checked per agent, since one reviewer reporting a dropped load while its siblings report clean is a spawn defect, not a project without rules. Act on an `unreadable` or missing line (re-spawn or name the gap) rather than merely noting it.
+
+Record how many reviewer spawns actually fired — via `atomic_state_write`, append one `## Tool log` entry:
 
 ```
 [Phase 2 spawn batch] fired=<count of Agent reviewer spawns issued>; returned=<count that emitted a structured result>
@@ -124,7 +126,7 @@ Surface any `status: failed` entries by their plain-English dim name (e.g., "PR 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/design-criteria.md` (conditional per §2.5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/pr-metadata-criteria.md` (conditional)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` (conditional per §2.6)
-- Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (≤10 per project)
+- Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (capped there, per project)
 
 ### 2.5 UI-file detection rule (design dim trigger)
 

@@ -1,4 +1,4 @@
-# Phase 7 validator — 13 checks
+# Phase 7 validator — check set
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules, near-zero token usage.
 
@@ -6,7 +6,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 **Status:** Authoritative. Each check returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
-**Hard-fail handling:** see `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 — 3 auto-revision rounds, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
+**Hard-fail handling:** see `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 — the auto-revision round cap, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
 
 ## Contents
 

@@ -1,6 +1,6 @@
 # Repo tooling-first — generate artifacts through the repo's own tooling
 
-Single source of truth for the tooling-first generation primitive. Skills cite this file; do NOT inline-paste the procedure.
+Single source of truth for the tooling-first generation primitive. The consumer skill cites this file; do NOT inline-paste the procedure.
 
 Before hand-writing a structured artifact that a repo's own tooling can generate — a scaffolder, generator, CLI, or project command (`make new-migration`, `rails generate`, `nx g`, `cargo generate`, an `openspec` / `/opsx:*` change scaffold, a framework's `create` command) — detect that tooling and generate through it. Hand-writing reverse-engineers a format the tooling already produces correctly, and drifts the moment the tooling's version moves. Read-only on discovery, fail-open: when no tooling is found, fall back to the consumer's own hand-written contract.
 

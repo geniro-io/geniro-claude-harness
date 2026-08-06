@@ -73,11 +73,15 @@ archive_stale_learnings() {
     return 1
   fi
 
-  # Single home for the stale-criteria PROSE. hooks/session-start-restore.sh
-  # greps this back off stderr (see the "criteria:" line below) rather than
-  # restating the thresholds itself, so retuning them here is the only edit
-  # needed to keep the two in lockstep.
-  local criteria="age>180d AND score<0.1 AND access_count==0"
+  # Single home for BOTH the stale-criteria thresholds and their prose. The jq
+  # filter below reads $stale_age_days/$stale_score_max (passed as --argjson),
+  # not separate literals, so retuning either value here is the only edit
+  # needed to keep the prose, the filter, and the
+  # hooks/session-start-restore.sh stderr grep (see the "criteria:" line
+  # below) in lockstep.
+  local stale_age_days=180
+  local stale_score_max=0.1
+  local criteria="age>${stale_age_days}d AND score<${stale_score_max} AND access_count==0"
 
   local now tau
   now=$(date -u +%s)
@@ -106,8 +110,8 @@ archive_stale_learnings() {
     | (recurrence_weight(.recurrence_count // 1)) as $rw
     | ($rd * $tw * $aw * $rw) as $score
     | ((.deprecated // false) == false
-       and $score < 0.1
-       and ($age_days != null and $age_days > 180)
+       and $score < $stale_score_max
+       and ($age_days != null and $age_days > $stale_age_days)
        and ((.access_count // 0) == 0)) as $is_stale
     | if $is_stale then
         if $dry then $entry else $entry + {deprecated: true} end
@@ -122,6 +126,8 @@ archive_stale_learnings() {
       --argjson now "$now" \
       --argjson tau_days "$tau" \
       --argjson dry "$dry_run" \
+      --argjson stale_age_days "$stale_age_days" \
+      --argjson stale_score_max "$stale_score_max" \
       "$stale_filter" "$log" 2>/dev/null) || {
     echo "archive-stale: jq failed processing $log" >&2
     return 2
@@ -268,8 +274,14 @@ if [ "$_as_direct" = "1" ]; then
     # INT/TERM as well as EXIT: a SIGINT here would otherwise leave the lock held
     # for the full reclaim window, skipping every archive run in between. The
     # three peer lock sites (query-learnings.sh, update-semantic.sh,
-    # session-start-restore.sh) all clean on interrupt.
-    trap 'rmdir "$_as_lock" 2>/dev/null' EXIT INT TERM
+    # session-start-restore.sh) all clean on interrupt. Split by signal — a trap
+    # body that only cleans up does not itself terminate the process, so a
+    # combined EXIT/INT/TERM trap would release the lock and then let bash
+    # resume execution right after the interrupted command, running the rest of
+    # the rewrite with the lock already free for a concurrent writer.
+    trap 'rmdir "$_as_lock" 2>/dev/null' EXIT
+    trap 'rmdir "$_as_lock" 2>/dev/null; exit 130' INT
+    trap 'rmdir "$_as_lock" 2>/dev/null; exit 143' TERM
   fi
   archive_stale_learnings "$@"
   exit $?

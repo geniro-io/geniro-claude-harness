@@ -112,5 +112,12 @@ emit_rejection_if_signal() {
     }') || return 1
 
   printf '%s' "$payload" | emit_learning || return 1
+  # Echo the outcome rather than splitting the return code. A caller cannot tell
+  # "emitted" from "no signal" on its own — that is the whole point of this
+  # helper — and rc is the wrong channel to tell it: the no-op path is the
+  # common one (every accepted suggestion), so returning non-zero there would
+  # abort any caller running under `set -e` on its normal path. Silence on
+  # no-op, one line on emit, rc=0 for both.
+  printf 'Recorded a rejection pattern: %s\n' "$suggestion"
   return 0
 }

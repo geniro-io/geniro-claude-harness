@@ -576,19 +576,23 @@ else
   fail "C2d verify: shape heuristic drifted — non-empty command must accept AND bare verify: must reject"
 fi
 
-# C2c (validator count honesty): the documented check count in the H1 must equal the number of
-# numbered `### N.` check headers AND the §Contents list must enumerate the contiguous sequence
-# 1..N (no gaps, no duplicates), so adding/folding/dropping a check can never leave the count lying
-# (it also pins ARCHITECTURE.md's mirrored count). A bare max-of-list check is vacuous — dropping a
-# MIDDLE §Contents entry leaves the highest entry intact, so the contiguity compare is what guards it.
-_vc_h1_count="$(grep -m1 -oE '[0-9]+ checks' "$REPO_ROOT/skills/plan/validator-checks.md" | grep -oE '[0-9]+')"
+# C2c (validator count honesty): the numbered `### N.` check headers are the ground truth for how
+# many checks exist. The §Contents list must enumerate the contiguous sequence 1..N (no gaps, no
+# duplicates), and ARCHITECTURE.md's mirrored count must equal N — so adding/folding/dropping a
+# check can never leave either one lying. A bare max-of-list check is vacuous: dropping a MIDDLE
+# §Contents entry leaves the highest entry intact, so the contiguity compare is what guards it.
+#
+# The file's own H1 deliberately carries no tally — a title that counts its contents is a number
+# with no single home, and restating it there only re-arms the drift. ARCHITECTURE.md keeps the one
+# stated count precisely because this assertion pins it to the headers.
 _vc_header_count="$(grep -cE '^### [0-9]+\.' "$REPO_ROOT/skills/plan/validator-checks.md")"
 _vc_contents_seq="$(grep -oE '\b[0-9]+ `[a-z_]+`' "$REPO_ROOT/skills/plan/validator-checks.md" | grep -oE '^[0-9]+' | sort -n | tr '\n' ' ')"
-_vc_expected_seq="$(seq 1 "$_vc_h1_count" | tr '\n' ' ')"
-if [ "$_vc_h1_count" = "$_vc_header_count" ] && [ "$_vc_contents_seq" = "$_vc_expected_seq" ]; then
-  pass "C2c validator-checks count honest (H1=$_vc_h1_count, headers=$_vc_header_count, contents-seq contiguous 1..$_vc_h1_count)"
+_vc_expected_seq="$(seq 1 "$_vc_header_count" | tr '\n' ' ')"
+_vc_arch_count="$(grep -m1 -oE 'validator runs [0-9]+ checks' "$REPO_ROOT/ARCHITECTURE.md" | grep -oE '[0-9]+')"
+if [ "$_vc_contents_seq" = "$_vc_expected_seq" ] && [ "$_vc_arch_count" = "$_vc_header_count" ]; then
+  pass "C2c validator-checks count honest (headers=$_vc_header_count, contents-seq contiguous 1..$_vc_header_count, ARCHITECTURE.md=$_vc_arch_count)"
 else
-  fail "C2c validator-checks count drift — H1=$_vc_h1_count headers=$_vc_header_count contents-seq=[$_vc_contents_seq] expected=[$_vc_expected_seq]"
+  fail "C2c validator-checks count drift — headers=$_vc_header_count contents-seq=[$_vc_contents_seq] expected=[$_vc_expected_seq] ARCHITECTURE.md=[$_vc_arch_count]"
 fi
 
 grep -qE 'from-review-' "$REPO_ROOT/skills/review/SKILL.md" \

@@ -100,9 +100,14 @@ if ! command -v jq >/dev/null 2>&1; then
       # needed — except the path alias, folded here with shell builtins
       # because normalizing only under jq is the same silent bypass the main
       # path's fold exists to prevent. The content alias is skipped: no
-      # fail-closed scan reads content.
-      NOJQ_INPUT="${INPUT//\"target_file\"/\"file_path\"}"
-      NOJQ_INPUT="${NOJQ_INPUT//\"path\"/\"file_path\"}"
+      # fail-closed scan reads content. Anchored to the KEY position (`"path":`,
+      # trailing colon included) rather than the bare substring `"path"` — a
+      # blunt substring replace would also rewrite that text wherever it
+      # appears inside a JSON *value*, e.g. a command string containing the
+      # word "path" in quotes, corrupting the very text the fail-closed scan
+      # is about to read.
+      NOJQ_INPUT="${INPUT//\"target_file\":/\"file_path\":}"
+      NOJQ_INPUT="${NOJQ_INPUT//\"path\":/\"file_path\":}"
       printf '%s' "$NOJQ_INPUT" | bash "$SCRIPT" >/dev/null 2>"$STDERR_FILE"
       NOJQ_RC="${PIPESTATUS[1]}"
       if [ "$NOJQ_RC" -eq 2 ]; then

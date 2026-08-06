@@ -40,7 +40,7 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 - `Decision Type: [FIX-NOW]` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
 
 Use the decision-type taxonomy as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §7.
-If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely — do NOT show an AUQ. Proceed to Phase 5.
+If eligible set is empty after filtering, skip §3's approval gate and §4's agent spawn — do NOT show an AUQ. The §5 Step 4 sentinel write still runs (that step's own note covers exactly this case); once it lands, proceed to Phase 5.
 
 ### 2.1 Runtime-behavior classification (canonical rule)
 
@@ -81,6 +81,7 @@ Spawn ONE `adversarial-tester-agent` (per canonical model-tiering carve-out — 
 
 ```
 Agent(subagent_type="adversarial-tester-agent", prompt="""
+PROJECT SEARCH POLICY: [the global.md rules governing how to search this codebase, verbatim, or `none declared`]
 CHANGED FILES: [list of changed file paths with full content — pre-inlined from Phase 1]
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]

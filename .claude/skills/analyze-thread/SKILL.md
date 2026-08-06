@@ -386,7 +386,7 @@ Process answers in sequence. Add KEPT items to the confirmed list; record DROPPE
 
 ### Step 3: Final user gate on confirmed list
 
-Skipped under `--no-handoff`: every outcome this gate offers ends in a handoff that modifier rules out. Print the confirmed list, then go to Step 6.
+Skipped under `--no-handoff`: the modifier already answered the handoff-destination question in the negative, so asking again is redundant. Print the confirmed list, then go to Step 6.
 
 Print the updated confirmed list (including newly-promoted UNCERTAIN items). Fire ONE final `AskUserQuestion`:
 

@@ -32,4 +32,4 @@ Run `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Validation gat
 
 The auto-validation does NOT block save; it surfaces. User remains in control. On any terminal pick here (Save anyway / Revert), remove the snapshot: `rm -f "<path>.pre-edit.bak"`.
 
-On a clean verdict: `Edited \`<resolved-path>\`. Run with \`/geniro:actions run <resolved-slug>\`.` When the edited copy is the main-repo one and the current directory is a different worktree, append: "Written to the main repo checkout, so it survives if this worktree is removed."
+On a clean verdict, remove the snapshot — `rm -f "<path>.pre-edit.bak"` — then print: `Edited \`<resolved-path>\`. Run with \`/geniro:actions run <resolved-slug>\`.` When the edited copy is the main-repo one and the current directory is a different worktree, append: "Written to the main repo checkout, so it survives if this worktree is removed."

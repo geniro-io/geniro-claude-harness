@@ -237,10 +237,10 @@ run_notebookedit() {
   jq -nc --arg p "$1" --arg s "$2" '{tool_name: "NotebookEdit", tool_input: {notebook_path: $p, new_source: $s}}' | bash "$HOOK" >/dev/null 2>&1
   echo $?
 }
-expect_block "NotebookEdit pickle.load into a .py notebook cell blocks" \
-  "$(run_notebookedit /tmp/nb.py 'import pickle; pickle.loads(blob)')"
+expect_block "NotebookEdit pickle.load into a .ipynb notebook cell blocks" \
+  "$(run_notebookedit /tmp/nb.ipynb 'import pickle; pickle.loads(blob)')"
 expect_allow "NotebookEdit benign cell allowed" \
-  "$(run_notebookedit /tmp/nb.py 'import json; json.loads(blob)')"
+  "$(run_notebookedit /tmp/nb.ipynb 'import json; json.loads(blob)')"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

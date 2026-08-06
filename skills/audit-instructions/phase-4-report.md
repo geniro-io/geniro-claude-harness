@@ -4,7 +4,7 @@ Read on Phase 4 entry from `/geniro:audit-instructions` SKILL.md; the spine's in
 
 Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` via `atomic_state_write` — it lives outside the slug directory deliberately, so it survives the Phase 5 cleanup and becomes the next run's Phase 0 input. Structure:
 
-1. **Header** — date, scope, which dimensions ran, sharding.
+1. **Header** — date, scope, which dimensions ran, sharding, and the Phase 0 prior-report read: the prior report's date when one was found and consumed, or `no prior report found` when none existed. A skipped read is otherwise indistinguishable from a genuine first run.
 2. **Health summary** — what's strong and must not be over-corrected (feeds the next run's do-not-flag list).
 3. **Tier tables T0→T5** — columns: `# | file:line | issue | fix | effort`; convergence noted inline.
 4. **Per-dimension verdicts** — the reviewers' 2-3-sentence verdicts, edited for consistency.

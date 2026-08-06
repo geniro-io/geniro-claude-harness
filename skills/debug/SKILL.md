@@ -99,7 +99,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 |---|---|---|---|
 | Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component → user supplies missing or picks alternative |
 | Fix attempts failed verification | 2 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
-| Adversarial mode authored tests | 10 hard cap | (delegated to agent contract) | Stop authoring; surface findings |
+| Adversarial mode authored tests | per the agent contract | (delegated to agent contract) | Stop authoring; surface findings |
 | Adversarial mode consecutive discards | 5 | (delegated to agent contract) | Stop hypothesis generation; surface partial |
 
 **Architecture constraints (design intent, not budget):**

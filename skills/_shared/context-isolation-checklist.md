@@ -64,6 +64,8 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. `/geniro:implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
 
+This spawn is not complete when the call above fires — only when its report comes back and gets checked per §Reading the load report back further down this file.
+
 ## Required pre-inlined context
 
 Include every field below in every Agent() prompt — a missing field is the gap the §Why-this-exists failures come through.
@@ -97,6 +99,8 @@ Three properties are load-bearing, and a policy that reaches the agent without t
 If the policy names a tool, give its exact invocation form. A tool the runtime defers is not in the agent's tool surface until the agent loads it, so a policy naming one reads as unavailable and gets skipped silently — state that the agent should load it before concluding it cannot comply.
 
 This push complements the agent's own pull (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`). Both exist because neither alone holds: the pull is a step an agent can skip, and the push only carries what the orchestrator itself loaded.
+
+Satisfying every field above is only half the contract — the other half is checking what the agent did with them, at return time, per the next section.
 
 ## Reading the load report back
 

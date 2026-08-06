@@ -31,7 +31,7 @@ argument-hint: "[optional: path to template directory]"
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
-**Anti-goal:** Do NOT become an encyclopedia generator. CLAUDE.md is auto-loaded on every run in this project, so every section has to justify that recurring cost — keep what changes how a task is executed, and leave anything the model can read on demand from the project's own docs where it already lives.
+**Scope discipline:** CLAUDE.md is auto-loaded on every run in this project, so every section has to justify that recurring cost — keep what changes how a task is executed, and leave anything the model can read on demand from the project's own docs where it already lives.
 
 **After a compaction, re-invoke this skill before running a phase whose steps are not in context** — only a skill's front-loaded prefix is re-attached after a summary; the singleton state file's `phase:` says where to resume.
 
@@ -475,7 +475,7 @@ Use `AskUserQuestion` (header: `"Onboard"`):
 - **Label:** `"Map codebase now (Recommended)"` / **Description:** `"Run /geniro:onboard to scan the codebase and produce _CODEBASE_MAP.md — gives all skills structural awareness of your project."`
 - **Label:** `"Skip — I'll do it later"` / **Description:** `"You can run /geniro:onboard any time."`
 
-On "Map codebase now" → print `Running /geniro:onboard...` and invoke the onboard skill inline (same session, no restart needed). On "Skip" → proceed to state file cleanup.
+Run §5.3 state file cleanup next regardless of the pick — the Definition of done requires the deletion on every success path, not only "Skip". Then: on "Map codebase now" → print `Running /geniro:onboard...` and invoke the onboard skill inline (same session, no restart needed); on "Skip" → done.
 
 **Skip this AUQ in re-run mode** — the user already has a codebase map from a prior `/geniro:onboard` run (or chose to skip it). Re-run is for refreshing CLAUDE.md and running migrations, not re-onboarding.
 

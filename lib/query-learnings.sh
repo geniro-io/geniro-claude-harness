@@ -321,7 +321,11 @@ record_access() {
   trap 'rmdir "$lock" 2>/dev/null; trap - RETURN' RETURN
   # A SIGINT/SIGTERM mid-rewrite would skip the RETURN trap and orphan the lock
   # for up to the TTL. Release it on interrupt too, mirroring update-semantic.sh.
-  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN' INT TERM
+  # Split by signal and exit explicitly — cleanup alone does not terminate the
+  # process, so without the exit bash would resume mid-rewrite with the lock
+  # already released for a concurrent writer.
+  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN; exit 130' INT
+  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN; exit 143' TERM
 
   local tmp="${log}.tmp.$$"
   # Read raw and `fromjson?` per line: a malformed line yields no output for that

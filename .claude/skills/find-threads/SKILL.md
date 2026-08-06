@@ -38,7 +38,7 @@ You are the orchestrator for finding past Claude Code conversation threads that 
 
 1. **Discover** — run `scan.py`. It enumerates every `*.jsonl` session log under each config dir's `projects/`, keeps threads that did agentic work — an `edited` thread calls a code-edit tool (`Edit` / `Write` / `MultiEdit` / `NotebookEdit`); a `read-only` thread spawns a subagent or invokes a Skill but never edits code — and for each survivor extracts its kind, a title, the true project label, the date, a turn count, and an oversize flag. `--code-only` drops the read-only threads. With a query it also scores each thread by content match and drops non-matches.
 2. **Present** — render the survivors. No query → grouped by project, newest-first. A query → one flat list ranked best-first, each row showing its project, date, title, kind (`edited`/`read-only`), a match indicator, and a snippet. Number every shown row.
-3. **Select & launch** — take a free-text reply (`1,4,7` / `1-5` / `all`), resolve it to absolute paths, echo the set for confirmation, then launch `/analyze-thread` on the first batch of up to 5 picks and print any overflow as a runnable queue.
+3. **Select & launch** — take a free-text reply (`1,4,7` / `1-5` / `all`), resolve it to absolute paths, echo the set for confirmation, then launch `/analyze-thread` on the first batch, sized to its per-run cap (its §Budgets & quality gates), and print any overflow as a runnable queue.
 
 ---
 
@@ -231,7 +231,7 @@ If any selected thread is oversize (`>5 MB`), name those here and warn that `/an
 
 ### Step 3 — Launch the first, queue the rest
 
-On "Launch", split the selection into launchable (`≤5 MB`) and oversize (`>5 MB`) picks, then group the launchable ones into batches of at most 5 — `/analyze-thread`'s per-run cap. One batch is one run, and a run carrying several threads is what produces the cross-thread recurrence merge; splitting the same picks into single-thread runs throws that merge away.
+On "Launch", split the selection into launchable and oversize picks per `/analyze-thread`'s size cap (its §Budgets & quality gates), then group the launchable ones into batches sized to `/analyze-thread`'s per-run cap (same section). One batch is one run, and a run carrying several threads is what produces the cross-thread recurrence merge; splitting the same picks into single-thread runs throws that merge away.
 
 Launch the FIRST batch now as a chat slash-command directive (the same sibling-launch pattern `/analyze-thread` itself uses for `/improve-template` — a slash command in chat, not a subagent):
 

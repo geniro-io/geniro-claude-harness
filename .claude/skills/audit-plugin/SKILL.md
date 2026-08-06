@@ -1,6 +1,6 @@
 ---
 name: audit-plugin
-description: "Use when auditing the Geniro plugin repo as a whole — skills, agents, hooks, lib helpers, rules, and docs — for cross-file consistency, stale references, authoring-rule compliance, logic and shell correctness, over-complication, magic numbers, and safety/coverage gaps. Runs a deterministic pre-pass, then parallel dimension reviewers, re-verifies every finding against the cited lines, and writes a tiered report to the local-only design/scratch/. Skip for fixing one known issue (/improve-template) or reviewing a pending code diff (/code-review)."
+description: "Use when auditing the Geniro plugin repo as a whole — skills, agents, hooks, lib helpers, rules, and docs — for cross-file consistency, stale references, authoring-rule compliance, logic and shell correctness, over-complication, magic numbers, and safety/coverage gaps. Runs a deterministic pre-pass, then parallel dimension reviewers, re-verifies every finding against the cited lines, and writes a tiered report to the local-only design/scratch/. Skip for fixing one known issue (/improve-template) or reviewing a pending code diff (/geniro:review, or /code-review)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
@@ -45,7 +45,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 |---|---|
 | "The reviewer quoted the line — no need to re-read it." | Invariant #1: admission requires YOUR Read of the cited location. |
 | "I'll fix this obvious typo while scanning." | Invariant #2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
-| "I'll spawn reviewers one at a time to manage context." | Reviewer output is capped (§Budgets); the orchestrator only holds tables, not the reviewers' reading. Sequential spawns multiply wall-time ~8×. |
+| "I'll spawn reviewers one at a time to manage context." | Reviewer output is capped (§Budgets); the orchestrator only holds tables, not the reviewers' reading. Sequential spawns multiply wall-time by the batch size. |
 | "This caps-MUST is a violation." | Caps inside anti-rationalization right-hand cells with reasoning are explicitly endorsed. Check the do-not-flag list before flagging. |
 | "This SKILL.md is 5,200 words — finding: trim 200 words." | Invariant #5: the valid finding is advisory + a MOVE proposal, never a cut. |
 | "Two files state the same threshold and agree, so it's fine." | Agreement today is drift tomorrow — multi-homed constants are the D7 finding even when values match. Fix: one home, others cite it. |
@@ -53,7 +53,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 | "A magic number needs a named constant." | These are markdown instructions and small shell scripts, so a named constant is the wrong fix. But which fix is right depends on whether the number has one home: single-homed and self-explaining → add an inline WHY and KEEP it; restated, counting repo contents, or ordinalling a list → REMOVE it (D7's two dispositions). |
 | "D6 found nothing this round, so there's nothing to report." | A silent no-op is indistinguishable from a skipped dimension. The sweep is mandatory even when its result is empty: name what you examined and what you rejected. Zero findings is a valid result; an unreported sweep is not. |
 | "The same finding from two reviewers — I'll report both rows." | Convergence is a signal, not two findings. Collapse to one row with `convergence: 2` — duplicate rows inflate counts and erode the report's signal. |
-| "Skill X mentions /geniro:learnings — stale ref, flag it." | Deleted-skill names inside the documented replacement tables (CLAUDE.md, MIGRATION.md) are documentation OF the deletion. Adjudicate candidates; don't bulk-flag grep hits. |
+| "Skill X mentions /geniro:learnings — stale ref, flag it." | Deleted-skill names inside the documented replacement mapping (README.md "Skills deleted", MIGRATION.md) are documentation OF the deletion. Adjudicate candidates; don't bulk-flag grep hits. |
 | "The user said audit everything — I'll include design/ and evals/." | Out of default scope: design/ holds historical reports (auditing them re-litigates closed findings) and evals/ has its own harness. Include only when `$ARGUMENTS` names them. |
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
 | "There are 80 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
@@ -63,7 +63,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | 8 dimension reviewers (D2-D8, with D5 split) + shard splits, hard cap 10 spawns; shards count against the cap; scoped runs spawn only the relevant subset |
+| Reviewer spawns per batch | one spawn per selected dimension (D5 splits into markdown + shell) + shard splits, hard cap 10 spawns; shards count against the cap; scoped runs spawn only the relevant subset |
 | Shards per dimension | ≤2, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |

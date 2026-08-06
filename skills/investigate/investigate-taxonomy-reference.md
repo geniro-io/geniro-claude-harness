@@ -101,11 +101,13 @@ dive_round: <0-2>     # optional; Phase 3 dive-deeper round counter, survives co
 <only on terminal aborted/routed states>
 
 ## Persisted approvals
-<render of frontmatter approvals[] (category: glossary_resolve)>
+<render of frontmatter approvals[] (category: glossary_resolve, duplicate_answer)>
 EOF
 ```
 
-`approvals[]` populated when Phase 1 Step 2.5 fires (category `glossary_resolve`).
+`approvals[]` populated when Phase 1 Step 2.5 fires (category `glossary_resolve`) and when Phase 1 Step 2.6's duplicate-answer check finds a prior answer (category `duplicate_answer`).
+
+**Gate-feeding sections** — `## JIT Cadence`, `## Verified Claims`, `## Verifier Findings`, `## Open Questions` — follow the assessed-sentinel convention in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: when the producing step ran and found nothing to record, write `none — <step> ran and found nothing` rather than leaving the section bare. A bare section reads as unknown rather than clean — the producing step may never have run — and on a compaction-resume that distinction is what tells "the gate's precondition already holds" from "re-run the step before trusting this gate."
 
 Validate before resume via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`.
 

@@ -9,7 +9,7 @@ A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentat
 - 8.3 Revision-round escalation
 - 8.3.5 Launch config — pre-define implement settings
 - 8.4 Approve → git commit
-- 8.5 L2 emit (conditional)
+- 8.5 Record a learning (conditional)
 - 8.6 Suggest improvements (inline)
 - 8.7 Custom post-approval steps
 
@@ -74,7 +74,7 @@ On user picks "Approve":
 
 If the commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), surface a structured error to user — do NOT proceed to Phase 9 with a stale state. Fall back to escalation with the error inlined. An ignored task-dir is not a failure: it takes the step 3 Ignored branch and continues to Phase 9 normally.
 
-### 8.5 L2 emit (conditional)
+### 8.5 Record a learning (conditional)
 
 Decide the emit condition first, without loading any helper: Phase 4 had ≥2 distinct approaches AND the picked approach has a recorded trade-off rationale. When it does not hold (≤1 approach, or no trade-off recorded), skip this step whole. When it holds, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` and emit a `decision` type entry to L2:
 

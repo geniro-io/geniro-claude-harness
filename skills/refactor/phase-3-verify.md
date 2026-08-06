@@ -64,7 +64,7 @@ Orchestrator-inline addresses specific findings (Edit per finding); then re-spaw
 
 Output the markdown block directly in chat. No persistence to a handoff file — diff IS the deliverable.
 
-On the Trivial and Small tiers, drop the "Filtered smells" and "Review Findings" sections entirely: neither the smell-evidence filter nor the reviewer batch runs at those tiers, so both would render empty.
+On the Trivial and Small tiers, neither the smell-evidence filter nor the reviewer batch runs (§1.3.1) — keep both headings and render a not-run line naming the tier and the reason instead of dropping the sections. A summary that drops them renders byte-identical to one where a Medium/Big run silently skipped the reviewer batch; the not-run line is what tells the two apart.
 
 ```markdown
 ## Refactor Complete
@@ -77,10 +77,12 @@ On the Trivial and Small tiers, drop the "Filtered smells" and "Review Findings"
 
 ### Filtered smells (intentional patterns) (N)
 - [smell] — [reason filtered]
+- [Trivial/Small tier: "Not run — <tier> tier skips the smell-evidence filter (§1.3.1)." Medium/Big: omit this line; N counts the filtered smells above.]
 
 ### Review Findings
 - CRITICAL: N, HIGH: M, MEDIUM: K
 - Disposition: [proceeded / 1-round fix loop / escalated / ADR documented]
+- [Trivial/Small tier: replace the two lines above with "Not run — <tier> tier skips the independent reviewer + custom reviewers (§1.3.1)."]
 
 ### Validation
 - Tests: PASS/FAIL
