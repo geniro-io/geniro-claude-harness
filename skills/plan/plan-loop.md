@@ -9,6 +9,7 @@ Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase
 - HARD-GATE
 - Gate presentation contract (+ Visual rendering language)
 - Echo contract
+- Spawn contract
 - Phase files — the pointer table
 - Phase 0 .. Phase 9 — one stub per phase, naming the file that holds its steps
 - Terminal states
@@ -63,6 +64,14 @@ Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` 
 ```
 
 Phase 7 validator (check #3) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Small ≥1; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
+
+---
+
+## Spawn contract
+
+Cross-phase, binding every Agent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, the Phase 4 stress-test critics, and the deep-mode generators/critics.
+
+Subagent model selection: follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Judgment-grade spawns OMIT `model=`. Spawn with `subagent_type="geniro:<agent>"`; on `Agent type not found` or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session.
 
 ---
 

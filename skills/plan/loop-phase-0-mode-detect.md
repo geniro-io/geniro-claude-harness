@@ -43,7 +43,9 @@ There is no in-loop edit-existing-sections mode. To surgically revise an existin
 
 ### 0.2.5 Visual artifact opt-in
 
-After mode resolves (IDEA or DESIGN_DOC) and before the §0.3 state.md write. When the `--artifact` flag was present in §0.1, skip this question — the flag is the opt-in, the run is in artifact mode. When the flag was absent, fire the single opt-in `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` § The opt-in question (formal template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b). On the "Yes" pick (or flag present) the run is in artifact mode — the §0.3 frontmatter gets `artifact_mode: true` + `artifact_status: pending`; on "No" artifact mode stays off and no artifact fields are written. Persist the pick to `approvals[]` category `artifact_choice` so a resume doesn't re-ask.
+After mode resolves (IDEA or DESIGN_DOC) and before the §0.3 state.md write. When the `--artifact` flag was present in §0.1, skip this question — the flag is the opt-in, the run is in artifact mode. When the flag was absent, fire the single opt-in `AskUserQuestion` — literal template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b. On the "Yes" pick (or flag present) the run is in artifact mode — the §0.3 frontmatter gets `artifact_mode: true` + `artifact_status: pending`; on "No" artifact mode stays off and no artifact fields are written. Persist the pick to `approvals[]` category `artifact_choice` so a resume doesn't re-ask.
+
+Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` only when the run is in artifact mode — the user picked "Yes" or the `--artifact` flag was passed — starting from the §1.5 `loop-artifact-call-sites.md` read; a run that declines the page never loads the lifecycle helper.
 
 ### 0.3 Task-dir + state.md creation
 

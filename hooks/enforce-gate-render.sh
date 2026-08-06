@@ -96,7 +96,7 @@ FINDING_CTX_RE='\((CRITICAL|HIGH|MEDIUM|LOW)|finding|reviewer|severit'
 
 # ===== Finding-batching guard (shape-based, render-independent) =====
 # Product-decision gates resolve ONE finding per call (per review-handoff.md §3
-# / per-finding-question.md §Single-finding gate). A call whose questions[] holds
+# / per-finding-question-reference.md §Single-finding gate). A call whose questions[] holds
 # ≥2 entries that EACH read like a product-decision gate is the tabbed F3/F4/F5
 # batch — block it regardless of render state, because no single chat render can
 # precede a multi-finding call. The signal is per-question: count questions

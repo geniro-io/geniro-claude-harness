@@ -7,11 +7,11 @@ State.md `phase: triage` during this phase.
 ## Contents
 
 - §0 Step 0 — Workspace setup
-- §1 Input parsing + PR thread-state fetch
+- §1 Input parsing (PR-side fetches live in `phase-1-pr-reference.md`)
 - §2 Scope resolution
-- §3 PR-ref input parsing
+- §3 PR-ref input parsing — pointer to `phase-1-pr-reference.md` §3
 - §3.5 Workflow integrations (issue-tracker fetch)
-- §4 Peer-PR scout (PR-ref input only)
+- §4 Peer-PR scout — pointer to `phase-1-pr-reference.md` §4
 - §5 reserved — scope resolution is covered under §2 above
 - §6 Custom-instructions load
 - §7 Step 0.5 — Round-N counter (+ re-review gate: scope / depth)
@@ -186,62 +186,22 @@ After Step 0 settles, every subsequent Phase 1 step and downstream phases run fr
 
 ---
 
-## 1. Input parsing + PR thread-state fetch
+## 1. Input parsing
 
-The pre-step resolves the review target from `$ARGUMENTS`, and for a PR ref fetches thread state that feeds downstream dedup and review-ingest:
+The pre-step resolves the review target from `$ARGUMENTS`:
 
 | Input shape | Routing |
 |---|---|
-| empty `$ARGUMENTS`, branch name, file paths, or diff range | Phase 1.5 mechanical pre-pass |
-| PR ref (`#1234` / PR URL) | resolve owner/repo/number → thread-state + existing-review fetch below → Phase 1.5 |
+| empty `$ARGUMENTS`, branch name, file paths, or diff range | Phase 1.5 mechanical pre-pass — `resolved-threads-snapshot: null`, `pr-bot-comments-snapshot: null`, `pr-formal-reviews-snapshot: null` (no PR to query; downstream dedup and prior-review context read null as absent) |
+| PR ref (`#1234` / PR URL) | Read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` and run its §1 (PR-ref resolution + thread-state fetch) and §1.1 (existing-review ingest) → Phase 1.5 |
 
 /geniro:review always authors a review of the target. It does not process reviewer comments left on your own PR — that is the author's job, done via the PR itself or by routing an actionable comment to `/geniro:implement`.
 
-**PR-ref resolution.** Parse `<owner>/<repo>/<number>` from `$ARGUMENTS`. For a full PR URL, parse the path segments directly; for bare PR number (`#1234` or `1234`), resolve `<owner>/<repo>` from the current repo via `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`.
+The PR-side contract — thread-state fetch, existing-review ingest (§1.1), PR metadata fetch (§3), and peer-PR scout (§4) — lives whole in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md`, loaded only on a PR-ref run; a files / branch / diff-range run never pays for it.
 
-**Thread-state fetch.** Feeds the `resolved-threads-snapshot:` persisted below and the existing-review ingest (§1.1). MCP-preferred: `mcp__github__pull_request_read` with the resolved owner/repo/number; consume `reviewThreads[]` from the returned payload directly. Fallback when MCP is unavailable:
+### 1.1 Existing PR review ingest
 
-```bash
-gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -F cursor=null -f query='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{isResolved isOutdated path line}}}}}'
-```
-
-Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatenate `nodes[]` across pages — typical PR completes in 1-3 calls, stays under rate-limit budget). Record each thread's `isResolved` / `isOutdated` / `path` / `line` — resolved threads feed the snapshot; outdated threads are excluded (referenced code rewritten, comment stale).
-
-Persist the surviving entries to state.md frontmatter as `resolved-threads-snapshot:` (one `path:line` per already-resolved thread). The Phase 6 Post drill's already-on-PR dedup (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` §7.1) is its only consumer: it drops findings overlapping a review comment already on the PR, and reads `null` as "nothing to dedup against" rather than "no overlap found".
-
-**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): skip the snapshot (`resolved-threads-snapshot: null`), proceed with the review, and surface `PR review-thread fetch failed — reviewing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open). No PR ref is the same case — `resolved-threads-snapshot: null`, no dedup downstream.
-
-### 1.1 Existing PR review ingest (formal reviews + inline bot comments)
-
-The thread-state fetch above reads thread STATE (`isResolved`/`isOutdated`/`path`/`line`) for dedup only — it never reads comment BODIES. Automated reviewers (CodeRabbit, Greptile, Sourcery, and other bots) post findings only in thread BODIES, so a review that reads thread state alone can declare a PR clean while a bot-flagged bug sits unread in scope. Fetch those bodies so they reach the LLM reviewers as prior-context.
-
-Two distinct surfaces carry prior findings: (a) the top-level **formal review** (`reviews(){ state body author }` — APPROVED / CHANGES_REQUESTED / COMMENTED with a summary body, posted by humans AND bots), and (b) **inline review-thread comments** (anchored to `path:line`, mostly bots). The two surfaces are queried separately and neither implies the other — a human reviewer's summary findings live only in the formal-review body and are invisible to an inline-comment query. Read BOTH so neither surface is silently dropped.
-
-For a target PR ref (skip entirely when `INPUT_SHAPE != pr-ref` — a branch / diff / file-path input has no PR to query), extend the thread-state GraphQL to also select comment author + body, OR run a second `gh` call. MCP-preferred path: the `mcp__github__pull_request_read` payload already carries thread comments — read `comments[].author.login` + `comments[].body` from each `reviewThreads[]` node, and the formal reviews too — read `reviews[].state` + `reviews[].body` + `reviews[].author.login`. Fallback GraphQL:
-
-```bash
-gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviews(first:50){nodes{state body author{login} submittedAt}} reviewThreads(first:100){nodes{isResolved isOutdated path line comments(first:10){nodes{author{login} body}}}}}}}'
-```
-
-Keep only comments whose `author.login` ends in `[bot]` OR matches a known reviewer-bot list (`coderabbitai`, `greptile-apps`, `sourcery-ai`, `codeant-ai`). For the formal **reviews**, the bot-only filter does NOT apply — keep every review whose `state` is `CHANGES_REQUESTED` or `COMMENTED` and whose `body` is non-empty (human reviewers' summaries are the highest-signal surface and must not be filtered out). Skip `APPROVED` reviews with empty bodies. For each kept review capture `{author, state, excerpt}` where `excerpt` is the first ~400 chars of `body` trimmed at a sentence boundary. Cap formal reviews at ~5 / ~2500 chars, newest first. For each kept inline comment, capture a short excerpt: `{path, line, author, excerpt}` where `excerpt` is the first ~280 chars of `body` trimmed at a sentence boundary (drop CodeRabbit's collapsible-HTML scaffolding and `<details>` blocks before trimming). Cap the snapshot at ~12 comments / ~4000 chars total — keep the highest-severity-worded comments first (lines containing `Major` / `Critical` / `Potential issue` / `bug` outrank `nitpick` / `suggestion`).
-
-Persist to state.md frontmatter:
-
-```yaml
-pr-bot-comments-snapshot:                # null when no PR ref or fetch failed/empty
-  - path: src/api/seeders.ts
-    line: 42
-    author: coderabbitai[bot]
-    excerpt: "Major: seeder runs before migration completes — race on first boot."
-pr-formal-reviews-snapshot:              # null when no PR ref or none with bodies
-  - author: teammate-login
-    state: CHANGES_REQUESTED
-    excerpt: "Requesting changes: the new retry path never caps attempts — unbounded backoff under sustained 5xx..."
-```
-
-Render two sibling blocks in the spawn prompts of the bugs / architecture / regressions / security dims (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3): a `## Existing PR review comments` block (from `pr-bot-comments-snapshot:`), each entry `- <author> @ <path>:<line> — <excerpt>`; and a `## Existing PR formal reviews` block (from `pr-formal-reviews-snapshot:`), each entry `- <author> (<state>) — <excerpt>`. Each block is omitted when its snapshot is null.
-
-**Fail-open.** No PR ref → set both `pr-bot-comments-snapshot: null` and `pr-formal-reviews-snapshot: null`, skip. Fetch error (network / scope / rate limit) or zero kept entries → set the corresponding snapshot key (`pr-bot-comments-snapshot` and/or `pr-formal-reviews-snapshot`) to `null` and surface `PR review ingest failed — reviewers run without prior formal-review / inline-bot context` under `## Caveats` (mirrors the thread-state fail-open). Never block on this fetch.
+PR-ref runs only — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §1.1.
 
 ---
 
@@ -266,7 +226,7 @@ When the review's scoped file set is a proper subset of the PR's changed files �
 
 - **Excluded files:** the files in `gh pr diff <ref> --name-only` (what the PR shows the reader) MINUS the file set the reviewer agents were actually given (the resolved review scope the orchestrator already holds). Do NOT recompute the reviewed set from `git diff <baseRefName>...HEAD` — that result drifts as the base branch moves (a merged or reset base can make it equal the full diff). When the excluded set is empty, render no note.
 - **Ancestor PR:** `gh pr list --state open --head <baseRefName> --json number,title,url --limit 1`, falling back to `--state all` when empty — the PR whose head IS this base (`--head`, not the peer-PR scout's `--base`, which finds children/siblings).
-- **Ancestor findings:** reuse the §1.1 thread-state GraphQL against the ancestor PR number to COUNT its review threads (resolved + unresolved) — do NOT persist the result to the target PR's `pr-bot-comments-snapshot:` / `pr-formal-reviews-snapshot:` (those hold the target's prior-review context fed to reviewers).
+- **Ancestor findings:** reuse the thread-state GraphQL (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §1) against the ancestor PR number to COUNT its review threads (resolved + unresolved) — do NOT persist the result to the target PR's `pr-bot-comments-snapshot:` / `pr-formal-reviews-snapshot:` (those hold the target's prior-review context fed to reviewers).
 
 Rendered as the Phase 6 report `## Summary` `Scope:` bullet (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.6). Computed in-memory at report time from `gh pr diff <ref> --name-only` and the scope the reviewers were given — no new frontmatter field. Fail-open: no `--head` match → render "<M> files excluded — owning PR not identified; confirm they were reviewed separately"; `gh` unavailable, or a compaction dropped the in-memory reviewed-file set → omit the note (the review's scoped findings still hold).
 
@@ -274,14 +234,7 @@ Rendered as the Phase 6 report `## Summary` `Scope:` bullet (`${CLAUDE_PLUGIN_RO
 
 ## 3. PR-ref input parsing
 
-For a PR ref, strip leading `#` and resolve with:
-
-- `gh pr diff <number-or-url>` to materialize the diff
-- `gh pr view <number-or-url> --json baseRefName,headRefName,body,title,headRefOid,url,isDraft,author,labels` for base/head context, head SHA pin, PR URL, PR body+title (the PR body feeds PLAN CONTEXT below), plus the draft state, author user, and label set
-
-The draft/author/labels feed the pr-metadata reviewer's Common-False-Positives detection (bot-author / draft / release-please-label PRs excluded from rubric-strict checks). Capture the original PR ref, `headRefOid`, and canonical `url` — all three persisted to the state file for Phase 6 Action gate's "Post Draft PR review" option and for `commit_id` pinning (prevents line-anchor drift if PR updates mid-review).
-
-If `gh` is unavailable or the PR cannot be fetched, report the error and stop — do NOT fall back silently to unstaged changes; do NOT run `gh pr list` to "find a related PR".
+PR-ref runs only — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §3 (diff materialization, metadata fetch, head-SHA pin, hard-stop on an unfetchable PR).
 
 ---
 
@@ -354,27 +307,7 @@ Read-only — never writes to Linear; never mutates git state. Latency ~1-3s per
 
 ## 4. Peer-PR scout (PR-ref input only)
 
-Skip for files / diff range / branch.
-
-**The PEER-PR CONTEXT slot value has exactly two legal sources** — (a) the literal result of running the scoring procedure below to completion, starting from the live `gh pr list` call, or (b) the literal fail-open string (`none — gh unavailable (fail-open)` / `none — no relevant open peer PRs`). A scout exists to DISCOVER open sibling PRs the orchestrator does not already know about; synthesizing the slot from PRs already mentioned in context (merged/closed PRs the run happened to reference, prior-round handoff content) is not a scout — it cannot surface an unknown open sibling, and it feeds reviewers a fabricated peer set. If `gh pr list` did not run this round, the only legal value is the fail-open string, never a hand-assembled block.
-
-Mechanism:
-
-- `gh pr list --state open --base <baseRefName> --json number,title,headRefName,author,updatedAt,changedFiles,files --limit 30`
-- Compute file-path intersection between the current PR's changed files and each sibling's `files[].path` from that one list call. Do not issue a `gh pr diff <N> --name-only` per candidate — that spends up to 30 round-trips re-deriving what the payload already carries, most of them on candidates that then drop at `total_score == 0`.
-- **The `files` array is capped at 100 entries per PR** (`gh` requests `files(first: 100)`), so request `changedFiles` alongside it and compare: when a candidate's `changedFiles` exceeds its `files` length, the array is truncated and the intersection undercounts. Fetch `gh pr diff <N> --name-only` for that candidate only. A large sibling is exactly the one whose overlap matters most, and a truncated count can silently drop it at `total_score == 0`.
-- **Score each candidate sibling** (extended beyond pure file-overlap):
-- `file_overlap`: integer count of intersecting changed files.
-- `linear_bonus`: +2 if sibling's PR title OR body contains a Linear ID matching `linear-parent-ref` OR appearing in `linear-sibling-task-ids:` from (parent epic OR sibling sub-task linkage). Bonus is additive: PR can earn +2 for parent-match AND +2 for sibling-sub-task-match (total +4).
-- `total_score = file_overlap + linear_bonus`.
-- Keep **top-3** by `total_score` (ties broken by `updatedAt` descending). Drop candidates with `total_score == 0` (no file overlap AND no Linear linkage — irrelevant). When workflow integration is skipped (no workflow file), `linear_bonus` is always 0 and this reduces to pure file-overlap top-3.
-- For each kept sibling: `gh pr view <peer-N> --json title,headRefName,url` + `gh pr diff <peer-N> | head -200` — diff CONTENT, which no list payload carries (~200 lines per sibling — bounds per-sibling context).
-- Build `PEER-PR CONTEXT:` block: one entry per sibling, annotated with `(file_overlap=N, linear_bonus=±N)` so reviewers can weigh signal strength. Total cap ~**2000 chars** — drop lowest-`total_score` sibling first if exceeded.
-- Pre-inline the SAME slot value into all 7 receiving reviewer prompts identically — architecture, design, bugs, conventions, optimizations, spec-compliance, regressions (expanded from architecture + design only). Feeding the block to a subset is a distribution miss the user did not consent to; the slot content is one computed value shared verbatim across the 7. Skipped for tests + security + pr-metadata (orthogonal or target-PR-specific). The slot is part of each receiving dim's pre-inlined context per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; a dim spawned without it is detectable against that spawn-context contract and the `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.0 post-spawn verification gate.
-
-Fail-open: if `gh pr list` fails or zero overlap-and-bonus surviving, render slot as `none — gh unavailable (fail-open)` (error case) or `none — no relevant open peer PRs` (legitimate empty result).
-
-Read-only — never writes files, never mutates git state. Latency ~1-3s base + ~200ms per kept sibling.
+Skip for files / diff range / branch — the `PEER-PR CONTEXT:` slot renders `none — no relevant open peer PRs`. On a PR-ref run, execute `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §4 (live `gh pr list` scout, scoring, caps, the two legal slot sources).
 
 ---
 
