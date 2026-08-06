@@ -160,7 +160,7 @@ No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 
 | matches a filesystem path (rel or abs) to a `.md` file | Load as spec/plan artifact. Frontmatter validated via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. |
 | free-form description, no path match | Inline-task mode: treat `$ARGUMENTS` as a raw spec description; Phase 1 produces a minimal inline plan and proceeds. |
 | ambiguous (bare slug that could be a task name OR a description) | AUQ with 2-3 disambiguation options. Persist outcome to state.md frontmatter `approvals[]` with `category: disambiguate_arguments`. |
-| natural-language modifier present (`don't push`, `draft only`, `stop after review`, `with PR`, `commit only`) | Honored semantically by Phase 3 Ship sub-step (a bare `with PR`/`open PR` with no draft-vs-ready qualifier routes to the ship-mode gate rather than skipping it — see the Ship sub-step modifier table). Modifier survives in $ARGUMENTS and is consulted at relevant decision points. No CLI flag rewrite needed. |
+| natural-language modifier present (`don't push`, `draft only`, `stop after review`, `with PR`, `commit only`) | Honored semantically by the Phase 3 Ship sub-step per §"Inline modifiers from $ARGUMENTS", which owns each modifier's effect. Modifier survives in $ARGUMENTS and is consulted at relevant decision points. |
 
 **Workflow-integration plumbing.** Workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A). Glob both `./.geniro/workflow/*.md` (cwd-local — uncommitted local edits win) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback) to find all available tracker integrations. If files exist with argument-detection patterns (e.g., Linear issue IDs, GitHub URLs), apply their patterns FIRST — they may inject extra context (issue body, status transition) before the semantic-parse table above runs. Integrations are non-blocking: if a workflow's backend (e.g., MCP) is unavailable, log a warning and proceed without.
 
@@ -183,7 +183,7 @@ If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task
 
 ## Phase 1: Subagent spawn template
 
-Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, TWO `Agent(...)` tool calls. Apply the registration-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every spawn site. OMIT `model=` — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
+Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, both `Agent(...)` tool calls together (the codebase-explorer alone when the store-empty gate in `phase-1-analyze.md` Step 7 skipped the knowledge-retrieval slot). Spawn `subagent_type="geniro:<agent>"`; on `Agent type not found` or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
 ### Backgrounding when a handoff gate is pending (idle-overlap)
 
@@ -276,7 +276,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 ### Failure handling
 
-On missing/empty OUTPUT_PATH file OR `Agent` tool error: one silent retry. Second failure → inline-Read fallback (orchestrator Grep + Read top exemplar files and `_CODEBASE_MAP.md` rows) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo a one-line notice to user.
+On missing/empty OUTPUT_PATH file OR `Agent` tool error: one silent retry. Second failure → inline-Read fallback (orchestrator Grep + Read top exemplar files and `_CODEBASE_MAP.md` rows) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo a one-line notice to user. A `.kr-out.md` absent because the Step 7 store-empty gate skipped the spawn is a sanctioned skip, not a failure — none of this applies to it.
 
 ---
 
@@ -310,7 +310,7 @@ Canonical schema for all of it: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier
 
 ## Phase 2: test-runner-agent spawn template
 
-Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=` — test-runner-agent declares `model: sonnet` in frontmatter (mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Apply the registration-degradation ladder.
+Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=` — test-runner-agent declares `model: sonnet` in frontmatter (mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Spawn `subagent_type="geniro:test-runner-agent"` (not-found error or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form).
 
 The orchestrator pre-resolves these slots:
 
@@ -435,7 +435,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 ## Phase 3: Self-review reviewer-agent template
 
-Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type: "reviewer-agent"`. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` registration-degradation ladder at every spawn site. OMIT `model=` (reviewer-agent declares `model: inherit`).
+Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type="geniro:reviewer-agent"`; on `Agent type not found` or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` (reviewer-agent declares `model: inherit`).
 
 **Pass criteria paths, never criteria bodies — do not read the criteria files.** The dimensions table below names ~22,000 words of rubric across the five built-ins; pre-reading them to inline into prompts drags every word through the orchestrator's own context as pure pass-through payload, on every run, and the reviewer would have re-read them anyway. `reviewer-agent` holds `Read` and its §Step 1 reads whatever paths its prompt names. Inline a body only where the reviewer cannot Read the path but you can — say so in the slot so it knows which form it got. When the file is unreadable for you too, pass no criteria for that dimension and let the reviewer's §Fallback strategy run. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so those spawns pass content as before.
 
@@ -489,7 +489,7 @@ Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel 
 - Codebase-Explorer report `change_scope: trivial`, OR
 - `--no-adversarial` modifier present in `$ARGUMENTS`.
 
-Apply the registration-degradation ladder. OMIT `model=` (adversarial-tester-agent declares `model: inherit`).
+Spawn `subagent_type="geniro:adversarial-tester-agent"` (not-found error or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form). OMIT `model=` (adversarial-tester-agent declares `model: inherit`).
 
 The orchestrator pre-resolves these slots:
 
@@ -611,7 +611,7 @@ else:
    - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
    - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
 
-   The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Single-finding gate — apply that section; don't restate it here.
+   The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate — apply that section; don't restate it here.
 4. State.md records `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
 
 The Always-WAIT contract applies: an empty `AskUserQuestion` answer is an upstream bug — fall back to plain text and re-ask, because defaulting to an option silently records a decision the user never made.
@@ -699,7 +699,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 **Step 2 — Commit.** Before staging, run `git branch --show-current` and verify the working tree is on the branch this run targeted (the Phase-1 Step-0 captured `CURRENT_BRANCH` / state.md `branch:` field). The session-start / state-snapshot branch field can go stale across compaction or an intervening branch switch — trust the live command, not the snapshot. On a mismatch, do NOT `git add` or `git commit`; fire an `AskUserQuestion` (header: "Branch check", question: "The working tree is on branch `<live>` but this run targeted `<expected>` — committing here would land the change on the wrong branch. How do you want to proceed?", options: "Move my commit to `<expected>` first" / "Commit on `<live>` anyway" / "Stop — let me sort the branch out"). Once the branch is confirmed, stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). Provenance guard: diff `git status --porcelain` against CHANGED_FILES; any production file modified outside that set was authored by something other than this run — fire an `AskUserQuestion` (header: "Unexpected changes", options: "Include them — I authored them elsewhere" / "Exclude — commit only my files" / "Pause and review") rather than silently folding them into this run's commit. Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata. If a workflow file specifies commit-message format (e.g., appending issue ID), follow that format.
 
-**Step 4 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
+**Step 4 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping — one instance of the general rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
 
 **Three advisory annotations ride this AUQ's question text** — the Done-Condition check and the spec-staleness notice (both spec-driven runs only) and the overridden-gate disclosure. Each is skip-when-clean and prepends one plain-English line; any that fire stack into the same question text, and none of them changes the draft-vs-commit-grade push classification or the verbatim option-label allowlist.
 

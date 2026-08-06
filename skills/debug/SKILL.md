@@ -236,5 +236,5 @@ state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram (§1), state.md + handoff schemas (§2), infrastructure checklist (§3), isolation procedures (§4), stall taxonomy table (§5), adversarial spawn + findings templates (§6), worked examples — Cache not invalidating / Intermittent timeout / Verify recent changes (§7), open-PR scan (§8), emit payload shapes (§9).
 - `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — depth question (§1), hypothesis fan-out (§2), 3-verifier majority vote (§3).
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes.

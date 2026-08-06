@@ -10,7 +10,7 @@ Surface a one-line plain-English note before invoking: "Challenging the spec bef
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the tier detected in Phase 1.2>`, DEEP: `<true when state.md deep-mode: true, else false>`.
 
-The helper runs VERIFY (one verifier per `file:line`-cited claim) + generate-ALTERNATIVES + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
+The helper runs VERIFY (every `file:line`-cited claim, same-file claims clustered into shared verifier spawns per the helper's spawn-batch shape) + generate-ALTERNATIVES + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
 
 On standard Trivial/Small/Medium runs this pass is skipped — `/geniro:implement` runs the same fact-check helper pre-edit on every spec-driven run, so cited-claim verification still happens before any code is written; the plan-side pass adds value where approval-time stakes are highest (Big tier) or the user asked for depth (`--deep`). Once it fires, cost stays bounded because the helper verifies only `file:line`-cited claims.
 
