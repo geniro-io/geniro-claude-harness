@@ -149,6 +149,42 @@ eq('justify: pads to the target width',      justify('L', 'R', 10), 'L' + ' '.re
 eq('justify: no right side returns the left', justify('L', '', 10), 'L');
 eq('justify: too narrow degrades to a join', justify('LLLLL', 'RRRRR', 5), 'LLLLL RRRRR');
 
+// ---- geniro-statusline.js: the update banner ----
+const isNewer      = build([grabFn(slSrc, 'isNewer', SL)], 'isNewer');
+const updateBanner = build([grabFn(slSrc, 'isNewer', SL), grabFn(slSrc, 'updateBanner', SL)], 'updateBanner');
+
+eq('isNewer: a patch bump is newer',          isNewer('5.6.1', '5.6.2'), true);
+eq('isNewer: the same version is not newer',  isNewer('5.6.2', '5.6.2'), false);
+eq('isNewer: an older version is not newer',  isNewer('5.6.2', '5.6.1'), false);
+eq('isNewer: the unknown sentinel is inert',  isNewer('unknown', '5.6.2'), false);
+eq('isNewer: a null side is inert',           isNewer(null, '5.6.2'), false);
+
+// The regression this function exists for: the SessionStart check snapshots the
+// version the session LOADED, then the background auto-update lands a newer one
+// minutes later. Advising /geniro:update there is wrong — the version is already
+// on disk and only a reload can pick it up.
+eq('updateBanner: disk ahead of the session asks for a reload',
+   updateBanner({ update_available: true, installed: '5.6.1', latest: '5.6.2' }, '5.6.2'),
+   '⬆ 5.6.2 /reload-plugins');
+eq('updateBanner: a genuinely unfetched release still asks for /geniro:update',
+   updateBanner({ update_available: true, installed: '5.6.2', latest: '5.7.0' }, '5.6.2'),
+   '⬆ 5.7.0 /geniro:update');
+eq('updateBanner: everything current renders nothing',
+   updateBanner({ update_available: false, installed: '5.6.2', latest: '5.6.2' }, '5.6.2'), '');
+// Disk ahead AND a further release upstream: reload first — it is the cheaper
+// step, and the next session's check re-surfaces what is still upstream.
+eq('updateBanner: disk-ahead wins over a further upstream release',
+   updateBanner({ update_available: true, installed: '5.6.1', latest: '5.7.0' }, '5.6.2'),
+   '⬆ 5.6.2 /reload-plugins');
+// No registry (a vendored or --plugin-dir install): fall back to the cache alone.
+eq('updateBanner: an unreadable registry falls back to the cache',
+   updateBanner({ update_available: true, installed: '5.6.1', latest: '5.6.2' }, null),
+   '⬆ 5.6.2 /geniro:update');
+eq('updateBanner: no cache and no registry renders nothing', updateBanner(null, null), '');
+// A rollback must not read as an update in either direction.
+eq('updateBanner: disk behind the session renders nothing',
+   updateBanner({ update_available: false, installed: '5.6.2', latest: '5.6.2' }, '5.6.1'), '');
+
 eq('modelLabel: a versioned display_name wins', modelLabel({ display_name: 'Opus 4.8', id: 'x' }), 'Opus 4.8');
 eq('modelLabel: reconstructs from the id',      modelLabel({ id: 'claude-sonnet-4-5' }), 'Sonnet 4.5');
 eq('modelLabel: carries the context window',    modelLabel({ id: 'claude-opus-4-8[1m]' }), 'Opus 4.8 (1M context)');
@@ -252,6 +288,73 @@ if [ "$rc" -eq 0 ] && [ -f "$CACHE" ] \
   pass "check-update: a missing plugin manifest degrades to installed:unknown, no update offered"
 else
   fail "check-update missing-manifest path; rc=$rc cache-exists=$([ -f "$CACHE" ] && echo y || echo n)"
+fi
+
+# ===== 3. geniro-statusline.js end-to-end: the update banner =====
+# Simulates the real sequence the banner got wrong: the session starts on 5.6.1,
+# the SessionStart check writes update_available against it, and Claude Code's
+# background marketplace auto-update lands 5.6.2 on disk a minute later. The bar
+# must then point at /reload-plugins, not at /geniro:update.
+SLCFG="$TMPDIR_BASE/sl-config"
+mkdir -p "$SLCFG/cache" "$SLCFG/plugins"
+
+# <session-version> <latest> <update_available>
+write_update_cache() {
+  cat > "$SLCFG/cache/geniro-update-check.json" <<EOF
+{"update_available": $3, "installed": "$1", "latest": "$2", "checked": 1785987429710}
+EOF
+}
+
+# <on-disk-version>; "none" removes the registry entirely.
+write_registry() {
+  if [ "$1" = "none" ]; then rm -f "$SLCFG/plugins/installed_plugins.json"; return; fi
+  cat > "$SLCFG/plugins/installed_plugins.json" <<EOF
+{"version": 2, "plugins": {"geniro@geniro-claude-harness": [
+  {"scope": "user", "version": "$1", "installPath": "/tmp/geniro/$1"}
+]}}
+EOF
+}
+
+render_statusline() {
+  printf '%s' '{"model":{"display_name":"Opus 5"},"workspace":{"current_dir":"/tmp/proj"}}' \
+    | CLAUDE_CONFIG_DIR="$SLCFG" COLUMNS=200 node "$REPO_ROOT/hooks/geniro-statusline.js" 2>&1
+}
+
+# <label> <session> <latest> <avail> <on-disk> <expect-substring|NONE>
+banner_case() {
+  write_update_cache "$2" "$3" "$4"
+  write_registry "$5"
+  out=$(render_statusline)
+  if [ "$6" = "NONE" ]; then
+    if printf '%s' "$out" | grep -q '⬆'; then
+      fail "$1 — expected no banner, got: $(printf '%s' "$out" | head -1)"
+    else
+      pass "$1"
+    fi
+  elif printf '%s' "$out" | grep -q -- "$6"; then
+    pass "$1"
+  else
+    fail "$1 — expected '$6' in: $(printf '%s' "$out" | head -1)"
+  fi
+}
+
+banner_case "statusline: a background auto-update turns the banner into /reload-plugins" \
+  5.6.1 5.6.2 true 5.6.2 '/reload-plugins'
+banner_case "statusline: an unfetched release still points at /geniro:update" \
+  5.6.2 5.7.0 true 5.6.2 '/geniro:update'
+banner_case "statusline: a fully current install shows no banner" \
+  5.6.2 5.6.2 false 5.6.2 NONE
+banner_case "statusline: a missing plugin registry falls back to the cache verdict" \
+  5.6.1 5.6.2 true none '/geniro:update'
+
+# A corrupt registry must degrade to the cache verdict, never crash the render.
+write_update_cache 5.6.1 5.6.2 true
+printf '{ not json' > "$SLCFG/plugins/installed_plugins.json"
+out=$(render_statusline)
+if printf '%s' "$out" | grep -q -- '/geniro:update' && ! printf '%s' "$out" | grep -q '^geniro$'; then
+  pass "statusline: a corrupt plugin registry degrades to the cache verdict"
+else
+  fail "statusline corrupt-registry path — got: $(printf '%s' "$out" | head -1)"
 fi
 
 echo

@@ -11,7 +11,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CACHE_FILE = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'cache', 'geniro-update-check.json');
+const CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+const CACHE_FILE = path.join(CONFIG_DIR, 'cache', 'geniro-update-check.json');
+const INSTALLED_PLUGINS_FILE = path.join(CONFIG_DIR, 'plugins', 'installed_plugins.json');
 
 // ── small helpers ─────────────────────────────────────────────────────────
 const DIM = (s) => `\x1b[2m${s}\x1b[0m`;
@@ -151,6 +153,57 @@ function getSessionInfo(transcriptPath) {
   return out;
 }
 
+// ── update banner ───────────────────────────────────────────────────────────
+// Strictly-newer semver test. Missing segments read as 0, and a non-numeric
+// segment (a prerelease suffix) does too — which under-reports rather than
+// raising a false alarm, the same trade geniro-check-update.js makes. Kept local
+// rather than shared: each hook has to run standalone from a vendored install.
+function isNewer(a, b) {
+  if (!a || !b || a === 'unknown' || b === 'unknown') return false;
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pb[i] || 0) > (pa[i] || 0)) return true;
+    if ((pb[i] || 0) < (pa[i] || 0)) return false;
+  }
+  return false;
+}
+
+// Version of the plugin currently ON DISK, which routinely runs ahead of the
+// version this session loaded: Claude Code's marketplace auto-update lands in the
+// background up to ten minutes after startup, long after the SessionStart check
+// wrote its cache. Highest version across scopes wins; null when the registry is
+// unreadable (a vendored or --plugin-dir install has no registry at all).
+function readInstalledVersion() {
+  try {
+    const reg = JSON.parse(fs.readFileSync(INSTALLED_PLUGINS_FILE, 'utf8'));
+    let best = null;
+    for (const [key, entries] of Object.entries(reg.plugins || {})) {
+      if (!key.startsWith('geniro@')) continue;
+      for (const e of entries || []) {
+        if (!e || !e.version || e.version === 'unknown') continue;
+        if (!best || isNewer(best, e.version)) best = e.version;
+      }
+    }
+    return best;
+  } catch { return null; }
+}
+
+// Three version states that need three different actions:
+//   • disk ahead of this session — a background auto-update already landed the new
+//     version. Nothing to fetch; the session just has to pick it up.
+//   • a newer release upstream   — genuinely not fetched yet.
+//   • neither                    — no banner.
+// Collapsing the first case into the second is what made the bar advise
+// /geniro:update against a version already sitting on disk, where it can only
+// rewrite the cache. Disk-ahead wins when both hold: reloading is the cheaper
+// step and the next session's check re-surfaces whatever is still upstream.
+function updateBanner(cache, onDisk) {
+  if (isNewer(cache && cache.installed, onDisk)) return `⬆ ${onDisk} /reload-plugins`;
+  if (cache && cache.update_available) return `⬆ ${cache.latest || '?'} /geniro:update`;
+  return '';
+}
+
 let input = '';
 // Claude Code writes the status-line payload to stdin and re-renders on every
 // turn, so a hung read would stall the render indefinitely. Bail out with a blank
@@ -167,15 +220,13 @@ process.stdin.on('end', () => {
     const dir = data.workspace?.current_dir || process.cwd();
     const remaining = data.context_window?.remaining_percentage;
 
-    // Update notification
-    let updateSeg = '';
-    try {
-      const cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-      if (cache && cache.update_available) {
-        const to = cache.latest || '?';
-        updateSeg = `\x1b[33m⬆ ${to} /geniro:update\x1b[0m`;
-      }
-    } catch {}
+    // Update notification. The cache is a SessionStart snapshot and is never
+    // rewritten mid-session, so the on-disk registry is re-read on every render —
+    // that is what lets the banner clear itself once an auto-update lands.
+    let cache = null;
+    try { cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')); } catch {}
+    const banner = updateBanner(cache, readInstalledVersion());
+    const updateSeg = banner ? COL('33', banner) : '';
 
     // Model (family colour) + reasoning effort (graded low→max; ultracode = xhigh),
     // set off by a spaced dash so the effort reads as a distinct chip.
@@ -215,8 +266,7 @@ process.stdin.on('end', () => {
 
     // Current task from todos (in-progress activeForm)
     let task = '';
-    const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
-    const todosDir = path.join(claudeDir, 'todos');
+    const todosDir = path.join(CONFIG_DIR, 'todos');
     const session = data.session_id || '';
     if (session && fs.existsSync(todosDir)) {
       try {

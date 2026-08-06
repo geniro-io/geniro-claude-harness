@@ -354,13 +354,18 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 
 ## Updating
 
-The plugin auto-updates via the Claude Code marketplace. To manually update:
+The plugin does not update itself unless you opt in — see [Staying up to date](#staying-up-to-date) above for the `autoUpdate` marketplace setting and its tradeoff. To update manually:
 
 ```bash
 claude plugin update geniro@geniro-claude-harness
 ```
 
-Or run `/geniro:update` inside Claude Code — preserves user content, walks any breaking changes in MIGRATION.md, and emits a restart-session warning. The status line shows an arrow when updates are available.
+Or run `/geniro:update` inside Claude Code — preserves user content, walks any breaking changes in MIGRATION.md, and emits a restart-session warning.
+
+The status line shows an arrow when your version is behind, and names the step that actually closes the gap:
+
+- `⬆ 5.6.2 /reload-plugins` — the new version is already on disk. A background auto-update landed it after this session started, so there is nothing left to fetch; the session just has to pick it up.
+- `⬆ 5.6.2 /geniro:update` — the release has not been fetched yet.
 
 ## Using with Cursor
 
