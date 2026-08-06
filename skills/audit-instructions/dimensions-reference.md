@@ -65,6 +65,8 @@ You are one reviewer in a multi-dimension audit of this repo's AI-assistant
 instruction files. Review ONLY your dimension; other dimensions are covered
 by parallel reviewers.
 
+WORKTREE: {{absolute path from `git rev-parse --show-toplevel`}}
+
 ### Your rubric
 {{the full D<N> section from dimensions-reference.md}}
 
@@ -90,6 +92,8 @@ by parallel reviewers.
 3. Return only the findings table per the output contract (max 25 rows) plus a
    2-3 sentence verdict for your dimension ("healthy / debt concentrated in X").
 Report only — do not edit any file, and do not review outside your dimension.
+
+Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 """, description="Instruction audit: D<N> <name>")
 ```
 
