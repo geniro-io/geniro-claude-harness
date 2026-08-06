@@ -9,7 +9,7 @@ agents/finding-verifier-agent.md 2084
 agents/knowledge-retrieval-agent.md 1316
 agents/reflection-agent.md 1630
 agents/reviewer-agent-reference.md 185
-agents/reviewer-agent.md 3408
+agents/reviewer-agent.md 3457
 agents/test-runner-agent.md 1113
 skills/actions/SKILL.md 2730
 skills/audit-instructions/SKILL.md 3353
@@ -22,6 +22,6 @@ skills/plan/SKILL.md 3023
 skills/refactor/SKILL.md 3176
 skills/reflect/SKILL.md 3033
 skills/resolve/SKILL.md 3627
-skills/review/SKILL.md 3457
+skills/review/SKILL.md 3509
 skills/setup/SKILL.md 4849
 skills/update/SKILL.md 4283

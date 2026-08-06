@@ -7,7 +7,7 @@ Canonical decision rules consumed by `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agen
 - §1 — Severity tiers with inclusion + exclusion lists
 - §2 — Anti-pattern table (common miscalibrations)
 - §3 — Worked examples per dim
-- §4 — Confidence: advisory, not load-bearing
+- §4 — Confidence and agreement: reported, never admission signals
 - §5 — Multi-signal Phase 4.1 gate
 - §6 — Per-dim calibration variants
 
@@ -91,7 +91,7 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 | "Missing test coverage is HIGH because tests matter" | HIGH only if the uncovered path has a documented failure mode that this PR could trigger. Otherwise MEDIUM (verifiable defect risk) or LOW (theoretical gap). | MEDIUM or LOW |
 | "Performance suggestion is HIGH because it might be slow" | HIGH requires a measured threshold per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` (>100 items, >1000 rows, >100KB). Below that: MEDIUM. Untested: LOW. | depends |
 | "Could be refactored — MEDIUM" | "Could be refactored" with no impact citation is LOW. MEDIUM requires a specific maintainability impact (e.g., new contributor onboarding time, common error source). | LOW |
-| "I'll tag this MEDIUM so it surfaces — LOW gets dropped" | This is the perverse-incentive trap. The Phase 4.1 multi-signal gate (§5) provides four independent signals for a finding to surface — convergence, Evidence-Block + confidence ≥ 60, criteria-pre-resolved marker, and a confidence ≥ 80 fallback. If the finding is correct, one of those will fire — do not inflate severity to game the filter. | depends — true severity |
+| "I'll tag this MEDIUM so it surfaces — LOW gets dropped" | This is the perverse-incentive trap, and the §5 gate sharpens it rather than removing it: severity IS the admission at HIGH and above. Two things hold the line. §1 gives every tier an EXCLUSION list alongside its inclusion list, and exclusion wins when both could apply — documentation polish, naming, and process suggestions are excluded from MEDIUM by name, whatever inflating them would surface. And every admitted CRITICAL / HIGH / MEDIUM is re-read against its cited code by the Phase 4.2 verifier, so an inflated finding arrives at the one step that reads the code and refutes it. Score the true tier. | depends — true severity |
 
 ---
 
@@ -122,17 +122,17 @@ The dim owns three defect classes; each keeps its own ceiling, defined in its ow
 
 ---
 
-## 4. Confidence — advisory, not load-bearing
+## 4. Confidence and agreement — reported, never admission signals
 
-The reviewer-agent emits `Confidence: XX%` (0-100). This is an advisory hint about reviewer self-rated certainty. It is NOT the load-bearing filter — see §5.
+The reviewer-agent emits `Confidence: XX%` (0-100), and Phase 3 dedup computes a `convergence_count`. Both are reported; neither admits a finding. §5 admits on severity and on a mechanical citation check instead, because both of these fail as correctness estimators in the same way.
 
-Documented limits of LLM-self-reported confidence:
+What the measurements support:
 
-- Verbalized confidence is poorly calibrated for the Claude family — a self-rated '80%' tends to land closer to a 55-60% true-positive rate, so the number reads higher than the finding actually deserves.
-- In production code-review systems, LLM self-rating behaves nearly randomly; filtering on a confidence threshold did not reliably separate true from false findings.
-- Coarse-grained confidence labels do not calibrate better than raw percentages, but they resist collapsing toward a single modal value.
+- **Verbalized confidence is a weak predictor, not a useless one.** Its rank correlation with correctness sits near the bottom of the useful range, and models are overconfident in the aggregate across model families and task types — a self-rated high number reads better than the finding deserves. A signal this weak cannot carry a KEEP decision alone, which is why it stays in the report and stays out of the gate.
+- **Agreement is not the stronger alternative it appears to be.** Agreement among model outputs predicts correctness only weakly, and agreement between *correlated* samplers actively misleads: samplers sharing a prompt, a rubric, or a model reinforce their common errors instead of checking each other. Two dimensions sharing a rubric section are correlated by construction — the mirror-gap check is deliberately carried by both `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §1.6 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 — so their agreeing is expected, not evidence.
+- **Neither substitutes for reading the code.** The Phase 4.2 verifier re-reads the cited slice, and that is the step separating a real defect from a plausible description of one.
 
-Implication: do not invest energy in tuning the threshold value. The percentage is a UI hint; the multi-signal gate in §5 is what actually filters.
+Implication: do not tune a confidence threshold, and do not add one back. The percentage is a report field the user reads beside the finding; `convergence_count` still feeds deep mode's escalation predicate and the Phase 5.3 recurring-pitfall signal. The §5 gate reads neither.
 
 Confidence scoring guidance (still emit, advisory):
 
@@ -153,19 +153,14 @@ Adjustments (still apply):
 
 ## 5. Multi-signal Phase 4.1 gate
 
-The KEEP/DEFER decision is governed by FOUR independent signals — any one passing keeps the finding. This section is the gate's canonical home; `/geniro:review` applies it at its Phase 4.1 admission step and follows any threshold changed here.
+The KEEP/DEFER decision is governed by THREE signals — any one passing keeps the finding. This section is the gate's canonical home; `/geniro:review` applies it at its Phase 4.1 admission step and follows any threshold changed here.
 
 ```
 KEEP IF:
   # Path A — severity-gated (also admits to the Phase 4.2 verifier)
-  ( severity >= MEDIUM
-    AND (
-      convergence_count >= 2                                                # multi-dim agreement
-      OR (Evidence-Block present AND properly formatted AND confidence >= 60)  # code-grounded citation
-      OR (criteria-file-marked-pre-resolved, e.g. regressions signal-table HIGH)  # explicit overrides
-      OR confidence >= 80                                                   # advisory fallback
-    )
-  )
+  severity >= HIGH                                          # CRITICAL / HIGH admit on severity
+  OR ( severity == MEDIUM
+       AND Evidence-Block present AND properly formatted )  # code-grounded citation
   # Path B — decision-type orthogonal (any severity; a LOW admitted here skips
   #          the §4.2 verifier, a MEDIUM-or-higher still enters it)
   OR Decision Type == PRODUCT-DECISION    # the user's call, not the reviewer's — severity does not gate visibility
@@ -173,16 +168,20 @@ ELSE DEFER to ## Deferred — sub-threshold (state.md body; off the PR and the f
      by default — a user pick lifts it, per review-handoff.md §7.2 / §4.6)
 ```
 
-Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM. A MEDIUM admitted on convergence or a confidence score alone would be kept with nothing to re-read, so it drops to `## Deferred — sub-threshold` instead. At CRITICAL / HIGH that same thin citation is admitted rather than dropped — losing a high-severity defect costs more — and the Phase 4.2 verifier supplies the missing quote, which makes the Evidence Block requirement (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`) a post-verification invariant rather than an admission-time one.
+**Why admission stops at severity and citation.** Every signal that tried to estimate whether a finding was *correct* — the reviewer's self-rated confidence, cross-dimension agreement — is too weak to carry the decision (§4), so the gate stops asking that question. It asks the two it can answer: how bad is this if real (severity, scored against §1's inclusion and exclusion lists rather than self-rated), and does the finding cite code that can be re-read (the Evidence-Block check, mechanical at §4.1 entry). Whether the defect is real is the Phase 4.2 verifier's question, and it reads the code to answer it.
 
-Tier-aware behavior: standard tier uses signal #4 as written (confidence ≥ 80). High tier (`risk-tier: high`) relaxes signal #4 to `confidence ≥ 70`. Other signals (convergence, Evidence-Block, pre-resolved) unchanged across tiers. The §4.3 test-confirmation gate affects neither §4.1 admission nor §4.2 verification — test authoring runs after the finding set is fixed and never filters it.
+The two signals that left the gate are not lost, only no longer load-bearing at admission: a criteria-file pre-resolved marker (e.g. the regressions signal-table) marks findings that score HIGH and are now admitted by severity anyway, and `convergence_count` still feeds deep mode's escalation predicate and the Phase 5.3 recurring-pitfall signal.
+
+Admission constraint for MEDIUM: a MEDIUM finding requires the Evidence-Block. A MEDIUM admitted with nothing to re-read reaches the verifier with no slice to read and the user with no anchor, so it drops to `## Deferred — sub-threshold` instead. At CRITICAL / HIGH that same thin citation is admitted rather than dropped — losing a high-severity defect costs more — and the Phase 4.2 verifier supplies the missing quote, which makes the Evidence Block requirement (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`) a post-verification invariant rather than an admission-time one.
+
+**The high-stakes refutation guard is what keeps this safe.** Putting the whole correctness judgment on the verifier concentrates the risk in a single verdict, and the documented failure mode of an LLM defect-filter is over-refutation — dropping a real bug. So at CRITICAL / HIGH one `refuted` verdict never demotes a finding by itself; it takes a second, independent verdict. That rule and its fail-safe are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5.
+
+No tier-dependent behavior at admission — `risk-tier: high` changes nothing in this gate, since the only thing it ever relaxed was a confidence floor that no longer exists. The §4.3 test-confirmation gate affects neither §4.1 admission nor §4.2 verification — test authoring runs after the finding set is fixed and never filters it.
 
 Rationale:
 
-- `convergence_count >= 2`: when two or more independent dims flag the same finding, that agreement is a stronger signal than any single dim's self-rated confidence — multiple reviewers converging measurably lifts precision on real defects.
-- `Evidence-Block resolves` (with confidence ≥ 60 floor): a code-grounded citation is the strongest defense against false positives; the confidence floor screens out low-conviction citations.
-- Pre-resolved markers: explicit overrides preserve existing regressions-criteria signal-table semantics
-- Confidence >= 80: kept as a fallback path, no longer the primary gate
+- `severity >= HIGH`: severity is scored against §1's explicit inclusion and exclusion lists, which makes it a rubric judgment rather than a self-rating — and at these tiers the standing preference is to admit and verify rather than defer, because a dropped high-severity defect costs more than a verifier spawn.
+- `Evidence-Block present AND properly formatted`: a code-grounded citation is the strongest defense against false positives, and alone among the candidates it is checked mechanically rather than judged.
 - `Decision Type == PRODUCT-DECISION` (Path B): decision-type (who-decides) is orthogonal to severity (impact-if-wrong). A PRODUCT-DECISION is a call the reviewer cannot close, so the user must see it regardless of severity — mirroring `/geniro:refactor`'s always-WAIT PRODUCT-DECISION escalation. Path B keeps severity as scored (a LOW PRODUCT-DECISION stays LOW — admission by decision-type, NOT the severity inflation §2 forbids).
 
   **Verification splits by severity on Path B.** A LOW admitted here skips the §4.2 verifier — a trade-off at LOW is not a defect-to-confirm, and it carries no verification fields into the handoff. A MEDIUM-or-higher admitted by Path B alone (no Path-A signal held) still enters §4.2, because the handoff schema makes the four verification fields mandatory on every kept CRITICAL / HIGH / MEDIUM finding (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §"Verification fields — presence rules") — a MEDIUM+ that skipped the verifier is a finding the schema cannot express. It verifies against its own `File: path:lines` anchor like any other survivor.
