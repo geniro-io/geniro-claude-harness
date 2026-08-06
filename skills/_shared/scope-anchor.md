@@ -40,10 +40,12 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 …plus one line in the prompt body:
 
 ```
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 ```
 
-Every call carries the `cd`, not just the first: a runtime is free to start each Bash call in a fresh shell, so a one-time `cd` persists under Claude Code and silently does not elsewhere.
+Every call carries the `cd`, not just the first: within a subagent `cd` does not persist between Bash calls ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)), so a one-time `cd` is undone by the next call.
+
+The path clause covers what `cd` cannot reach. `Read` / `Glob` / `Grep` resolve a relative path against the subagent's own cwd, not against any shell, so a discovery glob the agent writes itself scans the wrong tree while every Bash call is correctly anchored — the quiet half of the same failure.
 
 The subagent verifies nothing beyond this. `WORKTREE` is absolute, so `cd` either lands in the right tree or fails loudly on its own; a subagent re-deriving the orchestrator's branch decision adds no information, and across a parallel batch re-derives it once per agent.
 

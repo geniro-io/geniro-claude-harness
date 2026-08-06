@@ -54,7 +54,7 @@ OUTPUT_PATH: <absolute path under .geniro/planning/<task-slug>/.research-out.md>
 
 THOROUGHNESS: <quick | medium | very thorough; default medium>
 
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 

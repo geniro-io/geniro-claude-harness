@@ -18,6 +18,9 @@
 # Coverage:
 #   1. No spawn prompt makes the subagent verify its inherited cwd.
 #   2. Every WORKTREE slot is matched by an anchor line in the same file.
+#      The anchor covers path resolution too, not just Bash: Read/Glob/Grep
+#      resolve relative paths against the subagent's own cwd, so a glob the
+#      agent writes itself scans the wrong tree even when Bash is anchored.
 #   3. scope-anchor.md still carries the canonical template.
 
 set -uo pipefail
@@ -26,7 +29,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 1
 
 CANON="skills/_shared/scope-anchor.md"
-ANCHOR='Anchor: run every Bash call from WORKTREE'
+ANCHOR='WORKTREE is your root'
 
 TESTS_RUN=0
 TESTS_FAILED=0

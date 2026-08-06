@@ -135,7 +135,7 @@ CUSTOM CONTEXT: [hydrated requires-context data per §Hydrating requires-context
 SEVERITY DEFAULT: {spec.severity-default | "MEDIUM"}
 Review ONLY for the custom dimension '{spec.dimension-label}' as defined by the CRITERIA above. Do not cross into other dimensions. Use SEVERITY DEFAULT as your initial severity score for findings emitted under this dimension; you may up- or down-grade per-finding based on the criteria's specific guidance.
 Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 

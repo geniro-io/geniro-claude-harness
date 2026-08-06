@@ -93,7 +93,7 @@ WORKTREE: {{absolute path from `git rev-parse --show-toplevel`}}
    2-3 sentence verdict for your dimension ("healthy / debt concentrated in X").
 Report only — do not edit any file, and do not review outside your dimension.
 
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """, description="Instruction audit: D<N> <name>")
 ```
 

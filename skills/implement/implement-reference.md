@@ -270,7 +270,7 @@ For `.claude/rules/` matching: parse YAML frontmatter `paths:` field per file;
 return the LIST of relevant rule paths only — do NOT inline rule bodies. The
 orchestrator JIT-loads rule bodies in Phase 2 when Edit targets match.
 
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -336,7 +336,7 @@ write the structured report to OUTPUT_PATH per the §Output Schema. Verdict ∈
 {ALL_GREEN, HAS_FAILURES, INFRA_ERROR}. Do NOT edit source code, do NOT mutate
 git, do NOT re-run the suite.
 
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -452,7 +452,7 @@ PRIOR-ROUND FINDINGS: [paste prior-round CRITICAL/HIGH per ${CLAUDE_PLUGIN_ROOT}
 
 Review ONLY for [dimension]. Tag findings [SEVERITY] [NEW|PRE-EXISTING] per the output contract in ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md §Output Format.
 
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -528,7 +528,7 @@ Critical constraints (prompt-level contract; the whitelist enforces only the no-
 - No destructive Bash.
 - No subagent spawning (leaf agent).
 
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 

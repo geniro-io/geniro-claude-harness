@@ -230,7 +230,7 @@ A test that passes today proves nothing about the bug, and a flaky failure prove
 ### Scope
 Diff-only — the orchestrator resolved the scope above. Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.
 
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """, description="Adversarial tests: /geniro:debug verify-changes")
 ```
 

@@ -140,7 +140,7 @@ THOROUGHNESS: medium
 
 # Anchor (per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md § Subagent spawn anchor)
 WORKTREE: [from `git rev-parse --show-toplevel`]
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 
 # Acceptance criteria (self-check before writing OUTPUT_PATH)
 - Every finding cites at least one file:line + verified snippet (Evidence Standard kind 2) OR captured grep/command output (kind 1). Reasoning-only findings are rejected.
@@ -189,7 +189,7 @@ For each relevant discovery, one block matching:
 **Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions; bulleted]
 
 Do NOT speculate about intent beyond what commit messages state.
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -233,7 +233,7 @@ For each relevant discovery, one block matching:
 **Disagreements:** [where sources conflict, if applicable]
 
 Report facts with sources. Flag opinions as opinions.
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -278,7 +278,7 @@ For each issue found, one block matching:
 - Suggested fix: [text]
 
 If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
-Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 

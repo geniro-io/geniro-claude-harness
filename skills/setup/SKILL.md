@@ -402,7 +402,7 @@ Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT) — the 
 invariant in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md, bound here by loop
 invariant #4.
 
-Anchor: run every Bash call from PROJECT_ROOT (`cd <PROJECT_ROOT> && …`).
+Anchor: PROJECT_ROOT is your root — run every Bash call from it (`cd <PROJECT_ROOT> && …`) and resolve every file path under it.
 """
 )
 ```
