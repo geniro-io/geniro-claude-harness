@@ -402,7 +402,10 @@ Truncate at 4000 chars (drop trailing PASS items first; keep all DRIFT) — the 
 invariant in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md, bound here by loop
 invariant #4.
 
-Anchor: stay within current cwd; verify with `pwd && git branch --show-current` on first Bash call.
+Anchor: PROJECT_ROOT is absolute — start every Bash call with `cd <PROJECT_ROOT> &&`. First call:
+`cd <PROJECT_ROOT> && pwd && git branch --show-current`. Abort only if that `cd` fails; a differing
+starting cwd is drift to correct, not a reason to abort. Per
+${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md § Subagent spawn anchor.
 """
 )
 ```

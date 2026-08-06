@@ -22,6 +22,12 @@ Claude Code wires `hooks/hooks.json` (PreToolUse guards, SessionStart restore). 
 
 If Cursor is the host and the plugin's Cursor hook set is installed (see `cursor/README.md` in the plugin root), the shell-side and file-side guards above fire mechanically again; the instruction layer still applies for anything the port does not cover.
 
+## Subagents do not inherit the orchestrator's cwd
+
+Claude Code passes the parent's working directory to a spawned subagent; other hosts start it at the workspace root. Whenever the orchestrator works in a linked worktree or on a PR head, that is a different tree on a different branch — so a spawn prompt that names its target by relative path, or that asks the subagent to confirm its inherited cwd, gets the wrong tree or a dead spawn.
+
+Both are already handled by the spawn contract, which every codebase-work spawn carries: pass `WORKTREE` as an absolute path and have the subagent `cd` to it on each Bash call, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor. Keep it when authoring a new spawn site here — the same prompt then runs correctly under either host.
+
 ## Tool substitutions
 
 | Claude Code tool | Substitute |
