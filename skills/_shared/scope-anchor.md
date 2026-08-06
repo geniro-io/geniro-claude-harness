@@ -5,7 +5,7 @@ Canonical rule for what a skill operates on when the user does not explicitly na
 ## Contents
 
 - The rule — what a skill operates on when no target is named
-- Subagent spawn anchor — the WORKTREE / BRANCH slots every spawn carries
+- Subagent spawn anchor — the WORKTREE slot every codebase-work spawn carries
 - Forbidden subagent-spawn moves
 - Forbidden discovery moves (when no target was supplied)
 - Anti-rationalization
@@ -45,7 +45,7 @@ Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 
 Every call carries the `cd`, not just the first: a runtime is free to start each Bash call in a fresh shell, so a one-time `cd` persists under Claude Code and silently does not elsewhere.
 
-The subagent verifies nothing beyond this. `WORKTREE` is absolute, so `cd` either lands in the right tree or fails loudly on its own — a subagent re-deriving the orchestrator's branch decision adds no information and, fanned out across a parallel batch, re-derives it once per agent. **The branch check belongs to the orchestrator**, which resolved `BRANCH` once and owns the abort paths: confirm the worktree still sits on the expected branch before firing a spawn batch, and treat a mismatch as a run-level stop rather than something each subagent rediscovers.
+The subagent verifies nothing beyond this. `WORKTREE` is absolute, so `cd` either lands in the right tree or fails loudly on its own; a subagent re-deriving the orchestrator's branch decision adds no information, and across a parallel batch re-derives it once per agent.
 
 Pass `BRANCH:` only into a spawn whose agent contract actually reads it (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md` reports it as the source branch). Elsewhere it is an unread slot.
 
@@ -56,7 +56,7 @@ Pass `BRANCH:` only into a spawn whose agent contract actually reads it (`${CLAU
 | Move | Why it's forbidden |
 |---|---|
 | `Agent(..., isolation: "worktree", ...)` from a parent that is itself in a non-primary worktree | Claude Code bug [#47548](https://github.com/anthropics/claude-code/issues/47548): `git worktree add` silently fails and the subagent operates on the parent's worktree, **switching the parent's branch** to the subagent's. No documented mitigation — do not use `isolation: "worktree"` when the parent session is in a worktree. |
-| `Agent(..., isolation: "worktree", ...)` even from the primary worktree, expecting the subagent to inherit the primary's branch | Claude Code bug [#50850](https://github.com/anthropics/claude-code/issues/50850): the new isolated worktree branches from `origin/main`, not the parent's HEAD. The subagent operates on stale code. Use shared-cwd inheritance (no `isolation:`) and propagate `WORKTREE` / `BRANCH` explicitly via the spawn anchor instead. |
+| `Agent(..., isolation: "worktree", ...)` even from the primary worktree, expecting the subagent to inherit the primary's branch | Claude Code bug [#50850](https://github.com/anthropics/claude-code/issues/50850): the new isolated worktree branches from `origin/main`, not the parent's HEAD. The subagent operates on stale code. Do not pass `isolation:`; propagate `WORKTREE` explicitly via the spawn anchor instead. |
 
 ## Forbidden discovery moves (when no target was supplied)
 
