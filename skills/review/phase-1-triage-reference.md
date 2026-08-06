@@ -95,8 +95,12 @@ Decision tree (first match wins; evaluate top-down):
 
 5. INPUT_SHAPE == pr-ref
    AND IN_WORKTREE == false
-   AND no continuing-work signals match
-   ⇒
+   ⇒ fires even when a continuing-work signal matches (REVIEW_HANDOFF / DEBUG_HANDOFF /
+     IMPLEMENT_TASK_STATE / branch match): rule 3 already claims the signal-matches case
+     when PROTECTED_BRANCH == false, so this rule is reached with a signal only when
+     PROTECTED_BRANCH == true — and a protected branch is never auto-continued silently,
+     signal or not. 5a stays silent only because it joins an existing worktree rather than
+     working on the protected branch itself; 5b still asks.
    5a) If `git worktree list --porcelain` already lists `.claude/worktrees/<TARGET_WORKTREE_NAME>`:
        skip create. `EnterWorktree(path: ".claude/worktrees/<TARGET_WORKTREE_NAME>")`.
        NO AUQ.
@@ -110,8 +114,9 @@ Decision tree (first match wins; evaluate top-down):
 6. INPUT_SHAPE ∈ {branch, diff-range, files, empty}
    AND IN_WORKTREE == false
    AND PROTECTED_BRANCH == true
-   AND no continuing-work signals match
-   ⇒ Fire 2-option AUQ (header: "Git workspace"):
+   ⇒ Fire 2-option AUQ (header: "Git workspace") — fires even when a continuing-work signal
+     matches (REVIEW_HANDOFF / DEBUG_HANDOFF / IMPLEMENT_TASK_STATE / branch match): a protected
+     branch is never auto-continued silently, signal or not.
         A) "Create review worktree" — runs:
              git worktree add --detach .claude/worktrees/review-<short-slug> <CURRENT_BRANCH>
              # --detach: <CURRENT_BRANCH> is already checked out in this (main) worktree,
@@ -130,7 +135,7 @@ Decision tree (first match wins; evaluate top-down):
      operate on cwd-relative file paths; creating a worktree adds friction without value.
 ```
 
-**The workspace decision is never silent when the tree calls for an AUQ.** Cases 4, 5b, and 6 MUST fire their `AskUserQuestion` and WAIT — creating or switching a worktree without asking is the failure this step exists to prevent. A long autonomous / heavy-effort / workflow run does not relax this; the AUQ binds inside every wrapper per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`. Because /geniro:review is read-only, neither option in the 5b / 6 worktree AUQ is pre-selected (no `(Recommended)` marker): a worktree gives full file context for a deep review but is never the forced default — the user picks per run, or sets it once via the `worktree` / `no-worktree` modifier.
+**The workspace decision is never silent when the tree calls for an AUQ.** Cases 4, 5b, and 6 must fire their `AskUserQuestion` and WAIT — creating or switching a worktree without asking is the failure this step exists to prevent. A long autonomous / heavy-effort / workflow run does not relax this; the AUQ binds inside every wrapper per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`. Because /geniro:review is read-only, neither option in the 5b / 6 worktree AUQ is pre-selected (no `(Recommended)` marker): a worktree gives full file context for a deep review but is never the forced default — the user picks per run, or sets it once via the `worktree` / `no-worktree` modifier.
 
 **Entering a review worktree runs project worktree-setup steps.** When a review worktree is entered — created via option 5b / 6a, OR re-entered via option 5a — run any project-authored `### After worktree-setup` Additional Step before the Phase 2 reviewer fan-out, following the same per-worktree bootstrap contract as `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §3.1 (load `global.md` via the primary-worktree fallback since the worktree lacks the gitignored file; run once in the orchestrator before fan-out; fail-open; the project's step is idempotent). Re-entry (5a) is included on purpose: it self-heals a review worktree that predates the project's step or lost its setup. A review worktree checks out the PR head or a detached tip, so a project bootstrap that indexes the worktree's own tree — rather than letting a tool borrow another branch's stale index — is what makes the reviewers' search see the code actually under review.
 

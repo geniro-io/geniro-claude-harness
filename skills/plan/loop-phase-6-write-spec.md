@@ -8,7 +8,7 @@ State.md `phase: write-spec` during this phase.
 
 Path: `.geniro/planning/<task-slug>/spec.md`.
 
-Content: schema (11 sections) + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode, optional `## Problem & Evidence` from Phase 0.5 when `prd_mode: true`).
+Content: the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` schema + frontmatter with goal block + optional `workflow_refs[]` + body sections (`## Considered Alternatives` from Phase 4, optional `## Milestones` from Phase 5 milestone-mode, optional `## Problem & Evidence` from Phase 0.5 when `prd_mode: true`).
 
 **`## Problem & Evidence` (PRD-mode only):** when `prd_mode: true`, copy state.md `## Problem Framing` (populated by Phase 0.5) into the spec's `## Problem & Evidence` body section per the layout in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` § Problem & Evidence. The section's success metrics also seed section 1 (Objective) phrasing and section 11 (Done Condition). Omit the section entirely when `prd_mode` is unset — a normal spec carries only the standard sections, and the Phase 7 validator treats `## Problem & Evidence` as allowed-optional (never required).
 
@@ -30,7 +30,7 @@ atomic_state_write ".geniro/planning/<slug>/spec.md" <<'EOF'
 <spec frontmatter>
 ---
 
-<spec body — 11 sections>
+<spec body — per spec-template.md schema>
 EOF
 ```
 

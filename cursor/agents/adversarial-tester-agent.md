@@ -145,8 +145,11 @@ Write the report to the orchestrator's output path in exactly this shape. The or
 - Tests authored (kept): [M]
 - Tests discarded (F→P failed): [K]
 - Hit hard cap (>10 authored): [yes/no]
+- Context loaded: search-policy=[read|slot|absent|unreadable]
 - Orchestrator next step: "Re-run authored tests independently; confirm they still fail; route to the appropriate fix-loop or persistence pass."
 ```
+
+The `Context loaded:` line states your Step 0 result where the orchestrator can read it: a policy handed to you in the prompt is `slot`, one you loaded from `global.md` yourself is `read`, `none declared` is `absent`. Full value set and the consumer's obligations on each: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.
 
 Severity rubric:
 

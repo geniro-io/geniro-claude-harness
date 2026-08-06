@@ -98,8 +98,11 @@ Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the W
 ### Summary for Orchestrator
 - Top 3 things to be aware of (≤3 bullets, ≤200 chars each)
 - Open questions surfaced by prior runs (≤3 bullets, or "none")
+- Context loaded: project-rules=<read|slot|absent|unreadable>, memory-routing=<read|slot|absent|unreadable>
 - "Nothing relevant found" — emit this exact phrase when N=0 across all sections, so the orchestrator can branch cleanly
 ```
+
+The `Context loaded:` line states your Step 0 loads where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. It is load-bearing here beyond the usual reason: `memory-routing=absent` and a routed backend you never read produce the same empty learnings list, and only this line tells the orchestrator which one it is holding. Emit the line under `SCOPE: learnings-backend` too.
 
 Cap total output at ~3000 characters. Use `... (truncated, N more entries)` markers if any section overflows. Empty sections may be omitted entirely (e.g., drop the `Prior Plans` heading if N=0), except the `Summary for Orchestrator` section, which is always emitted.
 

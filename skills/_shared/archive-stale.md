@@ -77,13 +77,13 @@ archive-stale: 0 stale candidates (no entries match <score / age / access_count 
 
 | Variable | Default | Effect |
 |---|---|---|
-| `GENIRO_DECAY_TAU_DAYS` | 90 | Controls `recency_decay = exp(-Δdays / τ)`. Same env as `query-learnings`. Lower τ = faster decay. Default single-sourced in `lib/score-formula.sh` (`GENIRO_DECAY_TAU_DAYS_DEFAULT`) so the ranker and archiver cannot drift on it. |
-| `GENIRO_AUTO_ARCHIVE_THRESHOLD` | 5000 | `learnings.jsonl` line count above which the SessionStart hook auto-invokes this helper (see §Caller conventions). |
+| `GENIRO_DECAY_TAU_DAYS` | see `lib/score-formula.sh` | Controls `recency_decay = exp(-Δdays / τ)`. Same env as `query-learnings`. Lower τ = faster decay. Default single-sourced in `lib/score-formula.sh` (`GENIRO_DECAY_TAU_DAYS_DEFAULT`) so the ranker and archiver cannot drift on it. |
+| `GENIRO_AUTO_ARCHIVE_THRESHOLD` | see `hooks/session-start-restore.sh` | `learnings.jsonl` line count above which the SessionStart hook auto-invokes this helper (see §Caller conventions). |
 
 ## Caller conventions
 
 - User runs `./lib/archive-stale.sh --dry-run` first to preview, then real run.
-- SessionStart Block 5e auto-invokes `lib/archive-stale.sh` when `learnings.jsonl` exceeds the line-count threshold (`GENIRO_AUTO_ARCHIVE_THRESHOLD`, default 5000) AND the file hash changed since the last archive AND the mkdir-lock is acquired AND `memory.auto_archive_stale != false` in `.geniro/safety.json`. Hash-gating skips the run when nothing changed; the lock keeps concurrent tabs from doubling the work. Manual `--dry-run` is still the typical preview path.
+- SessionStart Block 5e auto-invokes `lib/archive-stale.sh` when `learnings.jsonl` exceeds the line-count threshold (`GENIRO_AUTO_ARCHIVE_THRESHOLD`, default single-sourced in `hooks/session-start-restore.sh`) AND the file hash changed since the last archive AND the mkdir-lock is acquired AND `memory.auto_archive_stale != false` in `.geniro/safety.json`. Hash-gating skips the run when nothing changed; the lock keeps concurrent tabs from doubling the work. Manual `--dry-run` is still the typical preview path.
 - **Manual runs are lock-safe against a SessionStart auto-archive.** A direct `./lib/archive-stale.sh` invocation acquires the same mkdir-lock itself, so if the hook holds it the manual run no-ops with rc=3 (re-run in a moment) rather than racing a mid-write. No lost update. The only unlocked path is a caller that *sources* the helper and calls `archive_stale_learnings()` directly — that caller owns locking itself (the function never auto-locks), which is why the hook sets `GENIRO_ARCHIVE_LOCK_HELD=1` after taking the lock.
 - Compatible with `query-learnings`: queries default to excluding `deprecated: true` entries; if user wants to see archived ones, pass `--include-deprecated`.
 

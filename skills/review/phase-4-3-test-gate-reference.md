@@ -40,7 +40,7 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 - `Decision Type: [FIX-NOW]` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
 
 Use the decision-type taxonomy as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §7.
-If eligible set is empty after filtering, skip the rest of Phase 4.3 entirely — do NOT show an AUQ. Proceed to Phase 5.
+If eligible set is empty after filtering, skip §3's approval gate and §4's agent spawn — do NOT show an AUQ. The §5 Step 4 sentinel write still runs (that step's own note covers exactly this case); once it lands, proceed to Phase 5.
 
 ### 2.1 Runtime-behavior classification (canonical rule)
 
@@ -81,6 +81,7 @@ Spawn ONE `adversarial-tester-agent` (per canonical model-tiering carve-out — 
 
 ```
 Agent(subagent_type="adversarial-tester-agent", prompt="""
+PROJECT SEARCH POLICY: [the global.md rules governing how to search this codebase, verbatim, or `none declared`]
 CHANGED FILES: [list of changed file paths with full content — pre-inlined from Phase 1]
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
@@ -117,7 +118,9 @@ If `backpressure.sh` unavailable: `<project test command> <test path> 2>&1 | tai
 - Non-zero (red) → test STILL fails on independent re-run → keep authored test on disk; tag the corresponding finding `[CONFIRMED-BY-TEST]`.
 - Zero (green) → test passes despite agent reporting it red → likely flake or framework issue. Note "[test path] flipped green on independent re-run" under `## Caveats`. Do NOT delete the test (user reviews authored tests in Phase 6); do NOT tag the finding `[CONFIRMED-BY-TEST]`.
 
-**Persist authored tests for Phase 6.** For every test kept on disk in Step 4 (red on independent re-run), record its path as a row in the state.md `## Authored Tests` body section. Phase 6's Failing-tests gate fires off that section being non-empty; without this write, the tests authored here never reach the commit-policy gate.
+**Persist authored tests for Phase 6.** For every test kept on disk in Step 4 (red on independent re-run), record its path as a row in the state.md `## Authored Tests` body section. Phase 6's Failing-tests gate fires off that section's rows; without this write, the tests authored here never reach the commit-policy gate.
+
+This write also runs when this gate authored nothing — the user declined, the eligible set was empty, or every authored test flipped green. Then the section carries the sentinel `none — the test-authoring gate ran and authored no tests` instead of rows, which is what tells Phase 6 the gate ran at all: a bare section is read as an unwritten result and Phase 6 will not skip on it (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel).
 
 ---
 

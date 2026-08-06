@@ -174,9 +174,12 @@ update_semantic() {
   # A SIGINT/SIGTERM mid-write would skip the RETURN trap and leave the lock (and
   # any in-flight mktemp) behind. Clean both on interrupt so the next write isn't
   # wedged at rc=11. _us_inflight_tmp is set when the replace branch creates its
-  # temp file; empty otherwise.
+  # temp file; empty otherwise. Split by signal and exit explicitly — cleanup
+  # alone does not terminate the process, so without the exit bash would resume
+  # mid-write with the lock already released for a concurrent writer.
   local _us_inflight_tmp=""
-  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM RETURN' INT TERM
+  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM RETURN; exit 130' INT
+  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM RETURN; exit 143' TERM
 
   local rc=0
   case "$op" in

@@ -1,6 +1,6 @@
 # Rules-compliance review criteria
 
-Dimension: `rules-compliance`. Checks whether the diff obeys the project's OWN explicitly-authored rule files — the rules a human wrote to govern how code in this repo is written. Distinct from `conventions` (modal patterns inferred by sampling the codebase) and `spec-compliance` (the plan/spec for this one change). Every finding here quotes the exact rule and names the file it lives in.
+The authored-rule-citation class of the `conventions` dimension (the conventions reviewer spawn reads this file alongside `conventions-criteria.md`; see that file's §What to check step 1). Checks whether the diff obeys the project's OWN explicitly-authored rule files — the rules a human wrote to govern how code in this repo is written. Distinct from the dimension's modal-pattern class (`conventions-criteria.md` — patterns inferred by sampling the codebase) and from `spec-compliance` (the plan/spec for this one change). Every finding here quotes the exact rule and names the file it lives in.
 
 ## Contents
 

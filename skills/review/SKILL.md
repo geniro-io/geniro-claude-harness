@@ -28,7 +28,7 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]
 
 This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/review/`: `phase-1-triage.md` (Phases 1 + 1.5) · `phase-2-spawns.md` (Phase 2) · `phase-3-4-filter-stratify.md` (Phases 3 + 4) · `phase-5-6-emit-handoff.md` (Phases 5 + 6). That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
 
-**Runtime portability.** Claude Code sets `${CLAUDE_PLUGIN_ROOT}`. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it everywhere and export it in every Bash call. Tool and hook substitutions: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
+**Runtime portability.** Claude Code sets `${CLAUDE_PLUGIN_ROOT}`. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it everywhere and export it in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
 ---
 
@@ -149,7 +149,7 @@ The safety hooks apply across ALL phases; the complete list and what each blocks
 
 Per-phase mechanics live in the phase files; this is the final contract check, and skipping any item leaves the review incomplete or unsafe.
 
-- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual AND spawn instances == `spawn_dims_count`.
+- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual. On the standard single-pass path, §4.0b also confirmed spawn instances == `spawn_dims_count`; in deep mode that comparison is replaced by the angle-pass count check in `deep-mode-reference.md` §2 (the standard-path check does not apply — deep mode never fires the single batch it counts).
 - [ ] The spawn echo (`Spawning <N> reviewers: ...`), carrying the declared count, went out in the same response that fired the batch (§2.3.1).
 - [ ] A fresh `finding-verifier-agent` verdict exists for EVERY admitted CRITICAL / HIGH / MEDIUM survivor (same-file findings cluster into a shared spawn at the cluster size in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4); refuted findings demoted to `## Filtered`.
 - [ ] The multi-signal admission gate was applied — not a single confidence threshold (invariant #6).
@@ -190,7 +190,7 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 
 ## Phase 6 — Action gate handoff
 
-`phase: action-gate` · Steps: `phase-5-6-emit-handoff.md` (its Phase 6 section) plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9; the Post drill (§7.0-§7.8) is its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` — read it only on the "Post Draft PR review" pick, unreachable when `pr-ref: none`. Each gate is its own AUQ, never collapsed into chat text. Exit when the open-question, open-decision, and Action gates — plus the Failing-tests gate when `## Authored Tests` is non-empty — have each fired with their picks persisted to `approvals[]`.
+`phase: action-gate` · Steps: `phase-5-6-emit-handoff.md` (its Phase 6 section) plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9; the Post drill (§7.0-§7.8) is its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` — read it only on the "Post Draft PR review" pick, unreachable when `pr-ref: none`. Each gate is its own AUQ, never collapsed into chat text. Exit when the open-question, open-decision, and Action gates — plus the Failing-tests gate when `## Authored Tests` lists test files — have each fired with their picks persisted to `approvals[]`.
 
 ---
 

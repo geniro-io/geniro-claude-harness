@@ -41,8 +41,8 @@ Present the synthesized, reviewed answer to the user. Include:
 
 Use the `AskUserQuestion` tool (do NOT output options as plain text) with header "Follow-up" and question "Want to dig deeper?" with options:
 - "Dive deeper into [specific aspect]" — re-enter Phase 2 with narrower scope, reusing the prior findings as context; **max 2 dive-deeper rounds** (persist the count to state.md frontmatter `dive_round:` via `atomic_state_write`, so a compaction-resume mid-dive doesn't silently reset it). At limit, suggest fresh `/geniro:investigate` with refined question.
-- "I have a follow-up question" — start a new investigation.
-- "Save key findings to memory" — persist important discoveries (see Step 4a for routing — CLAUDE.md Domain Context, ADR, learnings.jsonl, or collaboration memory).
+- "I have a follow-up question" — start a new investigation. Before that, run Step 5 (learning emit, when its trigger applies) and Step 6 (cleanup), writing `present-summary-only` as the terminal value — the answer already presented here is the same substantive output the "Done" pick emits a learning for, and skipping straight to a fresh invocation would leak this run's state directory and drop it.
+- "Save key findings to memory" — persist important discoveries (see Step 4a for routing — CLAUDE.md Domain Context, ADR, learnings.jsonl, or collaboration memory). Step 4a's routing IS the answer for this pick; once it completes, continue to Step 5 and Step 6, writing `done` as the terminal value.
 - "Done — answer is sufficient" — print a short `### Next steps` closing block: plain text, no further question, suggesting a follow-up command ONLY where the investigation's outcome makes it genuinely applicable — `/geniro:debug <symptom>` if the answer surfaced a bug, `/geniro:plan <feature>` if it motivates a feature or larger change, `/geniro:implement <task>` if a small direct code change is the clear next move; when nothing applies, close with a single line stating the investigation is complete. Then run Step 5 (learning emit, when its trigger applies) and Step 6 (cleanup), writing `present-summary-only` as the terminal value — ending here without them leaks the state directory and drops the learning.
 
 ### Step 4a: Save-routing (when user picks "Save key findings to memory")
@@ -84,7 +84,7 @@ No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS 
 
 ### Step 6: Cleanup
 
-Every terminal exit runs this — `done` after save-routing, `present-summary-only` after a "Done — answer is sufficient" pick, `routed` from the Phase 1 Step 1.5 external-lookup exit, `aborted` from either escalation state. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
+Every terminal exit runs this — `done` after save-routing, `present-summary-only` after a "Done — answer is sufficient" pick OR the "I have a follow-up question" pick, `routed` from the Phase 1 Step 1.5 external-lookup exit, `aborted` from either escalation state. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
 rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true

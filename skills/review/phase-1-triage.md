@@ -81,7 +81,7 @@ Findings tagged `severity: CRITICAL` (secrets are always critical).
 
 **Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash before invoking the helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to enumerate user-authored review dimensions in `.geniro/instructions/review-extra/<slug>.md`. The helper applies its `paths:` filter against the changed-files list, enforces the ≤10 cap, and returns spawn-specs: `{slug, dimension-label: custom:<slug>, model, criteria-content, severity-default, requires-context, source-path}`.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to enumerate user-authored review dimensions in `.geniro/instructions/review-extra/<slug>.md`. The helper applies its `paths:` filter against the changed-files list, enforces the per-project cap it owns, and returns spawn-specs: `{slug, dimension-label: custom:<slug>, model, criteria-content, severity-default, requires-context, source-path}`.
 
 Persist the result to state.md frontmatter `custom_reviewers[]` — every short spawn-spec scalar, one entry per surviving reviewer (canonical field list: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"`/geniro:review` producer-specific fields"):
 

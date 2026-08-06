@@ -101,7 +101,11 @@ basename_lower=""
 
 # Derive the lowercased extension + basename from a target path.
 # Filenames without a dot get an empty ext (won't match the ext-list filter).
-# Dockerfile / Makefile are recognized by basename.
+# Dockerfile / Makefile are recognized by basename. A `.ipynb` notebook maps
+# onto the Python ext set (single-sourced here rather than restated on every
+# `check "sec-*" "py pyw pyx pyi"` call site): a NotebookEdit payload always
+# carries `notebook_path: *.ipynb`, and cell code is Python — without this
+# mapping every Python pattern's ext-list silently excludes every notebook.
 derive_ext() {
   local fp="$1"
   local filename="${fp##*/}"
@@ -113,6 +117,9 @@ derive_ext() {
   basename_lower="$(printf '%s' "$filename" | tr '[:upper:]' '[:lower:]')"
   case "$basename_lower" in
     dockerfile|dockerfile.*|*.dockerfile) ext_lower="dockerfile" ;;
+  esac
+  case "$ext_lower" in
+    ipynb) ext_lower="py" ;;
   esac
 }
 
@@ -429,7 +436,7 @@ _geniro_extract_inner_payloads() {
     # A dot is allowed before the op name because that is how the ops are normally
     # reached (`require('child_process').execSync(…)`); the cost is that a JS
     # `re.exec("s")` also yields its argument, which re-scans as an inert word.
-    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|spawn(Sync)?|fork|system|popen|shell_exec|passthru|proc_open)'
+    local _wv_shellout='(os\.(system|popen|execute)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|spawn(Sync)?|fork|system|popen|shell_exec|passthru|proc_open)'
     while IFS= read -r _m; do
       [ -z "$_m" ] && continue
       _pl=$(printf '%s' "$_m" | sed -E 's/^[^(]*\([[:space:]]*//')
@@ -439,6 +446,32 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
     done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_shellout}"'[[:space:]]*\([[:space:]]*\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Arm 6a-bare — Perl/Ruby's `system`/`exec`/`popen` are BUILTINS as well as
+    # functions: `system "rm -rf /"` and `exec "rm -rf /"` run with no call
+    # parens at all, so 6a's mandatory `\(` laundered every paren-less spelling.
+    # Scoped to this narrow bareword set — not the dotted os.system/subprocess.run
+    # forms above, which are never spelled without parens — so an ordinary
+    # two-word sentence is not swept in.
+    local _wv_bareop='(system|exec|popen)'
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:space:]]*[[:space:]]+//')
+      _pl="${_pl#\\}"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      _pl="${_pl%\\}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_bareop}"'[[:space:]]+\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Perl's qx{}/qx() — a backtick equivalent, the two most common delimiters.
+    # Other qx delimiters (qx/…/, qx!…!) are not extracted; the payload must
+    # carry no closing }/) of its own for these two to match.
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?qx[{(]//; s/[})]$//')
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])qx\{[^}]*\}|(^|[^[:alnum:]_])qx\([^)]*\)' 2>/dev/null || true)"
 
     # Arm 6b — the same shell-out written as an ARGV SEQUENCE.
     # `subprocess.run(['sh','-c','<program>'])` and
@@ -457,11 +490,11 @@ _geniro_extract_inner_payloads() {
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
     done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
-    # Ruby's backtick literal is the same shell-out with no call syntax at all.
-    # Narrowed further to a `ruby` command word: elsewhere a backtick span is
-    # ordinary shell command substitution, already visible to the guards as
-    # syntax, and re-extracting it would only add noise.
-    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])ruby([[:space:]]|$)'; then
+    # Ruby's and Perl's backtick literal is the same shell-out with no call
+    # syntax at all. Narrowed to those two command words: elsewhere a backtick
+    # span is ordinary shell command substitution, already visible to the
+    # guards as syntax, and re-extracting it would only add noise.
+    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)'; then
       while IFS= read -r _m; do
         [ -z "$_m" ] && continue
         _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
@@ -658,19 +691,33 @@ _geniro_interp_write_targets() {
     hd {
       line = $0
       if (dash) sub(/^\t+/, "", line)
-      if (line == tag) hd = 0
+      if (line == tag) { hd = 0; nbuf = 0; next }
+      buf[nbuf++] = $0
       next
     }
-    match($0, /<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
-      tag = substr($0, RSTART, RLENGTH)
-      dash = (tag ~ /^<<-/)
-      sub(/^<<-?[[:space:]]*/, "", tag)
-      gsub(/[\\"'\'']/, "", tag)
-      hd = 1
+    {
+      n = length($0); q = ""; pos = 0
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (q != "") { if (c == q) q = ""; continue }
+        if (c == "\"" || c == "'\''") { q = c; continue }
+        if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+      }
+      if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
+        tag = substr($0, pos, RLENGTH)
+        dash = (tag ~ /^<<-/)
+        sub(/^<<-?[[:space:]]*/, "", tag)
+        gsub(/[\\"'\'']/, "", tag)
+        hd = 1
+        nbuf = 0
+        print
+        next
+      }
       print
-      next
     }
-    { print }
+    END {
+      if (hd) for (j = 0; j < nbuf; j++) print buf[j]
+    }
   ')
   JOINED="${SCRUBBED//\\$'\n'/ }"
   # A quoted payload may itself span a newline (`printf '%s' 'line one
@@ -713,8 +760,15 @@ _geniro_interp_write_targets() {
       next
     }
     {
-      if (match($0, /<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
-        op = substr($0, RSTART, RLENGTH)
+      n = length($0); q = ""; pos = 0
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (q != "") { if (c == q) q = ""; continue }
+        if (c == "\"" || c == "'\''") { q = c; continue }
+        if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+      }
+      if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
+        op = substr($0, pos, RLENGTH)
         dash = (op ~ /^<<-/)
         tag = op
         sub(/^<<-?[[:space:]]*/, "", tag)
@@ -770,25 +824,66 @@ _geniro_interp_write_targets() {
       *printf*|*echo*) : ;;
       *) continue ;;
     esac
-    # Target detection runs on a quote-blanked copy of the line so a `>` or `|`
-    # INSIDE the quoted payload (`echo "a=x > 0" > f.js`) can't be grabbed as the
-    # redirect target — `head -1` must land on the real target, not an in-payload
-    # one, or the derived extension is wrong and the scan is skipped. The raw
-    # line is kept below for the content (the quoted payload IS what we scan).
-    line_nq=$(printf '%s' "$line" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
-    # Target: a redirect `> file` / `>> file`, else a `tee file` argument.
-    tgt=$(printf '%s' "$line_nq" | grep -oE '>{1,2}\|?[[:space:]]*[^[:space:];|&<>)]+' | head -1 | sed -E 's/^>{1,2}\|?[[:space:]]*//' || true)
-    if [ -z "$tgt" ]; then
-      tgt=$(printf '%s' "$line_nq" | grep -oE '(^|[\\|;&(/[:space:]])tee[[:space:]]+(-a[[:space:]]+)?[^[:space:];|&<>)]+' | head -1 | sed -E 's/^.*tee[[:space:]]+(-a[[:space:]]+)?//' || true)
-    fi
-    [ -z "$tgt" ] && continue
-    tgt="$(strip_quotes "$tgt")"
-    # Content: the echo/printf payload — everything after the last echo/printf
-    # word, up to the first pipe or redirect.
-    content=$(printf '%s' "$line" | sed -E 's/.*(printf|echo)[[:space:]]+//; s/[[:space:]]*(\||>{1,2}).*$//')
-    content="$(strip_quotes "$content")"
-    [ -z "$content" ] && continue
-    scan_one "$tgt" "$content"
+    # Split on UNQUOTED ; && || first (tracking quote state char-by-char, so a
+    # literal separator INSIDE a quoted payload never splits it; a bare & or |
+    # is left alone — see the split's own comment). Without this, a chained
+    # `echo "safe" > f.js; echo done` on one line paired f.js's target (found by
+    # head -1, the FIRST redirect) with the LAST echo's payload — the greedy
+    # content match below binds to the LAST printf/echo — so a trailing echo
+    # silently replaced the real payload, no apostrophe or indirection needed.
+    # Each simple command now gets its own target+content pairing.
+    while IFS= read -r seg; do
+      [ -z "$seg" ] && continue
+      case "$seg" in
+        *printf*|*echo*) : ;;
+        *) continue ;;
+      esac
+      # Target detection runs on a quote-blanked copy of the segment so a `>` or
+      # `|` INSIDE the quoted payload (`echo "a=x > 0" > f.js`) can't be grabbed
+      # as the redirect target — `head -1` must land on the real target, not an
+      # in-payload one, or the derived extension is wrong and the scan is
+      # skipped. The raw segment is kept below for the content (the quoted
+      # payload IS what we scan).
+      seg_nq=$(printf '%s' "$seg" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+      # Target: a redirect `> file` / `>> file`, else a `tee file` argument.
+      tgt=$(printf '%s' "$seg_nq" | grep -oE '>{1,2}\|?[[:space:]]*[^[:space:];|&<>)]+' | head -1 | sed -E 's/^>{1,2}\|?[[:space:]]*//' || true)
+      if [ -z "$tgt" ]; then
+        tgt=$(printf '%s' "$seg_nq" | grep -oE '(^|[\\|;&(/[:space:]])tee[[:space:]]+(-a[[:space:]]+)?[^[:space:];|&<>)]+' | head -1 | sed -E 's/^.*tee[[:space:]]+(-a[[:space:]]+)?//' || true)
+      fi
+      [ -z "$tgt" ] && continue
+      tgt="$(strip_quotes "$tgt")"
+      # Content: the echo/printf payload — everything after the last echo/printf
+      # word, up to the first pipe or redirect. The match is now scoped to ONE
+      # simple command, so "last" is unambiguous (there is at most one).
+      content=$(printf '%s' "$seg" | sed -E 's/.*(printf|echo)[[:space:]]+//; s/[[:space:]]*(\||>{1,2}).*$//')
+      content="$(strip_quotes "$content")"
+      [ -z "$content" ] && continue
+      scan_one "$tgt" "$content"
+    done <<< "$(printf '%s' "$line" | awk '
+      {
+        n = length($0); q = ""; out = ""
+        i = 1
+        while (i <= n) {
+          c = substr($0, i, 1)
+          if (q != "") {
+            out = out c
+            if (c == q) q = ""
+            i++
+            continue
+          }
+          if (c == "\"" || c == "'\''") { q = c; out = out c; i++; continue }
+          # Only ; && || split into separate simple commands. A BARE & or |
+          # stays in the segment — a bare | is the `echo … | tee target`
+          # pipeline this scan explicitly reads as ONE write, and splitting it
+          # would separate the payload from its own target.
+          if (c == ";") { out = out "\n"; i++; continue }
+          if (c == "&" && substr($0, i+1, 1) == "&") { out = out "\n"; i += 2; continue }
+          if (c == "|" && substr($0, i+1, 1) == "|") { out = out "\n"; i += 2; continue }
+          out = out c
+          i++
+        }
+        print out
+      }')"
   done <<< "$JOINED"
 
   # 3) Interpreter-authored writes: `node -e "fs.writeFileSync('app.js','<body>')"`

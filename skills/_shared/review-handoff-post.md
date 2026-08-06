@@ -27,7 +27,7 @@ through `§7.8`, and those citations resolve to the sub-sections below.
 
 When user picked "Post" in the Action gate:
 
-1. If `## Authored Tests` is non-empty: fire Failing-tests gate FIRST (push lands before `gh api` POST).
+1. If `## Authored Tests` lists test files: fire Failing-tests gate FIRST (push lands before `gh api` POST). A section carrying neither files nor its `none — …` sentinel is resolved here, before the POST, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6 — this is the external-effect boundary that rule names, and posting comments that reference unpushed test paths is what it prevents.
 2. Continue with §7.0-§7.8 below.
 
 When Action != Post or Post option was omitted, skip §7.0-§7.8 and proceed to Failing-tests (when applicable) and cleanup.

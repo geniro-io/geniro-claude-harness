@@ -16,6 +16,8 @@ Canonical rule for how far a user's approval reaches. Referenced from `${CLAUDE_
 
 **Measure each outward action against its own approval, never against accumulated trust.** Approval does not compound across a session — three granted gates do not make the fourth implicit.
 
+**Reversibility is not the test — authorship is.** A gate exists because the choice is the user's, not because the action would be hard to undo. A small blast radius is an argument for asking briefly, never for not asking.
+
 ## Invocation-scoped approval (`/geniro:actions run`)
 
 Invoking an action IS its approval — `/geniro:actions run <slug>` executes the action's steps directly and fires no confirmation, because re-asking would repeat the decision the user already made by invoking it. The rule above names that grant's boundary rather than adding a gate to it: the invocation authorizes the action **as its own definition declares it** — its documented steps, its `allowed-tools`, its declared side effects. An outward effect beyond that declared scope was not part of what the user invoked, so it carries its own approval.
@@ -28,4 +30,5 @@ Invoking an action IS its approval — `/geniro:actions run <slug>` executes the
 | "I said I was about to provision it and the user didn't object." | Narration is disclosure, not consent — silence mid-run is not a pick. Fire the gate for the new class. |
 | "They asked me to merge, so tagging the release it produces is implied." | Containment runs one way: the merge contains the push that feeds it, never the tag that follows it. A tag, a deploy trigger, and an outward post are separate actions with their own blast radius; "merge to develop" answers for the merge. |
 | "They approved the last three pushes — this one is obviously fine." | Approval does not compound across a session. Measure this action against its own gate, not against accumulated trust. |
+| "Creating the branch is safe and reversible, and standard practice on a protected branch — I'll skip asking and just do it." | Standard practice says what a sensible default looks like, not who picks it. Worktree, current branch, a different slug — each stays invisible until asked, and "they can undo it" hands the user work the gate would have avoided. |
 | "Asking again for a near-identical action is annoying." | It is near-identical only in your reading — the user never saw the new class's blast radius. One extra turn beats an unapproved mutation the user has to undo. |

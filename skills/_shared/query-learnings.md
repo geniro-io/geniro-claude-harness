@@ -68,7 +68,7 @@ When `--score-min N` is active:
 ```
 score = recency_decay × trust_weight × access_weight × recurrence_weight
 
-recency_decay    = exp(-Δdays / τ), τ = 90 days (env: GENIRO_DECAY_TAU_DAYS)
+recency_decay    = exp(-Δdays / τ), τ set via GENIRO_DECAY_TAU_DAYS (default in lib/score-formula.sh)
 trust_weight     = { verified: 1.0, retrieved: 0.66, inferred: 0.33 }
 access_weight    = 1.0 + log10(1 + access_count)
 recurrence_weight = 1.0 + ln(max(recurrence_count, 1))

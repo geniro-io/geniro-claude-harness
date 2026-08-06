@@ -25,10 +25,10 @@ argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
 
 Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and the Phase 7.5 spec-challenge, which fires on Big effort tier or `--deep`; Phase 2 Visual Companion is UI-conditional — fires only when the UI trigger matches). The loop is a tree of files: its spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`, and each phase's steps live in a sibling `loop-phase-<N>-<name>.md` read on entry to that phase.
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
 **Output:**
-- spec.md at `.geniro/planning/<task-slug>/spec.md` with the fixed 11-section schema, goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
+- spec.md at `.geniro/planning/<task-slug>/spec.md` with the fixed section schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6; skipped, with the spec left on disk, when the project ignores `.geniro/planning/` (the default `.gitignore` does).
@@ -74,7 +74,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 2 | Visual Companion (UI-conditional) — UI preview: a rendered mockup on the plan page in artifact mode, a text description otherwise |
 | 3 | Grill — uncapped, checkpoint-bounded decision-tree clarification |
 | 4 | Approaches — 2-3 stress-tested, one lean AUQ, Recommended first |
-| 5 | Section approval — the 11-section schema in 3 cluster gates; milestone-mode |
+| 5 | Section approval — the fixed section schema in 3 cluster gates; milestone-mode |
 | 6 | Write spec.md — NO auto-commit |
 | 7 | Mechanical validator — the full check set in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` |
 | 7.5 | Spec challenge (Big tier or `--deep`) — advisory, fail-open |
@@ -117,8 +117,8 @@ Do NOT reintroduce these anti-patterns. Loop-level rows (commit timing, empty-AU
 | "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
 | "The state-write enforcement is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field (omits `Edit`) + the `enforce-state-helper` PreToolUse hook (hard-blocks direct `Edit`/`Write` to canonical state paths) are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
 | "Re-cap Phase 3 at ~5 questions, OR just grill forever without pausing." | Phase 3 is an uncapped decision-tree grill, bounded by the checkpoint gate — summarize-and-continue every ~6 questions or when a branch resolves (the Phase 3 checkpoint gate). Re-imposing a flat cap drops the relentless property the grill exists to provide; skipping the checkpoint drops the user's off-ramp. Keep both: no fixed cap, always a checkpoint. |
-| "11-section spec.md schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
-| "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | 3-round escalation cap. On round 3, AUQ surfaces to user with "accept as-is" option. User has agency at all times. |
+| "spec.md's fixed section schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
+| "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | The auto-revision cap (§7.3) escalates to the user rather than blocking silently — the AUQ offers "accept as-is". User has agency at all times. |
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
 
 ---
@@ -133,7 +133,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 |---|---|---|---|
 | Phase 3 grill checkpoint | the checkpoint trigger per §3.4 — no fixed question cap | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
 | Phase 5 per-cluster revision rounds | 3 | §5.2 | Cluster AUQ re-fires without Revise — approve-as-rendered / explain-further / cancel; an unresolved change carries to the Phase 8 gate. |
-| Phase 7 → Phase 6 auto-revision rounds | 3 | §7.3 | AUQ — accept-as-is / re-revise / abort. |
+| Phase 7 → Phase 6 auto-revision rounds | §7.3 owns the count | §7.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | 3 | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2 | invariant #4 | Truncation with marker, not abort. |
 

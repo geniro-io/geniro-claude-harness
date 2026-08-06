@@ -92,7 +92,10 @@ Return this exact structure (the orchestrator parses it). Emit the summary even 
 - Candidates: N (critical: X, general: Y)
 - Sources scanned: <diff / findings / spec> + <rule files greped>
 - Dropped: <count> (already-covered (NOOP): A, previously-declined: B, no-evidence: C, agent-already-does-this: D, too-specific: E, below-floor: F, over-cap: G) — one line each
+- Context loaded: project-rules=<read|slot|absent|unreadable>, memory-routing=<read|slot|absent|unreadable>
 ```
+
+The `Context loaded:` line states your Step 0 loads where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. `project-rules` is what your Step 3 deduped candidates against, so `absent` there means every `Dedupe: ADD` verdict was reached without the existing-rule source and the orchestrator should weigh them accordingly.
 
 ## Candidate bar
 

@@ -23,7 +23,7 @@ Structural conventions emerge from repetition across a codebase, not from an ext
 
 For every pattern category checked, follow this recipe before emitting any finding:
 
-1. **Explicit authored rules belong to `rules-compliance`.** Compliance with the repo's authored rule files (`CLAUDE.md`, `.claude/rules/`, `.cursor/rules/`, `.cursorrules`, `AGENTS.md`, etc.) is owned by the `rules-compliance` dimension (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md`). This dimension owns repo-MODAL patterns — what the surrounding code actually does, inferred by sampling siblings. When an explicit rule and a modal pattern coincide, let `rules-compliance` cite the rule; do not duplicate it here. Still read `CONTRIBUTING.md` + ADRs at `docs/adr/` or `docs/decisions/` for modal context that isn't a hard rule.
+1. **Explicit authored rules belong to the authored-rule-citation class.** Compliance with the repo's authored rule files (`CLAUDE.md`, `.claude/rules/`, `.cursor/rules/`, `.cursorrules`, `AGENTS.md`, etc.) is the authored-rule-citation class of this dimension, criteria in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` (the same reviewer spawn reads both files). This file's own checks own repo-MODAL patterns — what the surrounding code actually does, inferred by sampling siblings. When an explicit rule and a modal pattern coincide, cite the rule under the authored-rule-citation class; do not duplicate it here. Still read `CONTRIBUTING.md` + ADRs at `docs/adr/` or `docs/decisions/` for modal context that isn't a hard rule.
 2. **Identify the file kind.** Component file? Service? Test? Schema? Migration? Hook? The kind determines which siblings are relevant.
 3. **Glob siblings of the same kind.** Same directory first; then analogous directories if the immediate parent has fewer than 3 siblings (`src/components/Button.tsx` → also check `src/ui/`, `packages/*/components/`).
 4. **Compute the modal frequency.** For each pattern category, count each variant across siblings.
@@ -47,7 +47,7 @@ grep -l "from ['\"]\\./utils['\"]" src/components/*.tsx | wc -l
 for d in src/services/*/; do
 ls "$d" | grep -cE "(service|controller|types)\\.ts$"
 done
-# If ≥80% of N≥3 siblings agree, flag the diff that diverges.
+# Apply the modal threshold (§Methodology step 5) and flag the diff that diverges.
 ```
 **Red flag:** the diff places code in a file kind where ≥80% of siblings put it elsewhere. Skip silently if N<3 or split is ambiguous.
 
@@ -76,7 +76,7 @@ for f in src/services/*/service.ts; do
 echo "=== $f ==="
 grep -nE "^(import|const|export const|type|interface|export (function|class))" "$f" | head -10
 done
-# If ≥80% of N≥3 siblings start with imports → constants → types → exports, flag the diff if it reorders.
+# Apply the modal threshold (§Methodology step 5) and flag the diff if it reorders.
 ```
 **Red flag:** a class places private methods before public when ≥80% of sibling classes do the opposite. Cite samples.
 
@@ -112,7 +112,7 @@ for f in $(ls src/services/*.ts | head -5); do
 echo "=== $f ==="
 awk '/^import/ {print; next} /^[^[:space:]]/ {exit}' "$f"
 done
-# If ≥80% of N≥3 siblings separate first-party from relative with a blank line, flag the diff that inlines them.
+# Apply the modal threshold (§Methodology step 5) and flag the diff that inlines them.
 ```
 **Red flag:** the diff jumbles stdlib + third-party + local imports while ≥80% of siblings separate them. Cite samples.
 
@@ -217,7 +217,7 @@ grep "^export" src/components/UserCard.tsx
 # → export default function UserCard(...)
 ```
 
-Finding emitted: `[NEW] export default in src/components/UserCard.tsx; 6 of 7 sibling components use named exports without default. evidence_paths: [Avatar.tsx, Badge.tsx, Banner.tsx, Card.tsx, Header.tsx, Toast.tsx]`. Severity HIGH (clear ≥80% violation, evidence cited).
+Finding emitted: `[NEW] export default in src/components/UserCard.tsx; 6 of 7 sibling components use named exports without default. evidence_paths: [Avatar.tsx, Badge.tsx, Banner.tsx, Card.tsx, Header.tsx, Toast.tsx]`. Severity HIGH (clear modal violation past the §Methodology step 5 threshold, evidence cited).
 
 Counter-example: same PR, but only 2 sibling components exist (`Avatar.tsx`, `Card.tsx`). N<3 — skip silently. No finding.
 

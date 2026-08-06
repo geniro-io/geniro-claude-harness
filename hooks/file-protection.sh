@@ -329,7 +329,7 @@ _geniro_extract_inner_payloads() {
     # A dot is allowed before the op name because that is how the ops are normally
     # reached (`require('child_process').execSync(…)`); the cost is that a JS
     # `re.exec("s")` also yields its argument, which re-scans as an inert word.
-    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|spawn(Sync)?|fork|system|popen|shell_exec|passthru|proc_open)'
+    local _wv_shellout='(os\.(system|popen|execute)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|spawn(Sync)?|fork|system|popen|shell_exec|passthru|proc_open)'
     while IFS= read -r _m; do
       [ -z "$_m" ] && continue
       _pl=$(printf '%s' "$_m" | sed -E 's/^[^(]*\([[:space:]]*//')
@@ -339,6 +339,32 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
     done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_shellout}"'[[:space:]]*\([[:space:]]*\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Arm 6a-bare — Perl/Ruby's `system`/`exec`/`popen` are BUILTINS as well as
+    # functions: `system "rm -rf /"` and `exec "rm -rf /"` run with no call
+    # parens at all, so 6a's mandatory `\(` laundered every paren-less spelling.
+    # Scoped to this narrow bareword set — not the dotted os.system/subprocess.run
+    # forms above, which are never spelled without parens — so an ordinary
+    # two-word sentence is not swept in.
+    local _wv_bareop='(system|exec|popen)'
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:space:]]*[[:space:]]+//')
+      _pl="${_pl#\\}"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      _pl="${_pl%\\}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_bareop}"'[[:space:]]+\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Perl's qx{}/qx() — a backtick equivalent, the two most common delimiters.
+    # Other qx delimiters (qx/…/, qx!…!) are not extracted; the payload must
+    # carry no closing }/) of its own for these two to match.
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?qx[{(]//; s/[})]$//')
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])qx\{[^}]*\}|(^|[^[:alnum:]_])qx\([^)]*\)' 2>/dev/null || true)"
 
     # Arm 6b — the same shell-out written as an ARGV SEQUENCE.
     # `subprocess.run(['sh','-c','<program>'])` and
@@ -357,11 +383,11 @@ _geniro_extract_inner_payloads() {
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
     done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
-    # Ruby's backtick literal is the same shell-out with no call syntax at all.
-    # Narrowed further to a `ruby` command word: elsewhere a backtick span is
-    # ordinary shell command substitution, already visible to the guards as
-    # syntax, and re-extracting it would only add noise.
-    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])ruby([[:space:]]|$)'; then
+    # Ruby's and Perl's backtick literal is the same shell-out with no call
+    # syntax at all. Narrowed to those two command words: elsewhere a backtick
+    # span is ordinary shell command substitution, already visible to the
+    # guards as syntax, and re-extracting it would only add noise.
+    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)'; then
       while IFS= read -r _m; do
         [ -z "$_m" ] && continue
         _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
@@ -590,19 +616,33 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     hd {
       line = $0
       if (dash) sub(/^\t+/, "", line)   # <<- strips leading TABS from the terminator
-      if (line == tag) hd = 0
+      if (line == tag) { hd = 0; nbuf = 0; next }
+      buf[nbuf++] = $0
       next
     }
-    match($0, /<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
-      tag = substr($0, RSTART, RLENGTH)
-      dash = (tag ~ /^<<-/)
-      sub(/^<<-?[[:space:]]*/, "", tag)
-      gsub(/[\\"'\'']/, "", tag)
-      hd = 1
+    {
+      n = length($0); q = ""; pos = 0
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (q != "") { if (c == q) q = ""; continue }
+        if (c == "\"" || c == "'\''") { q = c; continue }
+        if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+      }
+      if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
+        tag = substr($0, pos, RLENGTH)
+        dash = (tag ~ /^<<-/)
+        sub(/^<<-?[[:space:]]*/, "", tag)
+        gsub(/[\\"'\'']/, "", tag)
+        hd = 1
+        nbuf = 0
+        print
+        next
+      }
       print
-      next
     }
-    { print }
+    END {
+      if (hd) for (j = 0; j < nbuf; j++) print buf[j]
+    }
   ')
 
   # Re-run THIS guard on each extracted payload (unblanked); a block inside
@@ -640,7 +680,12 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # first let two ordinary prose apostrophes on two different lines
   # (`# don't` … `# won't`) pair into one "literal" that swallowed the real
   # command between them — a fail-open on benign input, not on an attack.
-  JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+  # The span EXCLUDES ; & | (mirrors block-dangerous-git.sh:394's blanking
+  # pass, minus its unquote pass — a deliberately QUOTED redirect target is a
+  # documented miss this guard keeps) — otherwise two ordinary prose
+  # apostrophes straddling a `;` pair across it and blank the real command
+  # between them.
+  JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
   # Collapse the remaining (command-separating) newlines so multi-line commands
   # can't split a write apart (mirrors block-dangerous-git.sh).

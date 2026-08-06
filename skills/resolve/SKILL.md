@@ -4,7 +4,7 @@ description: "Use when an open pull request has unresolved review comments (huma
 context: main
 model: inherit
 allowed-tools: [Read, Grep, Glob, Bash, Agent, AskUserQuestion, TodoWrite]
-argument-hint: "[PR ref (#N or URL), or empty to detect from the current branch]"
+argument-hint: "[PR ref (#N or URL), or empty to detect from the current branch] [--bots-only | --humans-only] [--no-ci]"
 ---
 
 # /geniro:resolve — PR feedback triage into a fix plan
@@ -18,6 +18,7 @@ argument-hint: "[PR ref (#N or URL), or empty to detect from the current branch]
 - Budgets / quality gates
 - ACI per-phase tool surface
 - Memory I/O
+- Definition of done
 - PHASE 1: Fetch & triage
 - PHASE 2: Analyze & verify
 - PHASE 3: Clarify
@@ -30,7 +31,7 @@ argument-hint: "[PR ref (#N or URL), or empty to detect from the current branch]
 
 You are a read-only spec producer. You read an open pull request's unresolved review comments and failing CI checks, verify and reproduce each against the code, ask the user about ambiguous ones, then write a comment-keyed `spec.md` plus a handoff that `/geniro:implement` consumes to apply the fixes and — at ship — post the drafted replies and resolve the threads. You never edit code, never post to the PR, never ship.
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
 ## Phases
 
@@ -97,6 +98,19 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 - **L3 snapshot** — `load-semantic` top-2 (`_project.md` + `_CODEBASE_MAP.md`) at the same step; it is what tells you whether a comment's cited path still exists.
 - **L2 learnings** — none emitted (read-only producer; `/geniro:implement` emits at ship).
 
+## Definition of done
+
+These are the load-bearing exit gates and safety invariants — the checks that, if skipped, break the verified-verdict guarantee or the read-only boundary. Per-phase mechanics (fetch, verify, clarify) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
+
+- [ ] Every `fix`/`wontfix` verdict was re-checked by a fresh, independent `finding-verifier-agent` (#2) — no self-assigned verdict shipped as written
+- [ ] Every `needs-clarification` item was resolved through its own Phase 3 gate or carries a `status: unresolved` `open_questions[]` entry for `/geniro:implement` to re-gate (#3) — no guessed verdict
+- [ ] spec.md written to `.geniro/state/resolve/<slug>/spec.md` carrying the `## Comment Resolution Map` and a `verify:` line per fix Step (Phase 4 §1)
+- [ ] Spec-challenge ran (Phase 4 §2, advisory, fail-open); a `re-plan` verdict demoted the affected item before handoff rather than shipping the spec around it
+- [ ] Handoff written to `.geniro/state/handoff/from-resolve-<branch>.md` carrying `spec_path:`, `open_questions[]`, `comment_resolutions[]`, and `pr-ref` / `pr-url` / `pr-head-sha` (Phase 4 §3)
+- [ ] No Edit/Write to source, no `gh` write, no `git push` — the read-only boundary held throughout the run (#1)
+- [ ] `clean_task_transients` ran against the slug dir before the terminal `phase:` write; `spec.md` / `state.md` retained past terminal (this skill does not sweep its slug dir — §Task execution entry)
+- [ ] Next command printed (`/geniro:implement <spec path>`) with the handoff file named alongside it (Phase 4 §4)
+
 ---
 
 ## PHASE 1: FETCH & TRIAGE
@@ -107,8 +121,8 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 2. **Sync the workspace to the freshest code.** Skip the whole step on a compaction-resume (the workspace was synced when the run first started). Fire two offers in sequence; each is an offer, never auto-run; persist each pick to `approvals[]` (category `branch_freshness`); fail-open on any git error with a one-line caveat:
    - **a. Local checkout → PR head.** If `git rev-parse HEAD` differs from `pr-head-sha`, the comments reference commits your local tree does not have. Offer `gh pr checkout <number>` (Recommended) / keep current checkout. Detail + dirty-tree handling: `resolve-reference.md` §1.5.
    - **b. PR branch → its base.** Run `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` FRESH-CONTINUE, substituting the PR's `base-branch` for `DEFAULT_BRANCH` (§2 of that file). If the branch is behind its base, offer merge / rebase / skip; the shared file owns the dirty-tree and conflict handling.
-3. **Fetch threads + checks.** Run the read side of `pr-threads.md` (§2 unresolved review threads — humans AND bots; §3 failing CI checks). Persist `pr-ref` / `pr-url` / `pr-head-sha` / `resolved-threads-snapshot` to state.md via `atomic_state_write`.
-4. **Build the item inventory.** Collapse each thread to one item (`thread_id`, `comment_id`, author, `is_bot`, path, line, conversation body). Each failing check is an item (name, output, annotation path:line if any). Drop `isResolved == true` threads (#4). Group items by file so the verifier sees neighbours together.
+3. **Fetch threads + checks.** Run the read side of `pr-threads.md` (§2 unresolved review threads — humans AND bots; §3 failing CI checks). Skip §3 entirely when `--no-ci` is passed — no checks are fetched and none enter the inventory. Persist `pr-ref` / `pr-url` / `pr-head-sha` / `resolved-threads-snapshot` to state.md via `atomic_state_write`.
+4. **Build the item inventory.** Collapse each thread to one item (`thread_id`, `comment_id`, author, `is_bot`, path, line, conversation body). Each failing check is an item (name, output, annotation path:line if any). Drop `isResolved == true` threads (#4). When `--bots-only` is passed, drop every item with `is_bot == false`; when `--humans-only` is passed, drop every item with `is_bot == true` (CI-check items have no `is_bot` and are never dropped by either flag). Group items by file so the verifier sees neighbours together.
 5. **Tier the workload.** Classify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` (item count + file spread) → sets the Phase 2 verifier vote count (#2). Write `phase: analyze`.
 
 Full fetch shapes + the inventory schema: `${CLAUDE_PLUGIN_ROOT}/skills/resolve/resolve-reference.md` §1; the local-checkout-to-PR-head sync detail: §1.5. Read that reference before the step that needs it and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`. The sync detail section is the sole home of the dirty-tree branch — the guard that keeps `gh pr checkout` from being forced over uncommitted work — and this skill's fail-open framing makes a forced checkout read as an ordinary degraded run.

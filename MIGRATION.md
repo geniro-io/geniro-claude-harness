@@ -122,7 +122,7 @@ The plan-side build-vs-buy check no longer spawns a web-research agent or lists 
 
 ### `/geniro:review` merges the `guidelines` and `rules-compliance` dimensions into `conventions`
 
-One always-fire `conventions` dimension now covers the scopes of the former `guidelines` and `rules-compliance` dimensions — it reads all three criteria files (style rubrics + repo-modal patterns + authored-rule citations when the repo has rule files). Findings previously tagged `guidelines` / `rules-compliance` now surface under `conventions`; the spawn counts are 7 always-fire + 3 conditional. Custom reviewers under `.geniro/instructions/review-extra/` are unaffected, but instruction files that reference the retired dimension names should update to `conventions`.
+One always-fire `conventions` dimension now covers the scopes of the former `guidelines` and `rules-compliance` dimensions — it reads all three criteria files (style rubrics + repo-modal patterns + authored-rule citations when the repo has rule files). Findings previously tagged `guidelines` / `rules-compliance` now surface under `conventions`; see `skills/review/phase-2-spawns.md` §2.1 for the current always-fire / conditional split. Custom reviewers under `.geniro/instructions/review-extra/` are unaffected, but instruction files that reference the retired dimension names should update to `conventions`.
 
 **Action required:** Check `.geniro/instructions/review-extra/` and other instruction files for references to the retired dimension names and update them to `conventions`.
 
@@ -358,7 +358,7 @@ A new read-only `reflection-agent` (with inline equivalents in /plan and /onboar
 
 **Action required:** Delete leftover transient files inside finished task-dirs. These are left by runs that predate the cleanup contract OR by any run that ended without reaching its cleanup (interrupted session, killed terminal) — the detector cannot distinguish file origin, only that the file outlived its run. This entry deliberately doubles as a recurring sweep: it is the system's only channel for catching transients left by interrupted runs, so re-detection on a later update means NEW leftovers appeared since the last sweep, not that the previous fix failed.
 
-Both commands below share one liveness predicate: a transient is a leftover only when its task-dir's `state.md` is missing or terminal (`phase:` done/aborted/routed/failed/ship-committed-only/self-review-only/debug-handoff/ship-summary-only/adversarial-aborted/verify-summary-only/reverted/adr-documented/map-truncated/present-summary-only, or `status:` done/completed/failed/aborted/routed — mirroring the session-restore hook's full terminal sets in `hooks/session-start-restore.sh`). Transients inside a live task-dir are the working files of an in-flight run, not leftovers — they are never matched, and they become detectable once that task finishes. A status-blind glob here once flagged (and would have deleted) a running `/implement` task's research outputs. `notes.md` is deliberately excluded from this sweep: the name is plausibly user-authored content, so an external sweep deleting it risks data loss — `/geniro:implement`'s own in-run cleanup handles its `notes.md`.
+Both commands below share one liveness predicate: a transient is a leftover only when its task-dir's `state.md` is missing or terminal (`phase:` done/aborted/routed/failed/escalated/ship-committed-only/self-review-only/debug-handoff/ship-summary-only/adversarial-aborted/verify-summary-only/reverted/adr-documented/map-truncated/present-summary-only, or `status:` done/completed/failed/aborted/routed — mirroring the session-restore hook's full terminal sets in `hooks/session-start-restore.sh`). Transients inside a live task-dir are the working files of an in-flight run, not leftovers — they are never matched, and they become detectable once that task finishes. A status-blind glob here once flagged (and would have deleted) a running `/implement` task's research outputs. `notes.md` is deliberately excluded from this sweep: the name is plausibly user-authored content, so an external sweep deleting it risks data loss — `/geniro:implement`'s own in-run cleanup handles its `notes.md`.
 
 **Auto-detect:**
 
@@ -366,7 +366,7 @@ Both commands below share one liveness predicate: a transient is a leftover only
 find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
   for f do
     s="${f%/*}/state.md"
-    if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed|ship-committed-only|self-review-only|debug-handoff|ship-summary-only|adversarial-aborted|verify-summary-only|reverted|adr-documented|map-truncated|present-summary-only)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then
+    if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed|escalated|ship-committed-only|self-review-only|debug-handoff|ship-summary-only|adversarial-aborted|verify-summary-only|reverted|adr-documented|map-truncated|present-summary-only)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then
       printf "%s\n" "$f"
     fi
   done' sh {} + 2>/dev/null
@@ -378,7 +378,7 @@ find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o
 find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' -o -name '.research-*.md' -o -name 'playwright-verify.png' \) -exec sh -c '
   for f do
     s="${f%/*}/state.md"
-    if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed|ship-committed-only|self-review-only|debug-handoff|ship-summary-only|adversarial-aborted|verify-summary-only|reverted|adr-documented|map-truncated|present-summary-only)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then
+    if [ ! -f "$s" ] || grep -Eq "^phase:[[:space:]]*(done|aborted|routed|failed|escalated|ship-committed-only|self-review-only|debug-handoff|ship-summary-only|adversarial-aborted|verify-summary-only|reverted|adr-documented|map-truncated|present-summary-only)[[:space:]]*$|^status:[[:space:]]*(done|completed|failed|aborted|routed)[[:space:]]*$" "$s"; then
       rm -f "$f"
     fi
   done' sh {} + 2>/dev/null

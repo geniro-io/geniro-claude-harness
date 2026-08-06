@@ -9,19 +9,19 @@ Smell detection + change-impact scoring + per-step execution protocol for `/geni
 
 ## Contents
 
-- Core Principle — the behavior-preservation invariant
-- Data Safety Rule — never destroy local data or volumes
+- Core principle — the behavior-preservation invariant
+- Data safety rule — never destroy local data or volumes
 - Phase 1: Code Smell Detection — smell taxonomy + change-impact scoring
 - Phase 2: Refactoring Plan — plan-line schema
 - Phase 3: Atomic Application & Verification — per-step execution + Blocked Step Protocol
 - Guardrails — what to avoid without approval, and what to do every step
 - When to Stop the Session & Report Back — terminal conditions
 
-## Core Principle
+## Core principle
 
 **If you cannot prove behavior is preserved through tests, you must stop and ask for a safety net.** Never make transformations that cannot be validated.
 
-## Data Safety Rule
+## Data safety rule
 
 Don't run `docker volume rm`, `podman volume rm`, `docker compose down -v`, `podman compose down -v`, `DROP TABLE`, `DROP DATABASE`, `TRUNCATE`, or any command that removes local database data or Docker/Podman volumes. These destroy durable local state irrecoverably, and a zero-behavior-change refactor never touches it.
 
@@ -61,7 +61,7 @@ Scan the target codebase for:
 - Unused imports or missing type definitions
 - Inconsistent error handling or null-safety patterns
 
-#### Named Smell Baseline
+#### Named smell baseline
 Match the scope files against the canonical named smells below (Fowler's *Refactoring* ch. 3 vocabulary — standard names the user can look up). Every hit is a labelled heuristic — report it as "possible Feature Envy", never as a hard violation: the smell-evidence filter (/geniro:refactor Phase 1) decides KEEP/FILTER, and a documented repo convention always wins over the label. Skip any smell the project's lint config already enforces — the lint run in the pipeline catches it deterministically and cheaper. Duplicated Code, Long Method, and Large Class / Divergent Change are already owned by the Duplication, Long Methods, and God Classes categories above — don't double-report them under a second name.
 
 Each smell reads what-it-is → how-to-fix:

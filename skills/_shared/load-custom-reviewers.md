@@ -123,7 +123,7 @@ For each spec the helper returns, the consumer skill appends one `Agent()` call 
 Inherit form (default — user did not declare `model:`):
 
 ```
-Agent(subagent_type="reviewer-agent", prompt="""
+Agent(subagent_type="geniro:reviewer-agent", prompt="""
 DIMENSION: {spec.dimension-label}
 CRITERIA: {spec.criteria-content}
 CHANGED FILES: [list of files with their full content — same list the built-in reviewers receive]

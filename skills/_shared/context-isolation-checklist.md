@@ -9,6 +9,7 @@ This file is the single source of truth for the pre-inlined-context contract eve
 - Why this exists — the three failure modes a bare prompt produces
 - When this applies — every Agent() spawn; codebase research uses `codebase-research-agent`
 - Required pre-inlined context — the fields every prompt carries
+- Reading the load report back — what to check when the agent returns
 - Forbidden patterns — prompt shapes that guarantee a re-do
 - Anti-rationalization
 - Definition of Done
@@ -63,6 +64,8 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. `/geniro:implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
 
+This spawn is not complete when the call above fires — only when its report comes back and gets checked per §Reading the load report back further down this file.
+
 ## Required pre-inlined context
 
 Include every field below in every Agent() prompt — a missing field is the gap the §Why-this-exists failures come through.
@@ -97,6 +100,18 @@ If the policy names a tool, give its exact invocation form. A tool the runtime d
 
 This push complements the agent's own pull (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`). Both exist because neither alone holds: the pull is a step an agent can skip, and the push only carries what the orchestrator itself loaded.
 
+Satisfying every field above is only half the contract — the other half is checking what the agent did with them, at return time, per the next section.
+
+## Reading the load report back
+
+The checklist above governs what leaves the spawn site. What the agent then did with it is knowable only from the agent's report, because its narration never crosses back — so a spawn is not complete until its report has been read for a `Context loaded:` line.
+
+The line comes from agents whose own workflow tells them to load something: the reviewer, the two codebase agents, the adversarial tester, the knowledge-retrieval agent, the reflection agent. An agent whose every input is pushed by the spawn prompt — the test runner, the finding verifier — emits no such line, and its absence there is the contract rather than a skip.
+
+The line, its value set, and the consumer's obligations on each are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Two readings are the spawn site's own problem rather than the agent's: `unreadable` on a path this prompt passed means the path was wrong, so correct it and re-spawn that one agent; a report with no such line at all means the agent never ran its load steps, so name that in the run's output instead of consuming the report as if the project's rules had shaped it.
+
+A batch is checked per agent. One reviewer reporting `project-rules=absent` while its siblings report `read` is a dropped load in that spawn, not a project without rules.
+
 ## Forbidden patterns
 
 - **Bare "investigate X" prompts** with no scope, no acceptance criteria, and no pre-inlined files. The orchestrator's session has the context; the agent does not. A bare investigation prompt forces the agent to re-discover everything from scratch — slow, lossy, and prone to scope drift.
@@ -118,6 +133,7 @@ This push complements the agent's own pull (`${CLAUDE_PLUGIN_ROOT}/skills/_share
 | "I'll pin a `model=` on every spawn so tier is always explicit." | OMIT `model=` for plugin-defined agents — their frontmatter tier governs, and `model="inherit"` at the call site fails input validation outright. Pin only where a carve-out names the site. The rule, its four carve-out categories, and the reasoning: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. |
 | "The agent loads `global.md` itself at its Step 0, so pre-inlining the search policy is redundant." | Its Step 0 is one skippable step at the head of a long workflow, and a skip is silent — you cannot tell from the agent's output whether the policy ever reached it. The push costs a few lines of prompt you already have loaded; the pull is the fallback for what you didn't. |
 | "Built-in `Explore` is the standard codebase-search agent in Claude Code — I'll use it instead of spawning a plugin agent." | Do not spawn `Explore` from a plugin skill — `codebase-research-agent` is the default for every plugin skill's codebase research, for the two reasons in §Codebase research. |
+| "The report came back complete and well-formed, so the agent clearly had the context it needed." | Report completeness is evidence the agent followed its output schema, not that it followed its load steps — an agent that skipped `global.md` returns the same shape, just judged against the plugin's defaults instead of the project's rules. §Reading the load report back is the only check that separates them. |
 
 ## Definition of Done
 
@@ -125,3 +141,4 @@ A spawn site correctly applies the checklist when:
 
 - [ ] Every § Required pre-inlined context field is present in the prompt, each satisfying the condition stated there.
 - [ ] The spawn obeys the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and caches the resolved rung for the session.
+- [ ] Every report from an agent that declares a `Context loaded:` line was checked for it per §Reading the load report back, and each `unreadable` or missing line was acted on rather than noted.

@@ -14,6 +14,7 @@ argument-hint: "[--dry-run]"
 - Path constraints
 - Loop invariants
 - Anti-rationalization
+- Definition of done
 - Budgets — quality-first
 - ACI per-phase tool surface
 - Termination case → message
@@ -58,6 +59,14 @@ This skill adds one invariant:
 | "I ran the Auto-fix command, so the migration entry is resolved." | Auto-fix can apply partially. Re-run the entry's `Auto-detect:` after fixing; only an empty result confirms resolution. Reporting "fixed" without the re-detect can leave the user on a half-migrated install. |
 | "A file is missing from the hash-check but the update likely worked — continue." | A missing key file means a broken install, not a benign blip. Fire the Cancel-as-recommended AUQ and let the user decide; auto-continuing ships a plugin that may fail mid-skill later. |
 | "The user-content survival diff shows changes, but they're probably benign." | The update must never touch `.geniro/instructions/` or `.geniro/actions/`. Any diff is either a plugin bug or tampering — surface it via the AUQ; never auto-dismiss content the user authored. |
+
+## Definition of done
+
+- [ ] Phase 3 Step 1 hash-check ran; `HASH_FAIL` resolved (PASS, or the user picked Continue anyway at the AUQ)
+- [ ] Phase 3 Step 2 user-content survival diff ran; any non-empty diff was surfaced via AUQ and resolved
+- [ ] Phase 3 Step 3 update-cache refresh ran (`geniro-check-update.js` invoked against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit for the rest of the session, in the run meant to clear it
+- [ ] Phase 3 Step 4 statusline refresh ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
+- [ ] The final report's `Update cache` and `Statusline` lines reflect the actual Step 3 / Step 4 outcome, not an assumed one
 
 ## Budgets — quality-first
 
@@ -349,11 +358,11 @@ GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \
 node "$PLUGIN_PATH/hooks/geniro-check-update.js"
 ```
 
-This writes `update_available: false` to the cache with the new installed version.
+This writes `update_available: false` to the cache with the new installed version — the source that clears the "update available" indicator. Record the outcome for the final report's `Update cache` line.
 
 ### Step 4 — Refresh statusline stable copy (conditional)
 
-Only when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already exists, overwrite it from `$PLUGIN_PATH/hooks/geniro-statusline.js`. Its absence means the user never ran `/geniro:setup` or has no `statusLine` settings entry — creating the file there would install a statusline they never asked for. The plugin's bundled `settings.json` already exposes the statusline via `${CLAUDE_PLUGIN_ROOT}`.
+Only when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already exists, overwrite it from `$PLUGIN_PATH/hooks/geniro-statusline.js`. Its absence means the user never ran `/geniro:setup` or has no `statusLine` settings entry — creating the file there would install a statusline they never asked for. Claude Code accepts a `statusLine` command only from user or project settings, so the plugin's own bundled `settings.json` cannot activate the statusline directly — the user-config copy this step refreshes is what makes it live. Record the outcome for the final report's `Statusline` line.
 
 Transition to Phase 4.
 
@@ -414,6 +423,8 @@ Updated: v<CURRENT_VERSION> → v<NEW_VERSION>
 Plugin path: <PLUGIN_PATH>
 Integrity check: <PASS | WARN>
 User content: <UNCHANGED | CHANGED — see /tmp/geniro-content-diff.log>
+Update cache: <refreshed | refresh failed — "update available" may still show>
+Statusline: <refreshed | not installed — no prior /geniro:setup>
 Migration walked: <N changes — M applied, K skipped, L deferred>
 
 ⚠ RESTART your Claude Code session to load v<NEW_VERSION>.

@@ -36,11 +36,11 @@ One such trigger per run at most — a second prompt gets less attention than th
 
 **Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
 
-If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt; transition to `failed` with step number captured.
+If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt with the step number captured, then go to Phase 4.4 and print its wrap-up summary — the failed step number in place of the steps-run count, everything already changed still listed under `Files changed` / `External calls`. This is the terminal the user most needs the summary at: it names what the action already mutated before it stopped. Skip the L2 emit; a failed run is not the successful-external-send case that gates it.
 
 ### Phase 4.4: Wrap-up + record a learning
 
-Print summary:
+Print summary (on the failure terminal, open with `Action <resolved-slug> failed at step <N>.` instead of `complete.`):
 
 ```
 Action `<resolved-slug>` complete.
@@ -49,7 +49,10 @@ Steps run: <count>
 Steps skipped: <list, or "none">
 Files changed: <list, or "none">
 External calls: <list, or "none">
+Scope checkpoint: <fired — see below / assessed, nothing out of scope>
 ```
+
+The `Scope checkpoint` line is always written, never omitted — it is the only record that Phase 4.3's tracking ran at all, and "assessed, nothing out of scope" is a different state from the line being absent, which would mean the checkpoint's own edit-tracking never ran.
 
 When the scope checkpoint fired (Phase 4.3), close the summary by recommending an independent look at the diff: "This run went past what the action describes — `/geniro:review` reviews the diff before you push." Recommend it, never run it — `/geniro:actions` spawns no subagent and calls no other skill (the inline-execution invariant); the user decides whether to run it.
 

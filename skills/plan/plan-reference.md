@@ -72,7 +72,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 - **Compaction mid-Phase-5** — handled by the SessionStart re-injection of state.md `approvals[]` and `## Tool log`. The model re-reads `approvals[]` and skips already-answered AUQs; Phase 6 idempotent re-entry regenerates spec.md from persisted approvals.
 
-- **Phase 7 validator hard-fail on round 3** — the `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). User has agency; no silent abort.
+- **Phase 7 validator hard-fail past the auto-revision cap** — the `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). User has agency; no silent abort.
 
 - **Phase 8 user-revision round 3 exhaust** — the `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.3 escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). Terminal `aborted` records `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
 

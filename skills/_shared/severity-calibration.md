@@ -117,7 +117,7 @@ The dim's ceiling is HIGH: §1's CRITICAL inclusion list admits no PR-prose clas
 The dim owns three defect classes; each keeps its own ceiling, defined in its own criteria file (the `conventions` reviewer reads all three):
 
 - **Style-rubric class** — per-file rubrics, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` §Severity tagging. Never CRITICAL/HIGH; MEDIUM only on a tooling-load-bearing field, else LOW.
-- **Modal-pattern class** — repo-modal patterns, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity guidelines (ceiling HIGH on a zero-shot-novel ≥80% modal violation or a crossed 100%-respected boundary; LOW suppressed).
+- **Modal-pattern class** — repo-modal patterns, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` §Severity guidelines (ceiling HIGH on a zero-shot-novel modal violation or a crossed fully-respected module boundary — thresholds owned there; LOW suppressed).
 - **Authored-rule-citation class** — explicit rule files, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` §4. Severity follows the IMPACT of breaking the cited rule (correctness/security invariant → up to CRITICAL; maintainability → MEDIUM; advisory → LOW), never the bare fact that it is a rule.
 
 ---
@@ -170,7 +170,7 @@ KEEP IF:
   #          the §4.2 verifier, a MEDIUM-or-higher still enters it)
   OR Decision Type == PRODUCT-DECISION    # the user's call, not the reviewer's — severity does not gate visibility
 ELSE DEFER to ## Deferred — sub-threshold (state.md body; off the PR and the fix list
-     by default — a user pick lifts it, per review-handoff.md §7.1 / §4.6)
+     by default — a user pick lifts it, per review-handoff.md §7.2 / §4.6)
 ```
 
 Additional admission constraint for MEDIUM: a MEDIUM finding requires signal #2 specifically (Evidence-Block present + properly formatted). Signals #1, #3, #4 alone admit CRITICAL and HIGH but NOT MEDIUM. A MEDIUM admitted on convergence or a confidence score alone would be kept with nothing to re-read, so it drops to `## Deferred — sub-threshold` instead. At CRITICAL / HIGH that same thin citation is admitted rather than dropped — losing a high-severity defect costs more — and the Phase 4.2 verifier supplies the missing quote, which makes the Evidence Block requirement (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`) a post-verification invariant rather than an admission-time one.

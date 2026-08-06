@@ -284,6 +284,11 @@ _state_candidates() {
 # terminal-candidate filter above) — one parse shape for branch/phase/status.
 
 if [ -z "$state_file" ]; then
+  # Default 14 days: long enough to survive a normal work gap (a long weekend,
+  # a week of vacation, review-cycle lag on someone else's PR) without wrongly
+  # burying a task the user still means to resume, short enough that a branch
+  # genuinely abandoned a month ago stops resurfacing every session. Retune via
+  # the env var rather than editing this literal.
   _resume_stale_days="${GENIRO_RESUME_STALE_DAYS:-14}"
   case "$_resume_stale_days" in ''|*[!0-9]*) _resume_stale_days=14 ;; esac
   _now_epoch=$(date +%s 2>/dev/null || echo 0)

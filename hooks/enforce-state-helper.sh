@@ -79,6 +79,11 @@ esac
 # absolute (/x/.geniro/...) forms.
 matches_state_path() {
   local p="$1"
+  # Collapse repeated slashes first: the protected-prefix regexes below require
+  # an EXACT `.geniro/<tier>/` span, so a path built by joining a variable that
+  # already ends in `/` (`.geniro//planning/foo/state.md`) inserts a second `/`
+  # right where "planning" must start and the match silently fails.
+  p="$(printf '%s' "$p" | sed -E 's#/+#/#g')"
   # Exclusions — files under .geniro/ that are NOT frontmatter-bearing state
   # files and shouldn't trigger the helper warning:
   #   *.lock      — coordination locks (e.g., .geniro/planning/.codebase-map.lock)
@@ -343,7 +348,7 @@ _geniro_extract_inner_payloads() {
     # A dot is allowed before the op name because that is how the ops are normally
     # reached (`require('child_process').execSync(…)`); the cost is that a JS
     # `re.exec("s")` also yields its argument, which re-scans as an inert word.
-    local _wv_shellout='(os\.(system|popen)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|spawn(Sync)?|fork|system|popen|shell_exec|passthru|proc_open)'
+    local _wv_shellout='(os\.(system|popen|execute)|subprocess\.[A-Za-z_]+|Kernel\.system|IO\.popen|Open3\.[a-z_]+|exec(Sync|FileSync)?|spawn(Sync)?|fork|system|popen|shell_exec|passthru|proc_open)'
     while IFS= read -r _m; do
       [ -z "$_m" ] && continue
       _pl=$(printf '%s' "$_m" | sed -E 's/^[^(]*\([[:space:]]*//')
@@ -353,6 +358,32 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
     done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_shellout}"'[[:space:]]*\([[:space:]]*\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Arm 6a-bare — Perl/Ruby's `system`/`exec`/`popen` are BUILTINS as well as
+    # functions: `system "rm -rf /"` and `exec "rm -rf /"` run with no call
+    # parens at all, so 6a's mandatory `\(` laundered every paren-less spelling.
+    # Scoped to this narrow bareword set — not the dotted os.system/subprocess.run
+    # forms above, which are never spelled without parens — so an ordinary
+    # two-word sentence is not swept in.
+    local _wv_bareop='(system|exec|popen)'
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:space:]]*[[:space:]]+//')
+      _pl="${_pl#\\}"
+      _pl="${_pl#\"}"; _pl="${_pl%\"}"
+      _pl="${_pl#\'}"; _pl="${_pl%\'}"
+      _pl="${_pl%\\}"
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_bareop}"'[[:space:]]+\\?'"${_wv_lit}" 2>/dev/null || true)"
+
+    # Perl's qx{}/qx() — a backtick equivalent, the two most common delimiters.
+    # Other qx delimiters (qx/…/, qx!…!) are not extracted; the payload must
+    # carry no closing }/) of its own for these two to match.
+    while IFS= read -r _m; do
+      [ -z "$_m" ] && continue
+      _pl=$(printf '%s' "$_m" | sed -E 's/^[^[:alnum:]_]?qx[{(]//; s/[})]$//')
+      [ -n "$_pl" ] && printf '%s\n' "$_pl"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])qx\{[^}]*\}|(^|[^[:alnum:]_])qx\([^)]*\)' 2>/dev/null || true)"
 
     # Arm 6b — the same shell-out written as an ARGV SEQUENCE.
     # `subprocess.run(['sh','-c','<program>'])` and
@@ -371,11 +402,11 @@ _geniro_extract_inner_payloads() {
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
     done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
-    # Ruby's backtick literal is the same shell-out with no call syntax at all.
-    # Narrowed further to a `ruby` command word: elsewhere a backtick span is
-    # ordinary shell command substitution, already visible to the guards as
-    # syntax, and re-extracting it would only add noise.
-    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])ruby([[:space:]]|$)'; then
+    # Ruby's and Perl's backtick literal is the same shell-out with no call
+    # syntax at all. Narrowed to those two command words: elsewhere a backtick
+    # span is ordinary shell command substitution, already visible to the
+    # guards as syntax, and re-extracting it would only add noise.
+    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)'; then
       while IFS= read -r _m; do
         [ -z "$_m" ] && continue
         _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
@@ -579,19 +610,33 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     hd {
       line = $0
       if (dash) sub(/^\t+/, "", line)
-      if (line == tag) hd = 0
+      if (line == tag) { hd = 0; nbuf = 0; next }
+      buf[nbuf++] = $0
       next
     }
-    match($0, /<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/) {
-      tag = substr($0, RSTART, RLENGTH)
-      dash = (tag ~ /^<<-/)
-      sub(/^<<-?[[:space:]]*/, "", tag)
-      gsub(/[\\"'\'']/, "", tag)
-      hd = 1
+    {
+      n = length($0); q = ""; pos = 0
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (q != "") { if (c == q) q = ""; continue }
+        if (c == "\"" || c == "'\''") { q = c; continue }
+        if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+      }
+      if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
+        tag = substr($0, pos, RLENGTH)
+        dash = (tag ~ /^<<-/)
+        sub(/^<<-?[[:space:]]*/, "", tag)
+        gsub(/[\\"'\'']/, "", tag)
+        hd = 1
+        nbuf = 0
+        print
+        next
+      }
       print
-      next
     }
-    { print }
+    END {
+      if (hd) for (j = 0; j < nbuf; j++) print buf[j]
+    }
   ')
 
   # Re-run THIS guard on each extracted payload (unblanked); a block inside
@@ -625,8 +670,14 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # as `;` does, and collapsing it to a space first put a canonical multi-line
   # `atomic_state_write … <<EOF` call and a raw redirect on the following line
   # into ONE segment, which the per-segment helper exemption then cleared
-  # wholesale.
-  JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+  # wholesale. The span EXCLUDES ; & | (mirrors block-dangerous-git.sh:394's
+  # blanking pass, minus its unquote pass — unquoting a whitespace-free helper
+  # NAME here would re-expose a quoted MENTION, e.g. `echo "atomic_state_write"
+  # > .geniro/x`, as a real command word, which is exactly what the blank below
+  # this comment exists to prevent) — otherwise two ordinary prose apostrophes
+  # straddling a `;` pair into one "literal" and blank the real command sitting
+  # between them.
+  JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
   # Strip trailing comments. Quotes are already blanked above, so a `#` at a
   # word boundary is a real comment — drop it (to the end of ITS line, which is
   # why this also runs before the split) so a helper name in a comment can't gate
@@ -927,7 +978,15 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   while IFS= read -r cand; do
     [ -z "$cand" ] && continue
     # .geniro/state/tdd/ is a documented exception (own mktemp + mv procedure).
-    case "$cand" in *.geniro/state/tdd/*) continue ;; esac
+    # A `..` segment makes that prefix a lie — `.geniro/state/tdd/../../
+    # planning/foo/state.md` contains the substring while resolving to a
+    # canonical state file outside it. Reject the traversal (fall through to
+    # matches_state_path below, no exemption) before the substring test even
+    # runs, mirroring enforce-tdd-order.sh's is_non_production_target.
+    case "/$cand/" in
+      */../*) ;;
+      *.geniro/state/tdd/*) continue ;;
+    esac
     if matches_state_path "$cand"; then
       emit_state_helper_decision "$cand"
     fi
@@ -943,7 +1002,12 @@ if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
 
-case "$FILE_PATH" in *.geniro/state/tdd/*) exit 0 ;; esac
+# A `..` segment makes the .geniro/state/tdd/ prefix a lie (see the Bash-branch
+# comment above); reject the traversal before the exemption is consulted.
+case "/$FILE_PATH/" in
+  */../*) ;;
+  *.geniro/state/tdd/*) exit 0 ;;
+esac
 
 if ! matches_state_path "$FILE_PATH"; then
   exit 0

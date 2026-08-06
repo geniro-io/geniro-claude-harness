@@ -6,7 +6,7 @@ State.md `phase: section-approve` during this phase.
 
 ### 5.1 Section template
 
-Use the **fixed 11-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`:
+Use the **fixed section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`:
 
 1. Objective
 2. Scope — Included
@@ -20,13 +20,13 @@ Use the **fixed 11-section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/_s
 10. Rollback-Recovery
 11. Done Condition
 
-Every spec.md has exactly the same 11 sections — schema-stable downstream consumers.
+Every spec.md has exactly the same fixed section set — schema-stable downstream consumers.
 
 For Trivial tasks, sections 4 / 5 / 10 may have body content "none — task scope precludes" with brief rationale. Keep every header present even then; downstream consumers rely on section presence, so a dropped header breaks them where an empty body does not.
 
 ### 5.2 Cluster approval — message-first, one decision per cluster
 
-Group the 11-section schema into 3 dependency-ordered clusters, authored and gated in order:
+Group the section schema into 3 dependency-ordered clusters, authored and gated in order:
 
 | Cluster | Plain-English name | Sections |
 |---|---|---|
@@ -34,7 +34,7 @@ Group the 11-section schema into 3 dependency-ordered clusters, authored and gat
 | 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required |
 | 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition |
 
-Author cluster N → render it → gate it → on approve, author cluster N+1. Cluster 1 (Goal & scope) is approved before cluster 2 is authored, so each cluster is grounded in the prior cluster's approved content; this keeps cross-section issues catchable while preserving dependency order. Do NOT author all 11 sections before the first gate.
+Author cluster N → render it → gate it → on approve, author cluster N+1. Cluster 1 (Goal & scope) is approved before cluster 2 is authored, so each cluster is grounded in the prior cluster's approved content; this keeps cross-section issues catchable while preserving dependency order. Do NOT author every section before the first gate.
 
 Per cluster, apply the Gate presentation contract:
 

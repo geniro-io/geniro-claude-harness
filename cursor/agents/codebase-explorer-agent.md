@@ -114,7 +114,10 @@ Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the W
 - change_scope: trivial | small | medium | big  # estimated change scope; consumers key on the literal `change_scope:` token
 - Top 3 things the orchestrator should know before Phase 2
 - Risk flags: <comma-separated signals matched, or "none">
+- Context loaded: search-policy=<read|slot|absent|unreadable>
 ```
+
+The `Context loaded:` line states your Step 0 result where the orchestrator can read it: a policy handed to you in the prompt is `slot`, one you loaded from `global.md` yourself is `read`, `none declared` is `absent`. Full value set and the consumer's obligations on each: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.
 
 Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a section overflows. Empty sections may be omitted (e.g., no `.claude/rules/` matches → emit `(no project-scoped rules detected)`), except `Summary for Orchestrator`, which is always emitted.
 

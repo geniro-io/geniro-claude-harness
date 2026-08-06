@@ -40,6 +40,8 @@ A spine that points at a phase file is the common shape, but not the only one. T
 
 Echo each hop you take, naming the file. What the echo buys is that a reader can tell which hops a run actually made.
 
+The echo carries only as far as this context. Where the obligation runs inside a subagent, or where one phase writes what a later phase gates on, the proof has to travel in an artifact instead — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` owns those two forms.
+
 ## Echo contract
 
 Print exactly one line when the Read returns:

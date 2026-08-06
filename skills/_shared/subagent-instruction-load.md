@@ -26,4 +26,6 @@ The orchestrator may have pre-inlined a whole file's content as a labeled slot i
 
 ## Echo what you loaded
 
-Print one line naming each file you loaded and the search policy you are about to follow — `Loaded global.md — search policy: <one clause>` or `Loaded global.md — no search policy declared` or `No global.md found`. A silent load is indistinguishable from a skipped one, and this step is the head of a long workflow where a skip costs nothing visible at the time and shapes every lookup afterwards. The echo is what makes the skip surface in your output.
+Print one line naming each file you loaded and the search policy you are about to follow — `Loaded global.md — search policy: <one clause>` or `Loaded global.md — no search policy declared` or `No global.md found`. A silent load is indistinguishable from a skipped one, and this step is the head of a long workflow where a skip costs nothing visible at the time and shapes every lookup afterwards. The echo is what makes the skip surface in your own run.
+
+It surfaces nowhere else: the orchestrator receives your report, never your narration. So carry the same fact into your report's summary section as a `Context loaded:` line, per your own output schema and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Report what actually happened — a slot you were handed is `slot`, a file you opened is `read`, a project that ships none is `absent`, a read that failed is `unreadable`. An agent reporting a load it did not make removes the one signal the spawn site has.

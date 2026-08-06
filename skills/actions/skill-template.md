@@ -65,7 +65,7 @@ created-by: geniro:actions
 
 ## Authoring rules (applied during synthesis)
 
-- **Description** — this bullet is the authoring-side statement of the `description:` rule and its length cap: the description starts with "Use when …" and runs to **at most 250 characters**. A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions. `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh` enforces the same cap and is kept in lockstep with this bullet; no other file restates it.
+- **Description** — this bullet is the authoring-side statement of the `description:` rule and its length cap: the description starts with "Use when …" and runs to at most the character cap `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh` enforces (`_VAF_DESC_MAX_CHARS`), which is the single home for that number. A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions.
 - **Steps** are numbered and concrete. Each step names the tool or shell command (e.g., "Run `gh pr view {{argument}} --json title,body`"), not vague verbs ("look at the PR").
 - **One-level deep**: if a step needs sub-detail, inline it; do NOT chain to another `.md` file. Claude's partial reads can miss content nested through references.
 - **Secrets**: never inline tokens. Reference env vars (e.g., `$SLACK_BOT_TOKEN`). The Geniro file-protection hook blocks `.env`/`*.key`/`*.pem` writes.

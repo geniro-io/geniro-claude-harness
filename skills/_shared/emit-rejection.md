@@ -29,9 +29,19 @@ emit_rejection_if_signal \
 - `[recommended]` — optional; the option marked `(Recommended)` if any
 
 **Exit codes:**
-- `0` — emitted to L2, or no-op (no rejection signal detected, normal acceptance path)
+- `0` — emitted to L2, or no-op (no rejection signal detected; the normal acceptance path)
 - `64` — missing required arg
 - `1` — emit-learning helper error
+
+## Caller contract — the helper reports its own outcome
+
+Unlike `emit_learning`, this helper prints one line on the emit path: `Recorded a rejection pattern: <suggestion>`. It stays silent on the no-op path. So a caller passes the user's pick and surfaces whatever the helper printed — there is no rule to remember about when to echo, because the caller cannot know which path ran and the helper can.
+
+That asymmetry is the reason the two helpers differ. A caller of `emit_learning` decided to record something and can echo on that knowledge (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract). A caller here hands over a pick that may or may not carry a rejection signal, and the signal detection is exactly what it delegated.
+
+The outcome is not carried in the return code, deliberately: the no-op path is the common one — it runs on every accepted suggestion — so a non-zero return there would abort any caller running under `set -e` on its normal path.
+
+**Surface a non-zero return.** `rc=64` (missing arg) and `rc=1` (emit-learning helper error) both mean the pick was never recorded; print one line naming the loss rather than swallowing the return code.
 
 ## Rejection signals
 

@@ -66,6 +66,7 @@ instruction files. Review ONLY your dimension; other dimensions are covered
 by parallel reviewers.
 
 WORKTREE: {{absolute path from `git rev-parse --show-toplevel`}}
+PROJECT SEARCH POLICY: {{verbatim global.md search rules, or `none declared`; governs every lookup, not just the first}}
 
 ### Your rubric
 {{the full D<N> section from dimensions-reference.md}}

@@ -35,7 +35,7 @@ Fire `AskUserQuestion` with:
  - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run the full planning loop (Phases 0–9 plus the Phase 7.5 spec-challenge when its tier/deep gate fires; Phase 2 fires only when the UI trigger matches per §"Phase 2 — Visual Companion"); emit a new spec.md at a fresh task-dir.
  - **Cancel** — exit without writing state.md.
 
-**On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template; Phase 5 uses the 11-section schema unconditionally.
+**On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template; Phase 5 uses the fixed section schema unconditionally.
 
 **On "Cancel"** → exit immediately. Surface terminal message: "Cancelled before planning started".
 

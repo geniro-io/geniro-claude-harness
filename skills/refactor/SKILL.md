@@ -13,6 +13,7 @@ argument-hint: "[what to refactor and why]"
 
 - Your role — restructure, don't ship
 - State machine
+- Terminal states
 - Loop invariants
 - Anti-rationalization
 - Budgets — quality-first
@@ -31,7 +32,7 @@ argument-hint: "[what to refactor and why]"
 
 Safe incremental refactoring that validates behavior is preserved at every step. Restructures code for better organization, reduces tech debt, and improves patterns without changing observable behavior. 3 phases mirroring `/geniro:implement`.
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
 **Detailed contracts:**
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
@@ -61,6 +62,12 @@ state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path).
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
 
 **After a compaction, re-Read the current phase's body file before continuing it** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. state.md `phase:` says which file that is.
+
+---
+
+## Terminal states
+
+`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. Every transition into any of the six first runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.6 Cleanup (the slug-dir sweep + background-process kill) and only then writes the terminal `phase:` via `atomic_state_write` — a terminal write that skips cleanup leaves the slug dir behind, where nothing else sweeps `.geniro/state/`. `done`, `verify-summary-only`, `adr-documented`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.6 is the phase's own next step. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe the call explicitly: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
 
 ---
 

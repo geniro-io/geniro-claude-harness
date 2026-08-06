@@ -229,7 +229,7 @@ The `Recommended` marker reflects the §4.2 stress-test ranking — an approach 
 
 ### 4.1 Cluster authoring procedure — message-first, one decision per cluster
 
-The cluster set (which of the 11 sections group into which of the 3 dependency-ordered clusters, each cluster's AUQ `header`) and the per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2. Each section's concrete example shape is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example per section type" and its visual shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map". This section holds the literal templates.
+The cluster set (which sections group into which of the 3 dependency-ordered clusters, each cluster's AUQ `header`) and the per-cluster procedure (author → render → gate → persist → next cluster, plus the Explain and Revise paths) are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2. Each section's concrete example shape is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example per section type" and its visual shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map". This section holds the literal templates.
 
 Literal cluster-1 chat message (rendered before the AUQ):
 
