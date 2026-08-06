@@ -298,6 +298,59 @@ else
   fail "check-update failing-fetch path; rc=$rc cache-exists=$([ -f "$CACHE" ] && echo y || echo n) (expect 0/n)"
 fi
 
+# ===== 2b. check-update re-syncs the statusline copy =====
+# The copy in the config dir is what actually renders; only /geniro:setup and
+# /geniro:update ever wrote it, so a background auto-update left it behind forever.
+SL_DEST="$CFG/hooks/geniro-statusline.js"
+mkdir -p "$CFG/hooks" "$PLUGIN/hooks"
+echo 'console.log("NEW");' > "$PLUGIN/hooks/geniro-statusline.js"
+
+run_check_update() {
+  write_curl_stub 0 '{"tag_name":"v9.9.9"}'
+  GENIRO_UPDATE_BG=1 CLAUDE_CONFIG_DIR="$CFG" CLAUDE_PLUGIN_ROOT="$PLUGIN" \
+    PATH="$STUB:$PATH" node "$REPO_ROOT/hooks/geniro-check-update.js" >/dev/null 2>&1
+}
+
+echo 'console.log("OLD");' > "$SL_DEST"
+run_check_update
+if grep -q NEW "$SL_DEST"; then
+  pass "check-update: a stale statusline copy is re-synced from the plugin"
+else
+  fail "check-update: stale statusline copy not refreshed — still $(cat "$SL_DEST")"
+fi
+
+# Absent means the user never installed a statusline. Creating one here would turn
+# on a display they never configured.
+rm -f "$SL_DEST"
+run_check_update
+if [ ! -e "$SL_DEST" ]; then
+  pass "check-update: no statusline copy is created where none existed"
+else
+  fail "check-update: created a statusline copy the user never installed"
+fi
+
+# No temp file may survive the rename, in the config dir or anywhere near it.
+echo 'console.log("OLD");' > "$SL_DEST"
+run_check_update
+leftovers=$(find "$CFG/hooks" -name 'geniro-statusline.js.tmp-*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$leftovers" = "0" ]; then
+  pass "check-update: the atomic write leaves no temp file behind"
+else
+  fail "check-update: $leftovers temp file(s) left in the hooks dir"
+fi
+
+# A missing source must not truncate or delete a working copy.
+mv "$PLUGIN/hooks/geniro-statusline.js" "$PLUGIN/hooks/geniro-statusline.js.hidden"
+echo 'console.log("KEEP");' > "$SL_DEST"
+run_check_update
+if grep -q KEEP "$SL_DEST"; then
+  pass "check-update: a missing plugin-side statusline leaves the copy untouched"
+else
+  fail "check-update: the copy was damaged when the plugin source was missing"
+fi
+mv "$PLUGIN/hooks/geniro-statusline.js.hidden" "$PLUGIN/hooks/geniro-statusline.js"
+rm -rf "$CFG/hooks"
+
 # An unreadable plugin manifest must not crash the hook — the version degrades to
 # the "unknown" sentinel, which compareVersions already refuses to act on.
 write_curl_stub 0 '{"tag_name":"v9.9.9"}'

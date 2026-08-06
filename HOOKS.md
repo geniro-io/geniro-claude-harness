@@ -219,6 +219,8 @@ Mechanical backstop for the message-first gate contract (`skills/_shared/gate-re
 
 Spawns a detached child process via `spawn(..., detached: true, stdio: 'ignore')` then `child.unref()`; the parent consumes stdin and exits immediately so session start is never blocked. The child fetches GitHub `releases/latest` (10s timeout, fallback to `raw.githubusercontent.com`) and writes the result to `~/.claude/cache/geniro-update-check.json`. The status line consumes that cache to surface "update available" indicators.
 
+The child also re-syncs `~/.claude/hooks/geniro-statusline.js` from the plugin's own copy when the two differ. Claude Code accepts a `statusLine` command only from user or project settings, so the plugin cannot point at its own file — `/geniro:setup` installs a copy (§3.6) and `/geniro:update` refreshes it (Phase 3 Step 4). A background marketplace auto-update runs neither, so for exactly the users who opted into `autoUpdate` the copy would drift behind the plugin forever. Writes via rename so a concurrent render never reads a half-written file, and only ever overwrites a copy that already exists — creating one would install a status line the user never configured.
+
 ### geniro-statusline.js
 
 **Wiring:** [`settings.json`](settings.json) `statusLine.command`. Not registered in `hooks.json` — `statusLine` is a separate Claude Code display feature, not a hook event.

@@ -23,7 +23,8 @@ if (!process.env.GENIRO_UPDATE_BG) {
   return;
 }
 
-const CACHE_DIR = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'cache');
+const CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+const CACHE_DIR = path.join(CONFIG_DIR, 'cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'geniro-update-check.json');
 function writeCache(data) {
   try {
@@ -79,6 +80,30 @@ function compareVersions(a, b) {
   }
   return false;
 }
+
+// The status line runs from a copy in the user's config dir: Claude Code accepts a
+// `statusLine` command only from user or project settings, so the plugin cannot point
+// at its own file. /geniro:setup installs that copy and /geniro:update refreshes it —
+// but a background marketplace auto-update runs neither, so for exactly the users who
+// opted into auto-update the copy silently falls behind the plugin it belongs to.
+// Re-sync it here, the one place that runs every session start and knows the plugin
+// root. Only ever overwrites an existing copy: creating one would install a status
+// line the user never configured. Written via rename so a concurrent render reads
+// either the old file or the new one, never a half-written one.
+function syncStatuslineCopy() {
+  try {
+    const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
+    const dest = path.join(CONFIG_DIR, 'hooks', 'geniro-statusline.js');
+    if (!fs.existsSync(dest)) return;
+    const source = fs.readFileSync(path.join(pluginRoot, 'hooks', 'geniro-statusline.js'), 'utf8');
+    if (source === fs.readFileSync(dest, 'utf8')) return;
+    const tmp = `${dest}.tmp-${process.pid}`;
+    fs.writeFileSync(tmp, source);
+    fs.renameSync(tmp, dest);
+  } catch {}
+}
+
+syncStatuslineCopy();
 
 const installed = getInstalledVersion();
 const latest = getLatestVersion();
