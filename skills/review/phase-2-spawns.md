@@ -78,6 +78,8 @@ SKILL.md's Definition of done makes a dropped echo detectable.
 
 **Step 2.3.2 — Fire the batch.**
 
+**Pre-batch anchor check (orchestrator, once).** Confirm the worktree still sits on the branch Phase 1 resolved: `git -C <WORKTREE> branch --show-current`. On a mismatch — the branch moved under the run — stop rather than spawning: every reviewer would read a tree whose diff no longer matches the one they were handed. Write terminal `phase: aborted` with `## Termination reason: branch-moved-under-run: expected <BRANCH>, found <actual>`. Reviewers do not repeat this check; they anchor to `WORKTREE` and nothing else, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+
 **Deep-mode branch (`deep-mode: true`).** Do NOT fire the single parallel batch below. Instead invoke the deep recall Workflow — 3 angle-diverse passes per declared dimension with in-script union + dedup — per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, then proceed to Phase 3 over the deduped per-dim sets. The `spawn_dims_declared[]` declaration (§2.2) and the §4.0 verification gate still apply to the declared dimension SET (the 3 angles are a multiplier on each declared dim, not a new dim). Fail-safe to the single-pass batch below if the workflow errors (deep-mode-reference §6). Everything below describes the standard single-pass path.
 
 Then fire the parallel batch — single message with N parallel `Agent` tool uses, one per dimension. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn. Each spawn:

@@ -129,14 +129,13 @@ CRITERIA: {spec.criteria-content}
 CHANGED FILES: [list of files with their full content — same list the built-in reviewers receive]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 DIFF CONTEXT: [git diff summary]
 PLAN CONTEXT: [content from Phase 1, or "none"]
 CUSTOM CONTEXT: [hydrated requires-context data per §Hydrating requires-context — OMIT this line entirely when spec.requires-context is null]
 SEVERITY DEFAULT: {spec.severity-default | "MEDIUM"}
 Review ONLY for the custom dimension '{spec.dimension-label}' as defined by the CRITERIA above. Do not cross into other dimensions. Use SEVERITY DEFAULT as your initial severity score for findings emitted under this dimension; you may up- or down-grade per-finding based on the criteria's specific guidance.
 Findings that align with explicit plan decisions (e.g., "D-09: existing X are NOT backfilled") must be tagged [ALIGNS-WITH-PLAN]; findings that diverge must be tagged [DIVERGES-FROM-PLAN] — these route to INTENT-CHECK decision-type, not bug severity.
-Anchor: WORKTREE is absolute — start every Bash call with `cd <WORKTREE> &&`. First call: `cd <WORKTREE> && pwd && git branch --show-current`. Abort only if that `cd` fails or the branch there differs from BRANCH; a differing starting cwd is drift to correct, not a reason to abort. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 """)
 ```
 

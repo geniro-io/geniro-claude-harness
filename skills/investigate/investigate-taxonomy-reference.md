@@ -140,8 +140,7 @@ THOROUGHNESS: medium
 
 # Anchor (per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md § Subagent spawn anchor)
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
-Start every Bash call with `cd <WORKTREE> &&`. First call: `cd <WORKTREE> && pwd && git branch --show-current`. Abort only if that `cd` fails or the branch there differs from BRANCH.
+Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 
 # Acceptance criteria (self-check before writing OUTPUT_PATH)
 - Every finding cites at least one file:line + verified snippet (Evidence Standard kind 2) OR captured grep/command output (kind 1). Reasoning-only findings are rejected.
@@ -162,7 +161,6 @@ Produce a structured timeline + findings report on the git history relevant to t
 **Question:** {{user's question}}
 **Target area:** {{files/modules to focus on}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 
 ### Acceptance criteria (self-check before reporting completion)
 - Every Finding cites a commit hash + commit-message excerpt or diff snippet (Evidence Standard kind 1 — captured command output). No paraphrased "the commit said".
@@ -191,7 +189,7 @@ For each relevant discovery, one block matching:
 **Patterns:** [trends in how this area evolves — refactors, bug fixes, feature additions; bulleted]
 
 Do NOT speculate about intent beyond what commit messages state.
-Anchor: WORKTREE is absolute — start every Bash call with `cd <WORKTREE> &&`. First call: `cd <WORKTREE> && pwd && git branch --show-current`. Abort only if that `cd` fails or the branch there differs from BRANCH; a differing starting cwd is drift to correct, not a reason to abort. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 """)
 ```
 
@@ -205,7 +203,6 @@ Produce a structured external-sources report answering the question. This is a r
 **Question:** {{user's question}}
 **Target area:** {{technologies, patterns, or concepts involved}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 
 ### Acceptance criteria (self-check before reporting completion)
 - Every Finding has a Source URL (Evidence Standard kind 6: external documented fact). No "I recall…" without a URL.
@@ -236,7 +233,7 @@ For each relevant discovery, one block matching:
 **Disagreements:** [where sources conflict, if applicable]
 
 Report facts with sources. Flag opinions as opinions.
-Anchor: WORKTREE is absolute — start every Bash call with `cd <WORKTREE> &&`. First call: `cd <WORKTREE> && pwd && git branch --show-current`. Abort only if that `cd` fails or the branch there differs from BRANCH; a differing starting cwd is drift to correct, not a reason to abort. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 """)
 ```
 
@@ -253,7 +250,6 @@ Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT i
 
 **Original question:** {{user's question}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 
 ### Acceptance criteria (self-check before reporting completion)
 - Every claimed issue cites a specific Location-in-answer (section name or line) and includes a Severity label.
@@ -282,7 +278,7 @@ For each issue found, one block matching:
 - Suggested fix: [text]
 
 If no issues: emit literal string `VERIFIED — answer is accurate and complete`.
-Anchor: WORKTREE is absolute — start every Bash call with `cd <WORKTREE> &&`. First call: `cd <WORKTREE> && pwd && git branch --show-current`. Abort only if that `cd` fails or the branch there differs from BRANCH; a differing starting cwd is drift to correct, not a reason to abort. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 """)
 ```
 

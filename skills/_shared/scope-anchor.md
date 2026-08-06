@@ -29,26 +29,27 @@ Concretely, when no target is supplied in `$ARGUMENTS`:
 
 ## Subagent spawn anchor
 
-When a skill orchestrator spawns subagents via the `Agent(...)` tool, the subagent's starting cwd is runtime-dependent and nothing in the prompt tells it which worktree or branch it should be operating in. Claude Code passes the parent's working directory down ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)); other runtimes start the subagent at the workspace root instead, which is a different tree and a different branch whenever the orchestrator is working in a linked worktree or on a PR head. Left unanchored, the subagent silently reviews / edits / tests against the wrong tree.
+A subagent's starting cwd is runtime-dependent. Claude Code passes the parent's working directory down ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)); other runtimes start it at the workspace root, which is a different tree on a different branch whenever the orchestrator works in a linked worktree or on a PR head. The subagent cannot detect this — nothing in its context says which tree it belongs to — so unanchored it reviews, edits, or tests the wrong code and reports success.
 
-The anchor therefore **re-anchors rather than asserts**. `WORKTREE` is an absolute path the orchestrator already resolved, so a subagent that starts somewhere else can simply `cd` to it — that costs nothing under a runtime which already inherited the cwd, and repairs the drift under one that did not. Aborting on a differing *starting* cwd converts a correctable difference into a dead spawn: the whole batch reports "no review was performed" while the tree it was pointed at was reachable the entire time. Reserve the abort for what `cd` cannot fix — a `WORKTREE` that does not exist, or a genuinely wrong branch checked out there.
-
-**Rule.** Every `Agent(...)` spawn-prompt template that performs codebase work (review, edit, test, diff) must include two slots populated by the orchestrator with the values resolved per `## The rule` above:
+**Rule.** Every `Agent(...)` spawn-prompt template that performs codebase work (review, edit, test, diff) carries one slot, populated by the orchestrator per `## The rule` above:
 
 ```
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 ```
 
-…plus one trailing verify-instruction line inside the prompt body:
+…plus one line in the prompt body:
 
 ```
-Anchor: WORKTREE is absolute — start every Bash call with `cd <WORKTREE> &&`. First call: `cd <WORKTREE> && pwd && git branch --show-current`. Abort only if that `cd` fails or the branch there differs from BRANCH; a differing starting cwd is drift to correct, not a reason to abort. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: run every Bash call from WORKTREE (`cd <WORKTREE> && …`).
 ```
 
-The two slots are pre-populated text; the verify line moves the subagent to the tree the orchestrator resolved and confirms the branch there before it does anything. Every Bash call carries the `cd` because a runtime is free to start each call in a fresh shell — a one-time `cd` persists under Claude Code and silently does not elsewhere. A surviving mismatch (missing worktree, wrong branch) is a hard abort, not a warning — the subagent reports back and the orchestrator decides.
+Every call carries the `cd`, not just the first: a runtime is free to start each Bash call in a fresh shell, so a one-time `cd` persists under Claude Code and silently does not elsewhere.
 
-**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="haiku"` agent converting a structured spec into prose) do not need the anchor — the inheritance cannot drift if nothing reads it. When in doubt, include the anchor — two lines of metadata is cheap.
+The subagent verifies nothing beyond this. `WORKTREE` is absolute, so `cd` either lands in the right tree or fails loudly on its own — a subagent re-deriving the orchestrator's branch decision adds no information and, fanned out across a parallel batch, re-derives it once per agent. **The branch check belongs to the orchestrator**, which resolved `BRANCH` once and owns the abort paths: confirm the worktree still sits on the expected branch before firing a spawn batch, and treat a mismatch as a run-level stop rather than something each subagent rediscovers.
+
+Pass `BRANCH:` only into a spawn whose agent contract actually reads it (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md` reports it as the source branch). Elsewhere it is an unread slot.
+
+**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="haiku"` agent converting a structured spec into prose) do not need the anchor — cwd cannot matter if nothing reads it.
 
 ## Forbidden subagent-spawn moves
 
