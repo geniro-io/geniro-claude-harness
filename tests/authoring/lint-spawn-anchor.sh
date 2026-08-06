@@ -21,7 +21,8 @@
 #      The anchor covers path resolution too, not just Bash: Read/Glob/Grep
 #      resolve relative paths against the subagent's own cwd, so a glob the
 #      agent writes itself scans the wrong tree even when Bash is anchored.
-#   3. scope-anchor.md still carries the canonical template.
+#   3. Every Agent(...) spawn block carries an anchor, slot or not.
+#   4. scope-anchor.md still carries the canonical template.
 
 set -uo pipefail
 
@@ -69,7 +70,59 @@ else
   printf '%s' "$mismatched" >&2
 fi
 
-# --- 3. the canonical template still carries the rule -----------------------
+# --- 3. every Agent(...) spawn block carries an anchor ----------------------
+#
+# Check 2 counts anchors against WORKTREE slots, so it is blind to the case that
+# matters most for a NEW spawn site: a block with neither. This check walks the
+# fenced blocks instead and requires an anchor in every one that spawns an agent
+# with a prompt, whether or not it declares a slot.
+#
+# Scope is the `Agent(subagent_type=...  prompt=...)` form — unambiguously a
+# spawn site. Bare prompt templates (a fenced block continuing an already-shown
+# spawn, as in investigate-taxonomy-reference.md) carry slots today and stay
+# covered by check 2.
+#
+# EXEMPT_AGENTS lists spawns that genuinely do not need the anchor. Keep the
+# reason with the entry — an exemption nobody can justify later becomes the
+# hole this check exists to close.
+#   knowledge-retrieval-agent — its Input Contract declares every slot an
+#   absolute path (LIB_ROOT / KNOWLEDGE_ROOT / PLANNING_ROOT / HANDOFF_DIR /
+#   OUTPUT_PATH), so no path it touches resolves against cwd.
+EXEMPT_AGENTS="knowledge-retrieval-agent"
+
+unanchored="$(
+  find skills -name '*.md' -type f | sort | while IFS= read -r f; do
+    awk -v file="$f" -v anchor="is your root — run every Bash call from it" \
+        -v exempt="$EXEMPT_AGENTS" '
+      /^```/ { if (infence) { flush() } else { infence=1; start=NR; buf="" } ; next }
+      infence { buf = buf $0 "\n" }
+      END { if (infence) flush() }
+      function flush(   agent) {
+        infence = 0
+        if (index(buf, "Agent(subagent_type=") == 0) return
+        if (index(buf, "prompt=") == 0) return
+        if (index(buf, anchor) > 0) return
+        agent = "?"
+        if (match(buf, /Agent\(subagent_type="[^"]+"/)) {
+          agent = substr(buf, RSTART, RLENGTH)
+          sub(/^Agent\(subagent_type="/, "", agent)
+          sub(/"$/, "", agent)
+          if (index(exempt, agent) > 0) return
+        }
+        printf "  %s:%d  spawns %s with no anchor\n", file, start, agent
+      }
+    ' "$f"
+  done
+)"
+
+if [ -z "$unanchored" ]; then
+  pass "every Agent(...) spawn block carries an anchor"
+else
+  fail "spawn block has no anchor at all — the agent has no way to know which tree it belongs to:"
+  printf '%s\n' "$unanchored" >&2
+fi
+
+# --- 4. the canonical template still carries the rule -----------------------
 # Copies derive from this block; a regression here propagates outward.
 if grep -qF "$ANCHOR" "$CANON"; then
   pass "$CANON carries the canonical anchor template"
