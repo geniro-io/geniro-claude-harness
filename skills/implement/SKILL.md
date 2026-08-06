@@ -28,7 +28,7 @@ argument-hint: "[task description | spec.md path | empty to resume | 'continue']
 
 You are an autonomous executor. Consume an externally-provided spec (or inline task description), make every required code edit, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`. One orchestrator owns the Phase 2 edits; only a genuinely independent, self-contained slice is ever delegated.
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — then substitute it everywhere and export it in every Bash call. Tool and hook substitutions: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference — it is the ancestor directory of this file containing `.claude-plugin/plugin.json` — then substitute it everywhere and export it in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
 **Phases:**
 

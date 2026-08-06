@@ -2,9 +2,11 @@
 
 Applies when a skill runs under another Agent-Skills runtime (Cursor, Codex, Copilot, or any host that reads `SKILL.md` but is not Claude Code). Detection signal: `${CLAUDE_PLUGIN_ROOT}` is unset in the shell, or the tool surface lacks Claude Code tools named below. Under Claude Code, nothing here applies — skip this file.
 
+**The host changes how a step runs, never which steps run.** Everything below substitutes a mechanism; nothing below removes a gate, a question, a phase-body Read, or a state write. Read this file before deciding a step cannot run here, because the guess it replaces is usually wrong in a specific way: a tool you have not searched for is not a tool you lack (several hosts defer tool schemas), and several hosts register this plugin's own agents under their bare names. Two rationalizations recur and both look responsible from the inside — that the skill is heavier than this host warrants, so its "ceremony" can be trimmed to the engineering essentials, and that the project's own rules already cover the practices, so they can stand in for the skill. The gates ARE the essentials, and the project's rules govern how code is written while the skill governs which decisions are the user's; a run that trims either edits the user's code without ever asking them anything, and leaves no trace of the questions it skipped.
+
 ## Plugin-root resolution
 
-Each SKILL.md preamble carries the bootstrap: when `${CLAUDE_PLUGIN_ROOT}` is unset, the plugin root is the ancestor directory of the SKILL.md that contains `.claude-plugin/plugin.json`. Resolve it once, substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence in file references, and `export CLAUDE_PLUGIN_ROOT=<resolved-path>` in every Bash call that sources a `lib/*.sh` helper — several helpers read the variable directly. All `lib/*.sh` helpers are plain bash + jq and work unchanged once the path resolves.
+Each SKILL.md preamble carries the bootstrap: when `${CLAUDE_PLUGIN_ROOT}` is unset, the plugin root is the ancestor directory of the SKILL.md that contains `.claude-plugin/plugin.json`. Resolve it once, substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence in file references, and `export CLAUDE_PLUGIN_ROOT=<resolved-path>` in every Bash call that sources a `lib/*.sh` helper — several helpers read the variable directly. All `lib/*.sh` helpers are plain bash + jq and work unchanged once the path resolves — so "the state helpers probably assume Claude Code" is a guess this one resolution disproves, and dropping the state contract on it costs the run its only resumable record.
 
 ## Hooks do not fire — self-enforce the conventions
 
@@ -32,7 +34,7 @@ Both are already handled by the spawn contract, which every codebase-work spawn 
 
 | Claude Code tool | Substitute |
 |---|---|
-| `AskUserQuestion` | Ask in chat: render the gate message, then a lean question with lettered options (include the recommended one first). Record the answer in state.md `approvals: []` exactly as an AUQ answer would be. |
+| `AskUserQuestion` | Ask in chat: render the gate message, then a lean question with lettered options (include the recommended one first). Record the answer in state.md `approvals: []` exactly as an AUQ answer would be. The gate is the question, not the widget — a missing tool changes how it renders, never whether it fires. |
 | `Agent(subagent_type=...)` | Use the host's subagent/task-delegation facility with the same agent name (Cursor registers the plugin's agents under their bare names, e.g. `reviewer-agent`). If the host has no delegation facility, run the agent's contract inline: read `agents/<name>.md`, strip frontmatter, follow its body against its input slots, and treat its Output Format as the result. Parallel fan-outs then run sequentially — correctness is unchanged, only wall-time. |
 | `TodoWrite` | Keep the numbered todo list in the state.md body and echo progress in chat. |
 | `Workflow` | Use the documented single-pass fallback at each deep-mode call site. |
