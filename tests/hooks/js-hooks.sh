@@ -144,6 +144,9 @@ eq('visLen: an emoji costs two columns',     visLen('👍'), 2);
 // The ambiguous-wide set exists because these render double-width on some
 // terminals and the over-wide line then gets its right edge truncated.
 eq('visLen: an ellipsis is charged as wide', visLen('…'), 2);
+// U+2B06 renders with emoji presentation on macOS. Undercounting it overflowed
+// the line by a column and Claude Code clipped the banner's own tail.
+eq('visLen: the update arrow is charged as wide', visLen('⬆'), 2);
 
 eq('justify: pads to the target width',      justify('L', 'R', 10), 'L' + ' '.repeat(8) + 'R');
 eq('justify: no right side returns the left', justify('L', '', 10), 'L');
@@ -159,31 +162,50 @@ eq('isNewer: an older version is not newer',  isNewer('5.6.2', '5.6.1'), false);
 eq('isNewer: the unknown sentinel is inert',  isNewer('unknown', '5.6.2'), false);
 eq('isNewer: a null side is inert',           isNewer(null, '5.6.2'), false);
 
+// updateBanner(cache, onDisk, sessionVersion). The session version comes from the
+// hook's own location, never from cache.installed — see the next block for why.
+//
 // The regression this function exists for: the SessionStart check snapshots the
 // version the session LOADED, then the background auto-update lands a newer one
 // minutes later. Advising /geniro:update there is wrong — the version is already
 // on disk and only a reload can pick it up.
 eq('updateBanner: disk ahead of the session asks for a reload',
-   updateBanner({ update_available: true, installed: '5.6.1', latest: '5.6.2' }, '5.6.2'),
+   updateBanner({ update_available: true, latest: '5.6.2' }, '5.6.2', '5.6.1'),
    '⬆ 5.6.2 /reload-plugins');
 eq('updateBanner: a genuinely unfetched release still asks for /geniro:update',
-   updateBanner({ update_available: true, installed: '5.6.2', latest: '5.7.0' }, '5.6.2'),
+   updateBanner({ update_available: true, latest: '5.7.0' }, '5.6.2', '5.6.2'),
    '⬆ 5.7.0 /geniro:update');
 eq('updateBanner: everything current renders nothing',
-   updateBanner({ update_available: false, installed: '5.6.2', latest: '5.6.2' }, '5.6.2'), '');
+   updateBanner({ update_available: false, latest: '5.6.2' }, '5.6.2', '5.6.2'), '');
 // Disk ahead AND a further release upstream: reload first — it is the cheaper
 // step, and the next session's check re-surfaces what is still upstream.
 eq('updateBanner: disk-ahead wins over a further upstream release',
-   updateBanner({ update_available: true, installed: '5.6.1', latest: '5.7.0' }, '5.6.2'),
+   updateBanner({ update_available: true, latest: '5.7.0' }, '5.6.2', '5.6.1'),
    '⬆ 5.6.2 /reload-plugins');
-// No registry (a vendored or --plugin-dir install): fall back to the cache alone.
-eq('updateBanner: an unreadable registry falls back to the cache',
-   updateBanner({ update_available: true, installed: '5.6.1', latest: '5.6.2' }, null),
+// No registry (a vendored or --plugin-dir install): the session version stands in.
+eq('updateBanner: an unreadable registry falls back to the session version',
+   updateBanner({ update_available: true, latest: '5.6.2' }, null, '5.6.1'),
    '⬆ 5.6.2 /geniro:update');
-eq('updateBanner: no cache and no registry renders nothing', updateBanner(null, null), '');
+eq('updateBanner: nothing local knowable falls back to the cached verdict',
+   updateBanner({ update_available: true, latest: '5.6.2' }, null, null),
+   '⬆ 5.6.2 /geniro:update');
+eq('updateBanner: no cache renders nothing', updateBanner(null, '5.6.2', '5.6.2'), '');
 // A rollback must not read as an update in either direction.
 eq('updateBanner: disk behind the session renders nothing',
-   updateBanner({ update_available: false, installed: '5.6.2', latest: '5.6.2' }, '5.6.1'), '');
+   updateBanner({ update_available: false, latest: '5.6.2' }, '5.6.1', '5.6.2'), '');
+
+// The cache is ONE file shared by every session, so `installed` belongs to
+// whichever session wrote it last. A session that started after an auto-update
+// already runs the new version; comparing the previous session's snapshot against
+// disk told it to reload for nothing. Observed live: cache said 5.6.2 while both
+// disk and the fresh session were on 5.6.3.
+eq('updateBanner: a stale cross-session cache.installed does not trigger a reload',
+   updateBanner({ update_available: true, installed: '5.6.2', latest: '5.6.3' }, '5.6.3', '5.6.3'), '');
+// Same staleness on the flag: update_available was computed against the writing
+// session's install and survives as a stale true after any later fetch.
+eq('updateBanner: a stale update_available is recomputed against disk',
+   updateBanner({ update_available: true, installed: '5.6.2', latest: '5.6.3' }, '5.6.3', '5.6.2'),
+   '⬆ 5.6.3 /reload-plugins');
 
 eq('modelLabel: a versioned display_name wins', modelLabel({ display_name: 'Opus 4.8', id: 'x' }), 'Opus 4.8');
 eq('modelLabel: reconstructs from the id',      modelLabel({ id: 'claude-sonnet-4-5' }), 'Sonnet 4.5');
@@ -296,7 +318,12 @@ fi
 # background marketplace auto-update lands 5.6.2 on disk a minute later. The bar
 # must then point at /reload-plugins, not at /geniro:update.
 SLCFG="$TMPDIR_BASE/sl-config"
-mkdir -p "$SLCFG/cache" "$SLCFG/plugins"
+SLROOT="$TMPDIR_BASE/sl-plugin-root"
+mkdir -p "$SLCFG/cache" "$SLCFG/plugins" "$SLROOT/.claude-plugin"
+
+# The version the session LOADED, which the hook reads from its own plugin root —
+# pinned here so these assertions do not drift with the repo's own plugin.json.
+write_session_version() { echo "{\"name\":\"geniro\",\"version\":\"$1\"}" > "$SLROOT/.claude-plugin/plugin.json"; }
 
 # <session-version> <latest> <update_available>
 write_update_cache() {
@@ -317,11 +344,13 @@ EOF
 
 render_statusline() {
   printf '%s' '{"model":{"display_name":"Opus 5"},"workspace":{"current_dir":"/tmp/proj"}}' \
-    | CLAUDE_CONFIG_DIR="$SLCFG" COLUMNS=200 node "$REPO_ROOT/hooks/geniro-statusline.js" 2>&1
+    | CLAUDE_CONFIG_DIR="$SLCFG" CLAUDE_PLUGIN_ROOT="$SLROOT" COLUMNS=200 \
+      node "$REPO_ROOT/hooks/geniro-statusline.js" 2>&1
 }
 
 # <label> <session> <latest> <avail> <on-disk> <expect-substring|NONE>
 banner_case() {
+  write_session_version "$2"
   write_update_cache "$2" "$3" "$4"
   write_registry "$5"
   out=$(render_statusline)
@@ -347,7 +376,21 @@ banner_case "statusline: a fully current install shows no banner" \
 banner_case "statusline: a missing plugin registry falls back to the cache verdict" \
   5.6.1 5.6.2 true none '/geniro:update'
 
-# A corrupt registry must degrade to the cache verdict, never crash the render.
+# The cache belongs to whichever session wrote it last. A session that started
+# after the auto-update already runs the new version and must NOT be told to
+# reload just because an older session's snapshot is still in the file.
+write_session_version 5.6.3
+write_update_cache 5.6.2 5.6.3 true   # stale: written by the previous session
+write_registry 5.6.3
+out=$(render_statusline)
+if printf '%s' "$out" | grep -q '⬆'; then
+  fail "statusline: a stale cross-session cache produced a banner — got: $(printf '%s' "$out" | head -1)"
+else
+  pass "statusline: a stale cross-session cache does not fake a reload prompt"
+fi
+
+# A corrupt registry must degrade to the session version, never crash the render.
+write_session_version 5.6.1
 write_update_cache 5.6.1 5.6.2 true
 printf '{ not json' > "$SLCFG/plugins/installed_plugins.json"
 out=$(render_statusline)
