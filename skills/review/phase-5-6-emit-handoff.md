@@ -89,7 +89,7 @@ Summary of the Phase 6 chain — each gate is its own AUQ, never collapsed; step
 
    Full AskUserQuestion shape (literal block), descriptions, and severity-driven recommendation rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4. Persist user pick to `approvals[]` with category `action_gate` via `atomic_state_write` (never a raw write on the handoff path).
    - **Include-deferred gate (chained).** When the pick is `"/geniro:implement findings"` and the report holds set-aside minor findings, a chained question asks whether to include them in the fix list, resolving before the follow-up echo line; skipped silently when none. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4.6.
-5. **Failing-tests gate** — fires unconditionally whenever state.md `## Authored Tests` is non-empty (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6). A chat request to commit/push authored tests — whenever it arrives — re-fires this gate instead of executing directly.
+5. **Failing-tests gate** — fires unconditionally whenever state.md `## Authored Tests` lists test files (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6, which also carries what a section with neither files nor its `none — …` sentinel obliges before an external effect). A chat request to commit/push authored tests — whenever it arrives — re-fires this gate instead of executing directly.
 
 Operational rules:
 

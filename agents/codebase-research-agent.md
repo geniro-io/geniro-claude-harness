@@ -123,7 +123,10 @@ Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the W
 - <one-line synthesis of the headline finding>
 - <one-line note about which finding is highest-confidence>
 - <one-line pointer to follow-up research if the question was bigger than the THOROUGHNESS budget allowed>
+- Context loaded: search-policy=<read|slot|absent|unreadable>
 ```
+
+The `Context loaded:` line states your Step 0 result where the orchestrator can read it: a policy handed to you in the prompt is `slot`, one you loaded from `global.md` yourself is `read`, `none declared` is `absent`. Full value set and the consumer's obligations on each: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.
 
 On the missing-slot terminal (Step "When a required slot is absent"), write the stub report below in place of the normal sections — one bullet per missing required slot — then exit:
 

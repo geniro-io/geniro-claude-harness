@@ -129,7 +129,10 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 - New findings: [count] | Pre-existing: [count]
 - Systemic patterns: [any recurring issues across files]
 - Notable clean areas: [what was done well in this dimension]
+- Context loaded: criteria=<read|slot|absent|unreadable>, project-rules=<read|slot|absent|unreadable>, search-policy=<read|slot|absent|unreadable>
 ```
+
+The `Context loaded:` line is your Step 1 and Step 1.6 loads stated where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 1.6 echo reaches nobody outside your own run, so this line is the only record the spawn site gets of which rules you reviewed under. Report `project-rules` as `read` only when both instruction files resolved; where one was missing and the other loaded, report the weaker state and name the missing file in §Fallback strategy's list.
 
 ### Output cap
 
@@ -193,7 +196,7 @@ Each shape below either gets the finding dropped at the orchestrator's filter or
 
 ## Fallback strategy
 
-**Any path that fails to read gets named in your output**, whatever else you received — say which checks you could not apply. A dimension is often handed several rubrics (conventions gets three), so one silently-missing file would otherwise look like a clean review of a checklist you never saw. The orchestrator cannot tell it passed a bad path unless you say so.
+**Any path that fails to read gets named in your output**, whatever else you received — say which checks you could not apply. A dimension is often handed several rubrics (conventions gets three), so one silently-missing file would otherwise look like a clean review of a checklist you never saw. The orchestrator cannot tell it passed a bad path unless you say so. The Dimension Summary's `Context loaded:` line carries the fact that a read failed; this list carries which file it was and what that cost the review.
 
 If no criteria reach you at all — none named, or every named path unreadable:
 1. Apply general software engineering principles for your dimension

@@ -190,7 +190,7 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 
 ## Phase 6 — Action gate handoff
 
-`phase: action-gate` · Steps: `phase-5-6-emit-handoff.md` (its Phase 6 section) plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9; the Post drill (§7.0-§7.8) is its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` — read it only on the "Post Draft PR review" pick, unreachable when `pr-ref: none`. Each gate is its own AUQ, never collapsed into chat text. Exit when the open-question, open-decision, and Action gates — plus the Failing-tests gate when `## Authored Tests` is non-empty — have each fired with their picks persisted to `approvals[]`.
+`phase: action-gate` · Steps: `phase-5-6-emit-handoff.md` (its Phase 6 section) plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9; the Post drill (§7.0-§7.8) is its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` — read it only on the "Post Draft PR review" pick, unreachable when `pr-ref: none`. Each gate is its own AUQ, never collapsed into chat text. Exit when the open-question, open-decision, and Action gates — plus the Failing-tests gate when `## Authored Tests` lists test files — have each fired with their picks persisted to `approvals[]`.
 
 ---
 

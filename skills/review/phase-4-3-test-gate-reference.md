@@ -117,7 +117,9 @@ If `backpressure.sh` unavailable: `<project test command> <test path> 2>&1 | tai
 - Non-zero (red) → test STILL fails on independent re-run → keep authored test on disk; tag the corresponding finding `[CONFIRMED-BY-TEST]`.
 - Zero (green) → test passes despite agent reporting it red → likely flake or framework issue. Note "[test path] flipped green on independent re-run" under `## Caveats`. Do NOT delete the test (user reviews authored tests in Phase 6); do NOT tag the finding `[CONFIRMED-BY-TEST]`.
 
-**Persist authored tests for Phase 6.** For every test kept on disk in Step 4 (red on independent re-run), record its path as a row in the state.md `## Authored Tests` body section. Phase 6's Failing-tests gate fires off that section being non-empty; without this write, the tests authored here never reach the commit-policy gate.
+**Persist authored tests for Phase 6.** For every test kept on disk in Step 4 (red on independent re-run), record its path as a row in the state.md `## Authored Tests` body section. Phase 6's Failing-tests gate fires off that section's rows; without this write, the tests authored here never reach the commit-policy gate.
+
+This write also runs when this gate authored nothing — the user declined, the eligible set was empty, or every authored test flipped green. Then the section carries the sentinel `none — the test-authoring gate ran and authored no tests` instead of rows, which is what tells Phase 6 the gate ran at all: a bare section is read as an unwritten result and Phase 6 will not skip on it (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel).
 
 ---
 
