@@ -47,7 +47,7 @@ Use the `AskUserQuestion` tool (do NOT output options as plain text) with header
 
 ### Step 4a: Save-routing (when user picks "Save key findings to memory")
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/save-routing.md` now and follow it — the four routing classes (CLAUDE.md Domain Context / ADR / past learnings / collaboration memory), the focused-agent recipe each one uses, and the one-finding-at-a-time approval walk all live there. The other three Step 4 picks never read it.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/save-routing.md` now and follow it, echoing per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the Step 4 pick is the parent consent, and per-finding consent exists only behind this Read, so skipping it turns N approvals into one blanket save with nothing recording the difference. It carries the four routing classes (CLAUDE.md Domain Context / ADR / past learnings / collaboration memory), the focused-agent recipe each one uses, and the one-finding-at-a-time approval walk all live there. The other three Step 4 picks never read it.
 
 Never default every finding to learnings.jsonl, and never batch them into one save action: both are what the routing and the per-finding walk exist to prevent.
 

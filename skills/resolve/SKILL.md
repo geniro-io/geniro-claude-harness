@@ -111,7 +111,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 4. **Build the item inventory.** Collapse each thread to one item (`thread_id`, `comment_id`, author, `is_bot`, path, line, conversation body). Each failing check is an item (name, output, annotation path:line if any). Drop `isResolved == true` threads (#4). Group items by file so the verifier sees neighbours together.
 5. **Tier the workload.** Classify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` (item count + file spread) → sets the Phase 2 verifier vote count (#2). Write `phase: analyze`.
 
-Full fetch shapes + the inventory schema: `${CLAUDE_PLUGIN_ROOT}/skills/resolve/resolve-reference.md` §1; the local-checkout-to-PR-head sync detail: §1.5.
+Full fetch shapes + the inventory schema: `${CLAUDE_PLUGIN_ROOT}/skills/resolve/resolve-reference.md` §1; the local-checkout-to-PR-head sync detail: §1.5. Read that reference before the step that needs it and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`. The sync detail section is the sole home of the dirty-tree branch — the guard that keeps `gh pr checkout` from being forced over uncommitted work — and this skill's fail-open framing makes a forced checkout read as an ordinary degraded run.
 
 ## PHASE 2: ANALYZE & VERIFY
 

@@ -18,7 +18,7 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 
 ## Phase 1 — Triage & context collect
 
-State.md `phase: triage`. Every step below is specified in full — inputs, decision trees, fail-open rules, gate wording — in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`, which is the single home of the Phase 1 contract. Read it on entry to this phase; the list here is the running order and nothing more, so a step's rule is never stated in two places to drift apart.
+State.md `phase: triage`. Every step below is specified in full — inputs, decision trees, fail-open rules, gate wording — in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`, which is the single home of the Phase 1 contract. Read it on entry to this phase — before any step below, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, exactly as this file itself was. The list here is the running order and nothing more, so a step's rule is never stated in two places to drift apart; the corollary is that every Phase 1 gate — the workspace-approval decision tree, the round-3 escalation, the re-review scope and depth questions — exists only in that reference, and a run that stops at this file has the running order with none of the gates.
 
 **Flags & presets:** `--deep`, `--plan <path>`, and the workspace modifiers are cataloged with the cross-skill flag set in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
 

@@ -2,7 +2,7 @@
 
 Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase order, the gates that bind every phase, and a pointer to the file holding each phase's steps. This file plus the phase files it names are the single source of truth for the loop. Skills cite them; do NOT inline-paste the loop logic.
 
-**How to run the loop.** Read this spine at entry; Read a phase's steps file on entry to that phase, not up front. Pre-loading every phase file pays the whole loop to run one phase, and Claude Code re-attaches only a skill's front-loaded prefix after a summary — so what a pre-load spends its budget losing is the gates below. Read a conditional phase's file (0.5, 2, 7.5) only once its trigger fires. Each phase file ends by naming the next `phase:` value; look it up in §Phase files and Read that one. On a compaction resume, re-Read this spine plus the current phase's file.
+**How to run the loop.** Read this spine at entry; Read a phase's steps file on entry to that phase, not up front. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this loop's gates and its helper call sites, so work started before the Read runs outside them. Pre-loading every phase file pays the whole loop to run one phase, and Claude Code re-attaches only a skill's front-loaded prefix after a summary — so what a pre-load spends its budget losing is the gates below. Read a conditional phase's file (0.5, 2, 7.5) only once its trigger fires. Each phase file ends by naming the next `phase:` value; look it up in §Phase files and Read that one. On a compaction resume, re-Read this spine plus the current phase's file.
 
 ## Contents
 

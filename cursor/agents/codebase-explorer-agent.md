@@ -34,12 +34,13 @@ The orchestrating skill passes you these pre-resolved slots:
 | `SPEC_CONTENT` | Full spec.md body pre-inlined in the prompt |
 | `RULES_DIR` | Absolute path to `<WORKTREE>/.claude/rules/` — per-project file-scoped rule directory (separate from `.geniro/instructions/` L4 procedural memory). May be absent in early-stage repos. |
 | `SEMANTIC_MAP` | Full `_CODEBASE_MAP.md` body pre-inlined in the prompt (~2K tokens typical) |
+| `PROJECT SEARCH POLICY` | The project's rules for how to search this codebase, verbatim, or `none declared`. Overrides the search mechanics below and binds every lookup in the run. Absence is not an error — fall back to loading `global.md` yourself per Step 0. |
 | `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.ce-out.md`) |
 
 ## Workflow
 
 ### Step 0 — Absorb project instructions
-Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. It may define **how to search this codebase** — follow that policy in the steps below, reaching for the project's preferred code index when one is configured rather than defaulting to plain-text search.
+Read the `PROJECT SEARCH POLICY:` slot if your prompt carries one; otherwise load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. A declared search policy **overrides the search mechanics in the steps below** and binds every lookup in this run, not just your first — reverting to plain-text search after one policy-compliant call is the failure this step exists to prevent. Echo the policy you are following (or `no search policy declared`) before Step 1.
 
 ### Step 1 — Identify the change area
 

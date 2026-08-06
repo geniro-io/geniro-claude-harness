@@ -28,7 +28,7 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes] [-
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Tool and hook substitutions for non-Claude-Code runtimes: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`.
 
-**Progressive load.** This file is the spine — role, invariants, gates, budgets, tool surface. Each phase's Steps live in a sibling file you Read on entry to that phase; the phase sections below carry the paths.
+**Progressive load.** This file is the spine — role, invariants, gates, budgets, tool surface. Each phase's Steps live in a sibling file you Read on entry to that phase; the phase sections below carry the paths. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
 
 **Section-reference convention.** A bare `§N.M` names a sub-step of Phase N and lives in that phase's file (`${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-N-*.md`), never in this spine. A `§N` written after a file path names that file's own top-level section.
 
@@ -115,7 +115,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 OMIT `model=` at every plugin-agent spawn site, per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Spawn plugin-defined subagents through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined); cache the resolved rung for the rest of the session.
 
-Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies the six pre-inlined fields, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
+Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies every pre-inlined field, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
 | Spawn | When |
 |---|---|

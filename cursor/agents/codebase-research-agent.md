@@ -33,6 +33,7 @@ The orchestrating skill passes you these pre-resolved slots:
 |---|---|---|
 | `RESEARCH_QUESTION` | yes | The orchestrator's research question, verbatim. Phrased as a complete sentence — "Summarise how email events flow from ingest → timeline render" / "Find all call sites of the cache-key builder and identify the canonical definition" / "Trace what happens when `POST /cases` returns 500". |
 | `DELIVERABLE_SHAPE` | yes | What the report's findings table must look like. The orchestrator pins this so synthesis is parseable. Examples: "ordered call chain with file:line per step" / "table of definition + caller sites with role label" / "module map with one-line role descriptions per module". |
+| `PROJECT SEARCH POLICY` | recommended | The project's rules for how to search this codebase, verbatim, or `none declared`. Overrides the search mechanics below and binds every lookup in the run. Absence is not a missing-slot error — fall back to loading `global.md` yourself per Step 0. |
 | `SCOPE_HINT` | recommended | Path globs / module names / file lists that bound where you look. Absence = scan the whole repo; presence narrows. Example: `["apps/web/src/features/case-radar/**", "apps/api/src/events/**"]`. |
 | `PRE_INLINED_CONTEXT` | optional | File excerpts the orchestrator already read and wants you to use as starting context. Do not re-Read these files unless you need additional lines beyond what was inlined. |
 | `OUTPUT_PATH` | yes | Absolute path where you write the report (typically `.geniro/planning/<task-slug>/.research-out.md` or `.geniro/state/<skill>/<slug>/.research-out.md`). |
@@ -43,7 +44,7 @@ When a required slot is absent, write a stub report listing the missing slot und
 ## Workflow
 
 ### Step 0 — Absorb project instructions
-Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. It may define **how to search this codebase** — follow that policy when you locate symbols and trace flows below, reaching for the project's preferred code index when one is configured rather than defaulting to plain-text search.
+Read the `PROJECT SEARCH POLICY:` slot if your prompt carries one; otherwise load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. A declared search policy **overrides the search mechanics in Steps 1-2 below** and binds every lookup in this run, not just your first — reverting to plain-text search after one policy-compliant call is the failure this step exists to prevent. Echo the policy you are following (or `no search policy declared`) before Step 1.
 
 ### Step 1 — Parse the question, pick entry points
 
