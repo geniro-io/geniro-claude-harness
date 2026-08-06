@@ -39,6 +39,8 @@ Concrete call shape (step 1 of the spawn-agent ladder; substitute slot values):
 Agent(subagent_type="geniro:codebase-research-agent",
       description="<5-10 word task summary>",
       prompt="""
+WORKTREE: <absolute path from `git rev-parse --show-toplevel`>
+
 RESEARCH_QUESTION: <complete-sentence question>
 
 DELIVERABLE_SHAPE: <pinned output shape — ordered call chain / definition+caller table / module map / etc.>
@@ -51,6 +53,8 @@ PRE_INLINED_CONTEXT:
 OUTPUT_PATH: <absolute path under .geniro/planning/<task-slug>/.research-out.md>
 
 THOROUGHNESS: <quick | medium | very thorough; default medium>
+
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 

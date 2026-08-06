@@ -93,7 +93,7 @@ OUTPUT PATH: <PRIMARY_ROOT>/.geniro/state/review/<branch-slug>/.adversarial-out.
 Authoring scope: assert on observable business behavior — return values, thrown error shapes, mutated state, side effects at out-of-process boundaries (network/db/queue/file/email/third-party). Do NOT author interaction-style assertions on internal same-process collaborators (`toHaveBeenCalledWith` and equivalents).
 
 For each seeded finding, attempt to author a failing test that reproduces it. If the test cannot be made to fail on current code, mark the hypothesis `discarded-cannot-repro` per your existing protocol — that signal is load-bearing for this caller (it triggers a finding demotion in downstream processing).
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 

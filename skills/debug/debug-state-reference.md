@@ -230,7 +230,7 @@ A test that passes today proves nothing about the bug, and a flaky failure prove
 ### Scope
 Diff-only — the orchestrator resolved the scope above. Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.
 
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """, description="Adversarial tests: /geniro:debug verify-changes")
 ```
 

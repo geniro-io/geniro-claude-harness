@@ -5,7 +5,7 @@ Canonical rule for what a skill operates on when the user does not explicitly na
 ## Contents
 
 - The rule — what a skill operates on when no target is named
-- Subagent spawn anchor — the WORKTREE / BRANCH slots every spawn carries
+- Subagent spawn anchor — the WORKTREE slot every codebase-work spawn carries
 - Forbidden subagent-spawn moves
 - Forbidden discovery moves (when no target was supplied)
 - Anti-rationalization
@@ -29,31 +29,36 @@ Concretely, when no target is supplied in `$ARGUMENTS`:
 
 ## Subagent spawn anchor
 
-When a skill orchestrator spawns subagents via the `Agent(...)` tool, cwd inheritance is silent: the subagent inherits the parent's working directory by default ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)), but nothing in the prompt tells the subagent which worktree or branch it should be operating in. If the inheritance ever drifts (Claude Code bugs, Bash-tool quirks, future architecture changes), the subagent has no way to detect it and silently reviews / edits / tests against the wrong tree.
+A subagent's starting cwd is runtime-dependent. Claude Code passes the parent's working directory down ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)); other runtimes start it at the workspace root, which is a different tree on a different branch whenever the orchestrator works in a linked worktree or on a PR head. The subagent cannot detect this — nothing in its context says which tree it belongs to — so unanchored it reviews, edits, or tests the wrong code and reports success.
 
-**Rule.** Every `Agent(...)` spawn-prompt template that performs codebase work (review, edit, test, diff) must include two slots populated by the orchestrator with the values resolved per `## The rule` above:
+**Rule.** Every `Agent(...)` spawn-prompt template that performs codebase work (review, edit, test, diff) carries one slot, populated by the orchestrator per `## The rule` above:
 
 ```
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 ```
 
-…plus one trailing verify-instruction line inside the prompt body:
+…plus one line in the prompt body:
 
 ```
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs. See `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` § Subagent spawn anchor.
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 ```
 
-The two slots are pre-populated text; the verify line tells the subagent to confirm its inherited cwd matches the orchestrator's expectation before doing anything. A mismatch is a hard abort, not a warning — the subagent reports back and the orchestrator decides.
+Every call carries the `cd`, not just the first: within a subagent `cd` does not persist between Bash calls ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)), so a one-time `cd` is undone by the next call.
 
-**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="haiku"` agent converting a structured spec into prose) do not need the anchor — the inheritance cannot drift if nothing reads it. When in doubt, include the anchor — two lines of metadata is cheap.
+The path clause covers what `cd` cannot reach. `Read` / `Glob` / `Grep` resolve a relative path against the subagent's own cwd, not against any shell, so a discovery glob the agent writes itself scans the wrong tree while every Bash call is correctly anchored — the quiet half of the same failure.
+
+The subagent verifies nothing beyond this. `WORKTREE` is absolute, so `cd` either lands in the right tree or fails loudly on its own; a subagent re-deriving the orchestrator's branch decision adds no information, and across a parallel batch re-derives it once per agent.
+
+Pass `BRANCH:` only into a spawn whose agent contract actually reads it (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md` reports it as the source branch). Elsewhere it is an unread slot.
+
+**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="haiku"` agent converting a structured spec into prose) do not need the anchor — cwd cannot matter if nothing reads it.
 
 ## Forbidden subagent-spawn moves
 
 | Move | Why it's forbidden |
 |---|---|
 | `Agent(..., isolation: "worktree", ...)` from a parent that is itself in a non-primary worktree | Claude Code bug [#47548](https://github.com/anthropics/claude-code/issues/47548): `git worktree add` silently fails and the subagent operates on the parent's worktree, **switching the parent's branch** to the subagent's. No documented mitigation — do not use `isolation: "worktree"` when the parent session is in a worktree. |
-| `Agent(..., isolation: "worktree", ...)` even from the primary worktree, expecting the subagent to inherit the primary's branch | Claude Code bug [#50850](https://github.com/anthropics/claude-code/issues/50850): the new isolated worktree branches from `origin/main`, not the parent's HEAD. The subagent operates on stale code. Use shared-cwd inheritance (no `isolation:`) and propagate `WORKTREE` / `BRANCH` explicitly via the spawn anchor instead. |
+| `Agent(..., isolation: "worktree", ...)` even from the primary worktree, expecting the subagent to inherit the primary's branch | Claude Code bug [#50850](https://github.com/anthropics/claude-code/issues/50850): the new isolated worktree branches from `origin/main`, not the parent's HEAD. The subagent operates on stale code. Do not pass `isolation:`; propagate `WORKTREE` explicitly via the spawn anchor instead. |
 
 ## Forbidden discovery moves (when no target was supplied)
 

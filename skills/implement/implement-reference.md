@@ -269,6 +269,8 @@ mutate the codebase or git state — read-only reconnaissance only.
 For `.claude/rules/` matching: parse YAML frontmatter `paths:` field per file;
 return the LIST of relevant rule paths only — do NOT inline rule bodies. The
 orchestrator JIT-loads rule bodies in Phase 2 when Edit targets match.
+
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -333,6 +335,8 @@ save full stdout+stderr to a /tmp log via tee, parse the saved log (Grep), and
 write the structured report to OUTPUT_PATH per the §Output Schema. Verdict ∈
 {ALL_GREEN, HAS_FAILURES, INFRA_ERROR}. Do NOT edit source code, do NOT mutate
 git, do NOT re-run the suite.
+
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -438,7 +442,6 @@ Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` t
 ```
 Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="""
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 DIMENSION: bugs | security | architecture | tests | code-quality
 CRITERIA FILES: [one absolute path per line — this dimension's criteria file(s) from the reviewer dimensions table below. Read each one before reviewing.]
 CHANGED FILES (with full contents, pre-inlined): [list each file path followed by its current content]
@@ -449,7 +452,7 @@ PRIOR-ROUND FINDINGS: [paste prior-round CRITICAL/HIGH per ${CLAUDE_PLUGIN_ROOT}
 
 Review ONLY for [dimension]. Tag findings [SEVERITY] [NEW|PRE-EXISTING] per the output contract in ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md §Output Format.
 
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs.
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 
@@ -525,7 +528,7 @@ Critical constraints (prompt-level contract; the whitelist enforces only the no-
 - No destructive Bash.
 - No subagent spawning (leaf agent).
 
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call; abort if either differs.
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """)
 ```
 

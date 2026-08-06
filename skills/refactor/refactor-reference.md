@@ -99,7 +99,6 @@ Agent(subagent_type="reviewer-agent", prompt="""
 This is a refactor — the diff is supposed to leave behavior identical, so any behavior change is a finding. CI already passed. Focus on invariants, not style.
 
 WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
 
 DIFF: [paste git diff output]
 PLAN-STEPS REPORT: [paste state.md `## Plan steps` rows with final status]
@@ -123,7 +122,7 @@ Read and apply these criteria files:
 
 Report findings with severity (CRITICAL/HIGH/MEDIUM) and confidence. Return findings as evidence. Do NOT emit an overall verdict — the orchestrating skill synthesizes findings and decides disposition.
 
-Anchor: stay within WORKTREE on BRANCH — verify with `pwd && git branch --show-current` on first Bash call.
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
 """, description="Review: refactor diff")
 ```
 
