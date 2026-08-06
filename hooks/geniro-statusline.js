@@ -74,12 +74,14 @@ function fmtEta(sec) {
 
 // ── alignment ───────────────────────────────────────────────────────────────
 // "East Asian Ambiguous" glyphs we actually render — em/en dash, ellipsis, the
-// reset arrow, the box-drawing separator. Some terminals/fonts draw these
-// double-width (an over-wide line then gets its right edge truncated by Claude
-// Code, e.g. "$137.81" → "$1…"). Charging them 2 is the safe direction: on a
-// terminal that draws them narrow the line just under-fills by a column or two
-// (a harmless right gap) instead of overflowing.
-const AMBIGUOUS_WIDE = new Set([0x2013, 0x2014, 0x2026, 0x21BB, 0x2502]);
+// reset arrow, the box-drawing separator, the update arrow. Some terminals/fonts
+// draw these double-width (an over-wide line then gets its right edge truncated
+// by Claude Code, e.g. "$137.81" → "$1…"). Charging them 2 is the safe direction:
+// on a terminal that draws them narrow the line just under-fills by a column or
+// two (a harmless right gap) instead of overflowing.
+// U+2B06 has emoji presentation on macOS and is drawn wide there, which is what
+// clipped the update banner's own tail ("/reload-plugins" → "/reload-plugi…").
+const AMBIGUOUS_WIDE = new Set([0x2013, 0x2014, 0x2026, 0x21BB, 0x2502, 0x2B06]);
 
 // Visible (terminal-column) width of a string: strip ANSI, count code points,
 // charging 2 columns for wide glyphs (emoji, CJK, fullwidth, ambiguous-wide).
@@ -189,6 +191,27 @@ function readInstalledVersion() {
   } catch { return null; }
 }
 
+// Version THIS session loaded. The check-update cache cannot answer that, even
+// though it carries an `installed` field: one cache file is shared by every
+// session and the field belongs to whichever session wrote it last. Reading it
+// here made a freshly started session — already running the newest version —
+// advertise a reload for the seconds before its own check overwrote the file.
+// The hook's own location is session-truth instead: a marketplace install runs it
+// from <plugins-cache>/<marketplace>/geniro/<version>/hooks/. Null when the hook
+// runs from a copy outside the plugin (the statusline /geniro:setup installs into
+// the user config dir has no manifest beside it), which drops the reload branch
+// rather than guessing.
+function readSessionVersion() {
+  for (const root of [process.env.CLAUDE_PLUGIN_ROOT, path.resolve(__dirname, '..')]) {
+    if (!root) continue;
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+      if (manifest && manifest.version) return manifest.version;
+    } catch {}
+  }
+  return null;
+}
+
 // Three version states that need three different actions:
 //   • disk ahead of this session — a background auto-update already landed the new
 //     version. Nothing to fetch; the session just has to pick it up.
@@ -198,10 +221,23 @@ function readInstalledVersion() {
 // /geniro:update against a version already sitting on disk, where it can only
 // rewrite the cache. Disk-ahead wins when both hold: reloading is the cheaper
 // step and the next session's check re-surfaces whatever is still upstream.
-function updateBanner(cache, onDisk) {
-  if (isNewer(cache && cache.installed, onDisk)) return `⬆ ${onDisk} /reload-plugins`;
-  if (cache && cache.update_available) return `⬆ ${cache.latest || '?'} /geniro:update`;
-  return '';
+//
+// `update_available` is recomputed from what is actually on disk rather than
+// trusted, for the same reason the session version is not read from the cache:
+// the flag was computed against the writing session's install, so it survives as
+// a stale `true` after any later fetch. Only when nothing local is knowable at
+// all does the cached verdict stand in.
+function updateBanner(cache, onDisk, sessionVersion) {
+  if (isNewer(sessionVersion, onDisk)) return `⬆ ${onDisk} /reload-plugins`;
+  const latest = cache && cache.latest;
+  if (!latest) return '';
+  // Newest version present locally — normally the registry's, but a session can
+  // outrun it (a rollback on disk, or a --plugin-dir run), and a version already
+  // loaded is not one to go fetch.
+  let local = onDisk || sessionVersion;
+  if (isNewer(local, sessionVersion)) local = sessionVersion;
+  const behind = local ? isNewer(local, latest) : !!(cache && cache.update_available);
+  return behind ? `⬆ ${latest} /geniro:update` : '';
 }
 
 let input = '';
@@ -225,7 +261,7 @@ process.stdin.on('end', () => {
     // that is what lets the banner clear itself once an auto-update lands.
     let cache = null;
     try { cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')); } catch {}
-    const banner = updateBanner(cache, readInstalledVersion());
+    const banner = updateBanner(cache, readInstalledVersion(), readSessionVersion());
     const updateSeg = banner ? COL('33', banner) : '';
 
     // Model (family colour) + reasoning effort (graded low→max; ultracode = xhigh),
