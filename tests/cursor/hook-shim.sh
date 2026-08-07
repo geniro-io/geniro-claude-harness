@@ -318,14 +318,42 @@ else
 fi
 
 # --- missing and traversal script args fail open ---
-OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"x"}' | bash "$SHIM")"
+#
+# Fed by here-string, NOT by a pipe, and these two cases specifically must stay
+# that way. Both reject their argument before `INPUT="$(cat)"` runs, so the shim
+# exits without ever reading stdin — correct behaviour, and exactly what makes a
+# producer on the other end of a pipe die of SIGPIPE. Under `set -o pipefail`
+# that death becomes the pipeline's exit code, so the assertion reads the
+# PRODUCER's rc and reports the shim as broken when it did the right thing.
+#
+# It is a race, which is why it survived: jq's payload normally lands in the
+# pipe buffer before the shim can exit. On a loaded CI runner the shim wins and
+# the suite fails with `jq: error: writing output failed: Broken pipe`. Forcing
+# the producer past the buffer reproduces it every time (rc=141).
+PAYLOAD="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"x"}')"
+OUT="$(bash "$SHIM" <<<"$PAYLOAD")"
 RC=$?
 [ "$RC" -eq 0 ] && [ -z "$OUT" ] && pass "missing script arg -> no-op" \
   || fail "missing script arg -> expected silent exit 0, got rc=$RC out=$OUT"
-OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"x"}' | bash "$SHIM" "../lib/hash.sh")"
+OUT="$(bash "$SHIM" "../lib/hash.sh" <<<"$PAYLOAD")"
 RC=$?
 [ "$RC" -eq 0 ] && [ -z "$OUT" ] && pass "path-traversal script arg -> no-op" \
   || fail "path-traversal script arg -> expected silent exit 0, got rc=$RC out=$OUT"
+
+# Regression guard: put the shim back under a real broken pipe — a producer far
+# larger than the pipe buffer, which an early-exiting reader always breaks — and
+# record the SHIM's own rc rather than the pipeline's. It stays 0. That is the
+# proof the defect was in how the assertion measured, not in the shim, and it
+# fails loudly if the early exit is ever "fixed" into reading stdin it does not
+# need.
+SHIM_RC_FILE="$TMPDIR_BASE/early-exit-rc"
+{ head -c 300000 /dev/zero | tr '\0' 'x'; } 2>/dev/null \
+  | { bash "$SHIM" >/dev/null 2>&1; echo "$?" > "$SHIM_RC_FILE"; }
+if [ "$(cat "$SHIM_RC_FILE" 2>/dev/null)" = "0" ]; then
+  pass "shim still exits 0 under a broken stdin pipe (the rc the assertion must read)"
+else
+  fail "shim exited $(cat "$SHIM_RC_FILE" 2>/dev/null) under a broken stdin pipe — expected 0"
+fi
 
 # --- cursor/hooks.json integrity ---
 if jq -e '.version == 1 and (.hooks | type == "object")' "$REPO_ROOT/cursor/hooks.json" >/dev/null 2>&1; then

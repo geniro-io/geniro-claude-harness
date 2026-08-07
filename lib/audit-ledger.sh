@@ -235,7 +235,9 @@ ledger_prune() {
     printf '%s\n' "$_LEDGER_HEADER"
     while IFS=$'\t' read -r fp base class tier disp runs note; do
       [ -n "${fp:-}" ] || continue
-      if [ -n "$(find "$root" -path "*/$base" -not -path '*/.git/*' -print -quit 2>/dev/null)" ]; then
+      # `head -1`, not `-quit`: the latter is GNU find only and the macOS CI
+      # runner would treat every row as stale and prune the whole ledger.
+      if [ -n "$(find "$root" -path "*/$base" -print 2>/dev/null | head -1)" ]; then
         printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$fp" "$base" "$class" "$tier" "$disp" "$runs" "$note"
         kept=$((kept + 1))
       else

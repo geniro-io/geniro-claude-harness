@@ -96,14 +96,23 @@ fi
 
 # --- 3. Prose counts of the gap state the real number ------------------------
 gap_n="$(printf '%s\n' "$actual_gap" | grep -c .)"
-declare -A NUMWORD=( [one]=1 [two]=2 [three]=3 [four]=4 [five]=5 [six]=6 [seven]=7 [eight]=8 [nine]=9 [ten]=10 )
+
+# A case, not an associative array: the macOS CI runner's /bin/bash is 3.2,
+# where `declare -A` is a syntax error. No other script in this repo uses one.
+_numword() {
+  case "$1" in
+    one) echo 1 ;; two) echo 2 ;;   three) echo 3 ;; four) echo 4 ;; five) echo 5 ;;
+    six) echo 6 ;; seven) echo 7 ;; eight) echo 8 ;; nine) echo 9 ;; ten) echo 10 ;;
+    *) echo "$1" ;;
+  esac
+}
 prose_checked=0
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   f="${hit%%:*}"; rest="${hit#*:}"; ln="${rest%%:*}"; text="${rest#*:}"
   word="$(printf '%s' "$text" | grep -oiE '\b(one|two|three|four|five|six|seven|eight|nine|ten|[0-9]{1,2})\b' | head -1 | tr 'A-Z' 'a-z')"
   [ -n "$word" ] || continue
-  n="${NUMWORD[$word]:-$word}"
+  n="$(_numword "$word")"
   prose_checked=$((prose_checked + 1))
   case "$n" in
     "$gap_n") ;;
