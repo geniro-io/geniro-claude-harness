@@ -53,9 +53,16 @@ Each scripted check below states what it decides and what a `fail` means, so a r
 - Medium: ≥2
 - Big: ≥3
 
-Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial step.
+Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial step, **each citation resolves**, and **each step this check exempts is named**.
 
 **Heuristic:** parse `## Tool log` YAML entries, count Agent + status:ok; for section 6, match a `<path>:<line>` or `<path>:<line>-<line>` reference anywhere on the step's line (the `- [ ] N.` checkbox prefix does not affect it).
+
+Then, per matched citation, decide two things a presence match cannot:
+
+- **Does it resolve?** The path exists and the file is at least that long. A citation into a file that has since moved, shrunk, or never existed is a dangling coordinate that reads as grounding — and the executor follows it into nothing. Cheap to settle; settle it.
+- **Does it cover what the step asserts?** Read the cited span and compare it against the step's claim. A citation spanning two of the six blocks a step depends on passes a presence match while supporting a claim about all six, and a citation anchored one line off the branch that decides the behavior confirms a line that is true and a step that is wrong. Where a step asserts a quantity, the cited span must be the population that quantity was counted from, or the step needs a second citation that is.
+
+**Naming the exemptions is part of the check.** "Non-trivial" is this check's own judgment, so a run can pass it by quietly reclassifying the steps it could not ground. Report every step treated as meta or trivial by number, with the one-line reason, in the same output as the verdict. An exemption a reader can see is a decision; an exemption only the deciding run knew about is the check exempting itself.
 
 **Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit "scope-bound, no exploration needed" entry to ## Tool log."
 
@@ -102,6 +109,8 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 **Heuristic:** match against the stopping-condition ontology in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` §"Stopping-condition ontology" — the canonical signal-shape set. Do not restate the patterns here: this spec-time check and the ship-time annotation must classify a clause identically, and a second copy is what lets them drift apart.
 
 **Fix hint on fail:** "Section 11 (Done Condition) doesn't match an observable-signal phrase. Rewrite as a concrete completion criterion (e.g., '<observable signal> AND <verification>')."
+
+**A quantity written to satisfy this check is a claim, not a formatting fix.** The auto-revision round that repairs a section-11 failure is the one place in the loop where a check's own demand for a machine-checkable signal invites inventing the value that makes it checkable — a suite count, a row count, a duration nobody measured. The observed shape is a done condition naming a number the project never produces: perfectly checkable, permanently false, and reported by this check as a pass. So when a revision introduces or changes a quantity here, derive it from the project rather than from the sentence that needs filling, and enter it into the spec-challenge claim set as a `quantity` claim (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §3 item 5). Where the value cannot be derived at spec time, write the condition against the signal instead of the number — "the suite is green" beats "48 suites pass" and cannot go stale.
 
 ### 10. `placeholder_scan`
 

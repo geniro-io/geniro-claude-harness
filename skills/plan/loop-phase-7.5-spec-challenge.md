@@ -6,6 +6,8 @@ State.md `phase: spec-challenge` during this phase. **Fires only when the Phase 
 
 Surface a one-line plain-English note before invoking: "Challenging the spec before you approve it...".
 
+**Re-derive the effort tier first, against the spec as it now stands.** The tier was set in Phase 1.2 from the task as understood then, and the spec has since been through the grill, approach selection, and section approval — scope routinely grows across those phases, and nothing recomputes the tier when it does. It is not a label: it gates milestone-mode splitting, the research-agent threshold in validator check 3, and this phase's own entry condition, so a stale tier silently relaxes three gates at once. Where the re-derived tier differs from the recorded one, write the new value to spec frontmatter `effort_tier` and state the change in one line. A tier that grew to Big here entered this phase on the deep-mode branch or not at all — run the challenge regardless, and re-evaluate milestone-mode at §7.5.2 rather than treating the earlier skip as settled.
+
 ### 7.5.1 Invoke the challenge helper
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the tier detected in Phase 1.2>`, DEEP: `<true when state.md deep-mode: true, else false>`.
@@ -17,7 +19,7 @@ On standard Trivial/Small/Medium runs this pass is skipped — `/geniro:implemen
 ### 7.5.2 Verdict handling
 
 - **keep** (clean) — surface a one-line advisory note (top challenge observation, if any) and transition `phase: user-approve` to Phase 8.
-- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`atomic_state_write` mechanism (§6.1; idempotent regeneration), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 accept-as-is / re-revise / abort AUQ. The human then approves a hardened spec.
+- **keep-with-modifications** — fold the helper's must-fixes into the spec by reusing the Phase 6 re-author → overwrite-via-`atomic_state_write` mechanism (§6.1; idempotent regeneration), append a `## Tool log` entry noting `(spec-challenge hardening)`, then re-run the Phase 7 validator AND re-enter this helper with `SCOPE: changed-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §8.5. Folding a fix in rewrites spec content, and the content it rewrites is by definition the content a verifier just found wrong — leaving it checked only by the structural validator is how a hardening step ships an unverified claim under a clean-validator banner. Mirror the Phase 7 max-3-revision-round loop: on a clean re-validation and a clean re-challenge transition `phase: user-approve` to Phase 8; on a round-3 hard-fail follow the §7.3 accept-as-is / re-revise / abort AUQ. The human then approves a hardened spec.
 - **re-plan** (the approach itself is refuted) — re-enter approach selection. Transition `phase: approaches` and re-run Phase 4 (re-run Phase 3 first if the refutation invalidates a clarifying answer), inlining the challenge's evidence into the §4.1 approach synthesis and the §4.2 stress-test `PRE_INLINED_CONTEXT`.
 
 ### 7.5.3 Advisory + fail-open

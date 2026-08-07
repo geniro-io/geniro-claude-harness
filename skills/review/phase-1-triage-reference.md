@@ -358,7 +358,9 @@ Schema-aware:
 1. Read first 20 lines. If `geniro_kind: design-doc` and `geniro_schema_version` is any version `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §2 Detection accepts → structured-section parser (11 sections + frontmatter goal-state; per-version field additions — `workflow_refs[]`, parent-epic + sibling chain context, the optional `launch_config` block — are canonical there, absent = ask interactively).
 2. Else fall back to prose detection with ~3000-char cap.
 
-PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn prompts (Phase 2). Other dimensions don't see it.
+3. Read the sibling `state.md`'s `## Spec Divergences` section when one exists next to the resolved spec, and carry it with the PLAN CONTEXT body. It lists the spec claims a prior `/geniro:implement` run established were false, with the evidence. A spec is the plan of record, not a record of fact: the implement run is forbidden from editing it, so a claim disproved during implementation stays on disk exactly as written. Without this section the spec-compliance reviewer scores the diff against claims already known to be wrong and reports the correct implementation as a deviation.
+
+PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn prompts (Phase 2), the divergence list alongside it. Other dimensions don't see it.
 
 ---
 

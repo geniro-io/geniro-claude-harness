@@ -6,7 +6,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 - Phase 3 entry — custom-instruction refresh, green-light verification, `PRIMARY_ROOT` resolve
 - Steps 1-5 — Round 1 parallel spawn, collect findings, bounded fix loop, escalation, post-convergence gates (minor findings, then test quality)
-- Ship sub-step 1-9 — visual verification, commit, learnings, ship-mode AUQ, `non-resumable-actions[]`, PR thread resolution, snapshot update, integration/cleanup, ship report + pre-terminal check
+- Ship sub-step 0-9 — requirement/diff reconciliation, visual verification, commit, learnings, ship-mode AUQ, `non-resumable-actions[]`, PR thread resolution, snapshot update, integration/cleanup, ship report + pre-terminal check
 - Adjustment routing (post-ship feedback)
 
 ---
@@ -53,6 +53,12 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 ### Ship sub-step
 
 State.md `phase: ship` on entry.
+
+0. **Reconcile the diff against the spec's requirements.** Spec-driven runs only; skip with a one-line note in inline-task mode. Walk section 6 (Steps) and every clause the spec states in mandatory language — "must", "regardless of", named symbols a step says to contain or change — and for each, point at the hunk in `git diff` that satisfies it. A requirement with no hunk is unbuilt, whatever the task list says.
+
+   Report the result as three lists: built, deliberately dropped (with the reason and the gate where the user agreed), and **unbuilt**. Any entry in the third list blocks the Ship-mode AUQ until it is either implemented or raised to the user as its own decision.
+
+   This exists because the completion claim and the requirement list are never otherwise compared. A run tracks its own task list, that list is derived from the spec once at Phase 1, and a requirement stated inside a step's prose — rather than as its own numbered step — never enters it. The observed failure is a run reporting all items complete on a public pull request while two clauses the spec called mandatory had no hunk anywhere in the diff, including the sibling code paths that bypassed the very containment the change existed to add. Both were found later by a separate `/geniro:review` against the already-open PR, and cost a second full implement run to repair.
 
 1. **Pre-Ship Visual Verification** — fires only when frontend files in scope AND Playwright MCP available. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Pre-Ship Visual Verification".
 2. **Commit.** Verify the live `git branch --show-current` matches the intended branch before staging — do not trust the session-start branch snapshot (stale across compaction); on mismatch, fire the branch-check `AskUserQuestion` (full procedure in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Step 2 — Commit") rather than committing. Then stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). If `git status` shows production files modified outside that set — edits this run did not author — do NOT auto-fold them; fire an `AskUserQuestion` to confirm whether they belong in this commit before staging. Then `git commit` with a conventional message (format + task-ID sourcing: the same reference section).
