@@ -40,9 +40,9 @@ When the repair runs, tell the user in plain English that the plugin's global in
 
 ```bash
 # CURRENT_VERSION cannot be re-read: plugin.json now holds the NEW version, so
-# substitute the literal value Phase 1 Step 1 read.
+# substitute the literal value phase-1-precheck.md §Read current version read.
 REGISTRY="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/installed_plugins.json"
-CURRENT_VERSION="<the version read in Phase 1 Step 1>"
+CURRENT_VERSION="<the version read by phase-1-precheck.md §Read current version>"
 
 if [ ! -f "$REGISTRY" ]; then
 echo "ERROR: registry not found at $REGISTRY — abort." >&2
@@ -74,7 +74,7 @@ NEW_VERSION=$(cat "$PLUGIN_PATH/.claude-plugin/plugin.json" \
 
 if [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
 echo "[info] already on latest version (v$NEW_VERSION) — nothing to do."
-# Same refresh as Phase 3 Step 3. The status line renders straight from this cache and
+# Same refresh as phase-3-postcheck.md §Refresh update cache. The status line renders straight from this cache and
 # nothing else rewrites it before the next session start — exiting without it leaves the
 # "update available" arrow lit for the rest of the session, in the run meant to clear it.
 GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \

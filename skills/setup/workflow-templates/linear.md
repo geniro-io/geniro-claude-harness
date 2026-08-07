@@ -1,19 +1,19 @@
-# Workflow: Linear Integration
+# Workflow: Linear integration
 
 This project uses Linear for issue tracking. Skills read this file at runtime to adapt their behavior.
 
 ## Contents
 
-- Argument Detection
-- Fetching Issue Context
-- Status Transitions
-- AI-Disclosure Prefix on Authored Comments
-- Commit Message Format
-- PR Description
+- Argument detection
+- Fetching issue context
+- Status transitions
+- AI-disclosure prefix on authored comments
+- Commit message format
+- PR description
 - Implement skill behavior
-- MCP Setup
+- MCP setup
 
-## Argument Detection
+## Argument detection
 
 When parsing `$ARGUMENTS`, check for Linear references **before** treating input as a plain description:
 
@@ -22,7 +22,7 @@ When parsing `$ARGUMENTS`, check for Linear references **before** treating input
 
 If both a Linear reference and a plain description are present, use both (fetch issue context + supplement with description).
 
-## Fetching Issue Context
+## Fetching issue context
 
 When a Linear reference is detected:
 
@@ -30,7 +30,7 @@ When a Linear reference is detected:
 2. Use the fetched context to inform discovery/planning — treat it as supplementary input alongside the user's description
 3. **If Linear MCP is unavailable:** log a warning and proceed without issue context (non-blocking). Do NOT fail the pipeline.
 
-## Status Transitions
+## Status transitions
 
 **Never update Linear issue status automatically.** Always ask the user first using `AskUserQuestion`.
 
@@ -71,7 +71,7 @@ After the user approves shipping, re-fetch `state.name` (the status may have cha
 
 If Linear MCP is unavailable at this point, log a warning and skip the re-fetch + questions (non-blocking).
 
-## AI-Disclosure Prefix on Authored Comments
+## AI-disclosure prefix on authored comments
 
 Any Linear comment authored by a Geniro skill — implementation summary, triage outcome, status-change rationale, or any text the skill posts via `update_issue` / `create_comment` — begins with the prefix below, so a human reviewer can tell an AI-authored update from a teammate's:
 
@@ -89,7 +89,7 @@ The prefix is NOT required for:
 - Commit messages (those follow the conventional-commits format below; the commit author identity already conveys provenance)
 - PR descriptions (PRs ship with `Co-Authored-By` trailers in the commits, which serves the same disclosure role)
 
-## Commit Message Format
+## Commit message format
 
 When a Linear issue ID was detected, include it in the commit message:
 ```
@@ -98,7 +98,7 @@ feat(module): description [ENG-123]
 
 The issue ID goes in square brackets at the end of the first line.
 
-## PR Description
+## PR description
 
 When creating a pull request and a Linear issue was detected, include:
 ```
@@ -108,9 +108,9 @@ in the PR description body.
 
 ## Implement skill behavior
 
-When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching Issue Context` above — the fetched title/description/acceptance criteria flow into Phase 1 (analyze) as planning input. `/geniro:plan` also reads Linear context when a Linear issue ID or URL appears in its `$ARGUMENTS`, persisting it to the spec's `workflow_refs[]`.
+When `/geniro:implement` receives a Linear issue ID or URL, follow `## Fetching issue context` above — the fetched title/description/acceptance criteria flow into Phase 1 (analyze) as planning input. `/geniro:plan` also reads Linear context when a Linear issue ID or URL appears in its `$ARGUMENTS`, persisting it to the spec's `workflow_refs[]`.
 
-## MCP Setup
+## MCP setup
 
 Linear MCP must be configured for this integration to fetch issues and update status:
 ```

@@ -33,8 +33,6 @@
 
 set -euo pipefail
 
-MODE="block"
-
 # Fail open but LOUDLY if jq is missing: without it the hook cannot parse tool
 # input, and a silent exit 0 would leave the user believing the guard is active.
 if ! command -v jq >/dev/null 2>&1; then
@@ -46,6 +44,27 @@ fi
 INPUT=$(cat)
 
 TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
+
+# A truncated/malformed payload makes jq fail on EVERY field it would extract
+# from $INPUT, not just one — so TOOL_NAME and FILE_PATH both come back empty
+# together, control reaches neither the Bash branch (TOOL_NAME != "Bash") nor
+# a real Edit/Write/MultiEdit/NotebookEdit call, and the Edit branch's own
+# empty-FILE_PATH check further down would otherwise exit 0 on exactly the
+# input class this scan exists for. (A well-formed payload with a valid first
+# JSON object plus trailing garbage is NOT this case — jq emits the parsed
+# value before erroring on the garbage, so TOOL_NAME/FILE_PATH/COMMAND still
+# come back populated and the normal per-branch logic already handles it.)
+# Mirrors file-protection.sh's identical hoisted scan.
+if [ -z "$TOOL_NAME" ] && [ -z "$FILE_PATH" ]; then
+  RAW_TARGETS=$(printf '%s' "$INPUT" \
+    | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
+    | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
+  if printf '%s' "$RAW_TARGETS" | grep -qE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json'; then
+    echo "State-helper [enforce-state-helper] blocked [jqless-fallback]: the tool input names a canonical .geniro/ state path but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
+    exit 2
+  fi
+fi
 
 # Locate nearest .geniro/safety.json walking up from cwd.
 find_safety_json() {
@@ -164,18 +183,10 @@ $prefix:   Spec: skills/_shared/atomic-state-write.md"
     layout_hint="$prefix:   This path under .geniro/state/ matches no canonical layout (state/<skill>/<slug>/state.md, the state/setup/state.md singleton, state/handoff/from-<producer>-<branch>.md, or state/tdd/state-<slug>.md) — ad-hoc files there are invisible to the validator and session-restore."
   fi
 
-  if [ "$MODE" = "block" ]; then
-    echo "$prefix: $body" >&2
-    [ -n "$layout_hint" ] && echo "$layout_hint" >&2
-    echo "$prefix: To bypass per-project, add \"enforce-state-helper\" to allow_patterns in .geniro/safety.json." >&2
-    exit 2
-  fi
-
-  echo "$prefix (warn): $body" >&2
+  echo "$prefix: $body" >&2
   [ -n "$layout_hint" ] && echo "$layout_hint" >&2
-  jq -nc --arg p "$path" --arg h "$helper" \
-    '{systemMessage: ("Geniro: direct write to state path " + $p + " — use the " + $h + " helper (atomic write) instead. Bypass: \"enforce-state-helper\" in .geniro/safety.json.")}'
-  exit 0
+  echo "$prefix: To bypass per-project, add \"enforce-state-helper\" to allow_patterns in .geniro/safety.json." >&2
+  exit 2
 }
 
 # Shell indirection (`sh -c "<payload>"`, `eval "<payload>"`, a program piped to
@@ -184,8 +195,9 @@ $prefix:   Spec: skills/_shared/atomic-state-write.md"
 # single-sourced in lib/write-vectors.sh. Each inline fallback keeps the guard
 # whole on a vendored install shipping hooks/ without lib/ — a missing helper
 # must never make this guard fail open — and is a VERBATIM copy of the canonical
-# function (delimited by GENIRO-VENDORED markers). A one-sided edit reopens the
-# hole on that install, so edit both or neither.
+# function. A one-sided edit reopens the hole on that install, so edit both or
+# neither — parity is enforced by tests/hooks/write-vectors-fallback-parity.sh,
+# not by markers on the canonical side (lib/write-vectors.sh carries none).
 _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null
@@ -618,6 +630,20 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: shell-side writes into canonical state paths ----
   COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
   if [ -z "$COMMAND" ]; then
+    # jq is present, but the command extracted empty — either tool_input.command
+    # was genuinely absent, or the payload was malformed JSON the parse above
+    # silently swallowed (`|| echo ""`). A malformed payload must not be a free
+    # pass: run the same coarse fail-closed raw-text scan the three peer
+    # data-loss guards (file-protection.sh, block-dangerous-git.sh,
+    # block-geniro-deletion.sh) run in this exact situation, so a direct write
+    # into a canonical state path still blocks even when parsing broke.
+    RAW_TARGETS=$(printf '%s' "$INPUT" \
+      | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
+      | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
+    if printf '%s' "$RAW_TARGETS" | grep -qE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json'; then
+      echo "State-helper [enforce-state-helper] blocked [jqless-fallback]: the tool input names a canonical .geniro/ state path but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
+      exit 2
+    fi
     exit 0
   fi
 
@@ -1122,9 +1148,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 fi
 
 # ---- Edit/Write/MultiEdit branch ----
-# Extract file path from tool input JSON (NotebookEdit carries notebook_path).
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
-
+# FILE_PATH was already extracted above (needed there for the malformed-payload check).
 if [ -z "$FILE_PATH" ]; then
   exit 0
 fi

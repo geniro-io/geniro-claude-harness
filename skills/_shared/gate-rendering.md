@@ -2,7 +2,7 @@
 
 Canonical visual language for every gate that renders rich, multi-part content to chat before a lean `AskUserQuestion`. This file defines the visual language those renders share; the two-step shape they sit inside and the per-gate field plumbing belong to the calling contract (§When this applies).
 
-This file is the single source of truth for the visual language. Calling contracts cite specific sections; do NOT inline-paste the element definitions.
+This file is the single source of truth for the visual language. Calling contracts cite specific sections — the element definitions live only here.
 
 ## Contents
 
@@ -119,4 +119,4 @@ The lean `AskUserQuestion` that follows the render obeys these conventions at ev
 
 ## Why this exists
 
-Walls of labeled text get skimmed, and a skimmed gate obtains an uninformed approval — the ceremony of a decision without the substrate for one. The tracker and opener orient the user in seconds; the per-unit visual carries comprehension of the thing being decided; the lean question then captures only the decision. One language across plan, review, implement, debug, and refactor means the user learns the gate shape once and reads every gate the same way.
+One language across plan, review, implement, debug, and refactor means the user learns the gate shape once and reads every gate the same way — the rationale for rendering the decision body before the question at all is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Why this exists.

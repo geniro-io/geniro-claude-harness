@@ -88,9 +88,12 @@ archive_stale_learnings() {
   now=$(date -u +%s)
   tau="${GENIRO_DECAY_TAU_DAYS:-$GENIRO_DECAY_TAU_DAYS_DEFAULT}"
   # Validate tau up front — a non-numeric value otherwise reaches `--argjson`
-  # below and surfaces only as an opaque "jq failed" error.
-  if ! printf '%s' "$tau" | grep -Eq '^([0-9]+(\.[0-9]+)?|\.[0-9]+)$'; then
-    echo "archive-stale: GENIRO_DECAY_TAU_DAYS must be a non-negative number (got '$tau')" >&2
+  # below and surfaces only as an opaque "jq failed" error. Zero is rejected
+  # too: recency_decay divides by tau. Same knob validation as
+  # query-learnings.sh.
+  if ! printf '%s' "$tau" | grep -Eq '^([0-9]+(\.[0-9]+)?|\.[0-9]+)$' \
+     || printf '%s' "$tau" | grep -Eq '^0*(\.0*)?$'; then
+    echo "archive-stale: GENIRO_DECAY_TAU_DAYS must be a positive number (got '$tau')" >&2
     return 2
   fi
 
@@ -213,6 +216,20 @@ archive_stale_learnings() {
   fi
 
   # Real run: write processed content back (with _is_stale stripped).
+  #
+  # Deliberate carve-out from atomic_state_write (CLAUDE.md §State Files):
+  # this rewrite runs inside a caller-managed lock whose release is wired to
+  # INT/TERM/EXIT traps — the direct-invocation guard below sets them before
+  # calling into this function, and the SessionStart hook sets its own around
+  # the subprocess that runs this file. Bash traps are process-global, not
+  # function-scoped, so atomic_state_write's own INT/TERM trap (see
+  # atomic-state-write.sh) would install over whichever lock-release trap the
+  # caller already has active and clear it back to default disposition on
+  # return, not restore it — the exact double-trap collision this file's own
+  # split-by-signal comment above (§the direct-invocation block) was written
+  # to avoid. The `mv -f` rename below is still atomic and keeps concurrent
+  # readers safe; only power-loss durability in the narrow post-rename window
+  # is traded away, and that trade is intentional here.
   local tmp="${log}.tmp.$$"
   printf '%s\n' "$processed" | jq -c 'del(._is_stale)' > "$tmp" 2>/dev/null || {
     rm -f "$tmp"

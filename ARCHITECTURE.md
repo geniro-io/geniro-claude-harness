@@ -46,6 +46,11 @@ Four-layer taxonomy: L1 Working / L2 Episodic / L3 Semantic / L4 Procedural.
 - Per-fact outcomes: **confirmed** (a source agrees), **conflicting** (sources disagree — surfaced to the user), **unconfirmed** (no source can confirm — marked, never presented as fact). The whole pass is read-only-screened and fail-open: an unavailable source degrades to skip-and-log, never a hard block.
 - Consumers: `skills/_shared/task-chain-context.md` verifies the assembled chain facts, and `skills/_shared/spec-challenge.md` verifiers consult declared sources too — spec-challenge is no longer code-only.
 
+## Verification Surface
+
+- A companion `## Verification Surface` block in the same L4 layer lets the user map each project check to what it covers and what it does not (a type check says nothing about behavior, a unit suite says nothing about cross-module wiring), plus `MANUAL` rows for ground no automated layer touches.
+- Canonical spec: `skills/_shared/verification-surface.md`. Authored by `/geniro:instructions` (the request-to-block-type detection table routes "the unit suite doesn't cover X" here) and loaded alongside `## Data Sources` by `skills/_shared/load-custom-instructions.md`; a per-skill entry narrows the global one for that skill and wins where the two disagree about the same command.
+
 ---
 
 ## Compaction Survival (M3)
@@ -93,7 +98,7 @@ SessionStart hook re-establishes context across `compact|resume|startup`. `clear
 - Cloud-runner / headless-CI fallback table preserved in `skills/_shared/model-tiering.md` §"Tier table — fallback for runtimes without an orchestrator" for environments where `model: inherit` resolution is unsupported.
 - Sites that deliberately retain a hardcoded tier:
   - `test-runner-agent` + `knowledge-retrieval-agent` → `model: sonnet` in frontmatter (mechanical carve-outs — running tests and fetching prior learnings is not reasoning work).
-  - **Execution spawns → `model="sonnet"` at the spawn site** (`skills/_shared/model-tiering.md` §The rule, category 4, which carries the authoritative site list): `/geniro:implement` Phase 2's bounded code-delegate, `/geniro:investigate`'s save-routing writers, the `ui-preview-gate` description agent, and the `/improve-template` + `/audit-plugin` implementers and fix agents. Each receives its change and its file set already settled — by the orchestrator's decomposition or by a user approval gate — so the tier that decided has already run. Hard pin, not a cap: a Haiku session gets execution upgraded rather than making every spawn site evaluate a conditional.
+  - **Execution spawns → `model="sonnet"` at the spawn site** — the authoritative site list is `skills/_shared/model-tiering.md` §The rule, category 4 (do not re-enumerate it here; it drifts). Each site receives its change and its file set already settled — by the orchestrator's decomposition or by a user approval gate — so the tier that decided has already run. Hard pin, not a cap: a Haiku session gets execution upgraded rather than making every spawn site evaluate a conditional.
   - `/geniro:setup` Phase 4 verification subagent → `model="sonnet"` — a fixed check-and-report workload: it runs a set check list against the generated CLAUDE.md and emits PASS / DRIFT lines the orchestrator re-decides from, so output quality does not scale with orchestrator tier (`skills/_shared/model-tiering.md` §The rule, category 2). Its read-only floor is stated in the spawn prompt itself; the Agent tool takes no per-spawn tool allowlist, so a tier defended by a claimed tool budget is defended by nothing.
 
 ---
@@ -227,7 +232,7 @@ Singleton bootstrap; one state file at `state/setup/state.md`.
 Stateless CRUD over `.geniro/instructions/` (L4 procedural layer).
 
 - No state file — every invocation is a single transaction.
-- `validate` catches: refs to dropped skills, dropped phase names, `review-extra/` frontmatter hygiene, 300-line soft cap warning (env-overridable via `GENIRO_INSTRUCTIONS_MAX_LINES`).
+- `validate`'s full lint rule set (structural, reference, and per-scope checks, plus `## Data Sources`, `## Verification Surface`, `## Memory Backend`, description-quality and `requires-context` rules) is canonical in `skills/instructions/mode-validate.md` §Step 2 — cite it rather than re-enumerating; the 300-line soft cap (env-overridable via `GENIRO_INSTRUCTIONS_MAX_LINES`) is one entry in that set.
 - 13 scopes: `global`, `code-style`, `memory` (dedicated `memory.md`), `review-extra/<slug>`, and per-skill (implement, plan, review, debug, refactor, onboard, investigate, resolve, reflect).
 - No subagent spawns — CRUD is too small for parallelism.
 
@@ -240,7 +245,7 @@ Stateless CRUD + runner over `.geniro/actions/`.
 - `risk_class` (low/medium/high) is mandatory frontmatter. Run mode executes the action directly — invoking it is the authorization, so no confirmation fires; `risk_class` is metadata for the list view, delete warning, and lint.
 - Tool-scope intersection in run mode: action's `allowed-tools` ∩ skill's `allowed-tools`.
 - L2 `discovery` emit fires on successful runs where `external-send: true`.
-- Any action calling `mcp__github__*`, network, or `Bash(curl ...)` must declare `risk_class: high`.
+- `risk_class` is manually author-picked (Q4 of the create interview) — no auto-elevation from tool surface. The lint's one enforced coupling: `external-send: true` requires `risk_class: medium` or `high`.
 
 ---
 

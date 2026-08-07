@@ -327,6 +327,17 @@ record_access() {
   trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN; exit 130' INT
   trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN; exit 143' TERM
 
+  # Deliberate carve-out from atomic_state_write (CLAUDE.md §State Files): the
+  # INT/TERM traps set just above are keyed to THIS $tmp and release $lock via
+  # `return` (which fires the RETURN trap). atomic_state_write installs its
+  # own INT/TERM trap on entry — traps are process-global, not function-scoped
+  # — and its handler calls `exit` directly rather than `return`, which skips
+  # the RETURN trap above and would leak $lock (orphaned until the reclaim
+  # TTL) if a signal landed mid-write. The `mv -f` rename below is still
+  # atomic and keeps concurrent readers safe; only power-loss durability in
+  # the narrow post-rename window is traded away, and that trade is
+  # intentional here — this is a best-effort counter bump, not a primary
+  # write path.
   local tmp="${log}.tmp.$$"
   # Read raw and `fromjson?` per line: a malformed line yields no output for that
   # line rather than aborting jq. The post-jq count guard below then refuses the

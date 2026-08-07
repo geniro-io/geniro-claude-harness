@@ -479,7 +479,7 @@ Per-entry shape: `{kind, issue_id, url, fetched_at, title?, suggested_branch?, s
 
 ### `/plan` per-section AUQ with `preview` field + Phase 2 Visual Companion restored
 
-> **Superseded — historical record only.** The per-section Phase 5 gate described below was replaced by three dependency-ordered cluster gates (Goal & scope / Steps / Safety), one lean question each, and `preview` is now omitted at every `/geniro:plan` AUQ — the consequences of each option are rendered to a chat message before the question instead of into an option side-box. Phase 2's UI-conditional Visual Companion still ships as described. Check a custom `.geniro/instructions/plan.md` against the cluster gates, not against the per-section pattern below.
+> **Superseded — historical record only.** The per-section Phase 5 gate described below was replaced by three dependency-ordered cluster gates (Goal & scope / Approach & steps / Safety & done), one lean question each, and `preview` is now omitted at every `/geniro:plan` AUQ — the consequences of each option are rendered to a chat message before the question instead of into an option side-box. Phase 2's UI-conditional Visual Companion still ships as described. Check a custom `.geniro/instructions/plan.md` against the cluster gates, not against the per-section pattern below.
 
 `/geniro:plan` Phase 5 now opens one AUQ per section with rendered `preview` content (no more "pre-fill all 10 sections" batch). Phase 3 + Phase 4 options also carry `preview` (consequence-of-picking / ASCII data-flow + code identifier + tradeoff). Phase 2 Visual Companion is restored for UI-shaped topics — fires only on UI trigger (Phase 1 surfaced UI files OR topic carries a UI noun) and calls `skills/_shared/ui-preview-gate.md` to produce a textual UI preview before any code is written.
 
@@ -497,7 +497,7 @@ Any user `.geniro/instructions/plan.md` rule referencing the dropped pre-fill ba
 
 ### `/review` MANDATORY spawn list + post-spawn verification gate
 
-> **Dimension names since changed — the gate mechanism below is current.** `guidelines` was folded into `conventions` by *"`/geniro:review` merges the `guidelines` and `rules-compliance` dimensions into `conventions`"* (above), and `regressions` has since joined the always-fire set; the always-fire list reads `bugs / security / architecture / tests / optimizations / conventions / regressions` today.
+> **Dimension names since changed — the gate mechanism below is current.** `guidelines` was folded into `conventions` by *"`/geniro:review` merges the `guidelines` and `rules-compliance` dimensions into `conventions`"* (above), and `regressions` has since joined the always-fire set; the always-fire list reads `bugs / security / architecture / tests / conventions / regressions` today, plus `optimizations` as a broad-trigger conditional (skipped only when every changed file is documentation or a generated lockfile).
 
 `/geniro:review` Phase 2 step 2.2 now writes `spawn_dims_declared: [...]` + `spawn_dims_count: N` to state.md frontmatter at spawn-batch entry; Phase 4 §4.0 verifies actual spawns match the declaration (catches the silent-skip bug where reviewers reasoned themselves into dropping dimensions). The spawn list is MANDATORY: 7 always (bugs / security / architecture / tests / optimizations / guidelines / conventions) + up to 3 conditional (design / pr-metadata / spec-compliance) + N custom from `.geniro/instructions/review-extra/`. Custom-reviewer discovery moved from Phase 2 entry into Phase 1.5 mechanical pre-pass so Phase 2 has zero cognitive load for it.
 

@@ -27,7 +27,7 @@ The "Available agents" list in that error is the ground truth for what works —
 
 ## The rule
 
-**Every Agent() spawn site for a custom plugin agent uses the runtime-detect-and-degrade ladder below.** Skills are written with bare names in their instructions (e.g. `Agent(subagent_type="reviewer-agent", …)`); the orchestrator interprets the bare name as "the agent named X" and applies the ladder at call time. Skill files are NOT rewritten when this ladder changes.
+**Every Agent() spawn site for a custom plugin agent uses the runtime-detect-and-degrade ladder below.** A skill's instructions name a custom plugin agent by its identity — written bare (`reviewer-agent`) or already prefixed (`geniro:reviewer-agent`), both appear across skill files — but neither spelling is a literal call string. The orchestrator reads it as "the agent named X" and applies the ladder at call time regardless of which form the skill wrote. Skill files are NOT rewritten when this ladder changes.
 
 **`model=` is omitted at every rung.** The agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`), and at rung 3 `general-purpose`'s own inherit-from-parent default does the same job. The one exception is a user-authored custom reviewer that declares an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass `model={user-declared-value}` verbatim, at whichever rung resolves. A hardcoded tier anywhere else defeats the user's session-level `/model` choice.
 
@@ -83,7 +83,7 @@ Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full to
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll try bare names first because that's what the skill files have written" | Skills are written with bare names as the canonical "agent identity" notation. The orchestrator interprets that identity and applies the ladder — skills are not literal call strings. Bare-first wastes a `not found` round-trip in the happy path. |
+| "I'll try bare names first because that's what the skill file has written" | Skill files write agent identity as bare or already-prefixed notation interchangeably — neither is a literal call string. The orchestrator always starts the ladder at the prefixed form regardless of which spelling the skill used. Bare-first wastes a `not found` round-trip in the happy path. |
 | "I'll skip the prefixed attempt because we're definitely in vendored mode" | You cannot reliably tell at spawn time. Walk the ladder once at first spawn and cache the result for the session. The cost of one extra `not found` per session is negligible; the cost of guessing wrong is N wasted spawns. |
 | "I'll prefix as `<some-other-plugin>:<agent>` — the prefix is the plugin name" | The prefix is the *installed* plugin namespace. For this plugin it is exactly `geniro` (matches `.claude-plugin/plugin.json`'s name field). Do not invent prefixes. |
 | "The first attempt failed — I should retry the same form just to be sure" | Plugin registration is fixed at session init. The cache does NOT carry across sessions, but it absolutely holds within a session; re-attempting wastes a call. Re-walk at next session's first spawn. |

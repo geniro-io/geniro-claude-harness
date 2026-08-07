@@ -2,11 +2,11 @@
 
 Co-cited with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every Agent() spawn site. spawn-agent.md handles agent-name resolution + runtime degradation; this file handles prompt richness. Together they ensure subagents never inherit orchestrator session state.
 
-This file is the single source of truth for the pre-inlined-context contract every Agent() spawn must satisfy. Skills cite this file; do NOT inline-paste the checklist.
+This file is the single source of truth for the pre-inlined-context contract every Agent() spawn must satisfy. Skills cite this file — the checklist lives only here.
 
 ## Contents
 
-- Why this exists — the three failure modes a bare prompt produces
+- Why this exists — why a bare prompt fails
 - When this applies — every Agent() spawn; codebase research uses `codebase-research-agent`
 - Required pre-inlined context — the fields every prompt carries
 - Reading the load report back — what to check when the agent returns
@@ -16,13 +16,7 @@ This file is the single source of truth for the pre-inlined-context contract eve
 
 ## Why this exists
 
-Subagents do not share memory, working set, or CLAUDE.md context with the orchestrator. An agent spawned with the prompt `"investigate the auth bug"` starts from zero — no knowledge of which files the orchestrator just read, which conventions matter, which tools are off-limits, or what the deliverable shape is. Three observed failure modes when the checklist is skipped:
-
-- The agent re-discovers files via Glob that the orchestrator already had open, doubling latency and burning tokens on rediscovery.
-- The agent improvises an output schema (free-form prose) that downstream parsing cannot consume — orchestrator falls back to re-prompting or running the work itself.
-- The agent calls Edit/Write when the orchestrator only wanted analysis, mutating the tree in ways the spawn site never anticipated.
-
-Pre-inlining every required field below collapses all three failure modes.
+Subagents do not share memory, working set, or CLAUDE.md context with the orchestrator. An agent spawned with the prompt `"investigate the auth bug"` starts from zero — no knowledge of which files the orchestrator just read, which conventions matter, which tools are off-limits, or what the deliverable shape is. Each field in §Required pre-inlined context below closes one specific gap that a bare prompt leaves open.
 
 ## When this applies
 

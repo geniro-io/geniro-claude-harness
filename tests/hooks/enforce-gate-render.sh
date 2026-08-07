@@ -240,6 +240,23 @@ SKIP_REC=$(user_toolresult)
 for _ in $(seq 1 2100); do printf '%s\n' "$SKIP_REC"; done >> "$BIG"
 expect_allow ">2000-record transcript with no decisive record in cap → fail-open allow" "$(run_q 'Full explanation above. Approve?' "$BIG")"
 
+# GENIRO_GATE_RENDER_SCAN_LIMIT raises the cap so the SAME fixture's decisive
+# record (now within reach) is actually found → the gate blocks instead of
+# failing open. Proves the override reaches the jq scan, not just the shell var.
+run_q_limit() {  # <question> <transcript> <limit>
+  jq -nc --arg q "$1" --arg t "$2" \
+    '{tool_name:"AskUserQuestion", transcript_path:$t,
+      tool_input:{questions:[{question:$q, options:[{label:"Approve"},{label:"Cancel"}]}]}}' \
+    | GENIRO_GATE_RENDER_SCAN_LIMIT="$3" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "GENIRO_GATE_RENDER_SCAN_LIMIT=3000 reaches the same fixture's decisive record → block" \
+  "$(run_q_limit 'Full explanation above. Approve?' "$BIG" 3000)"
+# A non-numeric override must fall back to the 2000 default (sanitized), not
+# error out of the jq call or disable the cap outright.
+expect_allow "GENIRO_GATE_RENDER_SCAN_LIMIT=notanumber sanitizes to the 2000 default" \
+  "$(run_q_limit 'Full explanation above. Approve?' "$BIG" notanumber)"
+
 # Garbage lines interleaved must not break the stream (fromjson? resilience):
 # this fixture still has a real user-text start-of-turn and no render → block.
 { user_text; echo 'not json {{{'; asst_tooluse; } > "$TR"
@@ -343,6 +360,29 @@ run_plan_clarify() {
   echo $?
 }
 expect_allow "plan-style clarifying batch (no finding shorthand) → allow unscanned" "$(run_plan_clarify "$TR")"
+
+# ===== Portable `sleep`: a fractional-second rejection must not fail the gate open =====
+# `sleep 0.4` is a GNU/BSD extension, not POSIX. Under `set -e`, a `sleep` that
+# rejects "0.4" (busybox / minimal coreutils) would abort the hook itself before
+# it ever reaches the block — the exact gate this re-scan protects fails open.
+# Simulate that host with a stub `sleep` ahead of PATH that errors on any
+# argument containing a '.'.
+FAKESLEEP_BIN="$TMPDIR_BASE/fakesleep-bin"
+mkdir -p "$FAKESLEEP_BIN"
+cat > "$FAKESLEEP_BIN/sleep" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  *.*) echo "sleep: invalid time interval '$1'" >&2; exit 1 ;;
+  *) exec /bin/sleep "$@" ;;
+esac
+EOF
+chmod +x "$FAKESLEEP_BIN/sleep"
+{ user_text; } > "$TR"
+rc=$(jq -nc --arg t "$TR" \
+  '{tool_name:"AskUserQuestion", transcript_path:$t,
+    tool_input:{questions:[{question:"Full explanation above. Approve?", options:[{label:"Approve"},{label:"Cancel"}]}]}}' \
+  | PATH="$FAKESLEEP_BIN:$PATH" bash "$HOOK" >/dev/null 2>&1; echo $?)
+expect_block "fractional-sleep-rejecting host still blocks (does not fail open)" "$rc"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

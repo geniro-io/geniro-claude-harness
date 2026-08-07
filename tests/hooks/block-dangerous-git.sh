@@ -255,6 +255,19 @@ expect_block "jqless: force-push still blocked"       "$(run_cmd_nojq '{"tool_in
 expect_block "jqless: reset --hard still blocked"      "$(run_cmd_nojq '{"tool_input":{"command":"git reset --hard"}}')"
 expect_allow "jqless: benign command fails open"      "$(run_cmd_nojq '{"tool_input":{"command":"git status"}}')"
 
+# ===== jq PRESENT but payload MALFORMED: must still fail-closed on a raw scan =====
+# Distinct from the jqless block above (jq absent, well-formed JSON). Here jq is on
+# PATH but the JSON is truncated, so tool_input.command parses empty and the
+# top-level `[ -z "$COMMAND" ]` branch's own raw-text scan is what has to catch it.
+run_raw() {  # <raw-payload-text>
+  printf '%s' "$1" | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "malformed payload with destructive token still blocked" \
+  "$(run_raw '{"tool_input":{"command":"git push --force origin main"')"
+expect_allow "malformed payload with no destructive token allows" \
+  "$(run_raw '{"tool_input":{"command":"git status"')"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

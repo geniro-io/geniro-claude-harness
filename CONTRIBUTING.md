@@ -22,7 +22,7 @@ Thank you for your interest in contributing! This project aims to provide the be
 
 ### Before you push
 
-CI runs the same three things. Running them locally first is the difference between a green PR and a red one.
+Run these three locally before you push — it's the difference between a green PR and a red one. CI does not regenerate the Cursor agents itself (step 2); it only runs `tests/run-all.sh` (step 3), which includes a drift check that fails if `cursor/agents/*.md` is out of sync — so step 2 has to be run and its output committed locally first.
 
 ```bash
 # 1. Fetch the pinned judge prompts. The eval suites read evals/vendor/skills;
@@ -59,6 +59,13 @@ We especially welcome:
 - **Follow existing patterns** — look at how existing agents/skills are structured before creating new ones
 - **Update ARCHITECTURE.md** — if your change affects design decisions, update the consolidated architecture reference
 - **Keep working docs local** — plans, research notes, audit reports, and other throwaway design artifacts go in `design/scratch/` (gitignored, never committed). Skills that generate such docs (e.g. `/audit-plugin`) write them there; nothing in the tracked tree should depend on them
+
+### Authoring checks in `.claude/skills/analyze-thread/checks-reference.md`
+
+Two contracts bind that file, and neither is visible from a run — they matter only when you edit it:
+
+- **Finding IDs are stable across edits.** Number a new check within its category (`A8`, `B5`, ...) rather than renumbering the file, because `/improve-template` consumes those IDs verbatim; a renumber silently repoints every handoff that cites one.
+- **A new I- or K-class check needs its own expectation-set field** in that file's expectation-set section. Without one the check has no declared side to compare against, so it either never fires or fires on everything.
 
 ### Code Style
 

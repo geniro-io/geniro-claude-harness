@@ -48,27 +48,9 @@ Compute the load set from `LOAD_TIER`:
 - `pipeline` → `[global.md, memory.md, <SKILL_SLUG>.md, code-style.md]` (four files, in that order)
 - `rules-only` → `[global.md, memory.md]` (two files)
 
-**Resolve the instructions base directory once, before the load loop.** An external override lets the instruction files live OUTSIDE the repo (e.g. a clean fresh-clone environment where `.geniro/instructions/` is not committed). Run this Bash probe via the Bash tool to compute the active base directory:
+**Resolve the instructions base directory once, before the load loop.** An external override lets the instruction files live OUTSIDE the repo (e.g. a clean fresh-clone environment where `.geniro/instructions/` is not committed). Via the Bash tool, resolve `EXTERNAL_DIR` with precedence `$GENIRO_INSTRUCTIONS_DIR` (manual/automation override), then `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (set by Claude Code from the plugin's `instructions_dir` install option), expanding a leading `~` to `$HOME` — empty when neither is set, meaning the in-repo default applies. A configured-but-missing directory fails open: emit `External instructions dir <path> not found — using in-repo instructions.` (the §Echo contract caveat) and fall back to the in-repo default.
 
-```bash
-EXTERNAL_DIR=""
-ext="${GENIRO_INSTRUCTIONS_DIR:-}"
-[ -z "$ext" ] && ext="${CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR:-}"
-if [ -n "$ext" ]; then
-  case "$ext" in
-    "~")   ext="$HOME" ;;
-    "~/"*) ext="$HOME/${ext#"~/"}" ;;
-  esac
-  if [ -d "$ext" ]; then
-    EXTERNAL_DIR="$ext"          # active external dir (absolute path)
-  else
-    echo "External instructions dir $ext not found — using in-repo instructions."
-  fi
-fi
-echo "EXTERNAL_DIR=$EXTERNAL_DIR"   # empty = in-repo default
-```
-
-Precedence: `$GENIRO_INSTRUCTIONS_DIR` (manual/automation override), then `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR` (set by Claude Code from the plugin's `instructions_dir` install option), then — neither set — the in-repo default. A configured-but-missing path fails open: emit the caveat (printed by the probe; §Echo contract) and fall back to the in-repo default. This inline resolution mirrors `_geniro_instructions_dir()` in `lib/repo-root.sh` — the two live in different execution worlds (orchestrator-Bash here, hook-shell there) but must stay in lockstep, the same rationale as the primary-worktree Mode A snippet inlined below vs `repo-root.sh`. Inlining the logic here (rather than sourcing a `lib/` helper) keeps the loader self-contained for vendored installs that lack `lib/`.
+This inline resolution mirrors `_geniro_instructions_dir()` in `lib/repo-root.sh` — the two live in different execution worlds (orchestrator-Bash here, hook-shell there) but must stay in lockstep, the same rationale as the primary-worktree Mode A snippet inlined below vs `repo-root.sh`. Inlining the logic here (rather than sourcing a `lib/` helper) keeps the loader self-contained for vendored installs that lack `lib/`.
 
 When `EXTERNAL_DIR` is non-empty, the load set reads from it as a flat layout — `<EXTERNAL_DIR>/<file>`, with no `.geniro/instructions/` suffix — and the `PRIMARY_ROOT` resolution + cwd-first fallback below are skipped entirely (the external dir is an explicit override, not a merge). Resolve `PRIMARY_ROOT` and use the cwd-first fallback ONLY when `EXTERNAL_DIR` is empty (no external dir active, or a configured one was missing and already failed open).
 
@@ -87,7 +69,7 @@ For each file in the load set, in order:
 5. Apply the loaded content:
  - `## Rules` → standing rules active in every phase of the consumer skill
  - `## Constraints` → a flat bullet list of hard gates, evaluated globally (or at a phase boundary when a bullet's text names one) — not organized into per-phase subsections; only `## Additional Steps` uses named-phase subsections
- - `## Additional Steps` → extra steps inserted at the named phase boundary (if the skill has that phase; otherwise apply where they fit and skip the rest)
+ - `## Additional Steps` → extra steps inserted at the named phase boundary, via the `### After <phase name>` form (if the skill has that phase; otherwise apply where they fit and skip the rest)
  - `## Data Sources` → read-only sources to cross-check load-bearing facts against, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`; absent = no declared sources
  - `## Verification Surface` → what each of the project's checks covers and leaves uncovered, consulted when the run picks which check demonstrates a criterion and when it states the result; absent = no declared mapping
  - `## Memory Backend` → routes L2 learnings through a project-declared backend at the `emit-learning` / `query-learnings` call-sites, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`; absent = built-in `.geniro/knowledge/learnings.jsonl` file, unchanged
@@ -168,7 +150,7 @@ The loader applies these as:
 
 - **Rules → standing rules.** Active in every phase of the consumer skill until the run ends.
 - **Constraints → hard gates.** A flat bullet list, evaluated globally (or at a phase boundary when a bullet names one). Only `## Additional Steps` uses named-phase subsections.
-- **Additional Steps → extra steps inserted at the named phase boundary.** If the per-skill file declares an Additional Step for a phase that doesn't exist in the consumer (e.g. `debug` has no PHASE 1 — it has step 1 / Observe), apply where it fits and skip the rest. The one event (non-phase) anchor is `### After worktree-setup` in `global.md` — a cross-skill step run right after a new worktree is created and before subagent fan-out (execution sites: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §3 and `/geniro:review` triage). Resolve `global.md` through the primary-worktree fallback above — a fresh linked worktree does not carry the gitignored authored file, so a cwd-only Read would miss it.
+- **Additional Steps → extra steps inserted at the named phase boundary.** The `### After <phase name>` form is the only one a consumer reads — a `### Before <phase name>` subsection has no read site in any skill, which is why `/geniro:instructions` rejects it at authoring time rather than letting it parse as legal and never run. If the per-skill file declares an Additional Step for a phase that doesn't exist in the consumer (e.g. `debug` has no PHASE 1 — it has step 1 / Observe), apply where it fits and skip the rest. The one event (non-phase) anchor is `### After worktree-setup` in `global.md` — a cross-skill step run right after a new worktree is created and before subagent fan-out (execution sites: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §3 and `/geniro:review` triage). Resolve `global.md` through the primary-worktree fallback above — a fresh linked worktree does not carry the gitignored authored file, so a cwd-only Read would miss it.
 - **Data Sources → read-only fact-verification sources** consulted by `/geniro:plan` and `/geniro:implement` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`.
 - **Verification Surface → what each project check covers, and what it does not.** Consulted where a run selects the check that demonstrates a given criterion, and where it words the result — the uncovered half bounds how wide the claim may be stated, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` §Forbidden phrases. Absent means no declared mapping and nothing changes.
 - **Memory Backend → L2-learnings routing** applied at the `emit-learning` / `query-learnings` call-sites per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`.
@@ -198,4 +180,3 @@ Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantic
 - [ ] When an external instructions dir is configured and valid, every file loads from it and the cwd/`PRIMARY_ROOT` fallbacks are skipped; a configured-but-missing dir fails open to in-repo with the §Echo-contract caveat
 - [ ] When cwd Read returns file-not-found AND `PRIMARY_ROOT` differs from cwd, a fallback Read against `<PRIMARY_ROOT>/.geniro/instructions/<file>` is attempted before the "No `<name>` found" echo
 - [ ] Every Read emits exactly one echo line per §Echo contract (cwd success / primary-worktree success / not-found)
-- [ ] Consumer SKILL.md files do not duplicate the producer-side Rules/Constraints/Steps semantics — that lives here only

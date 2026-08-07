@@ -252,6 +252,30 @@ expect_block "NotebookEdit pickle.load into a .ipynb notebook cell blocks" \
 expect_allow "NotebookEdit benign cell allowed" \
   "$(run_notebookedit /tmp/nb.ipynb 'import json; json.loads(blob)')"
 
+# ===== perl-absent: the hook cannot run its PCRE scan without it =====
+# Unlike jq-absent (no coarse fallback exists here either — see HOOKS.md
+# §security-pattern-check.sh Degraded mode), a missing perl must fail OPEN
+# loudly (systemMessage), not silently pass every edit unannounced. FAKEBIN
+# holds every tool the hook needs except perl (jq stays available).
+FAKEBIN="$TMPDIR_BASE/noperl-bin"
+mkdir -p "$FAKEBIN"
+for _t in jq cat grep sed awk tr head printf env bash sh dirname; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$FAKEBIN/$_t"
+done
+NOPERL_OUT="$TMPDIR_BASE/security-check-noperl.out"
+run_write_noperl() {  # <path> <content>
+  jq -nc --arg p "$1" --arg c "$2" '{tool_input: {file_path: $p, content: $c}}' \
+    | PATH="$FAKEBIN" bash "$HOOK" >"$NOPERL_OUT" 2>&1
+  echo $?
+}
+expect_allow "perl-absent: eval() in .py fails open (hook cannot run without perl)" \
+  "$(run_write_noperl /tmp/x.py 'r = eval(s)')"
+if grep -q "perl not found on PATH" "$NOPERL_OUT"; then
+  pass "perl-absent: systemMessage names perl as the missing dependency"
+else
+  fail "perl-absent: expected a systemMessage naming perl — got: $(cat "$NOPERL_OUT")"
+fi
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

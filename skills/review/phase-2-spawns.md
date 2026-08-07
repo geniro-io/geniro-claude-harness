@@ -45,7 +45,7 @@ State.md `phase: llm-spawn`.
 
 Total batch size = always-fire + triggered conditional + custom rows. Trimming this set silently is the documented anti-pattern — see §Anti-rationalization. Post-spawn verification in Phase 4 §4.0 catches drift.
 
-**Refresh L4 instructions** at Phase 2 entry — apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `MODE: refresh`. Compaction since the previous load may have silently dropped the rules.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 **Read custom-reviewer specs** from state.md frontmatter `custom_reviewers[]` — populated in Phase 1.5 §1.5.4 via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` discovery. Each entry carries the short scalars (`slug`, `paths_matched`, `model`, `source_path`, `severity_default`, `requires_context`); the criteria body is not persisted, so **Read each entry's `source_path` here** to recover it — that body is the `CRITERIA:` slot of its spawn. Resolve the path cwd-local first, then under `<PRIMARY_ROOT>` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), matching the discovery glob. A `source_path` that no longer resolves means the user's file moved or was deleted mid-run: drop that one reviewer, note it under `## Caveats` by slug, and fire the rest — spawning a custom dimension with an empty rubric produces findings against no criteria at all. Append one `Agent(subagent_type="reviewer-agent",...)` per surviving spec to the same parallel batch as the built-ins.
 

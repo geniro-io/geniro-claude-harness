@@ -83,7 +83,7 @@ Resolve ONLY a thread whose fix landed and whose verdict is `fix` (`resolve_afte
 
 ## 6. MCP fallback + fail-open
 
-When the GitHub MCP server is registered, the read side MAY use `mcp__github__pull_request_read` and consume `reviewThreads[]` + `reviews[]` from its payload instead of the §2 `gh` call — same fields. There is no MCP equivalent for §4/§5 writes in the base server, so the write side always uses `gh`.
+**Default: the §2 `gh api graphql` call.** The one escape hatch — when the GitHub MCP server is registered, the read side may use `mcp__github__pull_request_read` instead, consuming `reviewThreads[]` + `reviews[]` from its payload (same fields). There is no MCP equivalent for §4/§5 writes in the base server, so the write side always uses `gh`.
 
 Every call here is **fail-open**: a failed read sets the affected snapshot to null and the caller proceeds with a caveat (a resolve run with no thread data degrades to "nothing to triage"); a failed write marks that `comment_resolutions[]` entry `status: skipped` and reports it — never a hard stop, never a silent success.
 

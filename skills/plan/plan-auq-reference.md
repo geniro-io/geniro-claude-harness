@@ -178,7 +178,7 @@ Persist each checkpoint decision to `approvals[]` (§1 entry shape) with categor
 
 ## 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 
-Apply the Gate presentation contract (§Visual rendering language). Render the approaches to a chat message — progress tracker, one-sentence opener, then per approach a plain-English summary + ASCII diagram + what-changes + trade-off + stress-test verdict — and fire ONE lean AUQ whose options are just the approach names.
+Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language). Render the approaches to a chat message — progress tracker, one-sentence opener, then per approach a plain-English summary + ASCII diagram + what-changes + trade-off + stress-test verdict — and fire ONE lean AUQ whose options are just the approach names.
 
 Chat message rendered before the AUQ:
 
@@ -316,7 +316,7 @@ Handoff (Phase 9) prints `/geniro:implement .geniro/planning/<slug>/milestone-1.
 
 ## 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
 
-Apply the Gate presentation contract (§Visual rendering language). Render the full plan summary to a chat message (with the concrete examples already authored per section), then fire a lean AUQ.
+Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language). Render the full plan summary to a chat message (with the concrete examples already authored per section), then fire a lean AUQ.
 
 Chat message rendered before the AUQ:
 

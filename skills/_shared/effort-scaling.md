@@ -6,7 +6,7 @@ Match planning depth to task complexity. **File count is a smell detector, not a
 
 Tiers: **Trivial / Small / Medium / Big**. Big-tier classification at /geniro:plan time triggers milestone-mode output (emits per-milestone spec files); /geniro:implement consumes each milestone spec exactly like a single-spec input.
 
-## Step 1: Check for Hard Escalation Signals
+## Step 1: Check for hard escalation signals
 
 These signals force **Big** classification regardless of file count:
 
@@ -24,7 +24,7 @@ These signals force **Big** classification regardless of file count:
 
 **If ANY hard signal is present → Big, skip to Step 3.**
 
-## Step 2: Assess Complexity Dimensions
+## Step 2: Assess complexity dimensions
 
 If no hard signals, score these dimensions:
 
@@ -42,7 +42,7 @@ If no hard signals, score these dimensions:
 - **4-6 → Medium**
 - **7+ → Big**
 
-## Step 3: Apply Planning Depth
+## Step 3: Apply planning depth
 
 | Size | Planning Depth |
 |------|----------------|

@@ -1,6 +1,6 @@
 # Within-skill state handoff (canonical, shared)
 
-**Status:** Authoritative for these task-local state files: `.geniro/state/refactor/<slug>/state.md`, `.geniro/state/debug/<slug>/state.md`, `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md`, `.geniro/state/audit-instructions/<slug>/state.md`.
+**Status:** Authoritative for these task-local state files: `.geniro/state/refactor/<slug>/state.md`, `.geniro/state/debug/<slug>/state.md`, `.geniro/state/onboard/<slug>/state.md`, `.geniro/state/investigate/<slug>/state.md`, `.geniro/state/audit-instructions/<slug>/state.md`, `.geniro/state/resolve/<slug>/state.md`.
 
 Within-skill state files are task-local and intentionally cwd-relative, but two parallel sessions sharing the same `pwd` on different branches collide on identical paths. This file codifies the slug-scoped path contract, the frontmatter fields every producer writes, and the mismatch UX every consumer surfaces on resume.
 
@@ -42,13 +42,13 @@ When `git` is unavailable or the project isn't a git repo, the fallback chain pr
 Every producer of a within-skill state file must:
 
 1. Compute the slug per `## Slug rules`.
-2. Write to the slug-scoped path: `.geniro/state/<skill>/<slug>/state.md` (subdir-per-slug layout for every producer — debug, refactor, onboard, investigate, audit-instructions — all session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
+2. Write to the slug-scoped path: `.geniro/state/<skill>/<slug>/state.md` (subdir-per-slug layout for every producer — debug, refactor, onboard, investigate, audit-instructions, resolve — all session-bound). Never write to a non-scoped path. The `.geniro/state/` prefix is mandatory — root-level state files are blocked by convention so only user-content (instructions/, actions/, workflow/, planning/, knowledge/) lives at the root.
 3. Write the full T1.5 frontmatter field set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` (common-base `producer` / `schema-version` / `branch` / `timestamp` + tier-specific `phase` / `status` / `non-resumable-actions`), plus the `worktree:` field this helper adds for pwd-change detection. `branch:` / `worktree:` / `timestamp:` are the slug-collision-relevant subset this helper governs; the rest satisfy `validate_state_file` (which returns exit 4 on a missing `producer` / `schema-version` and exit 5 on a missing `phase` / `status` / `non-resumable-actions`). The frontmatter starts on line 1 with `---`:
 
 ```yaml
 ---
 tier: T1.5
-producer: <skill>            # debug | refactor | onboard | investigate | audit-instructions
+producer: <skill>            # debug | refactor | onboard | investigate | audit-instructions | resolve
 schema-version: 1
 branch: <git branch --show-current OR detached-<short-sha>>
 worktree: <git rev-parse --show-toplevel>
@@ -66,7 +66,7 @@ The frontmatter `branch:` field is the source of truth on resume — even if two
 On skill start (or resume after compaction), every consumer must:
 
 1. Compute current branch + slug per `## Slug rules`.
-2. Try to read `.geniro/state/<skill>/<slug>/state.md` (primary path; subdir-per-slug layout for debug, refactor, onboard, investigate, and audit-instructions alike).
+2. Try to read `.geniro/state/<skill>/<slug>/state.md` (primary path; subdir-per-slug layout for debug, refactor, onboard, investigate, audit-instructions, and resolve alike).
 3. If the primary path exists, read the frontmatter `branch:` and `worktree:` fields and run `## Mismatch handling` Case A/B/C.
 4. If the primary path does NOT exist BUT an older path exists at any of these locations, enter Case D (migration). Try in this order:
  - `.geniro/<skill>/state-<slug>.md` (slug-scoped, older directory layout)
@@ -97,6 +97,8 @@ Four cases — consumers must handle all four:
 ## Cleanup contract
 
 When a skill completes its pipeline, it `rm -rf`s its slug-scoped state directory `.geniro/state/<skill>/<slug>/` — the whole dir, not just `state.md`. The slug is recomputed from the current branch at cleanup time, so the deletion targets the dir the skill itself wrote — no need to grep the frontmatter `branch:` field. Removing the directory (not only `state.md`) sweeps any scratch the run wrote alongside it — `/geniro:debug`, for one, may write experiment artifacts into `.geniro/state/debug/<slug>/`, and the migration sweep only scans `.geniro/planning`, so a stray file under `.geniro/state/<skill>/<slug>/` has no backstop; an `rm -f state.md` that leaves the dir would orphan it. Durable cross-run artifacts never live in this dir — handoffs are at `.geniro/state/handoff/`, authored tests at the project's test paths, the codebase map at `.geniro/planning/_*.md` — so removing the slug dir loses nothing the skill chain still needs. Delete only the current branch's slug dir, never a glob-delete across `.geniro/state/<skill>/*/` — sibling slugs belong to parallel pipelines on other branches still in flight, and a bulk delete would sweep their state out from under them.
+
+**`/geniro:resolve` is the one retained-dir exception.** It does NOT `rm -rf` its slug dir at terminal exit — `spec.md`, the deliverable `/geniro:implement` consumes, lives there, so the dir survives past terminal (as `/geniro:plan` retains its planning task-dir). It still clears its own scratch: `clean_task_transients .geniro/state/resolve/<slug>` runs before every terminal `phase:` write.
 
 **Old path cleanup.** Producer skills do NOT clear legacy pre-rename paths at run end — the `/geniro:update` migration walk owns legacy-path cleanup (a one-time migration, not a recurring per-run cost). The per-skill legacy paths, kept here as the walk's reference and for the Case D resume fallback:
 

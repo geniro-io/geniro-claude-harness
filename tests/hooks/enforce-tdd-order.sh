@@ -68,6 +68,17 @@ expect_allow "RED: *.test.js allowed"                  "$(run_edit "$GITREPO/src
 expect_allow "RED: tests/ dir allowed"                 "$(run_edit "$GITREPO/tests/app.js")"
 expect_block "RED: 'contestant.ts' (test-substring, not a test) blocked" "$(run_edit "$GITREPO/src/contestant.ts")"
 
+# ===== RED: Edit/Write branch honors the same non-production exemption as Bash =====
+# The Bash branch calls is_non_production_target before is_test_file; the
+# Edit/Write/MultiEdit/NotebookEdit branch must too, or the TDD orchestrator's own
+# .geniro/state/tdd/ write (via Edit/Write, not just Bash mktemp+mv) hard-blocks.
+expect_allow "RED: Edit under .geniro/state/tdd/ allowed (orchestrator state)" \
+  "$(run_edit "$GITREPO/.geniro/state/tdd/state-${SLUG}.md")"
+expect_allow "RED: Edit under dist/ (build output) allowed" \
+  "$(run_edit "$GITREPO/dist/app.js")"
+expect_allow "RED: Edit under node_modules/ allowed" \
+  "$(run_edit "$GITREPO/node_modules/pkg/index.js")"
+
 # ===== GREEN / IDLE → allow production =====
 write_phase GREEN
 expect_allow "GREEN: production file allowed"          "$(run_edit "$GITREPO/src/app.js")"
@@ -109,6 +120,11 @@ expect_allow "RED: Bash 2>/dev/null only (no production write) allowed" \
 # else the mktemp+mv that advances the cycle would deadlock.
 expect_allow "RED: Bash write under .geniro/ allowed (orchestrator state)" \
   "$(run_bash "mv /tmp/x $GITREPO/.geniro/state/tdd/state-${SLUG}.md")"
+# The exemption must anchor on `.geniro` as a whole path SEGMENT, not merely as
+# a substring suffix — a production directory that happens to END in "geniro"
+# (my.geniro/) is not the state tree and must still be gated during RED.
+expect_block "RED: Bash write to a dir merely ending in 'geniro' (not a segment) blocked" \
+  "$(run_bash "printf x > $GITREPO/my.geniro/app.js")"
 expect_allow "RED: Bash read-only command (no write target) allowed" \
   "$(run_bash "cat $GITREPO/src/app.js | grep foo")"
 # Outside RED, Bash writes to production are allowed.

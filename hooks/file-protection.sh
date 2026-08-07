@@ -9,14 +9,19 @@
 # and interpreter-mediated writes (a scripting runtime opening a protected
 # file for writing, an awk program redirecting `print` into one).
 # Read-only access to protected files (cat/grep/cp FROM them) stays allowed.
-# Heredoc bodies and quoted string literals are scrubbed before extraction
-# (they are data, not syntax) — a deliberately QUOTED redirect target
-# (`> ".env"`) is therefore a documented miss, accepted to avoid hard-blocking
-# benign commands that merely mention protected names in strings. The scrubbed
-# positions that ARE syntax are the shell-indirection payloads — `sh -c "..."`,
-# `eval "..."`, a quoted program piped to a shell, a heredoc body fed to one, a
-# process substitution a shell reads, an interpreter shelling out: all of them are
-# extracted before the scrub and this guard re-runs on each.
+# Heredoc bodies are always scrubbed before extraction (a heredoc fed to
+# `cat > file` is data, not syntax). Quoted string literals are scrubbed for
+# vectors 1-11 — a deliberately QUOTED redirect target (`> ".env"`) is
+# therefore a documented miss there, accepted to avoid hard-blocking benign
+# commands that merely mention protected names in strings — but vector 12
+# (interpreter-mediated writes) scans the heredoc-scrubbed, QUOTE-INTACT text
+# instead: an interpreter's write target IS a quoted literal
+# (`open('.env','w')`), so blanking quotes there would blind the vector on its
+# own true positives. The scrubbed positions that ARE syntax are the
+# shell-indirection payloads — `sh -c "..."`, `eval "..."`, a quoted program
+# piped to a shell, a heredoc body fed to one, a process substitution a shell
+# reads, an interpreter shelling out: all of them are extracted before the
+# scrub and this guard re-runs on each.
 #
 # Per-project allowlist: .geniro/safety.json (in cwd or any ancestor) can opt out
 # of specific patterns by listing pattern IDs in the "allow_patterns" array.
@@ -56,6 +61,27 @@ fi
 INPUT=$(cat)
 
 TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
+
+# A truncated/malformed payload makes jq fail on EVERY field it would extract
+# from $INPUT, not just one — so TOOL_NAME and FILE_PATH both come back empty
+# together, control reaches neither the Bash branch (TOOL_NAME != "Bash") nor
+# a real Edit/Write/MultiEdit call, and the Edit branch's empty-FILE_PATH check
+# below would otherwise exit 0 on exactly the input class this scan exists for.
+# (A well-formed payload with a valid first JSON object plus trailing garbage
+# is NOT this case — jq emits the parsed value before erroring on the garbage,
+# so TOOL_NAME/FILE_PATH/COMMAND still come back populated and the normal
+# per-branch logic below already blocks it.) Run the same coarse fail-closed
+# raw-text scan the jq-absent branch at the top of this file uses.
+if [ -z "$TOOL_NAME" ] && [ -z "$FILE_PATH" ]; then
+  RAW_TARGETS=$(printf '%s' "$INPUT" \
+    | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
+    | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
+  if printf '%s' "$RAW_TARGETS" | grep -qE '\.env($|[^A-Za-z0-9])|\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
+    echo "File protection blocked [jqless-fallback]: the tool input names a protected file (.env, *.pem, *.key, credentials.*, secrets.*) but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
+    exit 2
+  fi
+fi
 
 # Find the nearest .geniro/safety.json walking up from cwd
 find_safety_json() {
@@ -164,9 +190,10 @@ check_protected_path() {
 # Shell indirection and interpreter-mediated writes are single-sourced in
 # lib/write-vectors.sh. Each inline fallback keeps the guard whole on a vendored
 # install shipping hooks/ without lib/ — a missing helper must never make this
-# guard fail open — and is a VERBATIM copy of the canonical function (delimited
-# by GENIRO-VENDORED markers). A one-sided edit reopens the hole on that install,
-# so edit both or neither.
+# guard fail open — and is a VERBATIM copy of the canonical function. A
+# one-sided edit reopens the hole on that install, so edit both or neither —
+# parity is enforced by tests/hooks/write-vectors-fallback-parity.sh, not by
+# markers on the canonical side (lib/write-vectors.sh carries none).
 _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null
@@ -1001,14 +1028,60 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 
   # 12) Interpreter-mediated writes: a scripting runtime opening a file for
   #     writing, or an awk program redirecting `print` into one. Vectors 1-11
-  #     read $ONELINE, whose heredoc bodies and quoted literals were blanked as
-  #     data — and an interpreter's file write is not shell syntax anywhere, so
-  #     `python3 -c "open('.env','w').write(k)"` reaches the filesystem
-  #     unchecked. This vector therefore scans the RAW $COMMAND, and fires only
-  #     on the conjunction interpreter + write op + target, so a read-only
-  #     interpreter call stays allowed. Contract: lib/write-vectors.sh.
+  #     read $ONELINE, whose heredoc bodies and quoted literals were BOTH
+  #     blanked as data — but an interpreter's write target IS a quoted literal
+  #     (`open('.env','w')`), so scanning $ONELINE would blind this vector on
+  #     its own true positives. This vector therefore scans $SCRUBBED instead:
+  #     heredoc bodies dropped (a heredoc fed to `cat > file` is textual data,
+  #     not code — a heredoc that merely AUTHORS TEXT mentioning an interpreter
+  #     write must not read as performing one), quoted literals left intact.
+  #     Fires only on the conjunction interpreter + write op + target, so a
+  #     read-only interpreter call stays allowed. Contract: lib/write-vectors.sh.
+  #
+  #     One exception to "heredoc body is data": a heredoc fed to an
+  #     INTERPRETER's stdin (`python3 <<EOF ... EOF`) is EXECUTED, not authored
+  #     into a file — a write it performs is real, not a mention. $SCRUBBED
+  #     drops that body exactly like every other heredoc, which would blind
+  #     this vector on that shape. $IW_SCAN re-derives $SCRUBBED with ONLY
+  #     interpreter-fed heredoc bodies kept intact; every other heredoc (cat,
+  #     tee, a shell — already handled by arm 4 above — anything else) still
+  #     drops its body identically to $SCRUBBED.
+  IW_SCAN=$(printf '%s\n' "$COMMAND" | GENIRO_IW_INTERP_RE='(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript|awk|gawk|mawk)([[:space:]]|$)' awk '
+    hd {
+      line = $0
+      if (dash) sub(/^\t+/, "", line)
+      if (line == tag) { hd = 0; nbuf = 0; next }
+      if (keep) { print $0; next }
+      buf[nbuf++] = $0
+      next
+    }
+    {
+      n = length($0); q = ""; pos = 0
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (q != "") { if (c == q) q = ""; continue }
+        if (c == "\"" || c == "'\''") { q = c; continue }
+        if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+      }
+      if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
+        tag = substr($0, pos, RLENGTH)
+        dash = (tag ~ /^<<-/)
+        sub(/^<<-?[[:space:]]*/, "", tag)
+        gsub(/[\\"'\'']/, "", tag)
+        hd = 1
+        nbuf = 0
+        keep = ($0 ~ ENVIRON["GENIRO_IW_INTERP_RE"])
+        print
+        next
+      }
+      print
+    }
+    END {
+      if (hd && !keep) for (j = 0; j < nbuf; j++) print buf[j]
+    }
+  ')
   _iw_unresolved=0
-  _iw_targets=$(_geniro_interp_write_targets "$COMMAND") || _iw_unresolved=1
+  _iw_targets=$(_geniro_interp_write_targets "$IW_SCAN") || _iw_unresolved=1
   if [ -n "$_iw_targets" ]; then
     while IFS= read -r tok; do
       [ -z "$tok" ] && continue
@@ -1023,7 +1096,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     while IFS= read -r tok; do
       [ -z "$tok" ] && continue
       add_candidate "$tok"
-    done <<< "$(_geniro_wv_path_tokens "$COMMAND")"
+    done <<< "$(_geniro_wv_path_tokens "$IW_SCAN")"
   fi
 
   if [ -z "$CANDIDATES" ]; then
@@ -1037,8 +1110,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 fi
 
 # ---- Edit/Write/MultiEdit branch ----
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
-
+# FILE_PATH was already extracted above (needed there for the malformed-payload check).
 if [ -z "$FILE_PATH" ]; then
   # No file path found, allow execution
   exit 0

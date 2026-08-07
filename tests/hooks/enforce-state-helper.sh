@@ -269,6 +269,20 @@ expect_block "NotebookEdit into a state path blocks" \
 expect_allow "NotebookEdit into a normal notebook allowed" \
   "$(rc_notebook '/proj/notebooks/analysis.ipynb')"
 
+# ===== jq PRESENT but payload MALFORMED: must still fail-closed on a raw scan =====
+# A truncated payload makes tool_name AND file_path/command all parse empty, so
+# neither the Bash branch nor the Edit branch fires — this is the input class
+# the coarse raw-text fallback exists for (mirrors file-protection.sh,
+# block-dangerous-git.sh, block-geniro-deletion.sh's identical fallback).
+run_raw() {  # <raw-payload-text>
+  printf '%s' "$1" | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "malformed payload naming a canonical state path still blocked" \
+  "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"mv /tmp/x .geniro/state/foo/state.md"')"
+expect_allow "malformed payload with no canonical state path allows" \
+  "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hello"')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

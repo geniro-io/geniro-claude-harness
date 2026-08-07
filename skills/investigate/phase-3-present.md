@@ -2,6 +2,18 @@
 
 Phase file for `/geniro:investigate`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md`.
 
+## Contents
+
+- Step 0: Refresh custom instructions
+- Step 1: Synthesize draft
+- Step 2: Fresh verifier agent
+- Step 3: Present + Sources + Open questions
+- Step 4: Ask what to save · Step 4a: Save-routing
+- Step 5: Record the answer as a learning
+- Step 6: Cleanup
+
+---
+
 State.md `phase: present`. Synthesizes verified findings, a fresh verifier agent re-checks, presents to user, offers save-routing AUQ, emits L2 `discovery` with trust label.
 
 ### Step 0: Refresh custom instructions

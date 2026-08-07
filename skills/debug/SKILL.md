@@ -36,7 +36,7 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes] [-
 
 ## Your role — investigate, don't ship
 
-You investigate. You isolate. You propose. You do NOT apply the fix. Phase 3 handoff is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
+You investigate. You isolate. You propose. You do not apply the fix. Phase 3 handoff is a text proposal + reproduction test on disk + a handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`. Downstream consumers (`/geniro:implement`, manual user action) apply the patch.
 
 ---
 
@@ -54,12 +54,12 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 - **Invariant #3 (permission before side-effect)** — /geniro:debug performs NO `git push` / `gh pr create`; the no-ship boundary holds under a dynamic `Workflow(...)` or ultracode mode too, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 - **Invariant #4 (bounded results)** — `adversarial-tester-agent` output is bounded by the hard cap on authored tests its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`); finding schema per that file's §Output Schema.
-- **Invariant #5 (escalation gates)** — stall gate (5 inconclusive) + fix-fail gate (2 attempts) escalate via AUQ; never fabricate a conclusion.
+- **Invariant #5 (escalation gates)** — stall gate (§1.7) + fix-fail gate (§2.5) escalate via AUQ; never fabricate a conclusion.
 - **Invariant #6 (grounded in observations)** — a hypothesis is **confirmed** only when its `Result:` field in `## Hypotheses` cites an artifact from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. That standard also binds every fix-verification and reproduction-test capture: reasoning is correlation, and only reproduction with a captured artifact confirms causation.
 
 This skill adds one invariant:
 
-8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
@@ -85,7 +85,7 @@ This skill adds one invariant:
 | "I'll name the reproduction test after the confirmed hypothesis number from `## Hypotheses`" | state.md gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. §2.4 mandates: describe the bug behavior, not the thread-local label. |
 | "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskUserQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
 | "Bypass `git guardrail` hooks if a needed `git bisect` step blocks." | Hooks fail for a reason. `git bisect` is permitted (read-only investigation per § ACI per-phase). If a specific guardrail blocks legitimate debug work, the path is `.geniro/safety.json` allow_patterns, not `--no-verify`. |
-| "Self-fix indefinitely until verify passes." | §2.5 fix-loop escalation bounds to 2 fix attempts. Past 2, escalate AUQ ("Try different approach" / "Accept as documented limitation" / "Abort"). "Kick it until it passes" is an anti-pattern that wastes budget on a hypothesis that needs revisiting. |
+| "Self-fix indefinitely until verify passes." | §2.5 fix-loop escalation bounds the fix-attempt count and, past it, escalates AUQ ("Try different approach" / "Accept as documented limitation" / "Abort"). "Kick it until it passes" is an anti-pattern that wastes budget on a hypothesis that needs revisiting. |
 
 ---
 
@@ -97,10 +97,10 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Inconclusive hypothesis tests | 5 across all hypotheses | stall gate | AUQ — diagnose-by-missing-component → user supplies missing or picks alternative |
-| Fix attempts failed verification | 2 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
+| Inconclusive hypothesis tests | per §1.7 | stall gate | AUQ — diagnose-by-missing-component → user supplies missing or picks alternative |
+| Fix attempts failed verification | per §2.5 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
 | Adversarial mode authored tests | per the agent contract | (delegated to agent contract) | Stop authoring; surface findings |
-| Adversarial mode consecutive discards | 5 | (delegated to agent contract) | Stop hypothesis generation; surface partial |
+| Adversarial mode consecutive discards | per the agent contract | (delegated to agent contract) | Stop hypothesis generation; surface partial |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -119,7 +119,7 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 
 | Spawn | When |
 |---|---|
-| `codebase-research-agent` | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant #8). Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
+| `codebase-research-agent` | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant S1). Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
 | `adversarial-tester-agent` | Adversarial mode test authoring. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 ---
@@ -144,7 +144,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 **Phase 1 (Investigate):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, read-only `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
-- Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant #8); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
+- Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
 - Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching without user confirmation.
 
 **Phase 2 (Propose):**
@@ -162,7 +162,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - Agent's tool surface inherited via the agent's frontmatter (owned by `${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`).
 - Orchestrator's re-verification step uses read-only Bash (run test command).
 
-The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
+The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 

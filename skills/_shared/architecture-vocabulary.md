@@ -31,16 +31,9 @@ Single source of truth for design vocabulary. Skills cite this file rather than 
 - **"Make it more flexible"** — flexibility without a concrete deepening or seam-narrowing rationale is YAGNI. Add complexity only when it absorbs change.
 - **"Refactor for testability"** — if a module is hard to test, the seam is wrong, not the test framework. Fix the seam.
 
-## How skills reference this
-
-Each consumer cites this file rather than redefining vocabulary:
-
-> Use the canonical terms in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` (depth, seam, adapter, leverage, locality). When proposing a refactor / deepening / module split, name the term explicitly.
-
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
 | "These terms are obvious; skills don't need to cite them" | Without a single source, each skill drifts into its own vocabulary ("layer", "boundary", "facade"). Cross-skill handoffs (architect → reviewer, debug → implement) lose meaning. |
-| "I'll add 'cohesion' and 'coupling' too" | Resist vocabulary bloat. Depth + seam + locality already cover what cohesion and coupling describe. Adding synonyms dilutes shared meaning. |
 | "Another tool uses a different word for this — switch to match it" | Stay with these terms once defined. The point is consistency across these skills, not external alignment. Keep this file canonical and reference it. |

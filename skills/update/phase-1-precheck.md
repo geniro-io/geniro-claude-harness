@@ -52,12 +52,12 @@ CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 REGISTRY="$CLAUDE_USER_DIR/plugins/installed_plugins.json"
 # PRIMARY_ROOT is set by the Mode A resolver, which runs inside THIS Bash call.
 
-# --- paste the §User-content snapshot definitions here ---
+# --- paste the definitions from ${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md here ---
 
 _gu_snapshot "$PRIMARY_ROOT" > "$(_gu_snapshot_file "$PRIMARY_ROOT")" || true
 ```
 
-The redirect is best-effort — a benign trailing `find`/read status must not read as failure. Survival is verified by the Phase 3 Step 2 diff, not by this exit code.
+The redirect is best-effort — a benign trailing `find`/read status must not read as failure. Survival is verified by the `phase-3-postcheck.md` §User-content survival check diff, not by this exit code.
 
 ### Step 3 — Confirm the update with the user
 
@@ -70,5 +70,5 @@ Use `AskUserQuestion`:
 
 On `Cancel` → terminate with `info: update cancelled by user`. On `Confirm update` → transition to Phase 2.
 
-If `--dry-run` was passed in `$ARGUMENTS`, **skip the AUQ entirely** and instead read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` (the currently-installed copy, before any marketplace fetch — `$PLUGIN_PATH` is not set until Phase 2 Step 2, which dry-run skips); print "what would happen" and exit. `--dry-run` does NOT modify any files.
+If `--dry-run` was passed in `$ARGUMENTS`, **skip the AUQ entirely** and instead read `${CLAUDE_PLUGIN_ROOT}/MIGRATION.md` (the currently-installed copy, before any marketplace fetch — `$PLUGIN_PATH` is not set until `phase-2-update.md` §Discover new plugin path, which dry-run skips); print "what would happen" and exit. `--dry-run` does NOT modify any files.
 

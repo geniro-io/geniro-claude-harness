@@ -25,7 +25,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.
 - Clear, single-line constraints
 
 ## Additional Steps
-### After <phase-enum-value>
+### After <legal anchor — §5>
 <!-- Steps to run at the named phase -->
 
 ## Constraints
@@ -101,11 +101,8 @@ What to NOT flag:
 
 ## Additional Steps
 
-### After implement
-- (example: "Run npm run codegen before declaring implementation complete")
-
-### Before ship
-- (example: "Ensure CHANGELOG.md has an entry for the change")
+### After ship
+- (example: "Post a summary to #eng-ships and open a follow-up issue for any deferred TODO")
 
 ## Constraints
 
@@ -188,10 +185,10 @@ Every rule here is loaded into the model's context on each skill run that matche
 
 ### Additional Steps writing
 
-- **Use exact phase enum values** from the per-skill mapping — `validate` checks these (the cross-skill `### After worktree-setup` anchor is the sole non-phase exception, below)
+- **Use one of the legal anchors** from §5 — `validate` rejects anything else, including a real phase name that just has no read site
 - **Keep steps actionable** — each step describes a concrete action
 - **Limit to 2-3 steps per phase** — too many slow down workflow and dilute attention
-- **Best insertion points:** `Before ship` (quality gates), `After implement` (post-checks), `After verify` (refactor wrap-up)
+- **The legal anchors:** `After ship` (implement, post-ship follow-up), `After verify` (refactor wrap-up), `After user-approve` (plan, post-approval)
 - **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after any skill creates a new worktree and before subagent fan-out
 
 ### Constraint writing
@@ -229,19 +226,16 @@ Every rule here is loaded into the model's context on each skill run that matche
 
 ## 5. Per-skill phase enums
 
-An `Additional Steps` subsection must name a real phase from the owning skill's state machine — `### After <phase>` / `### Before <phase>`, lowercase-hyphenated (subsection prose may use any case; validate normalizes). A subsection naming a phase that does not exist fails silently in the loader: the step is never reached and the user gets no error, which is why validate-mode checks it.
+An `Additional Steps` subsection must name a phase that a skill actually reads custom steps at — `### After <phase>`, lowercase-hyphenated (subsection prose may use any case; validate normalizes). Each skill's own state machine has more named phases than this; the table below is narrower on purpose; it lists only the anchors a skill actually reads `## Additional Steps` at, not every phase the skill passes through. Naming any other phase — a real one with no read site, a dropped one, or the `Before <phase>` form (no skill reads that prefix) — fails silently in the loader: the step is parsed, looks legal at a glance, and is never reached, with no error at the point the user would notice. `validate` flags anything outside this table (MEDIUM, below) so the gap surfaces at authoring time instead of staying invisible until someone notices the step never ran.
 
-| Scope | Phase enum | Example subsection names |
+| Scope | Legal anchor | Execution site |
 |---|---|---|
-| `implement` | `analyze \| implement \| self-review \| ship \| ship-committed-only \| self-review-only \| phase-2-escalated \| phase-3-escalated \| debug-handoff \| done \| aborted` | `After analyze`, `After implement`, `After self-review`, `Before ship` |
-| `plan` | `mode-detect \| problem-discovery \| explore \| visual-companion \| clarify \| approaches \| section-approve \| write-spec \| validate \| spec-challenge \| user-approve \| handoff \| done \| aborted` | `After explore`, `After clarify`, `After approaches`, `After write-spec`, `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) |
-| `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
-| `resolve` | `triage \| analyze \| clarify \| emit \| done \| aborted` | `After triage`, `After analyze`, `Before emit` |
-| `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
-| `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
-| `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
-| `investigate` | `classify \| investigate \| present \| present-summary-only \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
-| `reflect` | (stateless — no phase enum) | n/a — rules-only, no Additional Steps |
-| `global` | (no phase enum — cross-skill) | `After worktree-setup` (the only permitted anchor; fires when a skill creates a new worktree) |
+| `implement` | `After ship` | `implement/phase-3-ship.md` §8.2 / `implement-reference.md` §Custom post-ship steps |
+| `plan` | `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) | `plan/SKILL.md` §8.7 |
+| `refactor` | `After verify` | `refactor/phase-3-verify.md` §3.6 |
+| `global` | `After worktree-setup` (cross-skill; fires once, in the orchestrator, right after any skill creates a new worktree) | branch-freshness §3.1 and review triage |
+| `review`, `resolve`, `debug`, `onboard`, `investigate`, `reflect` | none — rules-only, no Additional Steps | n/a |
 
-Free-form subsections raise `LOW`. Subsections naming a dropped phase (e.g. `After Phase 4 (Implement)`) raise `MEDIUM`.
+Free-form subsections raise `LOW`. Subsections naming a real phase this skill has (or a dropped one, e.g. `After Phase 4 (Implement)`) that isn't in this table raise `MEDIUM` — that phase exists or existed, but nothing reads a custom step there.
+
+**Already-authored `### Before ship` / `### After implement` / any other now-dropped anchor.** `validate` never mutates a file (§"No auto-fix" in `mode-validate.md`), so an existing subsection under a dropped anchor stays on disk exactly as written — the next `validate` run reports it (MEDIUM, per above) instead of silently no-op'ing it forever. Move the content to the scope's legal anchor if the step is still wanted; there is currently no anchor for a genuine pre-ship gate — say so to the user rather than remapping to `After ship`, which changes when the step runs.

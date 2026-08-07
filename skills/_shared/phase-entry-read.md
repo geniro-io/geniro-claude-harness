@@ -12,15 +12,7 @@
 
 ## Why this exists
 
-A skill split into a spine plus phase files reaches the model as the spine alone. The phase file is a Read the run has to issue for itself, and "Read X on entry" is a natural-language directive the model routinely treats as already-satisfied — the same failure `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Why this exists documents for instruction loading.
-
-The cost is not that the run works from a vaguer description of the phase. A phase file carries three things the spine deliberately does not:
-
-- **The phase's gates** — the approval questions, the decision trees, the stop conditions. A spine names that a gate exists; the branch conditions that decide whether it fires live in the phase file.
-- **The executable helper invocations** — the call sites with their resolved parameters (`SKILL_SLUG` / `LOAD_TIER` / `MODE`, spawn slots, state-write contracts). The spine mentions the helpers descriptively; the phase file is where they are actually invoked.
-- **The step ordering** that makes a later step's precondition true.
-
-So a skipped phase Read does not degrade the phase — it deletes the phase's gates while leaving the work. The run proceeds, produces output, and looks successful, because nothing downstream re-checks a gate that never fired. One skipped Phase-1 body has been observed removing a workspace-approval gate and the project-instruction load in the same run: the run created a branch and edited source without ever asking, and never loaded the project's rules, because both lived behind that one Read.
+A skill split into a spine plus phase files reaches the model as the spine alone, and a phase file carries what the spine deliberately does not — its gates (the approval questions, decision trees, stop conditions), the executable helper invocations with resolved parameters (`SKILL_SLUG` / `LOAD_TIER` / `MODE`, spawn slots, state-write contracts), and the step ordering a later step's precondition depends on. A skipped phase Read does not degrade the phase — it deletes the phase's gates while leaving the work, and the run proceeds, produces output, and looks successful, because nothing downstream re-checks a gate that never fired.
 
 ## The rule
 

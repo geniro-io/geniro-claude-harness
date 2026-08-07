@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Suite for lib/validate-action-file.sh — the 10 create/validate gate checks.
+# Suite for lib/validate-action-file.sh — the 13 create/validate gate checks.
 #
 # Run: bash tests/actions/validate-action-file.sh
 # Exits non-zero on any failure.
@@ -303,6 +303,33 @@ if [ "$rc" -eq 2 ] && printf '%s\n' "$direct_out" | grep -q '^CRITICAL	risk-clas
 else
   fail "direct execution on a blocking file — got rc=$rc rows: $direct_out"
 fi
+
+# ---------------------------------------------------------------------------
+# Checks 11-13 — filename slug shape, length, and reserved words
+#
+# The slug rule moved out of skills/actions/SKILL.md prose into the validator,
+# so it needs the same paired coverage every other blocking check has: the
+# rule now only exists here, and a check that silently stops firing would let
+# a malformed slug through with nothing else asserting the shape.
+# ---------------------------------------------------------------------------
+
+bad_shape="$(make_action Bad_Slug)"
+expect_check "$bad_shape" slug-shape HIGH "a non-kebab-case slug is HIGH"
+
+good_shape="$(make_action good-slug-2)"
+expect_clean "$good_shape" "a kebab-case slug with digits passes"
+
+long_slug="$(make_action aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffgggggggggg)"
+expect_check "$long_slug" slug-length HIGH "a slug past the length cap is HIGH"
+
+at_cap="$(make_action aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffgggg)"
+expect_clean "$at_cap" "a slug exactly at the length cap passes"
+
+reserved="$(make_action run)"
+expect_check "$reserved" slug-reserved-word HIGH "a reserved-word slug is HIGH"
+
+near_reserved="$(make_action run-recap)"
+expect_clean "$near_reserved" "a slug merely containing a reserved word passes"
 
 # ---------------------------------------------------------------------------
 

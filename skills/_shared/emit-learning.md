@@ -43,7 +43,7 @@ echo '<json-object>' | emit_learning
 
 ## Caller contract — make the write visible and non-trailing
 
-`emit_learning` is silent by design (no stdout on success). That silence is the failure surface: a step with no in-session signal that it ran is the first thing dropped when the orchestrator wraps up after the user-visible deliverable. In practice this left L2 nearly empty in heavy-usage projects — emit-eligible `/geniro:implement` runs (fix-loops, recorded decisions) and confirmed `/geniro:debug` root causes produced zero learnings, because the emit trailed the PR / handoff and never executed. The rules below close that gap. They bind every caller of this helper.
+`emit_learning` is silent by design (no stdout on success). That silence is the failure surface: a step with no in-session signal that it ran is the first thing dropped when the orchestrator wraps up after the user-visible deliverable. The rules below bind every caller of this helper.
 
 1. **Echo the write.** After a successful emit (`rc=0`), print one plain-English line to the user: `Recorded learning: <one-line summary>`. The echo is both a confirmation the user can see and a self-check that the step actually ran. `rc=0` covers a fresh append and a dedup no-op alike — echo either way, since the learning is in the store in both cases. Echo only the user-facing knowledge emits — `diagnosis`, `convention`, `decision`, `discovery`, `pitfall`. High-frequency internal bookkeeping emits (`discarded_hypothesis` per rejected hypothesis, `retry_failure_sequence`) are priming data, not findings; they stay silent so one debug Phase 1 doesn't echo five times.
 

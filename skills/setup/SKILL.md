@@ -37,7 +37,7 @@ argument-hint: "[optional: path to template directory]"
 
 ## Path constraints
 
-**No `~` in file paths passed to Read, Write, Edit, or Glob** (not expanded — creates a literal `~` directory); use `${CLAUDE_PLUGIN_ROOT}` for plugin files, absolute paths for project files.
+**Pass `${CLAUDE_PLUGIN_ROOT}` (plugin files) or a fully resolved absolute path (project files) to Read, Write, Edit, Glob, and Grep** — these tools do not expand `~`, so a literal `~` directory gets created.
 
 Resolve the user's Claude config dir once, honoring `CLAUDE_CONFIG_DIR`:
 
@@ -60,7 +60,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 - **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
 - **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
 - **Invariant #4 (bounded structured tool results)** — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
-- **Invariant #5 (escalation gates, not silent abort)** — 3-retry loop on validation drift; on round 4 → AUQ `accept-with-warnings | abort | start-over (re-detect)` (the §4.2 three-option form).
+- **Invariant #5 (escalation gates, not silent abort)** — the validation retry loop escalates via AUQ (`accept-with-warnings | abort | start-over`) rather than aborting silently; retry cap and round count owned by `phase-4-validate.md` §4.2.
 - **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
 
 `## Tool log` selective logging: record verification subagent spawns + every Write to project root or `.geniro/`. Skip routine Read/Bash inside Detect.
@@ -83,7 +83,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase files; this list is the final correctness/contract check, not a re-listing of every step.
 
 - [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content checked and absent
-- [ ] Verification subagent passed (≤3 retry rounds or AUQ escalation on round 4)
+- [ ] Verification subagent passed within the retry cap, or resolved via the final-round AUQ escalation (cap owned by `phase-4-validate.md` §4.2)
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
 - [ ] All user interactions used `AskUserQuestion`
@@ -95,7 +95,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Layer | Lever | Why |
 |---|---|---|
-| **Class-B escalation gates** | 3-retry validation loop → AUQ | Validation drift after 3 rounds means structural disagreement; surface to user |
+| **Class-B escalation gates** | Validation retry loop → AUQ (cap owned by `phase-4-validate.md` §4.2) | Drift past the cap means structural disagreement; surface to user |
 | | Verification report truncation per the §4.1 subagent-prompt cap | Long reports inflate context without commensurate signal |
 | **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
 
@@ -117,7 +117,9 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 |---|---|---|
 | User aborted at Validate AUQ (rejected generated content) | `failed` | "user-aborted at Validate AUQ — generated content rejected; restart via re-run mode" |
 | Validation drift cleared after retry | `done` | not written (success path) |
-| Validation drift unresolved after 3 retry rounds | `failed` | "validation drift unresolved after 3 rounds — escalate via AUQ; user picks: accept-with-warnings / abort / start-over (re-detect)" |
+| Validation retry-cap escalation (`phase-4-validate.md` §4.2) — "Abort setup" pick | `failed` | "user aborted at the validation escalation gate — remaining drift unresolved; restart via re-run mode" |
+| Validation retry-cap escalation (`phase-4-validate.md` §4.2) — "Accept with warnings" pick | `done` | not written (success path; remaining DRIFT items noted in `## Open Questions`; state file deleted at Phase Done unless `mode == re-run`, per `phase-5-done.md` §5.3) |
+| Validation retry-cap escalation (`phase-4-validate.md` §4.2) — "Start over" pick | `detect` (non-terminal — restarts Phase 1) | not written (run continues, not terminated) |
 | Generation hit write-protection | `failed` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
 | Bootstrap completed without drift | `done` | not written |
 
@@ -148,11 +150,11 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 
 ## Phase 4: Validate
 
-`phase: validate` · Steps: `phase-4-validate.md` §4.1-§4.3. Spawn the read-only verification subagent against the generated CLAUDE.md; retry up to 3 rounds on DRIFT, regenerating only the affected sections; round 4 escalates via AUQ. Exit when a round returns zero DRIFT items (or the round-4 AUQ resolves the run to `failed`/`accept-with-warnings`), and the `discovery` learning has been emitted.
+`phase: validate` · Steps: `phase-4-validate.md` §4.1-§4.3. Spawn the read-only verification subagent against the generated CLAUDE.md; on DRIFT, regenerate only the affected sections and retry up to the §4.2 cap, then escalate via AUQ. Exit when a round returns zero DRIFT items (or the escalation AUQ resolves the run per §4.2), and the `discovery` learning has been emitted.
 
 ## Phase 5: Done
 
-`phase: done` · Steps: `phase-5-done.md` §5.1-§5.4. Print the final report, offer to map the codebase (skipped on re-run), delete the singleton state file (the one named exception to the T1.5 survives-past-ship rule — kept only on the round-4 `accept-with-warnings` path), and emit the restart-session warning on a re-run plugin-version delta. Exit when the state file is deleted (or deliberately kept per the exception) and the final report has been printed.
+`phase: done` · Steps: `phase-5-done.md` §5.1-§5.4. Print the final report, offer to map the codebase (skipped on re-run), delete the singleton state file (the one named exception to the T1.5 survives-past-ship rule — kept only when `phase-5-done.md` §5.3's full exception condition holds), and emit the restart-session warning on a re-run plugin-version delta. Exit when the state file is deleted (or deliberately kept per the exception) and the final report has been printed.
 
 ## State file schema
 

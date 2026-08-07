@@ -42,9 +42,11 @@ Anchor: PROJECT_ROOT is your root — run every Bash call from it (`cd <PROJECT_
 
 ### 4.2 3-retry escalation loop
 
+This section is the single source for the retry cap and round count — every SKILL.md site cites it rather than restating the numbers.
+
 Rounds 1-3: spawn the verification subagent. If `DRIFT items` is empty → transition to Phase Done. Else → regenerate affected sections (jump back to Phase 3 for those sections only) and re-spawn.
 
-Round 4 — **AUQ escalation:** `Accept with warnings (finish setup; remaining issues noted for next run) | Abort setup | Start over from the beginning (re-detect the codebase)`.
+Round 4 — **AUQ escalation:** `Accept with warnings (finish setup; remaining issues noted for next run) | Abort setup | Start over from the beginning (re-detect the codebase)`. On "Accept with warnings": state.md `phase: done` (DRIFT items stay logged in `## Open Questions`). On "Abort setup": state.md `phase: failed` (terminal). On "Start over": state.md `phase: detect` (non-terminal — re-run Phase 1).
 
 `## Open Questions` accumulates DRIFT items across rounds — survives compaction.
 

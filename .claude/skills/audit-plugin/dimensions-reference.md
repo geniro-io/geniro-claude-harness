@@ -88,7 +88,7 @@ Read at Phase 5 when a fix path is approved — you already have this file open 
 
 ## Deletion gate
 
-Read at Phase 5 alongside §Fix-round execution, and reachable from this file rather than SKILL.md on purpose: Phase 5 arrives late in a long run, which is exactly when a compaction has dropped SKILL.md's tail, and this file is re-read there anyway. SKILL.md invariant #8 — a mechanic is never deleted on a blanket approval — survives in the spine and is what sends you here.
+Read at Phase 5 alongside §Fix-round execution, and reachable from this file rather than SKILL.md on purpose: Phase 5 arrives late in a long run, which is exactly when a compaction has dropped SKILL.md's tail, and this file is re-read there anyway. SKILL.md's no-blanket-deletion invariant — a mechanic is never deleted on a blanket approval — survives in the spine and is what sends you here.
 
 Walk the mechanism-level D6 proposals one at a time. Per proposal, render the explanation as its own chat message and then fire a lean `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`.
 
@@ -243,7 +243,7 @@ Checks:
 
     **Route by referent, at the owner's tier** — this check is the lens, not the home, and filing everything here would downgrade real T1 defects to T4: a schema or frontmatter field → D2 §Schema lockstep; a phase or step name → D3 §Dropped phase/step names; a gate or branch condition → D5a §Unfireable gates; a replaced mechanism still documented → D3 §MIGRATION.md / HOOKS.md entries. Only text with no such owner is reported here.
 
-    **Name the referent, then check it — hit count is not the verdict.** Grep proves absence only for a named identifier, and only outside `design/` and `evals/`, which quote strings they do not use; hits that merely *document a removal* (MIGRATION.md, a deleted-skills table) are not liveness. A written field always has hits, so classify each as a write, a read, or a schema declaration and report when none is a read. **An anti-rationalization row is not dead because its failure mode is absent from current code — that is what a working guardrail looks like.** Retire a row only when the step it polices is gone or a mechanism now enforces it; the latter is check 11's third shape, not this one.
+    **Name the referent, then check it — hit count is not the verdict.** Grep proves absence only for a named identifier, and only outside `design/` and `evals/`, which quote strings they do not use; hits that merely *document a removal* (MIGRATION.md, a deleted-skills table) are not liveness. **An anti-rationalization row is not dead because its failure mode is absent from current code — that is what a working guardrail looks like.** Retire a row only when the step it polices is gone or a mechanism now enforces it; the latter is check 11's third shape, not this one.
 
 13. **Mechanism-level subtraction.** Checks 1-12 ask whether *text* earns its place. This one asks whether a whole **mechanic** does — a phase, step, gate, sub-pipeline, helper, agent spawn, reviewer dimension, state file, mode, modifier, checkpoint, or verification pass. A mechanic can be well-written, unique, correct, and still not worth running, and no text-level check can see that: every one of them starts from the assumption that the thing should exist and asks only whether it is stated well. Three dispositions, and a finding names which one it is:
 
@@ -258,7 +258,7 @@ Checks:
     - **What covers the ground afterwards.** Either name the other mechanism catching the same case, or say plainly that the ground becomes uncovered and the run will not know it. Both are acceptable answers; not knowing which one applies is not.
     - **Whether it stands alone.** Say if the proposal holds only together with another in the same set. Two mechanics each redundant *given the other* are not both redundant, and a round applying them together removes the ground both were covering — the one compound failure a per-item gate cannot catch on its own.
 
-    **A mechanism deletion never rides a blanket approval** — it carries its own gate with its own explanation, per SKILL.md invariant #8 and §Phase 5. Report it whichever way the evidence points; a proposal that cleared the bar is worth making, and one that did not belongs in the verdict as a rejected candidate, not in the table as a hedged row.
+    Report it whichever way the evidence points; a proposal that cleared the bar is worth making, and one that did not belongs in the verdict as a rejected candidate, not in the table as a hedged row.
 
 14. **The case for the rule, shipped with the rule.** The preceding checks ask whether a rule earns its place. This one asks whether the *argument for* it is riding along. An instruction file is payload for a model that has to act, not a document defending its own design to a reviewer — and that defence is the hardest bloat in the repo to see, because it is unique, correct, on-topic, and reads as thorough. Shapes:
 
@@ -267,7 +267,7 @@ Checks:
     - **Refutation of a rejected theory.** Text explaining what the rule is *not* founded on, or why a plausible alternative lost. The model was never going to apply the rejected theory.
     - **Origin narration.** How the rule arrived — the version it replaced, the incident behind it, the migration that produced it.
 
-    **Every shape applies on every surface in this dimension's scope** — a SKILL.md body, a `*-reference.md`, an `agents/*.md`, a `_shared/` helper, a `.claude/skills/` meta-skill, a `.claude/rules/` file, `CLAUDE.md`. Reference files and helpers are where all four collect, because they are long, rarely re-read end to end, and exempt from the front-load budget that disciplines a spine.
+    **Every shape applies on every surface in this dimension's scope.** Reference files and helpers are where all four collect, because they are long, rarely re-read end to end, and exempt from the front-load budget that disciplines a spine.
 
     **What stays.** The rule; the reason where the model would otherwise rationalize around it — an anti-pattern, an escape hatch, error semantics — which is check 11's bar, not this one's; and a bare link a counterintuitive rule needs to stop being re-litigated, the link rather than a summary of it. A rule whose whole body is its own justification is a check 11 candidate, not a check 14 one: the fix there is deleting the rule, here it is keeping the rule and cutting its defence.
 

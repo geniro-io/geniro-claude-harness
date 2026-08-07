@@ -215,7 +215,11 @@ is_non_production_target() {
 
   case "$1" in
     /dev/*) return 0 ;;
-    *.geniro/*) return 0 ;;
+    # `.geniro` must be a whole path SEGMENT, not a suffix of one: the earlier
+    # `*.geniro/*` also matched `my.geniro/app.js` — an ordinary production
+    # directory that merely ends in "geniro" — because the leading `*` needs no
+    # `/` before the literal dot. Mirrors enforce-state-helper.sh's identical fix.
+    .geniro/*|*/.geniro/*) return 0 ;;
     # Generated build output — never hand-authored production source.
     */node_modules/*|node_modules/*) return 0 ;;
     */dist/*|dist/*|*/build/*|build/*) return 0 ;;
@@ -247,8 +251,9 @@ is_non_production_target() {
 # single-sourced in lib/write-vectors.sh. Each inline fallback keeps the gate
 # whole on a vendored install shipping hooks/ without lib/ — a missing helper
 # must never make this gate fail open — and is a VERBATIM copy of the canonical
-# function (delimited by GENIRO-VENDORED markers). A one-sided edit reopens the
-# hole on that install, so edit both or neither.
+# function. A one-sided edit reopens the hole on that install, so edit both or
+# neither — parity is enforced by tests/hooks/write-vectors-fallback-parity.sh,
+# not by markers on the canonical side (lib/write-vectors.sh carries none).
 _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null
@@ -1064,6 +1069,12 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 fi
 
 # ---- Edit/Write/MultiEdit/NotebookEdit branch ----
+if is_non_production_target "$FILE_PATH"; then
+  # Non-production target (.geniro/ state, /dev/*, temp dirs, build output) — not
+  # gated by RED, mirrors the Bash branch's same check above.
+  exit 0
+fi
+
 if is_test_file "$FILE_PATH"; then
   # Test files are allowed — this is the file we're supposed to be writing in RED phase
   exit 0

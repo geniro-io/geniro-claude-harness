@@ -41,17 +41,17 @@ Investigate → Filter → Implement pipeline.
 1. **Spawn an author agent** (general-purpose, `model=` omitted — inherits orchestrator tier) with:
    - The full Phase A interview transcript (pre-inlined)
    - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
-   - Constraints (pre-inlined): description rules from § Description-format validator + reference depth ≤1 hop + edit-in-place principle, plus an instruction to read `.claude/rules/skill-structure.md` § File-size limits for the size rule
+   - Constraints (pre-inlined): description rules from `phase-4-6-implement-review.md` §Description-format validator + reference depth ≤1 hop + edit-in-place principle, plus an instruction to read `.claude/rules/skill-structure.md` § File-size limits for the size rule
    - 1-2 exemplar SKILL.md files closest in shape to the proposed skill (e.g., for a small command-style skill, point at `skills/instructions/SKILL.md`; for a multi-phase pipeline, point at `skills/refactor/SKILL.md`)
    - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must follow `.claude/rules/skill-structure.md` §Frontmatter hygiene (length budget, third person, 'Use when' AND 'Skip for' clauses). Read `.claude/rules/skill-structure.md` § File-size limits and size the file by it; `skills/implement/implement-reference.md` is the canonical example of the SKILL-plus-reference split it asks for."
 
-2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the description-format checks in `SKILL.md` § Description-format validator.
+2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the description-format checks in `phase-4-6-implement-review.md` §Description-format validator.
 
 ### Phase C: Review (fresh agent)
 
 Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
 - All Phase A interview answers reflected in the SKILL.md
-- Description meets all 6 format rules (`SKILL.md` § Description-format validator checks 1-6)
+- Description meets all 6 format rules (`phase-4-6-implement-review.md` §Description-format validator checks 1-6)
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
 - No invented `${CLAUDE_PLUGIN_ROOT}/...` references (every cited path actually exists)
 - Frontmatter valid (name, description, allowed-tools, model)

@@ -79,7 +79,3 @@ Preserve these — they are not noise:
 - Anti-rationalization tables (§3 above).
 - Citations to other plugin files via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/<helper>.md` — these resolve in the consumer's installation.
 - Cross-references to sibling skills by slug (`/geniro:plan`) — runtime invocation contracts.
-
-## Pre-commit verification
-
-Walk the file asking: would a downstream user reading it in their own repo understand it without access to this plugin's `design/` directory, git history, `MIGRATION.md`, or contributor chat? Any paragraph that fails is out of scope.

@@ -88,7 +88,7 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 ### I-class custom-instruction loading & dynamic-rule wiring
 
-Every I-class check is a **coverage check**: it compares what the run declared it would load against what the trace shows it loaded and applied. Both halves come from the expectation set (§8), which is built from the thread's own trace — never from the analyzing machine's checkout, which usually belongs to a different project than the thread does.
+Every I-class check is a **coverage check**: it compares what the run declared it would load against what the trace shows it loaded and applied. Both halves come from the expectation set (§8).
 
 Three rules keep this class honest, and they govern K-class equally.
 
@@ -231,7 +231,7 @@ Every A-H check reads the trace and asks "is this action wrong?". The I- and K-c
 
 ### Build it from the trace, not from this checkout
 
-The thread being analyzed usually belongs to a different project than the machine running the analysis — that is the normal case in a batch, where threads are drawn from every project on the box. Reading the analyzer's own `.geniro/instructions/` or `skills/` to decide what a thread should have loaded compares one project's run against another project's rules, and every row it produces is fiction. It also fails on a single-project run, more quietly: the files have moved on since the thread ran, so the diff reports the edits made since, dressed as failures of the run.
+The thread being analyzed usually belongs to a different project than the machine running the analysis — that is the normal case in a batch, where threads are drawn from every project on the box. Reading the analyzer's own `.geniro/instructions/` or `skills/` to decide what a thread should have loaded compares one project's run against another project's rules, and every row it produces is fiction.
 
 The trace is self-sufficient, and this is what makes the class work: a Claude Code session log records the skill body that was injected, the tool_results of every instruction file the run read, and the arguments of every call it made. What the run was told and what it did are both in the file.
 
@@ -256,12 +256,3 @@ Three degradations, in order of preference. Each one weakens the checks that dep
 3. **Neither** — drop the I- and K-class checks for that thread and say so in the report. A coverage check with no declared side reports nothing, which is the correct answer; inventing the declared side reports everything, which is worse than the silence it replaces.
 
 An empty expectation set is a normal outcome, not a parse failure. A thread with no Geniro run in it — the `geniro-run: no` case — has no declarations to check, and generic threads skip the whole class the same way they skip every other `[plugin]` row.
-
----
-
-## Notes for maintainers
-
-- The check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
-- A new I- or K-class check needs a §8 expectation-set field to compare against. Without one it has no declared side, so it either never fires or fires on everything — add the field in the same edit as the check.
-- When `/improve-template` consumes a handoff from `/analyze-thread`, it sees finding IDs verbatim. Keep IDs stable across edits to this file; rename `name` columns freely.
-- Editing the taxonomy takes effect on the next `/analyze-thread` run with no rebuild — SKILL.md invariant #3 documents how it reaches the judge.

@@ -68,6 +68,7 @@ Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/actions/skill-template.md`; w
 - Frontmatter `risk_class:` = Q4's answer (REQUIRED).
 - Frontmatter `model: inherit` unless the interview clearly justifies opus.
 - Frontmatter `allowed-tools:` matches Q3's output.
+- Frontmatter `argument-hint:` names the positional args the Steps reference (e.g. `[pr_number]`); use `""` when the action takes none.
 - Frontmatter `external-send: true` if Q3 = "Posts to an external system" or "Multiple side effects" with external.
 - Body sections follow the template exactly: `# {{name}}` (H1 title), `## When to use`, `## When NOT to use` (omit if the action has no skip conditions), `## Steps` (numbered), `## Output`, `## Test cases` (1–2 checks that confirm the run worked).
 

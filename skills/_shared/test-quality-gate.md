@@ -4,7 +4,7 @@ Canonical contract for the Phase 3 test-quality gate: an always-on (skip-when-cl
 
 The problem it solves: an implementer agent's tests are often wrong on the first pass — they omit a behavior the spec required, or they name two behaviors and assert only one. Left to the broad reviewer pipeline alone, those findings get auto-fixed or filtered without the user seeing that the audit ran, so the user re-runs the audit by hand every time. This gate is the automated, visible form of that manual ask.
 
-Consumers: `/geniro:implement` (Phase 3, after the fix loop converges, before Ship). `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` also names it at its REFACTOR exit, but no skill currently runs the cycle that far — `/geniro:debug` runs the RED phase and hands the fix to the receiving skill — so that reuse is dormant, not live.
+Consumer: `/geniro:implement` (Phase 3, after the fix loop converges, before Ship).
 
 ## Relationship to the tests reviewer dimension (no new agent)
 
@@ -32,14 +32,10 @@ From the Phase 3 `tests`-dimension output (and the `adversarial-tester` authored
   - **Let me pick** — present the open findings for selection; fix the chosen ones.
   - **Ship as-is** — accept the open findings; record them in the ship report's deferred list.
 
-  An empty answer means an upstream tool bug — fall back to plain text and re-ask, never auto-default.
+  An empty answer means an upstream tool bug, not a user choice — re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 
 ## Boundaries
 
 - **Advisory, never a hard block.** The gate opens a decision; it does not gate Ship on its own. A user who picks "Ship as-is" ships. It never overrides the Ship-mode question or the test-suite-green requirement.
 - **Orchestrator owns judgment.** The tests reviewer returns evidence (file:line, assertion shape, the claimed-vs-asserted gap); the orchestrator decides which findings are real and what the fix is. A reviewer claim that a test "under-asserts" is checked against the test body before it becomes an open finding.
 - **Plain English at the surface.** Every rendered finding and every option label passes the fresh-user test — no `tests-criteria.md` section numbers, no severity tokens, no "claimed-vs-asserted" jargon in the user-facing string; describe the gap ("the test is named for two checks but asserts only one").
-
-## TDD-cycle reuse
-
-At the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` REFACTOR exit (before the IDLE write), apply the same three `tests-criteria.md` checks to the cycle's authored test, orchestrator-inline. The RED phase already proved the test discriminates; this proves it covers what it claims. Surface a finding the same message-first way only when a check fails; a clean cycle proceeds to IDLE silently.

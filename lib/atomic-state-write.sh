@@ -19,6 +19,13 @@
 # macOS) minus 2 bytes for the newline framing the append adds. emit-learning.sh sources
 # this file and reuses GENIRO_APPEND_MAX_BYTES, so the two enforcers never drift.
 : "${GENIRO_APPEND_MAX_BYTES:=4094}"
+# A non-numeric override would make the `-gt` ceiling test at :127 error and
+# evaluate false, silently disabling the append ceiling — fall back to the
+# documented default. This also catches negative values (the leading `-` is
+# non-digit). A numeric-but-zero override passes the case below but would
+# block every append, so floor it separately, matching backpressure.sh's cap.
+case "$GENIRO_APPEND_MAX_BYTES" in ''|*[!0-9]*) GENIRO_APPEND_MAX_BYTES=4094 ;; esac
+[ "$GENIRO_APPEND_MAX_BYTES" -lt 1 ] && GENIRO_APPEND_MAX_BYTES=4094
 
 # Per-file sync fallback: GNU `sync -d <path>` works on Linux; macOS lacks -d.
 # Probe once; reuse decision via a function.
@@ -55,9 +62,20 @@ atomic_state_write() {
     return 65
   }
 
+  # A SIGINT/SIGTERM while $tmp is being written or renamed would otherwise
+  # leave it behind in the state tree. Split by signal and exit explicitly —
+  # cleanup alone does not terminate the process, so without the exit bash
+  # would resume mid-function with the trap already cleared (same shape as
+  # query-learnings.sh / update-semantic.sh). This function is sourced into
+  # the caller's shell, so every return path below clears the trap too —
+  # otherwise it would linger and clobber a trap the caller sets afterward.
+  trap 'rm -f "$tmp"; trap - INT TERM; exit 130' INT
+  trap 'rm -f "$tmp"; trap - INT TERM; exit 143' TERM
+
   # 1. Write content from stdin to tmp.
   if ! cat > "$tmp"; then
     rm -f "$tmp"
+    trap - INT TERM
     echo "atomic_state_write: failed to write tmp $tmp" >&2
     return 66
   fi
@@ -69,6 +87,7 @@ atomic_state_write() {
   # or use `truncate -s 0` directly.
   if [ ! -s "$tmp" ]; then
     rm -f "$tmp"
+    trap - INT TERM
     return 0
   fi
 
@@ -79,6 +98,7 @@ atomic_state_write() {
   #    an unwritable existing target cannot prompt and hang a tty session.
   if ! mv -f "$tmp" "$target"; then
     rm -f "$tmp"
+    trap - INT TERM
     echo "atomic_state_write: rename to $target failed" >&2
     return 67
   fi
@@ -86,6 +106,7 @@ atomic_state_write() {
   # 4. fsync the directory so the rename is durable across power loss.
   _atomic_state_sync_file "$dir"
 
+  trap - INT TERM
   return 0
 }
 

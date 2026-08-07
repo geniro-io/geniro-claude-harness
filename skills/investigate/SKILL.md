@@ -49,15 +49,13 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 This skill adds one invariant:
 
-8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 **`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier + save-routing focused agents), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
 
 ## Anti-rationalization
-
-Check these rationalizations before drifting from the procedure.
 
 | Your reasoning | Why it's wrong |
 |---|---|
@@ -126,11 +124,11 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 - Fresh verifier agent: Read / Grep (no Edit / Write).
 - Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` or `docs/decisions/` only). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks. The learnings save routes per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract": under a `## Memory Backend` block to the declared backend write tool (redacted; the orchestrator's own MCP call), plus the local file in `mirror` mode; with no block, through `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` via Bash — never a raw Write to the append-only `.geniro/knowledge/learnings.jsonl`, which would truncate the log and bypass secret-redaction.
 
-The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
+The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ## Git constraint
 
-Do NOT run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+Do not run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 ## Definition of done
 
@@ -140,7 +138,7 @@ These are the load-bearing exit gates — the checks that, if skipped, make the 
 - [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
 - [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
 - [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 3 Step 3)
-- [ ] Follow-up AUQ offered; save-routing applied per Step 4a (CLAUDE.md / ADR / learnings.jsonl / memory) NOT defaulted to a single store
+- [ ] Follow-up AUQ offered; save-routing applied per Step 4a (CLAUDE.md / ADR / learnings.jsonl / memory) not defaulted to a single store
 - [ ] L2 `discovery` emit fired with trust label per Step 5 trigger conditions
 - [ ] State.md cleaned up per Step 6
 
@@ -191,9 +189,9 @@ Fire `AskUserQuestion` (header "Research depth"):
 - **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
 - **Options**: "Run /deep-research instead" / "Continue with /geniro:investigate"
 
-On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate (`phase: routed`) — do NOT auto-invoke; run the Phase 3 Step 6 cleanup on the way out. On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no WebSearch tool), skip this step silently and continue.
+On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate (`phase: routed`) — do not auto-invoke; before exiting, remove the run's state directory (`rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true` — no handoff file to delete, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract). On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no WebSearch tool), skip this step silently and continue.
 
-This routing fires ONLY for the Internet-only classification — any question that needs code or git evidence stays in /geniro:investigate, since `/deep-research` has no codebase or git access.
+This routing fires only for the Internet-only classification — any question that needs code or git evidence stays in /geniro:investigate, since `/deep-research` has no codebase or git access.
 
 ### Step 2: Identify scope
 
@@ -205,7 +203,7 @@ From the question, extract:
 - **Skip Git** when the question is about current code behavior only and does not ask about history, evolution, rationale, or recent changes.
 - **Skip Internet** when the question is fully internal — the project's code, patterns, and commits — and does not reference external libraries, frameworks, standards, best practices, alternatives, or security advisories.
 
-### Step 2.5: Glossary-mismatch check (WAIT if mismatch found)
+### Step 2.5: Glossary-mismatch check (pauses only on mismatch)
 
 CLAUDE.md is auto-loaded and may contain a "Domain Context" section (added by `/geniro:setup` Phase 3.2) listing domain entities, safety rules, and API contracts. Before Phase 2 spawn, check whether the user's question uses terms that conflict with the documented glossary — investigating with the wrong vocabulary returns the wrong answer.
 
@@ -228,7 +226,7 @@ Skip this step entirely when CLAUDE.md has no Domain Context section, when the q
 
 ### Step 2.6: JIT retrieval cadence
 
-Retrieval is just-in-time: infer specific tags/paths/symbols from $ARGUMENTS, spawn the classified set (Steps 1-2), pre-inline the relevant file content into each spawn (Phase 2 §A/§B/§C templates), and require structured findings citing exact refs (Evidence Standard kinds 1-6, verbatim snippets not paraphrase). Those exact refs are what the Phase 3 `discovery` emit persists in `ext.{area, insight}`.
+The exact refs cited in Phase 2 findings (per the Evidence Standard) are what the Phase 3 `discovery` emit persists in `ext.{area, insight}`.
 
 Unique requirement: state.md `## JIT Cadence` body section logs which steps fired for this run — the audit trail that makes the JIT discipline reviewable.
 

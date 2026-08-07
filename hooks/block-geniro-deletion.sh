@@ -40,6 +40,18 @@
 # Pattern IDs: rm-geniro-tree, rm-geniro-subdir, rm-geniro-state-subdir,
 #              find-geniro-delete, worktree-remove-with-state, git-add-force-geniro
 #
+# Known bypass (accepted, not closed): every span below requires the command
+# WORD itself (`rm`, `find`, `git`, …) to be a literal token — a word reached
+# through a variable (`C=rm; $C -rf .geniro/`) evades every matcher, because
+# none expand a shell variable before matching. Verified passing (rc=0) where
+# the literal spelling blocks. The same shape defeats block-dangerous-git.sh's
+# subcommand matchers too (see its header comment). Not closed: resolving an
+# arbitrary variable into the COMMAND-WORD position (not a quoted-literal
+# argument, which lib/write-vectors.sh's `_geniro_wv_resolve` already handles)
+# would need a second matching pass for every span in this file, and the shape
+# requires the attacker to have already planted an assignment earlier in the
+# same command.
+#
 # Fixed 2026-05-10 — segment-depth gates (rm-geniro-subdir, rm-geniro-state-subdir)
 # now evaluate each rm/find arg INDIVIDUALLY. Previously a single regex against
 # the padded command was masked by multi-arg invocations (e.g.
@@ -127,8 +139,10 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
 # interpreter-delete scan are single-sourced in lib/write-vectors.sh; each
 # inline fallback keeps the guard whole on a vendored install shipping hooks/
 # without lib/ — a missing helper must never make this guard fail open — and is
-# a VERBATIM copy of the canonical function (delimited by GENIRO-VENDORED
-# markers). A one-sided edit reopens the hole there, so edit both or neither.
+# a VERBATIM copy of the canonical function. A one-sided edit reopens the hole
+# there, so edit both or neither — parity is enforced by
+# tests/hooks/write-vectors-fallback-parity.sh, not by markers on the canonical
+# side (lib/write-vectors.sh carries none).
 _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null

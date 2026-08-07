@@ -12,6 +12,7 @@ argument-hint: "[what to refactor and why]"
 ## Contents
 
 - Your role — restructure, don't ship
+- Phases overview
 - State machine
 - Terminal states
 - Loop invariants
@@ -30,8 +31,6 @@ argument-hint: "[what to refactor and why]"
 
 ---
 
-Safe incremental refactoring that validates behavior is preserved at every step. Restructures code for better organization, reduces tech debt, and improves patterns without changing observable behavior. 3 phases mirroring `/geniro:implement`.
-
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
 **Detailed contracts:**
@@ -49,9 +48,17 @@ Safe incremental refactoring that validates behavior is preserved at every step.
 
 ## Your role — restructure, don't ship
 
-You refactor. You validate behavior preservation. You do NOT commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+You refactor. You validate behavior preservation. You do not commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 The zero-behavior-change guarantee is enforced per-step via the orchestrator-inline regression test gate AND post-execution via the final regression run.
+
+---
+
+## Phases overview
+
+1. **Plan** — discover scope, capture a baseline, classify effort tier, detect and filter smells, build and approve the transformation plan.
+2. **Apply** — execute the approved plan one step at a time, each transformation gated by its own regression run.
+3. **Verify** — diff sanity check, independent review, disposition (fix loop / escalate / ADR), completion summary, and cleanup.
 
 ---
 
@@ -67,7 +74,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ## Terminal states
 
-`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. Every transition into any of the six first runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) and only then writes the terminal `phase:` via `atomic_state_write` — a terminal write that skips cleanup leaves the slug dir behind, where nothing else sweeps `.geniro/state/`. `done`, `verify-summary-only`, `adr-documented`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.7 is the phase's own next step. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe the call explicitly: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
+`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. Every transition into any of the six first runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) and only then writes the terminal `phase:` via `atomic_state_write` — a terminal write that skips cleanup leaves the slug dir behind, where nothing else sweeps `.geniro/state/`. `done`, `verify-summary-only`, `adr-documented`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.7 is the phase's own next step. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe the call explicitly: Phase 1 §1.2 (no tests exist → `routed`; baseline-red "stop refactoring" pick → `aborted`), §1.3.2 (hard-signal "Escalate" → `routed`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
 
 ---
 
@@ -81,7 +88,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 This skill adds one invariant:
 
-8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
@@ -93,8 +100,8 @@ This skill adds one invariant:
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "This smell is too small to fix" | If the plan says fix it, fix it. Small smells compound. |
-| "I'll batch multiple transformations" | One atomic transformation at a time. Always. The per-step regression gate exists to catch behavior drift on the smallest possible unit. |
+| "This smell is too small to fix" | Phase 1 §1.5's KEEP/FILTER matrix already filtered it from noise — a smell that survived is a vetted target, and skipping it after approval reopens the filtering §1.5 exists to centralize. |
+| "I'll batch multiple transformations" | The per-step regression gate (Phase 2 §2.2) isolates behavior drift to the smallest possible unit — a batched failure leaves no way to tell which transformation caused it. |
 | "Tests are passing so I'll skip the blocked step protocol" | The protocol exists for the NEXT failure. Follow it — Phase 2 §2.2 Blocked Step Protocol applies to ALL transformations regardless of prior-step success. |
 | "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. The zero-behavior-change guarantee is non-negotiable. |
 | "This duplication needs a new shared helper" | Run the Existing Abstraction Audit first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`. If a utility / service / hook already exists nearby that could absorb this duplication via a small extension, prefer extending it. Only create a new shared helper when no analogue exists OR when extending the existing one would require adding a parameter or conditional that complicates it (Rule of Three). |
@@ -158,7 +165,7 @@ Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standa
 
 ## Universal rule: all choice questions use AskUserQuestion
 
-Route every user-facing choice in this skill through the `AskUserQuestion` tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which owns the rule and the reason. The gates enumerated below are this skill's, not the complete set.
+Route every user-facing choice in this skill through the `AskUserQuestion` tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which owns the rule and the reason. This skill's gates live in the phase files — Phase 1 §1.2 (baseline-red) and §1.3.2 (hard-signal escalation), §Budgets above (blocked-ratio cap, fix-loop), and Phase 3 §3.3 (disposition) — not a single list here.
 
 ---
 
@@ -182,13 +189,13 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
 
-The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
+The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 
 ## Git constraint
 
-Do NOT run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert a failed transformation in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <each changed path>`, listing only the specific paths the step touched — this is an orchestration-level revert, not a version-control operation. Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside the current step.
+Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert a failed transformation in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <each changed path>`, listing only the specific paths the step touched — this is an orchestration-level revert, not a version-control operation. Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside the current step.
 
 ---
 

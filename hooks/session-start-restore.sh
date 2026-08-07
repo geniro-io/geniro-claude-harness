@@ -867,8 +867,14 @@ if [ -f "$_learnings_log" ]; then
     # `//` treats a boolean `false` as empty and falls through to the default,
     # so a defaulted read of this key would never honor an explicit `false`
     # (a real opt-out bug this form replaced).
-    _opt=$(jq -r 'if .memory.auto_archive_stale == false then "false" else "true" end' "$_safety_file" 2>/dev/null)
-    if [ "$_opt" = "false" ]; then
+    _opt=$(jq -r 'if .memory.auto_archive_stale == false then "false" else "true" end' "$_safety_file" 2>/dev/null) || _opt=""
+    if [ "$_opt" = "false" ] || [ -z "$_opt" ]; then
+      # Empty means either an explicit "false" resolved with jq's own zero exit
+      # (impossible for this filter, which always emits "true" or "false" on
+      # success) or jq FAILED to parse safety.json — a parse failure must be
+      # treated as opt-out, not as default-on: this is the only safety.json
+      # reader in the repo whose read gates a write (auto-archive), so failing
+      # open here means an unparseable file silently defeats a written opt-out.
       _auto_enabled="false"
     fi
   fi
@@ -899,9 +905,14 @@ if [ -f "$_learnings_log" ]; then
       if mkdir "$_lock_dir" 2>/dev/null; then
         # A SIGINT/SIGTERM between here and the rmdir below would orphan the lock
         # and silently suppress auto-archive until the reclaim window elapses.
-        # The three peer acquisition sites (archive-stale.sh, query-learnings.sh,
-        # update-semantic.sh) all trap; this one is the outlier.
-        trap 'rmdir "$_lock_dir" 2>/dev/null' EXIT INT TERM
+        # Split by signal, matching the three peer acquisition sites
+        # (archive-stale.sh, query-learnings.sh, update-semantic.sh) — a trap body
+        # that only cleans up does not itself terminate the process, so a combined
+        # EXIT/INT/TERM trap would release the lock and then let bash resume
+        # execution right after the interrupted command instead of exiting.
+        trap 'rmdir "$_lock_dir" 2>/dev/null' EXIT
+        trap 'rmdir "$_lock_dir" 2>/dev/null; exit 130' INT
+        trap 'rmdir "$_lock_dir" 2>/dev/null; exit 143' TERM
         _archive_rc=0
         # GENIRO_ARCHIVE_LOCK_HELD=1 — this hook already holds the mkdir lock;
         # without the flag the helper's direct-invocation branch would see the
@@ -913,7 +924,15 @@ if [ -f "$_learnings_log" ]; then
           # COMPLETED scan (rc=0 archived / rc=1 nothing matched, per the
           # archive-stale.md exit-code contract). A real failure (rc>=2, or a
           # missing helper) must stay retry-eligible on the next session start.
-          _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_marker"
+          # Stage and rename rather than a bare truncating redirect: a
+          # concurrent tab reading the marker inside the truncate-then-write
+          # window would see it empty and needlessly re-run the archiver.
+          # PID + hostname suffix mirrors atomic-state-write.sh's tmp naming
+          # (collision-safe on an NFS-shared .geniro/); rename is atomic.
+          _hash_host="${HOSTNAME:-localhost}"
+          _hash_tmp="${_hash_marker}.tmp.$$.${_hash_host//[^A-Za-z0-9.-]/_}"
+          _geniro_sha256 "$_learnings_log" 2>/dev/null | cut -d' ' -f1 > "$_hash_tmp"
+          mv -f "$_hash_tmp" "$_hash_marker" 2>/dev/null || rm -f "$_hash_tmp" 2>/dev/null
         fi
 
         # Release lock, and drop the trap so a later EXIT does not rmdir a lock

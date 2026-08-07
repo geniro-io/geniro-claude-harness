@@ -15,79 +15,40 @@ Code style, naming conventions, documentation, consistency, and compliance with 
 ## What to check
 
 ### 1. Naming conventions
-- Variable names unclear or misleading (`data`, `x`, `temp`, `result`)
+- Variable names unclear or misleading (`x`, `d`, `v`, `data`, `temp`, `result`, `obj`)
 - Inconsistent naming style (camelCase vs snake_case mixed)
 - Names don't reflect purpose (`fn`, `proc`, `handler` without context)
 - Magic numbers and strings without explanation
 - Misleading names (name doesn't match behavior)
-
-**How to detect:**
-```bash
-# Magic numbers — a multi-digit literal inline in a comparison or argument, minus named-constant
-# declarations. A bare digit grep instead reports every version string and CSS length in the file.
-grep -nE "(==|<|>|<=|>=|\(|,)[[:space:]]*[0-9]{2,}" file.js | grep -vE "^[0-9]+:[[:space:]]*(const|let|var|static|final)"
-```
-
-**Red flags:**
-- Variables: `x`, `d`, `v`, `data`, `temp`, `result`, `obj`
-- Inconsistent style in same file
-- Constants without names (magic numbers/strings)
-- Names that don't match what variable stores
 - Abbreviations that aren't obvious
 
-### 2. Function & class naming
-- Generic function names (`process`, `handle`, `do`, `execute` without context)
-- Function names not describing what they do
-- Inconsistent verb tense (get vs gets, create vs creating)
-- Class names that don't represent their purpose
-- Private methods without clear naming
+**How to detect:** Look for multi-digit literals used directly in a comparison or argument rather than a named constant — a bare-digit grep over-flags version strings and CSS lengths, so exclude those.
 
-**Red flags:**
-- Functions: `doSomething`, `processData`, `handleIt`, `executeTask`
-- Classes: `UtilityManager`, `DataService`, `GeneralHandler`
-- No clear verb (get, create, fetch, validate, check, transform)
-- Private methods unclear (\_process, \_handle)
+### 2. Function & class naming
+- Generic function names (`process`, `handle`, `do`, `execute` without context — e.g. `doSomething`, `processData`, `handleIt`, `executeTask`)
+- Function names not describing what they do, or missing a clear verb (get, create, fetch, validate, check, transform)
+- Inconsistent verb tense (get vs gets, create vs creating)
+- Class names that don't represent their purpose (e.g. `UtilityManager`, `DataService`, `GeneralHandler`)
+- Private methods without clear naming (e.g. `_process`, `_handle`)
 
 ### 3. Code formatting & style
-- Inconsistent indentation (tabs vs spaces mixed)
+- Inconsistent indentation (tabs vs spaces mixed in the same file)
 - Line length exceeding the project's configured limit (e.g. >120 chars)
-- Missing blank lines between logical sections
+- Missing blank lines between logical sections, or random blank lines within functions
 - Inconsistent brace placement
-- Inconsistent spacing around operators
+- Inconsistent spacing around operators and before/after braces
 
-**How to detect:**
-```bash
-# Check indentation consistency (tabs vs leading spaces — portable, no GNU `cat -A`)
-awk '/^\t/{tabs++} /^ /{spaces++} END{print "tab-indented:", tabs+0, "space-indented:", spaces+0}' file.js
-```
-
-**Red flags:**
-- Mixed tabs and spaces in same file
-- Lines >120 characters
-- Inconsistent spacing before/after braces
-- No blank lines between functions/logic blocks
-- Random blank lines within functions
+**How to detect:** Look for tab-indented and space-indented lines mixed within the same file.
 
 ### 4. Comments & documentation
 - Missing comments on complex logic
-- Comments that state the obvious
+- Comments that state the obvious (e.g. `// increment counter`)
 - Comments that don't match code
-- Function/method documentation missing
+- Function/method documentation missing, including parameter and return documentation
 - No JSDoc/docstrings on public APIs
-- TODO/FIXME comments without context
+- TODO/FIXME comments without context or an issue reference
 
-**How to detect:**
-```bash
-# Declarations whose preceding line is not a comment or doc-block close
-awk 'prev !~ /(\*\/|"""|^[[:space:]]*(\/\/|#))/ && /^[[:space:]]*(export )?(async )?(function|class|def |public )/ {print NR": "$0} {prev=$0}' file.js
-```
-
-**Red flags:**
-- Public functions without documentation
-- Comments like "// increment counter"
-- Complex logic without explanation
-- TODO comments without issue reference
-- No function parameter/return documentation
+**How to detect:** Look for public function/class declarations with no preceding comment or doc-block.
 
 ### 4.5. Comment accuracy & comment-rot
 
@@ -99,55 +60,30 @@ A comment that lies is worse than no comment — the reader trusts it and reason
 
 Do not flag from the comment alone — read the code the comment describes and confirm the mismatch before emitting. A comment about a `why` (business reason, edge-case rationale) that still holds is correct even when terse.
 
-**Red flags:**
-- Comment states behavior the adjacent code does not exhibit
-- Comment references a symbol / path / flag that grep cannot find in the current tree
-- Doc-comment `@param` / `@returns` that no longer matches the signature
-
 ### 5. Code duplication
-- Copy-pasted code blocks (>5 lines repeated)
-- Similar logic in multiple functions
-- Utility code scattered across files
+- Copy-pasted code blocks (>5 lines repeated, appearing 2+ times)
+- Similar logic in multiple functions, including multiple places doing the same validation
+- Utility code scattered across files, or duplicated across tests
 - Tests with duplicate setup code
-- Constants defined in multiple places
-
-**Red flags:**
-- Same code block appears 2+ times
-- Multiple places doing same validation
-- Constants defined in multiple files
-- Similar function implementations
-- Utility code duplicated across tests
+- Constants defined in multiple places or multiple files
 
 ### 6. Imports & dependencies
-- Unnecessary imports (unused modules)
-- Wildcard imports (import *)
+- Unnecessary imports (unused modules, or importing an entire module for a couple of functions)
+- Wildcard imports (`import * as everything from 'module'`)
 - Circular import patterns
-- Incorrect import paths
+- Incorrect import paths, including relative imports going up many levels (`../../..`)
 - Too many imports in single file
-
-**Red flags:**
-- `import * as everything from 'module'`
-- `const _ = require('lodash')` if only using 2 functions
-- Imports not used in file
-- Relative imports going up many levels (`../../..`)
-- Circular dependency patterns
 
 ### 7. Type annotation hygiene
 
 This section owns the *declared types* — annotations, `any` breadth, unsafe casts. It does NOT own runtime validation: missing input validation at an API boundary is `security`'s (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/security-criteria.md` §5 Input Validation & Output Encoding), and a missing null / undefined check on external input is `bugs`' (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` §1). Both reach the user through their own dimension at a severity a style rubric cannot assign — emitting them here caps a real defect at LOW and reports it twice.
 
-- Missing type annotations (if using TypeScript)
+- Missing type annotations (if using TypeScript), including omitted parameter types and return types on public functions
 - `any` type used too broadly
 - Type mismatches in assignments
 - Type-unsafe casts and assertions
 
 **How to detect:** No grep separates a deliberately-untyped signature from a missing annotation, so read the changed signatures directly — or take the type-checker's own output where the project runs one (`noImplicitAny`, `mypy`).
-
-**Red flags:**
-- Functions without parameter types (TypeScript)
-- Return types omitted on public functions
-- Broad use of `any` type
-- Type-unsafe casts or assertions
 
 ## Common false positives
 
