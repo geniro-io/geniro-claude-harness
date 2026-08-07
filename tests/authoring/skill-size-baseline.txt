@@ -1,5 +1,5 @@
-.claude/skills/analyze-thread/SKILL.md 5629
-.claude/skills/audit-plugin/SKILL.md 3454
+.claude/skills/analyze-thread/SKILL.md 7064
+.claude/skills/audit-plugin/SKILL.md 3888
 .claude/skills/find-threads/SKILL.md 3433
 .claude/skills/improve-template/SKILL.md 6850
 agents/adversarial-tester-agent.md 3282
@@ -12,7 +12,7 @@ agents/reviewer-agent-reference.md 185
 agents/reviewer-agent.md 3408
 agents/test-runner-agent.md 1113
 skills/actions/SKILL.md 2730
-skills/audit-instructions/SKILL.md 3353
+skills/audit-instructions/SKILL.md 3369
 skills/debug/SKILL.md 2957
 skills/implement/SKILL.md 4111
 skills/instructions/SKILL.md 2437

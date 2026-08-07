@@ -62,7 +62,7 @@ scripts/dump-md.sh [path ...]   # e.g. scripts/dump-md.sh skills/implement skill
 
 It prints every tracked `.md` file under the given paths (whole repo when no path) as a `===== <path> =====` header followed by the file's complete content. Do this BEFORE reaching for Grep: keyword search shows matching lines only, which misses reworded coverage of the same concept and produces false "missing" findings when auditing or extending skills. Grep stays fine for pinpointing an exact known string (an edit anchor, a cross-reference check) — not for surveying what a skill covers. Subagents doing gap analysis or skill edits get the same instruction: read full files, not grep hits.
 
-Every improvement pass also SUBTRACTS: apply `.claude/rules/skill-prose.md` §"Assume a capable model" to the sections touched — remove over-detailed mechanics the model derives itself (platform command recipes, shell hand-holding, chewed-up substeps); excess detail primes the wrong mechanism and confuses runs. Improving a module means leaving it leaner than found, not only longer.
+Every improvement pass also SUBTRACTS: apply `.claude/rules/skill-prose.md` §"Assume a capable model" to the sections touched — remove over-detailed mechanics the model derives itself (platform command recipes, shell hand-holding, chewed-up substeps); excess detail primes the wrong mechanism and confuses runs. Improving a module means leaving it leaner than found, not only longer. Editing a rule file itself carries the same discipline one level up — the rule ships, the case for it does not: `.claude/rules/rule-writing.md`.
 
 ## Testing & CI
 
