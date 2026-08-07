@@ -111,7 +111,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 - Explicitly blocked: production-source Edit/Write, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
-- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskUserQuestion (the §2.3.5 improvement-candidate presentation) / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
+- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskUserQuestion / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
 - Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
 The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
@@ -211,10 +211,6 @@ EOF
 ```
 
 **Trigger:** emit on **first successful onboarding of a new codebase** OR **major architectural shift detected** (existing `_CODEBASE_MAP.md` content significantly diverges from previous version — heuristic: compare section counts / module-count delta / new top-level entries). Skip when re-running onboard against a stable codebase (no architectural change).
-
-### 2.3.5 Suggest improvements (inline)
-
-After the discovery emit, before the printed next-steps block. Source candidates inline — no agent, since you just authored the map and there is no fresh diff to read — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`, Read before you judge any candidate and echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`. The `Reviewed for improvements: <N>` echo proves the step ran, not that the §Candidate bar was applied — an unread bar yields a plausible non-zero N of ungated rule proposals under the identical echo. Sourcing here follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Reflection-agent feed, inline path; routing follows its §Routing table. Onboarding most often surfaces build/test/lint commands or tech-stack facts that belong in CLAUDE.md, occasionally a directory-scoped convention for `.claude/rules/`. Apply the §Candidate bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` (four gates + significance floor + cap) to every draft — on a fresh onboard most candidates are build/test commands and stack facts: discovery-derived per the bar's Evidence gate (the just-authored map section plus the dedup grep is their evidence), passing the bar as `general`; a re-run against an already-documented codebase typically yields none. Present surviving candidates via §Presentation, hand instruction-scoped rules to `/geniro:instructions create`, and echo `Reviewed for improvements: <N> candidate(s)` even at zero — only the prompt is skipped when none. Declines log via `emit_rejection_if_signal` (scope `onboard/<area>`, category `improvement_candidate`).
 
 ### 2.4 Print next steps
 
@@ -318,7 +314,6 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)
 - [ ] State.md cleaned up per §2.5
-- [ ] Closing echo `Reviewed for improvements: <N> candidate(s)` fired — including at N=0, per §2.3.5 (mandatory even when the improvement sweep found nothing)
 
 ---
 

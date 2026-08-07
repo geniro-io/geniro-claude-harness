@@ -145,7 +145,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 8 — User approval
 
-`phase: user-approve`. Steps in `loop-phase-8-user-approval.md`: §8.1 approval gate · §8.2 shape (message-first) · §8.3 revision-round escalation · §8.3.5 launch config · §8.4 approve → git commit (step 2 carries the write-time `launch_config` enum assertion) · §8.5 record a learning · §8.6 suggest improvements · §8.7 custom post-approval steps.
+`phase: user-approve`. Steps in `loop-phase-8-user-approval.md`: §8.1 approval gate · §8.2 shape (message-first) · §8.3 revision-round escalation · §8.3.5 launch config · §8.4 approve → git commit (step 2 carries the write-time `launch_config` enum assertion) · §8.5 record a learning · §8.6 custom post-approval steps.
 
 ## Phase 9 — Handoff
 

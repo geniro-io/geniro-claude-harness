@@ -7,10 +7,12 @@
 - §Decision logic when target is ambiguous
 - §ADR target — when to use it (sparingly)
 - §Why code rules go to `.claude/rules/`, not CLAUDE.md
-- §Reflection-agent feed — how to source candidates (agent via `/geniro:reflect` vs inline)
+- §Reflection-agent feed — how `/geniro:reflect` sources candidates
 - §Presentation — surface the routed suggestions one candidate at a time
 
-When an improvement pass — `/geniro:reflect`, or a skill's inline candidate-drafting step — finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for the improvement pass).
+**One caller.** `/geniro:reflect` is the only skill that proposes project rules. No other skill drafts, routes, or offers a rule candidate: a rule offer riding the tail of a plan, a debug session, or an onboarding run interrupts the work the user actually asked for, and the run that produced the lesson is the worst judge of whether it generalizes. Every other skill's durable output is its own learnings emit, which `/geniro:reflect` later mines.
+
+When an improvement pass finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for the improvement pass).
 
 ## Candidate bar
 
@@ -22,9 +24,7 @@ The bar gates WORTH; the §Routing table below routes TARGET (the §"Decision lo
 
 Run each gate as its own binary judgment, and write the reasoning before the verdict. When a gate is uncertain, it fails — a borderline rule taxes every future session, while a dropped candidate costs nothing because the underlying observation can still be emitted as a learning.
 
-1. **Evidence** — the candidate cites what grounds it. What counts as evidence depends on the candidate's source:
-   - **Task-derived** (a /implement, /review, /refactor, or /debug run): a concrete incident from this task — an observed failure, a user correction, or real wasted-time friction — with a citation (file:line, the finding, or the correction itself). A smooth run yields no task-derived candidates — these lessons are extracted from failures, not from things that went fine.
-   - **Discovery-derived** (/onboard's just-authored map, /plan's just-approved spec): the verified fact itself is the evidence — cite its source (the map section / spec section that states it) AND the gate-4 dedup verdict (`ADD`, or `UPDATE` when an existing rule is stale or partial). Discovery sources have no failures to cite; their bar is verified + not already fully covered by a rule file, and they remain subject to gates 2-4 like any other candidate.
+1. **Evidence** — the candidate cites a concrete incident from the mined work: an observed failure, a user correction, or real wasted-time friction, with a citation (file:line, the finding, or the correction itself). A smooth run yields no candidates — these lessons are extracted from failures, not from things that went fine.
 2. **Counterfactual** — without this rule, a competent future session would plausibly repeat the failure or pay the cost again. Drop what the agent gets right or cheaply derives at the moment it matters — standard engineering practice, base-model knowledge, a fact one obvious file read away. Keep what it would otherwise re-derive every session: build/test/lint commands and stack identity are derivable from the code, but re-derivation each session is exactly the recurring cost a CLAUDE.md line removes — which is why the §Routing table sends commands there. This is the official CLAUDE.md line test: "would removing this cause mistakes? If not, cut it."
 3. **Generality** — the rule is statable as `WHEN <condition> → <action>` where the WHEN-clause matches situations beyond the just-finished task. Restate the lesson one level up; if it cannot be restated above the specific scenario, it is an episodic learning at most, never a rule.
 4. **Dedup verdict** — grep `CLAUDE.md`, `.claude/rules/*`, and `.geniro/instructions/*` for the candidate's keywords and emit an explicit verdict: `ADD` (nothing covers it), `UPDATE <file:line>` (an existing rule covers it partially — propose amending that rule, not adding a sibling), or `NOOP` (already covered — drop). NOOP is the expected default.
@@ -111,12 +111,9 @@ What does this choice commit the project to? What becomes harder? What becomes e
 - Related ADRs (NNNN), commits, learnings, or external sources
 ```
 
-### Skills that route to ADR
+### Who routes to ADR
 
-- `/geniro:investigate` save-routing step — "Save key findings to memory" gains an ADR sub-option when the finding meets all 3 criteria.
-- `/geniro:debug` — root causes traced to an undocumented architectural choice trigger an ADR proposal alongside the L2 emit.
-- `/geniro:refactor` — refactor candidates explicitly REJECTED by the user (PRODUCT-DECISION findings, escalated work) propose an ADR capturing why X was deliberately NOT done. 4th AUQ option fires only when ADR-eligibility criteria met (hard to reverse + surprising without context + genuine trade-offs).
-- `/geniro:reflect` — the on-demand improvement walk presents ADR alongside CLAUDE.md / `.claude/rules/` / instructions / knowledge targets, grouped per usual.
+`/geniro:reflect` only — its on-demand improvement walk presents ADR alongside the CLAUDE.md / `.claude/rules/` / instructions / knowledge targets. A decision worth an ADR that surfaces during any other skill's run rides that skill's learnings emit, and reaches an ADR later through a reflect pass.
 
 ## Why code rules go to `.claude/rules/`, not CLAUDE.md
 
@@ -134,27 +131,21 @@ The three are complementary, not overlapping — choose by the trigger you want 
 
 ## Reflection-agent feed
 
-Two ways to source the improvement candidates that feed §Presentation. Match the source to how rich the change signal is:
+`/geniro:reflect` (user-invoked, on-demand) spawns `${CLAUDE_PLUGIN_ROOT}/agents/reflection-agent.md` to synthesize candidates in an isolated context from recent work — a diff, a finding set, extracts from past session transcripts, or extracts from the running session itself. An isolated read beats inline synthesis: the session that produced the work carries its author's blind spots; a fresh agent catches durable lessons the author's own reasoning skips. When the running session is the source, that splits the labor rather than relaxing it — only the orchestrator can see the conversation, so it collects the evidence inline, and the agent alone judges what the evidence means. Collecting inline is safe; synthesizing inline is what this isolation exists to prevent, so the spawn stays mandatory.
 
-- **Reflection agent** — `/geniro:reflect` (user-invoked, on-demand) spawns `${CLAUDE_PLUGIN_ROOT}/agents/reflection-agent.md` to synthesize candidates in an isolated context from recent work — a diff, a finding set, extracts from past session transcripts, or extracts from the running session itself. An isolated read beats inline synthesis here: the session that produced the work carries its author's blind spots; a fresh agent catches durable lessons the author's own reasoning skips. When the running session is the source, that splits the labor rather than relaxing it — only the orchestrator can see the conversation, so it collects the evidence inline, and the agent alone judges what the evidence means. Collecting inline is safe; synthesizing inline is what this isolation exists to prevent, so the spawn stays mandatory there.
-- **Inline** — when the orchestrator already holds the whole artifact it just authored and there is no fresh diff to discover (`/plan`'s approved spec, `/onboard`'s codebase map). Draft the candidates inline against the §Candidate bar + routing table above. A separate agent re-reading a self-authored artifact adds cost without the anti-anchoring benefit, so inline is the right call there.
-
-### Spawn slots (reflection-agent mode)
+### Spawn slots
 
 Pass the agent: **mode**, **the change** (a diff summary + changed files, a finding set + the diff it was raised against, or session extracts drawn from past transcripts or from the running session), **project context + rule-file paths** to dedupe against (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`), and **prior declines** for the scope (`source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`, or `none`). Spawn via the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — OMIT `model=`. The agent returns candidates that passed the §Candidate bar per its Output Format; it never writes.
 
 Run the spawn synchronously. `/geniro:reflect` is on-demand — the candidate walk IS its deliverable, so there is no later decision gate the spawn could delay.
 
-### Anchor + echo (both sources)
+### Anchor + echo
 
-The improvement pass must prove it fired — a step that trails off as housekeeping after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). Run it as a named step before the caller's finalize prompt, and echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired. The echo is unconditional, including at N=0: zero is the majority outcome, so a silent zero is indistinguishable from a dropped step. When the candidate list is empty, skip only the §Presentation prompt — the echo still fires.
+The improvement pass must prove it fired — a step that trails off as housekeeping after the visible deliverable is the documented drop vector (same failure mode the L2 emit's caller contract fixes, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract"). Run it as a named step, and echo one plain line — `Reviewed for improvements: <N> candidate(s)` — as a self-check that it fired. The echo is unconditional, including at N=0: zero is the majority outcome, so a silent zero is indistinguishable from a dropped step. When the candidate list is empty, skip only the §Presentation prompt — the echo still fires.
 
-### Coexistence with recurrence rule-capture
+### Recurrence-eligible candidates
 
-A candidate tagged `Recurrence-eligible: yes` restates a learning already seen 3+ times — route it to the rule-capture path (the `AskUserQuestion` header "Capture as rule", hand-off to `/geniro:instructions create`), NOT to the §Presentation prompt. This avoids prompting the user twice for the same rule. Two cases:
-
-- A skill with a **standalone recurrence offer** (`/refactor`'s and `/debug`'s recurring-pattern rule offers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md`) fires that offer at its own site; any §Presentation walk covering the same run dedupes against it so the same rule is never offered twice.
-- A caller with **no standalone recurrence offer** (`/geniro:reflect`) routes a `Recurrence-eligible: yes` candidate straight to `/geniro:instructions create`, and sends the rest to §Presentation.
+A candidate tagged `Recurrence-eligible: yes` restates a learning already seen 3+ times. Route it straight to `/geniro:instructions create`, where the user authors the rule, rather than through the §Presentation walk — the recurrence is the argument, so re-litigating worth per-candidate adds a prompt without adding a judgment. The rest go to §Presentation.
 
 ## Presentation
 

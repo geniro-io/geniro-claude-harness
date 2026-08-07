@@ -227,7 +227,7 @@ Read-only PR-feedback triage → fix-plan producer (4-phase loop: Fetch & Triage
 
 ### `/geniro:refactor` — Safe code restructuring
 
-3-phase loop (Plan → Apply → Verify) with **zero-behavior-change guarantee**. Phase 1 classifies tier via canonical `_shared/effort-scaling.md` (Trivial / Small / Medium / Big); runs orchestrator-inline smell detection per `_shared/refactor-patterns.md`; HIGH-risk steps are approved from a rendered steps-flow + per-step risk summary before Phase 2 runs. Phase 2 runs orchestrator-inline per-step execution with per-step regression check + Blocked Step Protocol (3 retries → revert + continue). Phase 3 runs independent reviewer + custom reviewers; PRODUCT-DECISION → ESCALATE to /implement (4-option ADR-aware AUQ, rendered as a self-contained explanation in chat first). Auto-emits L2 `discovery` + `pitfall`. **Never ships code** — diff IS the deliverable; user commits manually or runs `/geniro:implement`.
+3-phase loop (Plan → Apply → Verify) with **zero-behavior-change guarantee**. Phase 1 classifies tier via canonical `_shared/effort-scaling.md` (Trivial / Small / Medium / Big); runs orchestrator-inline smell detection per `_shared/refactor-patterns.md`; HIGH-risk steps are approved from a rendered steps-flow + per-step risk summary before Phase 2 runs. Phase 2 runs orchestrator-inline per-step execution with per-step regression check + Blocked Step Protocol (3 retries → revert + continue). Phase 3 runs independent reviewer + custom reviewers; PRODUCT-DECISION → ESCALATE to /implement (3-option AUQ, rendered as a self-contained explanation in chat first). Auto-emits L2 `discovery` + `pitfall`. **Never ships code** — diff IS the deliverable; user commits manually or runs `/geniro:implement`.
 
 ```
 /geniro:refactor extract payment logic from OrderService into PaymentService
@@ -246,7 +246,7 @@ Read-only PR-feedback triage → fix-plan producer (4-phase loop: Fetch & Triage
 
 ### `/geniro:investigate` — Deep codebase Q&A
 
-3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Phase 1 classifies $ARGUMENTS into 9-type taxonomy + 5-step JIT retrieval cadence; pure external "docs lookup" questions suggest the native `/deep-research` workflow instead, while anything needing code or git evidence stays here. Phase 2 spawns 1-3 parallel research agents (Codebase Analyst / Git Historian / Internet Researcher — literal classified set, never over-spawned). Phase 3 synthesizes, spawns a fresh general-purpose verifier agent, presents with Sources + Open questions, fires save-routing AUQ (CLAUDE.md / ADR / learnings.jsonl). L2 `discovery` emit with trust label (`verified` if code-grounded; `retrieved` if WebFetch/WebSearch load-bearing). **Never ships code.**
+3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Phase 1 classifies $ARGUMENTS into 9-type taxonomy + 5-step JIT retrieval cadence; pure external "docs lookup" questions suggest the native `/deep-research` workflow instead, while anything needing code or git evidence stays here. Phase 2 spawns 1-3 parallel research agents (Codebase Analyst / Git Historian / Internet Researcher — literal classified set, never over-spawned). Phase 3 synthesizes, spawns a fresh general-purpose verifier agent, presents with Sources + Open questions, and offers a dive-deeper follow-up. L2 `discovery` emit with trust label (`verified` if code-grounded; `retrieved` if WebFetch/WebSearch load-bearing). **Never ships code.**
 
 ```
 /geniro:investigate how does the caching layer invalidate stale entries?
