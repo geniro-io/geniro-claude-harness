@@ -35,7 +35,7 @@ argument-hint: "[optional: --focus area1,area2 --depth N --cap N]"
 - **No arguments** — full codebase scan; produces the 8-section `_CODEBASE_MAP.md` (default mode).
 - `--focus area1,area2,...` — scope-limiter. Scans all, but concentrates the map output on focus areas; non-focus areas get summary-level coverage.
 - `--depth N` — limit directory scanning to N levels deep. Useful for large monorepos where full traversal is too slow. Orthogonal to `--focus` (combine as needed).
-- `--cap N` — raise the default 50-file read budget to N. Pass it up front; the budget is not raised mid-run.
+- `--cap N` — raise the default read budget to N (cap owned by §1.3 Step 2). Pass it up front; the budget is not raised mid-run.
 
 Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, concentrate on auth+api).
 
@@ -55,7 +55,7 @@ Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, conce
 
 When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate detail on the focus areas; non-focus areas appear as one-line summary entries. Sections 1 / 2 / 5 / 8 cover the full scanned scope regardless of focus.
 
-**Map quality bar:** under 1000 lines, skimmable in 5 minutes.
+**Map quality bar** — two checks: an executable one (`wc -l` on the written file: under 1000 lines) and a rubric one (skimmable in 5 minutes — a reader gets oriented from headers and summaries alone, without reading every entry).
 
 ## State machine
 
@@ -78,7 +78,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 This skill adds one invariant:
 
-8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **`## Tool log` section in state.md:** selective logging — log L3 writes (`_CODEBASE_MAP.md` write via `update-semantic`), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash skipped.
 
@@ -99,7 +99,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Repo-size scan cap | 50 files read, or `--cap N` | §1.3 Step 2 | A repo too large for that sample to represent it escalates via AUQ — §1.3 Step 2 owns the threshold, the option list and the `approvals[]` persistence. |
+| Repo-size scan cap | owned by §1.3 Step 2 (override via `--cap N`) | §1.3 Step 2 | A repo too large for that sample to represent it escalates via AUQ — §1.3 Step 2 owns the threshold, the option list and the `approvals[]` persistence. |
 
 **Architecture constraints (design intent, not budget):**
 - No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
@@ -114,7 +114,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 - Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskUserQuestion / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
 - Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
-The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
+The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 
@@ -166,6 +166,10 @@ State.md update: `phase: discover` → `phase: map`. `## Scope` body section cap
 ## Phase 2 — Map
 
 State.md `phase: map`. Builds `_CODEBASE_MAP.md` (underscore-prefixed) with the 8-section template + optional `--focus` concentration.
+
+### 2.0 Refresh custom instructions
+
+**Refresh custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: refresh)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Compaction since Phase 1's initial load may have silently dropped the rules — re-Read and echo before composing the map.
 
 ### 2.1 Compose the codebase map content
 
@@ -262,7 +266,7 @@ geniro_schema_version: m9-v1
 task_slug: <slug>
 worktree: <abs-path>
 focus_areas: []
-scan_cap: 50
+scan_cap: <N>          # default owned by §1.3 Step 2
 scan_depth: <N|null>
 ---
 
@@ -309,7 +313,8 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 
 - [ ] `_CODEBASE_MAP.md` created/updated at `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` via `update-semantic`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
 - [ ] Every critical path the scanned scope exposes is traced and documented, or `## Critical Paths` says none was found
-- [ ] Map quality bar met (§Outputs; use `--focus` for large repos)
+- [ ] Map line count under 1000 (`wc -l` on `_CODEBASE_MAP.md`; use `--focus` for large repos)
+- [ ] Map is skimmable in 5 minutes — headers and summaries alone orient a reader (§Outputs)
 - [ ] Project-snapshot fingerprint refreshed via `update_fingerprint` (per §2.2)
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)

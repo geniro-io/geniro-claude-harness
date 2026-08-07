@@ -117,7 +117,7 @@ Emit a finding in the reviewer-agent output format (`${CLAUDE_PLUGIN_ROOT}/agent
 
 ## Safety: package hallucination / slopsquatting
 
-The existence check in Step 3 Stage 0 is mandatory, not optional polish. Language models — including the orchestrator running this audit — invent plausible package names that do not exist; on frontier models roughly 1 in 20 suggested names is hallucinated, and the same fake names recur predictably across runs, so attackers pre-register them with malware ("slopsquatting"). OWASP's guidance is explicit: never adopt a package an AI assistant suggested without verifying it independently. Therefore: never present an unverified name as adoptable or write it into a spec; gate on registry maturity (publish age plus downloads) to catch a freshly-registered squat; flag near-name look-alikes of popular packages; and never auto-install — the confirmation gate is the human checkpoint an existence miss cannot bypass.
+The existence check in Step 3 Stage 0 is mandatory, not optional polish. Language models — including the orchestrator running this audit — invent plausible package names that do not exist, and the same fake names recur predictably across runs, so attackers pre-register them with malware ("slopsquatting"). Never adopt a package an AI assistant suggested without verifying it independently: never present an unverified name as adoptable or write it into a spec; gate on registry maturity (publish age plus downloads) to catch a freshly-registered squat; flag near-name look-alikes of popular packages; and never auto-install — the confirmation gate is the human checkpoint an existence miss cannot bypass.
 
 ## Dedup boundary
 

@@ -58,7 +58,7 @@ Required fields are `producer` / `scope` / `summary` / `tags` (a missing one exi
 
 If Phase 6 user picks "Post Draft PR" option, post the finding list as a PENDING review per the canonical procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4 — one `gh api POST` call with the `event` field omitted; /geniro:review never submits the review it creates, and this holds across rounds. Persist the §7.4 `non-resumable-actions[]` entry via `atomic_state_write` in the same drill. `mcp__github__pull_request_review_write` is NOT used here — the MCP wrapper does not surface the per-comment `path` / `line` / `side` fields required for inline anchoring, so the canonical tool is `gh api` directly per the reference. PR post fails fail-closed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.7 — write `## Errors` entry + abort Phase 5; never silently downgrade to top-level `gh pr comment` or retry with `event: COMMENT`.
 
-Full Post drill (Steps 0-6) in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7 — load it here, on this branch, not with the rest of the handoff contract.
+Full Post drill (§7.0-§7.8) in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` — load it here, on this branch, not with the rest of the handoff contract.
 
 ### 5.5 Idempotent re-entry
 
@@ -74,7 +74,7 @@ If Phase 5 re-enters after compaction:
 
 State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9.
 
-The GitHub reviews-API Post drill (§7.0-§7.8) lives in its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md`. Read it only if the Action gate's pick is "Post Draft PR review" — it is unreachable when `pr-ref: none`. On that path read it WHOLE, before the first `gh api` call and echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: the §5.4 anchors reach the POST itself but not the three things that must happen first — the §7.2 granularity question and §7.3 per-finding post/skip gate (non-skippable whenever the filtered set is non-empty), the §7.5 pre-POST scrub against the never-add set, and the `redact_secrets` pass over every free-form segment. Those are sole-homed there, and a finding that quotes a credential re-leaks it onto a surface that outlives the fix. Loop invariant #9 and the §7.0 Pre-Post guard bind only on that same path, so they are satisfied vacuously on every other pick.
+The GitHub reviews-API Post drill (§7.0-§7.8) lives in its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md`. Read it only if the Action gate's pick is "Post Draft PR review" — it is unreachable when `pr-ref: none`. On that path read it WHOLE, before the first `gh api` call and echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: the §5.4 anchors reach the POST itself but not the three things that must happen first — the §7.2 granularity question and §7.3 per-finding post/skip gate (non-skippable whenever the filtered set is non-empty), the §7.5 pre-POST scrub against the never-add set, and the `redact_secrets` pass over every free-form segment. Those are sole-homed there, and a finding that quotes a credential re-leaks it onto a surface that outlives the fix. Loop invariant S2 and the §7.0 Pre-Post guard bind only on that same path, so they are satisfied vacuously on every other pick.
 
 Summary of the Phase 6 chain — each gate is its own AUQ, never collapsed; step 3 is the one silent step:
 

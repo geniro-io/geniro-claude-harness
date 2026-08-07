@@ -49,7 +49,7 @@ ls "$d" | grep -cE "(service|controller|types)\\.ts$"
 done
 # Apply the modal threshold (§Methodology step 5) and flag the diff that diverges.
 ```
-**Red flag:** the diff places code in a file kind where ≥80% of siblings put it elsewhere. Skip silently if N<3 or split is ambiguous.
+**Red flag:** the diff places code in a file kind that clears the modal threshold (§Methodology step 5) for living elsewhere.
 
 ### 2. Mixing of Code Kinds
 
@@ -63,7 +63,7 @@ grep -lE "^(export )?(interface|type) " src/services/*/service.ts | wc -l
 # Constants in dedicated files?
 ls src/**/constants.ts src/**/constants/*.ts 2>/dev/null | wc -l
 ```
-**Red flag:** the diff inlines types into `service.ts` while ≥80% of N≥3 siblings keep `types.ts` separate (or vice versa). Cite the sibling paths.
+**Red flag:** the diff inlines types into `service.ts` while siblings clear the modal threshold (§Methodology step 5) for keeping `types.ts` separate (or vice versa). Cite the sibling paths.
 
 ### 3. Declaration Order Within a File
 
@@ -78,7 +78,7 @@ grep -nE "^(import|const|export const|type|interface|export (function|class))" "
 done
 # Apply the modal threshold (§Methodology step 5) and flag the diff if it reorders.
 ```
-**Red flag:** a class places private methods before public when ≥80% of sibling classes do the opposite. Cite samples.
+**Red flag:** a class places private methods before public when sibling classes clear the modal threshold (§Methodology step 5) for the opposite order. Cite samples.
 
 ### 4. Naming Style — Modal Detection
 
@@ -95,7 +95,7 @@ ls src/components/ | grep -cE "^[a-z]+[A-Z]" # camelCase
 # Private-method affix modal
 grep -hE "^\s+#[a-z]|^\s+_[a-z]|^\s+private " src/services/*.ts | head
 ```
-**Red flag:** the diff introduces a casing or affix style that ≤20% of siblings use. Skip when a configured linter (`@typescript-eslint/naming-convention`, `ruff` `N801/N802/N806`) already enforces this. Always cite samples.
+**Red flag:** the diff introduces a casing or affix style that fails to clear the modal threshold (§Methodology step 5) among siblings. Skip when a configured linter (`@typescript-eslint/naming-convention`, `ruff` `N801/N802/N806`) already enforces this. Always cite samples.
 
 ### 5. Import Grouping Mode
 
@@ -114,7 +114,7 @@ awk '/^import/ {print; next} /^[^[:space:]]/ {exit}' "$f"
 done
 # Apply the modal threshold (§Methodology step 5) and flag the diff that inlines them.
 ```
-**Red flag:** the diff jumbles stdlib + third-party + local imports while ≥80% of siblings separate them. Cite samples.
+**Red flag:** the diff jumbles stdlib + third-party + local imports while siblings clear the modal threshold (§Methodology step 5) for separating them. Cite samples.
 
 ### 6. Error-Handling Pattern Modal
 
@@ -147,7 +147,7 @@ echo "=== $f ==="
 grep -nE "constructor|public |private |static " "$f" | head -8
 done
 ```
-**Red flag:** ≥80% of N≥3 siblings export factory functions but the diff introduces a class with a constructor. Cite samples.
+**Red flag:** siblings clear the modal threshold (§Methodology step 5) for exporting factory functions but the diff introduces a class with a constructor. Cite samples.
 
 ### 8. Module / Layer Boundaries (Intra-File Grain)
 

@@ -470,7 +470,7 @@ A bare section is neither entries nor sentinel: the Phase 4 filter's deferral re
 
 **Persist the pick** to `approvals[]` category `deferred_inclusion` (value: `leave-in-report` | `include-all` | `include-picked` plus the included ids) via `atomic_state_write`. On a compaction-resume, check `approvals[]` before re-firing, like the other Phase 6 gates.
 
-**Empty answer:** the §8 rule applies — re-ask once, then treat as the conservative "Leave them in the report".
+**Empty answer:** per §8 — re-ask through the tool; never auto-default to any option, including "Leave them in the report".
 
 The §9 terminal mapping is unchanged — the "/geniro:implement findings" pick still terminates `done`.
 
@@ -526,7 +526,7 @@ Nothing lands on a public PR without passing §7.0. Skip this section entirely o
 
 ## 8. Empty-answer handling (universal)
 
-If `AskUserQuestion` returns an empty answer at any prompt in Phase 6, fall back to plain text and re-ask once — never promote empty to a default Yes. After one re-ask, if still empty, treat as Skip and proceed without posting.
+Every gate in this phase follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions: never auto-default on an empty answer — re-ask through the tool. Only a repeated empty-answer loop (the tool keeps returning nothing) justifies falling back to a plain-text question in chat, and that fallback still captures a real pick — it is never a silent default to any option, on the posting gate or any other.
 
 ---
 

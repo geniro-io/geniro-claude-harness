@@ -1,6 +1,20 @@
 # Audit-pipeline discipline (canonical, shared)
 
-Shared contracts for the audit-shaped skills — `/geniro:audit-instructions`, and the plugin repo's own whole-repo audit where this plugin is developed. Each consuming skill keeps its own dimensions, severity-tier definitions, invariants, and spawn template; this file is the single home for the machinery every audit runs identically: the reviewer finding schema and the fix-round discipline. A consuming skill cites the section it needs rather than restating it, and states its domain specifics beside the citation.
+Shared contracts for the audit-shaped skills — `/geniro:audit-instructions`. Each consuming skill keeps its own dimensions, severity-tier definitions, and spawn template; this file is the single home for the machinery every audit runs identically: the pipeline invariants, the reviewer finding schema, and the fix-round discipline. A consuming skill cites the section it needs rather than restating it, and states its domain specifics beside the citation.
+
+## Shared invariants
+
+Every audit-shaped skill runs under these. A consuming skill cites this section and then lists only the invariants its own domain adds.
+
+1. **No unverified finding ships.** A reviewer finding is admitted only after the orchestrator Reads the cited `file:line` and confirms the quoted evidence exists there — reviewers hallucinate locations, and one fabricated `path:line` poisons trust in the whole report.
+2. **Report before fix.** Fixes happen only after the action gate — an audit that silently edits while scanning destroys the baseline its own findings cite.
+3. **Parallel spawns in one response.** Every reviewer `Agent(...)` call goes in the same assistant turn; sequential turns serialize the batch's wall-time.
+4. **The do-not-flag list is binding.** The consuming skill's endorsed-patterns list overrides any reviewer's instinct — re-flagging an endorsed pattern is the audit's own false-positive failure mode.
+5. **Every run sweeps for subtraction.** The subtraction dimension runs on every audit, whatever the run's scope or depth, and its verdict names what was examined and what was rejected even when it yields nothing. A repo accretes through rounds that never looked, and an unreported sweep is indistinguishable from a skipped one. The result is never mandated: zero findings is valid, a manufactured deletion is not.
+6. **Every approved finding has an owner.** Before spawning fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding assigned to nobody is work the user approved and never received.
+7. **A whole mechanism is never removed on a blanket approval.** A subtraction proposal to delete an entire mechanic — a phase, gate, step, spawn, check, surface, or section — gets its own gate and its own explanation, whatever the user picked at the action gate. Every other finding changes something the user can inspect afterwards; a deleted gate leaves nothing behind to inspect, because the run that would have objected is the one removed.
+
+The consuming skill binds invariants 4, 5 and 7 to its own vocabulary — which list is the do-not-flag list, which dimension is the subtraction sweep, and what counts as a whole mechanism in its domain — beside its citation of this section.
 
 ## Finding output contract
 

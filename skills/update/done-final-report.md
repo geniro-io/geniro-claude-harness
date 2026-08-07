@@ -27,7 +27,7 @@ Update cache: <refreshed | refresh failed — "update available" may still show>
 Statusline: <refreshed | not installed — no prior /geniro:setup>
 Migration walked: <N changes — M applied, K skipped, L deferred>
 
-⚠ RESTART your Claude Code session to load v<NEW_VERSION>.
+⚠ Restart your Claude Code session to load v<NEW_VERSION>.
    Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once at session start — in-memory
    skill bodies still point at v<CURRENT_VERSION> until you restart.
 

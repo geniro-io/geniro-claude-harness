@@ -35,7 +35,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 |---|---|
 | No references to dropped skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) | HIGH |
 | No references to dropped phase names (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM |
-| `Additional Steps` subsections match per-skill phase enum (the cross-skill `### After worktree-setup` anchor in `global.md` is the one non-phase exception) | MEDIUM |
+| `Additional Steps` subsections match the scope's legal anchor(s) in `instructions-authoring-reference.md` §5 — a real phase with no read site is rejected the same as a dropped one, and so is any `### Before <phase>` subsection (no skill reads that prefix) | MEDIUM |
 
 **Per-scope checks:**
 
@@ -87,7 +87,7 @@ This is the guard that catches the silent-empty-findings trap at authoring time:
 
 ### Step 3 — Per-skill phase mapping
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 and check every `Additional Steps` subsection in the target file against the phase enum listed there for its scope, including the severities for free-form and dropped-phase anchors. That section is the single source; the one exception it records is `### After worktree-setup`, a cross-skill event anchor valid only in `global.md`.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 and check every `Additional Steps` subsection in the target file against that scope's legal anchor(s), including the severities for free-form and dropped-phase anchors. That section is the single source; the one cross-skill exception it records is `### After worktree-setup`, valid only in `global.md`.
 
 ### Step 4 — Count caps (review-extra)
 
@@ -105,7 +105,7 @@ Validation results: 4 files checked, 3 issues found.
 
 ✓ global.md no issues
 ⚠ implement.md 1 MEDIUM
-└── Line 14: "### After Phase 4 (Implement)" → should be "### After implement"
+└── Line 14: "### After Phase 8 (Ship)" → should be "### After ship"
 ⚠ code-style.md 1 LOW
 └── File is 380 lines (>300) — longer files reduce adherence.
 Suggestions: split into code-style-database.md + code-style-api.md, or trim redundant rules.

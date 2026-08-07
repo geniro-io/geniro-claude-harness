@@ -29,7 +29,7 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 
 - **No Git operations**: Do not run `git add`, `git commit`, `git push` — the orchestrating skill handles all git.
 - **Review only**: You analyze and report — you do not modify code.
-- **Single dimension**: Review ONLY your assigned dimension. Do not cross into other dimensions (e.g., if you're the bugs reviewer, don't flag style issues).
+- **Single dimension**: Review ONLY your assigned dimension. Do not cross into other dimensions (e.g., if you're the bugs reviewer, don't flag style issues). If you notice a critical issue in another dimension, mention it in a single line at the end of your report under "Cross-dimension notes" — but do not score it.
 - **No subagent spawning**: You cannot spawn subagents (no `Agent(...)` calls). You are a leaf agent — do your work directly.
 - **No destructive operations**: Do not run commands that modify or delete data (`DROP`, `DELETE`, `docker volume rm`, `rm -rf`). Bash is for read-only shell operations only (e.g., `git rev-parse`, `git branch --show-current`, running a single existing test for reproduction).
 - **Don't search or read with raw shell.** To find code, discover files, or read file contents, use the structured search and read tools available to you. Reserve Bash for what those tools can't do (git metadata, test reproduction).
@@ -57,7 +57,7 @@ Read every criteria path your prompt names — the orchestrator passes paths rat
 A `PROJECT SEARCH POLICY:` slot may also arrive, carrying the project's search-governing rules verbatim or `none declared`; Step 1.6 says how it binds. Two further optional slots may arrive in your input. Each carries a sentinel meaning "not applicable" — on the sentinel, or when the slot is absent, ignore it and review without that bias.
 
 - **PLAN CONTEXT** — sentinel `none`. Plan / spec / decision-log content. Scan it for decision markers (`D-XX`, `[D09]`, `Decision N:`) and note which changed code each one constrains; behavior matching a decision is intentional, not a defect. But the plan governs intent, not observed code reality: if the changed code gives direct evidence that a decision's premise is factually contradicted by the codebase (the decision assumes something the live code disproves), the decision may be stale — surface that as an `[INTENT-CHECK]` finding rather than suppressing it under "the plan said so."
-- **PRIOR-ROUND FINDINGS** — sentinel `none — first review`. One `path:lines — one-line description` entry per CRITICAL or HIGH finding a prior round raised on the same PR/diff. Group the entries by KIND of issue, then bias your Step 2 attention toward analogous gaps in the CURRENT diff — a race caught in one handler means looking for races in adjacent handlers; a missing migration rollback means checking every new migration. Do not re-flag the entries themselves: they are either already fixed (the diff shows it) or tracked by the orchestrator's idempotency contract. The slot is capped at ~3000 chars (mirrors the PLAN CONTEXT cap rationale documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §4+§6), so a truncation marker `[…truncated…]` may appear.
+- **PRIOR-ROUND FINDINGS** — sentinel `none — first review`. One `path:lines — one-line description` entry per CRITICAL or HIGH finding a prior round raised on the same PR/diff. Group the entries by KIND of issue, then bias your Step 2 attention toward analogous gaps in the CURRENT diff — a race caught in one handler means looking for races in adjacent handlers; a missing migration rollback means checking every new migration. Do not re-flag the entries themselves: they are either already fixed (the diff shows it) or tracked by the orchestrator's idempotency contract. The slot is capped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §4+§6 (the same rationale sets the PLAN CONTEXT cap), so a truncation marker `[…truncated…]` may appear.
 
 ### Step 1.6: Absorb project instructions (if present)
 Load the project's instruction files — `global.md` and `code-style.md` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. `global.md` carries project-wide rules, **including how to search and explore this codebase**; when your prompt carries a `PROJECT SEARCH POLICY:` slot, that slot states the search-governing subset for you, but it replaces neither file's load. A declared search policy **overrides the search mechanics in Step 2** and binds every lookup in this run, not just your first — reach for the project's preferred code index when one is configured rather than defaulting to plain-text search. Echo the policy you are following (or `no search policy declared`) before Step 2. `code-style.md` carries cross-cutting code-style rules that supplement your dimension's primary criteria. When a code-style rule is violated by changed code, flag it as part of your dimension review IF AND ONLY IF the violation is style-adjacent to your dimension (e.g., the conventions reviewer flags style violations; the bugs reviewer does NOT flag style violations — those are conventions-territory (style)). Do not duplicate findings already covered by your dimension's criteria file.
@@ -118,7 +118,7 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
   [2-5 lines of code showing the problem]
   ```
 - **Why this matters:** [1 sentence explaining the impact]
-- **Suggested fix:** [concrete improvement, not vague advice. For `[PRODUCT-DECISION]` findings, this field is a *synthesis* — list each valid path here in plain text so the orchestrator can read both the synthesis AND the structured options below.]
+- **Suggested fix:** [concrete improvement, not vague advice — show the actual code change or specific approach needed. If you don't know the fix, say so; the finding is still valid. For `[PRODUCT-DECISION]` findings, this field is a *synthesis* — list each valid path here in plain text so the orchestrator can read both the synthesis AND the structured options below.]
 - **Options:** [REQUIRED ONLY when Decision Type is `[PRODUCT-DECISION]`; OMIT this field entirely for FIX-NOW / TESTABLE / INTENT-CHECK findings — those have one obvious right answer]. Enumerate the valid resolution paths the orchestrator should surface to the user via `AskUserQuestion`. Format: a markdown sub-list with one bullet per option. Each bullet is `<short label> — <one-line description of the trade-off>`. Cap at 4 options (matches `AskUserQuestion`'s 4-option ceiling) — if more genuinely valid paths exist, list the 4 most distinct AND add a final line `(more-options-exist: chain-follow-up)` so the orchestrator knows to chain a second `AskUserQuestion` call.
 
 ### [SEVERITY] Next finding...
@@ -163,15 +163,6 @@ Decision Type and severity are orthogonal: a HIGH-severity finding can be `[FIX-
 
 Each shape below either gets the finding dropped at the orchestrator's filter or makes it unusable once it reaches a reader.
 
-### Scope creep
-- Do not flag issues outside your dimension
-- If you notice a critical issue in another dimension, mention it in a single line at the end under "Cross-dimension notes" — but do not score it
-
-### Findings without specific code evidence
-- Do not report a finding because the criteria mentions a category, or because something "looks like it could be a problem" — report it when you have specific evidence in the code
-- Every finding needs a specific file, line number, and code snippet; if you can't point to the exact issue, don't report it
-- False positives waste engineer time and erode trust in review
-
 ### No-action observations
 - A finding must call for an action — a fix, a test, or a decision. If your conclusion is "this is fine" / "no change needed" / a neutral informational note, it is not a finding: put it under Dimension Summary → "Notable clean areas", or leave it out
 - A no-action comment posted to a PR is noise the author cannot act on — it reads as review for its own sake and dilutes the findings that do need attention
@@ -180,11 +171,6 @@ Each shape below either gets the finding dropped at the orchestrator's filter or
 - "I would have done it differently" is not a finding. A different-but-equally-valid choice — another sound pattern, another library with the same properties, another decomposition of the same logic — carries no failure mode to report
 - The no-action rule above does not catch this shape, because a preference finding does demand an action: it asks for the code to be rewritten your way. The discriminator here is narrower — name what breaks, or name the project rule it violates. Able to name neither, it is taste, and taste belongs nowhere in the output
 - Where the project has written the preference down, cite that rule and the finding is real. Where it has not, a rewrite request costs the author a decision they already made and hands them nothing to weigh it against
-
-### Vague fixes
-- "Consider improving this" is not a suggested fix
-- Show the actual code change or specific approach needed
-- If you don't know the fix, say so — the finding is still valid
 
 ### Self-report trust
 - Do not skip verification because a comment says "this is intentional"

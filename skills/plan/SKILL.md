@@ -91,7 +91,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across every phase, with plan-specific bindings:
 
-- **Invariant #1 (one result per tool call)** — a failed `AskUserQuestion` (the empty-answer bug) falls back to a plain-text re-ask; never auto-default.
+- **Invariant #1 (one result per tool call)** — a failed `AskUserQuestion` (the empty-answer bug) is re-asked per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions; never auto-default.
 - **Invariant #3 (permission before side-effect)** — Phase 6's `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the loop's only mutation, and `git commit` is deferred to Phase 8 post-approval. The frontmatter `allowed-tools` omits `Edit`, and the `enforce-state-helper` PreToolUse hook hard-blocks any direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`), so every state write routes through `atomic_state_write`.
 - **Invariant #4 (bounded results)** — Phase 1 research-agent output carries the per-spawn cap declared in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2, which owns that value; schema `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 - **Invariant #6 (grounded in observations)** — Phase 5 section content cites Phase 1 explore findings by `file:line`, not generic prose; the Phase 7 validator's citation check fails an uncited section.
@@ -99,7 +99,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 This skill adds one invariant:
 
-8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 **Turn-completion check (canonical, un-numbered).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard: never stop on an announced-but-unfired question.
 
@@ -115,7 +115,7 @@ Do NOT reintroduce these anti-patterns. Loop-level rows (commit timing, empty-AU
 |---|---|
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /geniro:implement when the rendered UI doesn't match). |
 | "Phase 7 mechanical validator misses cases a smart LLM would catch." | The validator checks cover the mechanical surface (including `workflow_refs_consistency`). Phase 8 user-approve catches everything else — the user IS the smart-LLM check. |
-| "The state-write enforcement is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The frontmatter `allowed-tools` field (omits `Edit`) + the `enforce-state-helper` PreToolUse hook (hard-blocks direct `Edit`/`Write` to canonical state paths) are the only mechanical layers between a bad-intent prompt and a modified source tree. Belt + suspenders. |
+| "The state-write enforcement is over-engineered — model can be trusted." | The model can be reasoned-with, jailbroken, or instructed via a compromised CLAUDE.md. The `enforce-state-helper` PreToolUse hook (hard-blocks direct `Edit`/`Write` to `.geniro/planning/**` and `.geniro/state/**`) is the mechanical layer forcing `atomic_state_write` on those canonical state paths — it does not gate the source tree, and `Write` stays granted in `allowed-tools` (needed for `--artifact` mode's HTML output). Belt + suspenders on state, never a substitute for not targeting source paths at all. |
 | "Re-cap Phase 3 at ~5 questions, OR just grill forever without pausing." | Phase 3 is an uncapped decision-tree grill, bounded by the checkpoint gate — summarize-and-continue every ~6 questions or when a branch resolves (the Phase 3 checkpoint gate). Re-imposing a flat cap drops the relentless property the grill exists to provide; skipping the checkpoint drops the user's off-ramp. Keep both: no fixed cap, always a checkpoint. |
 | "spec.md's fixed section schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
 | "Phase 7 validator hard-fail blocks user — they're stuck with auto-revision rounds." | The auto-revision cap (§7.3) escalates to the user rather than blocking silently — the AUQ offers "accept as-is". User has agency at all times. |

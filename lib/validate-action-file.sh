@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Custom-action file validator — the 10 create/validate gate checks, mechanized.
+# Custom-action file validator — the 13 create/validate gate checks, mechanized.
 #
 # Spec + escalation semantics: skills/actions/actions-reference.md §Validation gate
 # File shape being validated: skills/actions/skill-template.md
@@ -44,10 +44,9 @@ if [ -z "${_VAF_DEPS_LOADED:-}" ]; then
   readonly _VAF_NO_TARGET=64
   readonly _VAF_UNREADABLE=65
 
-  # Description length cap. Kept in lockstep with the prose home,
-  # skills/actions/skill-template.md §Authoring rules ("at most 250
-  # characters") — that bullet is where an author reads the rule; this is where
-  # it is enforced. Change both together.
+  # Description length cap. This constant is the single home — see
+  # skills/actions/skill-template.md §Authoring rules, which cites it by name
+  # rather than restating the number.
   readonly _VAF_DESC_MAX_CHARS=250
 
   # File-length guideline. An action body is followed step-by-step inline by the
@@ -55,6 +54,17 @@ if [ -z "${_VAF_DEPS_LOADED:-}" ]; then
   # the action is doing more than one job and wants splitting. MEDIUM, not
   # blocking — length alone never makes an action wrong.
   readonly _VAF_MAX_LINES=500
+
+  # Slug length cap. This constant, and the reserved-word list below, are the
+  # single home for the slug-shape rule — skills/actions/SKILL.md §Name
+  # validation cites this check by name rather than restating either.
+  readonly _VAF_SLUG_MAX_CHARS=64
+
+  # Reserved words a slug may not equal: the three vendor names plus every
+  # verb the Phase 1 alias table dispatches on (skills/actions/SKILL.md
+  # §Sub-commands) — a slug equal to one of these collides with verb
+  # detection in `$ARGUMENTS`.
+  readonly _VAF_RESERVED_SLUGS="anthropic claude geniro list create edit run delete validate"
 
   _VAF_DEPS_LOADED=1
 fi
@@ -240,6 +250,29 @@ validate_action_file() {
         ;;
     esac
   fi
+
+  # --- Checks 11-13: slug shape (kebab-case, length cap, reserved word) -----
+  # `$slug` (basename minus .md) was computed at Check 2. A shape violation
+  # here isn't a parse failure like Check 2 — the file still resolves by
+  # filename — but it breaks the bare-slug fast path's kebab-normalization
+  # (actions-reference.md §Target resolution Step 2) or, for a reserved word,
+  # collides with Phase 1's verb-alias dispatch (SKILL.md §Sub-commands).
+  case "$slug" in
+    *[!a-z0-9-]*|-*|*-|"")
+      _vaf_row HIGH slug-shape - "filename slug '$slug' is not kebab-case (lowercase letters, digits, hyphens only; no leading/trailing hyphen)"
+      blocking=1
+      ;;
+  esac
+  if [ "${#slug}" -gt "$_VAF_SLUG_MAX_CHARS" ]; then
+    _vaf_row HIGH slug-length - "filename slug '$slug' is ${#slug} characters, over the $_VAF_SLUG_MAX_CHARS cap"
+    blocking=1
+  fi
+  case " $_VAF_RESERVED_SLUGS " in
+    *" $slug "*)
+      _vaf_row HIGH slug-reserved-word - "filename slug '$slug' is a reserved word (one of: $_VAF_RESERVED_SLUGS) — it collides with Phase 1 verb detection"
+      blocking=1
+      ;;
+  esac
 
   if [ "$blocking" -eq 1 ]; then
     return "$_VAF_BLOCKING"

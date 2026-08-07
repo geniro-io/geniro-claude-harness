@@ -166,11 +166,18 @@ fi
 # background agent blocks even when the render exists, because the scan stops at
 # the notification before reaching the render. Anything else (system, summary,
 # progress, malformed line) is skipped via fromjson?/objects so one bad line
-# never kills the stream. The 2000-record
-# cap bounds work on huge transcripts; past it with no decision → fail open.
+# never kills the stream. The 2000-record cap (GENIRO_GATE_RENDER_SCAN_LIMIT)
+# bounds work on huge transcripts; past it with no decision → fail open.
 # `tac` is GNU-only; stock macOS has `tail -r`. Branch on availability rather
 # than `tac || tail -r`: if tac dies mid-stream (SIGPIPE once jq's first() has
 # its answer), the || fallback would re-feed the transcript from the start.
+_geniro_gate_scan_limit="${GENIRO_GATE_RENDER_SCAN_LIMIT:-2000}"
+# Sanitize — a non-numeric override would make jq's --argjson reject the value
+# outright (jq: error), which is worse than silently keeping the cap; mirror
+# the numeric-input sanitization used elsewhere in the hooks (e.g.
+# session-start-restore.sh's GENIRO_LOCK_RECLAIM_SECS).
+case "$_geniro_gate_scan_limit" in ''|*[!0-9]*) _geniro_gate_scan_limit=2000 ;; esac
+
 scan_transcript() {
   {
     if command -v tac >/dev/null 2>&1; then
@@ -178,9 +185,9 @@ scan_transcript() {
     else
       tail -r "$TRANSCRIPT_PATH" 2>/dev/null
     fi
-  } | jq -nRr '
+  } | jq -nRr --argjson scan_limit "$_geniro_gate_scan_limit" '
         first(
-          limit(2000; inputs)
+          limit($scan_limit; inputs)
           | fromjson?
           | objects
           | if .type == "assistant" then
@@ -217,7 +224,12 @@ fi
 
 # The harness writes transcript lines with a lazy flush (~100ms); the in-flight
 # turn's text block may not be on disk yet. Re-scan once before blocking.
-sleep 0.4
+# Fractional `sleep` is a GNU/BSD extension, not POSIX — under `set -e`, a
+# `sleep` whose implementation rejects "0.4" (busybox, some minimal coreutils)
+# would abort THIS SCRIPT before it ever reaches the block below, failing the
+# very gate this re-scan exists to protect open. Fall back to a whole-second
+# sleep on that error rather than let it propagate.
+sleep 0.4 2>/dev/null || sleep 1
 VERDICT=$(scan_transcript)
 if [ "$VERDICT" != "USERTEXT" ]; then
   exit 0

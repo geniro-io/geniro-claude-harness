@@ -148,7 +148,6 @@ Type the most **distinctive** token you remember from the thread. Distinctive be
 
 Tips:
 - A vague paraphrase (`didnt post low`) matches loosely — every thread containing "post" or "low" is kept, and ranking does the work. Prefer a PR number or a unique token when you have one.
-- Multiple words are OR-matched for recall but ranked by how tightly they co-occur, so the real match usually lands in the top few even amid many loose matches.
 
 **Finding a whole feature, not one thread.** A single ticket key only finds threads that *name that ticket*. But a feature's real work-in-progress is spread across sibling tickets, follow-up PRs, and threads titled after the feature (not the key) — so one key shows fragments, never the whole epic. To assemble the complete chain, pass several terms at once: the feature noun plus the sibling keys — `CI-315 CI-316 CI-317 cw_case`. The terms are OR-matched into one ranked list, with threads touching several of them floated to the top by proximity. When a user asks for "all the work on X" and a single key returns a thin set, widen to a multi-term query before concluding the work isn't there.
 

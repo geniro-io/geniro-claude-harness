@@ -247,7 +247,7 @@ PR-ref runs only — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-referen
 
 ## 3.5. Workflow integrations (issue-tracker fetch)
 
-Read `.geniro/workflow/*.md` integrations, apply each file's argument-detection regex against `$ARGUMENTS` / `pr.title` / `pr.body`, and on a match fetch tracker context via the registered MCP server. Fail-open when the MCP server is unregistered: degrade to regex-only ID detection, surface a `## Caveats` one-liner, never block. Read-only from /geniro:review's perspective; status/comment updates remain in /geniro:implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` § AI-Disclosure Prefix.
+Read `.geniro/workflow/*.md` integrations, apply each file's argument-detection regex against `$ARGUMENTS` / `pr.title` / `pr.body`, and on a match fetch tracker context via the registered MCP server. Fail-open when the MCP server is unregistered: degrade to regex-only ID detection, surface a `## Caveats` one-liner, never block. Read-only from /geniro:review's perspective; status/comment updates remain in /geniro:implement Ship per `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/linear.md` §"AI-disclosure prefix on authored comments".
 
 Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not configured by /geniro:setup). Other inputs (files / diff range / branch / PR ref) ALL eligible — tracker IDs surface in `$ARGUMENTS` independently of PR-ref-driven flow.
 
@@ -256,7 +256,7 @@ Skipped when `.geniro/workflow/` directory is absent OR empty (workflow not conf
 Workflow files live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A). Glob both locations — cwd-local wins on collision:
 
 1. `ls ./.geniro/workflow/*.md <PRIMARY_ROOT>/.geniro/workflow/*.md 2>/dev/null` — merge the two listings, deduplicating by basename (cwd-local entry wins when a file exists in both locations; uncommitted local edits beat the primary copy). If zero matches across both, skip entirely.
-2. For each unique workflow file, read it and extract the `## Argument Detection` regex patterns (Linear's: `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form, `\b[A-Z]{2,}-\d+\b` bare-ID form).
+2. For each unique workflow file, read it and extract the `## Argument detection` regex patterns (Linear's: `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form, `\b[A-Z]{2,}-\d+\b` bare-ID form).
 3. Apply patterns against (a) `$ARGUMENTS`, (b) `pr.title`, (c) `pr.body` — in that order. First match wins. Multiple matches in one source are deduplicated to the first.
 4. **Merge in the spec's own tracker refs.** When a spec.md is resolvable (via `--plan <path>`, a `geniro-plan:` PR-body line, a walk-up `.geniro/planning/*/spec.md`, or a canonical project path), parse its frontmatter `workflow_refs[]` and merge those entries with the refs found in steps 1-3. Accepted schema versions and the merge precedence are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §Spec metadata contract — the `$ARGUMENTS` reference wins on conflict because the user just typed it, the fresher signal.
 5. Persist the tracker ID from the deduplicated merged list to state.md frontmatter:
@@ -366,7 +366,7 @@ PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn 
 
 Size-only triage (the §12 size threshold) misses high-stakes small diffs. Stratify by risk tier alongside size.
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for Hard Escalation Signals" — single source of truth for the 9 canonical signals (new entity / new endpoint or route / auth or permissions changes / new module / 3+ modules coordinated / open-closed violation / new async or background work / new external integration or env vars / ambiguous intent).
+1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` § "Step 1: Check for hard escalation signals" — single source of truth for the 9 canonical signals (new entity / new endpoint or route / auth or permissions changes / new module / 3+ modules coordinated / open-closed violation / new async or background work / new external integration or env vars / ambiguous intent).
 2. Scan changed files + diff content for matches.
 3. If ANY signal matches → `risk-tier: high`. Otherwise → `risk-tier: standard`.
 4. Persist to state.md frontmatter.

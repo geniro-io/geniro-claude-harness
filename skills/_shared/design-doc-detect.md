@@ -48,13 +48,7 @@ else:
 
 ## Why defense in depth
 
-Each marker fails under different reasonable user actions; ANY-OF semantics ensures at least one survives.
-
-- **HTML comment alone fails.** Paste-as-plain-text strips it (markdown editors/issue trackers/Slack). Some Markdown editors strip HTML comments on save (notably some "clean Markdown" formatters). If the user copies the design doc body into a different file, the HTML comment can be silently lost.
-- **Path placement alone fails.** Design docs imported from outside `.geniro/planning/` (e.g. copied from another project, or attached to a tracker issue and downloaded) won't match the path glob. Path is also fragile across worktree moves.
-- **YAML frontmatter alone fails.** Not all Markdown editors preserve frontmatter; some strip it on auto-format. Tools that render Markdown without frontmatter awareness can silently drop it on round-trip edits.
-
-ANY-OF semantics: at least one marker survives any single user action that strips one of the others. All three is the minimum; fewer leaves a known-failing path.
+Each marker fails under a different reasonable user action, and no single marker survives every one — the anti-rationalization row below ("I'll rely on just one marker") enumerates the three failure paths. ANY-OF semantics means at least one marker survives whichever action strips the others; all three is the minimum, fewer leaves a known-failing path.
 
 ## Per-consumer behavior
 

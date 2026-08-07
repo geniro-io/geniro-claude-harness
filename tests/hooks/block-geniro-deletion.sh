@@ -283,6 +283,19 @@ expect_block "real rm -rf .geniro/ still blocks after heredoc scrub" "$(run_cmd 
 expect_block "jqless: rm -rf .geniro still blocked"  "$(run_cmd_nojq '{"tool_input":{"command":"rm -rf .geniro/"}}')"
 expect_allow "jqless: benign command fails open"     "$(run_cmd_nojq '{"tool_input":{"command":"ls .geniro/"}}')"
 
+# ===== jq PRESENT but payload MALFORMED: must still fail-closed on a raw scan =====
+# Distinct from the jqless block above (jq absent, well-formed JSON). Here jq is on
+# PATH but the JSON is truncated, so tool_input.command parses empty and the
+# top-level `[ -z "$COMMAND" ]` branch's own raw-text scan is what has to catch it.
+run_raw() {  # <raw-payload-text>
+  printf '%s' "$1" | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "malformed payload with recursive rm still blocked" \
+  "$(run_raw '{"tool_input":{"command":"rm -rf .geniro/"')"
+expect_allow "malformed payload with no destructive token allows" \
+  "$(run_raw '{"tool_input":{"command":"ls .geniro/"')"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

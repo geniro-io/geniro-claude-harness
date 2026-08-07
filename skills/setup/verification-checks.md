@@ -22,7 +22,7 @@ Generation (`phase-3-generate.md` §3.2), the re-run pre-write audit and merge r
 
 ---
 
-**Cross-language contamination check (critical):**
+## Cross-language contamination check (critical)
 
 For each generated file (CLAUDE.md), verify it contains ONLY the detected stack's content. Use Grep on the generated files to search for wrong-language artifacts:
 
@@ -41,7 +41,7 @@ For each wrong-language reference found in a generated file:
 3. If it is a generation artifact → report it as a DRIFT item with file:line. The orchestrator removes it during regeneration; a Read-only subagent cannot edit it.
 4. If it is legitimate → leave it; do not report.
 
-**Template artifact check:**
+## Template artifact check
 
 Search generated files for phrases that belong in templates, not in production files:
 - "customize this", "replace with", "fill in", "TEMPLATE NOTICE"
@@ -51,7 +51,7 @@ Search generated files for phrases that belong in templates, not in production f
 
 Each match → report as a DRIFT item with file:line so the orchestrator can rewrite the section to be concrete and project-specific.
 
-**Generic-placeholder check:**
+## Generic-placeholder check
 
 The generated CLAUDE.md must be project-specific, not generic boilerplate. Generation builds from the detected project facts (not from a copied template), so scan the output for unfilled placeholder content — `<TODO>`, `<your-...>`, `example.com`, or stack/command names that don't match what was detected. Grep for the generator's own residue tokens too: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`, and the legacy section markers `<!-- geniro-setup-managed -->` / `<!-- geniro-setup-end -->` (CLAUDE.md is user-owned and carries no plugin markers). Any generic-placeholder hit → report a DRIFT item so the orchestrator regenerates that section from the detected project facts.
 

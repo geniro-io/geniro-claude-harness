@@ -3,7 +3,7 @@ name: review
 description: "Use when a comprehensive code review of pending changes (a diff, branch, or PR) is needed. Reporter workflow: triage, a cheap mechanical pre-pass, then parallel single-dimension reviewers (bugs, security, architecture, tests, regressions, conventions, and more, plus any custom ones) whose findings are filtered and individually verified, then persisted. Emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/geniro:implement, or the user manually) apply the fixes — review never edits code itself, and asks before authoring tests or posting to a PR. Optional --deep reviews each check from several angles and majority-verifies contested findings (higher quality, higher cost)."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Glob, Grep, Bash, Agent, AskUserQuestion, EnterWorktree, ExitWorktree, Workflow]
+allowed-tools: [Read, Glob, Grep, Bash, Agent, AskUserQuestion, EnterWorktree, ExitWorktree, Workflow]
 argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep]"
 ---
 
@@ -34,7 +34,7 @@ This file is the spine — role, invariants, gates, phase map. **Read the phase'
 
 ## Your role — orchestrate, don't review
 
-You are a **coordinator**. Delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. Do NOT review code yourself — read files only to gather context and verify agent findings.
+You are a **coordinator**. Delegate review work to `reviewer-agent` instances via the Agent tool and validate their outputs in the judge pass. Read files only to gather context and verify agent findings — a coordinator that reviews inline inherits the reviewers' blind spots, so the judge pass stops being independent.
 
 `/geniro:review` is a **Reporter**: it never applies fixes. Findings persist to a handoff file; downstream consumers (`/geniro:implement`, manual user action) apply them. A `Workflow(...)` / ultracode wrapper parallelizes the reviewer fan-out, not the Reporter contract; full boundary at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
@@ -67,13 +67,13 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 - **Invariant #4 (bounded results)** — reviewer-agent output is capped per dimension by its own contract (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap); output schema per the same file's §Output Format.
 - **Invariant #5 (escalation gates)** — round-N ≥3 fires the Phase 6 escalation gate.
 - **Invariant #6 (grounded in observations) — binds at every kept severity.** The Phase 6 handoff message cites the state.md path so the user can audit the source; every REPORTED CRITICAL / HIGH / MEDIUM finding carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` quoting the cited file or caller chain literally, because a severity claim without a literal quote is unverifiable. This binds at emit, not at admission: a CRITICAL or HIGH may enter Phase 4.2 on a thin citation, and the verifier (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §3) is what supplies the quote for every §4.1 survivor.
-- **Invariant #7 (errors → structured observations)** — reviewer spawn failures land in the `## Errors` body section; `gh` fail-open is NOT silent — log it there too.
+- **Invariant #7 (errors → structured observations)** — reviewer spawn failures land in the `## Errors` body section; `gh` fail-open is not silent — log it there too.
 
 This skill adds three invariants:
 
-8. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
-9. **Re-verify ambiguity gates at external-effect boundaries.** Upstream gates establish invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, kept-finding `Validation:`, and `report_status:`; the Pre-Post guard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.0) re-reads all four before any `gh api POST /reviews`, because mid-phase producer writes, parallel resolvers, or drift can re-create ambiguity between gate and write. Never trust an upstream gate's invariant at a public-surface boundary.
-10. **Stamp `phase:` on entry, before the phase's work.** A checkpoint written only at the end records history, not current state: a crash mid-phase leaves no resumable marker, and a declaration the phase produces (`spawn_dims_declared`, written before the spawns) lands too late to power the gate reading it. A phase counts DONE only once its trailing steps complete — stamp `persist` only after the §5.3 emits have run, or stamp the next phase at its own entry.
+S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+S2. **Re-verify ambiguity gates at external-effect boundaries.** Upstream gates establish invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, kept-finding `Validation:`, and `report_status:`; the Pre-Post guard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.0) re-reads all four before any `gh api POST /reviews`, because mid-phase producer writes, parallel resolvers, or drift can re-create ambiguity between gate and write. Never trust an upstream gate's invariant at a public-surface boundary.
+S3. **Stamp `phase:` on entry, before the phase's work.** A checkpoint written only at the end records history, not current state: a crash mid-phase leaves no resumable marker, and a declaration the phase produces (`spawn_dims_declared`, written before the spawns) lands too late to power the gate reading it. A phase counts DONE only once its trailing steps complete — stamp `persist` only after the §5.3 emits have run, or stamp the next phase at its own entry.
 
 **Turn-completion check (canonical, un-numbered).** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard: never stop on an announced-but-unfired question.
 
@@ -128,7 +128,7 @@ When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLA
 | Phase 2 / 3 / 4 | Agent (reviewer-agent, finding-verifier-agent, adversarial-tester-agent); read-only Bash for §2.7 build verification plus `atomic_state_write`; Phase 3 dedup inline | No Edit/Write — the state file goes through the helper; no other mutating Bash |
 | Phase 5 / 6 | `Bash` for `atomic_state_write` on the handoff path (the Phase 5.1 write, gate resolutions, `approvals[]`); `emit-learning`; `gh api POST /pulls/N/reviews` with `event` omitted (§5.4, Post drill only); Phase 6 AskUserQuestion; Agent — one `finding-verifier-agent` spawn, only on the "Challenge this finding" pick (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3 Step 0) | No Edit/Write anywhere — a reporter never mutates source or rules, and the state-helper hook hard-blocks direct writes under `.geniro/state/`, so the helper is the only route to the handoff. Never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES`, never the submit endpoint `gh api POST /pulls/N/reviews/<id>/events` (publishing a pending review is the user's action); no reviewer re-spawn without the Round-N gate pick |
 
-The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
+The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 
@@ -155,7 +155,7 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 - [ ] The admission gate was applied per its canonical rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) — not a single confidence threshold.
 - [ ] Every kept finding carries a severity (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1), a decision type, and a `[NEW]` / `[PRE-EXISTING]` tag.
 - [ ] The needs-your-decision gate fired for every such finding at any severity, and all are resolved or wontfix BEFORE the handoff is offered or anything is posted (§7.0 Pre-Post guard).
-- [ ] `phase:` was stamped via `atomic_state_write` on ENTRY to each phase (invariant #10), so both declarations existed before the gates reading them.
+- [ ] `phase:` was stamped via `atomic_state_write` on ENTRY to each phase (invariant S3), so both declarations existed before the gates reading them.
 - [ ] All three pre-pass checks (lint / schema / secret) ran to a recorded outcome — `findings`, `clean`, or `error` — declared in `mechanical_prepass_attempted`, and §4.0a confirmed it.
 - [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
 - [ ] `report_status: draft→final` flipped on this pass once the decision gates cleared — including on a clean review with no gates to fire; on a Post, `[POSTED-TO-PR]` markers persisted.

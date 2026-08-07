@@ -54,7 +54,7 @@ Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings �
 
 **CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
 
-Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" / "Document remaining findings and keep the diff as-is" / "Revert all changes". state.md → `verify-escalated` with timestamp + 1-round fix attempt summary.
+Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — state.md → `verify-escalated` with timestamp + 1-round fix attempt summary, then surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" (state.md → `routed`, terminal) / "Document remaining findings and keep the diff as-is" (state.md → `verify-summary-only`, terminal) / "Revert all changes" (`git restore --source=HEAD -- <each path from git diff --name-only>` per SKILL.md §Git constraint; state.md → `reverted`, terminal).
 
 **MEDIUM findings only → note in completion summary; proceed.**
 

@@ -149,38 +149,9 @@ atomic_state_write "$S" < "$tmp"
 
 For T3 CRUD files (`instructions/*.md`, `actions/*.md`, etc.), the caller is responsible for optimistic-concurrency mtime check **before** invoking `atomic_state_write`.
 
-GNU `stat -c %Y` is Linux-only. BSD/macOS `stat` uses `-f %m`. Without a portable wrapper, the check silently no-ops on macOS (both `stat -c` calls error → both fallback to `echo 0` → values always equal → check disabled). Use this portable helper:
+Compute mtime with a portable stat (GNU `stat -c %Y`, falling back to BSD/macOS `stat -f %m` — without the fallback the check silently no-ops on macOS), once at read time and again just before the write. Three outcomes: the target still doesn't exist at either time — no prior state to conflict with, proceed; `stat` failed at either time — treat as a conflict rather than silently disabling the check; the mtime changed since read — open an `AskUserQuestion` with three options: Overwrite (lose remote changes), Show diff, Abort.
 
 ```bash
-# Portable file-mtime — works on Linux (GNU coreutils) and macOS/BSD.
-_get_mtime() {
-  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null
-}
-
-# At read time:
-initial_mtime=$(_get_mtime "$target")
-
-# ... user edits content ...
-
-# At write time:
-current_mtime=$(_get_mtime "$target")
-if [ ! -e "$target" ]; then
-  # Initial write — target didn't exist at read time AND doesn't now.
-  # No prior state to conflict with; proceed.
-  :
-elif [ -z "$initial_mtime" ] || [ -z "$current_mtime" ]; then
-  # File exists but stat failed at read time and/or write time. Could be a
-  # permission flip, transient FS error, or signal mid-call. Treat as
-  # conflict — never silently disable the check. Open AUQ.
-  exit 1
-elif [ "$current_mtime" != "$initial_mtime" ]; then
-  # File changed since read — open AUQ:
-  #   - Overwrite (lose remote changes)
-  #   - Show diff
-  #   - Abort
-  exit 1
-fi
-
 atomic_state_write "$target" <<EOF
 ...
 EOF

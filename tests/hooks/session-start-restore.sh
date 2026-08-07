@@ -1155,6 +1155,19 @@ dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbo
 echo "$sm" | grep -Eq 'auto-archived: [1-9][0-9]*' \
   && pass "default-ON: systemMessage carries the auto-archived: N suffix" \
   || fail "default-ON: real hook should show auto-archived: N — '$sm'"
+# The hash marker is written via stage-and-rename (mv), not a bare truncating
+# redirect — a completed run must leave a non-empty marker and no stray .tmp
+# leftovers in .geniro/knowledge/ (a leftover would mean the rename never ran,
+# e.g. a failure mid-write left the tmp file orphaned).
+hm="$sandbox/.geniro/knowledge/.archive-stale.hash"
+[ -s "$hm" ] \
+  && pass "hash marker written (non-empty) after a successful archive run" \
+  || fail "hash marker should be non-empty after a successful run — got: $(cat "$hm" 2>/dev/null || echo '<missing>')"
+if find "$sandbox/.geniro/knowledge" -maxdepth 1 -name '*.tmp.*' | grep -q .; then
+  fail "stray .archive-stale.hash.tmp.* file left behind (stage-and-rename did not complete)"
+else
+  pass "no stray .archive-stale.hash.tmp.* file left behind after the run"
+fi
 
 # 21b. Opt-out ON via safety.json → real hook's `== false` resolver disables
 #      auto-archive, so NO `auto-archived:` suffix appears. Fresh sandbox so the
@@ -1182,6 +1195,32 @@ dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbo
 [ "$dep" = "false" ] \
   && pass "opt-out leaves the stale entry un-archived on disk (deprecated still false)" \
   || fail "opt-out should leave the entry un-archived; deprecated=$dep"
+
+# 21c. Malformed safety.json (jq cannot parse it) must fail CLOSED on the
+#      opt-out check — treated as opt-out, not as default-on. Before the fix,
+#      jq's exit status went uncaptured: a parse failure left `_opt` empty,
+#      `[ "$_opt" = "false" ]` was false, and auto-archive ran anyway despite
+#      the file being unreadable — the opposite of every OTHER safety.json
+#      reader's fail-closed posture (file-protection.sh, block-dangerous-git.sh,
+#      block-geniro-deletion.sh all block on a coarse scan when jq can't read
+#      their allowlist). Same corpus/threshold shape as 21a/21b.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge" "$sandbox/.geniro"
+write_archivable_corpus "$sandbox/.geniro/knowledge/learnings.jsonl"
+printf '%s\n' '{ this is not valid json' > "$sandbox/.geniro/safety.json"
+cd "$sandbox" || exit 1
+out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
+sm=$(echo "$out" | jq -r '.systemMessage // ""')
+if echo "$sm" | grep -q "auto-archived:"; then
+  fail "malformed safety.json: unparseable file must fail-closed (suppress), not fail-open — '$sm'"
+else
+  pass "malformed safety.json: unparseable file fails closed (auto-archive suppressed)"
+fi
+dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbox/.geniro/knowledge/learnings.jsonl")
+[ "$dep" = "false" ] \
+  && pass "malformed safety.json leaves the stale entry un-archived on disk" \
+  || fail "malformed safety.json should leave the entry un-archived; deprecated=$dep"
 
 # ---------------------------------------------------------------------------
 # 22. Tier-2 staleness gate — a branch-matched candidate untouched past

@@ -2,7 +2,7 @@
 
 Companion reference to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (the core contract: message-first rendering, the lean question, the multi-select pick loop, the cap-extension, the Recommended-label policy). Read THIS file when a gate fires on a concrete finding or investigation result — it carries the required AUQ shape, the challenge option, the mandatory pre-fire scrub, the visual map, and the source-field maps. A run that reaches no finding gate never needs it.
 
-This file is the single source of truth for these sections. Skills cite specific sections; do NOT inline-paste the body schema.
+This file is the single source of truth for these sections. Skills cite specific sections — the body schema lives only here.
 
 ## Contents
 

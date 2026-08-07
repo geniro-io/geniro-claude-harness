@@ -2,7 +2,7 @@
 
 Canonical shape for every `AskUserQuestion` call that surfaces a code-review finding (or a set of findings) to the user. The user must understand the finding fully at the moment of decision — what the code does, what the concern is, why it matters, and what each option means — without having seen the reviewer agents' output. The finding body is rendered to a chat message first (§ Message-first rendering); the `AskUserQuestion` itself stays lean. A bare `label` + 1-line `description`, or a finding body crammed into the truncating `preview` side-box, is not enough.
 
-This file is the single source of truth for the core contract. Skills cite specific sections; do NOT inline-paste the body schema. The concrete finding-gate shapes — the single-finding AUQ shape, the challenge option, the mandatory pre-fire scrub, the visual map, and the source-field maps — live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`; Read that file when a gate is about to fire on a concrete finding or investigation result. A run that reaches no finding gate never loads it.
+This file is the single source of truth for the core contract. Skills cite specific sections — the body schema lives only here. The concrete finding-gate shapes — the single-finding AUQ shape, the challenge option, the mandatory pre-fire scrub, the visual map, and the source-field maps — live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`; Read that file when a gate is about to fire on a concrete finding or investigation result. A run that reaches no finding gate never loads it.
 
 ## Contents
 

@@ -30,7 +30,7 @@ Updated `.geniro/instructions/<scope>.md`. The new rules take effect the next ti
 ### Body section invariants (post-edit)
 
 - `## Rules` section present (may be empty list).
-- `## Additional Steps` section present (omitted for the rules-only scopes `code-style`, `review-extra/<slug>`, `onboard`, `investigate`; for `global` the section is optional and, when present, carries only the cross-skill `### After worktree-setup` event anchor).
+- `## Additional Steps` section present (omitted for the rules-only scopes `code-style`, `review-extra/<slug>`, `review`, `resolve`, `debug`, `onboard`, `investigate`, `reflect`; for `implement`/`plan`/`refactor` it carries at most that scope's one legal anchor, §5; for `global` the section is optional and, when present, carries only the cross-skill `### After worktree-setup` event anchor).
 - `## Constraints` section present (may be empty list).
 - Frontmatter (for `review-extra/<slug>.md`) parses YAML cleanly.
 

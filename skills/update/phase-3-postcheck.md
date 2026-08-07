@@ -7,7 +7,7 @@ Phase file for `/geniro:update`. The spine — invariants, budgets, tool surface
 If the new plugin publishes `$PLUGIN_PATH/.claude-plugin/manifest.sha256`, verify each file via `sha256sum -c` (or `shasum -a 256 -c` on macOS, which ships no `sha256sum`). Otherwise (no manifest published), sanity-check that key files exist:
 
 ```bash
-PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
+PLUGIN_PATH="<the path echoed by phase-2-update.md §Discover new plugin path>"
 
 HASH_FAIL=0
 MISSING=()
@@ -32,11 +32,11 @@ If `HASH_FAIL=1`, fire AUQ (Cancel-as-recommended — a hash-check failure means
 
 ### Step 2 — User-content survival check
 
-Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in Phase 1 Step 2 — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one, and must be computed by the same code, or the diff is meaningless. Paste the §User-content snapshot definitions into this call and pass the re-resolved `PRIMARY_ROOT` — that recomputes the baseline's filename and reads it back.
+Re-resolve `PRIMARY_ROOT` by running the same Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` used in `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content — Bash environments don't persist across phases (the AUQ + plugin-update step runs in separate shell invocations). The post-update snapshot must scan the same tree as the pre-update one, and must be computed by the same code, or the diff is meaningless. Paste the §User-content snapshot definitions into this call and pass the re-resolved `PRIMARY_ROOT` — that recomputes the baseline's filename and reads it back.
 
 ```bash
 # PRIMARY_ROOT is set by the Mode A resolver, which runs inside THIS Bash call.
-# --- paste the §User-content snapshot definitions here ---
+# --- paste the definitions from ${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md here ---
 
 USER_SNAPSHOT=$(cat "$(_gu_snapshot_file "$PRIMARY_ROOT")" 2>/dev/null)
 CURRENT_SNAPSHOT=$(_gu_snapshot "$PRIMARY_ROOT")
@@ -59,7 +59,7 @@ If diff non-empty, AUQ:
 ### Step 3 — Refresh update cache
 
 ```bash
-PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
+PLUGIN_PATH="<the path echoed by phase-2-update.md §Discover new plugin path>"
 
 GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \
 node "$PLUGIN_PATH/hooks/geniro-check-update.js"

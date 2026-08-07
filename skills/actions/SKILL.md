@@ -66,13 +66,13 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 5. Silent overwrite destroys committed work. |
 | "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
 | "The four interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
-| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — that defeats the entire design. Custom actions are reachable ONLY through `/geniro:actions run`. |
-| "I'll spawn a subagent to execute the action" | No — Phase 4 runs inline; the orchestrator is the runtime. |
+| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — Claude Code would then auto-discover it as its own slash command, routing around the no-run-confirmation contract (Phase 4.2), the tool-scope intersection (Phase 4.3), and the L2 emit (Phase 4.4) entirely. Custom actions are reachable ONLY through `/geniro:actions run`. |
+| "I'll spawn a subagent to execute the action" | No — this skill runs in `context: main`, not a forked subagent; the tool-scope intersection (Phase 4.3) and the scope checkpoint are computed and confirmed in this session, and a spawned subagent's steps and questions would fall outside the authorization the user gave by invoking `run`. |
 | "I'll auto-pick `risk_class: low` if I can't tell" | No — Q4 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
 | "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; an "are you sure?" AUQ re-asks a decision the user already made. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
 | "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
-| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — every free-text resolution passes through AskUserQuestion. |
+| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — a top-scored fuzzy match can still be the wrong action, and `run` executes with no confirmation gate (Phase 4.2): a silent mismatch fires that action's side effects with nothing left to catch it. Every free-text resolution passes through AskUserQuestion. |
 | "I'll re-use the validation gate's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
 | "I'm in a linked worktree, so I'll refuse to edit/delete the main repo's copy of an action" | No — the main repo checkout is the canonical home of actions (`create` writes there); refusing would break the create→edit flow from a worktree. Local branch copies stay respected at read/run time (local wins); CRUD targets the canonical copy, asking only when both copies exist and differ. |
 
@@ -159,10 +159,7 @@ The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`
 
 ### Name validation (for `create` only)
 
-- kebab-case (lowercase letters, digits, hyphens only)
-- ≤64 characters
-- NOT a reserved word: `anthropic`, `claude`, `geniro`, `list`, `create`, `edit`, `run`, `delete`, `validate`
-- No leading/trailing hyphen
+The proposed slug must clear `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh`'s slug-shape checks (`slug-shape` / `slug-length` / `slug-reserved-word`) — that helper is the single home for the kebab-case, length-cap, and reserved-word rules.
 
 Re-ask up to 3 times via AskUserQuestion until valid.
 

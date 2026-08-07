@@ -2,8 +2,6 @@
 
 **Status:** Authoritative for L2 episodic-memory write-side sanitization. Every entry that flows through `lib/emit-learning.sh` is sanitized via this helper before append.
 
-**Spec source:** `ARCHITECTURE.md` §Memory Layers.
-
 ## Why this exists
 
 L2 episodic memory (`.geniro/knowledge/learnings.jsonl`) is append-only and shareable. A leaked JWT or AWS key written into a `summary` or `body` field stays forever and propagates to every teammate who clones the repo. Sanitization runs on every write; the audit log makes redaction observable.
@@ -91,4 +89,4 @@ Schema (one JSONL line per `(pattern, entry)` fire):
 - **Greedy multiline PEM match.** If the input contains two PEM blocks with content between them, the regex `.*` greedily matches from BEGIN-of-first to END-of-second, collapsing the intervening content into the single redaction. Over-redaction is preferred over under-redaction; teach producers not to concatenate raw PEMs.
 - **URL with `@` in password.** `https://user:p@ss@host/` matches the first `@`, leaving `ss@host/` visible. Real producers should URL-encode credentials anyway. Document for clarity; don't try to be cleverer than the spec.
 - **AWS secret exactly 40 chars.** Pattern matches `{40}` exactly. A 39- or 41-char secret slips through. Matches AWS's documented secret-key length; no looser counterpart needed.
-- **`sed` and `grep` portability.** Helper uses POSIX `-E` (extended) regex syntax; works on Linux GNU and macOS BSD. Backreferences (`\1`) are GNU sed and BSD sed compatible. If you ever port to a stricter `sed`, retest each pattern.
+- **`sed` and `grep` portability.** Helper uses POSIX `-E` (extended) regex syntax; works on Linux GNU and macOS BSD. Backreferences (`\1`) are GNU sed and BSD sed compatible.

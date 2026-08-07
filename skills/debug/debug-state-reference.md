@@ -25,7 +25,7 @@ state.md `phase:` enum transitions:
                                        │             │          └── ship-summary-only (terminal — "Leave it to me")
                                        │             │
                                        │             └── phase-2-escalated ──┬── ship (accept-as-documented-limitation)
-                                       │                                     ├── propose (try-different-approach loop-back)
+                                       │                                     ├── investigate (try-different-approach loop-back)
                                        │                                     └── aborted (terminal)
                                        │
                                        └── phase-1-escalated ──┬── investigate (supply-data loop-back)

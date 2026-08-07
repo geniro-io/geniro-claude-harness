@@ -7,12 +7,12 @@ Production-grade Claude Code plugin: AI-driven setup, multi-agent workflows, saf
 Each skill's frontmatter description is the routing surface, and Claude Code already loads them at discovery — don't restate them here. Three things those descriptions don't carry:
 
 - **`/geniro:implement` is the only skill that ships code.** `/geniro:plan`, `/geniro:review`, `/geniro:resolve`, and `/geniro:debug` are producers: they end at a `spec.md` and/or a handoff file that `/geniro:implement` consumes and applies.
-- **Read-only means no production-source edit — not an empty tool surface.** `/geniro:review`, `/geniro:resolve`, `/geniro:debug`, and `/geniro:investigate` never edit production source, and an elevated-effort or workflow run does not relax that (`skills/_shared/reporter-boundary.md` §1). Only `/geniro:resolve` and `/geniro:investigate` bind it at the tool level — their `allowed-tools` omits `Write` and `Edit` outright. `/geniro:review` declares `Write` scoped to its handoff file, and `/geniro:debug` declares `Write, Edit` for experiments and the reproduction test, so for those two the boundary is a contract their tool surface does not enforce. `/geniro:refactor` does edit production source, but never ships: the working-tree diff is its deliverable.
+- **Read-only means no production-source edit — not an empty tool surface.** `/geniro:review`, `/geniro:resolve`, `/geniro:debug`, and `/geniro:investigate` never edit production source, and an elevated-effort or workflow run does not relax that (`skills/_shared/reporter-boundary.md` §1). `/geniro:resolve`, `/geniro:investigate`, and `/geniro:review` bind it at the tool level — their `allowed-tools` omits `Write` and `Edit` outright. `/geniro:debug` declares `Write, Edit` for experiments and the reproduction test, so for that one the boundary is a contract its tool surface does not enforce. `/geniro:refactor` does edit production source, but never ships: the working-tree diff is its deliverable.
 - **Eight skills were deleted.** A name that doesn't resolve isn't necessarily a typo — check the catalogue for its replacement.
 
 ## Path Rules
 
-**NEVER use `~` in file paths passed to Read, Write, Edit, or Glob tools.** The `~` is NOT expanded by these tools and creates a literal `~` directory. Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or fully resolved absolute paths for project files.
+Always use `${CLAUDE_PLUGIN_ROOT}` for plugin files or fully resolved absolute paths for project files, passed to Read, Write, Edit, or Glob — never `~`, which these tools don't expand and instead create as a literal `~` directory.
 
 ## Never force-add `.geniro/` paths
 

@@ -214,6 +214,20 @@ expect_allow "jqless: normal source fails open"           "$(run_bash_nojq 'echo
 # ===== Fail-open on missing file_path =====
 expect_allow "missing file_path → allow" "$(echo '{"tool_input": {}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
 
+# ===== jq PRESENT but payload MALFORMED: must still fail-closed on a raw scan =====
+# Distinct from the jqless section above (jq absent, well-formed JSON). Here jq is
+# on PATH but the JSON itself is truncated, so TOOL_NAME (:58) and FILE_PATH both
+# parse empty and neither the Bash branch nor the Edit branch ever fires — this is
+# the input class finding #1 covers.
+run_raw() {  # <raw-payload-text>
+  printf '%s' "$1" | bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "malformed payload naming .env still blocked" \
+  "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hi > .env"')"
+expect_allow "malformed payload with no protected name allows" \
+  "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hello"')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

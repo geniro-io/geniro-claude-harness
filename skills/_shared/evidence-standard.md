@@ -2,7 +2,7 @@
 
 Authoritative for evidence-attached findings, completion claims, and reviewer-agent CRITICAL/HIGH dispositions.
 
-This file is the single source of truth. Skills cite this file; do NOT inline-paste the schema or the forbidden-phrases list.
+This file is the single source of truth. Skills cite this file — the schema and the forbidden-phrases list live only here.
 
 ## Contents
 

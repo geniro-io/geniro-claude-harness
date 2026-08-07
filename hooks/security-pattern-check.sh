@@ -154,6 +154,14 @@ EOF
   exit 2
 }
 
+# Matched-construct truncation length for the block message (see `check`
+# below): long enough to show the whole flagged expression in every pattern
+# here, short enough that a minified bundle line cannot flood the block
+# message and push the two remediation options off the user's screen. Single
+# variable so the perl one-liner's two uses (the length test, then the cut)
+# can't drift apart.
+GENIRO_SPC_TRUNC_LEN=160
+
 # check <id> <ext-list> <description> <PCRE regex>
 check() {
   local id="$1" exts="$2" desc="$3" regex="$4"
@@ -166,11 +174,10 @@ check() {
   # lines (a download-to-shell construct broken with a backslash-newline) still
   # matches; derive the line number from the match offset and flatten newlines
   # in the echoed construct so the stderr message stays one line.
-  # The construct is truncated to 160 chars (the cap appears twice below — test,
-  # then cut): long enough to show the whole flagged expression in every pattern
-  # here, short enough that a minified bundle line cannot flood the block message
-  # and push the two remediation options off the user's screen.
-  matched=$(printf '%s' "$CONTENT" | RX="$regex" perl -0777 -ne 'if (/$ENV{RX}/) { my $m = $&; my $ln = (substr($_,0,$-[0]) =~ tr/\n//) + 1; $m =~ s/\n/ /g; $m = substr($m,0,160) if length($m) > 160; printf "%d:%s", $ln, $m; exit 0 }' 2>/dev/null | head -1 || true)
+  # The construct is truncated to $GENIRO_SPC_TRUNC_LEN chars — single-sourced
+  # above so the perl script's two uses (the length test, then the cut) read
+  # the same value rather than restating the literal twice.
+  matched=$(printf '%s' "$CONTENT" | RX="$regex" TRUNC="$GENIRO_SPC_TRUNC_LEN" perl -0777 -ne 'if (/$ENV{RX}/) { my $m = $&; my $ln = (substr($_,0,$-[0]) =~ tr/\n//) + 1; $m =~ s/\n/ /g; $m = substr($m,0,$ENV{TRUNC}) if length($m) > $ENV{TRUNC}; printf "%d:%s", $ln, $m; exit 0 }' 2>/dev/null | head -1 || true)
   if [ -n "$matched" ]; then
     block "$id" "$desc" "$matched"
   fi

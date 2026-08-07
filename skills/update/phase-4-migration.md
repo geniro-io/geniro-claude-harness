@@ -3,8 +3,8 @@
 Phase file for `/geniro:update`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/update/SKILL.md`.
 
 ```bash
-PLUGIN_PATH="<the path Phase 2 Step 2 echoed>"
-NEW_VERSION="<the version Phase 2 Step 2 echoed>"
+PLUGIN_PATH="<the path echoed by phase-2-update.md §Discover new plugin path>"
+NEW_VERSION="<the version echoed by phase-2-update.md §Discover new plugin path>"
 
 MIGRATION_FILE="$PLUGIN_PATH/MIGRATION.md"
 if [ ! -f "$MIGRATION_FILE" ]; then

@@ -225,7 +225,7 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 | `OUTPUT_PATH` | `<task-dir>/.kr-out.md` |
 
 ```
-Agent(subagent_type="knowledge-retrieval-agent", description="Phase 1: Knowledge retrieval", prompt="""
+Agent(subagent_type="knowledge-retrieval-agent", description="Retrieving past learnings", prompt="""
 LIB_ROOT: [absolute path]
 KNOWLEDGE_ROOT: [absolute path]
 PLANNING_ROOT: [absolute path]
@@ -258,7 +258,7 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 | `OUTPUT_PATH` | `<task-dir>/.ce-out.md` |
 
 ```
-Agent(subagent_type="codebase-explorer-agent", description="Phase 1: Codebase exploration", prompt="""
+Agent(subagent_type="codebase-explorer-agent", description="Exploring the codebase", prompt="""
 WORKTREE: [absolute path]
 SPEC_CONTENT: [pre-inlined spec.md body]
 RULES_DIR: [absolute path to .claude/rules/]
@@ -329,7 +329,7 @@ The orchestrator pre-resolves these slots:
 | `MAX_FAILURES_REPORTED` | `15` (default) |
 
 ```
-Agent(subagent_type="test-runner-agent", description="Phase 2: Run tests", prompt="""
+Agent(subagent_type="test-runner-agent", description="Running the test suite", prompt="""
 WORKTREE: [absolute path]
 TEST_COMMAND: [exact command string]
 CHANGED_FILES: [newline-separated paths]
@@ -513,7 +513,7 @@ The orchestrator pre-resolves these slots:
 | `OUTPUT_PATH` | `<task-dir>/.adversarial-out.md` |
 
 ```
-Agent(subagent_type="adversarial-tester-agent", description="Phase 3: Adversarial edge-case hunt", prompt="""
+Agent(subagent_type="adversarial-tester-agent", description="Hunting edge cases", prompt="""
 WORKTREE: [absolute path]
 BRANCH: [current branch]
 DIFF: [full git diff body, pre-inlined]
@@ -612,7 +612,7 @@ else:
 - If they pass, the adversarial dim is "clean" for round N+1 (drop from re-spawn).
 - Authored test files STAY on disk through Ship — they become part of the commit.
 
-**Escalation at exhaust.** When the loop hits round 3 with unresolved findings:
+**Escalation at exhaust.** When the loop hits its round cap (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Loop invariants, invariant 5) with unresolved findings:
 
 1. Do NOT silently push or claim completion.
 2. **Render the unresolved findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — a separate, already-emitted chat message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 unresolved findings, open the message with the decision-queue progress tracker (`✔` decided · `●` deciding now · `○` ahead — one stop per finding with a short plain-English tag). Each finding gets the visual-form block: the `### 🧭 Decision needed:` title, the `**In one sentence:**` opener, a conversational lead expanding what the code does and what the concern is, `**Why it matters:**` with its evidence cite, and a visual per the same contract's §Finding-type visual map. The per-dimension findings summary lives in this render — never inside the question.
@@ -801,7 +801,7 @@ Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-styl
 
 **Integrations:** workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A) — glob both `./.geniro/workflow/*.md` (cwd-local) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback). If a workflow file specifies completion actions (status transitions, PR linking, comments), re-fetch the tracker issue's current `status` via MCP at ship time (the status may have changed externally during implementation) BEFORE applying the workflow file's `### On task completion` block — the block gates its questions on the current status (e.g., the Linear template skips the "Move to In Review?" prompt when already In Review or terminal). Then apply the workflow file's `### On task completion` block, passing the resolved `status` and the ship action (Commit / Commit + push / Commit + PR / Leave uncommitted) as inputs. Ask the user before changing external state (issue status, comments) — a status flip or a posted comment is visible to the whole team and cannot be taken back, so it is never applied unattended. If integration backend is unavailable, log warning and skip both the re-fetch and the questions.
 
-**AI-disclosure prefix.** When the workflow file contains a `## AI-Disclosure Prefix` section, apply the documented prefix to any comment text the skill AUTHORS before posting via the tracker MCP. Status-only updates, assignee-only updates, commit messages, and PR descriptions are excluded per the section's exclusion list. If the AI-Disclosure section is still a TODO stub, skip authoring comments entirely — post only status-only updates.
+**AI-disclosure prefix.** When the workflow file contains an `## AI-disclosure prefix on authored comments` section, apply the documented prefix to any comment text the skill AUTHORS before posting via the tracker MCP. Status-only updates, assignee-only updates, commit messages, and PR descriptions are excluded per the section's exclusion list. If the AI-Disclosure section is still a TODO stub, skip authoring comments entirely — post only status-only updates.
 
 ---
 

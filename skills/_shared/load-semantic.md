@@ -80,7 +80,7 @@ This is intentionally biased toward JS/TS (the plugin's primary target) with Pyt
 }
 ```
 
-Hash format: `sha256:<64-hex-chars>`. The `sha256:` prefix is deliberate — future implementations may extend to other hash algorithms without breaking schema.
+Hash format: `sha256:<64-hex-chars>`.
 
 ## Drift warning shape
 

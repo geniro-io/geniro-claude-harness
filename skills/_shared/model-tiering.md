@@ -9,7 +9,6 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 - Escalation signals (orchestrator-side advisory)
 - Runtime escalation (Sonnet → Opus on failure)
 - Hard rules
-- How skills reference this
 - Anti-rationalization
 
 ## The rule
@@ -78,12 +77,6 @@ When a `sonnet` subagent returns wrong output, fails its checklist, or fails tes
 ## Hard rules
 
 - **Architect-flavored work (multi-file design, planning, threat modeling) runs orchestrator-side**, not in a subagent. The orchestrator's own model handles this reasoning inline. (When the orchestrator is on Opus, architecture work happens on Opus; when on Sonnet, on Sonnet. The user picks.)
-
-## How skills reference this
-
-Add this one-liner near the top of any delegating skill:
-
-> **Subagent model selection:** Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Judgment-grade spawns OMIT `model=`; execution spawns pin `model="sonnet"` per category 4. Every hardcode carve-out is documented inline at its spawn site.
 
 ## Anti-rationalization
 

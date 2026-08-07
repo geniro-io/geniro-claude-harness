@@ -17,6 +17,20 @@
 # Pattern IDs: force-push, force-push-with-lease, push-delete, reset-hard,
 #              branch-delete-force, clean-fd, checkout-mass-discard,
 #              restore-mass-discard, update-ref-delete, filter-branch
+#
+# Known bypass (accepted, not closed): every matcher below requires the git
+# SUBCOMMAND to be a literal token adjacent to `git` (`git[[:space:]]+push`,
+# `git[[:space:]]+reset`, …). A command word reached through a variable —
+# `SUB=push; git $SUB --force origin main` — evades every one of them, because
+# none expand a shell variable before matching. Verified passing (rc=0) where
+# the literal spelling blocks. The same shape defeats block-geniro-deletion.sh's
+# argument spans too. Not closed: resolving an arbitrary variable into the
+# subcommand POSITION (a different problem from resolving one inside a
+# quoted-literal PAYLOAD, which lib/write-vectors.sh already handles for the
+# interpreter-write vectors) would need a second matching pass for every
+# pattern in this file, and the shape requires the attacker to have already
+# planted an assignment earlier in the same command — a narrower bar than the
+# direct spellings these guards exist to catch.
 
 set -euo pipefail
 
@@ -98,7 +112,9 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
 # lib/write-vectors.sh; the inline fallback keeps the guard recursing on a
 # vendored install shipping hooks/ without lib/ — a missing helper must never
 # make this guard fail open. The fallback is a VERBATIM copy of the canonical
-# function (see its GENIRO-VENDORED markers); edit both or neither.
+# function; edit both or neither — parity is enforced by
+# tests/hooks/write-vectors-fallback-parity.sh, not by markers on the canonical
+# side (lib/write-vectors.sh carries none).
 _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null

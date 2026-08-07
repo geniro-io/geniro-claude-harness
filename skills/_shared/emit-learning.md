@@ -38,12 +38,12 @@ echo '<json-object>' | emit_learning
 - `0` — entry appended, or no-op (identical duplicate).
 - `64` — required field missing, invalid JSON on stdin, or an instruction-injection payload was rejected (see §Injection rejection).
 - `65` — could not create the `.geniro/knowledge/` parent directory (propagated from `atomic_state_append`).
-- `68` — serialized entry exceeds the append helper's per-line byte ceiling (`GENIRO_APPEND_MAX_BYTES`; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Constraints) — POSIX atomic-append guarantee lost.
+- `68` — serialized entry exceeds the append helper's per-line byte ceiling (`GENIRO_APPEND_MAX_BYTES`; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`) — POSIX atomic-append guarantee lost.
 - `69` — append write failed (disk full / permission denied; propagated from `atomic_state_append`).
 
 ## Caller contract — make the write visible and non-trailing
 
-`emit_learning` is silent by design (no stdout on success). That silence is the failure surface: a step with no in-session signal that it ran is the first thing dropped when the orchestrator wraps up after the user-visible deliverable. In practice this left L2 nearly empty in heavy-usage projects — emit-eligible `/geniro:implement` runs (fix-loops, recorded decisions) and confirmed `/geniro:debug` root causes produced zero learnings, because the emit trailed the PR / handoff and never executed. The rules below close that gap. They bind every caller of this helper.
+`emit_learning` is silent by design (no stdout on success). That silence is the failure surface: a step with no in-session signal that it ran is the first thing dropped when the orchestrator wraps up after the user-visible deliverable. The rules below bind every caller of this helper.
 
 1. **Echo the write.** After a successful emit (`rc=0`), print one plain-English line to the user: `Recorded learning: <one-line summary>`. The echo is both a confirmation the user can see and a self-check that the step actually ran. `rc=0` covers a fresh append and a dedup no-op alike — echo either way, since the learning is in the store in both cases. Echo only the user-facing knowledge emits — `diagnosis`, `convention`, `decision`, `discovery`, `pitfall`. High-frequency internal bookkeeping emits (`discarded_hypothesis` per rejected hypothesis, `retry_failure_sequence`) are priming data, not findings; they stay silent so one debug Phase 1 doesn't echo five times.
 
@@ -134,7 +134,7 @@ The prior entry's `recurrence_count` is read from the matched entry (absent coun
 
 ## Per-line byte ceiling
 
-A single JSONL line must stay under the append helper's per-line byte ceiling, or it aborts with rc=68 rather than risk a torn write — the exact value (`GENIRO_APPEND_MAX_BYTES`) and its newline-framing accounting are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Constraints. That ceiling bounds line length; it is not by itself an atomicity guarantee — POSIX `PIPE_BUF` (the size up to which `>>` appends are kernel-serialized) is platform-dependent: 4096 bytes on Linux but only 512 on macOS. So a line near the ceiling is not guaranteed to append atomically on macOS; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Known limitations for the canonical caveat. In practice: keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put truly large content into a separate file referenced by `scope`.
+A single JSONL line must stay under the append helper's per-line byte ceiling, or it aborts with rc=68 rather than risk a torn write — the exact value (`GENIRO_APPEND_MAX_BYTES`) and its newline-framing accounting are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`. That ceiling bounds line length; it is not by itself an atomicity guarantee — POSIX `PIPE_BUF` (the size up to which `>>` appends are kernel-serialized) is platform-dependent: 4096 bytes on Linux but only 512 on macOS. So a line near the ceiling is not guaranteed to append atomically on macOS; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Known limitations for the canonical caveat. In practice: keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put truly large content into a separate file referenced by `scope`.
 
 ## Example callers
 

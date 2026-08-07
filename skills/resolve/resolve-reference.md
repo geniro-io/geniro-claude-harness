@@ -116,6 +116,6 @@ Appended to `spec.md`'s standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_sha
 
 ## 4. Handoff `comment_resolutions[]` (Phase 4)
 
-The array lives in `from-resolve-<branch>.md` frontmatter and MAY be `[]`. Its per-entry schema — the fields `thread_id`, `comment_id`, `source`, `author`, `path`, `line`, `verdict`, `reply_draft`, `resolve_after_fix`, `verify`, `fix_step_anchor`, `status`, plus their enums and the producer/consumer responsibilities — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields (change in lockstep with `/geniro:implement`). Read the field definitions there before the Phase 4 write rather than reconstructing them here.
+The array lives in `from-resolve-<branch>.md` frontmatter and MAY be `[]`. Its per-entry schema — the fields `thread_id`, `comment_id`, `source`, `author`, `path`, `line`, `verdict`, `reply_draft`, `resolve_after_fix`, `verify`, `fix_step_anchor`, `status`, plus their enums and the producer/consumer responsibilities — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions (change in lockstep with `/geniro:implement`). Read the field definitions there before the Phase 4 write rather than reconstructing them here.
 
 What `/geniro:implement` then does with each entry at its Ship sub-step is that same section's Consumer responsibilities; the producer's job ends at writing the array.

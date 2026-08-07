@@ -16,21 +16,22 @@ state.md `phase:` enum transitions:
 
 ```
 [entry] → plan ──┬── apply ──┬── verify ──┬── done
-                 │           │            └── verify-summary-only (terminal — see verify-escalated branch)
+                 │           │            ├── routed (terminal — §3.3 PRODUCT-DECISION "Run /geniro:implement")
+                 │           │            ├── reverted (terminal — §3.3 PRODUCT-DECISION "Revert this refactor")
+                 │           │            ├── verify-summary-only (terminal — §3.3 PRODUCT-DECISION "Document and keep the diff as-is")
+                 │           │            └── verify-escalated (§3.3 1-round CRITICAL/HIGH fix loop exhausted) ──┬── routed (terminal — "Escalate to /geniro:implement")
+                 │           │                                                                                  ├── reverted (terminal — "Revert all changes")
+                 │           │                                                                                  └── verify-summary-only (terminal — "Document remaining findings and keep the diff as-is")
                  │           │
                  │           └── apply-escalated ──┬── verify (keep what worked → partial-application note)
                  │                                 └── reverted (terminal — "Revert all changes")
                  │
-                 └── plan-escalated ──┬── plan (user supplies missing context)
-                                      ├── aborted (terminal)
-                                      └── routed (terminal — hard signal "Escalate"; also reached directly from plan when no tests exist, phase-1-plan.md Phase 1 §1.2)
-
-verify ──┬── (happy: → done above)
-         │
-         └── verify-escalated ──┬── (exit — out-of-skill; user runs /geniro:implement separately)
-                                ├── reverted (terminal — "Revert this refactor")
-                                └── verify-summary-only (terminal — "Document and keep the diff as-is" → deferred-decision note)
+                 └── plan-escalated ──┬── plan (§1.2 "Proceed anyway" on red baseline; §1.3.2 "Proceed anyway (treat as Big)" or "Reduce scope")
+                                      ├── aborted (terminal — §1.2 baseline-red "stop refactoring" pick)
+                                      └── routed (terminal — §1.3.2 hard-signal "Escalate"; also reached directly from plan when no tests exist, phase-1-plan.md Phase 1 §1.2)
 ```
+
+All three §3.3 PRODUCT-DECISION terminals write directly from `verify` — none passes through `verify-escalated`, which carries only the three picks that resolve the §3.3 fix-loop exhaustion.
 
 **Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. The SessionStart recovery treats all five as "task complete — no resume needed".
 

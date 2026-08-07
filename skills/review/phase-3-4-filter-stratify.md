@@ -84,7 +84,7 @@ If `fired > spawn_dims_count` and `missing` is empty (over-fire — every declar
    - A) `"Continue — dedup findings across the extra spawns"` — treat the extra spawns' findings as additional §3.1 dedup inputs; continue to §4.1. (Recommended)
    - B) `"Abort review"` — terminal `phase: aborted`; `## Termination reason: spawn-overfire`.
 
-Always-WAIT on both gates — an empty answer signals an upstream tool bug; fall back to plain text and re-ask rather than auto-defaulting, because silently skipping missing reviewers (or silently absorbing extra ones) hides a gap the user never consented to.
+Always-WAIT on both gates — an empty answer signals an upstream tool bug, and is re-asked per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, because silently skipping missing reviewers (or silently absorbing extra ones) hides a gap the user never consented to.
 
 When `missing` is empty and `fired == spawn_dims_count`, proceed directly to §4.1.
 
