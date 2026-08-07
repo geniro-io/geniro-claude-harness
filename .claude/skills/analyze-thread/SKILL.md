@@ -1,6 +1,6 @@
 ---
 name: analyze-thread
-description: "Use when post-hoc analyzing saved Claude conversation threads for pipeline errors — wrong subagent tier, missed parallel-spawn, schema-invalid tool args, premature completion, instruction drift, hallucinated tools. Takes one or more thread paths, or with no argument analyzes the last few work-bearing threads across every project; a multi-thread run merges their findings with a recurrence count. Auto-detects JSONL (Claude Code session log) or markdown (UI export / paste). 4-phase loop: Parse → Detect (mechanical + LLM-judge) → Filter → Present with per-finding AUQ. Emits a handoff to /improve-template for approved fixes. Skip for live debugging (/geniro:debug) or pending-diff code review (/geniro:review)."
+description: "Use when post-hoc analyzing saved Claude conversation threads for pipeline errors — wrong subagent tier, missed parallel-spawn, schema-invalid tool args, premature completion, instruction drift, hallucinated tools. Also audits coverage: whether every custom-instruction file and block (rules, constraints, additional steps, data sources, verification surface, memory backend) loaded and took effect, whether every declared phase, phase-body read, and step ran, whether custom reviewers were wired in, and whether an approval question was skipped or asked outside the tool. Takes one or more thread paths, or with no argument analyzes the last few work-bearing threads across every project; a multi-thread run merges findings with a recurrence count. Auto-detects JSONL session logs or markdown exports. 4-phase loop: Parse → Detect (mechanical + LLM-judge) → Filter → Present with per-finding AUQ. Emits a handoff to /improve-template. Skip for live debugging (/geniro:debug) or diff review (/geniro:review)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
@@ -37,8 +37,8 @@ You are the orchestrator for analyzing a saved Claude conversation thread and su
 
 ## Phases
 
-1. **Parse** — resolve the thread set (one path, or the last N threads machine-wide), then per thread: auto-detect format (JSONL session log vs markdown export/paste), normalize into an events list, extract spawn-sites / tool-calls / approval gates, detect whether the thread is a Geniro skill run.
-2. **Detect** — per thread, run mechanical checks (deterministic grep/jq over normalized events) then one LLM-judge pass over that thread's excerpts with the canonical taxonomy seeded into the judge prompt.
+1. **Parse** — resolve the thread set (one path, or the last N threads machine-wide), then per thread: auto-detect format (JSONL session log vs markdown export/paste), normalize into an events list, extract spawn-sites / tool-calls / approval gates, detect whether the thread is a Geniro skill run, and build the expectation set — what that run declared it would load, enter, and ask.
+2. **Detect** — per thread, run mechanical checks (deterministic grep/jq over normalized events, including the coverage checks that compare the expectation set against what the trace shows) then one LLM-judge pass over that thread's excerpts with the canonical taxonomy and that thread's expectation set seeded into the judge prompt.
 3. **Filter** — orchestrator-inline relevance pass: merge the same defect across threads into one finding carrying its recurrence count, then drop REDUNDANT and FALSE-POSITIVE; keep TRUE-POSITIVE and UNCERTAIN.
 4. **Present** — show grouped findings table; for every UNCERTAIN finding fire `AskUserQuestion` (fix / skip / challenge); for TRUE-POSITIVE findings default to "include in handoff" but let the user deselect; final AUQ chooses handoff destination.
 
@@ -51,8 +51,6 @@ The canonical taxonomy and per-check detection logic live in `.claude/skills/ana
 ## Subagent model tiering
 
 Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. This skill has exactly one subagent spawn — the Phase 2 LLM-judge — and it OMITs `model=` so it inherits orchestrator tier (judging the thread is reasoning-grade work).
-
-The Phase 4 handoff target (`/improve-template`) is a sibling skill, not a subagent — no tier consideration applies here.
 
 ---
 
@@ -92,6 +90,8 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 6. **Filter before user.** Phase 3 drops REDUNDANT and FALSE-POSITIVE findings BEFORE the Phase 4 presentation. The user sees only TRUE-POSITIVE + UNCERTAIN. Filtered items appear in a separate "Filtered" section for transparency.
 7. **Per-finding AUQ for UNCERTAIN, batch AUQ for confidence-high.** Mechanical-detected with high confidence go into the default-approve bucket the user can deselect; LLM-judged with low/medium confidence each get their own AUQ.
 8. **No silent auto-default.** Empty AUQ answers indicate an upstream tool bug and must be re-asked — never auto-default to "skip".
+9. **The declared side of a coverage check comes from the analyzed trace, never from this checkout.** The I- and K-class checks ask what is *missing* — a skipped instruction load, an unentered phase, a gate that never fired — so they need to know what the run promised. That promise is recorded in the thread itself: the injected skill body, and the tool_results of the instruction files the run read. Reading the analyzing machine's own `skills/` or `.geniro/instructions/` instead compares one project's run against another project's rules, which is the normal case in a batch and produces findings that are pure fiction. `checks-reference.md` §8 has the field list and the three documented degradations.
+10. **No declaration, no finding.** A coverage check with an empty declared side reports nothing. A project that declares no data sources cannot fail to consult one; a thread with no Geniro run has no phases to skip. Absence of an expectation is the check's clean path, not a gap to fill by inference — inventing the declared side turns a silent run into a wall of fictional "missing" rows.
 
 ---
 
@@ -109,6 +109,10 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 | "I already know what's in `checks-reference.md` from training data — don't bother reading it" | The reference file is the source of truth; it can be edited by the user between runs. Loading it at Phase 2 entry ensures the detection logic matches the current taxonomy, not a stale snapshot. |
 | "No argument given — I'll ask the user which thread they meant" | Every input shape resolves without a question (Phase 1 Step 1): empty means the last 3 work-bearing threads. Asking re-imposes the browse-and-paste step the batch default exists to remove, and the user who typed no argument has already told you what they want. |
 | "The newest log is the freshest data — analyze it first" | The newest log is this session's own, which invariant #5 excludes: every finding it yields describes the analysis in progress rather than past work. |
+| "I'll read this repo's `skills/` and `.geniro/instructions/` to see what the run should have loaded" | Invariant #9. In a batch the threads come from every project on the machine, so this repo's rules describe a different project than the thread does. Even on a single-project run the files have moved on since the thread executed, so the diff reports your own later edits as failures of the run. The declarations are in the trace. |
+| "The trace shows no instruction load, so every declared file is a missing-load finding" | Check first whether the trace covers the turns where the load would have been. A compacted or mid-run thread cannot evidence a Step 0 that happened before its first recorded turn — that is `checks-reference.md` §8 degradation 1: keep the check, cap confidence at medium, and say the trace is partial. |
+| "Every phase in the skill body owes a finding when I can't see it run" | A conditional phase whose trigger never fired, and a run the user stopped early, both leave phases unentered without anything being skipped. K1 fires only on a phase stepped over while its successors ran. |
+| "That's 4 unloaded files and 6 unrun steps — 10 findings" | Coverage findings roll up per declaration site: one finding for the load site listing its four files, one for the phase listing its six steps. Per-item findings inflate a single systematic defect into a wall that trips the 60-finding parser tripwire and buries every other check under it. |
 
 ---
 
@@ -118,7 +122,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 |---|---|---|
 | Threads per batch | default 3; hard cap 5 | Each thread costs its own judge spawn and its own mechanical pass. Past 5 the merged report outgrows the per-finding AUQ ladder and the wall-clock stops being worth the added recurrence signal. A count above the cap is clamped, with the clamp stated to the user |
 | Thread file size | hard cap 5 MB; warn at 1 MB | JSONL session logs can grow large; >5 MB likely a merged multi-session log that should be split first. In a batch, an oversize thread is skipped and named in the report rather than aborting the run |
-| LLM-judge token budget | seed prompt ≤ 8 K tokens, thread excerpts ≤ 60 K tokens | The seed is the inlined short-form taxonomy plus that thread's mechanical findings (invariant #3). Per thread, and each judge has its own context, so a batch does not share this budget. Excerpts are sliced to the top-3 most-suspicious sections per check, not the full thread, to fit the 200 K context with headroom |
+| LLM-judge token budget | seed prompt ≤ 8 K tokens, thread excerpts ≤ 60 K tokens | The seed is the inlined short-form taxonomy, that thread's expectation set, and its mechanical findings (invariant #3). Per thread, and each judge has its own context, so a batch does not share this budget. Where the expectation set crowds the seed, summarise its blocks to their headings and boundaries rather than dropping the set — a judge holding the taxonomy but not the declared side runs every coverage check blind. Excerpts are sliced to the top-3 most-suspicious sections per check, not the full thread, to fit the 200 K context with headroom |
 | Findings raw cap | 60 per thread | More than 60 raw findings on one thread = the parser misclassified the format; halt and ask user to re-check input. Applies per thread, not to the batch total |
 | Findings kept cap | 25 surfaced to user | Counted AFTER the Phase 3 cross-thread merge, so a defect recurring in 3 threads consumes one slot. Past 25 the AUQ ladder becomes unworkable; if more survive, sort by recurrence × severity × confidence and truncate, noting the tail count |
 
@@ -128,7 +132,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 
 | Phase | Tools used | Notes |
 |---|---|---|
-| 1 Parse | Read, Bash (`scan.py`, `head`, `file`, `jq`, `wc`) | Bash runs the thread-discovery scan in batch mode, then format sniffing and JSONL parsing; Read for the thread file |
+| 1 Parse | Read, Bash (`scan.py`, `file`, `jq`, `wc`) | Bash runs the thread-discovery scan in batch mode, then format sniffing and JSONL parsing; Read for the thread file. Step 4b's expectation set is projected out of the same thread file — no Read of this repo's skills or instruction files, per invariant #9 |
 | 2 Detect | Bash (`jq`, `grep`, `awk`), Agent | Bash for mechanical checks; Agent for the per-thread LLM-judge spawns, issued together in one response |
 | 3 Filter | (orchestrator inline) | No tools — orchestrator reads the Phase 2 output, merges across threads, and tags each finding |
 | 4 Present | AskUserQuestion, Bash | AUQ for the per-finding gates and the final handoff AUQ; Bash runs `atomic_state_write` for the handoff file — a direct `Write` to a `.geniro/state/` path is hard-blocked by the state-helper hook |
@@ -142,8 +146,11 @@ Glob is permitted across phases for state-file lookup and helper resolution but 
 These are the load-bearing exit gates — the checks that, if skipped, ship a wrong result. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
 
 - [ ] The thread set resolved from `$ARGUMENTS` with no question asked, excluded this session's own log by id, and named every clamped or skipped thread to the user
-- [ ] Phase 2 LLM-judge ran per invariant #3, and a judge that returned nothing usable is reported as a mechanical-only thread, never as a full judged pass
+- [ ] The expectation set was built from each thread's own trace, never from this checkout, and any degradation was stated and carried into the confidence of every finding that rests on it
+- [ ] Every coverage check ran against a declared side or did not run at all — no "missing" row rests on an expectation the trace never established
+- [ ] Phase 2 LLM-judge ran per invariant #3 with that thread's expectation set in its seed, and a judge that returned nothing usable is reported as a mechanical-only thread, never as a full judged pass
 - [ ] Phase 3 cross-thread merge ran before triage: recurring defects collapsed to one finding with `threads: [...]`, recurrence raising confidence but never severity
+- [ ] The coverage scoreboard rendered for every thread whose expectation set was non-empty, each gap citing the finding that carries its evidence
 - [ ] Every UNCERTAIN finding got its own AUQ, fired sequentially rather than batched into one multiSelect
 - [ ] Handoff written via `atomic_state_write` when the user chose to emit, with one `open_questions[]` entry per kept finding
 - [ ] State file cleaned up per the helper § Cleanup contract
@@ -193,7 +200,7 @@ Echo the resolved set before Phase 1 Step 2 — one line per thread with its dat
 
 ### Step 2: Auto-detect format
 
-Sniff the first 200 bytes with `head -c 200 <file>`. Detection rules:
+Sniff the file's opening bytes. Detection rules:
 
 - Begins with `{"type":"summary"` or `{"type":"user"` or `{"type":"assistant"` followed by a comma — **JSONL** (Claude Code session log).
 - Begins with `# `, `## `, or `**User:**` / `**Assistant:**` block markers — **markdown**.
@@ -228,9 +235,17 @@ Query the thread for Geniro-skill signals:
 
 Skip plugin-specific checks (the `[plugin]` rows in checks-reference.md) when `geniro-run: no` AND no plugin signals appear. Generic checks still apply.
 
+### Step 4b: Build the expectation set
+
+The A-H checks read an action and ask whether it was wrong. The I- and K-class checks ask what is *missing* — an instruction file never loaded, a phase never entered, an approval never asked — and a missing thing has no event to match on. They need a declared side, and Step 4b is where it is built.
+
+Project it out of the trace, per the field list and the degradation ladder in `checks-reference.md` §8. Everything needed is in the thread: the injected skill body carries the phases, phase-body pointers, load sites, and gates; each instruction file's own tool_result carries the blocks it shipped. Where a field is missing, take the §8 degradation rather than substituting this checkout for it (invariant #9), and let the weakening travel with each finding instead of being decided once for the thread.
+
+Skip the step when `geniro-run: no` — a thread with no skill run declares nothing (invariant #10). Echo the set's shape in one line so the user can see what coverage will be measured against, and spot a parse that read nothing.
+
 ### Step 5: Write Phase 1 checkpoint
 
-Record, per thread: file path, format, byte count, events count, geniro-run flag, detected skill name (if any), spawn-site count, AUQ-gate count. In a batch, also record the resolved set and anything skipped (live, oversize) so a resume re-uses the same set instead of re-resolving against a moved "last 3".
+Record, per thread: file path, format, byte count, events count, geniro-run flag, detected skill name (if any), spawn-site count, AUQ-gate count, and the expectation set with the degradation level it was built at (full trace / partial trace / project-read / none). In a batch, also record the resolved set and anything skipped (live, oversize) so a resume re-uses the same set instead of re-resolving against a moved "last 3".
 
 ---
 
@@ -248,10 +263,13 @@ For each `[M]` check in `.claude/skills/analyze-thread/checks-reference.md` (see
 
 Each mechanical hit produces a draft finding: `{thread_id, check_id, category, severity, confidence: high, evidence: [event_idx range], rationale}`. Mechanical confidence is always `high` — the rule either matched or it didn't. `thread_id` is the session log's short id (first 8 chars of its filename), which stays readable in the merged report.
 
+The I- and K-class coverage checks are the exception on both counts, because they match on an absence rather than an event: they roll up per declaration site rather than per item, and their confidence tracks how much of the trace you could see rather than how cleanly the rule matched. Both rules are canonical in `checks-reference.md` §I-class.
+
 ### Step 2: Spawn the LLM-judge
 
 ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve `${CLAUDE_PLUGIN_ROOT}` inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
 - The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the 8 K seed budget.
+- **This thread's expectation set** from Phase 1 Step 4b, with the degradation level it was built at. The judged coverage checks (I8-I11, K7, K8) have no declared side without it and silently return nothing; the judge cannot re-derive it, because the turns it came from may not survive the excerpt slice. Send the set itself, never a pointer.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
 - The most-suspicious thread excerpts, ranked and sliced per `checks-reference.md` §7, which carries the weighted signal set and the always-include opening and closing turns. Keep the total ≤ 60 K tokens.
 
@@ -267,11 +285,22 @@ build on those, don't re-discover them.
 ### Canonical taxonomy ([M] / [J] / scope tags)
 {{checks-reference.md §4 table verbatim + one line per mechanical check ID}}
 
+### What this run declared it would do
+{{expectation set from Phase 1 Step 4b — phases, phase bodies, steps, gates,
+load sites, refresh sites, per-file instruction blocks, custom reviewers}}
+Built at: {{full trace | partial trace | project-read}}.
+This is the declared side of every coverage check (I8-I11, K7, K8): judge the
+trace against THIS list, not against what a skill of this kind usually does.
+An item absent from this list was never declared, so it cannot be missing.
+
 ### Mechanical findings already detected
 {{mechanical findings from Step 1, as a table}}
 
 ### Thread excerpts (top-3 per judged check)
 {{excerpts}}
+Excerpts are a slice, not the whole thread. Where a declaration's boundary is
+not in the slice, say so in the rationale and lower confidence — an absence you
+could not see is not evidence of an absence that happened.
 
 ### Your task
 
@@ -354,6 +383,16 @@ Analyzed:
 - (one line per thread; in single mode this is one line)
 Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the 5 MB cap)
 
+### Coverage — what the run declared vs. what it did
+| What | Declared | Ran | Gaps |
+|---|---|---|---|
+| Custom instruction files | 4 | 3 | code-style.md never loaded (finding #2) |
+| Instruction blocks applied | 9 | 7 | 1 additional step never ran, 1 data source never consulted (#4, #7) |
+| Phases entered | 6 | 6 | — |
+| Phase bodies read on entry | 6 | 4 | Phases 3 and 5 ran without reading their steps (#1) |
+| Approval questions | 5 | 4 | the ship gate never fired (#3) |
+| Custom reviewers wired in | 2 | 2 | — |
+
 ### Confirmed findings (default-include)
 | # | Threads | Category | Check | Severity | Confidence | Evidence | Suggested fix target |
 |---|---|---|---|---|---|---|---|
@@ -371,6 +410,8 @@ Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the 5 MB
 ```
 
 Drop the `Threads` column in single mode — a column reading `1/1` on every row is noise.
+
+The coverage table is a scoreboard, not a second findings list: every gap cites the finding carrying its evidence, and a gapless row still renders, because "6 of 6 phases ran" is the result the user came for on a clean run. Render it only where the expectation set is non-empty. In a batch, one table per thread — Phase 3's merge applies to findings, and averaging two runs' coverage hides which one had the gap. Name the degradation level under the table when there was one: a `4 / 3` on a partial trace means a load was not visible, not that it did not happen.
 
 ### Step 2: Gate uncertain findings
 
@@ -453,7 +494,7 @@ The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T
 
 | Modifier in `$ARGUMENTS` | Effect |
 |---|---|
-| `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses every judged check. Pairs well with a large batch, where the judges dominate cost. |
+| `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses every judged check — including the half of the coverage class that reads whether a loaded rule actually changed anything (I8-I11, K7, K8). What survives is whether files loaded and phases ran, not whether their content took effect; say so when reporting coverage under this modifier. Pairs well with a large batch, where the judges dominate cost. |
 | `--no-handoff` | Phase 4 Steps 3-4 skipped; the findings report is printed, cleanup runs, and no handoff file is written. Useful when the user wants to read findings without committing to fix anything. |
 | `--strict` | Tighten Phase 3 filter: treat medium-confidence findings as TRUE-POSITIVE not UNCERTAIN (skips per-item AUQ, includes them by default). Use when running on a thread the user already trusts to be problematic. |
 | `--lenient` | Loosen Phase 3 filter: treat high-confidence judged findings as UNCERTAIN (forces AUQ). Use on threads where many findings are likely benign. |
@@ -476,7 +517,11 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 
 ## REFERENCE
 
-- `.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic
+- `.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic; §8 defines the expectation set the coverage checks compare against
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the load / echo / refresh contract the I-class checks measure a run against
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase-body Read and echo contract behind K2
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` — gate render-then-ask shape and the lean-question conventions behind K3-K6, K8
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` — the subagent load report and the assessed sentinel, the two proofs an echo cannot carry
 - `.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules + Case A/B/C/D resume UX
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-file write helper (mandatory)
