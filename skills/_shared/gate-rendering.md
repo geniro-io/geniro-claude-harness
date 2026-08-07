@@ -20,8 +20,8 @@ Any gate that presents rich multi-part content before a decision:
 
 - `/geniro:plan` approval gates — Phase 4 approaches, Phase 5 section clusters, Phase 8 final approval.
 - Finding and product-decision gates under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — /geniro:review decision gates and PR-comment per-finding gates, /geniro:implement self-review decision resolution, /geniro:refactor product-decision escalation.
-- Run-outcome and investigation gates — /geniro:review's report wrap-up (Action gate) and round-escalation, /geniro:debug's stall / fix-fail / open-question gates, /geniro:refactor's HIGH-risk step approval and blocked/regression escalations, /geniro:investigate's save-routing walk.
-- Rule-improvement candidate gates — the improvement pass's per-candidate "write this project rule?" walk across /geniro:reflect, /geniro:plan, /geniro:debug, and /geniro:onboard (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation).
+- Run-outcome and investigation gates — /geniro:review's report wrap-up (Action gate) and round-escalation, /geniro:debug's stall / fix-fail / open-question gates, /geniro:refactor's HIGH-risk step approval and blocked/regression escalations.
+- Rule-improvement candidate gates — /geniro:reflect's per-candidate "write this project rule?" walk (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation). No other skill fires one.
 
 The two-step shape — render to a SEPARATE chat message first, then a lean `AskUserQuestion` — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, together with the separate-message rule, the render-exists check, and the pre-fire scrub (§Single-finding gate, "Scrub before the AUQ fires"). Every calling contract above cites that file rather than restating it. This file defines the visual language the render uses; consult per-finding-question.md for when and how the render fires.
 

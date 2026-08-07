@@ -53,7 +53,7 @@ This skill adds one invariant:
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
-**`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier + save-routing focused agents), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
+**`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
 
 ## Anti-rationalization
 
@@ -70,7 +70,7 @@ Check these rationalizations before drifting from the procedure.
 | "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence — route the claim through Phase 2 Step 2 §Route unverified claims, which has no "ship with caveat" exit: a claim shipped under a label still reads as an answer, and the reader acts on it. |
 | "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
 | "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust ≠ correctness. Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. WebFetch result + matching code = both verified evidence. WebFetch result alone (no code verification) = retrieved evidence — note it as such; do NOT promote to verified without code grounding. |
-| "Auto-promote /geniro:investigate findings to ADR if the answer touched architecture." | Phase 3 Step 4a save-routing AUQ keeps user in the loop on classification. Auto-promote bypasses the ADR 3-criteria gate (hard-to-reverse + surprising + genuine trade-offs). User decides; orchestrator routes. |
+| "The answer touched architecture — I'll write it up as an ADR or a project rule before closing." | /geniro:investigate answers questions; it writes no rule, ADR, or CLAUDE.md section. Its durable output is the Step 5 learning. A user who wants the answer promoted into project rules runs `/geniro:reflect`, where the candidate faces the full worth bar instead of riding an investigation's momentum. |
 | "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5. Issue threads contain speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating as load-bearing evidence. |
 | "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field. Future readers (later retrieval or telemetry) rely on the trust label to filter. Missing label = silent loss of source-confidence info. Always set the label. |
 | "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | If CLAUDE.md has a Domain Context section, the check is cheap (grep against pre-loaded content). Skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. Always run the check when Domain Context is present. |
@@ -91,11 +91,11 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every research and verification spawn — the orchestrator's session tier propagates to the work that decides the answer. The Phase 3 Step 4a save-routing writer spawns are the exception: they pin `model="sonnet"` per category 4, since they write content the user already approved into a path the orchestrator resolved.
+Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn — every spawn in this skill researches or verifies, and the orchestrator's session tier propagates to the work that decides the answer.
 
 ## Subagent spawn contract
 
-Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh verifier agent, and Phase 3 Step 4a save-routing agents — satisfies every pre-inlined field in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`, because a spawn missing a field makes the subagent re-discover scope from scratch and drift. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; the Git Historian, Internet Researcher, fresh verifier, and save-routing agents are general-purpose spawns.
+Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh verifier agent — satisfies every pre-inlined field in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`, because a spawn missing a field makes the subagent re-discover scope from scratch and drift. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; the Git Historian, Internet Researcher, and fresh verifier are general-purpose spawns.
 
 ## Evidence Standard
 
@@ -121,10 +121,9 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 - Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
 
 **Phase 3 (Synthesize+Review+Present):**
-- Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up + the save-routing gate) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
-- Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier); save-routing focused agents (when user picks save action).
+- Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
+- Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier).
 - Fresh verifier agent: Read / Grep (no Edit / Write).
-- Save-routing focused agents: Read / Write (scoped to target path — CLAUDE.md / `docs/adr/` or `docs/decisions/` only). Each agent's pre-inlined prompt specifies the exact target path; Write gated by existing safety hooks. The learnings save routes per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract": under a `## Memory Backend` block to the declared backend write tool (redacted; the orchestrator's own MCP call), plus the local file in `mirror` mode; with no block, through `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` via Bash — never a raw Write to the append-only `.geniro/knowledge/learnings.jsonl`, which would truncate the log and bypass secret-redaction.
 
 The safety hooks apply across ALL phases; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
@@ -140,7 +139,7 @@ These are the load-bearing exit gates — the checks that, if skipped, make the 
 - [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
 - [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
 - [ ] Answer presented with cited artifacts, Sources, and explicit Open questions for any unverified claims (Phase 3 Step 3)
-- [ ] Follow-up AUQ offered; save-routing applied per Step 4a (CLAUDE.md / ADR / learnings.jsonl / memory) NOT defaulted to a single store
+- [ ] Follow-up AUQ offered
 - [ ] L2 `discovery` emit fired with trust label per Step 5 trigger conditions
 - [ ] State.md cleaned up per Step 6
 
@@ -214,7 +213,7 @@ Procedure:
 1. **Extract domain terms from the question** — proper-noun-shaped tokens, role names, entity names (e.g., "tenant", "workspace", "task", "invoice"). Skip generic technical terms ("function", "endpoint", "cache").
 2. **Look each term up in the auto-loaded CLAUDE.md** — its Domain Context definitions, entity lists, and safety rules.
 3. **Classify each match:**
-- **No match** — the term may be new domain vocabulary (route to Step 4a save-routing later); proceed without challenge.
+- **No match** — the term may be new domain vocabulary; note it in the answer and proceed without challenge.
 - **Exact match** — the user's term aligns with the glossary; proceed.
 - **Mismatch** — the user's term appears in the glossary but the question's usage suggests a different meaning (e.g., user says "workspace" meaning "browser tab" but glossary defines "workspace" as "tenant container"). Fire the gate.
 4. **If mismatch found:** write `phase: classify-escalated` to state.md via `atomic_state_write` first — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of silently re-running Phase 1 from scratch — then use `AskUserQuestion` with header "Glossary" before spawning Phase 2 agents:
@@ -244,9 +243,9 @@ State.md `phase: investigate`. Parallel research-agent spawns + orchestrator re-
 
 ## Phase 3: Synthesize+Review+Present
 
-State.md `phase: present`. Synthesizes verified findings, a fresh verifier agent re-checks, presents to user, offers save-routing AUQ, emits L2 `discovery` with trust label.
+State.md `phase: present`. Synthesizes verified findings, a fresh verifier agent re-checks, presents to user, emits L2 `discovery` with trust label.
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-3-present.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — Steps 0-6: refresh custom instructions, synthesize the draft, the fresh-verifier review round, present + Sources + Open questions, the save-what AUQ (with save-routing at 4a), the learning emit with trust label, and cleanup. Read it again on any resumption of the phase, including after a compaction.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-3-present.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — Steps 0-6: refresh custom instructions, synthesize the draft, the fresh-verifier review round, present + Sources + Open questions, the follow-up AUQ, the learning emit with trust label, and cleanup. Read it again on any resumption of the phase, including after a compaction.
 
 ---
 

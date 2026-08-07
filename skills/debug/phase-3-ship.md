@@ -7,7 +7,7 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 ## Contents
 
 - §3.0 Pre-gate — resolve open questions · §3.1 Present findings · §3.2 Escalation AUQ
-- §3.3 Emit learnings + rule-capture offer · §3.4 Suggest improvements · §3.5 Cleanup · §3.6 Atomic non-resumable updates
+- §3.3 Emit learnings · §3.4 Cleanup · §3.5 Atomic non-resumable updates
 - Definition of done — Scientific Mode
 
 ### 3.0 Pre-gate — resolve open questions
@@ -86,33 +86,16 @@ Only after the summary above is visible AND persisted, `AskUserQuestion` with he
 
 Do NOT auto-invoke the next skill — surface the suggestion only. The state file IS the handoff channel.
 
-### 3.3 Emit learnings + offer to capture a recurring diagnosis as a rule
+### 3.3 Emit learnings
 
-At Phase 3 exit, fire the `diagnosis` emit below, then run the recurring-diagnosis rule offer. Sequence the emit before the phase is declared done — a diagnosis emit left trailing after the handoff is persisted and the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing). The visibility + ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". The other two `emit-learning` types fire earlier in their own phases — listed here together so the full debug emit surface is visible in one place:
+At Phase 3 exit, fire the `diagnosis` emit below. Sequence the emit before the phase is declared done — a diagnosis emit left trailing after the handoff is persisted and the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing). The visibility + ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". The other two `emit-learning` types fire earlier in their own phases — listed here together so the full debug emit surface is visible in one place:
 
 - **`emit-learning`** — called by /geniro:debug at three distinct points:
 - **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical `emit_learning` call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` to the user — the helper writes silently, so the echo is the only in-session signal the diagnosis was captured.
 - **`discarded_hypothesis`** — fires per-rejection during Phase 1; payload schema, cap, and emit logic in §1.5.
 - **`retry_failure_sequence`** — fires at Phase 2 exit when `fix_attempts >= 2`; payload schema and emit logic in §2.5.
 
-- **Offer to capture a recurring diagnosis as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: diagnosis`, the debug scope routing (style/convention → `code-style.md`; workflow/process → `debug.md`; architecture/global → `global.md`; otherwise the user picks), and rejection args `"/geniro:debug" "debug/<scope>" "promote_diagnosis_to_rule"`. The helper reads the just-emitted diagnosis's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
-
-### 3.4 Suggest improvements (project scope only, routes)
-
-After L2 emit, follow the canonical routing in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md`. Apply that file's §Candidate bar to every draft candidate before routing (four gates + significance floor + cap; zero candidates is the common outcome). Debug runs typically surface:
-
-| Insight category | Target | layer |
-|---|---|---|
-| Coding conventions / naming patterns discovered during isolation | `.claude/rules/<scope>.md` with `paths:` glob frontmatter | L4 procedural |
-| Docs describing behavior not matching reality | `CLAUDE.md` or project docs | L3 semantic |
-| New/changed commands discovered during debugging | `CLAUDE.md` (Essential Commands section) | L3 semantic |
-| Non-obvious debugging insights / workarounds | `.geniro/knowledge/learnings.jsonl` (via `emit-learning`) | L2 episodic |
-| Skill-behavior quality gates / workflow steps user enforced manually | `.geniro/instructions/debug.md` or `.geniro/instructions/global.md` | L4 procedural |
-| Architecture prevented locking the bug down — no test seam, tangled callers, hidden coupling (ask "what would have prevented this bug?" after the §3.3 diagnosis emit) | Improvement candidate routed to `/geniro:plan` (design change) or `/geniro:refactor` (decoupling) | L3 semantic / L4 procedural |
-
-Plugin-internal paths (`${CLAUDE_PLUGIN_ROOT}/…`) are out of scope.
-
-### 3.5 Cleanup
+### 3.4 Cleanup
 
 After Phase 3 completes (escalated, accepted, or user-handles):
 
@@ -124,7 +107,7 @@ After Phase 3 completes (escalated, accepted, or user-handles):
 
 Cleanup is best-effort — if a command fails silently, that's fine.
 
-### 3.6 Atomic non-resumable updates
+### 3.5 Atomic non-resumable updates
 
 After each side-effect that cannot be replayed safely (none in baseline — debug performs no `git push` / `gh pr create`), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_write`.
 
@@ -146,7 +129,7 @@ These are the load-bearing exit gates and safety invariants for the mode that ra
 - [ ] Findings handoff persisted to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` via `atomic_state_write` BEFORE the escalation question
 - [ ] Escalation decision made via AskUserQuestion
 - [ ] All experimental edits to non-test source reverted before handoff
-- [ ] L2 emit fired with `diagnosis` type + `ext.{symptom, root_cause, fix}`; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
+- [ ] L2 emit fired with `diagnosis` type + `ext.{symptom, root_cause, fix}`
 - [ ] Cleanup completed
 
 Adversarial Mode's checklist lives in `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`.

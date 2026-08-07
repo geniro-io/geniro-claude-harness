@@ -86,7 +86,7 @@ Decision tree (first match wins; evaluate top-down). Only rules 1-3 skip the que
       Workflow Question 2 omitted (mismatch hint suggests confusion; don't pile on).
 
 5. IN_WORKTREE == false AND PROTECTED_BRANCH == true
-   ⇒ Fire the full workspace AUQ (0c). "New feature branch (Recommended)" stays default — a continuing signal does not auto-continue here: the current branch is protected, and starting work on it in place is exactly the outcome this AUQ exists to check with the user.
+   ⇒ Fire the full workspace AUQ (0c) with "Git worktree (Recommended)". A continuing signal does not auto-continue here: the current branch is protected, and starting work on it in place is exactly the outcome this AUQ exists to check with the user. The worktree carries the recommendation because it is the only option that leaves the protected checkout on its branch — `git checkout -b` moves the one checkout you have off the protected branch, so it protects the branch's history while still mutating the tree the user is standing in. This also covers the contested-tree case rules 3 and 6 flip to a worktree for, so rule 5 needs no separate CONCURRENT_ACTIVITY branch.
 
 6. IN_WORKTREE == false, PROTECTED_BRANCH == false, no continuing signals
    ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already — unless CONCURRENT_ACTIVITY is set, in which case the recommendation is "Git worktree (Recommended)" so a concurrent process mutating the shared working tree cannot orphan this run's work.
@@ -98,7 +98,7 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 
 | Modifier in $ARGUMENTS | Effect |
 |---|---|
-| `new-branch` / `new branch` | Force rule 5 path even if a "continuing" signal is detected. |
+| `new-branch` / `new branch` | Force branch creation even if a "continuing" signal is detected; skips the workspace question like the other three, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`. |
 | `current-branch` / `current branch` | Force auto-continue regardless of signals. |
 | `worktree` / `new-worktree` | Force worktree creation path. |
 | `no-worktree` / `here` | Force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
@@ -115,7 +115,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1:
 
 Single `AskUserQuestion` call carrying up to 4 questions (always-WAIT, never auto-resolve). When a spec `launch_config` pre-answered a question (Step 0g), drop that question from the batch — the pre-set is its answer; if `launch_config` pre-answers every question that would otherwise fire, the AUQ does not fire at all.
 
-**Question 1 — always asked when rules 5 or 6 fire** (header: `"Git workspace"`) — offers "New feature branch (Recommended)" / "Current branch" / "Git worktree"; literal template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Step 0c setup-question templates".
+**Question 1 — always asked when rules 3, 5, or 6 fire** (header: `"Git workspace"`) — offers "New feature branch" / "Current branch" / "Git worktree". The three labels are un-suffixed in the template; append ` (Recommended)` to the one the fired 0b rule names, and fire with exactly one so the set is never rudderless. Literal template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Step 0c setup-question templates".
 
 **No-ticket-ID sub-flow.** When BRANCH_FORMAT_RULE requires a ticket prefix AND `TICKET_ID_IN_SCOPE` is empty, the agent cannot derive a conformant slug. Chain a sub-AUQ BEFORE Question 1 fires (or BEFORE the worktree command runs if Question 1 has already resolved to "New feature branch" / "Git worktree") — options: provide the ticket ID inline / use a placeholder slug (`<type>/no-ticket-<desc>`, renameable later) / cancel (terminal, no git mutation); literal template in the same reference section. This AUQ does NOT include a "create the ticket for me" option — /geniro:implement never creates tracker artifacts (`SKILL.md` §Anti-rationalization, the tracker-mutation-authority row).
 
@@ -129,7 +129,7 @@ The workflow file IS the source of truth for question text, options, AND status-
 
 When the spec's `launch_config.tracker_status` is set (applied at Step 0g), it pre-answers this workflow-status question — `/geniro:implement` auto-applies the answer the workflow file's `### On task start` block would have asked for, still subject to that block's status-conditional gate (a pre-set `move-to-in-progress` is skipped when the task is already In Progress and reframed/omitted in other states), so the question does not fire interactively. The pre-set is a no-op when no tracker ref is in scope, and fail-open when the workflow MCP is unavailable (logs a warning and proceeds without the transition — same as an interactive "Yes").
 
-If the batch exceeds 4 questions — `1` (workspace, when rules 5/6 fire) + `N` (workflow) + `1` (depth, when `--deep` is absent) > 4 — chain into a second AUQ.
+If the batch exceeds 4 questions — `1` (workspace, when rules 3, 5, or 6 fire) + `N` (workflow) + `1` (depth, when `--deep` is absent) > 4 — chain into a second AUQ.
 
 **Question 3 — implement depth (fired when `$ARGUMENTS` lacks `--deep`)** (header: `"Implement depth"`) — "Standard" (one fact-check pass, one self-review pass) vs "Deep — 3× fact-check + multi-angle self-review"; literal template in §"Phase 1: Step 0c setup-question templates". Question 3 joins the Step 0c question batch whenever that AUQ fires and `--deep` is absent, and counts toward the batch-exceeds-4 chain rule above. Neither option carries `(Recommended)` — Deep is costlier, not safer. An empty answer is an upstream tool bug, not a Standard pick: re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions rather than defaulting. Only the path where this question never fires at all — an auto-continue or resume, where Step 0c is skipped — falls back to flag-only Standard (`deep-mode: false`). Activation and that flag-only fallback: `SKILL.md` §State persistence.
 

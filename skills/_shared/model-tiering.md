@@ -40,7 +40,6 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
    | Site | Applies |
    |---|---|
    | `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Steps, the delegation rule | one already-decomposed todo slice, against a named disjoint file set |
-   | `${CLAUDE_PLUGIN_ROOT}/skills/investigate/save-routing.md` §Routing classes, the routes 1-3 writers | a pre-inlined term-block / ADR body / learning into one named file |
    | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1: Spawn the UI description agent | a read-only spec→description transform, no file writes at all |
    | `.claude/skills/improve-template/SKILL.md` Phase 4 implementers and every fix agent | user-approved findings into named template files |
    | `.claude/skills/audit-plugin/SKILL.md` Phase 5 fix agents | user-approved findings into their assigned file allowlist |

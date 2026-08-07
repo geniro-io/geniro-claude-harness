@@ -29,11 +29,10 @@ verify ──┬── (happy: → done above)
          │
          └── verify-escalated ──┬── (exit — out-of-skill; user runs /geniro:implement separately)
                                 ├── reverted (terminal — "Revert this refactor")
-                                ├── verify-summary-only (terminal — "Document and keep the diff as-is" → deferred-decision note)
-                                └── adr-documented (terminal — "Document as ADR")
+                                └── verify-summary-only (terminal — "Document and keep the diff as-is" → deferred-decision note)
 ```
 
-**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. The SessionStart recovery treats all six as "task complete — no resume needed".
+**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. The SessionStart recovery treats all five as "task complete — no resume needed".
 
 **Non-terminal states:** `plan`, `apply`, `verify`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures HIGH-step + PRODUCT-DECISION gates skip already-answered).
 

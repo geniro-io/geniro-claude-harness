@@ -10,8 +10,7 @@ A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentat
 - 8.3.5 Launch config — pre-define implement settings
 - 8.4 Approve → git commit
 - 8.5 Record a learning (conditional)
-- 8.6 Suggest improvements (inline)
-- 8.7 Custom post-approval steps
+- 8.6 Custom post-approval steps
 
 State.md `phase: user-approve` during this phase.
 
@@ -92,22 +91,8 @@ echo '{
 
 Dedup + sanitization automatic. After a successful emit, echo `Recorded learning: <summary>` to the user; on a non-zero return, surface the loss in one plain-English line — both per that file's §"Caller contract".
 
-### 8.6 Suggest improvements (inline)
+### 8.6 Custom post-approval steps
 
-After the §8.5 emit, before Phase 9. The approved spec was already committed at §8.4, so this step is anchored after the Phase 8 approval and before the terminal Phase 9 print — a named, numbered step in the phase sequence, not a droppable trailer after the run's last user interaction. Draft candidates inline — no agent, since you already hold the full approved spec and there is no fresh diff for an isolated read to find. Planning most often surfaces an architectural decision worth an ADR, a convention clarified during approach selection worth a rule, or a domain term resolved by the §3.1 terminology check worth a CLAUDE.md Domain Context glossary entry — discovery-derived: the just-approved spec section plus the dedup grep below is their evidence; no failure incident needed.
-
-Judge every draft against this candidate bar — each gate a binary judgment, uncertain = fail; zero candidates is the correct and common outcome, since a rule is a permanent tax on every future session:
-
-- **Evidence** — the candidate cites what grounds it: a concrete incident from this run, or (discovery-derived) the verified spec fact plus its source section.
-- **Counterfactual** — without the rule, a competent future session would plausibly repeat the failure or pay the cost again; drop what it cheaply re-derives.
-- **Generality** — statable as `WHEN <condition> → <action>` above the just-finished task.
-- **Dedup** — grep `CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*` for the candidate's keywords: verdict `ADD` / `UPDATE <file:line>` / `NOOP` (drop — the expected default).
-- **Floor + cap** — every survivor is `critical` or `general` significance, else drop; at most 3 per run.
-
-Zero survivors: echo `Reviewed for improvements: 0 candidate(s)` and proceed to §8.7 — do not load the routing helper. One or more survivors: Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — the bar above summarizes its §Candidate bar trigger conditions and that file stays authoritative for the full gate reasoning and procedure — then route each survivor per its §Routing table (ADRs per §"ADR target — when to use it"), present via §Presentation, hand instruction-scoped rules to `/geniro:instructions create`, and echo `Reviewed for improvements: <N> candidate(s)`. Declines log via `emit_rejection_if_signal` (scope `plan/<task-area>`, category `improvement_candidate`).
-
-### 8.7 Custom post-approval steps
-
-After §8.6, before Phase 9. Execute any user-authored post-approval steps from the L4 `plan.md` instruction file (`.geniro/instructions/plan.md`) loaded at Phase 1 §1.1. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-approval anchor is `### After user-approve` (`user-approve` is the Phase 8 enum value, and the spec is committed at §8.4, so an `### After user-approve` subsection runs against an approved, committed spec). Run any subsection anchored to the end of `user-approve`, treating each bullet as an imperative to execute in order and honoring any `AskUserQuestion` the user's step prescribes.
+After §8.5, before Phase 9. Execute any user-authored post-approval steps from the L4 `plan.md` instruction file (`.geniro/instructions/plan.md`) loaded at Phase 1 §1.1. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-approval anchor is `### After user-approve` (`user-approve` is the Phase 8 enum value, and the spec is committed at §8.4, so an `### After user-approve` subsection runs against an approved, committed spec). Run any subsection anchored to the end of `user-approve`, treating each bullet as an imperative to execute in order and honoring any `AskUserQuestion` the user's step prescribes.
 
 This is the generic extension point for project-specific post-plan work — e.g. duplicating the approved plan into a spec-driven-development tool's change format (OpenSpec, etc.) using the project's own tooling. The plugin stays tool-agnostic: the procedure lives entirely in the project's instruction file, not in this loop. Without this step a loaded `### After user-approve` block has no execution anchor and is silently dropped once Phase 9 runs (the same failure mode `/geniro:implement`'s `### After ship` step prevents). Skip silently when no such subsection is loaded.

@@ -16,7 +16,7 @@ Every item below is an exit gate — a condition checkable as done or not-done o
 - [ ] The Phase 7 validator ran the full check set in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` and reported one `status` line per check (any unexecuted check marked `skip`); every hard-fail either cleared inside the auto-revision rounds (§7.3) or was explicitly accepted by the user.
 - [ ] HARD-GATE released only on the Phase 8 "Approve" — no implementation action was taken before that answer.
 - [ ] On Approve: spec.md `lifecycle:` flipped to `approved` and `git commit` fired with its `non-resumable-actions[]` entry — or the planning dir was git-ignored, in which case the skip is recorded as an `## Errors` line and the user was told in plain English that the plan is on disk uncommitted.
-- [ ] The Phase 8.5 `decision` learning fired when its condition held, and Phase 8.6 echoed its improvement-candidate count even at zero — both before the run was declared done, so neither can be dropped as a trailer.
+- [ ] The Phase 8.5 `decision` learning fired when its condition held — before the run was declared done, so it cannot be dropped as a trailer.
 - [ ] Any user-authored `### After user-approve` steps loaded from `.geniro/instructions/plan.md` executed; silently skipped when none were loaded.
 - [ ] Phase 9 printed the milestone-aware `/geniro:implement <path>` command.
 - [ ] `clean_task_transients` ran against the planning task-dir before the terminal `phase:` write — on `done` and `aborted` alike — leaving `spec.md` / `state.md` / `plan-*.md` / `milestone-*.md` in place.

@@ -238,7 +238,7 @@ An `Additional Steps` subsection must name a real phase from the owning skill's 
 | `review` | `triage \| mechanical-prepass \| llm-spawn \| filter \| stratify \| persist \| action-gate \| done \| aborted \| escalated` | `After triage`, `After llm-spawn`, `After filter`, `Before action-gate` |
 | `resolve` | `triage \| analyze \| clarify \| emit \| done \| aborted` | `After triage`, `After analyze`, `Before emit` |
 | `debug` | `mode-detect \| investigate \| propose \| ship \| ship-summary-only \| phase-1-escalated \| phase-2-escalated \| adversarial-mode-detect \| adversarial-investigate \| adversarial-ship \| adversarial-aborted \| done \| aborted` | `After investigate`, `After propose`, `Before ship` |
-| `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| adr-documented \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
+| `refactor` | `plan \| apply \| verify \| verify-summary-only \| plan-escalated \| apply-escalated \| verify-escalated \| reverted \| routed \| done \| aborted` | `After plan`, `After apply`, `Before verify` |
 | `onboard` | `discover \| map \| map-truncated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
 | `investigate` | `classify \| investigate \| present \| present-summary-only \| classify-escalated \| investigate-escalated \| done \| aborted \| routed` | n/a — rules-only, no Additional Steps |
 | `reflect` | (stateless — no phase enum) | n/a — rules-only, no Additional Steps |
