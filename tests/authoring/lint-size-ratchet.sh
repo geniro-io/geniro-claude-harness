@@ -65,6 +65,7 @@ new_tree() {
   mkdir -p "$d/tests/authoring" "$d/skills/probe" "$d/agents" "$d/.claude/skills"
   ln -s "$LINT" "$d/tests/authoring/lint-skills.sh"
   printf '0\n' > "$d/tests/authoring/anchor-baseline.txt"
+  mkdir -p "$d/skills/probe2"
   cat > "$d/skills/probe/SKILL.md" <<EOF
 ---
 name: probe
@@ -75,12 +76,26 @@ description: Use when probing the size ratchet.
 
 $SEPARATOR_BODY
 EOF
+  # A second recorded file, so a writer that claims to touch one row can be caught
+  # touching two. With a single-file fixture, blanket and targeted writes are
+  # indistinguishable and every assertion below would pass either way.
+  cat > "$d/skills/probe2/SKILL.md" <<EOF
+---
+name: probe2
+description: Use when probing that a neighbouring row stays put.
+---
+
+# Probe two
+
+$SEPARATOR_BODY
+EOF
   printf '%s\n' "$d"
 }
 
 run_lint()     { ( cd "$1" && LC_ALL="$2" bash "$1/tests/authoring/lint-skills.sh" 2>&1 ); }
 record_base()  { ( cd "$1" && LC_ALL="$2" bash "$1/tests/authoring/lint-skills.sh" --update-baseline >/dev/null 2>&1 ); }
-probe_size()   { awk '$1 == "skills/probe/SKILL.md" { print $2 }' "$1/tests/authoring/skill-size-baseline.txt"; }
+probe_size()   { awk '$1 == "skills/probe/SKILL.md"  { print $2 }' "$1/tests/authoring/skill-size-baseline.txt"; }
+probe2_size()  { awk '$1 == "skills/probe2/SKILL.md" { print $2 }' "$1/tests/authoring/skill-size-baseline.txt"; }
 
 # --- self-test: the fixture body is one the two locales would disagree about ----
 # Without this, a body of plain ASCII would make every assertion below pass while
@@ -164,6 +179,70 @@ if [ -z "$overstated" ]; then
   pass "no recorded baseline row is above its file's true size"
 else
   fail "baseline rows recorded above the file's real size — refresh with --update-baseline:$overstated"
+fi
+
+# --- 5. --accept moves the named row and only the named row ---------------------
+# The whole reason the targeted form exists: --update-baseline rewrites all rows, so
+# a refresh meant to accept one file's growth also accepts every neighbour that grew
+# since, unreviewed and invisible in a diff expected to move one line.
+tree=$(new_tree)
+record_base "$tree" C
+before2=$(probe2_size "$tree")
+printf '%s\n' "$SEPARATOR_BODY" >> "$tree/skills/probe/SKILL.md"
+printf '%s\n' "$SEPARATOR_BODY" >> "$tree/skills/probe2/SKILL.md"   # neighbour grew too
+( cd "$tree" && bash "$tree/tests/authoring/lint-skills.sh" --accept skills/probe/SKILL.md >/dev/null 2>&1 )
+after1=$(probe_size "$tree"); after2=$(probe2_size "$tree")
+grown1=$(awk '{ w += NF } END { print w + 0 }' "$tree/skills/probe/SKILL.md")
+if [ "$after1" = "$grown1" ]; then
+  pass "--accept records the named file's new size"
+else
+  fail "--accept did not record the named file: recorded=$after1 actual=$grown1"
+fi
+if [ "$after2" = "$before2" ]; then
+  pass "--accept leaves an unnamed neighbour's row untouched"
+else
+  fail "--accept moved a row it was not given: probe2 was $before2, now $after2 — this is the blanket-refresh hazard the flag exists to avoid"
+fi
+
+# Contrast: the blanket form is expected to move both. If this ever stops being
+# true, the two modes have collapsed into one and the targeted test above is vacuous.
+tree=$(new_tree)
+record_base "$tree" C
+printf '%s\n' "$SEPARATOR_BODY" >> "$tree/skills/probe2/SKILL.md"
+b2_before=$(probe2_size "$tree")
+record_base "$tree" C
+if [ "$(probe2_size "$tree")" != "$b2_before" ]; then
+  pass "--update-baseline still records every row (the two modes remain distinct)"
+else
+  fail "--update-baseline did not re-record a grown neighbour — the blanket mode is broken"
+fi
+
+# --- 6. --accept refuses what the size checks never read ------------------------
+# A row for an unchecked path looks like an accepted size and is not one: nothing
+# reads it, so it silently records a judgment that has no effect.
+tree=$(new_tree)
+record_base "$tree" C
+rows_before=$(grep -c . "$tree/tests/authoring/skill-size-baseline.txt")
+printf 'notes\n' > "$tree/README.md"
+( cd "$tree" && bash "$tree/tests/authoring/lint-skills.sh" --accept README.md >/dev/null 2>&1 )
+rc=$?
+rows_after=$(grep -c . "$tree/tests/authoring/skill-size-baseline.txt")
+if [ "$rc" -ne 0 ] && [ "$rows_before" = "$rows_after" ]; then
+  pass "--accept rejects a path outside the measured population and writes nothing"
+else
+  fail "--accept on an unchecked path: rc=$rc rows $rows_before -> $rows_after (expected non-zero rc, no new row)"
+fi
+
+# --- 7. --accept-anchors touches the anchor figure, not the sizes ---------------
+tree=$(new_tree)
+record_base "$tree" C
+printf '%s\n' "$SEPARATOR_BODY" >> "$tree/skills/probe/SKILL.md"
+sizes_before=$(cat "$tree/tests/authoring/skill-size-baseline.txt")
+( cd "$tree" && bash "$tree/tests/authoring/lint-skills.sh" --accept-anchors >/dev/null 2>&1 )
+if [ "$(cat "$tree/tests/authoring/skill-size-baseline.txt")" = "$sizes_before" ]; then
+  pass "--accept-anchors leaves the size baseline alone"
+else
+  fail "--accept-anchors rewrote size rows — accepting an anchor count must not accept sizes"
 fi
 
 echo

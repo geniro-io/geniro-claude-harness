@@ -2,7 +2,10 @@
 # Authoring lint — mechanizes the manual greps in .claude/rules/skill-structure.md
 # §Pre-commit verification and .claude/rules/skill-authoring.md §Hard exclusions.
 #
-# Run: bash tests/authoring/lint-skills.sh
+# Run:    bash tests/authoring/lint-skills.sh
+# Accept: bash tests/authoring/lint-skills.sh --accept <path>...   (one file's size)
+#         bash tests/authoring/lint-skills.sh --accept-anchors     (the anchor figure)
+#         bash tests/authoring/lint-skills.sh --update-baseline    (everything)
 #
 # Two severities:
 #   HARD (exit non-zero) — zero-false-positive correctness checks:
@@ -149,19 +152,91 @@ anchor_unresolved() {
 # was compared against.
 words_in() { awk '{ w += NF } END { print w + 0 }' "$1"; }
 
-# --update-baseline records every skill at its current size and exits, before any
-# check runs. It lives in this script rather than a sibling so a recorded number can
-# never be produced by a different word-count rule than the one that reads it back —
-# which is why every count goes through words_in, never a bare wc.
-if [ "${1:-}" = "--update-baseline" ]; then
-  for f in skills/*/SKILL.md .claude/skills/*/SKILL.md agents/*.md; do
-    [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(words_in "$f")"
-  done | LC_ALL=C sort > "$SIZE_BASELINE"
-  echo "Recorded $(grep -c . "$SIZE_BASELINE") skill and agent sizes in $SIZE_BASELINE"
-  anchor_unresolved | grep -c . > "$ANCHOR_BASELINE"
-  echo "Recorded $(cat "$ANCHOR_BASELINE") unresolved path-adjacent section anchors in $ANCHOR_BASELINE"
-  exit 0
-fi
+baseline_words() {  # <relpath> -> its accepted word count, or empty if unrecorded
+  [ -f "$SIZE_BASELINE" ] || return 0
+  # The count must be numeric: the baseline is a hand-editable tracked file, and a
+  # malformed row would otherwise reach `[ -le ]` and leak a raw shell diagnostic
+  # into the lint output. A bad row degrades to "unrecorded", which warns.
+  awk -v p="$1" '$1 == p && $2 ~ /^[0-9]+$/ { print $2; exit }' "$SIZE_BASELINE"
+}
+
+# The baseline writers. All of them record and exit before any check runs, so a
+# recorded number can never be one a check just failed on. They live in this script
+# rather than a sibling so a recorded number can never be produced by a different
+# word-count rule than the one that reads it back — which is why every count goes
+# through words_in, never a bare wc.
+#
+# Three of them, because "accept this size" and "accept every size" are different
+# decisions and only one of them is usually meant. --update-baseline rewrites all 27
+# rows and the anchor figure together, so a refresh performed to accept ONE file's
+# growth silently accepts every other file that grew since, plus any new dangling
+# anchor — unreviewed, and invisible in a diff that was expected to move one line.
+# That is not hypothetical: 14 of this repo's first 30 baseline transitions moved
+# 10-25 rows at once, riding inside commits about unrelated work. So the targeted
+# forms are the default gesture and the blanket one is for a genuine repo-wide pass.
+#
+#   --accept <path>...   record just these files' sizes
+#   --accept-anchors     record just the anchor figure
+#   --update-baseline    record everything (a repo-wide compression round)
+
+# Rewrite one row of the size baseline in place, preserving every other row and the
+# file's LC_ALL=C sort order. Writes through a temp file and renames: a run
+# interrupted mid-write leaves the old baseline intact rather than a truncated one,
+# and a truncated baseline reads as "every file unrecorded", which warns on all 27.
+accept_one() {
+  local f r n tmp
+  f="$1"
+  r="$(rel "$f")"
+  if [ ! -f "$f" ]; then
+    echo "$(basename "$0"): no such file: $f" >&2
+    return 1
+  fi
+  # Only the measured population has rows. Accepting anything else writes a row no
+  # check ever reads, which looks like an accepted size and is not one.
+  case "$r" in
+    skills/*/SKILL.md|.claude/skills/*/SKILL.md|agents/*.md) ;;
+    *)
+      echo "$(basename "$0"): $r is not size-checked (skills/*/SKILL.md, .claude/skills/*/SKILL.md, agents/*.md)" >&2
+      return 1
+      ;;
+  esac
+  n="$(words_in "$f")"
+  local was
+  was="$(baseline_words "$r")"
+  tmp="$(mktemp)" || return 1
+  { [ -f "$SIZE_BASELINE" ] && awk -v p="$r" '$1 != p' "$SIZE_BASELINE"
+    printf '%s %s\n' "$r" "$n"
+  } | LC_ALL=C sort > "$tmp" && mv "$tmp" "$SIZE_BASELINE" || { rm -f "$tmp"; return 1; }
+  if [ -n "$was" ]; then
+    echo "Accepted $r at $n words (was $was)."
+  else
+    echo "Accepted $r at $n words (previously unrecorded)."
+  fi
+}
+
+case "${1:-}" in
+  --accept)
+    shift
+    [ $# -gt 0 ] || { echo "$(basename "$0"): --accept needs at least one path" >&2; exit 64; }
+    rc=0
+    for f in "$@"; do accept_one "$f" || rc=1; done
+    exit "$rc"
+    ;;
+  --accept-anchors)
+    anchor_unresolved | grep -c . > "$ANCHOR_BASELINE"
+    echo "Recorded $(cat "$ANCHOR_BASELINE") unresolved path-adjacent section anchors in $ANCHOR_BASELINE"
+    exit 0
+    ;;
+  --update-baseline)
+    for f in skills/*/SKILL.md .claude/skills/*/SKILL.md agents/*.md; do
+      [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(words_in "$f")"
+    done | LC_ALL=C sort > "$SIZE_BASELINE"
+    echo "Recorded $(grep -c . "$SIZE_BASELINE") skill and agent sizes in $SIZE_BASELINE"
+    anchor_unresolved | grep -c . > "$ANCHOR_BASELINE"
+    echo "Recorded $(cat "$ANCHOR_BASELINE") unresolved path-adjacent section anchors in $ANCHOR_BASELINE"
+    exit 0
+    ;;
+esac
 
 echo "=== HARD checks ==="
 
@@ -282,8 +357,9 @@ echo "=== ADVISORY checks (warn only) ==="
 #    warning that can never go green stops being read at all. The baseline IS the
 #    record that a size was checked and accepted; the warning fires when a file
 #    grows past it, or when a file with no recorded baseline exceeds the
-#    guideline. Refresh it with `--update-baseline` after deciding a growth is
-#    load-bearing — never by trimming content to make the number go away.
+#    guideline. Accept a growth with `--accept <path>` after deciding it is
+#    load-bearing — never by trimming content to make the number go away, and
+#    never with the blanket `--update-baseline` unless every row is meant.
 FRONTLOAD_WORDS=3000
 WHOLEFILE_WORDS=5000
 # Agents get their own, tighter whole-file guideline and NO front-load budget:
@@ -293,13 +369,6 @@ WHOLEFILE_WORDS=5000
 # cost, and a reviewer body is re-injected 7-11 times in one /review run.
 AGENT_WHOLEFILE_WORDS=2500
 
-baseline_words() {  # <relpath> -> its accepted word count, or empty if unrecorded
-  [ -f "$SIZE_BASELINE" ] || return 0
-  # The count must be numeric: the baseline is a hand-editable tracked file, and a
-  # malformed row would otherwise reach `[ -le ]` and leak a raw shell diagnostic
-  # into the lint output. A bad row degrades to "unrecorded", which warns.
-  awk -v p="$1" '$1 == p && $2 ~ /^[0-9]+$/ { print $2; exit }' "$SIZE_BASELINE"
-}
 
 # Name the last H2 that still fits inside the front-load budget, so the warning says
 # WHICH sections stop being re-attached rather than just that the file is big.
@@ -320,9 +389,9 @@ check_skill_sizes() {
     if [ -n "$base" ]; then
       # Recorded: a maintainer already judged this size, so only growth past it is news.
       [ "$n" -le "$base" ] && continue
-      report_warn "$r: grew to $n words (accepted baseline $base) — re-check what is load-bearing and where it sits, then refresh the baseline; do not trim to the number"
+      report_warn "$r: grew to $n words (accepted baseline $base) — re-check what is load-bearing and where it sits, then '--accept $r'; do not trim to the number"
     elif [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
-      report_warn "$r: $n words (whole-file guideline <=$WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then record it"
+      report_warn "$r: $n words (whole-file guideline <=$WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then '--accept $r'"
     elif [ "$n" -le "$FRONTLOAD_WORDS" ]; then
       continue   # unrecorded and inside both budgets — nothing to say
     fi
@@ -350,9 +419,9 @@ check_agent_sizes() {
     base=$(baseline_words "$r")
     if [ -n "$base" ]; then
       [ "$n" -le "$base" ] && continue
-      report_warn "$r: grew to $n words (accepted baseline $base) — an agent body is re-injected on every spawn; re-check what is load-bearing, then refresh the baseline"
+      report_warn "$r: grew to $n words (accepted baseline $base) — an agent body is re-injected on every spawn; re-check what is load-bearing, then '--accept $r'"
     elif [ "$n" -gt "$AGENT_WHOLEFILE_WORDS" ]; then
-      report_warn "$r: $n words (agent whole-file guideline <=$AGENT_WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then record it"
+      report_warn "$r: $n words (agent whole-file guideline <=$AGENT_WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then '--accept $r'"
     fi
   done
 }
@@ -529,8 +598,9 @@ fi
 #     residue into a constant and reports only movement, so the check says "you
 #     broke one" rather than re-reading the same standing list every run — the
 #     cries-wolf failure noted further up, which maintainers learn to route
-#     around. Accept a new figure with --update-baseline, the same deliberate
-#     gesture the size ratchet uses.
+#     around. Accept a new figure with --accept-anchors, the same deliberate
+#     gesture the size ratchet uses — and one that leaves the size rows alone,
+#     so accepting a rename never quietly accepts every file that grew with it.
 anchor_out="$(mktemp)"
 anchor_unresolved > "$anchor_out" 2>/dev/null || true
 anchor_now=$(grep -c . "$anchor_out" || true)
@@ -538,7 +608,7 @@ anchor_was=""
 [ -f "$ANCHOR_BASELINE" ] && anchor_was=$(awk 'NR == 1 && $1 ~ /^[0-9]+$/ { print $1; exit }' "$ANCHOR_BASELINE")
 
 if [ -z "$anchor_was" ]; then
-  report_warn "no recorded section-anchor figure — $anchor_now path-adjacent anchor(s) resolve to no heading; run --update-baseline to start the ratchet"
+  report_warn "no recorded section-anchor figure — $anchor_now path-adjacent anchor(s) resolve to no heading; run --accept-anchors to start the ratchet"
 elif [ "$anchor_now" -gt "$anchor_was" ]; then
   report_warn "path-adjacent section anchors resolving to no heading rose to $anchor_now (recorded $anchor_was) — a heading was renamed or deleted and its citers now dangle"
   sort "$anchor_out" | uniq -c | sort -rn | head -5 | awk '{
