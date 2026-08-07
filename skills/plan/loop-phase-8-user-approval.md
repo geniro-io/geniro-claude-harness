@@ -28,7 +28,7 @@ Phase 8 closes the loop with a final whole-spec approval. Apply the Gate present
 
 ### 8.3 Revision-round escalation
 
-Max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-fire Phase 8 AUQ). On round 3 exhaust, fire escalation AUQ with header "Revision limit reached":
+Max 3 user-revision rounds (Phase 8 → re-enter affected sections in Phase 5 → re-validate in Phase 7 → re-check the revised claims per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §8.5 with `SCOPE: changed-only` → re-fire Phase 8 AUQ). The claim re-check runs on every round, including a round that only added a step: a revision round writes new spec content, and content written after the challenge is content no verifier has read. Skipping it is what lets the user approve, on round 3, a spec whose newest claims were checked for shape alone. On round 3 exhaust, fire escalation AUQ with header "Revision limit reached":
 - **Accept as-is** — final answer; route through §8.3.5 (the launch-config offer — this is a user-acceptance-to-commit path, same as an §8.2 Approve) and then run the §8.4 post-approve steps (commit, then Phase 9 prints the implement command).
 - **Re-revise (kick fresh cycle)** — full round-1 restart; rare.
 - **Abort** — terminal `aborted` + `## Termination reason: repeated-failure: phase-8 revision-limit-3`.

@@ -68,6 +68,30 @@ _ls_hash_file() {
   fi
 }
 
+# Emit one file's contents using shell builtins only, never an external command.
+#
+# `cat` is the obvious spelling and the wrong one here: the sandboxed shells
+# Claude Code runs strip PATH inside loop bodies, so a bare `cat` in the emit
+# loop below dies with `command not found` while the surrounding `printf`
+# (a builtin) keeps working. The caller then sees a file header with no body
+# and reports a successful load of an empty snapshot — the project's L3 state
+# silently absent for the whole run. Observed in two unrelated projects.
+#
+# Returns non-zero when the file cannot be opened, so the caller can say so.
+_ls_emit_file() {
+  local path="$1" line
+  [ -r "$path" ] || return 1
+  # A `while read` loop always exits non-zero (the EOF read), so its status says
+  # nothing about success — readability is decided by the `-r` test above.
+  # That same final read is why a last line with no trailing newline is emitted
+  # after the loop rather than inside it.
+  while IFS= read -r line; do
+    printf '%s\n' "$line"
+  done < "$path"
+  [ -n "${line:-}" ] && printf '%s\n' "$line"
+  return 0
+}
+
 # Compare current hashes against .fingerprint.json.
 # Emits drift warning to stderr (one block per diverged file).
 # Returns 0 always — drift is informational, never fatal.
@@ -152,15 +176,24 @@ load_semantic() {
     done
   fi
 
-  local n path
+  local n path rc=0
   for n in "${names[@]}"; do
     path="$root/.geniro/planning/${n}.md"
     if [ -f "$path" ]; then
       printf '=== file: .geniro/planning/%s.md ===\n' "$n"
-      cat "$path"
-      printf '\n'
+      if _ls_emit_file "$path"; then
+        printf '\n'
+      else
+        # Header already printed, body did not follow. Say so on both streams:
+        # a reader that sees only the header cannot distinguish an unreadable
+        # file from an empty one, and the caller echoes "Loading complete."
+        printf '=== ERROR: .geniro/planning/%s.md could not be read ===\n\n' "$n"
+        echo "load_semantic: failed to read $path" >&2
+        rc=11
+      fi
     fi
   done
+  return $rc
 }
 
 update_fingerprint() {
