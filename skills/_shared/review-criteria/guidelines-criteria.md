@@ -132,12 +132,14 @@ Do not flag from the comment alone — read the code the comment describes and c
 - Relative imports going up many levels (`../../..`)
 - Circular dependency patterns
 
-### 7. Type Safety & Validation
+### 7. Type Annotation Hygiene
+
+This section owns the *declared types* — annotations, `any` breadth, unsafe casts. It does NOT own runtime validation: missing input validation at an API boundary is `security`'s (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/security-criteria.md` §5 Input Validation & Output Encoding), and a missing null / undefined check on external input is `bugs`' (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` §1). Both reach the user through their own dimension at a severity a style rubric cannot assign — emitting them here caps a real defect at LOW and reports it twice.
+
 - Missing type annotations (if using TypeScript)
 - `any` type used too broadly
 - Type mismatches in assignments
-- No input validation at API boundaries
-- Missing null/undefined checks for external input
+- Type-unsafe casts and assertions
 
 **How to detect:** No grep separates a deliberately-untyped signature from a missing annotation, so read the changed signatures directly — or take the type-checker's own output where the project runs one (`noImplicitAny`, `mypy`).
 
@@ -145,7 +147,6 @@ Do not flag from the comment alone — read the code the comment describes and c
 - Functions without parameter types (TypeScript)
 - Return types omitted on public functions
 - Broad use of `any` type
-- Missing input validation in API routes
 - Type-unsafe casts or assertions
 
 ## Common false positives
@@ -179,7 +180,7 @@ Do not flag from the comment alone — read the code the comment describes and c
 - Check `.eslintrc`, `prettier.config`, etc.
 - Don't flag if matches project config
 
-7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW — the Phase 4.1 multi-signal gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) will still surface correct findings via convergence or evidence-grounding.
+7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW. LOW sits below the Phase 4.1 admission gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5), so it lands in `## Deferred — sub-threshold` rather than on the PR — for a style finding that is the intended disposition, not a reason to inflate the tier.
 
 ## Severity tagging
 

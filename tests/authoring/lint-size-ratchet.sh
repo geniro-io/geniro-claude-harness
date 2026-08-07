@@ -39,22 +39,29 @@ TMPBASE="$(mktemp -d)" || exit 1
 ORIGINAL_PWD="$PWD"
 trap 'cd "$ORIGINAL_PWD"; rm -rf "$TMPBASE"' EXIT
 
-# The two locales to compare. C is always present; the UTF-8 one may not be built
-# on a given box, so it is probed rather than assumed — an absent locale makes the
-# comparison vacuous, and a vacuous PASS here is worse than a skip.
-ALT_LOCALE=""
-for cand in C.UTF-8 en_US.UTF-8; do
-  if [ "$(LC_ALL=$cand printf 'a \xe2\x80\x94 b\n' | LC_ALL=$cand wc -w | tr -d ' ')" = "3" ]; then
-    ALT_LOCALE="$cand"
-    break
-  fi
-done
-
 # A body whose word count differs between locales under `wc -w`: the separators are
 # standalone multibyte tokens, which is the shape that makes the two disagree.
 SEPARATOR_BODY='Phase 1 — parse · Phase 2 — detect · Phase 3 — filter → done.
 See §Budgets and §Loop invariants — both ≥ 2 sections — for the rest.
 Steps · one · two · three · four → the gate fires ≤ 4 options per call.'
+
+# The two locales to compare. C is always present; the UTF-8 one may not be built on
+# a given box, and a BSD userland does not vary its character classification by
+# locale at all — there `wc -w` returns the same count for every one of them. So
+# probe for the DIVERGENCE, measured on the very body these assertions use, rather
+# than for the alternate locale's own count: that weaker test is satisfied on a
+# platform which cannot exhibit the hazard, which then selects a locale that agrees
+# with C and makes every comparison below vacuous. A vacuous PASS is worse than a
+# skip. Measuring the real body also keeps the probe and the self-test below from
+# ever disagreeing about whether this platform can demonstrate the bug.
+ALT_LOCALE=""
+_probe_c="$(printf '%s\n' "$SEPARATOR_BODY" | LC_ALL=C wc -w | tr -d ' ')"
+for cand in C.UTF-8 en_US.UTF-8; do
+  if [ "$(printf '%s\n' "$SEPARATOR_BODY" | LC_ALL="$cand" wc -w | tr -d ' ')" != "$_probe_c" ]; then
+    ALT_LOCALE="$cand"
+    break
+  fi
+done
 
 # new_tree — a minimal tree the HARD checks pass clean, with the real lint script
 # symlinked in so it treats the fixture as its repo. No size baseline is written;
@@ -110,7 +117,7 @@ if [ -n "$ALT_LOCALE" ]; then
     fail "self-test: wc -w agrees ($c_wc) on the fixture, so these tests measure nothing — the body needs standalone multibyte separators"
   fi
 else
-  echo "SKIP: no UTF-8 locale available; the cross-locale assertions cannot run"
+  echo "SKIP: this platform's wc -w does not vary by locale (no UTF-8 locale built, or a BSD userland that classifies these bytes identically everywhere) — the cross-locale assertions cannot run here, and the portability they guard has to be proved on a GNU box"
 fi
 
 # --- 1. a baseline recorded in one locale reads back clean in the other ---------

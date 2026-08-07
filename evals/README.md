@@ -55,11 +55,15 @@ math (Phase B `ingest.sh`) and the real runs (Phase C+):
   into a dev partition (tuned against) and a held-out partition (gates promotion — plan §11).
   All bootstrap size (6 + 3); the 20–50-task target from regression history is Phase D.
   - `plan` — runnable today.
-  - `review`, `implement` — **suite data only; not yet runnable.** Each needs a per-skill fixture
-    (the harness builds a `/plan` one) and an auto-answer policy that DENIES the ship-mode and
-    post-to-PR picks. `run-suite.sh` refuses these two under `approve-default-v1` and exits 64
-    rather than approving a gate that commits, pushes, opens a PR, or posts a review for real.
-    Set `EVAL_AUQ_POLICY` to a denying policy to clear it. These two skills are where an
+  - `review` — runnable under `EVAL_AUQ_POLICY=deny-irreversible-v1`, against the planted-defect
+    fixture at `run-harness/fixtures/build-review-fixture.sh`.
+  - `implement` — suite data only. The denying policy refuses its ship gate outright (all three
+    canonical options commit, push, or open a PR), so a runnable implement suite has to reach Ship
+    through the skill's own `stop after review` modifier rather than through an answered gate.
+  - `run-suite.sh` refuses `review` and `implement` under `approve-default-v1` and exits 64 rather
+    than approving a gate that commits, pushes, opens a PR, or posts a review for real. It derives
+    the skill from the suite's own `skill_name`, so the guard fires on the plain
+    `--suite suites/review/evals.json` invocation; a `--skill` contradicting the suite is an error. These two skills are where an
     instruction change is most likely to cost something, which is why their tasks target gates
     rather than output shape — see each suite's `PARTITION.md`.
 - **The seeded ledger** — `history.jsonl` (empty) + `HISTORY.md` (header only, zero rows).

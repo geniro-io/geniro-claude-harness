@@ -27,7 +27,12 @@ import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, existsSync } fro
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { approveDefaultV1 } from "./auto-answer.js";
+import { resolvePolicy } from "./auto-answer.js";
+
+// Which auto-answer policy answers the AUQ gates. `run-suite.sh`'s side-effect guard
+// refuses the review/implement suites unless this names a denying policy, so an unknown
+// value throws here rather than falling back to the approving default.
+const auqPolicy = resolvePolicy(process.env.EVAL_AUQ_POLICY);
 import type { AuqInput } from "./types.js";
 
 // ----- arg parsing -----
@@ -154,7 +159,7 @@ const meta = {
   plugin_raw: process.argv.includes("--plugin-raw"),
   claude_bin: claudeBin || "(sdk-bundled)",
   max_turns: maxTurns,
-  auq_autoanswer_policy: "approve-default-v1",
+  auq_autoanswer_policy: auqPolicy.name,
   setting_sources: [] as string[],
   node: process.version,
   uses_api_key: Boolean(process.env.ANTHROPIC_API_KEY),
@@ -175,7 +180,7 @@ const canUseTool = async (toolName: string, input: Record<string, unknown>) => {
   }
   const auq = input as unknown as AuqInput;
   try {
-    const answers = approveDefaultV1(auq);
+    const answers = auqPolicy.answer(auq);
     const rec = {
       ts: nowIso(),
       gate: (auq.questions ?? []).map((q) => ({
@@ -199,7 +204,7 @@ const canUseTool = async (toolName: string, input: Record<string, unknown>) => {
     gateLog.push(rec);
     appendJsonl(gatesPath, rec);
     console.error(`[gate] UNANSWERABLE: ${msg}`);
-    return { behavior: "deny" as const, message: `eval-driver(approve-default-v1): ${msg}` };
+    return { behavior: "deny" as const, message: `eval-driver(${auqPolicy.name}): ${msg}` };
   }
 };
 

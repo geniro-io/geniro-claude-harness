@@ -161,7 +161,7 @@ Skip or downgrade findings in these cases — they look like rubric violations b
 - **Very small diffs** (<5 LOC AND ≤2 files changed): the rubric's structural expectations (test plan, screenshots, breaking-change note) often do not apply. Skip checks #5 (test plan), #6 (screenshots), #7 (breaking-change) unless the diff visibly touches an API surface / migration / UI file. Still flag #1 (imperative verb) and #3 (substance) if the body is empty.
 - **"PR description could be more verbose" → never MEDIUM** — Suggestions to add more context, link more tickets, or include checklists are LOW. MEDIUM requires the missing field to be documented as REQUIRED in the repo's PR template or CONTRIBUTING.md, AND the omission must materially mislead reviewers.
 
-The detection signals above come from `gh pr view --json isDraft,author,title,body,labels` — the same call already issued at SKILL.md Phase 1 "Parse input" — so no additional API roundtrip is needed.
+The detection signals above (`isDraft`, `author.login`, `labels`, plus title and body) arrive in your PR-metadata context slot — the orchestrator fetched them once at Phase 1 and passes them through, so no API roundtrip of your own is needed. If a signal you need is missing from the slot, resolve it yourself with a single read-only `gh pr view --json <field>` rather than assuming the class does not apply: guessing "not a bot PR" from an absent author field is how a templated dependency bump collects a full set of prose findings the rubric says to skip. When that call is also unavailable, say which classifier you could not evaluate in your report rather than reviewing as if the PR were an ordinary human one.
 
 ## Severity tagging
 

@@ -84,6 +84,8 @@ For each hunk:
 
 ### 3. Test-coverage delta
 
+> **Overlap with tests-criteria.md is deliberate.** That dimension scans the same deletions asking a different question — is the deleted test's *cause path* still pinned by a surviving test. This section asks whether the production symbol it covered survives. Both can land on one deletion; Phase 3 dedup merges them, so emit yours rather than assuming the other dimension covers it.
+
 Scan the diff for deleted or renamed test artifacts:
 
 - Test files removed (whole-file deletion under `**/*.{test,spec}.*`, `**/__tests__/**`, `tests/**`, `spec/**`, language-equivalent test directories).

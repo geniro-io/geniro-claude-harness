@@ -13,7 +13,11 @@ The authored-rule-citation class of the `conventions` dimension (the conventions
 
 ## 1. Rule-file sources
 
-Discover every rule file present in the repo (skip absent ones), then read each one. Use Glob + Read — you have the tools.
+Your prompt carries an `AUTHORED RULE FILES:` slot holding the orchestrator's own discovery result — one path per line, or the sentinel `none found`. It is authoritative: review against exactly those paths and Read each one. Discover the files yourself with Glob only when the slot did not arrive at all, using the table below.
+
+**Report the outcome as `authored-rules=` in your Dimension Summary's `Context loaded:` line.** Values per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report: `read` when you opened the listed files (the normal case — the slot names paths, so you still read them), `slot` if a whole rule body arrived inline and needed no read, `absent` on the `none found` sentinel, `unreadable` when a listed path failed to open.
+
+This item is not the same load as `project-rules`, and collapsing them loses the one that matters here. `project-rules` is your Step 1.6 read of the two `.geniro/instructions/` files; `authored-rules` is this slot — the repo's own rule files, which no other item in that line records. A conventions report without it cannot show this class ran at all, and `absent` when the repo does ship rule files is a slot the orchestrator composed wrong, which it can only fix if you say so.
 
 | Source | Path(s) | Scope |
 |---|---|---|

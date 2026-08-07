@@ -370,7 +370,7 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 4. Persist to state.md frontmatter.
 
 **Downstream knobs (3):**
-- Phase 4.1 admission: `risk-tier: high` relaxes the advisory-fallback confidence floor (signal #4). `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for that floor and every other admission signal — do not restate the values here.
+- Phase 4.1 admission: unaffected by tier. The gate reads severity and the Evidence-Block check only, and neither varies by `risk-tier` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for every admission signal, so do not reintroduce a tier-varying threshold here.
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
 
