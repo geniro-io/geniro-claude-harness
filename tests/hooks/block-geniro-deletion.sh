@@ -130,6 +130,15 @@ expect_block "echo .geniro | xargs rm -rf blocked" "$(run_cmd 'echo .geniro | xa
 expect_block "ls .geniro/actions | xargs rm blocked" "$(run_cmd 'ls .geniro/actions | xargs rm -f')"
 expect_allow "echo .geniro | xargs wc allowed"   "$(run_cmd 'echo .geniro | xargs wc -l')"
 
+# ===== rmdir (T4-11) =====
+# rmdir removes only an EMPTY directory, but that is the same NODE-loss shape
+# rm -r produces at that segment depth, and it carried no matcher at all.
+expect_block "rmdir .geniro (bare) blocked"      "$(run_cmd 'rmdir .geniro')"
+expect_block "rmdir .geniro/instructions blocked" "$(run_cmd 'rmdir .geniro/instructions')"
+expect_block "find .geniro -exec rmdir blocked"  "$(run_cmd 'find .geniro -type d -exec rmdir {} \;')"
+expect_allow "rmdir a deep task-dir subpath allowed" "$(run_cmd 'rmdir .geniro/planning/task-1/sub')"
+expect_allow "rmdir an unrelated directory allowed"  "$(run_cmd 'rmdir build/tmp')"
+
 # ===== rsync --delete INTO a .geniro/ path =====
 # An empty/partial source mirrored with --delete removes everything the source
 # lacks — the same loss as deleting the directory. Same depth rules as rm.

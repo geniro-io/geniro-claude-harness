@@ -2,7 +2,7 @@
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules, near-zero token usage.
 
-**Two execution surfaces, one contract.** Nine of the thirteen are decidable by a command, so a command decides them: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs checks 1, 2, 4, 6, 7, 10, 11, 12 and 13 and prints their tuples. The other four turn on judgment no command can make — whether a citation is load-bearing, whether an area is sensitive, whether a verification method is real, whether a done-condition names an observable signal — so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports all thirteen in number order.
+**Two execution surfaces, one contract.** Checks 1, 2, 4, 6, 7, 10, 11, 12 and 13 are decidable by a command, so a command decides them: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs checks 1, 2, 4, 6, 7, 10, 11, 12 and 13 and prints their tuples. The other four turn on judgment no command can make — whether a citation is load-bearing, whether an area is sensitive, whether a verification method is real, whether a done-condition names an observable signal — so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports all thirteen in number order.
 
 **Status:** Authoritative. Each check returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
@@ -18,7 +18,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 
 ## Running the checks
 
-Run the scripted nine first:
+Run the scripted checks first:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh"
@@ -27,7 +27,7 @@ validate_plan_spec ".geniro/planning/<task-slug>/spec.md"
 
 One TAB-separated `check_id status finding_text fix_hint` row per scripted check, in check-number order. `rc 0` = nothing failed (a `warn` or `skip` still exits 0), `rc 1` = at least one row is a `fail`, `rc 64` = no path passed, `rc 65` = path unreadable.
 
-Then apply checks 3, 5, 8 and 9 yourself against the same spec.md (check 3 also reads state.md `## Tool log`), and report the merged thirteen in number order. Do not re-derive a scripted check by hand: the script is the rule, and a hand-run second opinion on it is a second home that drifts.
+Then apply checks 3, 5, 8 and 9 yourself against the same spec.md (check 3 also reads state.md `## Tool log`), and report every check in number order. Do not re-derive a scripted check by hand: the script is the rule, and a hand-run second opinion on it is a second home that drifts.
 
 ---
 

@@ -126,6 +126,7 @@ Inherit form (default — user did not declare `model:`):
 Agent(subagent_type="geniro:reviewer-agent", prompt="""
 DIMENSION: {spec.dimension-label}
 CRITERIA: {spec.criteria-content}
+PROJECT SEARCH POLICY: [verbatim global.md rules governing how to search this codebase, or `none declared` — governs every lookup the reviewer makes, not just its first]
 CHANGED FILES: [list of files with their full content — same list the built-in reviewers receive]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]

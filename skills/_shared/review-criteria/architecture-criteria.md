@@ -12,7 +12,7 @@ Design patterns, modularity, coupling, performance, scalability, and technical d
 
 ## What to check
 
-### 1. Module Design & Coupling
+### 1. Module design & coupling
 - Circular dependencies between modules
 - High coupling: too many imports from other modules
 - Low cohesion: module doing multiple unrelated things
@@ -35,7 +35,7 @@ madge --circular src/          # Node/TS  (import-linter for Python, `go list` f
 - Direct external API calls scattered throughout
 - Hard to test due to tight coupling
 
-### 1.5. Caller-Blast Check for Semantic Mutations
+### 1.5. Caller-blast check for semantic mutations
 
 A "semantic mutation" is a code change where a function / method / field / operator / comparison / return-value's BEHAVIORAL CONTRACT changes but its signature / name stays stable. The signature stability means `Grep <symbol>` finds all callers, but every caller is silently exposed to the new behavior without a single line of code change at the call site. These changes look local in the diff but have global blast radius.
 
@@ -81,7 +81,7 @@ When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code
 
 Severity HIGH when the untreated sibling loses or corrupts data; MEDIUM when it degrades gracefully. Anchor the finding at the edited path and name the unedited sibling `path:line`.
 
-This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence — Phase 3 dedup merges them and treats the agreement as a strong keep signal, so do not suppress your finding on the assumption another dimension will cover it.
+This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence, since the two rubrics share this check by construction — Phase 3 dedup merges them, so do not suppress your finding on the assumption another dimension will cover it.
 
 ### 1.7. Type design — make illegal states unrepresentable
 
@@ -110,7 +110,7 @@ When a type can hold a combination of values that the domain forbids, every cons
 
 Severity MEDIUM when the unrepresentable-state risk is contained to one module and guarded today; HIGH when an escape hatch or public mutable field lets a cross-module caller construct the illegal state and a downstream consumer assumes the invariant holds. Per the CRITICAL tier in the Severity Guidelines below, this dimension does not emit CRITICAL on its own — if an illegal state actually corrupts data at runtime, that runtime defect is owned by the bugs dimension.
 
-### 2. Abstraction & Interface Design
+### 2. Abstraction & interface design
 - Missing abstraction layers (business logic tightly coupled to implementation)
 - Poor interface design (leaky abstractions)
 - Violation of Dependency Injection pattern
@@ -131,7 +131,9 @@ Severity MEDIUM when the unrepresentable-state risk is contained to one module a
 - Files/modules that are hard to name (too many responsibilities)
 - Difficult to mock/test due to hard dependencies
 
-### 3. SOLID Principles Violations
+**Severity:** HIGH when the leak lets a cross-module caller depend on an implementation detail the interface was meant to hide; MEDIUM when it costs a sibling module knowledge of an implementation detail with no cross-module dependency yet in place; LOW for a structural preference with no cited coupling cost. Never CRITICAL — a runtime defect a leaky abstraction causes is owned by the bugs dimension.
+
+### 3. SOLID principles violations
 - **Single Responsibility**: Classes doing multiple things
 - **Open/Closed**: Hard to extend without modifying
 - **Liskov Substitution**: Subclasses breaking base contracts
@@ -145,7 +147,9 @@ Severity MEDIUM when the unrepresentable-state risk is contained to one module a
 - Check if changing one thing breaks unrelated code
 - Find hard dependencies on implementations
 
-### 4. Code Organization & Structure
+**Severity:** MEDIUM when the violation already forces a ripple edit across multiple call sites (Open/Closed) or a subclass breaks a base contract (Liskov) with a cited caller; LOW when it is a structural preference with no cited defect or growth-pressure ("this would be cleaner as a class"). Never CRITICAL — a runtime defect a SOLID violation causes is owned by the bugs dimension.
+
+### 4. Code organization & structure
 - Inconsistent file structure across codebase
 - Related functionality scattered across modules
 - Poor naming conventions (unclear file/function purposes)
@@ -199,7 +203,7 @@ grep -nE '^( {12,}|\t{3,})\S' file.js
 - A short, locally-obvious function carries one extra level — flag only when depth genuinely impairs comprehension, never on a count alone.
 - The complexity is inherent to the problem and already factored as well as the domain allows (per Common False Positives §2 — don't demand abstraction the problem doesn't support).
 
-### 5. Error Handling Architecture
+### 5. Error handling architecture
 - Inconsistent error handling patterns
 - Missing error context propagation
 - Poor error recovery strategies
@@ -220,7 +224,9 @@ grep -nE '^( {12,}|\t{3,})\S' file.js
 - No error hierarchy
 - Different error handling per layer
 
-### 6. Performance & Scalability
+**Severity:** HIGH when the inconsistency spans a module boundary and a caller's catch clause assumes the wrong error contract, so the error propagates uncaught; MEDIUM when errors are swallowed or logged without context but the surrounding code still degrades gracefully; LOW for a stylistic try-catch vs `.catch()` inconsistency with no cited caller impact. Never CRITICAL — an error-handling gap that already causes a crash or data loss is a bugs-dimension finding.
+
+### 6. Performance & scalability
 
 > **Boundary with optimizations-criteria.md:** below owns architecture-level perf concerns — N+1 query patterns, ORM eager-loading, missing caching/memoization, missing pagination on unbounded queries, sync I/O in async context, O(n²) algorithms. ORM hydration-skip mechanisms (`.lean`, `disableIdentityMap`, `raw:true`, `getRawMany`, `HYDRATE_ARRAY`, `.values`, `.pluck`), column/field projection on the wire, React re-render hygiene, frontend bundle/asset perf, async parallelization, and per-row → bulk INSERT/UPDATE rewrites are owned by the **optimizations** review dimension at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md`. If a finding fits both, prefer optimizations when the fix is a per-row → bulk write rewrite or a wire-projection / hydration-skip change; keep N+1 read patterns, caching layers, and pagination contracts with architecture (optimizations-criteria explicitly routes N+1 back here, and the HIGH tier below owns "N+1 in a request-handling path" — so routing a query-shape N+1 to optimizations would let it fall between the two dimensions).
 
@@ -254,7 +260,7 @@ grep -nA3 -E "\.map\(|\.forEach\(|for " file.js | grep -E "\.(find|get|load|fetc
 - Synchronous I/O in main code path
 - No caching for repeated expensive operations
 
-### 7. Technical Debt
+### 7. Technical debt
 - Deprecated patterns or libraries still in use
 - TODO/FIXME comments indicating unresolved issues
 - Inconsistent with team/project standards
@@ -306,6 +312,8 @@ Hand-written code that materially reimplements what a maintained, widely-adopted
 - Functions doing both computation and side effects
 - Difficult to create isolated test contexts
 - External API calls in core logic
+
+**Severity:** MEDIUM when the seam forcing heavy mocking sits in code this diff newly introduces; LOW for a pre-existing testability gap the diff does not worsen. Never CRITICAL — a test gap never crashes production on its own; a runtime defect it lets slip through is a bugs-dimension finding.
 
 ### 9. Spec done-condition progress (when PLAN CONTEXT present)
 

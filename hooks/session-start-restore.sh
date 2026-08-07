@@ -946,8 +946,8 @@ fi
 
 # Verification-coverage suffix — the fraction of the live (non-deprecated) L2
 # corpus whose trust is `verified`, surfaced read-only on the systemMessage.
-# Computed INDEPENDENTLY of the archiver (which only runs past the 5000-line
-# threshold, so its coverage line would near-never surface on small repos) via a
+# Computed INDEPENDENTLY of the archiver (which only runs past $_threshold
+# above, so its coverage line would near-never surface on small repos) via a
 # cheap jq tally over the same primary-worktree learnings.jsonl. Absent trust
 # folds into `inferred` ((.trust // "inferred")) to match the score-formula and
 # query-learnings normalization. n/a guards the zero-live divide-by-zero. Opt-out

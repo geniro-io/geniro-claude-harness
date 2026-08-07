@@ -18,7 +18,7 @@ The orchestrator reads it too, at Phase Generate: §Excluded content is the sing
 - Updating instructions (already in plugin update/SKILL.md)
 - Any `<!-- geniro-setup-managed -->` markers (CLAUDE.md is user-owned)
 
-Generation (SKILL.md §3.2), the re-run pre-write audit and merge rules, the Phase Validate check below, and the Definition of done all resolve to this list.
+Generation (`phase-3-generate.md` §3.2), the re-run pre-write audit and merge rules, the Phase Validate check below, and the Definition of done all resolve to this list.
 
 ---
 

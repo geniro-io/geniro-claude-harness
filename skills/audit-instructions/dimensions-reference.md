@@ -90,7 +90,7 @@ PROJECT SEARCH POLICY: {{verbatim global.md search rules, or `none declared`; go
 2. Verify each candidate finding by reading the exact cited lines — your
    `evidence` column must be a verbatim quote. Exception: a secret is cited by
    location and shape, never quoted.
-3. Return only the findings table per the output contract (max 25 rows) plus a
+3. Return only the findings table per the output contract plus a
    2-3 sentence verdict for your dimension ("healthy / debt concentrated in X").
 Report only — do not edit any file, and do not review outside your dimension.
 

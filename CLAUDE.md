@@ -16,7 +16,7 @@ Each skill's frontmatter description is the routing surface, and Claude Code alr
 
 ## Never force-add `.geniro/` paths
 
-`git add -f` on a `.geniro/` path makes ignored files visible in IDE Source Control panels, and one "Discard All Changes" click then becomes a data-loss vector — real incident: Cursor's SCM discard wiped `.geniro/actions/*.md` after they had been force-added. For content that genuinely should be tracked, use `.gitignore` negation (`!.geniro/actions/` plus `!.geniro/actions/**`). A hook blocks the force-add.
+`git add -f` on a `.geniro/` path makes ignored files visible in IDE Source Control panels, and one "Discard All Changes" click then becomes a data-loss vector. For content that genuinely should be tracked, use `.gitignore` negation (`!.geniro/actions/` plus `!.geniro/actions/**`). A hook blocks the force-add.
 
 ## State Files
 

@@ -23,7 +23,7 @@ state.md `phase:` enum transitions:
                  │
                  └── plan-escalated ──┬── plan (user supplies missing context)
                                       ├── aborted (terminal)
-                                      └── routed (terminal — hard signal "Escalate"; also reached directly from plan when no tests exist, SKILL.md Phase 1 §1.2)
+                                      └── routed (terminal — hard signal "Escalate"; also reached directly from plan when no tests exist, phase-1-plan.md Phase 1 §1.2)
 
 verify ──┬── (happy: → done above)
          │
@@ -37,7 +37,7 @@ verify ──┬── (happy: → done above)
 
 **Non-terminal states:** `plan`, `apply`, `verify`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures HIGH-step + PRODUCT-DECISION gates skip already-answered).
 
-**Escalation states:** `plan-escalated` (hard signal OR baseline red), `apply-escalated` (≥30% blocked), `verify-escalated` (1-round fix-loop exhausted). The recovery surfaces these to the user as "task was paused — your previous options:" so the user re-picks without losing context.
+**Escalation states:** `plan-escalated` (hard signal OR baseline red), `apply-escalated` (session-level blocked-ratio cap exceeded — SKILL.md §Budgets — quality-first), `verify-escalated` (1-round fix-loop exhausted). The recovery surfaces these to the user as "task was paused — your previous options:" so the user re-picks without losing context.
 
 The `## Termination reason` body section is written on `aborted` / `reverted` / `routed` terminals.
 
@@ -73,7 +73,7 @@ Body sections:
 - `## Scope` — files + symbols in refactor scope
 - `## Baseline` — Evidence Block from Phase 1 §1.2 step 5 (test count + pass status)
 - `## Smells Detected` — (Medium+) orchestrator-inline output from Phase 1 §1.4
-- `## Filtered smells` — (Medium+) smells dropped by the SKILL.md Phase 1 §1.5 smell-evidence filter, each with its synthesis reason
+- `## Filtered smells` — (Medium+) smells dropped by the phase-1-plan.md Phase 1 §1.5 smell-evidence filter, each with its synthesis reason
 - `## Plan` — ordered steps + risk + consumer counts + KEEP/FILTER decisions
 - `## Plan steps` — per-step execution rows (schema at `phase-2-apply.md` Phase 2 §2.2), distinct from `## Plan`; orchestrator updates each row's `status` / `attempts` / `last_post_check` after each step
 - `## Apply Summary` — executed / blocked / final-suite status

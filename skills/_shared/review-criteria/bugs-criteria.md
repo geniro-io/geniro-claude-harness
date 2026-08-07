@@ -14,7 +14,7 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 
 ## What to check
 
-### 1. Null/Undefined Handling
+### 1. Null/undefined handling
 - Variables used without null checks before property access
 - Optional chaining `?.` or null coalescing `??` missing
 - Conditional checks that don't cover all null cases
@@ -26,14 +26,18 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 - `array[0]` without `array.length > 0`
 - `config.setting` where config could be undefined
 
-### 2. Off-By-One Errors
+**Severity:** CRITICAL when the null-deref crashes on a documented common-input path; HIGH when it sits on a non-edge-case path with a lower-traffic trigger; MEDIUM for a null-check gap on a genuinely rare edge case with a cited reachable scenario; LOW for a defensive-coding suggestion with no demonstrated input that reaches the gap.
+
+### 2. Off-by-one errors
 - Loop conditions: `i < array.length` vs `i <= array.length`
 - Range checks: inclusive vs exclusive boundaries
 - Substring positions: start/end indices
 - Pagination: limit/offset calculations
 - Timeout/delay calculations
 
-### 3. State Management Issues
+**Severity:** HIGH when the boundary error is reachable under normal item counts (e.g., item count equals page size); MEDIUM for an off-by-one with a cited but less common trigger; LOW when the boundary is technically wrong but never reachable under the domain's actual value range.
+
+### 3. State management issues
 - Async state updates without synchronization
 - Race conditions in concurrent operations
 - State mutations without immutability
@@ -46,7 +50,9 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 - Identify event listeners/subscriptions without cleanup
 - Check for shared mutable objects
 
-### 4. Type Safety Issues
+**Severity:** CRITICAL when the race condition overwrites or corrupts persisted user data; HIGH for a specific reachable scenario without persisted corruption (two concurrent writes to the same in-memory state, no transaction); MEDIUM for a cleanup gap (missing unsubscribe/dispose) that leaks memory or state without corrupting a user-visible result; LOW for an immutability preference with no cited defect.
+
+### 4. Type safety issues
 - Type mismatches in comparisons (loose `==` for type-dependent logic)
 - Implicit type coercions causing bugs
 - Missing type validation for external inputs
@@ -59,7 +65,9 @@ Logic errors, null/undefined checks, boundary conditions, numeric precision, sta
 grep -nE "[^=!<>]==[^=]|[^!]!=[^=]" file.js
 ```
 
-### 5. Error Handling Gaps
+**Severity:** HIGH when a coercion or loose-equality bug reaches a non-edge-case path with a wrong result; MEDIUM when missing input validation is reachable but mitigated by a downstream check; LOW for a type-safety style preference with no demonstrated wrong output.
+
+### 5. Error handling gaps
 - Try-catch blocks without finally/cleanup
 - Errors silently caught and ignored
 - Promise rejections not handled
@@ -74,7 +82,7 @@ grep -nE "[^=!<>]==[^=]|[^!]!=[^=]" file.js
 - Identify callbacks not checking `err` parameter
 - Find async calls used as bare statements with no `await` / `.then` / `.catch` / `void` (floating promises)
 
-### 5.5. Silent Failure & Dangerous Fallback
+### 5.5. Silent failure & dangerous fallback
 
 Distinct from §5 (errors caught but not propagated): here the error path RUNS and returns a plausible-looking value, so the failure is invisible to the caller and downstream code proceeds on bad data.
 
@@ -91,7 +99,7 @@ Distinct from §5 (errors caught but not propagated): here the error path RUNS a
 - A network or IO call with no timeout in a request-handling path
 - A transaction or multi-step mutation with a failure path but no rollback
 
-### 6. Logic Errors
+### 6. Logic errors
 - Inverted conditionals (`if (!condition)` when should be `if (condition)`)
 - Wrong operator used (`&&` instead of `||`, `+` instead of `*`)
 - Unreachable code after return/break/throw
@@ -109,7 +117,7 @@ awk 'prev ~ /^[[:space:]]*(return|break|throw|continue)[^;]*;[[:space:]]*$/ && N
 ```
 Inverted conditionals and wrong operators have no grep shape — `if (!x) return` is the correct guard idiom far more often than it is a defect, so read the condition against what the branch does.
 
-### 7. Resource Leaks
+### 7. Resource leaks
 - File handles not closed
 - Database connections not released
 - Memory references not cleaned up
@@ -127,7 +135,7 @@ Inverted conditionals and wrong operators have no grep shape — `if (!x) return
 - Look for connection pools without release/destroy in finally blocks
 - Check child processes spawned without kill-on-exit handlers
 
-### 8. Boundary Conditions
+### 8. Boundary conditions
 - Empty array/object handling
 - Single-element edge cases
 - Maximum/minimum value limits
@@ -141,7 +149,7 @@ Inverted conditionals and wrong operators have no grep shape — `if (!x) return
 - Find math operations that could have zero denominator
 - Check boundary value comparisons
 
-### 8.5. Numeric Precision & Floating-Point
+### 8.5. Numeric precision & floating-point
 
 Distinct from §8 (which flags missing bounds / limits): here the arithmetic itself is lossy or unstable, so the code runs and returns a plausible-but-wrong number. Floating-point defects are silent — no exception, just a value that is slightly (or catastrophically) off — so they have to be caught at the pattern level rather than by a thrown error.
 

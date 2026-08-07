@@ -10,7 +10,7 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
   - 3.3 KEEP/FILTER judgment
 - Phase 4 — Stratification & test gate
   - 4.0 Post-spawn verification gate (declared vs actual)
-  - 4.1 Multi-signal threshold filter
+  - 4.1 Multi-signal admission gate
   - 4.2 Per-finding empirical-reproduction verification
   - 4.3 Failing-to-passing test-confirmation gate
 
@@ -65,7 +65,7 @@ missing = declared − actual
 
 On the standard single-pass path a missing `[Phase 2 spawn batch]` entry is drift, not a pass: §2.3.2 records it precisely so this check survives a compaction-resume into `phase: stratify`. Treat it like an absent declaration — append `## Errors phase-2-spawn-batch-record-missing` and fall back to `fired = |actual|`, which can only detect under-fire. In deep mode the entry is absent by design — §2.3.2's batch never fires — so skip this branch along with the `fired` comparison below; `missing` still computes.
 
-`fired` must equal `spawn_dims_count` on the standard single-pass path, in both Standard and Batched payload shape; in deep mode the Workflow's 3 angle-passes per declared dimension are checked per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, not by this count. `fired` above the declared count means per-file-batch multiplication (forbidden by §2.3.2); below it means dropped dimensions. Each mismatch direction routes through its matching branch below.
+`fired` must equal `spawn_dims_count` on the standard single-pass path, in both Standard and Batched payload shape; deep mode has no equivalent per-pass count to check against — `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2 verifies only the declared dimension SET, treating the Workflow's 3 angle-passes per dimension as a multiplier on each declared dim rather than a countable instance. `fired` above the declared count means per-file-batch multiplication (forbidden by §2.3.2); below it means dropped dimensions. Each mismatch direction routes through its matching branch below.
 
 A `spawn_dims_declared` list that does not exist in frontmatter at this point is itself a contract miss, not a pass: §2.2 writes it BEFORE the parallel batch precisely so this gate has a baseline — if it appears only at persist time (written ~after the spawns), the gate it powers ran inert against a missing baseline. Treat an absent or first-seen-at-persist `spawn_dims_declared` as drift: append `## Errors phase-2-spawn-declaration-missing` and reconstruct `declared` from the §2.1 grid (and `spawn_dims_count` as its length) for THIS run before computing `missing`.
 
@@ -88,9 +88,9 @@ Always-WAIT on both gates — an empty answer signals an upstream tool bug; fall
 
 When `missing` is empty and `fired == spawn_dims_count`, proceed directly to §4.1.
 
-### 4.1 Multi-signal threshold filter
+### 4.1 Multi-signal admission gate
 
-`severity ≥ MEDIUM` is necessary but NOT sufficient. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 at Phase 4 entry, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — unread, the admission gate silently degrades to the very threshold this sentence calls insufficient, and admitted findings carry no record of which signals cleared them — §5 ONLY, located via the file's Contents block, not the whole file: §§1-4 and §6 are the reviewer-side rubric every Phase 2 spawn already consumed, and nothing orchestrator-side binds on them — and apply its gate as written. That file is the canonical home of the three admission signals, the MEDIUM-requires-an-Evidence-Block constraint, and the Path-B verification split, and it stays authoritative if any threshold changes. Admission asks how bad the finding is and whether it cites re-readable code — never how confident the reviewer was or how many dimensions agreed, both of which are reported but gate nothing (rationale: same file §4). The rest of this section is what is local to /geniro:review's Phase 4.
+CRITICAL and HIGH admit on severity alone; MEDIUM additionally needs a properly-formatted Evidence Block. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 at Phase 4 entry, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — unread, the admission gate has no source for its own rule, and admitted findings carry no record of which signals cleared them — §5 ONLY, located via the file's Contents block, not the whole file: §§1-4 and §6 are the reviewer-side rubric every Phase 2 spawn already consumed, and nothing orchestrator-side binds on them — and apply its gate as written. That file is the canonical home of the three admission signals, the MEDIUM-requires-an-Evidence-Block constraint, and the Path-B verification split, and it stays authoritative if any threshold changes. Admission asks how bad the finding is and whether it cites re-readable code — never how confident the reviewer was or how many dimensions agreed, both of which are reported but gate nothing (rationale: same file §4). The rest of this section is what is local to /geniro:review's Phase 4.
 
 **Path A — severity-gated.** Survivors admit to Phase 5 stratify into `## Findings`, and to the Phase 4.2 verifier.
 

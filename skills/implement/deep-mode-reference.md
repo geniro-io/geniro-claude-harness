@@ -33,15 +33,13 @@ Standard Phase 3 Round 1 spawns one `reviewer-agent` per dimension (bugs / secur
 - For each dimension, spawn 3 independent `reviewer-agent` passes (parallel), each with the same context the single-pass spawn passes (diff, criteria paths, the dim's context slots), but each scoped to a DISTINCT angle so the passes search near-disjoint regions rather than re-running one identical prompt — **A common path** (likely defects on the typical code path), **B boundaries and error paths** (rare inputs, boundary conditions, exception/error handling, resource lifecycle, concurrency), **C interaction** (how the change couples with the rest of the diff and surrounding code — callers of changed symbols, sibling/parallel paths, flags and config). The angles are dimension-agnostic, so the angle instruction is a short prefix on the existing per-dim prompt — no per-dimension angle table to maintain.
 - Union + dedup the 3 angle passes of one dimension into a single per-dim finding set BEFORE the fix loop consumes them — same file + overlapping line range + same defect class = one finding (note `seen-in: N/3 angles` as an intra-dim reliability signal). Dedup intra-dim so the 3 angle passes of one dimension agreeing is never mistaken for cross-dimension agreement.
 
-**Why angle-diverse passes raise recall efficiently:** three identical passes scatter only by sampling temperature — they harvest the tail of one distribution, so much of what they return overlaps and is discarded at dedup. Three angle-scoped passes search where the others do not, so each buys new territory at the same token cost — the same recall lever as `/geniro:review --deep`, and `seen-in: N/3 angles` is a stronger within-dim reliability signal than identical clones agreeing.
-
 ## 4. Precision — Phase 3 signal-gated verification before fix
 
 Standard Phase 3 routes every Round-1 finding straight into the fix loop. Deep mode inserts a verification gate BEFORE the fix so the implementer doesn't spend fix-loop rounds on a hallucinated defect — but the vote count is **gated by signal**: one verifier on the clear majority, the full 3-vote majority only on contested or high-stakes findings.
 
 - **First vote (always).** Run ONE independent verifier (`finding-verifier-agent`) on the deduped finding — the degenerate one-finding cluster input of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, raw JSON parsed defensively. `confirmed`/`clarified` = "real", `refuted` = "drop".
 - **Escalate to 3** (then majority) when ANY of:
-  - the first vote's `confidence < 70`;
+  - the first vote fails the minimum bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 (abstained, or `confidence <= 3`);
   - the finding is CRITICAL or HIGH — a code fix to a high-stakes finding should clear the full majority in EITHER direction, because in a mutation skill both a wrong fix (false-confirm → an edit the code didn't need) and a dropped real defect (false-refute → ships with the bug) are costly;
   - the first vote is `refuted` AND `seen-in >= 2/3` angles — the refute contradicts the within-dim corroboration that surfaced it.
 - **Accept the single vote** otherwise: a high-confidence first vote on a MEDIUM-or-lower finding that agrees with the corroboration — a `confirmed`/`clarified`, or a `refuted` of a lone (`seen-in: 1/3`) finding.
@@ -64,7 +62,7 @@ Implement supplies these pieces:
 - **Verify phase.** The candidates are the flattened per-dim findings the recall phase returned, and the survivors (`verdict !== 'refuted'`) enter the fix loop. Its escalation predicate, per §4:
 
 ```
-// needsEscalation(first, f) = first abstained (parse-fail) OR first.confidence < 70
+// needsEscalation(first, f) = deep-mode.md §3 minimum (abstained OR confidence <= 3)
 //   OR f.severity === 'CRITICAL' OR f.severity === 'HIGH'
 //   OR (first.validation === 'refuted' && f.seen_in >= 2)
 ```

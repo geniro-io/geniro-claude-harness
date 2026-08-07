@@ -7,6 +7,7 @@ Phase detail and schemas for `/geniro:resolve`. The skill body (`SKILL.md`) hold
 - §1 — Inventory item schema (Phase 1)
 - §1.5 — Workspace sync: local checkout → PR head (Phase 1)
 - §2 — Verdict rubric + verify/reproduce (Phase 2)
+- §2.5 — Clarify gate mechanics (Phase 3)
 - §3 — Spec `## Comment Resolution Map` (Phase 4)
 - §4 — Handoff `comment_resolutions[]` (Phase 4)
 
@@ -82,6 +83,17 @@ Per item, after reading the cited code and attempting a repro:
 **Reproduce** before marking `fix`:
 - A bug-claim → construct a concrete failing case or name the exact trigger path. A claim that cannot be reproduced is evidence for `wontfix`, not `fix`.
 - A `ci-check` → run the failing command locally when the check name/output makes it derivable (`test:unit` → the project test command scoped to the failing file). A locally-reproduced failure confirms the `fix`; a green local run flags an environment-only / flaky check → `answer-only` ("passes locally; likely flaky/env").
+
+## 2.5 Clarify gate mechanics (Phase 3)
+
+Each ambiguous item's lean `AskUserQuestion` carries the item's own interpretations as options, plus two standing aids:
+
+- **"Explain further"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option. Renders a deeper walkthrough and re-fires the same question; writes nothing, consumes no cap slot.
+- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Challenge-finding option. Spawns one fresh `finding-verifier-agent` (the Phase 2 re-verify mechanism; OMIT `model=`) primed with the user's objection, to re-check whether the comment is valid and reachable. Re-renders the item with the verdict, then re-fires the question. A `refuted` result reclassifies the item to `wontfix` (with the evidence-backed push-back draft) and drops its gate.
+
+When the item's interpretations plus these two aids exceed 4 slots, chain per the § Cap-extension in `per-finding-question-reference.md` — never drop an interpretation to make room. The chain extends only that one item's own option list past 4; items still fire one at a time, never batched into one call's `questions[]`.
+
+Persist each pick to `approvals[]` (category `comment_clarification`) and write the resolved answer into the item's `open_questions[]` entry, setting `related_comments: [<thread_id>]` so the question traces back to the comment that raised it. A deferred item stays `status: unresolved` and travels to `/geniro:implement` for re-gating.
 
 ## 3. Spec `## Comment Resolution Map` (Phase 4)
 

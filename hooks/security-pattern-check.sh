@@ -305,7 +305,7 @@ _geniro_extract_inner_payloads() {
   local _wv_wargs='([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*'
   local _wv_pfx="(${_wv_wrd}${_wv_wargs}[[:space:]]+)*"
   local _wv_shq='["'\'']?'
-  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_shq}"
   # One quoted literal; and the payload operand form, which may also be bare.
   local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
   local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
@@ -366,6 +366,22 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
   done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+'"${_wv_nonc}"')*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+
+  # Arm 7 — a herestring fed to a shell (`bash <<< '<payload>'`,
+  # `sh -s <<< "<payload>"`). `<<<` feeds the right-hand operand on stdin exactly
+  # like arm 3's pipe, but the shell word comes FIRST and the payload follows the
+  # operator instead of being piped in from the left — the mirror image of arm 3.
+  # Neither arm 1 (no `-c` argument here), arm 3 (no pipe) nor the heredoc scrub
+  # (which explicitly excludes `<<<` from heredoc-opener detection, so this text
+  # survives it unscrubbed) extracts it.
+  local _wv_hspfx="${_wv_sh}([[:space:]]+${_wv_flag})*[[:space:]]*<<<[[:space:]]*"
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E "s#^[^[:alnum:]_]?${_wv_hspfx}##")
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_hspfx}${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
   # This is the mirror image of arm 3: the body is stdin, and every guard's
@@ -488,7 +504,7 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl#\'}"; _pl="${_pl%\'}"
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
-    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
     # Ruby's and Perl's backtick literal is the same shell-out with no call
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
@@ -592,8 +608,11 @@ _geniro_interp_write_targets() {
   local _nonlit="(\\\\[^\"']|[^\\\\\"'[:space:])])"
   # Ops whose FIRST argument is the target and which write unconditionally.
   # Base-keyed: `writeFile` covers fs.writeFile/writeFileSync/promises.writeFile,
-  # `writeTextFile` covers Deno.writeTextFile(Sync).
-  local _wops_first='((writeFile|appendFile|createWriteStream|outputFile|writeTextFile)(Sync)?|file_put_contents|File\.write|IO\.write)'
+  # `writeTextFile` covers Deno.writeTextFile(Sync), `truncate`/`ftruncate` cover
+  # os.truncate/os.ftruncate and fs.truncate(Sync)/fs.ftruncate(Sync) — a
+  # truncation is a write (it replaces the file's content with zero-or-fewer
+  # bytes) exactly like `truncate -s 0 FILE` on the shell side.
+  local _wops_first='((writeFile|appendFile|createWriteStream|outputFile|writeTextFile|truncate|ftruncate)(Sync)?|file_put_contents|File\.write|IO\.write)'
   # Copy/rename: the SECOND argument is the target. This is the interpreter
   # spelling of a cp/mv DESTINATION, which the shell-side cp/mv vector in every
   # calling guard already treats as a write — without it the same clobber walks
@@ -852,10 +871,19 @@ _geniro_interp_write_targets() {
       fi
       [ -z "$tgt" ] && continue
       tgt="$(strip_quotes "$tgt")"
-      # Content: the echo/printf payload — everything after the last echo/printf
-      # word, up to the first pipe or redirect. The match is now scoped to ONE
-      # simple command, so "last" is unambiguous (there is at most one).
-      content=$(printf '%s' "$seg" | sed -E 's/.*(printf|echo)[[:space:]]+//; s/[[:space:]]*(\||>{1,2}).*$//')
+      # Content: the echo/printf payload — everything after the COMMAND WORD
+      # (the FIRST/leftmost printf|echo), up to the first pipe or redirect. A
+      # greedy `.*(printf|echo)` strip is anchored to the LAST occurrence of
+      # either word in the whole segment — including one appearing INSIDE the
+      # quoted payload itself (`printf 'eval(u) echo ok' > bad.py`), which
+      # dropped everything up to and including that in-payload "echo" and
+      # silently lost the flagged text ahead of it. awk's match() finds the
+      # leftmost occurrence — the true command word — so the payload text after
+      # it (including any "echo"/"printf" substring inside it) survives intact.
+      content=$(printf '%s' "$seg" | awk '
+        match($0, /(printf|echo)[[:space:]]+/) { print substr($0, RSTART + RLENGTH); next }
+        { print }
+      ' | sed -E 's/[[:space:]]*(\||>{1,2}).*$//')
       content="$(strip_quotes "$content")"
       [ -z "$content" ] && continue
       scan_one "$tgt" "$content"

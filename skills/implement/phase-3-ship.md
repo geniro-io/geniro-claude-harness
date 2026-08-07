@@ -27,7 +27,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
    **Deep-mode branch (`deep-mode: true`).** Run Round 1 via the deep self-review `Workflow(...)` instead of the single parallel batch below — each reviewer dimension under 3 angles (union + dedup per dim), then a signal-gated verification of each deduped finding, per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md` §3-4. Only verified findings enter the fix loop; the `adversarial-tester-agent` stays a single spawn. Fail-safe to the standard single-pass batch below if the workflow errors (deep-mode-reference §7). Fix-loop rounds 2-3 run single-pass regardless. Everything below describes the standard single-pass Round 1.
 
-   - **reviewer-agents** — one per dimension. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". Dimensions: `bugs` / `security` / `architecture` / `tests` / `code-quality`. The `architecture` dim covers docs-staleness AND spec-compliance. See reference.md §"The reviewer dimensions" for full criteria-file mapping.
+   - **reviewer-agents** — one per dimension. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". Dimensions: `bugs` / `security` / `architecture` / `tests` / `code-quality`. The `architecture` dim covers docs-staleness AND spec-compliance. See `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"The reviewer dimensions" for full criteria-file mapping.
 
    - **1 adversarial-tester-agent** — apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Adversarial-tester spawn template". The agent authors F→P-verified failing tests against the diff and writes them to the project's test directory. SKIPPED on either of two conditions:
      - Codebase-Explorer `change_scope: trivial`, OR
@@ -78,7 +78,7 @@ State.md `phase: ship` on entry.
    ```
 
    Lock-guarded; rc=11 (lock held) is a recoverable skip-and-defer.
-8. **Integration Updates / Custom post-ship steps / Cleanup.** Apply the reference.md sub-sections in order:
+8. **Integration Updates / Custom post-ship steps / Cleanup.** Apply the `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` sub-sections in order:
    1. `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Integration Updates" — worktree handling + tracker completion actions.
    2. Reference §"Custom post-ship steps" — run any user-authored `## Additional Steps` subsection from the loaded `<skill>.md` whose anchor is post-ship (e.g. `### After ship`); without this step a loaded `### After ship` block has no execution anchor and is silently dropped once Cleanup runs.
    3. Reference §"Cleanup" (single source of the `rm -f` scratch-file list and the preserve set) — deletes only transient subagent outputs; durable artifacts survive Ship. After the rm runs, echo `Cleaned up transient working files from <task-dir>` — the in-session signal the step 9 pre-terminal check looks for.

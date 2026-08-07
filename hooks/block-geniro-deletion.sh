@@ -160,7 +160,7 @@ _geniro_extract_inner_payloads() {
   local _wv_wargs='([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*'
   local _wv_pfx="(${_wv_wrd}${_wv_wargs}[[:space:]]+)*"
   local _wv_shq='["'\'']?'
-  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_shq}"
   # One quoted literal; and the payload operand form, which may also be bare.
   local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
   local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
@@ -221,6 +221,22 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
   done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+'"${_wv_nonc}"')*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+
+  # Arm 7 — a herestring fed to a shell (`bash <<< '<payload>'`,
+  # `sh -s <<< "<payload>"`). `<<<` feeds the right-hand operand on stdin exactly
+  # like arm 3's pipe, but the shell word comes FIRST and the payload follows the
+  # operator instead of being piped in from the left — the mirror image of arm 3.
+  # Neither arm 1 (no `-c` argument here), arm 3 (no pipe) nor the heredoc scrub
+  # (which explicitly excludes `<<<` from heredoc-opener detection, so this text
+  # survives it unscrubbed) extracts it.
+  local _wv_hspfx="${_wv_sh}([[:space:]]+${_wv_flag})*[[:space:]]*<<<[[:space:]]*"
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E "s#^[^[:alnum:]_]?${_wv_hspfx}##")
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_hspfx}${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
   # This is the mirror image of arm 3: the body is stdin, and every guard's
@@ -343,7 +359,7 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl#\'}"; _pl="${_pl%\'}"
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
-    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
     # Ruby's and Perl's backtick literal is the same shell-out with no call
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
@@ -870,6 +886,24 @@ while IFS= read -r MV_SPAN; do
   set +f
 done <<< "$MV_SPANS"
 
+# 2b-rmdir. `rmdir` removes a directory outright — bounded (it only succeeds on
+#     an EMPTY directory), but it is the same NODE-loss shape `rm -r` produces
+#     at that segment depth, and it carried no matcher of its own. Every operand
+#     runs the depth rules at recursive=1: a bare `rmdir .geniro` or
+#     `rmdir .geniro/instructions` deletes the directory node itself exactly as
+#     `rm -rf` would, so the same whole-tree / subdir gates apply.
+RMDIR_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])rmdir[[:space:]]+[^|;&]*' || true)
+while IFS= read -r RMDIR_SPAN; do
+  [ -z "$RMDIR_SPAN" ] && continue
+  set -f
+  # shellcheck disable=SC2086
+  for tok in $RMDIR_SPAN; do
+    case "$tok" in rmdir|*/rmdir|-*) continue ;; esac
+    check_delete_arg_cd "$tok" 1 rmdir
+  done
+  set +f
+done <<< "$RMDIR_SPANS"
+
 # 2c. Interpreter-mediated deletes and displacements: a scripting runtime
 #     removing a .geniro path (shutil.rmtree, os.remove, fs.rmSync, File.delete,
 #     unlink, …) or moving one away (shutil.move, os.rename, …). None of that is
@@ -912,10 +946,11 @@ if ! is_allowed "find-geniro-delete"; then
     block "find-geniro-delete" "find ... -delete on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path, or pathlib.Path.unlink in Python) so each deletion is auditable."
   fi
   # The executed command is any of the loss family, not `rm` alone: `-exec mv` is
-  # the displacement this guard's mv span already blocks directly, and
-  # unlink/shred/truncate destroy each matched file exactly as `rm` does.
-  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv)([[:space:]]|$)'; then
-    block "find-geniro-delete" "find ... -exec rm/mv/unlink/shred/truncate on .geniro/ wipes or displaces user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
+  # the displacement this guard's mv span already blocks directly,
+  # unlink/shred/truncate destroy each matched file exactly as `rm` does, and
+  # `rmdir` removes each matched (empty) directory node the same way.
+  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv|rmdir)([[:space:]]|$)'; then
+    block "find-geniro-delete" "find ... -exec rm/mv/unlink/shred/truncate/rmdir on .geniro/ wipes or displaces user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
   fi
   # `xargs rm` deletes in bulk whatever the left-hand side lists, and find is only
   # one of the producers (`echo .geniro | xargs rm -rf`, `ls .geniro/x | xargs rm`

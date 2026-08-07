@@ -19,21 +19,23 @@
 # `*Sync`, a `promises.` prefix and the async variants fall out without being
 # enumerated. A recognizer that models a fixed spelling is a channel, not a guard.
 #
-# A shell can be handed a program six ways, and only one of them is shell syntax
-# the guards can match directly. `sh -c "<payload>"` and `eval "<payload>"` pass
-# it as an ARGUMENT; `echo "<payload>" | bash`, `bash <<EOF … EOF` and
-# `bash <(echo "<payload>")` pass it on STDIN; `os.system('<payload>')` hands it
-# to a shell from inside an interpreter. In every case the guards' own passes
-# destroy it before matching — quoted literals are blanked as data, heredoc
-# bodies are dropped as data — so without this extraction the payload is inert
-# text and the guard never inspects the command that actually runs. Each guard
-# calls this BEFORE its own quote-blanking pass, then re-runs ITSELF on every
-# returned payload; a block inside propagates out. Recursion terminates because
-# a payload is always strictly shorter than the command it came from.
+# A shell can be handed a program seven ways, and only one of them is shell
+# syntax the guards can match directly. `sh -c "<payload>"` and `eval
+# "<payload>"` pass it as an ARGUMENT; `echo "<payload>" | bash`,
+# `bash <<EOF … EOF`, `bash <(echo "<payload>")` and `bash <<< "<payload>"`
+# pass it on STDIN; `os.system('<payload>')` hands it to a shell from inside an
+# interpreter. In every case the guards' own passes destroy it before matching —
+# quoted literals are blanked as data, heredoc bodies are dropped as data — so
+# without this extraction the payload is inert text and the guard never inspects
+# the command that actually runs. Each guard calls this BEFORE its own
+# quote-blanking pass, then re-runs ITSELF on every returned payload; a block
+# inside propagates out. Recursion terminates because a payload is always
+# strictly shorter than the command it came from.
 #
-# Six shapes are extracted:
-#   1. the sh|bash|zsh|dash|ksh|ash `-c` family — any flag cluster containing c
-#      (-c, -lc, -euc), payload double-quoted, single-quoted, or bare;
+# Seven shapes are extracted:
+#   1. the sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc `-c` family
+#      — any flag cluster containing c (-c, -lc, -euc), payload double-quoted,
+#      single-quoted, or bare;
 #   2. `eval` followed by a quoted or bare payload;
 #   3. a quoted literal piped into a shell (`echo "<payload>" | bash`,
 #      `printf '<payload>' | nohup sh`) — stdin, so arms 1 and 2 never see it;
@@ -47,7 +49,12 @@
 #   6. the quoted argument of an interpreter's shell-out call (`os.system`,
 #      `subprocess.run(…, shell=True)`, `child_process.exec*`, a Ruby backtick),
 #      which is neither shell syntax nor an interpreter FILE op, so both
-#      families here would otherwise miss it entirely.
+#      families here would otherwise miss it entirely;
+#   7. a herestring fed to a shell (`bash <<< "<payload>"`, `sh -s <<< '<payload>'`)
+#      — a sixth stdin channel, the mirror image of arm 3: the shell word comes
+#      FIRST and the payload follows the `<<<` operator rather than being piped
+#      in from the left, so neither arm 1 (no `-c`), arm 3 (no pipe) nor the
+#      heredoc scrub (`<<<` is deliberately excluded from heredoc detection) sees it.
 #
 # Usage:
 #   source "$_script_dir/write-vectors.sh"
@@ -92,7 +99,7 @@ _geniro_extract_inner_payloads() {
   local _wv_wargs='([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*'
   local _wv_pfx="(${_wv_wrd}${_wv_wargs}[[:space:]]+)*"
   local _wv_shq='["'\'']?'
-  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_shq}"
   # One quoted literal; and the payload operand form, which may also be bare.
   local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
   local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
@@ -153,6 +160,22 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
   done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+'"${_wv_nonc}"')*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+
+  # Arm 7 — a herestring fed to a shell (`bash <<< '<payload>'`,
+  # `sh -s <<< "<payload>"`). `<<<` feeds the right-hand operand on stdin exactly
+  # like arm 3's pipe, but the shell word comes FIRST and the payload follows the
+  # operator instead of being piped in from the left — the mirror image of arm 3.
+  # Neither arm 1 (no `-c` argument here), arm 3 (no pipe) nor the heredoc scrub
+  # (which explicitly excludes `<<<` from heredoc-opener detection, so this text
+  # survives it unscrubbed) extracts it.
+  local _wv_hspfx="${_wv_sh}([[:space:]]+${_wv_flag})*[[:space:]]*<<<[[:space:]]*"
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E "s#^[^[:alnum:]_]?${_wv_hspfx}##")
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_hspfx}${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
   # This is the mirror image of arm 3: the body is stdin, and every guard's
@@ -275,7 +298,7 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl#\'}"; _pl="${_pl%\'}"
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
-    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
     # Ruby's and Perl's backtick literal is the same shell-out with no call
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
@@ -452,8 +475,11 @@ _geniro_interp_write_targets() {
   local _nonlit="(\\\\[^\"']|[^\\\\\"'[:space:])])"
   # Ops whose FIRST argument is the target and which write unconditionally.
   # Base-keyed: `writeFile` covers fs.writeFile/writeFileSync/promises.writeFile,
-  # `writeTextFile` covers Deno.writeTextFile(Sync).
-  local _wops_first='((writeFile|appendFile|createWriteStream|outputFile|writeTextFile)(Sync)?|file_put_contents|File\.write|IO\.write)'
+  # `writeTextFile` covers Deno.writeTextFile(Sync), `truncate`/`ftruncate` cover
+  # os.truncate/os.ftruncate and fs.truncate(Sync)/fs.ftruncate(Sync) — a
+  # truncation is a write (it replaces the file's content with zero-or-fewer
+  # bytes) exactly like `truncate -s 0 FILE` on the shell side.
+  local _wops_first='((writeFile|appendFile|createWriteStream|outputFile|writeTextFile|truncate|ftruncate)(Sync)?|file_put_contents|File\.write|IO\.write)'
   # Copy/rename: the SECOND argument is the target. This is the interpreter
   # spelling of a cp/mv DESTINATION, which the shell-side cp/mv vector in every
   # calling guard already treats as a write — without it the same clobber walks

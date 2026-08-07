@@ -15,7 +15,7 @@ This dimension fires only when input is a PR ref (`pr-ref != none`); it is skipp
 
 ## What to check
 
-### 1. Title — Imperative Verb Opener
+### 1. Title — imperative verb opener
 
 A PR title should describe an action: "Add user authentication", "Fix race in queue worker", "Drop dead config option". Past-tense ("Added X", "Fixed Y") and noun-only titles ("User authentication", "Queue race") are weaker — they describe a topic, not a change.
 
@@ -25,7 +25,7 @@ A PR title should describe an action: "Add user authentication", "Fix race in qu
 
 **Red flag:** title starts with past-tense ("Added", "Fixed", "Updated"), gerund ("Adding", "Fixing"), or no verb at all.
 
-### 2. Title — Convention Conformance (when repo uses one)
+### 2. Title — convention conformance (when repo uses one)
 
 Many repos adopt Conventional Commits (`feat:`, `fix:`, `chore:`) or Linear/Jira issue-id prefixes (`[ENG-123]`, `PROJ-456`). When the repo uses a convention, the PR title should follow it.
 
@@ -36,7 +36,7 @@ Many repos adopt Conventional Commits (`feat:`, `fix:`, `chore:`) or Linear/Jira
 
 **Red flag:** repo's modal pattern is `^(feat|fix|chore|docs|refactor)(\(.+\))?: ` (≥7/10) and this PR's title lacks it.
 
-### 3. Description — Presence and Substance
+### 3. Description — presence and substance
 
 A PR description should be more than a one-line restatement of the title and should not be a raw template placeholder (e.g., GitHub's default `## Summary\n\n## Test plan\n` with no content filled in).
 
@@ -47,7 +47,7 @@ A PR description should be more than a one-line restatement of the title and sho
 
 **Red flag:** empty body, or body is just the template skeleton, or body is < 3 sentences when the diff exceeds 20 LOC.
 
-### 4. Description — "Why" Clause Present
+### 4. Description — "Why" clause present
 
 The description should explain *why* the change is being made, not just *what* changed. Reviewers need motivation to evaluate trade-offs.
 
@@ -57,7 +57,7 @@ The description should explain *why* the change is being made, not just *what* c
 
 **Red flag:** non-trivial diff (>20 LOC) with no "because" / "to fix" / motivation heading anywhere in the body.
 
-### 5. Description — Test Plan When Logic Changed
+### 5. Description — test plan when logic changed
 
 When the diff touches non-trivial business logic (controllers, services, models, reducers, query handlers) or includes test files, the description should describe how the change was tested.
 
@@ -68,7 +68,7 @@ When the diff touches non-trivial business logic (controllers, services, models,
 
 **Red flag:** ≥1 logic or test file changed; body contains no test-plan heading or bulleted test evidence.
 
-### 6. Description — Screenshots When UI Changed
+### 6. Description — screenshots when UI changed
 
 When the diff includes UI files (matching the UI-file detection rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule), the description should include screenshots, recordings, or a "no visual change" note.
 
@@ -79,7 +79,7 @@ When the diff includes UI files (matching the UI-file detection rule in `${CLAUD
 
 **Red flag:** ≥1 UI file in the diff; body contains no image, no video, and no "no visual change" disclaimer.
 
-### 7. Description — Breaking-Change Note When API/Contract Changed
+### 7. Description — breaking-change note when API/contract changed
 
 When the diff changes a public API, a database migration, a config schema, or an exported function signature, the description should call out backward-incompatibility explicitly.
 
@@ -90,7 +90,7 @@ When the diff changes a public API, a database migration, a config schema, or an
 
 **Red flag:** signature/migration/exported-API change visible in the diff; body silent on backward compatibility.
 
-### 8. Description — Scope Alignment
+### 8. Description — scope alignment
 
 The description should match the actual scope of the diff. A title saying "Fix typo in README" with a 500-LOC diff across 12 source files is a scope mismatch; a description that lists 5 unrelated changes when the diff only touches 1 of them is a scope-creep signal.
 
@@ -101,7 +101,7 @@ The description should match the actual scope of the diff. A title saying "Fix t
 
 **Red flag:** description's claimed scope and diff's actual scope diverge by more than one major area.
 
-### 9. Linked Issue or Ticket
+### 9. Linked issue or ticket
 
 When the repo uses an issue tracker (Linear / Jira / GitHub Issues / Pivotal), most PRs should link to the issue they implement or fix.
 
@@ -118,7 +118,7 @@ When the repo uses an issue tracker (Linear / Jira / GitHub Issues / Pivotal), m
 - **ID in title/body AND LINEAR CONTEXT populated**: cross-check pr.title against `LINEAR CONTEXT.Title`. If pr.title diverges materially from issue title (different action verb / different surface area), flag as a MEDIUM finding: "PR title `<pr-title>` materially diverges from Linear issue title `<linear-title>` — verify PR addresses the right scope". Pure prefix differences (`[ENG-123]` ahead of pr-title) are NOT divergence.
 - **Repo modal expects Linear AND LINEAR CONTEXT = `none — workflow not configured`**: surface a one-line informational note in `## Caveats` — "Repo uses Linear (per modal sampling) but `.geniro/workflow/linear.md` not configured — run `/geniro:setup` to enable issue context fetch".
 
-### 10. Description — Acceptance Criteria When Issue Linked
+### 10. Description — acceptance criteria when issue linked
 
 When the PR links an issue, the description should either restate the acceptance criteria or explicitly confirm them ("Closes #123 — all ACs from the issue are covered").
 
@@ -128,7 +128,7 @@ When the PR links an issue, the description should either restate the acceptance
 
 **Red flag:** linked issue ID is present; description is terse and contains no acceptance-criteria restatement or coverage confirmation.
 
-### 11. Description ↔ Code Drift on Re-Review
+### 11. Description ↔ code drift on re-review
 
 On a re-review (round 2+ of human review on the same PR), the PR body often describes the EARLIER diff before fixes pushed in response to round 1. The body claims a behavior that the code no longer has, OR omits a behavior the code now has. The scope-alignment check (#8) above compares body vs CURRENT diff in a single pass; this check adds the cross-round dimension by comparing CURRENT body to the prior-run body persisted by the orchestrator.
 

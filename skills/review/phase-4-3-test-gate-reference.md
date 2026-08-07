@@ -32,12 +32,12 @@ Reduce false positives by asking the user whether to spawn `adversarial-tester-a
 
 **Eligible:**
 - Any finding with `Decision Type: [TESTABLE]`.
-- CRITICAL or HIGH findings with `Decision Type: [FIX-NOW]` AND whose description names runtime behavior (regex match, parser output, control-flow branch, computed result, thrown error type, returned value, mutated state, observable side effect — DOM/file/API/db).
+- CRITICAL or HIGH findings with `Decision Type: [FIX-NOW]` AND whose description names runtime behavior per §2.1's canonical classification.
 
 **Excluded:**
 - `Decision Type: [PRODUCT-DECISION]` (multiple valid resolutions — no single behavior to assert).
 - `Decision Type: [INTENT-CHECK]` (plan conformance, not runtime).
-- `Decision Type: [FIX-NOW]` findings whose description names typo / spelling / cross-reference / wrong import path / dead code that compiles / comment-only edits / formatting / lint-style (no runtime behavior to test against).
+- `Decision Type: [FIX-NOW]` findings whose description is typo-class per §2.1 (no runtime behavior to test against).
 
 Use the decision-type taxonomy as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §7.
 If eligible set is empty after filtering, skip §3's approval gate and §4's agent spawn — do NOT show an AUQ. The §5 Step 4 sentinel write still runs (that step's own note covers exactly this case); once it lands, proceed to Phase 5.

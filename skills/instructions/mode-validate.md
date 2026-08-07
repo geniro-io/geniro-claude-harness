@@ -27,7 +27,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 | File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
 | `## Rules` heading present (skip for `memory.md` — it carries the `## Memory Backend` block only) | HIGH | File has body but no `## Rules` header |
 | `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead; skip for `memory.md`) | HIGH | Missing `## Constraints` |
-| File ≤ 300 lines (threshold env-overridable, see Step 1) | LOW | Anthropic Claude Code memory guidance: "longer files consume more context and reduce adherence". Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
+| File ≤ 300 lines (threshold env-overridable, see Step 1) | LOW | Longer instruction files consume more context and reduce rule adherence. Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
 
 **Reference checks:**
 
@@ -107,7 +107,7 @@ Validation results: 4 files checked, 3 issues found.
 ⚠ implement.md 1 MEDIUM
 └── Line 14: "### After Phase 4 (Implement)" → should be "### After implement"
 ⚠ code-style.md 1 LOW
-└── File is 380 lines (>300). Anthropic guidance: longer files reduce adherence.
+└── File is 380 lines (>300) — longer files reduce adherence.
 Suggestions: split into code-style-database.md + code-style-api.md, or trim redundant rules.
 ⚠ review-extra/sql-bindings.md 1 LOW
 └── Frontmatter description: missing "Skip for" boundary clause (LOW)

@@ -4,6 +4,10 @@ Phase file for `/geniro:investigate`. The spine — invariants, budgets, tool su
 
 State.md `phase: present`. Synthesizes verified findings, a fresh verifier agent re-checks, presents to user, offers save-routing AUQ, emits L2 `discovery` with trust label.
 
+### Step 0: Refresh custom instructions
+
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. This phase's Step 4a save-routing writes into the user's tree (CLAUDE.md / ADR / learnings) after Phase 2's research-and-verify stretch, the longest context-consuming part of the run — the refresh runs before that write, not after.
+
 ### Step 1: Synthesize draft
 
 After Phase 2 Step 2/3 complete (every load-bearing claim verified or routed):

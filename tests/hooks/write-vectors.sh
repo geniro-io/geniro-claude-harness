@@ -148,6 +148,19 @@ run_extract '';         expect "empty command yields no payload"   '' 0
 run_extract '' '';      expect "both arguments empty yields no payload" '' 0
 
 echo
+echo "===== _geniro_extract_inner_payloads — arm 7: herestring (stdin) ====="
+
+# T0-2: `<<<` was an unrecognized stdin channel — arm 3 covers a pipe INTO a
+# shell and arm 4 a heredoc INTO one, but neither extracts a herestring, so the
+# quote-scrub blanked the literal as data and the payload was never seen.
+run_extract "bash <<< 'rm -f x'";             expect "bash <<< 'payload'"        'rm -f x' 0
+run_extract 'bash <<< "rm -f x"';             expect 'bash <<< "payload"'        'rm -f x' 0
+run_extract "sh -s <<< 'rm -f x'";             expect "sh -s <<< 'payload' (flag before the operator)" 'rm -f x' 0
+run_extract "/bin/sh <<< 'rm -f x'";           expect "path-qualified shell herestring" 'rm -f x' 0
+# A herestring RIGHT of a non-shell command is not this channel.
+run_extract "cat <<< 'just data'";             expect "herestring into a non-shell is not a payload" '' 0
+
+echo
 echo "===== _geniro_interp_write_targets — python ====="
 
 run_write 'python3 -c "open(\".env\",\"w\").write(1)"'
@@ -234,6 +247,19 @@ run_write "node -e \"fs.renameSync('t','.env')\""
 expect "fs.renameSync destination" '.env' 0
 run_write "python3 -c \"import shutil; shutil.copy('t', dest)\""
 expect "copy with a variable destination → rc=10" '' 10
+
+echo
+echo "===== _geniro_interp_write_targets — truncation (T4-10) ====="
+
+# _wops_first omitted truncation ops: `os.truncate('.env', 0)` rewrites the file
+# to zero bytes exactly like `truncate -s 0 .env` on the shell side, but yielded
+# no target and no rc=10 either — a silent bypass, not a fail-safe unknown.
+run_write "python3 -c \"os.truncate('.env', 0)\""
+expect "os.truncate(path, 0)" '.env' 0
+run_write "node -e \"fs.truncateSync('.env', 0)\""
+expect "fs.truncateSync(path, 0)" '.env' 0
+run_write "node -e \"fs.ftruncateSync(fd, 0)\""
+expect "fs.ftruncateSync(fd, 0) — fd is not a literal path → rc=10" '' 10
 
 echo
 echo "===== _geniro_interp_write_targets — exit codes ====="
