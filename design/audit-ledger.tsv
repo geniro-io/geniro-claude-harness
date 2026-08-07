@@ -1,0 +1,4 @@
+# fingerprint	file	class	tier	disposition	runs	note
+00002d9eda3a	review/SKILL.md	terminology	T5	rejected	r7	dim is settled repo vocabulary (per-dim, cross-dim, intra-dim across ~40 files); the long form makes one file the odd one out
+00007a3be566	_shared/severity-calibration.md	caps-emphasis	T5	rejected	r7	~745 sites; the prescribed fix is a lint rule, and a blind sweep corrupts contract tokens tests grep for (CRITICAL/HIGH, FIX-NOW, PRODUCT-DECISION)
+00000958d0f4	_shared/refactor-patterns.md	heading-case	T5	accepted	r7	all Title-Case headings in this corpus are contract tokens; now named in lint-prose-and-links.sh TITLECASE_ALLOWED

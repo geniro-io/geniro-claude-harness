@@ -2,8 +2,9 @@
 
 Compare two versions of this plugin's skills/agents/prompts and answer, per run:
 **"is the new version better, and by how much, across quality + speed + cost?"** — run
-locally, by hand, accumulating every run into a committed ledger. Full design:
-[`design/evals-pipeline-plan.md`](../design/evals-pipeline-plan.md) (v5).
+locally, by hand, accumulating every run into a committed ledger. The v5 design
+notes live in the local-only `design/` working area, which is untracked — this
+README is the tracked description, and nothing here depends on that file.
 
 ## Layout
 
