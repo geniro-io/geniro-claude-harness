@@ -134,12 +134,28 @@ anchor_unresolved() {
       done
 }
 
+# The script's single word-count rule. `wc -w` cannot be it, despite being the
+# obvious choice: GNU wc decides whether a run of non-blank bytes counts as a word
+# using the locale's character classification, so a standalone `—`, `§`, `·`, or `→`
+# — which this repo's prose uses constantly as separators — is a word under
+# C.UTF-8 and nothing at all under C. The same unchanged file then measures ~3%
+# larger for a contributor who exports a UTF-8 locale than for one who does not,
+# which silently breaks the ratchet in both directions: a recorded baseline reads as
+# phantom growth on one machine, and real growth hides under a too-high baseline on
+# the other (measured: audit-plugin/SKILL.md grew past its baseline unreported).
+# awk splits fields on ASCII blanks only, so its count is the same everywhere, and
+# it is already what frontload_cut uses to locate the compaction boundary — before
+# this, the boundary heading was computed on a different scale than the budget it
+# was compared against.
+words_in() { awk '{ w += NF } END { print w + 0 }' "$1"; }
+
 # --update-baseline records every skill at its current size and exits, before any
 # check runs. It lives in this script rather than a sibling so a recorded number can
-# never be produced by a different word-count rule than the one that reads it back.
+# never be produced by a different word-count rule than the one that reads it back —
+# which is why every count goes through words_in, never a bare wc.
 if [ "${1:-}" = "--update-baseline" ]; then
   for f in skills/*/SKILL.md .claude/skills/*/SKILL.md agents/*.md; do
-    [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(wc -w < "$f" | tr -d ' ')"
+    [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(words_in "$f")"
   done | LC_ALL=C sort > "$SIZE_BASELINE"
   echo "Recorded $(grep -c . "$SIZE_BASELINE") skill and agent sizes in $SIZE_BASELINE"
   anchor_unresolved | grep -c . > "$ANCHOR_BASELINE"
@@ -299,7 +315,7 @@ check_skill_sizes() {
   for f in "$@"; do
     [ -f "$f" ] || continue
     r=$(rel "$f")
-    n=$(wc -w < "$f" | tr -d ' ')
+    n=$(words_in "$f")
     base=$(baseline_words "$r")
     if [ -n "$base" ]; then
       # Recorded: a maintainer already judged this size, so only growth past it is news.
@@ -330,7 +346,7 @@ check_agent_sizes() {
   for f in "$@"; do
     [ -f "$f" ] || continue
     r=$(rel "$f")
-    n=$(wc -w < "$f" | tr -d ' ')
+    n=$(words_in "$f")
     base=$(baseline_words "$r")
     if [ -n "$base" ]; then
       [ "$n" -le "$base" ] && continue
@@ -350,7 +366,7 @@ check_agent_sizes agents/*.md
 corpus_info() {
   local label="$1" lim="$2" limname="$3"; shift 3
   local f words
-  words=$(for f in "$@"; do [ -f "$f" ] && wc -w < "$f"; done | tr -d ' ')
+  words=$(for f in "$@"; do [ -f "$f" ] && words_in "$f"; done)
   [ -n "$words" ] || return 0
   echo "INFO: $label word counts — $(printf '%s\n' "$words" | sort -n | awk -v lim="$lim" -v limname="$limname" '
     {a[NR]=$1; if ($1 > lim) over++}

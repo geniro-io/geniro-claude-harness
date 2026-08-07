@@ -121,7 +121,10 @@ measure_profile() {
       echo "MISSING${TAB}0${TAB}$path"
       continue
     fi
-    words=$(wc -w < "$REPO_ROOT/$path" | tr -d '[:space:]')
+    # awk NF, not `wc -w`: GNU wc classifies words by locale, so a standalone `—` /
+    # `§` / `·` counts under C.UTF-8 and not under C, and the same file measures ~3%
+    # apart on two machines. Same rule as lint-skills.sh §words_in.
+    words=$(awk '{ w += NF } END { print w + 0 }' "$REPO_ROOT/$path")
     if [ "$mult" -gt 1 ]; then
       echo "${component}${TAB}$((words * mult))${TAB}$path x$mult"
     else

@@ -205,7 +205,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 
 **Soft guidance: when an instruction file passes ~2,500 words, consider splitting** (by scope or by topic). A somewhat larger file that's well-organized and all-load-bearing is fine.
 
-Count words, not lines — a table-dense file and a prose-dense file with the same line count differ by 2-3× in what they actually cost. `wc -w` on the file is the measure.
+Count words, not lines — a table-dense file and a prose-dense file with the same line count differ by 2-3× in what they actually cost. Measure with `awk '{w+=NF} END{print w}'`, not `wc -w`: GNU wc classifies words by locale, so a standalone `—` or `§` counts as a word on one machine and not on another, and the same file measures ~3% apart depending on who ran it.
 
 ---
 

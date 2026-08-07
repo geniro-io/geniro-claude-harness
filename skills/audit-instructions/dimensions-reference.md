@@ -49,7 +49,7 @@ One row per tool. Phase 0 enumerates the path column with Glob to build the run'
 
 Read at Phase 0 alongside the rubric sections.
 
-**Inventory** — record in the state checkpoint: per tool, the surfaces found (with `wc -w` per file), the activity signal (present/absent), and whether the surface is always-on or scoped per the loading notes above.
+**Inventory** — record in the state checkpoint: per tool, the surfaces found (word count per file via `awk '{w+=NF}'` — `wc -w` answers differently per locale), the activity signal (present/absent), and whether the surface is always-on or scoped per the loading notes above.
 
 **State checkpoint** — write `.geniro/state/audit-instructions/<slug>/state.md` (producer `audit-instructions`) via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook). Slug and the full slug-scoped T1.5 frontmatter per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules and §Producer contract — the field set, the line-1 rule, and the `validate_state_file` consequences live there. Each checkpoint records: phase completed, scope, dimensions selected, finding counts, reviewer findings-file paths.
 
