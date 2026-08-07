@@ -1,6 +1,6 @@
 ---
 name: audit-plugin
-description: "Use when auditing the Geniro plugin repo as a whole — skills, agents, hooks, lib helpers, rules, and docs — for cross-file consistency, stale references, authoring-rule compliance, logic and shell correctness, over-complication, magic numbers, safety/coverage gaps, and wiring completeness (declarations the plugin makes but never consumes: instruction blocks with no execution site, load sites that cannot resolve, phases and gates promised but never built, unfilled template slots, enforcement claimed with no hook behind it). Runs a deterministic pre-pass, then parallel dimension reviewers, re-verifies every finding against the cited lines, and writes a tiered report to the local-only design/scratch/. Skip for fixing one known issue (/improve-template) or reviewing a pending code diff (/geniro:review, or /code-review)."
+description: "Use when auditing the Geniro plugin repo as a whole — skills, agents, hooks, lib helpers, rules, and docs — for cross-file consistency, stale references, authoring-rule compliance, logic and shell correctness, over-complication, magic numbers, safety/coverage gaps, and wiring completeness (what the plugin declares but never consumes: instruction blocks with no execution site, load sites that cannot resolve, phases and gates promised but never built, enforcement claimed with no hook). Also proposes deleting whole mechanics — a phase, gate, step, spawn, or check earning too little for what it costs in tokens and wall-clock, or that makes the process worse — each backed by a measured cost and asked as its own question, with an explanation, before anything is removed. Runs a deterministic pre-pass, then parallel dimension reviewers that re-verify every finding, and writes a tiered report to design/scratch/. Skip for fixing one known issue (/improve-template) or reviewing a pending diff (/geniro:review)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
@@ -38,6 +38,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 5. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 6. **Every run sweeps for subtraction.** D6 spawns on every audit — full, path-scoped, single-dimension, and `--quick` — and its verdict names what was examined and what was rejected even when it yields no findings. A repo accretes through rounds that never looked; an unreported sweep is indistinguishable from a skipped one. The result is never mandated: zero findings is valid, a manufactured deletion is not (`dimensions-reference.md` §D6).
 7. **Every approved finding has an owner.** Before spawning Phase 5 fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding silently assigned to nobody is work the user approved and never received — and it surfaces, if at all, only because an agent happens to notice it sitting in one of its files.
+8. **A mechanic is never deleted on a blanket approval.** A D6 proposal to remove a whole phase, gate, step, spawn, dimension, or helper gets its own gate and its own explanation, whatever the user picked at the action gate — "Fix everything" included, which approves fixes rather than removals. Every other finding changes something the user can inspect afterwards; a deleted gate leaves nothing behind to inspect, because the run that would have objected is the one removed. Walk them per `dimensions-reference.md` §Deletion gate.
 
 ## Anti-rationalization
 
@@ -120,7 +121,7 @@ Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/`
 3. **Tier tables T0→T5** — columns: `# | file:line | issue | fix | effort`; convergence noted inline.
 4. **Per-dimension verdicts** — the reviewers' 2-3-sentence verdicts, edited for consistency.
 5. **Filtered** — dropped findings with one-line reasons (transparency; keeps future runs from re-litigating).
-6. **Subtraction sweep** (invariant #6) — always present, even when empty: what D6 examined, and every candidate it considered and rejected with the reason.
+6. **Subtraction sweep** (invariant #6) — always present, even when empty: what D6 examined, and every candidate it considered and rejected with the reason. Mechanism-level proposals list separately from text ones and carry inline the evidence §Deletion gate renders, so the user reads it before the gate rather than for the first time inside it.
 7. **Single highest-value fix** — one paragraph naming it and why.
 
 On `--quick` runs, omit section 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead. Section 6 still appears, carrying the orchestrator-inline sweep.
@@ -131,8 +132,9 @@ In chat, render **every** finding before the action gate — the user approves i
 
 Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness, ...). How should I proceed?" with options: "Fix safety + correctness now (T0-T1) (Recommended)" / "Fix everything — every tier" / "Let me pick findings" / "Report only — I'll handle fixes separately".
 
-T0-T1 carries the `(Recommended)` marker because it is the smallest change set that closes every bypass and behavior defect, so it is the one a reviewer can still read end-to-end. "Fix everything" is a first-class option, not a fallback — say what it costs (it fans out across more agents and touches far more files, and the whole set lands in one fix round) and let the user choose.
+T0-T1 carries the `(Recommended)` marker because it is the smallest change set that closes every bypass and behavior defect, so it is the one a reviewer can still read end-to-end. "Fix everything" is a first-class option, not a fallback — say what it costs (it fans out across more agents and touches far more files, and the whole set lands in one fix round) and let the user choose. When the run carries mechanism-deletion proposals, say in the question that those are asked one by one afterwards whichever option is picked — otherwise "Fix everything" reads as having authorized them.
 
+- **Deletion path (mechanism-level D6 findings):** these split off from whatever the user chose above and are walked one at a time (invariant #8) — including under "Fix everything", which approves fixes, not removals. Run the walk per `dimensions-reference.md` §Deletion gate, which carries the render slots and the option set; approved deletions then join the fix path as their own scope.
 - **Fix path:** group approved findings into **strictly disjoint file scopes** — two agents editing one file overwrite each other, and a shared file is the one place a fix round loses work silently. Name each agent's scope as an allowlist and name the files other agents hold, so a finding that spans a boundary gets reported back rather than reached for. **Then run invariant #7's ownership check before spawning:** every approved finding appears in exactly one agent's list, every file the findings touch falls inside exactly one allowlist, and any finding or file with no owner is echoed and assigned. Paths that belong to no skill directory — `CLAUDE.md`, `cursor/agents/`, `tests/authoring/skill-size-baseline.txt` — fall through allowlists built per-skill, so name them explicitly or keep them for yourself.
   Spawn one agent per group in ONE response, with the finding rows and the constraint set from the repo rules (edit-in-place, no scope creep, caps are guidelines); the report file is the finding source of truth, so pass its path rather than re-inlining rows. Max 1 fix round — surviving failures go back to the user. Then run the round out per `dimensions-reference.md` §Fix-round execution, which carries what reliably goes wrong and the integration order.
 - **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
@@ -153,6 +155,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
 - [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
 - [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (invariant #7)
+- [ ] Every mechanism-deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval, and the ones kept recorded as considered-and-kept (invariant #8)
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked, and every `§` citation into a changed file re-resolved
 - [ ] State cleaned up; commit offered
 
@@ -163,4 +166,6 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `tests/run-all.sh` + `tests/authoring/lint-skills.sh` — the D1 battery core
+- `scripts/measure-run-load.sh [--detail] <profile>` — what one run actually loads, in words, per component and with per-spawn multipliers. The cost evidence a D6 check-13 deletion proposal cites instead of asserting one
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` / `gate-rendering.md` — the message-first render plus lean question the Phase 5 deletion gate fires
 - `scripts/dump-md.sh [path ...]` — full-content markdown dump (filename header + complete body per tracked file); reviewers survey their markdown scope with it instead of grep
