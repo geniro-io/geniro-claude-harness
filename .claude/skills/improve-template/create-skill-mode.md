@@ -53,7 +53,7 @@ Run the standard Phase 5 self-review with a fresh agent that did NOT see the aut
 - All Phase A interview answers reflected in the SKILL.md
 - Description meets all 6 format rules (`phase-4-6-implement-review.md` §Description-format validator checks 1-6)
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
-- No invented `${CLAUDE_PLUGIN_ROOT}/...` references (every cited path actually exists)
+- No invented `CLAUDE_PLUGIN_ROOT`-rooted references (every cited path actually exists)
 - Frontmatter valid (name, description, allowed-tools, model)
 - Sections present follow the order in `.claude/rules/skill-structure.md` §Section ordering
 - Front-loaded sections (role statement, phases overview, loop invariants, anti-rationalization) sit within that section's front-load budget

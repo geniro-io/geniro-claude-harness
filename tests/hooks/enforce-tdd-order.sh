@@ -162,6 +162,29 @@ expect_allow "RED: rsync destination onto a test file allowed" \
   "$(run_bash "rsync -a /tmp/src/ $GITREPO/src/app.test.js")"
 expect_block "RED: dd of= onto production src blocked" \
   "$(run_bash "dd if=/dev/zero of=$GITREPO/src/app.js")"
+
+# ===== T0 #3/#4 (2026-08-07 audit): a trailing token after the real
+# destination must not displace it in the cp/mv/install/rsync/ln/ed/sponge
+# "last non-flag token" scan — 2>/dev/null is the single most common shell
+# idiom, so this is reachable by accident, not only adversarially. =====
+expect_block "RED: cp onto production src with trailing 2>/dev/null blocked" \
+  "$(run_bash "cp /tmp/x $GITREPO/src/app.js 2>/dev/null")"
+expect_block "RED: install into production src with trailing 2>/dev/null blocked" \
+  "$(run_bash "install -m 644 /tmp/x $GITREPO/src/app.ts 2>/dev/null")"
+expect_block "RED: ln -sf over production src with trailing 2>/dev/null blocked" \
+  "$(run_bash "ln -sf /tmp/x $GITREPO/src/app.rb 2>/dev/null")"
+expect_block "RED: rsync destination onto production src with trailing 2>/dev/null blocked" \
+  "$(run_bash "rsync -a /tmp/src/ $GITREPO/src/app.js 2>/dev/null")"
+expect_block "RED: ed onto production src with trailing stdin redirect blocked" \
+  "$(run_bash "ed $GITREPO/src/app.js < /tmp/patch.txt")"
+expect_block "RED: sponge onto production src with trailing stdin redirect blocked" \
+  "$(run_bash "sponge $GITREPO/src/app.js < /tmp/in")"
+# Controls: same trailing-token shapes onto a test file allow.
+expect_allow "RED: cp onto a test file with trailing 2>/dev/null allowed" \
+  "$(run_bash "cp /tmp/x $GITREPO/src/app.test.js 2>/dev/null")"
+expect_allow "RED: ed onto a test file with trailing stdin redirect allowed" \
+  "$(run_bash "ed $GITREPO/src/app.test.js < /tmp/patch.txt")"
+
 # Spaced-tag heredoc must be recognized so its target is classified — a spaced
 # `<< EOF` into production blocks; into a test file allows.
 expect_block "RED: spaced-tag heredoc into production blocked" \

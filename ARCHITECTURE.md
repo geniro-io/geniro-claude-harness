@@ -169,7 +169,7 @@ Read-only PR-feedback producer; mirrors the reporter-only boundary of `/review` 
 - Phase 1 STALL gate: 5 inconclusive steps → diagnose-by-missing-component AUQ over an 8-category taxonomy (≤4 options per call, chained).
 - Phase 2 fix-loop gate: max 2 fix attempts; on third → AUQ.
 - Adversarial Mode (verify-changes) is a co-equal parallel workflow; delegates RED-phase test authoring to `adversarial-tester-agent`.
-- Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`; on `recurrence_count >= 3` (after a dedupe check against existing project rules) fires an AskUserQuestion offering to capture the recurring diagnosis as a project rule via `/geniro:instructions create` (user-curated, no auto-write; declines logged via `emit-rejection.sh`).
+- Phase 3 auto-emits L2 `diagnosis` with `ext.{symptom, root_cause, fix}`.
 - T2 handoff carries a structured `authored_tests[]` frontmatter array (m7-v2+) alongside `open_questions[]`. Each entry pins the path + intent + F→P status of every reproduction test the run produced, so `/implement` Phase 1 Step 12 can extract, verify, and surface relocation suggestions for tests that exist in the debug source worktree but not the consumer's worktree. The handoff body's `**Reproduction test:**` (scientific) / `**Test file:**` (adversarial) lines remain as human-readable mirrors. Schema-version `m7-v1` legacy handoffs fall back to body-string parsing via `skills/_shared/debug-handoff.md`.
 - Reporter-only: NEVER ships code (no `git push` / `gh pr create`). The reproduction test is the only on-disk deliverable; the handoff file is the channel.
 
@@ -197,7 +197,7 @@ Every flag and modifier `/plan`, `/implement`, and `/review` accept — `--prd`,
 - Adopts canonical 4-tier effort-scaling (Trivial/Small/Medium/Big).
 - Core smell-detection and per-step execution run orchestrator-inline; Phase-3 review (`reviewer-agent`), on-demand `codebase-research-agent`, and the conditional backend-learnings read (`knowledge-retrieval-agent`, `SCOPE: learnings-backend`, only under a declared `## Memory Backend` block) use dedicated subagents.
 - Blocked-step protocol: max 3 retries per step → mark BLOCKED and continue; >=30% blocked → escalation AUQ.
-- PRODUCT-DECISION findings escalate to `/implement` via AUQ (always-wait, 4-option ADR-aware).
+- PRODUCT-DECISION findings escalate to `/implement` via AUQ (always-wait, fixed option set).
 - NEVER ships code — diff is the deliverable.
 
 ---
@@ -344,3 +344,20 @@ The repository ships as one plugin for two runtimes. `.claude-plugin/plugin.json
 - Subagents cannot spawn sub-tasks; all orchestration happens at the top-level skill.
 - MCP auth (OAuth) is silently lost after compaction; scheduled tasks cannot access MCP.
 - A pending direct user question is answered in the next assistant message, before status updates or operational gates (`skills/_shared/loop-invariants.md`).
+
+## Lockstep file sets
+
+Some contracts are described in more than one file by design — the schema in one place, the producer in another, the consumer in a third. Changing the shape, an enum value, the version rule, or the producer/consumer wiring means updating the whole set in the same change, or a later editor inherits an inconsistency with nothing to detect it. These lists are maintenance metadata for this repo, not runtime instruction: they live here rather than in the shipped helper.
+
+**`launch_config`** — when its shape, an enum value, the version rule, or its producer/consumer wiring changes:
+
+- `skills/_shared/launch-config-schema.md` — the canonical schema
+- `skills/_shared/spec-template.md` — the frontmatter example carrying the block
+- `skills/plan/validator-checks.md` — the shape-only enum check
+- `skills/plan/loop-phase-8-user-approval.md` — the end-of-plan opt-in write (§8.3.5 capture, §8.4 step 2 write)
+- `skills/plan/plan-auq-reference.md` — the opt-in question wording
+- `skills/implement/phase-1-analyze.md` — the Step 0g read-and-apply path
+- `skills/_shared/state-tier-spec.md` — the `approvals[]` category schema
+- `skills/_shared/plan-context.md` — the plan→implement priming contract
+- `skills/_shared/flags-reference.md` — the cross-skill launch-modifier rows
+- this file — the cross-skill architecture overview

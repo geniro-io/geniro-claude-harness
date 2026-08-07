@@ -33,7 +33,7 @@ You are the audit orchestrator. The target is every AI-assistant instruction fil
 
 ## Loop invariants
 
-The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply. This skill adds eight invariants:
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply.
 
 The shared audit-pipeline invariants apply in full — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Shared invariants. This skill binds their three parameterized ones and adds one of its own:
 
@@ -49,14 +49,14 @@ S1. **Secrets are cited, never quoted.** A credential found inside an instructio
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "The reviewer quoted the line — no need to re-read it." | Invariant S1: admission requires YOUR Read of the cited location. |
-| "I'll fix this obviously dead path while scanning." | Invariant S2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
+| "The reviewer quoted the line — no need to re-read it." | Shared invariant 1: admission requires YOUR Read of the cited location. |
+| "I'll fix this obviously dead path while scanning." | Shared invariant 2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
 | "I'll spawn reviewers one at a time to manage context." | Reviewer output is capped (§Budgets); the orchestrator holds tables, not the reviewers' reading. Sequential spawns multiply wall-time. |
 | "AGENTS.md is a copy of CLAUDE.md — flag the duplication." | Deliberate mirroring (symlink or generated copy) is the endorsed way to serve many tools from one source. Flag drift BETWEEN the copies, never the mirroring itself. |
 | "CLAUDE.md is only 30 lines — that's a coverage gap." | Brevity is healthy. A coverage finding needs two pieces of evidence: the tool is actively used here, and a specific needed fact is documented nowhere. |
 | "This skill description is keyword-stuffed — trim it." | Trigger keywords are the routing surface the tool selects skills by; trimming them degrades selection. Flag only genuine description-vs-body drift. |
 | "Two files state the same test command and agree, so it's fine." | Agreement today is drift tomorrow. Hand-maintained duplicates are a finding even while values match — propose one home, or a symlink/generation mechanism. |
-| "I found an API key — I'll quote it in the evidence column so the user can verify." | Invariant S5: the report would then contain the secret and outlive the fix. Cite `file:line` and the credential's shape; NEVER the value. |
+| "I found an API key — I'll quote it in the evidence column so the user can verify." | Invariant S1: the report would then contain the secret and outlive the fix. Cite `file:line` and the credential's shape; NEVER the value. |
 | "This file tells agents to use `--no-verify`; maybe the team wants that." | An instruction directing agents around safety mechanisms is the highest-severity finding whether or not it is intentional. Surface it and let the user decide — never silently endorse it. |
 | "The bloat sweep found nothing this round, so there's nothing to report." | A silent no-op is indistinguishable from a skipped sweep. Name what you examined and what you rejected; zero findings is a valid result, an unreported sweep is not. |
 | "There are 40 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
@@ -79,7 +79,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## ACI per-phase tool surface
 
-Invariant S2 ("Report before fix") is a prose rule; this table is its tool-level enforcement. `Edit`/`Write` on any repo file (state-file writes go through `atomic_state_write` in Bash, never the `Write` tool) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
+Shared invariant 2 ("Report before fix") is a prose rule; this table is its tool-level enforcement. `Edit`/`Write` on any repo file (state-file writes go through `atomic_state_write` in Bash, never the `Write` tool) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
@@ -103,7 +103,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
 1. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: audit-instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. From the loaded `global.md` `## Rules`, extract the search-governing subset (a code index to query before plain-text search, a required lookup tool, an off-limits directory) into `$PROJECT_SEARCH_POLICY` for the Phase 2 spawn template — `none declared` when `global.md` declares nothing about searching.
 2. **Parse `$ARGUMENTS`:**
    - Empty → full audit (all dimensions, every surface found).
-   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. Invariant S6 still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
+   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. Shared invariant 5 still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
    - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (shared invariant 5) runs scoped to the same path.
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
    - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (shared invariant 5) unless `bloat` already names it.

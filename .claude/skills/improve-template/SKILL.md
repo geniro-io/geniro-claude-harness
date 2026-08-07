@@ -32,7 +32,7 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`: research and review spawns OMIT `model=` so they inherit the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off on work that decides something; a skill-side hardcode there overrides that choice silently. Execution spawns pin `model="sonnet"` per category 4; the table below maps every spawn in this skill to its tier. For plugin-defined subagents (the agents under `${CLAUDE_PLUGIN_ROOT}/agents/`), also follow the ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
+Follow the canonical rule in `skills/_shared/model-tiering.md`: research and review spawns OMIT `model=` so they inherit the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off on work that decides something; a skill-side hardcode there overrides that choice silently. Execution spawns pin `model="sonnet"` per category 4; the table below maps every spawn in this skill to its tier. For plugin-defined subagents (the agents under `agents/`), also follow the ladder in `skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
 
 **Skill-specific mapping:**
 
@@ -48,7 +48,7 @@ Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering
 
 ## State persistence
 
-After completing each phase, write a checkpoint to `.geniro/state/improve-template/<slug>/state.md` — slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules; improve-template is not in that helper's enumerated producer set but adopts its contract shape verbatim. Write it via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`) — a direct `Write` to a `.geniro/state/` path is hard-blocked by the state-helper hook, so a checkpoint written any other way never lands. The T1.5 frontmatter opens on line 1; plain-text header lines before the `---` fence fail `validate_state_file`.
+After completing each phase, write a checkpoint to `.geniro/state/improve-template/<slug>/state.md` — slug per `skills/_shared/within-skill-state-handoff.md` § Slug rules; improve-template is not in that helper's enumerated producer set but adopts its contract shape verbatim. Write it via `atomic_state_write` (source `lib/atomic-state-write.sh`) — a direct `Write` to a `.geniro/state/` path is hard-blocked by the state-helper hook, so a checkpoint written any other way never lands. The T1.5 frontmatter opens on line 1; plain-text header lines before the `---` fence fail `validate_state_file`.
 
 ```yaml
 ---
@@ -80,7 +80,7 @@ Detect which of three modes the request wants — **process-handoff** (consume f
 
 **create-skill mode.** Triggers on an explicit phrase — `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill` — which routes straight through. When `$ARGUMENTS` merely describes a capability with no matching SKILL.md, confirm before routing (`AskUserQuestion`: "This reads as a new skill rather than a fix to an existing one — create a new skill?"). Most improvement requests also name a scope no SKILL.md matches ("make the review dimension for X better"), and an unconfirmed route skips the complexity gate and Phase 1 to drop a fix request into an authoring interview.
 
-If create-skill mode is detected, Read `.claude/skills/improve-template/create-skill-mode.md` now — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, that Read is this branch's physically-first action — and route to the **create-skill flow** it carries, skipping the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
+If create-skill mode is detected, Read `.claude/skills/improve-template/create-skill-mode.md` now — per `skills/_shared/phase-entry-read.md`, that Read is this branch's physically-first action — and route to the **create-skill flow** it carries, skipping the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
 
 Otherwise default to **improve-existing-skill mode** (complexity gate → Phase 1).
 

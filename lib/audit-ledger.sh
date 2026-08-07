@@ -63,7 +63,20 @@
 
 set -uo pipefail
 
-_LEDGER_ROOT="${GENIRO_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Cross-shell self-location: BASH_SOURCE is bash-only — sourced under zsh it
+# is empty and `set -u` makes the bare expansion an error, which zsh reports
+# on stderr and then continues with an empty value: _al_self resolves to "",
+# dirname("") is ".", and the ledger silently mis-resolves to a path outside
+# the repo. zsh names the sourced file via the %x prompt escape; eval keeps
+# the zsh-only syntax out of bash's (and ShellCheck's) parser.
+if [ -n "${BASH_SOURCE:-}" ]; then
+  _al_self="${BASH_SOURCE[0]}"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+  eval '_al_self="${(%):-%x}"'
+else
+  _al_self="$0"
+fi
+_LEDGER_ROOT="${GENIRO_REPO_ROOT:-$(cd "$(dirname "$_al_self")/.." && pwd)}"
 LEDGER_PATH="${GENIRO_AUDIT_LEDGER:-$_LEDGER_ROOT/design/audit-ledger.tsv}"
 
 _LEDGER_HEADER=$'# fingerprint\tfile\tclass\ttier\tdisposition\truns\tnote'

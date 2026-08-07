@@ -231,8 +231,26 @@ update_semantic() {
         ' "$target_path" > "$tmp"; echo $?)
         local awk_rc="$rewritten"
         if [ "$awk_rc" -eq 0 ]; then
-          # Wrote rewritten content; commit atomically.
-          if ! atomic_state_write "$target_path" < "$tmp"; then
+          # Commit the rewrite.
+          #
+          # Deliberate carve-out from atomic_state_write (CLAUDE.md §State
+          # Files): the INT/TERM traps set above (:181-182) are keyed to
+          # THIS function's $lock_path and $_us_inflight_tmp and exit
+          # directly. atomic_state_write installs its own INT/TERM trap on
+          # entry — traps are process-global, not function-scoped — and its
+          # handler also exits directly, which would override ours mid-write
+          # and then clear back to default disposition on return
+          # (`trap - INT TERM` at atomic-state-write.sh:109), leaving
+          # $lock_path signal-unprotected for the remainder of this
+          # function. A signal landing in that window orphans the lock for
+          # the reclaim TTL. archive-stale.sh:220-232 and
+          # query-learnings.sh:330-340 carve out of the helper for this
+          # exact collision; this mirrors their shape. $tmp already holds
+          # the finished content (the awk write above), so the commit is a
+          # plain atomic rename — no second tmp file is needed. Only
+          # power-loss durability in the narrow post-rename window is
+          # traded away, same as the two sibling carve-outs.
+          if ! mv -f "$tmp" "$target_path"; then
             rc=71
             echo "update_semantic: atomic write of replacement failed" >&2
           fi

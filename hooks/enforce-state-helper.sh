@@ -33,18 +33,19 @@
 
 set -euo pipefail
 
-# Fail open but LOUDLY if jq is missing: without it the hook cannot parse tool
-# input, and a silent exit 0 would leave the user believing the guard is active.
-if ! command -v jq >/dev/null 2>&1; then
-  printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so direct state-path writes are NOT being checked. Install jq to restore the guard."}\n'
-  exit 0
-fi
-
 # Consume stdin — REQUIRED first step for Claude Code hooks.
 INPUT=$(cat)
 
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
-FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
+HAVE_JQ=1
+command -v jq >/dev/null 2>&1 || HAVE_JQ=0
+
+if [ "$HAVE_JQ" = "1" ]; then
+  TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
+  FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null || echo "")
+else
+  TOOL_NAME=""
+  FILE_PATH=""
+fi
 
 # A truncated/malformed payload makes jq fail on EVERY field it would extract
 # from $INPUT, not just one — so TOOL_NAME and FILE_PATH both come back empty
@@ -55,15 +56,33 @@ FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.n
 # JSON object plus trailing garbage is NOT this case — jq emits the parsed
 # value before erroring on the garbage, so TOOL_NAME/FILE_PATH/COMMAND still
 # come back populated and the normal per-branch logic already handles it.)
+# This same coarse scan is pure grep+sed and needs no jq, so it must run
+# BEFORE, not below, the jq-missing fail-open branch further down — a
+# canonical state path named in the raw text still blocks even when no
+# structured parsing can run at all, instead of jq's absence being a free
+# pass for every direct state-path write.
 # Mirrors file-protection.sh's identical hoisted scan.
 if [ -z "$TOOL_NAME" ] && [ -z "$FILE_PATH" ]; then
   RAW_TARGETS=$(printf '%s' "$INPUT" \
     | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
     | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-  if printf '%s' "$RAW_TARGETS" | grep -qE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json'; then
-    echo "State-helper [enforce-state-helper] blocked [jqless-fallback]: the tool input names a canonical .geniro/ state path but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
+  if printf '%s' "$RAW_TARGETS" | grep -qE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json|(^|/|[[:space:]])\.geniro/safety\.json'; then
+    if [ "$HAVE_JQ" = "1" ]; then
+      echo "State-helper [enforce-state-helper] blocked [jqless-fallback]: the tool input names a canonical .geniro/ state path but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
+    else
+      echo "State-helper [enforce-state-helper] blocked [jqless-fallback]: the tool input names a canonical .geniro/ state path but jq is not installed, so only a coarse raw-text check ran." >&2
+    fi
     exit 2
   fi
+fi
+
+# Fail open but LOUDLY if jq is missing: the raw-text scan above still ran,
+# but everything past this point needs structured parsing (COMMAND
+# extraction, the write-vector scan, the safety.json allow-list), which jq's
+# absence takes off the table.
+if [ "$HAVE_JQ" = "0" ]; then
+  printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so direct state-path writes are NOT being checked beyond the coarse raw-text scan above. Install jq to restore the guard."}\n'
+  exit 0
 fi
 
 # Locate nearest .geniro/safety.json walking up from cwd.
@@ -92,6 +111,36 @@ fi
 case " $ALLOWED " in
   *" enforce-state-helper "*) exit 0 ;;
 esac
+
+# .geniro/safety.json disables every guard by pattern ID — an agent that can
+# freely overwrite it can self-grant any bypass in one Write, so it gets a
+# gate of its own rather than riding on matches_state_path's generic T1-T3
+# coverage (safety.json sits at .geniro/ top level, outside every guarded
+# prefix). Kept as a SEPARATE pattern ID from "enforce-state-helper" on
+# purpose: by the time this runs, the broad bypass above has already exited
+# if granted, so this is the narrower, independently-grantable route.
+# Legitimate user edits stay possible — allow_patterns is read from the
+# file's CURRENT content before this check runs, so a human adds
+# "safety-json-edit" to it directly (outside the agent, or after explicit
+# approval) the same way every other pattern ID here is unlocked; that first
+# grant just can't come from the agent overwriting the file itself.
+#
+# Pattern ID: safety-json-edit
+is_safety_json_path() {
+  local p
+  p="$(printf '%s' "$1" | sed -E 's#/+#/#g')"
+  echo "$p" | grep -qE '(^|/)\.geniro/safety\.json$'
+}
+
+check_safety_json_write() {
+  local path="$1"
+  is_safety_json_path "$path" || return 0
+  case " $ALLOWED " in
+    *" safety-json-edit "*) return 0 ;;
+  esac
+  echo "State-helper [safety-json-edit] blocked: direct write to .geniro/safety.json — this file disables every guard by pattern ID, so an agent must not self-grant a bypass in one Write. To allow this, add \"safety-json-edit\" to allow_patterns in .geniro/safety.json." >&2
+  exit 2
+}
 
 # Check if the path is a canonical state-file path (ARCHITECTURE.md §State Files).
 # The (^|/) prefix in the patterns below matches both relative (.geniro/...) and
@@ -753,22 +802,38 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # (`atomic_state_write x; echo y > .geniro/z/state.md`). awk's own string
   # literals interpret `\n` as newline portably, so building the output with
   # one is not exposed to the same ambiguity.
+  # A `|` immediately following a `>` with NO character between them is the
+  # noclobber-override operator (`>|`), not a pipe — splitting it here orphans
+  # the `>` from its own operand and vector 1's redirect extraction (which
+  # already matches `>{1,2}\|?`) never sees it. `prevc` tracks the ORIGINAL
+  # character immediately before, so a real pipe after a filename (`cmd >file
+  # |grep`) still splits — only the two adjacent operator characters don't.
   _sep_split=$(printf '%s\n' "$JOINED" | awk '
     {
-      n = length($0); out = ""; i = 1
+      n = length($0); out = ""; i = 1; prevc = ""
       while (i <= n) {
         c2 = substr($0, i, 2)
-        if (c2 == "||" || c2 == "&&") { out = out "\n"; i += 2; continue }
+        if (c2 == "||" || c2 == "&&") { out = out "\n"; i += 2; prevc = "\n"; continue }
         c = substr($0, i, 1)
-        if (c == ";" || c == "&" || c == "|") { out = out "\n"; i++; continue }
-        out = out c; i++
+        if (c == "|" && prevc == ">") { out = out c; i++; prevc = c; continue }
+        if (c == ";" || c == "&" || c == "|") { out = out "\n"; i++; prevc = "\n"; continue }
+        out = out c; i++; prevc = c
       }
       print out
     }
   ')
   while IFS= read -r _seg; do
     if printf '%s' "$_seg" | grep -qE '^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(atomic_state_write|atomic_state_append)([[:space:]]|$)'; then
-      continue
+      # Only the helper's own command word (+ optional VAR= prefixes) and its
+      # first operand are trusted — NOT the whole segment. A shell redirect
+      # riding on the SAME simple command (`atomic_state_write x > <state>`,
+      # `… >> <state>`) is not separated from the helper call by `; & |`, so
+      # dropping the entire segment here silently exempted that redirect's
+      # own target too. Strip just the recognized prefix and keep whatever
+      # follows (a trailing `>`/`>>`/`>|` redirect, or nothing for a genuine
+      # bare/heredoc invocation) for the extraction vectors below.
+      _seg=$(printf '%s' "$_seg" | sed -E 's/^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(atomic_state_write|atomic_state_append)[[:space:]]+[^[:space:]]+[[:space:]]*//')
+      [ -z "$_seg" ] && continue
     fi
     MASKED="${MASKED}${_seg}
 "
@@ -829,6 +894,38 @@ if [ "$TOOL_NAME" = "Bash" ]; then
         esac
       fi
     fi
+  }
+
+  # Redirection tokens riding on the SAME simple command (2>/dev/null, 2>&1,
+  # >&2, >/dev/null, a spaced "2> file", a bare "<" whose target is the next
+  # token) are not a positional operand of cp/mv/install/rsync/ln/sponge/ed/ex
+  # — without stripping them first, each vector's "last non-flag token is the
+  # destination" scan below picks up the redirect's own target (or the bare
+  # operator itself) instead of the command's real destination.
+  # `2>/dev/null` is the single most common shell idiom, so this is reachable
+  # by accident, not only adversarially. A bare operator with NO target of its
+  # own attached (an exact `>`, `>>`, `<`, `2>`, …) also consumes the token
+  # that follows it, since that token IS the redirect's target, not a
+  # positional argument of the command.
+  _geniro_strip_redir_span() {
+    local span="$1" out="" tok skip=0
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      if [ "$skip" = "1" ]; then skip=0; continue; fi
+      case "$tok" in
+        '>'|'>>'|'>|'|'<'|'<<'|'>&'|'&>'|[0-9]'>'|[0-9]'>>'|[0-9]'>|'|[0-9]'<'|[0-9]'<<'|[0-9]'>&'|[0-9]'&>')
+          skip=1
+          continue
+          ;;
+        [0-9]'>'*|[0-9]'<'*|'>'*|'<'*|'&>'*)
+          continue
+          ;;
+      esac
+      out="${out}${tok} "
+    done
+    set +f
+    printf '%s' "$out"
   }
 
   # 1) Redirection targets: > file, >> file, >| file.
@@ -895,6 +992,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    the torn write this guard exists to prevent.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
+    [ -z "$span" ] && continue
     last=""
     first=""
     set -f
@@ -924,6 +1023,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #     rewrites the destination exactly as any other cp does, no matter where
   #     its source lives.
   while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
     [ -z "$span" ] && continue
     last=""
     set -f
@@ -984,6 +1085,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    like cp/mv; an install `-t DIR` / `--target-directory DIR` writes into DIR.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
+    [ -z "$span" ] && continue
     last=""
     tgt_dir=""
     take_dir=0
@@ -1012,6 +1115,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    when -f/--force is present (without -f, ln refuses to clobber).
   while IFS= read -r span; do
     [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
+    [ -z "$span" ] && continue
     printf '%s' "$span" | grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force' || continue
     last=""
     set -f
@@ -1036,6 +1141,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #                            FIRST positional (a second positional would be
   #                            the patch file itself, which is read-only)
   while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
     [ -z "$span" ] && continue
     last=""
     set -f
@@ -1130,6 +1237,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   fi
   while IFS= read -r cand; do
     [ -z "$cand" ] && continue
+    check_safety_json_write "$cand"
     # .geniro/state/tdd/ is a documented exception (own mktemp + mv procedure).
     # A `..` segment makes that prefix a lie — `.geniro/state/tdd/../../
     # planning/foo/state.md` contains the substring while resolving to a
@@ -1152,6 +1260,8 @@ fi
 if [ -z "$FILE_PATH" ]; then
   exit 0
 fi
+
+check_safety_json_write "$FILE_PATH"
 
 # A `..` segment makes the .geniro/state/tdd/ prefix a lie (see the Bash-branch
 # comment above); reject the traversal before the exemption is consulted.

@@ -31,7 +31,7 @@ You are the orchestrator for analyzing a saved Claude conversation thread and su
 **Input:** one or more thread file paths, a thread count, or nothing — an empty argument analyzes the last 3 work-bearing threads across every project (§Phase 1 Step 1).
 **Output:** a findings report printed to chat + (on user approval) a handoff at `.geniro/state/handoff/from-analyze-thread-<branch>.md` that `/improve-template` consumes.
 
-**Phase bodies.** This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `.claude/skills/analyze-thread/`: `phase-1-2-parse-detect.md` (Phases 1-2) · `phase-3-4-filter-present.md` (Phases 3-4). That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (including the Phase 4 user gates and the handoff emit) and their helper call sites, so work started before the Read runs outside them.
+**Phase bodies.** This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `.claude/skills/analyze-thread/`: `phase-1-2-parse-detect.md` (Phases 1-2) · `phase-3-4-filter-present.md` (Phases 3-4). That Read is the phase's physically-first action and carries a one-line echo, per `skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (including the Phase 4 user gates and the handoff emit) and their helper call sites, so work started before the Read runs outside them.
 
 **After a compaction:** re-Read the phase file for whatever phase is running before continuing it — only the front-loaded prefix re-attaches, so a mid-phase summary can drop the Steps while leaving this spine intact. If which phase was running is also gone, re-invoke `/analyze-thread` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
 
@@ -52,13 +52,13 @@ The canonical taxonomy and per-check detection logic live in `.claude/skills/ana
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. This skill has exactly one subagent spawn — the Phase 2 LLM-judge — and it OMITs `model=` so it inherits orchestrator tier (judging the thread is reasoning-grade work).
+Follow the canonical rule in `skills/_shared/model-tiering.md`. This skill has exactly one subagent spawn — the Phase 2 LLM-judge — and it OMITs `model=` so it inherits orchestrator tier (judging the thread is reasoning-grade work).
 
 ---
 
 ## State persistence
 
-After completing each phase, write a checkpoint to `.geniro/state/analyze-thread/<slug>/state.md` (compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules — base it on the analyzed thread, never the project name; §Task execution entry gives the single- and batch-mode forms). Use `atomic_state_write` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — direct Edit/Write to state paths trips the `enforce-state-helper` hook.
+After completing each phase, write a checkpoint to `.geniro/state/analyze-thread/<slug>/state.md` (compute `<slug>` per `skills/_shared/within-skill-state-handoff.md` § Slug rules — base it on the analyzed thread, never the project name; §Task execution entry gives the single- and batch-mode forms). Use `atomic_state_write` per `skills/_shared/atomic-state-write.md` — direct Edit/Write to state paths trips the `enforce-state-helper` hook.
 
 The full T1.5 frontmatter opens on line 1 per the helper § Producer contract. Plain-text `Branch:` / `Worktree:` / `Timestamp:` header lines push the `---` fence off line 1 and fail `validate_state_file` with exit 2 — the validator that §Task execution entry runs before every resume, so a checkpoint written that way is one this skill cannot read back.
 
@@ -95,7 +95,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 9. **The declared side of a coverage check comes from the analyzed trace, never from this checkout.** The I- and K-class checks ask what is *missing* — a skipped instruction load, an unentered phase, a gate that never fired — so they need to know what the run promised. That promise is recorded in the thread itself: the injected skill body, and the tool_results of the instruction files the run read. Reading the analyzing machine's own `skills/` or `.geniro/instructions/` instead compares one project's run against another project's rules, which is the normal case in a batch and produces findings that are pure fiction. `checks-reference.md` §8 has the field list and the three documented degradations.
 10. **No declaration, no finding.** A coverage check with an empty declared side reports nothing. A project that declares no data sources cannot fail to consult one; a thread with no Geniro run has no phases to skip. Absence of an expectation is the check's clean path, not a gap to fill by inference — inventing the declared side turns a silent run into a wall of fictional "missing" rows.
 
-**Turn-completion check** (deliberately un-numbered, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check): before stopping, re-read the last emitted paragraph — a stated intent to fire an AUQ, spawn the judge, or emit the handoff is not the same as having done it. Phase 4's per-finding gates and its handoff emit are exactly the seam this guards.
+**Turn-completion check** (deliberately un-numbered, per `skills/_shared/loop-invariants.md` §Turn-completion check): before stopping, re-read the last emitted paragraph — a stated intent to fire an AUQ, spawn the judge, or emit the handoff is not the same as having done it. Phase 4's per-finding gates and its handoff emit are exactly the seam this guards.
 
 ---
 
@@ -198,7 +198,7 @@ On invocation:
 
 1. Resolve the thread set per Phase 1 Step 1, then compute `<slug>`: the thread's short id in single mode, `batch-<newest thread's short id>` in batch mode (never the project name, and never a bare timestamp — a slug must be stable enough for a resume to find it).
 2. `Glob(".geniro/state/analyze-thread/<slug>/state.md")` — if found, run the helper's Case A/B/C/D mismatch UX before resuming.
-3. If validating fails (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`), fire the recovery AUQ from that helper.
+3. If validating fails (per `skills/_shared/validate-state-file.md`), fire the recovery AUQ from that helper.
 4. On clean start: print "Analyzing <basename> — phase 1 of 4", or "Analyzing <N> threads — phase 1 of 4", and proceed.
 
 On resume from a checkpoint: skip completed phases, print "Resuming at phase N of 4", continue.
@@ -210,16 +210,16 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 - `.claude/skills/analyze-thread/phase-1-2-parse-detect.md` — Phase 1 + Phase 2 Steps (Read on entry to Phase 1)
 - `.claude/skills/analyze-thread/phase-3-4-filter-present.md` — Phase 3 + Phase 4 Steps, incl. the per-finding gate and the handoff emit (Read on entry to Phase 3)
 - `.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic; §8 defines the expectation set the coverage checks compare against
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the load / echo / refresh contract the I-class checks measure a run against
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase-body Read and echo contract behind K2
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` — gate render-then-ask shape and the lean-question conventions behind K3-K6, K8
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` — the subagent load report and the assessed sentinel, the two proofs an echo cannot carry
+- `skills/_shared/load-custom-instructions.md` — the load / echo / refresh contract the I-class checks measure a run against
+- `skills/_shared/phase-entry-read.md` — the phase-body Read and echo contract behind K2
+- `skills/_shared/gate-rendering.md` — gate render-then-ask shape and the lean-question conventions behind K3-K6, K8
+- `skills/_shared/skip-visibility.md` — the subagent load report and the assessed sentinel, the two proofs an echo cannot carry
 - `.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules + Case A/B/C/D resume UX
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-file write helper (mandatory)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — pre-resume validator + recovery AUQ
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — T1 / T1.5 / T2 lifecycle (handoff lives at T2)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — bare/prefixed/general-purpose degradation ladder
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — `model=` vs OMIT rules
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — message-first per-finding gate protocol (the shape Phase 4 Step 2 fires)
+- `skills/_shared/within-skill-state-handoff.md` — slug rules + Case A/B/C/D resume UX
+- `skills/_shared/atomic-state-write.md` — state-file write helper (mandatory)
+- `skills/_shared/validate-state-file.md` — pre-resume validator + recovery AUQ
+- `skills/_shared/state-tier-spec.md` — T1 / T1.5 / T2 lifecycle (handoff lives at T2)
+- `skills/_shared/spawn-agent.md` — bare/prefixed/general-purpose degradation ladder
+- `skills/_shared/model-tiering.md` — `model=` vs OMIT rules
+- `skills/_shared/per-finding-question.md` — message-first per-finding gate protocol (the shape Phase 4 Step 2 fires)
 - `.claude/skills/improve-template/SKILL.md` — handoff consumer

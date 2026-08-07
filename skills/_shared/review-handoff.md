@@ -169,17 +169,8 @@ mechanical_prepass_attempted:            # producer-run: one entry per pre-pass 
   secret: <findings|clean|error>
 approvals: []
 non-resumable-actions: []
-open_questions:                       # always present; may be empty []
-  - id: q1                            # short stable anchor
-    source: <reviewer-dim or producer-step>
-    question: <verbatim question text>
-    related_findings: [F1, F4]        # optional — finding IDs this question gates
-    status: unresolved                # enum: unresolved | resolved | wontfix
-    resolution:                       # populated when status moves out of `unresolved`
-      picked: <chosen option>
-      at: <ISO-8601 UTC>
-      asked_in_phase: <phase name>
-      resolved_by: <skill that ran the resolution AUQ>
+open_questions: []                    # always present; may be empty []. Entry schema is canonical in
+                                       # ${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md §T2 required `open_questions` array
 ---
 
 # Review: <topic / branch>

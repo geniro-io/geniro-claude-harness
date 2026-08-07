@@ -18,7 +18,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.m
 ```
 [entry]
 └── classify ──┬── investigate ──┬── present ──┬── done
-               │                 │            └── present-summary-only (terminal — "Done — answer is sufficient" pick)
+               │                 │            └── present-summary-only (terminal — "I have a follow-up question" pick)
                │                 │
                │                 └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
                │                                             ├── present (user picks "drop unverified claims" → continue with gaps)

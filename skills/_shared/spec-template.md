@@ -24,7 +24,7 @@ schema-version: 1 # required
 branch: <git-branch> # required
 timestamp: <ISO-8601 UTC> # required
 geniro_kind: design-doc # design-doc-detect.md contract — required marker
-geniro_schema_version: m5-v3 # schema version — version-selection rule canonical in workflow-refs-schema.md § Schema-version compatibility
+geniro_schema_version: m5-v4 # schema version — this example carries a launch_config block (below), which requires m5-v4; a spec with no launch_config and no m5-v3 chain-enrichment fields uses m5-v2. Version-selection rule canonical in workflow-refs-schema.md § Schema-version compatibility
 task_slug: <slug> # extension
 topic: <one-sentence-topic> # extension
 mode: <IDEA|DESIGN_DOC> # extension

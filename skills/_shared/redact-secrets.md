@@ -51,7 +51,7 @@ The helper never errors out — it falls through to passthrough if `git`, `jq`, 
 
 ## High-entropy warning
 
-The spec's "generic high-entropy ≥32 chars" entry is intentionally **not** auto-redacted — false-positive risk on legitimate hashes (git SHAs, content hashes, base64 thumbnails) is too high. If callers want a stricter posture they can add an `additional_patterns` entry via `safety.json` (§safety.json knobs).
+Generic high-entropy strings (≥32 chars) are intentionally **not** auto-redacted — false-positive risk on legitimate hashes (git SHAs, content hashes, base64 thumbnails) is too high. If callers want a stricter posture they can add an `additional_patterns` entry via `safety.json` (§safety.json knobs).
 
 ## Audit log
 
@@ -87,6 +87,6 @@ Schema (one JSONL line per `(pattern, entry)` fire):
 ## Known limitations
 
 - **Greedy multiline PEM match.** If the input contains two PEM blocks with content between them, the regex `.*` greedily matches from BEGIN-of-first to END-of-second, collapsing the intervening content into the single redaction. Over-redaction is preferred over under-redaction; teach producers not to concatenate raw PEMs.
-- **URL with `@` in password.** `https://user:p@ss@host/` matches the first `@`, leaving `ss@host/` visible. Real producers should URL-encode credentials anyway. Document for clarity; don't try to be cleverer than the spec.
+- **URL with `@` in password.** `https://user:p@ss@host/` matches the first `@`, leaving `ss@host/` visible. Real producers should URL-encode credentials anyway. Document for clarity; a cleverer regex here isn't worth the added complexity.
 - **AWS secret exactly 40 chars.** Pattern matches `{40}` exactly. A 39- or 41-char secret slips through. Matches AWS's documented secret-key length; no looser counterpart needed.
 - **`sed` and `grep` portability.** Helper uses POSIX `-E` (extended) regex syntax; works on Linux GNU and macOS BSD. Backreferences (`\1`) are GNU sed and BSD sed compatible.

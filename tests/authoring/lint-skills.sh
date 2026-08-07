@@ -620,6 +620,24 @@ else
 fi
 rm -f "$anchor_out"
 
+# 11. `${CLAUDE_PLUGIN_ROOT}` inside `.claude/skills/`. That variable is set by
+#     Claude Code only for plugin skills under skills/ — it is unset for the
+#     project-local skills under .claude/skills/, so a citation there resolves
+#     against an empty prefix (a Read silently misses; a Bash `source` fails
+#     outright). Check 2 above cannot catch this: its scope is `skills agents`,
+#     and it also requires a trailing /path, which a bare `${CLAUDE_PLUGIN_ROOT}`
+#     mention skips. The token has no legitimate use inside .claude/skills/ at
+#     all, so the bar here is absolute — zero is the only passing count.
+meta_root_refs=$(grep -rlF '${CLAUDE_PLUGIN_ROOT}' .claude/skills 2>/dev/null || true)
+if [ -n "$meta_root_refs" ]; then
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    report_fail "$(rel "$f") references \${CLAUDE_PLUGIN_ROOT}, which is unset for project-local skills — use a repo-relative path"
+  done <<< "$meta_root_refs"
+else
+  echo "OK: .claude/skills/ carries no \${CLAUDE_PLUGIN_ROOT} references"
+fi
+
 echo
 echo "==================================================="
 echo "Hard failures: $HARD_FAILS"

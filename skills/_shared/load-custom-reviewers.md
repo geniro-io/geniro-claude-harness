@@ -69,7 +69,7 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 
 1. The frontmatter does not parse as YAML.
 2. The `slug:` field is missing OR does not match the filename without `.md`.
-3. The `slug:` value matches a reserved dimension name (case-insensitive): the built-ins `bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, plus `guidelines` and `rules-compliance` (retired built-in names — reserved to avoid ambiguity).
+3. The `slug:` value matches a reserved dimension name (case-insensitive): the built-ins `bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, plus the reserved names `guidelines` and `rules-compliance`.
 4. The `slug:` value does not match the regex `^[a-z][a-z0-9-]*$`.
 5. The `description:` field is missing OR empty.
 6. The `model:` field is present and is not in `{haiku, sonnet, opus, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)

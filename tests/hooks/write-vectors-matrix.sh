@@ -59,6 +59,13 @@ ex|ex -sc "wq" {T}
 patch|patch {T} < /tmp/a.diff
 curl-o|curl -o {T} https://x.example
 wget-O|wget -O {T} https://x.example
+cp-dest-trailing-redir|cp /tmp/src {T} 2>/dev/null
+mv-dest-trailing-redir|mv /tmp/src {T} 2>&1
+rsync-dest-trailing-redir|rsync -a /tmp/src/ {T} 2>/dev/null
+ln-f-trailing-redir|ln -f /tmp/src {T} 2>/dev/null
+sponge-trailing-stdin|sponge {T} < /tmp/in
+ed-trailing-stdin|ed {T} < /tmp/patch.txt
+ex-trailing-stdin|ex -sc "wq" {T} < /tmp/in
 '
 
 run_guard() {  # <hook-path> <command>

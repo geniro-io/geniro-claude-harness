@@ -87,6 +87,12 @@ done
 #        only aborts (rc=126, whole block dead) once the caller runs with `set -u`
 #        — which the Bash tool does. Enumerated by glob, not by hand, so a newly
 #        added lib/ helper is covered the moment it lands.
+#
+#        rc==0 alone is not enough: `audit-ledger.sh` used to print a
+#        `BASH_SOURCE[0]: parameter not set` error to stderr under zsh and
+#        still return 0 (bash's `set -u` aborts the file; zsh's warns and
+#        continues) — the exact shape that let #5 (mis-resolved ledger root)
+#        ship with this suite green. Assert the captured output is empty too.
 for helper in "$REPO_ROOT"/lib/*.sh; do
   [ -f "$helper" ] || continue
   hname="$(basename "$helper")"
@@ -94,12 +100,48 @@ for helper in "$REPO_ROOT"/lib/*.sh; do
     new_sandbox
     out=$( (cd "$SANDBOX_DIR" && "$shell" -c "set -u; source '$helper'") 2>&1 )
     rc=$?
-    if [ "$rc" -eq 0 ]; then
-      pass "$shell: source lib/$hname under 'set -u' succeeds"
+    if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+      pass "$shell: source lib/$hname under 'set -u' succeeds silently"
     else
-      fail "$shell: source lib/$hname under 'set -u' failed (rc=$rc): $out"
+      fail "$shell: source lib/$hname under 'set -u' failed or printed (rc=$rc): $out"
     fi
   done
+done
+
+# --- 1c. Positive resolution probe: sourcing "successfully" is not the same
+#        as resolving to the RIGHT path — a helper can silently mis-resolve
+#        (e.g. ${BASH_SOURCE:-} empty → dirname "" → ".") without printing
+#        anything or returning non-zero. For every helper that exposes its
+#        derived script-dir (or, for audit-ledger.sh, its ledger path) as an
+#        accessible variable/function after sourcing, assert it equals the
+#        REAL path — under both shells. Helpers with no such accessor are
+#        skipped rather than given one invented for the test.
+_SCRIPT_DIR_PROBES="archive-stale.sh:_as_script_dir emit-learning.sh:_el_script_dir emit-rejection.sh:_er_script_dir load-semantic.sh:_ls_script_dir query-learnings.sh:_ql_script_dir redact-secrets.sh:_red_script_dir update-semantic.sh:_us_script_dir validate-state-file.sh:_vsf_script_dir"
+for probe in $_SCRIPT_DIR_PROBES; do
+  hname="${probe%%:*}"
+  var="${probe##*:}"
+  for shell in zsh bash; do
+    new_sandbox
+    got=$(cd "$SANDBOX_DIR" && "$shell" -c "source '$REPO_ROOT/lib/$hname' && printf '%s' \"\$$var\"" 2>/dev/null)
+    if [ "$got" = "$REPO_ROOT/lib" ]; then
+      pass "$shell: lib/$hname resolves $var to the real lib/ directory"
+    else
+      fail "$shell: lib/$hname resolved $var to '$got', want '$REPO_ROOT/lib'"
+    fi
+  done
+done
+
+# audit-ledger.sh has no _script_dir var — probe its own accessor (ledger_path)
+# against the real repo's design/audit-ledger.tsv instead.
+for shell in zsh bash; do
+  new_sandbox
+  got=$(cd "$SANDBOX_DIR" && "$shell" -c "source '$REPO_ROOT/lib/audit-ledger.sh' && ledger_path" 2>/dev/null)
+  want="$REPO_ROOT/design/audit-ledger.tsv"
+  if [ "$got" = "$want" ]; then
+    pass "$shell: lib/audit-ledger.sh resolves ledger_path to the real repo root"
+  else
+    fail "$shell: lib/audit-ledger.sh resolved ledger_path to '$got', want '$want'"
+  fi
 done
 
 # --- 2. End-to-end emit under zsh: entry lands in the SANDBOX log (repo root

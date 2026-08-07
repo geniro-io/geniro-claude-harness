@@ -62,7 +62,7 @@ Scan the target codebase for:
 - Inconsistent error handling or null-safety patterns
 
 #### Named smell baseline
-Match the scope files against the canonical named smells below (Fowler's *Refactoring* ch. 3 vocabulary — standard names the user can look up). Every hit is a labelled heuristic — report it as "possible Feature Envy", never as a hard violation: the smell-evidence filter (/geniro:refactor Phase 1) decides KEEP/FILTER, and a documented repo convention always wins over the label. Skip any smell the project's lint config already enforces — the lint run in the pipeline catches it deterministically and cheaper. Duplicated Code, Long Method, and Large Class / Divergent Change are already owned by the Duplication, Long Methods, and God Classes categories above — don't double-report them under a second name.
+Match the scope files against the canonical named smells below (industry-standard smell names the user can look up). Every hit is a labelled heuristic — report it as "possible Feature Envy", never as a hard violation: the smell-evidence filter (/geniro:refactor Phase 1) decides KEEP/FILTER, and a documented repo convention always wins over the label. Skip any smell the project's lint config already enforces — the lint run in the pipeline catches it deterministically and cheaper. Duplicated Code, Long Method, and Large Class / Divergent Change are already owned by the Duplication, Long Methods, and God Classes categories above — don't double-report them under a second name.
 
 Each smell reads what-it-is → how-to-fix:
 
