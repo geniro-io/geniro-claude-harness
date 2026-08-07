@@ -101,8 +101,8 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 Dimension-specific paste notes:
 - **D2 (accuracy):** paste the Phase 1 command and path candidate lists into the pre-pass context slot.
 - **D3 (consistency):** paste the same-rule candidate list.
-- **D5 (structure) and D6 (coverage & safety):** additionally paste §Surface inventory — the loading notes and activity signals are their rubric inputs; keep the facts single-sourced there rather than restated per dimension. D5 also gets the D1 reachability candidates.
-- **D6:** paste the secret-scan candidate locations (file:line + pattern name only — the values were never captured).
+- **D4 (bloat), D5 (structure), and D6 (coverage & safety):** additionally paste §Surface inventory — the loading notes and activity signals are their rubric inputs; keep the facts single-sourced there rather than restated per dimension. D4's check 10 costs a proposal as words times load frequency and cannot run without it. D5 also gets the D1 reachability candidates.
+- **D6:** paste the secret-scan and unsafe-directive candidate locations (file:line + pattern name only for secrets — those values were never captured).
 - **Sharding:** if a dimension's scope exceeds ~10K words, split the file list into two halves covering every file between them, same prompt, both spawns in the batch.
 
 ## Fix-round execution
@@ -111,6 +111,7 @@ Read at Phase 5 when a fix path is approved. The disjoint-scope grouping and the
 
 - **Mirrors:** editing `CLAUDE.md` leaves a generated `AGENTS.md` copy stale; a symlink needs nothing, a generated copy needs regenerating — once at the end of the round (the once-per-round integration step), never per-agent.
 - **Format contracts:** an edited `.mdc` or `.instructions.md` must still parse — a fix that breaks frontmatter converts a stale rule into a silently disabled one; the battery re-run catches this.
+- **Routing large restructures out:** a whole-file restructure — splitting a monolith into a rules directory (D5 check 3), migrating a legacy single-file format, re-homing a rule set across tools — is a multi-file move with its own review, not a fix-round edit. Say so and hand the user the finding rows rather than attempting it inline; a fix agent doing it under a 1-round budget lands a half-migrated instruction set that every session then loads.
 
 ## Severity tiers (shared output classification)
 
@@ -142,11 +143,12 @@ The table schema, row cap, and inadmissibility rule are canonical in `${CLAUDE_P
 | Surface discovery | Enumerate the §Surface inventory globs; record found files, word counts, activity signals | The inventory; context for D5/D6 |
 | Cited-path existence | Extract path-shaped tokens from every instruction file; test each against the repo | Nonexistent paths → CANDIDATES for D2 (an illustrative example path is not a defect; a load-bearing one is — that split needs reading) |
 | Command extraction | Extract backtick commands; check each against the repo's manifests (package scripts, Makefile, task runners, CI workflows) | Unmatched commands → CANDIDATES for D2 (a command may be globally installed — adjudication, not auto-flag) |
-| Frontmatter validity | Parse every `.mdc` (`description` / `globs` / `alwaysApply`) and `.instructions.md` (`applyTo`) frontmatter | Machine finding T1 when malformed or missing such that the rule never loads |
-| Activation reachability | For every scoped or imported rule, test whether it can ever load: .mdc with none of description/globs/alwaysApply; plain .md inside .cursor/rules/; globs / applyTo / paths: patterns matching zero files in the repo; @import chains that cycle or point at missing files; a root AGENTS.md past the ~32 KiB Codex cap (the tail silently never loads) | Machine finding T1 when the rule cannot load at all; zero-match patterns → CANDIDATES for D5 (a typo'd glob and a planned-area rule look identical to a grep) |
+| Frontmatter validity | Parse every `.mdc` (`description` / `globs` / `alwaysApply`) and `.instructions.md` (`applyTo`) frontmatter. Also every `.claude/skills/**/SKILL.md` (`name`, `description`) and `.claude/agents/*.md` — an agent with no `maxTurns` defaults to 10 turns outside interactive Claude Code, which truncates a reasoning agent at its emit step and yields partial output rather than a visible failure | Machine finding T1 when malformed or missing such that the rule never loads; unset `maxTurns` → T4 |
+| Activation reachability | For every scoped or imported rule, test whether it can ever load: .mdc with none of description/globs/alwaysApply; plain .md inside .cursor/rules/; globs / applyTo / paths: patterns matching zero files in the repo; @import chains that cycle or point at missing files; a root AGENTS.md past the ~32 KiB Codex cap (the tail silently never loads); a `.claude/skills/**/SKILL.md` whose `description` is absent or carries no trigger wording — the description is the sole routing signal, so the skill is unreachable however good its body | Machine finding T1 when the rule or skill cannot load at all; zero-match patterns → CANDIDATES for D5 (a typo'd glob and a planned-area rule look identical to a grep) |
 | Legacy formats | Detect `.cursorrules` / `.windsurfrules` | Machine finding: T3 when the replacement directory also exists (two sources of truth); T4 advisory when legacy-only (migration proposal) |
 | Same-rule candidates | Grep for rule-shaped content (commands, thresholds, distinctive imperative phrases) appearing across ≥2 surfaces | CANDIDATES for D3 |
 | Secret scan | Pattern battery for credential shapes (API keys, tokens, connection strings with passwords) over every surface; record file:line + pattern name only — the matched value is never captured into any output | CANDIDATES for D6 (adjudication separates live credentials from placeholders like `sk-your-key-here`) |
+| Unsafe-directive scan | Grep every surface for directives steering an agent around a safety mechanism: `--no-verify`, `--force` / `-f` on push, `rm -rf`, `git add -A`, `curl … \| sh`, TLS-verification opt-outs (`-k`, `--insecure`, `verify=False`, `NODE_TLS_REJECT_UNAUTHORIZED=0`), and permission- or hook-bypass flags | CANDIDATES for D6 (the same string is a warning against the practice as often as an instruction to use it — that split needs reading). Seeding matters most here: T0 is the one tier that must not depend on a reviewer happening to notice |
 
 Machine findings are pre-verified and skip Phase 3 re-reads; candidates are not findings until a reviewer adjudicates and the orchestrator verifies.
 
@@ -198,13 +200,28 @@ Checks:
 
    What stays: the rule, the reason where an agent would otherwise rationalize around it (an anti-pattern, an escape hatch, error semantics), and a bare link where a counterintuitive rule needs evidence to stop being re-litigated — the link, never a summary of it. This check is the rule-level twin of D5's wrong-surface content, which owns whole sections of narration; route a standalone changelog or design-history section there.
 
+10. **Surface-level subtraction.** Checks 1-9 ask whether *text* earns its place. This one asks whether a whole **surface or section** does — an entire instruction file, a rules-directory entry, an always-on surface, or a standalone top-level section. A rule set can be well-written, unique, correct, and still not worth loading, and no line-level check can see that: every one of them starts from the assumption that the thing should exist and asks only whether it is stated well. Three dispositions, and a finding names which one it is:
+
+    - **Low yield.** It loads on every session and almost never changes what an agent does — a rule for a workflow the team stopped running, or a surface whose content the agent derives from the repo anyway.
+    - **Net-negative.** It makes runs worse: a rule broad enough that agents routinely work around it, or a surface contradicting a richer one often enough that the outcome depends on which loaded last.
+    - **Cost.** Removing it measurably cuts what every session loads — an always-on file carrying content only some work needs. Where the content is still needed, the finding is a move to a scoped surface (D5 owns the mechanics), not a deletion.
+
+    **The bar here is evidentiary, and it is the highest in this dimension.** A line cut that misses costs a rationale someone can notice is gone. A surface deleted in error leaves nothing behind to notice — no failure at the time, and none afterwards, because the runs that would have followed the rule are the ones that no longer happen. So a proposal carries four things, and one that cannot is not a deletion proposal:
+
+    - **The case it exists for, and that case's base rate.** "I did not see it matter" is not evidence — an idle guardrail is a working guardrail. Name the situation the text catches, how often that situation arises in this repo, and what an agent does on it once the text is gone.
+    - **A measured cost.** Words times load frequency, from §Surface inventory: an always-on file's word count is paid every session, a scoped file's only when its glob attaches. State both figures — a short always-on file and a long path-scoped one are opposite findings, and cheapness cuts against deletion, so the case needs cost times frequency rather than low yield alone.
+    - **What covers the ground afterwards.** Either name the other surface carrying the same rule, or say plainly that the ground becomes uncovered and no run will report it. Both are acceptable answers; not knowing which applies is not.
+    - **Whether it stands alone.** Say when the proposal holds only together with another in the same set. Two surfaces each redundant *given the other* are not both redundant, and a round applying them together removes the ground both were covering — the one compound failure a per-item gate cannot catch on its own.
+
+    **A surface deletion never rides a blanket approval** — it carries its own gate with its own explanation, per SKILL.md invariant #15. Report it whichever way the evidence points: a proposal that cleared the bar is worth making, and one that did not belongs in the verdict as a rejected candidate rather than in the table as a hedged row.
+
 Every removal proposal names what breaks if the removal is wrong. A shorten or merge proposal additionally carries a **preserved inventory** — the spans the rewrite must reproduce verbatim: commands, paths, thresholds, frontmatter fields, globs, and any string a tool parses. Those are contracts, not prose; a reword that drifts one of them silently disables it. **Section headings join that inventory** wherever another file cites one as an anchor (`<file>.md §<Heading>`): grep the repo for the filename before renaming or dropping a heading, because a broken anchor resolves to nothing and reports no error.
 
 **There is a ceiling on the proposal.** Instruction files are constraint payload nearly end to end, and compliance degrades faster than readability as they shrink — a proposal taking most of a rule-dense file loses rule-following in ways no re-read can show. Prefer scoping (move the rule to a path-scoped surface) over deletion when the rule is load-bearing for one kind of work.
 
 **Return the sweep, not a quota.** Zero findings is valid; a manufactured deletion is worse than none, because it is the one finding whose wrongness the user cannot notice later. Name what you examined, name the candidates you rejected and why, and say plainly when the pass found nothing. Rejections go in the verdict, not the table — they are what stops the next run re-litigating them.
 
-Tier mapping: T4 by default; pure style → T5; a drifted restatement that now contradicts its sibling → route to D3 as T2.
+Tier mapping: T4 by default; pure style → T5; a drifted restatement that now contradicts its sibling → route to D3 as T2. Check 10's surface proposals tier by disposition: net-negative → T1 where the surface produces wrong agent behavior rather than merely costly loading, else T4; low-yield and cost → T4. The tier orders the report; it never decides the deletion, which is the user's call at its own gate.
 
 ## D5 — Structure & scoping
 
@@ -222,15 +239,18 @@ Tier mapping: T4. A move proposal names what loads less often afterward; a move 
 
 ## D6 — Coverage & safety
 
-**Scope:** every surface, plus the repo's manifests and CI for the essentials check. **Method:** reviewer; the orchestrator pastes §Surface inventory (for the activity signals) and the D1 secret-scan candidate locations.
+**Scope:** every surface, plus the repo's manifests and CI for the essentials check. **Method:** reviewer; the orchestrator pastes §Surface inventory (for the activity signals) and the D1 secret-scan and unsafe-directive candidate locations.
+
+**Absence is this dimension's main claim, so absence is what has to be proven.** Checks 3, 4, and 5 all assert that something is documented nowhere. A grep returning nothing is not evidence until you have searched every name the thing travels under — a command by its binary name *and* by the script or package task wrapping it, a tool by its config directory *and* by the phrase a human would use for it. Name the searches you ran in the `evidence` column; a finding whose evidence is "no hits" without saying what was searched is inadmissible under the output contract, the same bar a fabricated quote fails.
 
 Checks:
 1. **Secrets.** Adjudicate the D1 candidates and read every surface for credential-shaped content the patterns missed. A live credential → T0. Cite the location and shape only — the value never enters the findings table, the report, or chat. A clearly-marked placeholder is not a finding.
-2. **Unsafe directives.** Instructions that direct agents to disable TLS verification, force-push, bypass hooks or permission prompts, run untrusted downloads, or suppress errors as a required step → T0, whether or not intentional — surface it and let the user decide.
+2. **Unsafe directives.** Instructions that direct agents to disable TLS verification, force-push, bypass hooks or permission prompts, run untrusted downloads, or suppress errors as a required step → T0, whether or not intentional — surface it and let the user decide. Adjudicate the D1 candidates first: the same string appears as a warning against the practice about as often as an instruction to use it, and only reading the sentence separates the two. Then read every surface for the shapes the patterns miss — a bypass phrased in prose ("skip the pre-commit checks if they're slow") carries the same instruction as the flag.
 3. **Missing essentials.** Build, test, and lint commands documented in no surface while the repo plainly has them (manifest scripts, Makefile targets, CI steps as evidence) → T4. The evidence is mandatory: name where the command exists and that no surface mentions it.
 4. **Tool in use, no instructions.** A tool with an activity signal (config/state dirs, CI jobs, committed settings) but zero instruction surface → T4 proposal to add one — typically pointing the tool at an existing surface (`AGENTS.md`) rather than authoring a parallel one. No activity signal → no finding.
 5. **Undocumented project invariants.** A non-obvious, recurring project rule visible in the repo (a custom codegen step, a non-standard layout, a generated directory that must not be hand-edited) documented nowhere → T4, judgment call, only with concrete evidence of the invariant.
 6. **Enforceability misplacement.** A rule that must hold on every run living as prose when the tool offers a mechanical home — a hard prohibition a hook could block, a style rule a linter or formatter already owns, a check CI runs anyway. Prose shapes behavior; it does not enforce. Also flag instruction types the target runtime documents as unreliable (response-style and length mandates, always-consult-external-resource rules). T4 by default; T1 when the misplaced rule is all that stands between the agent and data loss or secret exposure.
+7. **Claimed enforcement with no mechanism.** Check 6's mirror image. Prose asserting that something is "blocked by a hook", "rejected by CI", "caught by the linter", or "enforced automatically" names a mechanism that exists: the hook is registered in the tool's settings, the CI job runs that step, the rule is in the linter config. A claim of enforcement with nothing behind it is worse than no claim, because readers stop verifying what they believe a mechanism guarantees — and the rule then holds only for as long as everyone remembers it is prose. Where both the claim and the mechanism exist and only their details disagree, that is D2's territory; this check owns the case where the mechanism is absent entirely. T1 by default; T0 where the claimed enforcement is what guards a secret, a force-push, or a destructive command.
 
 ## Do-not-flag list (endorsed patterns)
 

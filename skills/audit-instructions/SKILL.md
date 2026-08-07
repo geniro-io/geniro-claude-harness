@@ -33,7 +33,7 @@ You are the audit orchestrator. The target is every AI-assistant instruction fil
 
 ## Loop invariants
 
-The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply. This skill adds seven invariants:
+The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply. This skill adds eight invariants:
 
 8. **No unverified finding ships.** Every reviewer finding is admitted only after you Read the cited `file:line` and confirm the quoted evidence exists there — reviewers hallucinate locations, and one fabricated `path:line` poisons trust in the whole report.
 9. **Report before fix.** Fixes happen only after the Phase 5 gate — an audit that silently edits while scanning destroys the baseline the findings cite.
@@ -42,6 +42,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 12. **Secrets are cited, never quoted.** A credential found inside an instruction file is reported by location and shape only. The report file, the chat render, and every state file must never contain the secret value — a report that quotes a secret becomes a second leak that outlives the fix.
 13. **Every run sweeps for subtraction.** The bloat dimension runs on every audit — full, scoped, and `--quick` — and its verdict names what was examined and what was rejected even when it yields no findings; an unreported sweep is indistinguishable from a skipped one. The result is never mandated: zero findings is valid, a manufactured deletion is not.
 14. **Every approved finding has an owner.** Before spawning Phase 5 fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding silently assigned to nobody is work the user approved and never received.
+15. **A whole surface or section is never removed on a blanket approval.** A bloat proposal to delete an entire instruction file, an always-on surface, or a standalone rule section gets its own gate and its own explanation, whatever the user picked at the action gate — "Fix everything" included, which approves fixes rather than removals. Every other finding changes something the user can inspect afterwards; a deleted rule leaves nothing behind to inspect, because the runs that would have followed it are the ones that no longer happen. Walk them per `phase-5-action-gate.md` §Deletion gate.
 
 ## Anti-rationalization
 
@@ -106,7 +107,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
    - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (invariant #13) unless `bloat` already names it.
 3. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
-4. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?".
+4. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?". `.geniro/state/` is gitignored, so this finds reports from prior runs on this machine only — a teammate's audit leaves no trace here, and finding nothing means "no local prior report", never "never audited".
 5. **Build the inventory and write the state checkpoint** per the reference §Run setup — enumerate the §Surface inventory globs, record what exists (with word counts and per-tool activity signals), and checkpoint after every phase.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
@@ -141,7 +142,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 5 — Action gate
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the disjoint-allowlist fix path with invariant #14's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the §Deletion gate walk for whole-surface removals (invariant #15), the disjoint-allowlist fix path with invariant #14's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, every deletion proposal has had its own gate, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
 
 ## State recovery
 
@@ -157,6 +158,7 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 - [ ] Report written to `.geniro/state/audit-instructions/report-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
 - [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
 - [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (invariant #14)
+- [ ] Every whole-surface deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval, and the ones kept recorded as considered-and-kept (invariant #15)
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run clean, findings re-checked
 - [ ] Slug-scoped state cleaned up; commit offered for the fixed files only
 
@@ -169,4 +171,4 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-write helper API and exit codes
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — resume validation and the recovery question
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — reviewer inherit rule and the fix-agent execution pin
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` — render-then-ask contract for the action gate
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` / `per-finding-question.md` — render-then-ask contract for the action gate and the per-proposal deletion gate
