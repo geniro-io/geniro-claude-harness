@@ -154,7 +154,7 @@ Machine findings are pre-verified and skip Phase 3 re-reads; candidates are not 
 
 **Scope:** every surface. **Method:** reviewer seeded with D1's command and path candidates. Where a cited path is absent, check git history before flagging blind — a rename with a known survivor yields a better fix instruction than a deletion notice, and a recently removed dependency confirms a stale claim.
 
-Instruction files are trusted ground truth for every future agent session — a wrong instruction doesn't fail once, it misleads every run until someone notices. That is why this dimension tiers high.
+A wrong instruction doesn't fail once — it misleads every run until someone notices, which is why this dimension tiers high.
 
 Checks:
 1. **Dead commands.** Documented build/test/lint/deploy commands absent from the repo's manifests, scripts, and CI (adjudicate the D1 candidates; check whether the command is a global tool the repo's toolchain evidence supports before flagging).
@@ -186,16 +186,23 @@ Checks:
 2. **Hedges without conditions.** "May or may not", "depending on the situation" — commit to the condition or cut the line.
 3. **Model-known and derivable instruction.** Text re-explaining what any capable agent already does ("write clean code", "read a file before editing it") — and content the agent derives from the repo on demand: directory layouts, dependency lists, architecture overviews restating what the code shows. The most common failure of the per-line test.
 4. **Over-specified mechanics.** Shell recipes, prescribed loop shapes, platform hand-holding where a goal plus a bound suffices. State what, not how, unless the how is a project contract (an exact path, schema, or canonical command).
-5. **Guardrails written for weaker models.** Blanket prohibitions where a criterion would let the agent read the situation ("never write comments" vs "match the file's comment density"); shouted emphasis standing in for a reason. A project contract — exact path, threshold with a stated why, canonical option — is not this shape and stays.
+5. **Guardrails written for weaker models.** Blanket prohibitions where a criterion would let the agent read the situation ("never write comments" vs "match the file's comment density"); shouted emphasis standing in for a reason. A project contract — exact path, threshold with a stated why, canonical option — is not this shape and stays. Where a prohibition survives that test, propose the requirement form of it anyway: prohibition-type constraints measurably decay as a session's context grows while requirement-type constraints hold their compliance, so a long run erodes exactly the guardrail it most needs. Keep the prohibition only where the bar is data loss or an external effect and no positive rewrite carries it.
 6. **Dead instructions.** Text governing code, tools, flags, or workflows that no longer exist. Route by referent: a wrong factual claim belongs to D2, a drifted duplicate to D3 — only dead text with no such owner lands here.
 7. **Menu of options without a default.** Several equivalent choices offered where the agent needs one ("tests can be run with pytest, jest, or make test") — collapse to one default plus the single condition that switches it.
 8. **Appended-patch contradiction.** A later "NOTE:" / exception / caveat that narrows or overrides an earlier rule in the same file instead of being folded into it — recency silently wins, or the agent burns attention reconciling the pair. Rewrite the original rule to read correctly on its own; delete the patch.
+9. **The case for the rule, shipped with the rule.** An instruction file is payload for an agent that has to act, not a document arguing its own case to a human. Flag text that defends a rule rather than stating it:
+   - Source lists and attribution paragraphs; "per `<vendor>` verbatim: …" quote blocks sitting beside the rule they already produced.
+   - Evidence grading — a note on which rules rest on measurement and which on taste. Grade while authoring; the grade steers no run.
+   - Refutations of a theory the rule is *not* founded on. The agent was never going to apply the wrong theory.
+   - How the rule arrived: the prior version it replaced, the incident behind it, "we used to do X".
 
-Every removal proposal names what breaks if the removal is wrong. A shorten or merge proposal additionally carries a **preserved inventory** — the spans the rewrite must reproduce verbatim: commands, paths, thresholds, frontmatter fields, globs, and any string a tool parses. Those are contracts, not prose; a reword that drifts one of them silently disables it.
+   What stays: the rule, the reason where an agent would otherwise rationalize around it (an anti-pattern, an escape hatch, error semantics), and a bare link where a counterintuitive rule needs evidence to stop being re-litigated — the link, never a summary of it. This check is the rule-level twin of D5's wrong-surface content, which owns whole sections of narration; route a standalone changelog or design-history section there.
+
+Every removal proposal names what breaks if the removal is wrong. A shorten or merge proposal additionally carries a **preserved inventory** — the spans the rewrite must reproduce verbatim: commands, paths, thresholds, frontmatter fields, globs, and any string a tool parses. Those are contracts, not prose; a reword that drifts one of them silently disables it. **Section headings join that inventory** wherever another file cites one as an anchor (`<file>.md §<Heading>`): grep the repo for the filename before renaming or dropping a heading, because a broken anchor resolves to nothing and reports no error.
 
 **There is a ceiling on the proposal.** Instruction files are constraint payload nearly end to end, and compliance degrades faster than readability as they shrink — a proposal taking most of a rule-dense file loses rule-following in ways no re-read can show. Prefer scoping (move the rule to a path-scoped surface) over deletion when the rule is load-bearing for one kind of work.
 
-**Return the sweep, not a quota.** Zero findings is a valid outcome; a manufactured deletion is worse than none, because a deletion is the one finding whose wrongness the user cannot notice later. Name what you examined (which files, which checks, where you looked hardest), name the candidates you considered and rejected with the reason, and say plainly when the pass found nothing — the rejections go in the verdict, not the table, and they are what stops the next run re-litigating them.
+**Return the sweep, not a quota.** Zero findings is valid; a manufactured deletion is worse than none, because it is the one finding whose wrongness the user cannot notice later. Name what you examined, name the candidates you rejected and why, and say plainly when the pass found nothing. Rejections go in the verdict, not the table — they are what stops the next run re-litigating them.
 
 Tier mapping: T4 by default; pure style → T5; a drifted restatement that now contradicts its sibling → route to D3 as T2.
 
@@ -237,3 +244,5 @@ Re-flagging these is the audit's own false-positive failure mode:
 - **Personal-overlay divergence.** `CLAUDE.local.md` (and equivalents) differing in preference from team files is the overlay working as designed; only factual wrongness or safety issues in them are findings.
 - **Tool-specific phrasing of the same rule.** A Cursor rule worded for Cursor's loading model is not a contradiction of the CLAUDE.md wording when both carry the same rule.
 - **Structural shape of `.geniro/instructions/*.md`** — owned by `/geniro:instructions validate`; route rather than flag.
+- **A reason attached to a rule an agent would otherwise rationalize around.** An anti-pattern, an escape hatch, or error semantics carries its why so the constraint survives contact with an edge case the wording never anticipated. That is payload, not provenance — D4 check 9 hunts the case *for* a rule, never the reason *inside* one.
+- **A link the rule requires following.** A URL an agent must fetch to do the work — a schema, an API reference, a runbook — is a data source, not a citation. Only a link supporting an argument is in check 9's range.
