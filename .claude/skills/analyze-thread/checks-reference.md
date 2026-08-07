@@ -11,11 +11,12 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 1. Mechanical checks — A-class (subagent spawning)
 2. Mechanical checks — B-class (tool-call correctness)
-3. Mechanical checks — C/D/E/F/G/H-class (state, gates, drift, memory, safety, context)
+3. Mechanical checks — C/D/E/F/G/H-class (state, gates, drift, memory, safety, context) · I-class (custom-instruction wiring) · K-class (stage & gate completeness)
 4. Judged checks — taxonomy seed for the LLM-judge prompt
 5. Severity ladder & confidence calibration
 6. Common false-positive recipes for Phase 3 filter
 7. Evidence-excerpt ranking heuristic for the judge
+8. The expectation set — what the coverage checks (I/K-class) compare against
 
 ---
 
@@ -85,6 +86,39 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 |---|---|---|---|---|
 | H2 | Step repetition / redundant tool use | nit | generic | For each `tool_use.name in ("Read","Grep","Glob")`, hash `tool_input.file_path` + `tool_input.pattern`. Count occurrences. Flag any input that appears 3+ times. Exception: the second read is OK if the file was Edit/Written between reads. |
 
+### I-class custom-instruction loading & dynamic-rule wiring
+
+Every I-class check is a **coverage check**: it compares what the run declared it would load against what the trace shows it loaded and applied. Both halves come from the expectation set (§8), which is built from the thread's own trace — never from the analyzing machine's checkout, which usually belongs to a different project than the thread does.
+
+Three rules keep this class honest, and they govern K-class equally.
+
+- **An expectation the trace does not establish is not a finding.** A project that declares no `## Data Sources` cannot omit consulting one, and a thread whose expectation set came out empty produces zero coverage findings rather than a wall of "missing" rows.
+- **One finding per declaration site, itemised.** A `pipeline` load site that read none of its four files is one finding listing four missing files, not four findings; a phase whose six steps went unrun is one finding listing six. This is what keeps a systematically-broken run inside the 60-finding parser tripwire (SKILL.md §Budgets) instead of burying every other check under it.
+- **Confidence tracks the trace, not the rule.** Elsewhere a mechanical hit is always high-confidence, because the rule either matched or it did not. A coverage check matched on an absence, so an absence in what you could see is indistinguishable from an absence in what happened: a check built on a partial trace or a project-read expectation set (§8 degradations 1-2) caps at medium and carries the reason in its rationale.
+
+| ID | Name | Severity | Scope | Detection logic |
+|---|---|---|---|---|
+| I1 | Declared instruction file never loaded | blocker | plugin | For each `load_sites[]` entry in the expectation set, expand its `LOAD_TIER` to the file set the loader defines (`pipeline` → `global.md`, `memory.md`, `<SKILL_SLUG>.md`, `code-style.md`; `rules-only` → the first two). Between that site and the next phase boundary, look for a `Read` whose `file_path` resolves to each file — under `.geniro/instructions/`, under the active external instructions dir when one appears in the trace, or under a `PRIMARY_ROOT` absolute path. Flag the site once, itemising every file with no Read. |
+| I2 | Load echo missing | warning | plugin | For each instruction-file Read that DID fire, scan that assistant turn and the next for the file's echo line in one of the loader's formats — `Loaded <file> (…rules, …constraints[, …data sources]).`, the `from primary worktree` / `from external instructions dir` variants, the `Loaded memory.md (memory backend: …)` form, or `No <file> found — skipping.` A Read with no echo is a load nobody downstream can see; a `No <file> found` echo with no preceding Read is an echo for a load that never happened — flag both, tagging which. |
+| I3 | Phase-boundary refresh skipped | warning | plugin | For each `refresh_sites[]` entry (a phase boundary whose skill body prescribes `MODE: refresh`), check that the boundary's turn or the next re-Reads the whole load set and re-echoes. A refresh that reads a strict subset counts as skipped for the unread files — the refresh exists because compaction drops all of them equally. |
+| I4 | Fallback path not attempted | warning | plugin | After a `Read` on `.geniro/instructions/<file>` whose `tool_result` is file-not-found, the loader owes one of two things: a retry against `<PRIMARY_ROOT>/.geniro/instructions/<file>`, or evidence that `PRIMARY_ROOT` equals cwd (no worktree probe in the trace, or one whose output shows a single worktree). Flag a run that goes straight from the miss to `No <file> found — skipping.` while the trace shows a linked worktree. Same shape for a configured-but-missing external dir: the bad-pointer caveat must be echoed before the in-repo fallback runs. |
+| I5 | Declared memory backend bypassed | warning | plugin | When the `memory.md` tool_result carries a `## Memory Backend` block routing the `learnings` layer, every later learnings write and read must go through the declared tools. Flag an `emit-learning.sh` call or a direct `learnings.jsonl` append with no companion call to the declared write tool, and a `query-learnings.sh` call or file read with no companion call to the declared read tool. Under `mode: replace` the file path alone is a silent no-op, so it is a blocker rather than a warning there. |
+| I6 | Custom reviewers discovered but not spawned | blocker | plugin | When the trace shows `review-extra/*.md` files resolved (a Glob result, or Reads of those paths), each valid slug owes one `Agent` spawn carrying `custom:<slug>` as its dimension. Flag a slug with no spawn; flag separately a spawn that lands in a different assistant turn than the built-in reviewer batch, which serialises what the helper requires to run parallel. A slug the trace shows failing validation is correctly absent — not a finding. |
+| I7 | Subagent load report missing | warning | plugin | For each `Agent` spawn whose `subagent_type` is one whose contract prescribes its own instruction load, check the returned `tool_result` for a `Context loaded: <item>=<state>` line. A report without one came from an agent that did not run its load steps, so its conclusions rest on plugin defaults rather than project rules. Also flag `<state>` = `unreadable` on a path the orchestrator itself passed — that is a spawn-site defect, not an agent defect. |
+
+### K-class stage & gate completeness
+
+K-class answers "did every stage the skill declared actually run, and did every gate actually fire". Its declared side comes from the expectation set's `phases[]`, `phase_files[]`, `steps[]`, and `gates[]` (§8); the three coverage rules above apply here unchanged.
+
+| ID | Name | Severity | Scope | Detection logic |
+|---|---|---|---|---|
+| K1 | Declared phase never entered | blocker | plugin | Walk `phases[]` in order. A phase is entered when the trace shows either its narration marker or its characteristic tool surface. Flag a phase with neither whose successors did run — an unentered phase between two run phases is a skip; a run that stopped early at the user's request is not. Do not flag a phase the expectation set marks conditional whose trigger the trace shows unmet. |
+| K2 | Phase-entry Read skipped | warning | plugin | For each `phase_files[]` entry — a phase whose steps live in a sibling file, including a second hop to a reference or criteria file — require a `Read` of that file before the phase's first step, plus the `Phase <N> (<name>) — loaded <file>.` echo. A phase whose body was never read ran with its gates deleted and its work intact, which is why this is the highest-yield check in the class. Re-entry after a resume or a compaction owes its own Read. |
+| K3 | Gate declared but never fired | blocker | generic+plugin | For each `gates[]` entry, look for an `AskUserQuestion` between the gate's phase entry and the run's end whose subject matches the gate's decision. Flag a gate with none whose guarded action nevertheless happened. A gate whose precondition the trace shows unmet (nothing to decide) is clean when the run says so; silence is not. |
+| K4 | Choice put to the user outside the tool | blocker | generic+plugin | Scan assistant text for a choice offered in prose — enumerated options, `(A)/(B)`, "let me know which you prefer", "should I X or Y?" — with no `AskUserQuestion` in the same or next turn. A plain-text choice captures no structured answer, so a resumed session re-asks what the user already decided. The one documented exception is a repeated empty-answer loop from the tool itself, which must be visible in prior tool_results. |
+| K5 | Empty AUQ answer auto-defaulted | blocker | generic+plugin | For each `AskUserQuestion` whose `tool_result` is empty or carries no selected option, the next turn must re-ask. Flag a run that instead proceeds on an assumed answer — an empty answer signals an upstream tool bug, and treating it as consent manufactures an approval the user never gave. |
+| K6 | Gate-render block mishandled | warning | plugin | After a `tool_result` showing the `gate-render` guard's hard-block, the correct recovery is a visible render message followed by the SAME question re-fired. Flag: abandoning the gate, restating the options in prose instead, or re-firing with the "above" reference stripped out — each converts a guard catch into the blind approval the guard exists to prevent. |
+
 ---
 
 ## 4. Judged checks — taxonomy seed for the LLM-judge prompt
@@ -106,6 +140,12 @@ These checks require LLM reading because they depend on intent inference, narrat
 | H1 | First-vs-last contradiction | warning | generic | Judge compares constraints/requests in the first 20% of events against actions/conclusions in the last 20%. Flag explicit contradictions — e.g., user said "don't modify file X" early and assistant edits X late without acknowledgement. |
 | H3 | Failure to ask for clarification | warning | generic | User input contains ambiguity (multiple plausible interpretations) and assistant proceeds with one interpretation without firing `AskUserQuestion`. Judge sets confidence based on how genuine the ambiguity was. |
 | D3 (judged half) | Premature completion (judged) | warning | generic+plugin | Combined with mechanical D3: judge inspects "shipped" claims against narrative evidence (did the test suite actually pass? Was the phase exit condition stated in the skill body actually met?). |
+| I8 | Additional Step never executed at its boundary | warning | plugin | The loaded instruction content carries an `## Additional Steps` subsection named after a phase boundary. Judge checks the trace at that boundary for the step's work. Two distinct verdicts, and the judge must say which: the step ran somewhere else (misplaced — the loader's "apply where it fits" allowance covers a boundary the skill genuinely lacks, not one it has), or the step never ran at all. A run that loaded a file and echoed it, then executed none of its steps, is a load that changed nothing. |
+| I9 | Loaded rule or constraint not applied | blocker | plugin | Judge takes each `## Rules` bullet (standing, every phase) and `## Constraints` bullet (a hard gate) from the loaded content and looks for an action in the trace that contradicts it, or a decision point where the rule was the deciding input and went unmentioned. The load echo proves the file was read; this check is the only evidence that reading it mattered. Cite the bullet verbatim alongside the contradicting action. |
+| I10 | Declared data source never consulted | warning | plugin | A `## Data Sources` block declares sources whose `(confirms: …)` hint names a fact kind. Where the run asserted a load-bearing fact of that kind — a status, a shipped-state, a production behavior — judge checks whether the declared source was queried, or the fact was explicitly marked unconfirmed. Flag an assertion that is neither. Facts outside every declared `confirms:` hint are out of scope for this check. |
+| I11 | Result stated wider than the Verification Surface allows | warning | plugin | A `## Verification Surface` block states, per check, what it covers and what it does not. Judge compares the run's result claims against the entry for the command that produced them: flag a bare "tests pass" / "verified" where the block names ground that command leaves uncovered, and flag a criterion demonstrated by substituting the nearest green command when no entry covers it. The does-not-cover clause is the boundary the claim may not cross. |
+| K7 | Declared step within a run phase skipped | warning | plugin | Mechanical K1 sees whole phases; this sees inside one. Judge walks the entered phase's steps from the expectation set against the trace and flags steps with no corresponding work — weighting steps that gate something (an approval, a validation, a load) over bookkeeping ones, since a skipped gate step changes the run's outcome and a skipped echo does not. Report the phase once with its skipped steps itemised. |
+| K8 | Gate fired without its render | warning | plugin | A gate carrying finding, plan, or investigation context owes a visible render message BEFORE the lean question — the digest, evidence, and visual the question refers to. Judge checks the assistant message immediately preceding each such `AskUserQuestion`: flag a question whose options reference content the user was never shown, and flag a render that was reasoned through but never emitted as chat text. A lean question following a genuine render is the compliant shape, not a finding. |
 
 ---
 
@@ -145,6 +185,23 @@ Use these when tagging FALSE-POSITIVE. Each is a documented case where a mechani
 | G1 git destructive | The command was inside a `<details>` block or a `# Legacy` section (not actually executed) | If Bash output is empty / non-existent for that command, it was illustrative, not executed. |
 | G3 secret in state | The "secret" was a redacted token (`sk-***REDACTED***`) or a test fixture (`fake-api-key`, `dummy-token`) | Check if `redact_secrets` was called in the same turn, OR if the value matches a documented fixture pattern. |
 
+A coverage check compares a declared side against an observed side, so it has two ways to be wrong that the other classes do not: the declaration can be misread, and the observation can be missed. Both fail toward a false "missing", which is why the recipes below skew to confirming absence rather than confirming presence.
+
+| Finding pattern | Likely false-positive when | How to confirm |
+|---|---|---|
+| I1 file never loaded | The file loaded from a path the check didn't recognise — an external instructions dir, or a `PRIMARY_ROOT` absolute path from a linked worktree | Search the trace for any Read whose path ends in the filename, whatever its prefix, and for the external-dir probe's `EXTERNAL_DIR=` output. A matching echo line is equally good evidence the load fired. |
+| I1 / I3 missing at a load site | The thread is truncated, compacted, or starts mid-run, so the turns holding the load are simply not in the file | Check whether the trace contains the run's opening turn. A thread that begins mid-phase cannot evidence a Step 0 load — downgrade every load-site finding to UNCERTAIN and say the trace is partial. |
+| I5 memory backend bypassed | The declared backend tool was unavailable in that session and the run fell back to the file with the fail-open documented in its narration | Read the turns around the call: a stated fallback after a backend error is the contract working, not a bypass. |
+| I6 reviewer not spawned | The slug failed the loader's validation (reserved name, slug/filename mismatch, bad `model:`) and was correctly dropped with a warning | Look for the one-line skip warning naming that file. A validated-out reviewer owes no spawn. |
+| I7 load report missing | The spawn was to an agent whose contract prescribes no instruction load, or the orchestrator pre-inlined the file as a prompt slot | Check the agent's own contract; a `Context loaded: …=slot` line is compliance, and an agent with nothing to load owes no line. |
+| I9 rule not applied | The rule's subject never arose in this run, so there was no decision point for it to govern | A rule can only be violated where it applies. Name the specific action that contradicts it; if you cannot, this is UNCERTAIN at best. |
+| I10 data source never consulted | The asserted fact fell outside every declared `(confirms: …)` hint, or the run explicitly marked it unconfirmed | Re-read the hint list; an unconfirmed-marked fact is the contract's own clean path. |
+| K1 phase never entered | The phase was conditional and its trigger never fired, or the run legitimately terminated early — a user interrupt, an abort gate, a stop the user asked for | Check the terminal turns. A run that ended on a user "stop" skipped nothing; only a phase stepped over while later phases ran is a skip. |
+| K2 phase-entry Read skipped | The skill keeps that phase's steps inline in SKILL.md, so there is no sibling file to read | Confirm from the expectation set that the phase actually has a body file. A single-file skill has no hop to miss. |
+| K3 gate never fired | An earlier approval already covered this decision class, or the gate's precondition was genuinely empty | Read the earlier question and its options — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md` an approval reaches only the class the user was shown. For an empty precondition, look for the `none — <step> ran …` sentinel; a bare-empty artifact means the producing step did not run, which is a different finding. |
+| K4 choice outside the tool | The prose was narrating options the run then put through `AskUserQuestion`, or it was recapping a decision the user had already made | Look one turn forward for the tool call and one turn back for the answer. Narration around a real gate is not a bypass. |
+| K7 step skipped | The step was conditional, or the trace records its work without narrating it under the step's name | Match on the step's effect, not its label — a step whose work is visible ran, whatever the narration called it. |
+
 ---
 
 ## 7. Evidence-excerpt ranking heuristic for the judge
@@ -156,6 +213,7 @@ Suspicion score per event = sum of:
 - `+5` if the event is within ±2 events of a mechanical finding
 - `+3` if the event is within ±3 events of an `AskUserQuestion` call
 - `+3` if the event narration contains a phase-boundary word: `Phase`, `Step`, `shipping`, `complete`, `review`
+- `+3` if the event is a `Read` of an instruction file, a phase body, or a criteria file, or carries a load echo (`Loaded <file>`, `No <file> found`, `Phase <N> … loaded`) — these anchor every I/K-class judged check
 - `+2` if the event is a `tool_use` to `Agent` (subagent spawn — high signal)
 - `+2` if the event is a `tool_use` to `Edit` or `Write` (state-changing)
 - `+1` if the event is in the first 10 or last 10 events of the thread (start/end carry context)
@@ -163,10 +221,47 @@ Suspicion score per event = sum of:
 
 Sort events by suspicion descending; take top events until 60K-token budget is reached; sort the selection back into chronological order for the judge. Always include the opening user message and the closing assistant turn regardless of score (anchors for E3 task-drift judging).
 
+**One reservation on top of the ranking.** The judged coverage checks (I8-I11, K7, K8) each need a specific pair of events — a declaration and the place it should have taken effect — and a purely score-sorted slice reliably keeps the first and drops the second, because a boundary where nothing happened scores near zero for exactly the reason it is the finding. Before spending the budget on the ranked tail, reserve room for both ends of each declaration the expectation set carries: the tool_result that established it, and the turns at the boundary where it applied. Where an excerpt had to be dropped anyway, tell the judge which checks are running on partial evidence rather than letting it read absence as proof.
+
+---
+
+## 8. The expectation set
+
+Every A-H check reads the trace and asks "is this action wrong?". The I- and K-class checks ask a different question — "is something *missing*?" — and a missing thing has no event to match on. They need a declared side to compare the trace against. That is the expectation set: per thread, what the run said it would load, enter, and ask, built at Phase 1 and consumed by Phase 2.
+
+### Build it from the trace, not from this checkout
+
+The thread being analyzed usually belongs to a different project than the machine running the analysis — that is the normal case in a batch, where threads are drawn from every project on the box. Reading the analyzer's own `.geniro/instructions/` or `skills/` to decide what a thread should have loaded compares one project's run against another project's rules, and every row it produces is fiction. It also fails on a single-project run, more quietly: the files have moved on since the thread ran, so the diff reports the edits made since, dressed as failures of the run.
+
+The trace is self-sufficient, and this is what makes the class work: a Claude Code session log records the skill body that was injected, the tool_results of every instruction file the run read, and the arguments of every call it made. What the run was told and what it did are both in the file.
+
+| Field | What it holds | Where the trace shows it |
+|---|---|---|
+| `skill` | The skill this run executed | The slash-command invocation, or the injected skill body's `name:` |
+| `phases[]` | Declared phases in order, each flagged conditional or unconditional | The injected skill body's phase headings and its phases overview |
+| `phase_files[]` | Phases whose steps live in a sibling file, plus any second hop that file defers to | The spine's phase-body pointers |
+| `steps[]` | Per entered phase, its declared steps, flagged gate-bearing or bookkeeping | The phase body's tool_result, once the run read it |
+| `gates[]` | Decisions the skill declares it will put to the user | `AskUserQuestion` sites named in the skill and phase bodies |
+| `load_sites[]` | Instruction-load sites with their `SKILL_SLUG` / `LOAD_TIER` / `MODE` | The load-site wording in the skill body |
+| `refresh_sites[]` | Phase boundaries prescribing `MODE: refresh` | Same |
+| `instruction_blocks[]` | Per loaded file, which blocks it carried — `## Rules`, `## Constraints`, `## Additional Steps` (with the boundary each names), `## Data Sources`, `## Verification Surface`, `## Memory Backend` | The tool_result of each instruction-file Read |
+| `custom_reviewers[]` | Valid `review-extra/` slugs the run resolved | The Glob result or Reads under `review-extra/` |
+
+### When the trace does not carry it
+
+Three degradations, in order of preference. Each one weakens the checks that depend on the missing field, and the weakening travels with the finding rather than being decided once for the thread.
+
+1. **Partial trace** — the thread is compacted or starts mid-run, so a declaration is visible but the turns that would have honored it are not. Keep the check, cap its confidence at medium, and say the trace is partial in the finding's rationale. Absence in a slice you cannot see is not evidence.
+2. **Skill body absent, project reachable** — the trace names the skill but does not carry its body, and the thread's own project directory is readable from here. Read the body from there, and mark every finding derived from it as UNCERTAIN: the file has changed since the run by an unknown amount, so a mismatch may be an edit rather than a failure.
+3. **Neither** — drop the I- and K-class checks for that thread and say so in the report. A coverage check with no declared side reports nothing, which is the correct answer; inventing the declared side reports everything, which is worse than the silence it replaces.
+
+An empty expectation set is a normal outcome, not a parse failure. A thread with no Geniro run in it — the `geniro-run: no` case — has no declarations to check, and generic threads skip the whole class the same way they skip every other `[plugin]` row.
+
 ---
 
 ## Notes for maintainers
 
 - The check count is not load-bearing — add new checks here when new failure modes are discovered. Number them by category (A8, B5, etc.) so legacy finding IDs stay stable across versions.
+- A new I- or K-class check needs a §8 expectation-set field to compare against. Without one it has no declared side, so it either never fires or fires on everything — add the field in the same edit as the check.
 - When `/improve-template` consumes a handoff from `/analyze-thread`, it sees finding IDs verbatim. Keep IDs stable across edits to this file; rename `name` columns freely.
 - Editing the taxonomy takes effect on the next `/analyze-thread` run with no rebuild — SKILL.md invariant #3 documents how it reaches the judge.
