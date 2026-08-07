@@ -80,7 +80,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | "The findings are in state.md, I'll just ask the escalation question" | state.md is a scratchpad, not a user-facing report. §3.1 requires an explicit findings summary in chat AND persisted to `from-debug-<branch>.md` before the escalation AUQ. The state file IS the handoff channel — inlining the summary into the escalation command lets copies drift. |
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | No-access-by-default is the same fabrication shortcut as inconclusive-by-default: a limit on your own reach is a claim and carries the same artifact requirement (Evidence Standard). Attempt the read with the tools you have and capture what fails; the §1.5 missing-data gate opens on that captured failure. Handing the user a manual checklist your own shell answers in seconds skips the probe that would have settled it. |
-| "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at §3.5 Cleanup and leave no regression guard. §2.4 mandates the reproduction be authored as a unit/integration test in the project's framework. Escape hatch (Reproduction Decision) is opt-in for genuinely non-reproducible cases only. |
+| "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at §3.4 Cleanup and leave no regression guard. §2.4 mandates the reproduction be authored as a unit/integration test in the project's framework. Escape hatch (Reproduction Decision) is opt-in for genuinely non-reproducible cases only. |
 | "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | Every user-facing choice in this skill routes through the `AskUserQuestion` tool (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule) — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 | "I'll name the reproduction test after the confirmed hypothesis number from `## Hypotheses`" | state.md gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. §2.4 mandates: describe the bug behavior, not the thread-local label. |
 | "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskUserQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
@@ -154,7 +154,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - Explicitly blocked: production-source Edit/Write outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
-- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.5 cleanup) / AskUserQuestion.
+- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup) / AskUserQuestion.
 - Explicitly blocked: Edit/Write, `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
 **Adversarial Mode (A4 spawn):**
@@ -220,7 +220,7 @@ state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduct
 
 state.md `phase: ship`. Findings handoff to downstream skill OR user-handles — proposals + tests authored locally (no-ship boundary per § Your role, § ACI per-phase).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`** — Steps 3.0-3.6, the Debug Findings template, the cleanup contract, and the Scientific-Mode Definition of done. The handoff is persisted via `atomic_state_write` BEFORE the escalation `AskUserQuestion` fires, and every `open_questions[]` entry reaches `resolved` or `wontfix` first.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`** — Steps 3.0-3.5, the Debug Findings template, the cleanup contract, and the Scientific-Mode Definition of done. The handoff is persisted via `atomic_state_write` BEFORE the escalation `AskUserQuestion` fires, and every `open_questions[]` entry reaches `resolved` or `wontfix` first.
 
 ---
 

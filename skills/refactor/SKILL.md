@@ -38,7 +38,6 @@ argument-hint: "[what to refactor and why]"
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — the smell-detection sub-step (reuse-vs-create audit per detected smell)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate — the single-finding AskUserQuestion gate
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` § Visual rendering language — the shared visual language for gate messages rendered to chat before a lean question
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template — the PRODUCT-DECISION ADR-path (4th AskUserQuestion option, included only when ADR-eligible)
 
 **Phase bodies.** Phase 1, Phase 2, and Phase 3 all live in sibling files, Read on entry to that phase and again on any resumption of it, including after a compaction: `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-1-plan.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
 
@@ -64,7 +63,7 @@ The zero-behavior-change guarantee is enforced per-step via the orchestrator-inl
 
 ## State machine
 
-state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented` (SessionStart recovery treats all six as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (session-level blocked-ratio cap exceeded — §Budgets), `verify-escalated` (1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — your previous options:" so the user re-picks without losing context.
+state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: `done`, `verify-summary-only`, `reverted`, `aborted`, `routed` (SessionStart recovery treats all five as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (session-level blocked-ratio cap exceeded — §Budgets), `verify-escalated` (1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — your previous options:" so the user re-picks without losing context.
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
 
@@ -74,7 +73,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ## Terminal states
 
-`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. Every transition into any of the six first runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) and only then writes the terminal `phase:` via `atomic_state_write` — a terminal write that skips cleanup leaves the slug dir behind, where nothing else sweeps `.geniro/state/`. `done`, `verify-summary-only`, `adr-documented`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.7 is the phase's own next step. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe the call explicitly: Phase 1 §1.2 (no tests exist → `routed`; baseline-red "stop refactoring" pick → `aborted`), §1.3.2 (hard-signal "Escalate" → `routed`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
+`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Every transition into any of the five first runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) and only then writes the terminal `phase:` via `atomic_state_write` — a terminal write that skips cleanup leaves the slug dir behind, where nothing else sweeps `.geniro/state/`. `done`, `verify-summary-only`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.7 is the phase's own next step. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe the call explicitly: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
 
 ---
 
@@ -109,9 +108,9 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
 | "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change guarantee applies even when the in-scope behavior is buggy. |
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
-| "Auto-promote a recorded discovery into a project rule when refactor completes." | Phase 3 §3.5 offers to capture it via `/geniro:instructions create` and only when the same pattern has recurred (`recurrence_count >= 3`) — do NOT auto-write the rule. The user authors and curates project rules; auto-promotion creates noise + drift. |
+| "Auto-promote a recorded discovery into a project rule when refactor completes." | /geniro:refactor proposes no project rules at all — its durable output is the `discovery` / `pitfall` learning emitted at Phase 3 §3.5. Rule mining is `/geniro:reflect`, which the user invokes when they want it; a rule offer bolted onto a refactor interrupts the diff review the run exists to deliver. |
 | "The revert step needs `git checkout -- .` / `git restore .`, but the guard blocks it — I'll bypass the hook or run `git stash`." | The guard is blocking a mass discard, not the revert. Use the targeted form § Git constraint defines; a bypass or `git stash` reaches the same uncommitted work the guard exists to protect. If some other guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
-| "PRODUCT-DECISION 4-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 4 fixed options when ADR-eligible (3 otherwise). The ADR path captures rejection rationale durably; the Revert path is a user-controlled safety net. Collapsing removes meaningful agency. |
+| "PRODUCT-DECISION 3-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 3 fixed options. The Revert path is a user-controlled safety net, and dropping it leaves a user who dislikes the diff with no in-skill way out. Collapsing removes meaningful agency. |
 | "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
 
 ---
@@ -149,7 +148,6 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 |---|---|---|
 | Orchestrator-inline execution (any risk) | Orchestrator's model | Smell detection + per-step execution run on orchestrator's main thread (no subagent — no tiering decision) |
 | Independent reviewer-agent + custom reviewers | inherit (OMIT `model=`) | Phase 3 diff review (Medium+ tier only); inheritance lets the user's session-level `/model` choice propagate |
-| Focused ADR-drafting agent | inherit (OMIT `model=`) | ADR path (only fires if ADR-eligible PRODUCT-DECISION) |
 
 ## Agent failure handling
 
@@ -183,7 +181,7 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 
 **Phase 3 (Verify):**
 - Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
-- Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only), focused ADR-drafting agent (if PRODUCT-DECISION ADR path picked).
+- Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only).
 - Allowed: targeted per-file revert per § Git constraint — the one orchestration-level exception to the git-write constraint.
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.
 
@@ -224,7 +222,7 @@ These are the load-bearing exit gates and safety invariants — the checks that,
 - [ ] PRODUCT-DECISION findings escalated to `/geniro:implement` (always-WAIT), never fixed in-skill
 - [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → "Findings remain" AUQ
 - [ ] Blocked-ratio cap exceeded (§Budgets) → stuck AUQ fired (user picks; never silent abort)
-- [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields; rule-capture offer fired when `recurrence_count >= 3` (after dedupe check), decline logged via `emit-rejection.sh`
+- [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields
 - [ ] Custom post-verify steps executed — any `### After verify` subsection in the loaded `.geniro/instructions/refactor.md` ran, or none was loaded (Phase 3 §3.6)
 - [ ] No `git commit` / `git push` / `gh pr create` — diff stays uncommitted (user or /geniro:implement ships)
 - [ ] Cleanup completed
@@ -245,7 +243,7 @@ state.md `phase: apply`. The orchestrator executes the approved plan one step at
 
 ## Phase 3 — verify
 
-state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`** — it carries the Steps (§3.1 diff sanity · §3.2 the reviewer batch · §3.3 disposition, including the PRODUCT-DECISION escalation and the ADR path · §3.4 completion summary · §3.5 learnings · §3.6 custom post-verify steps · §3.7 cleanup), and every `Phase 3 §3.M` citation in this skill resolves there. Exit: a terminal state — `done`, `verify-summary-only`, `reverted`, `routed`, `adr-documented`, or `verify-escalated` when the 1-round fix loop exhausts. No `git push` / `gh pr create`: refactor never ships code, only a working-tree diff and a state-file audit trail.
+state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`** — it carries the Steps (§3.1 diff sanity · §3.2 the reviewer batch · §3.3 disposition, including the PRODUCT-DECISION escalation · §3.4 completion summary · §3.5 learnings · §3.6 custom post-verify steps · §3.7 cleanup), and every `Phase 3 §3.M` citation in this skill resolves there. Exit: a terminal state — `done`, `verify-summary-only`, `reverted`, `routed`, or `verify-escalated` when the 1-round fix loop exhausts. No `git push` / `gh pr create`: refactor never ships code, only a working-tree diff and a state-file audit trail.
 
 ---
 

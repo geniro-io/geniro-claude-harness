@@ -32,7 +32,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
 - `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6; skipped, with the spec left on disk, when the project ignores `.geniro/planning/` (the default `.gitignore` does).
-- Phase 8.7 executes any user-authored `### After user-approve` steps loaded from `.geniro/instructions/plan.md` — the generic, tool-agnostic extension point for project-specific post-plan work.
+- Phase 8.6 executes any user-authored `### After user-approve` steps loaded from `.geniro/instructions/plan.md` — the generic, tool-agnostic extension point for project-specific post-plan work.
 - Phase 9 handoff — prints the milestone-aware `/geniro:implement <path>` command; no question, since the spec is already saved and committed.
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".

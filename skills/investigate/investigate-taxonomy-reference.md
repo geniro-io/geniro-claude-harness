@@ -29,8 +29,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.m
                                         └── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
 
 present ──┬── (happy: flows to done)
-          └── present-loop ──┬── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
-                             └── done (user picks "save findings" → save-routing AUQ executes → done)
+          └── present-loop ──── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
 ```
 
 Terminal/escalation semantics live in SKILL.md §State machine. Reference-only note: `present-loop` is a sub-state of `present`, not a top-level phase — during dive-deeper rounds the persisted `phase:` value stays `present`, which is why the `phase:` enum below has no `present-loop` member.

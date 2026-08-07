@@ -6,9 +6,9 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry t
 
 - 3.1 Diff sanity (all tiers)
 - 3.2 Independent reviewer-agent + custom reviewers (Medium+)
-- 3.3 Orchestrator disposition logic — PRODUCT-DECISION escalation, the ADR path, the 1-round fix loop
+- 3.3 Orchestrator disposition logic — PRODUCT-DECISION escalation, the 1-round fix loop
 - 3.4 Completion summary
-- 3.5 Emit learnings + the recurring-pattern rule-capture offer
+- 3.5 Emit learnings
 - 3.6 Custom post-verify steps
 - 3.7 Cleanup
 
@@ -42,14 +42,11 @@ Full spawn template (acceptance criteria, pre-inlined `code-style.md`, focus are
 
 Escalate every PRODUCT-DECISION finding to `/geniro:implement`; never gate-and-fix it in-skill (SKILL.md §Anti-rationalization carries why).
 
-Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per the reference's § Finding-type visual map — then fire the lean `AskUserQuestion`. 4 fixed options (ADR-eligibility determines whether 4th option included):
+Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per the reference's § Finding-type visual map — then fire the lean `AskUserQuestion`. 3 fixed options:
 
 1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: routed` (terminal — recovery treats as complete; the decision was handed to /geniro:implement). Without a terminal write here the run would resume re-surfacing an already-resolved escalation.
 2. **Revert this refactor and start over** — `git restore --source=HEAD -- <each path from git diff --name-only>` (per SKILL.md §Git constraint) with user confirmation. state.md → `reverted` (terminal).
 3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
-4. **(ADR-eligible only)** **Document as ADR** — spawn a focused ADR-drafting agent (OMIT `model=` — inherits the orchestrator's session tier per the canonical model-tiering rule and the table row in SKILL.md §Subagent model tiering) to draft the ADR per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` § ADR template; write to `docs/adr/NNNN-<slug>.md` (next sequential N; create directory if missing, after `AskUserQuestion` confirmation). state.md → `adr-documented` (terminal).
-
-**ADR-eligibility check (before adding 4th option):** include the "Document as ADR" option ONLY when the rejected refactor candidate meets all three criteria from `improvement-routing.md` § ADR target: (1) hard to reverse, (2) surprising without context, (3) result of genuine trade-offs. Examples that qualify: rejecting "split this god-class into 3 modules because the team prefers single-file feature ownership" (the *rejection* is the durable decision); rejecting "switch from inheritance to composition here because the existing inheritance is load-bearing for the plugin system." Examples that do NOT qualify: rejecting a duplicate-extraction smell because the duplication is intentional (Rule of Three not yet met) — that's a learning, not an ADR. If unsure, omit the ADR option; routing to Knowledge is always safe.
 
 **Approvals-persistence:** before firing the PRODUCT-DECISION AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: refactor_product_decision` matching the finding (use finding `path:lines` + decision-type as disambiguator). If found, use prior `picked` value. If not found, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_write` BEFORE executing the chosen action.
 
@@ -84,7 +81,7 @@ On the Trivial and Small tiers, neither the smell-evidence filter nor the review
 
 ### Review Findings
 - CRITICAL: N, HIGH: M, MEDIUM: K
-- Disposition: [proceeded / 1-round fix loop / escalated / ADR documented]
+- Disposition: [proceeded / 1-round fix loop / escalated]
 - [Trivial/Small tier: replace the two lines above with "Not run — <tier> tier skips the independent reviewer + custom reviewers (§1.3.1)."]
 
 ### Validation
@@ -109,8 +106,6 @@ At Phase 3 exit:
 - **`discovery`** — emit when a pattern was extracted to a shared utility/component (typical /geniro:refactor outcome). Required `ext.{area, insight}` per typed-extension table. Default trust `verified`.
 - **`pitfall`** — emit when the refactor revealed a footgun (a seemingly-safe pattern that actually breaks under specific conditions). Required `ext.{trap, mitigation}`. Default trust `verified`.
 - **Echo + ordering:** after a successful emit, echo `Recorded learning: <summary>` to the user, and fire the emit before declaring Phase 3 done — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". A silent emit trailing the phase's done declaration is the documented drop vector.
-
-**Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
 
 ### 3.6 Custom post-verify steps
 

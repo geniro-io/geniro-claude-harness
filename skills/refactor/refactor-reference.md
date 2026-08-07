@@ -19,7 +19,6 @@ state.md `phase:` enum transitions:
                  │           │            ├── routed (terminal — §3.3 PRODUCT-DECISION "Run /geniro:implement")
                  │           │            ├── reverted (terminal — §3.3 PRODUCT-DECISION "Revert this refactor")
                  │           │            ├── verify-summary-only (terminal — §3.3 PRODUCT-DECISION "Document and keep the diff as-is")
-                 │           │            ├── adr-documented (terminal — §3.3 PRODUCT-DECISION "Document as ADR", ADR-eligible only)
                  │           │            └── verify-escalated (§3.3 1-round CRITICAL/HIGH fix loop exhausted) ──┬── routed (terminal — "Escalate to /geniro:implement")
                  │           │                                                                                  ├── reverted (terminal — "Revert all changes")
                  │           │                                                                                  └── verify-summary-only (terminal — "Document remaining findings and keep the diff as-is")
@@ -32,9 +31,9 @@ state.md `phase:` enum transitions:
                                       └── routed (terminal — §1.3.2 hard-signal "Escalate"; also reached directly from plan when no tests exist, phase-1-plan.md Phase 1 §1.2)
 ```
 
-All four §3.3 PRODUCT-DECISION terminals write directly from `verify` — none passes through `verify-escalated`. `verify-escalated` carries only the three picks that resolve the §3.3 fix-loop exhaustion; it has no `adr-documented` exit, since the ADR path is PRODUCT-DECISION-only.
+All three §3.3 PRODUCT-DECISION terminals write directly from `verify` — none passes through `verify-escalated`, which carries only the three picks that resolve the §3.3 fix-loop exhaustion.
 
-**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`, `adr-documented`. The SessionStart recovery treats all six as "task complete — no resume needed".
+**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. The SessionStart recovery treats all five as "task complete — no resume needed".
 
 **Non-terminal states:** `plan`, `apply`, `verify`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures HIGH-step + PRODUCT-DECISION gates skip already-answered).
 

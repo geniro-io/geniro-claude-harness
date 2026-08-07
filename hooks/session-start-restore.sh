@@ -171,6 +171,10 @@ slug="$(_geniro_branch_slug "$branch")"
 # is whole-word (space-padded `case` match), so the hyphenated `*-escalated`
 # paused phases (verify-escalated, phase-2-escalated, ...) do NOT match it —
 # they represent in-flight work waiting on the user and must still resume.
+# The list is a recognition set for state files already on disk, so it outlives
+# the phases that write them: `adr-documented` has no producer since /refactor's
+# ADR path was removed, and stays because dropping it would offer a completed
+# pre-upgrade run for resume. Retire a value only once no install can hold it.
 TERMINAL_PHASES="done aborted routed failed escalated ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted verify-summary-only reverted adr-documented map-truncated present-summary-only"
 TERMINAL_STATUSES="done completed failed aborted routed"
 

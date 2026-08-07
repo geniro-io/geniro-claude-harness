@@ -10,6 +10,32 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### Rule proposals are `/geniro:reflect` only — every other skill's rule offer removed
+
+Five skills used to end a run by offering to write a project rule. All five offers are gone:
+
+| Skill | Removed |
+|---|---|
+| `/geniro:plan` | Phase 8.6 "Suggest improvements" (Phase 8.7 custom post-approval steps renumbered to 8.6) |
+| `/geniro:onboard` | Phase 2.3.5 "Suggest improvements" |
+| `/geniro:debug` | Phase 3.4 "Suggest improvements" and the recurring-diagnosis rule-capture offer in Phase 3.3 (cleanup renumbered 3.5 → 3.4, non-resumable updates 3.6 → 3.5) |
+| `/geniro:refactor` | The recurring-pattern rule-capture offer in Phase 3.5, plus the "Document as ADR" 4th option on the PRODUCT-DECISION gate and its `adr-documented` terminal state |
+| `/geniro:investigate` | The "Save key findings to memory" follow-up pick and the whole Step 4a save-routing walk (CLAUDE.md Domain Context / ADR / learnings / native memory) |
+
+A rule prompt riding the tail of a plan, a debug session, or an onboarding run interrupts the deliverable the user asked for, and the run that produced a lesson is the worst judge of whether it generalizes. Rule mining is now exclusively `/geniro:reflect`, which the user invokes when they want it and which synthesizes candidates in an isolated agent against the full candidate bar.
+
+Nothing is lost from the memory layers: every one of those skills still emits its learnings (`decision`, `diagnosis`, `discovery`, `pitfall`), and `/geniro:reflect` mines them. `/geniro:investigate` keeps its `discovery` emit — only the interactive save-walk is gone, so its terminal state after "Done — answer is sufficient" is now `done` rather than `present-summary-only`.
+
+Two shared files were deleted: `skills/_shared/recurrence-rule-capture.md` and `skills/investigate/save-routing.md`. A user-authored instructions entry referencing either path, or anchoring an `## Additional Steps` block to the removed `/geniro:refactor` `adr-documented` phase value, no longer resolves.
+
+**Auto-detect:** `grep -rln "recurrence-rule-capture\|save-routing\|adr-documented" .geniro/instructions/ 2>/dev/null`
+
+**Auto-fix:** Manual — re-anchor the flagged instruction block to a surviving phase value (`skills/instructions/instructions-authoring-reference.md` carries the per-skill enum), or delete it if it only customized a removed step.
+
+**Severity:** LOW — user-authored instruction files are unaffected unless they named a removed step; no state-file schema changed.
+
+---
+
 ### Plugin renamed `geniro-claude-plugin` → `geniro` — reinstall under the new name
 
 Claude Code namespaces plugin-provided skills as `/<plugin-name>:<skill-name>`. Because each skill's frontmatter also carried a hand-written `geniro:` prefix, commands rendered doubled: `/geniro-claude-plugin:geniro:plan`. The plugin manifest name is now `geniro` and the frontmatter prefix is dropped, so commands render as `/geniro:plan` — the form every doc already used.

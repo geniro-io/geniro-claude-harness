@@ -70,7 +70,7 @@ A backend error never blocks the run or the learning.
 
 The SessionStart auto-archive operates on the file mirror only; under `replace` with no local file written, it has nothing to scan — documented, not an error. For the same reason, under `replace` the file-based access counter (`record_access`) and the dedup / supersede chain also no-op (there is no file to rewrite) — the backend owns ranking and dedup. This is a documented consequence of `replace`, not a silent break; `mirror` keeps all of them on the local file.
 
-Two more file-based readers degrade the same way under `replace`, by design: (1) the SessionStart **verification-coverage line** is computed over the local file, so under `replace` it is empty — the hook is shell and cannot query the backend, so it emits a short `memory backend active` notice in that slot instead of a fraction; (2) the **recurrence-count gate** (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md`) reads the file-based `recurrence_count`, which no-ops here — so a recurrence count is available under `replace` only if the backend itself tracks recurrence; absent that, the gate stays below threshold (it never fabricates a count). `mirror` keeps both on the local file.
+One more file-based reader degrades the same way under `replace`, by design: the SessionStart **verification-coverage line** is computed over the local file, so under `replace` it is empty — the hook is shell and cannot query the backend, so it emits a short `memory backend active` notice in that slot instead of a fraction. `mirror` keeps it on the local file.
 
 ## 7. Plain-English echo
 
