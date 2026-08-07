@@ -4,10 +4,11 @@
 # Spec: skills/_shared/archive-stale.md
 #
 # Walks .geniro/knowledge/learnings.jsonl and flips `deprecated: true`
-# on entries matching all four criteria simultaneously:
-#   - score < 0.1 (recency_decay × trust_weight × access_weight ×
+# on entries matching all four criteria simultaneously (thresholds are
+# single-sourced as $stale_score_max / $stale_age_days below — see $criteria):
+#   - score < $stale_score_max (recency_decay × trust_weight × access_weight ×
 #       recurrence_weight — same scoring formula as query-learnings --score-min)
-#   - age > 180 days
+#   - age > $stale_age_days
 #   - access_count == 0 (never queried)
 #   - not already deprecated ((.deprecated // false) == false)
 #
@@ -94,8 +95,8 @@ archive_stale_learnings() {
   fi
 
   # Compute score per entry, identify stale candidates, optionally write.
-  # Stale criterion AND-ed: score < 0.1 AND age > 180d AND access_count == 0
-  # AND not-already-deprecated. Reports per-type breakdown to stderr.
+  # Stale criterion is $criteria (declared above) AND not-already-deprecated.
+  # Reports per-type breakdown to stderr.
   # Score-formula weight functions are single-sourced in lib/score-formula.sh so
   # the archiver and the ranker (query-learnings --score-min) never drift — a
   # divergence would make archival reap entries the ranker would still surface.

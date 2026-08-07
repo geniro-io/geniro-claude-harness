@@ -69,8 +69,8 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
     url: ...
     title: "Case Radar performance epic"    # chain enrichment (§1.4 step 4)
     status: In Progress                      # chain enrichment
-    scope: "Cut backfill latency below 5 min."  # chain enrichment, ≤280 chars
-  siblings:                                  # chain enrichment, ≤8 entries, omit when none
+    scope: "Cut backfill latency below 5 min."  # chain enrichment — bounds per workflow-refs-schema.md
+  siblings:                                  # chain enrichment — bounds per workflow-refs-schema.md, omit when none
   - issue_id: CI-301
     title: "..."
     status: Done
@@ -83,7 +83,7 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
 
 ### 1.5 Transition to Phase 2
 
-**Drain the backgrounded explore agents first.** Before synthesizing, confirm every §1.2 explore spawn returned — Read each `<task-dir>/.research-<facet>.md`, or resume the agent by ID if an output is missing. This is the drain that closes the §1.2 overlap (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`): synthesis consumes the research, so it cannot start against an in-flight agent.
+**Drain the backgrounded explore agents first.** Before synthesizing, confirm every §1.2 explore spawn returned — Read each `<task-dir>/.research-<facet>.md`, or resume the agent by ID if an output is missing. This is the drain that closes the §1.2 overlap (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`): synthesis consumes the research, so it cannot start against an in-flight agent. Read each report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report — an agent that skipped its project-rules load is otherwise indistinguishable from one that ran it.
 
 Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring.
 

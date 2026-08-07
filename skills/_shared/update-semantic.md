@@ -20,7 +20,7 @@ Exit codes:
 - `0` — wrote (or no-op, e.g. replace with no match — surfaced via stderr).
 - `11` — lock held by another writer; caller should defer or retry.
 - `64` — bad / missing flags.
-- `68` — append content exceeds 4096 bytes.
+- `68` — append content exceeds the append helper's per-call byte ceiling (`GENIRO_APPEND_MAX_BYTES`, single-sourced in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Constraints).
 - `69` — append IO failure.
 - `70` — `awk` failed during `--replace` (a real runtime error, distinct from a clean no-match which is rc=0).
 - `71` — atomic write of replacement failed (also returned if `mktemp` fails while staging a `--replace`).

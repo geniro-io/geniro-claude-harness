@@ -13,7 +13,7 @@ Visual and interaction quality for UI changes: tokens, spacing, typography, stat
 
 ## What to check
 
-### 1. Token Conformance
+### 1. Token conformance
 - Raw hex/rgb/rgba/hsl values in components instead of semantic tokens
 - Hardcoded Tailwind color utilities (`text-white`, `bg-black`) or arbitrary classes (`text-[#abc]`) when a token system exists
 - Inline `style={{ color: '#fff' }}` for static colors
@@ -25,7 +25,7 @@ grep -nE "(text|bg|border|ring|fill|stroke)-\[#" file.tsx
 ```
 **Red flag:** any raw color literal in a project that ships a token system (check `tailwind.config.*`, `theme.ts`, CSS variable files).
 
-### 2. Spacing Scale Conformance
+### 2. Spacing scale conformance
 - Magic spacing values that don't map to the project's scale
 - Arbitrary Tailwind values like `p-[13px]`, `mt-[27px]`, `gap-[6px]`
 - Inline `style={{ padding: '13px' }}` for static spacing
@@ -36,7 +36,7 @@ grep -nE "\b(p|m|gap|space|inset|top|right|bottom|left)[trblxy]?-\[" file.tsx | 
 ```
 **Red flag:** any arbitrary spacing value in a project with a defined scale.
 
-### 3. Typography Conformance
+### 3. Typography conformance
 - New font family imports when the project already loads fonts
 - Font sizes/weights outside the project's type scale
 - Inline `style={{ fontSize:... }}` or arbitrary `text-[15px]` / `font-[Inter]` classes
@@ -49,7 +49,7 @@ grep -nE "font-\[|text-\[|fontFamily|@font-face|@import.*fonts" file.tsx | grep 
 ```
 **Red flag:** typographic values that bypass the scale on a project with one.
 
-### 4. Component Variant Invention
+### 4. Component variant invention
 - New visual variant of an existing primitive (a third Button shape) instead of composing existing variants
 - Custom-built equivalents of components already in the library (custom Modal when a Dialog primitive exists)
 - New component file whose responsibility overlaps an existing primitive — "existing" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces `<Component>` at `<file>` with overlapping responsibility — coordinate before shipping both"
@@ -61,7 +61,7 @@ grep -rn "export.*\(Button\|Modal\|Dialog\|Input\|Select\|Card\)" src/components
 ```
 **Red flag:** new file shipping UI the design system already provides.
 
-### 5. State Completeness
+### 5. State completeness
 - Interactive elements missing default / hover / active / focus-visible / disabled
 - Async or data surfaces missing loading / empty / error branches
 - Buttons with no `:disabled` styling, links with no `:hover` feedback
@@ -73,7 +73,7 @@ grep -nE "(isLoading|loading|isEmpty|error)" file.tsx
 ```
 **Red flag:** any interactive element silently missing one of the five base states, or any async surface without loading/empty/error.
 
-### 6. Responsive Coverage
+### 6. Responsive coverage
 - Multi-column layout with no breakpoint prefixes (`sm:`, `md:`, `lg:`)
 - Horizontal overflow at 375px (fixed widths or min-widths larger than viewport)
 - Touch targets smaller than ~44x44 on mobile
@@ -85,7 +85,7 @@ grep -nE "w-\[?[0-9]{3,}|min-w-\[?[0-9]{3,}" file.tsx
 ```
 **Red flag:** a flex/grid layout with multiple columns/rows and zero responsive prefixes.
 
-### 7. WCAG AA Contrast
+### 7. WCAG AA contrast
 - Text/background contrast below 4.5:1 (normal) or 3:1 (large text and UI components)
 - Light grays on white (`text-gray-400` on `bg-white` is borderline; `text-gray-300` fails)
 - Placeholder and disabled-state colors that vanish against their surface
@@ -93,7 +93,7 @@ grep -nE "w-\[?[0-9]{3,}|min-w-\[?[0-9]{3,}" file.tsx
 **How to detect:** resolve class pairs to hex values and compute contrast. When Playwright MCP is available, read computed styles directly.
 **Red flag:** any low-contrast pair, especially placeholder and disabled colors.
 
-### 8. Keyboard and Accessibility Polish
+### 8. Keyboard and accessibility polish
 - `<div onClick>` instead of `<button>` (semantic HTML before ARIA)
 - Custom interactive elements without `tabIndex` and keyboard handlers
 - `focus:outline-none` without a `focus-visible:ring-*` replacement
@@ -107,7 +107,7 @@ grep -nE "<button[^>]*>\s*<(svg|Icon)" file.tsx
 ```
 **Red flag:** focus-visible removed without replacement, or clickable `div`/`span` with no role or keyboard handler.
 
-### 9. Exemplar Drift
+### 9. Exemplar drift
 - New component diverges visually from the named design exemplar (closest existing sibling)
 - Different border-radius family, shadow elevation, or spacing rhythm than neighboring components
 - Different container pattern (card vs bare panel) at the same hierarchy level
@@ -121,7 +121,7 @@ diff <(grep -ohE "rounded-[a-z0-9-]*|shadow-[a-z0-9-]*|border-[a-z0-9-]*" exempl
 ```
 **Red flag:** a button, card, or surface that looks nothing like its siblings.
 
-### 10. Hierarchy and Information Density
+### 10. Hierarchy and information density
 - Equal visual weight on items of unequal importance (primary/secondary/tertiary actions indistinguishable)
 - Walls of text with no scannable hierarchy; dense surfaces (tables, dashboards) without progressive disclosure
 - Hover-only critical actions (poor discoverability)

@@ -35,7 +35,7 @@ You are an on-demand session-history miner. You locate the evidence — this pro
 
 1. **Find sessions** — locate the project's transcript files on disk, keep the ones that did agentic work, exclude the session you are running in. Under `--this-session` the running session IS the source, so nothing is selected.
 2. **Analyze sessions** — spawn one read-only transcript analyst per selected session, all in ONE response, each returning a condensed extract of corrections / rejections / friction; under `--this-session` you build that extract's evidence sections inline from the conversation you are in.
-3. **Synthesize candidates** — one reflection-agent spawn consumes the extracts + the existing rule files + prior declines, returning candidates that pass the candidate bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar.
+3. **Synthesize candidates** — one reflection-agent spawn consumes the extracts + the existing rule files + prior declines, returning candidates that pass the candidate bar. On return, read the report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar.
 4. **Present and route** — render each candidate to chat, ask per candidate, write approved rules to their routed target, log declines so they stop re-surfacing.
 
 ## Statelessness

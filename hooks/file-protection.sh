@@ -198,7 +198,7 @@ _geniro_extract_inner_payloads() {
   local _wv_wargs='([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*'
   local _wv_pfx="(${_wv_wrd}${_wv_wargs}[[:space:]]+)*"
   local _wv_shq='["'\'']?'
-  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_shq}"
   # One quoted literal; and the payload operand form, which may also be bare.
   local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
   local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
@@ -259,6 +259,22 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
   done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+'"${_wv_nonc}"')*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+
+  # Arm 7 — a herestring fed to a shell (`bash <<< '<payload>'`,
+  # `sh -s <<< "<payload>"`). `<<<` feeds the right-hand operand on stdin exactly
+  # like arm 3's pipe, but the shell word comes FIRST and the payload follows the
+  # operator instead of being piped in from the left — the mirror image of arm 3.
+  # Neither arm 1 (no `-c` argument here), arm 3 (no pipe) nor the heredoc scrub
+  # (which explicitly excludes `<<<` from heredoc-opener detection, so this text
+  # survives it unscrubbed) extracts it.
+  local _wv_hspfx="${_wv_sh}([[:space:]]+${_wv_flag})*[[:space:]]*<<<[[:space:]]*"
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E "s#^[^[:alnum:]_]?${_wv_hspfx}##")
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_hspfx}${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
   # This is the mirror image of arm 3: the body is stdin, and every guard's
@@ -381,7 +397,7 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl#\'}"; _pl="${_pl%\'}"
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
-    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
     # Ruby's and Perl's backtick literal is the same shell-out with no call
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
@@ -466,8 +482,11 @@ _geniro_interp_write_targets() {
   local _nonlit="(\\\\[^\"']|[^\\\\\"'[:space:])])"
   # Ops whose FIRST argument is the target and which write unconditionally.
   # Base-keyed: `writeFile` covers fs.writeFile/writeFileSync/promises.writeFile,
-  # `writeTextFile` covers Deno.writeTextFile(Sync).
-  local _wops_first='((writeFile|appendFile|createWriteStream|outputFile|writeTextFile)(Sync)?|file_put_contents|File\.write|IO\.write)'
+  # `writeTextFile` covers Deno.writeTextFile(Sync), `truncate`/`ftruncate` cover
+  # os.truncate/os.ftruncate and fs.truncate(Sync)/fs.ftruncate(Sync) — a
+  # truncation is a write (it replaces the file's content with zero-or-fewer
+  # bytes) exactly like `truncate -s 0 FILE` on the shell side.
+  local _wops_first='((writeFile|appendFile|createWriteStream|outputFile|writeTextFile|truncate|ftruncate)(Sync)?|file_put_contents|File\.write|IO\.write)'
   # Copy/rename: the SECOND argument is the target. This is the interpreter
   # spelling of a cp/mv DESTINATION, which the shell-side cp/mv vector in every
   # calling guard already treats as a write — without it the same clobber walks
@@ -788,6 +807,24 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     set +f
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])sed[[:space:]]+[^|;&]*' || true)"
 
+  # 3b) In-place awk: GNU awk's `-i inplace` extension rewrites each FILE
+  #     argument the same way sed -i does above. `-i` and `inplace` are TWO
+  #     tokens (unlike sed's attached-suffix `-i.bak`), so the literal word
+  #     `inplace` is skipped as the flag's VALUE, not read as a file argument.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    printf '%s' "$span" | grep -qE '[[:space:]]-i[[:space:]]+inplace([[:space:].]|$)' || continue
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in
+        *awk|-*|inplace) continue ;;
+      esac
+      add_candidate "$tok"
+    done
+    set +f
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(awk|gawk|mawk)[[:space:]]+[^|;&]*' || true)"
+
   # 4) cp/mv: only the DESTINATION (last non-flag token) is a write — copying
   #    FROM a protected file is a read and stays allowed.
   while IFS= read -r span; do
@@ -892,10 +929,80 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])ln[[:space:]]+[^|;&]*' || true)"
 
-  # 10) Interpreter-mediated writes: a scripting runtime opening a file for
-  #     writing, or an awk program redirecting `print` into one. Vectors 1-9 read
-  #     $ONELINE, whose heredoc bodies and quoted literals were blanked as data —
-  #     and an interpreter's file write is not shell syntax anywhere, so
+  # 10) sponge / ed / ex / patch — ordinary in-place-edit tools with no
+  #     redirect, tee, sed -i, cp/mv or interpreter op for the vectors above to
+  #     see:
+  #       sponge FILE        — soaks stdin, writes FILE (last non-flag token)
+  #       ed FILE            — line editor; FILE is written by a script fed on
+  #                            stdin (last non-flag token)
+  #       ex -sc 'wq' FILE   — ex/vi non-interactive mode; FILE is the buffer
+  #                            (last non-flag token)
+  #       patch FILE < diff  — rewrites FILE from a unified diff; FILE is the
+  #                            FIRST positional (a second positional would be
+  #                            the patch file itself, which is read-only)
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    last=""
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in sponge|*/sponge|ed|*/ed|ex|*/ex|-*) continue ;; esac
+      last="$tok"
+    done
+    set +f
+    case "$last" in ""|sponge|*/sponge|ed|*/ed|ex|*/ex) : ;; *) add_candidate "$last" ;; esac
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(sponge|ed|ex)[[:space:]]+[^|;&]*' || true)"
+
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    first=""
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      case "$tok" in patch|*/patch|-*) continue ;; esac
+      first="$tok"
+      break
+    done
+    set +f
+    [ -n "$first" ] && add_candidate "$first"
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])patch[[:space:]]+[^|;&]*' || true)"
+
+  # 11) curl -o/--output / wget -O/--output-document — a download landing
+  #     directly on a protected/state/production path, no redirect needed.
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    set -f
+    take_next=0
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      if [ "$take_next" = "1" ]; then add_candidate "$tok"; take_next=0; continue; fi
+      case "$tok" in
+        -o|--output) take_next=1; continue ;;
+        --output=*) add_candidate "${tok#--output=}"; continue ;;
+      esac
+    done
+    set +f
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])curl[[:space:]]+[^|;&]*' || true)"
+
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    set -f
+    take_next=0
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      if [ "$take_next" = "1" ]; then add_candidate "$tok"; take_next=0; continue; fi
+      case "$tok" in
+        -O|--output-document) take_next=1; continue ;;
+        --output-document=*) add_candidate "${tok#--output-document=}"; continue ;;
+      esac
+    done
+    set +f
+  done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])wget[[:space:]]+[^|;&]*' || true)"
+
+  # 12) Interpreter-mediated writes: a scripting runtime opening a file for
+  #     writing, or an awk program redirecting `print` into one. Vectors 1-11
+  #     read $ONELINE, whose heredoc bodies and quoted literals were blanked as
+  #     data — and an interpreter's file write is not shell syntax anywhere, so
   #     `python3 -c "open('.env','w').write(k)"` reaches the filesystem
   #     unchecked. This vector therefore scans the RAW $COMMAND, and fires only
   #     on the conjunction interpreter + write op + target, so a read-only

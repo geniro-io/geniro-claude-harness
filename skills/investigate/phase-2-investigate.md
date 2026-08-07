@@ -28,6 +28,8 @@ WebSearch+WebFetch agent — `disallowedTools=["Edit", "Write", "NotebookEdit"]`
 
 Before synthesizing the answer, the orchestrator (not a subagent) independently re-verifies every claim that will end up as evidence in the answer.
 
+As the research agents return, read each report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report — an agent that skipped its project-rules load is otherwise indistinguishable from one that ran it.
+
 #### Extract load-bearing claims
 
 From the agent findings, list each claim that would appear as `Evidence:` in the synthesized answer — file:line references, command outputs, commit hashes, package versions, behavior descriptions.

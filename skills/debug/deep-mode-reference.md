@@ -33,7 +33,7 @@ Debug-specific layers of the opt-in `--deep` quality mode. The cross-skill contr
   - "Standard" — "Single-pass hypothesis generation, and one verification that the fix resolves the reproduction test."
   - "Deep — wider hypotheses + 3-vote verify" — "3× independent hypothesis generation (union + dedup) plus a 3-vote majority verification that the fix turns the reproduction test red→green; higher quality at higher token cost."
 
-An empty answer defaults to Standard (`deep-mode: false`).
+An empty answer is an upstream tool bug, not a Standard pick: re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions ("never auto-default on an empty answer") rather than defaulting.
 
 **Persistence.** At the Phase 0 frontmatter initialization (the earliest `atomic_state_write`), write `deep-mode: <true|false>` to state.md frontmatter and append `{category: deep_mode_choice, picked: <deep|standard>, at: <ISO-8601 UTC>}` to `approvals[]`. A missing `deep-mode` field reads as false. The session-start restore re-applies the saved choice from `approvals[]` on resume — which is why the resume path skips the chooser. When false (default), Phase 1.4 and Phase 2.4 run their standard single-pass paths and deep mode adds zero overhead.
 
@@ -45,8 +45,6 @@ Standard Phase 1.4 synthesizes the Observation + Feedback Loop output into 2-3 c
 - **Union + dedup** — union the candidates, then drop near-identical ones in-script. **Dedup key = hypothesis mechanism + targeted file/module** — two hypotheses naming the same mechanism against the same module collapse to one. Dedup runs BEFORE the §1.5 test loop consumes the set, so a duplicated hypothesis never consumes a test slot twice and three generators agreeing with themselves never inflates a confidence signal.
 - **Feed the standard test loop** — the deduped candidate set enters the unchanged §1.5 test loop. **Testing stays orchestrator-inline** — it captures real evidence artifacts per the Evidence Standard (file:line snippet, captured command output, log line, query result, user-provided artifact), and recall multiplies GENERATION, not testing. The missing-data gate, the per-rejection `discarded_hypothesis` L2 emit, and the Evidence-Standard `Result:` requirement all apply unchanged.
 
-**Why 3× raises recall:** a single synthesis pass is non-deterministic and surfaces a subset of the plausible hypotheses; three independent passes surface overlapping-but-different subsets whose union catches a root-cause angle any one pass missed.
-
 ## 3. Precision — Phase 2.4 fix/reproduction verification (3-vote)
 
 Standard Phase 2.4 judges "does the monkey-patched fix turn the F→P test red→green" with a single orchestrator-inline read of the re-run output. Deep mode gives that judgment **3 INDEPENDENT verifiers** and aggregates by majority:
@@ -54,8 +52,6 @@ Standard Phase 2.4 judges "does the monkey-patched fix turn the F→P test red�
 - Each verifier independently answers two questions against the fix proposal + the authored F→P test: (1) does the monkey-patched fix genuinely turn the reproduction test red→green, and (2) is the test a STRONG regression guard — does it assert the bug's observable behavior rather than a weak proxy that would pass even with the bug present? Each verifier receives the same isolated input (fix proposal, test source, pre/post-fix run output), NOT the other verifiers' outputs — independence is load-bearing.
 - **Majority of 3** tolerates one bad vote. A verifier whose output won't parse **abstains** (counts toward neither side; parse defensively — a parse failure is never a refute). Quorum < 2 parseable votes → run one fresh single-pass verifier for that judgment (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5).
 - A majority "fix does not resolve / test too weak" verdict routes back into the standard §2.5 fix-loop (fix-fail counter increments as usual); a majority "resolved + strong guard" verdict advances to Phase 3 exactly as the standard single-pass judgment would.
-
-**This precision layer is NATIVE to debug.** Plan and implement delegate their precision layer to the shared spec-challenge helper, but that helper's `MODE` enum is `plan | implement` only — debug has no spec.md to fact-check and no spec-challenge entry. So debug's precision layer is built directly against the fix proposal + F→P test inside this skill, not delegated.
 
 **The `adversarial-tester-agent` stays a SINGLE spawn even in deep mode.** It already hunts edge cases exhaustively and AUTHORS tests; tripling test authoring triples authored-test churn for little recall gain. Deep mode multiplies hypothesis generation and the fix-verification votes, and keeps the adversarial-tester a single spawn.
 

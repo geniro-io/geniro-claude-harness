@@ -339,7 +339,7 @@ Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution
 
 ```markdown
 - [ ] D1 — **<short title>** · <SEVERITY>
-  - **Severity:** LOW | MEDIUM | HIGH | CRITICAL       [LOW: below the severity threshold; MEDIUM/HIGH/CRITICAL: `severity >= MEDIUM` that failed all four §4.1 admission signals]
+  - **Severity:** LOW | MEDIUM       [LOW: below the severity threshold; MEDIUM: admitted no other way — a MEDIUM without a properly-formatted Evidence Block. CRITICAL/HIGH never appear here: §4.1 admits them on severity alone]
   - **File:** path/to/file.ts:42-48
   - **Why deferred:** below the fix threshold | MEDIUM without Evidence Block
   - **Suggested fix:** <1-2 lines, verbatim from the reviewer output>

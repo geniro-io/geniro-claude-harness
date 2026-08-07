@@ -86,10 +86,25 @@ expect_block "clean -fdx (force+ignored) blocked" "$(run_cmd 'git clean -fdx')"
 # ===== checkout mass-discard =====
 expect_block "checkout -- . blocked"            "$(run_cmd 'git checkout -- .')"
 expect_block "checkout -- * blocked"            "$(run_cmd 'git checkout -- *')"
+# T0-5: the pathspec matcher above only caught a bare `.`/`*` pathspec — the
+# no-pathspec force forms discarded the entire working tree unblocked.
+expect_block "checkout -f blocked"              "$(run_cmd 'git checkout -f main')"
+expect_block "checkout --force blocked"         "$(run_cmd 'git checkout --force main')"
+expect_block "switch --discard-changes blocked" "$(run_cmd 'git switch --discard-changes main')"
+expect_block "switch -f blocked"                "$(run_cmd 'git switch -f main')"
+expect_block "switch --force blocked"           "$(run_cmd 'git switch --force main')"
+expect_allow "checkout -b feature/x allowed"    "$(run_cmd 'git checkout -b feature/x')"
+expect_allow "switch main allowed"              "$(run_cmd 'git switch main')"
+expect_allow "switch -c feature/x allowed"      "$(run_cmd 'git switch -c feature/x')"
 
 # ===== restore mass-discard =====
 expect_block "restore . blocked"                "$(run_cmd 'git restore .')"
 expect_block "restore --staged . blocked"       "$(run_cmd 'git restore --staged .')"
+
+# ===== reset --hard plumbing equivalent =====
+# T0-5: `git read-tree --reset -u HEAD` resets the index and working tree
+# exactly like `reset --hard`, but carried no matcher of its own.
+expect_block "read-tree --reset -u HEAD blocked" "$(run_cmd 'git read-tree --reset -u HEAD')"
 
 # ===== update-ref -d =====
 expect_block "update-ref -d blocked"            "$(run_cmd 'git update-ref -d refs/heads/x')"

@@ -4,6 +4,12 @@ A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentat
 
 State.md `phase: write-spec` during this phase.
 
+### 6.0 Refresh custom instructions
+
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
+
+The loop's only other load site is Phase 1. This phase authors `spec.md`, so the project's rules have to be the ones on disk now, not the ones read before the grill and approach rounds.
+
 ### 6.1 Write contract
 
 Path: `.geniro/planning/<task-slug>/spec.md`.

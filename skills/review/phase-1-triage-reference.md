@@ -31,12 +31,12 @@ Sub-step order: **read prior approvals** (0-pre, before any detection) → **pas
 
 ### 0-pre — Read prior approvals (FIRST, before passive detection)
 
-Two situations reach this sub-step, and they are NOT the same. A **compaction-resume** is an in-flight run of this skill resuming mid-phase — a non-terminal `state.md` for the current run exists; here every prior-turn pick (workspace AND depth) is re-applied without re-asking, so a compaction never loses an answer. A **fresh Round 2+ re-run** is the user invoking `/geniro:review` again — there is no in-flight `state.md` (the prior round's is terminal), only the durable `from-review-<branch>.md` handoff; this is a new user-invoked run, so its review-intent gates (depth at §11, and the re-review scope gate at §7) are ASKED again — the user chooses depth and scope per run, never inheriting them from a completed prior round. The ONE pick re-applied on BOTH is the **workspace location**: re-asking it every re-run risks the silent-relocation bug this sub-step exists to prevent (a live Round 2 run once created a worktree at a default location while the user's Round 1 pick named a different one). Read the persisted picks BEFORE passive detection (0a) and any workspace action.
+Two situations reach this sub-step, and they are NOT the same. A **compaction-resume** is an in-flight run of this skill resuming mid-phase — a non-terminal `state.md` for the current run exists; here every prior-turn pick (workspace AND depth) is re-applied without re-asking, so a compaction never loses an answer. A **fresh Round 2+ re-run** is the user invoking `/geniro:review` again — there is no in-flight `state.md` (the prior round's is terminal), only the durable `from-review-<branch>.md` handoff; this is a new user-invoked run, so its review-intent gates (depth at §11, and the re-review scope gate at §7) are ASKED again — the user chooses depth and scope per run, never inheriting them from a completed prior round. The ONE pick re-applied on BOTH is the **workspace location**: re-asking it every re-run risks the silent-relocation bug this sub-step exists to prevent. Read the persisted picks BEFORE passive detection (0a) and any workspace action.
 
 1. Resolve the prior state/handoff for this branch (`<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A, plus the resumed `state.md` on a compaction-resume). When neither exists, this is a first run — skip to 0a with no inherited picks.
 2. Read these `approvals[]` categories: `review_workspace_setup` (workspace location/action) and `deep_mode_choice` (review depth). Per the run-type distinction above: the workspace pick is **binding** on both a compaction-resume and a fresh re-run (anti-relocation); the depth pick is binding **only on a compaction-resume** — on a fresh re-run the §11 depth gate and the §7 re-review gate ask again rather than inheriting it.
 3. **Honor the recorded workspace location exactly** — re-enter the same worktree path the prior round approved; do not substitute a different location. The persisted pick names a specific tree, not just "use a worktree": re-applying it at a fresh default location is the silent-relocation failure this sub-step prevents.
-4. **Re-ask only when the recorded pick no longer applies** — the approved worktree was deleted, or the branch moved off the commit it was created from. In that case fire the workspace AUQ fresh (the Case-mismatch UX below still governs); a stale pick is re-decided, never silently swapped for a default.
+4. **Re-ask only when the recorded pick no longer applies** — the approved worktree was deleted, or the branch moved off the commit it was created from. In that case fire the workspace AUQ fresh (the Case-mismatch UX below still governs).
 5. Narrate the inheritance and proceed by run-type. On a **compaction-resume**: narrate `Continuing the workspace and depth choices from the interrupted run: <workspace pick>, <depth pick>.`, skip the 0b AUQ branches, execute the inherited workspace action in 0d, and let §11 skip the depth question and §7 skip the re-review scope gate (all already answered this run). On a **fresh Round 2+ re-run**: narrate only `Continuing in the workspace you approved last round: <workspace pick>.`, skip the 0b workspace AUQ branches, execute the inherited workspace action in 0d — but the depth (§11) and re-review scope (§7) gates DO fire this run; never suppress them with the prior round's `deep_mode_choice`.
 
 ### 0a — Detect current context (passive)
@@ -82,15 +82,17 @@ Decision tree (first match wins; evaluate top-down):
         "Continuing on '<branch>' (detected <signal>).
          Reverse with: re-run with 'worktree' modifier in arguments."
 
-4. INPUT_SHAPE == pr-ref
-   AND IN_WORKTREE == true
+4. IN_WORKTREE == true
    AND IN_TARGET_WORKTREE == false
    AND no continuing-work signals match
-   ⇒ User is in some other worktree but launched /geniro:review for an unrelated PR.
-      Fire 3-option AUQ (header: "Worktree mismatch"):
+   ⇒ User is in a worktree with no clear reason to treat it as home for this run —
+     either an unrelated PR's worktree, or a bare invocation with no target PR and no
+     continuing signal. Fire 3-option AUQ (header: "Worktree mismatch"):
         A) "Continue here in '<dir>'" — recommended if user explicitly cd'd here
-        B) "Exit to repo root and create new worktree '<TARGET_WORKTREE_NAME>'" —
-           call ExitWorktree, then standard new-worktree flow (5b below)
+        B) "Exit to repo root" — when `TARGET_WORKTREE_NAME` is set (PR-ref input):
+           create new worktree '<TARGET_WORKTREE_NAME>', call ExitWorktree then standard
+           new-worktree flow (5b below); otherwise ExitWorktree and continue at repo root
+           on the current branch
         C) "Abort — I'm in the wrong place" — terminal, no-op
 
 5. INPUT_SHAPE == pr-ref
@@ -334,9 +336,9 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 2. Read the state file if present. If absent, set `prior-round-summary: none — first review` and `round: 1`.
 3. If present AND state-file's `pr-ref:` matches the current run's `pr-ref` (both literal "none" counts as a match): set `round: <prior round + 1>` (defaulting prior to `1` when absent). Capture prior `prior-round-summary:` value into in-memory variable for threading into reviewer prompts as `PRIOR-ROUND FINDINGS:`. Also capture `pr-body:` value into `prior-pr-body` for the pr-metadata reviewer's drift check.
 
-   **Round-counter + repeat markers are scoped to the SAME target.** The round counter increments only on a `pr-ref:` match — a fresh PR (different `pr-ref`) is round 1, so this branch does not run and no finding is marked as a repeat. This is deliberate: a new target earns a fresh review bar, and the repeat comparison must never cross different PRs. A future author should not "fix" the same-`pr-ref` condition into an always-increment counter — that would mark repeats against an unrelated PR's findings.
+   **Round-counter + repeat markers are scoped to the SAME target.** The round counter increments only on a `pr-ref:` match — a fresh PR (different `pr-ref`) is round 1, so this branch does not run and no finding is marked as a repeat. This is deliberate: a new target earns a fresh review bar, and the repeat comparison must never cross different PRs.
 
-   **`repeat-of-prior-round` marker (round ≥2 only).** When this branch runs, mark each prior-round finding so Phase 4/5 can annotate it. A current-round finding is `repeat-of-prior-round` when it matches the retained `prior-round-summary` by dedup key (`path:line + finding-title` — the finding was raised in an earlier round) AND it carries no strengthening signal THIS round — no fresh cross-reviewer convergence at or above the admission threshold this round, and no per-finding verifier `confirmed` verdict this round. This is a best-effort heuristic keyed on the retained `prior-round-summary` string: the no-strengthening-signal test reads this round's own signals. The marker rides the `PRIOR-ROUND FINDINGS:` slot threaded into reviewer prompts; it feeds the Disposition repeats count and the finding's "seen since round <N>" annotation per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.0, NEVER a filter that decides whether a finding renders. A finding that was fixed in the prior round and no longer reproduces is simply absent from the current reviewers' output — it is not a repeat.
+   **`repeat-of-prior-round` marker (round ≥2 only).** When this branch runs, mark each prior-round finding so Phase 4/5 can annotate it. A current-round finding is `repeat-of-prior-round` when it matches the retained `prior-round-summary` by dedup key (`path:line + finding-title` — the finding was raised in an earlier round) AND it carries no strengthening signal THIS round — no rise in `convergence_count` this round, and no per-finding verifier `confirmed` verdict this round. This is a best-effort heuristic keyed on the retained `prior-round-summary` string: the no-strengthening-signal test reads this round's own signals. The marker rides the `PRIOR-ROUND FINDINGS:` slot threaded into reviewer prompts; it feeds the Disposition repeats count and the finding's "seen since round <N>" annotation per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.0, NEVER a filter that decides whether a finding renders. A finding that was fixed in the prior round and no longer reproduces is simply absent from the current reviewers' output — it is not a repeat.
 4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Review rounds"`, question `"This is round N of review on the same target (substitute the actual round number for N). Continue or escalate?"`) with options `"Continue review (Recommended)"` / `"Escalate to user — structured handoff"`. On Escalate: record the escalation reason as an `open_questions[]` entry (`source: round-n-gate`, the verbatim round-limit question, `status: unresolved`), mirrored into the `## Open Questions` body — §9's terminal mapping (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`) reads an `escalated` run's reason from there. Persist `round:` and `prior-round-summary:` alongside it, then exit cleanly without spawning reviewers (terminal `escalated`).
 5. **Re-review gate (round ≥ 2, fresh re-run only).** When `round >= 2` AND this is a fresh user-invoked re-run (NOT a compaction-resume — §0-pre distinguishes them by the in-flight `state.md`), the scope and depth of this round are the user's to choose, never auto-decided or inherited from the prior round. After any round-≥3 escalation clears, fire ONE `AskUserQuestion` carrying these two questions before spawning reviewers:
    - **Re-review scope** (header `"Re-review scope"`, question `"This branch was reviewed before (round N). What should this round cover?"`) — options `"Re-review the whole PR"` / `"Only changes since the last review"`. The delta option scopes the review to `<prior-reviewed-head>..HEAD`, where `<prior-reviewed-head>` is the handoff `pr-head-sha:` the prior round reviewed; when that SHA is absent or unreachable, fall back to whole-PR and note it under `## Caveats`. Prior-round findings thread into reviewers as the `PRIOR-ROUND FINDINGS:` slot under either scope. Persist `approvals[]` category `rereview_scope_choice`.
@@ -369,12 +371,11 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 3. If ANY signal matches → `risk-tier: high`. Otherwise → `risk-tier: standard`.
 4. Persist to state.md frontmatter.
 
-**Downstream knobs (3):**
-- Phase 4.1 admission: unaffected by tier. The gate reads severity and the Evidence-Block check only, and neither varies by `risk-tier` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for every admission signal, so do not reintroduce a tier-varying threshold here.
+**Downstream knobs:**
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
 
-Phase 4.2 verifier coverage is deliberately NOT one of them: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) is verified at both tiers — no tier-scaling, no severity-scaling.
+**Not tier-scaled:** Phase 4.1 admission reads severity and the Evidence-Block check only, and neither varies by `risk-tier` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for every admission signal, so do not reintroduce a tier-varying threshold here. Phase 4.2 verifier coverage is the same: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) is verified at both tiers — no tier-scaling, no severity-scaling.
 
 ---
 
@@ -403,7 +404,7 @@ After triage, surface the depth question via `AskUserQuestion` (do NOT print opt
 - "Standard" — one reviewer pass per dimension — <N> reviewers for this diff (substitute the computed count: every always-fire dimension per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.1 + triggered conditional dimensions + discovered custom reviewers; if custom discovery has not yet run, state the built-in count and append "plus your custom reviewers, if any"); findings filtered and verified once.
 - "Deep — multi-angle review + extra verification" — reviews each check from several angles and verifies findings with a majority vote, escalated only where the call is contested; higher quality (finds more, validates more reliably) at higher token cost. Posts the same finding set as Standard.
 
-Neither option carries a `(Recommended)` suffix — depth is a per-run pick where the alternative is only costlier, never safer (Deep authors no fix), so the user weighs cost against thoroughness each run. If the question is dismissed (empty answer), default to the cheaper value: Standard (`deep-mode: false`).
+Neither option carries a `(Recommended)` suffix — depth is a per-run pick where the alternative is only costlier, never safer (Deep authors no fix), so the user weighs cost against thoroughness each run. An empty answer is an upstream tool bug, not a Standard pick: re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions rather than defaulting.
 
 Persist the pick: frontmatter `deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice`, so the session-restore hook re-applies depth on a compaction-resume (a fresh re-invocation re-asks depth per §0-pre). Deep contract: `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
 

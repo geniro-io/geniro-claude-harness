@@ -45,8 +45,6 @@ When `deep-mode: true`, Phase 2 replaces the single parallel reviewer batch with
 - The workflow **unions + dedups the 3 angle passes of one dimension into a single per-dim finding set** before returning — see §5. Returns, per dimension, the deduped findings list as raw JSON text.
 - The orchestrator reads the workflow result and proceeds to Phase 3 (orchestrator-side dedup + cross-dim convergence) exactly as in standard mode, but over the deeper per-dim sets.
 
-**Why angle-diverse passes raise recall efficiently:** three identical passes rely only on sampling temperature to scatter — they harvest the tail of one distribution, so much of what they return overlaps and is discarded at dedup. Three angle-scoped passes search where the others do not, so each pass buys new territory at the same token cost — higher recall per token. When 2 of 3 angles independently surface the same issue, that cross-angle agreement is a stronger within-dim reliability signal than three identical clones agreeing (recorded as `seen-in: N/3 angles` per §5).
-
 The Workflow tool returns its result to the orchestrator and the orchestrator resumes Phase 3 on completion. State.md `phase: llm-spawn` persists across the workflow call so a mid-workflow compaction resumes correctly (the workflow itself is resumable via its runId; the skill re-reads its result).
 
 ---
@@ -57,7 +55,7 @@ When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no ti
 
 - **First vote (always).** Run ONE independent verifier on the finding — the degenerate one-finding cluster input (the finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2), NOT any other verifier's output (independence is load-bearing). It emits the standard structured result (`validation: confirmed | refuted | clarified`, `recommended_action`, `confidence`, `evidence`) as raw JSON text.
 - **Escalate to 3** (run 2 more independent verifiers, then majority) when ANY of:
-  - the first vote's `confidence < 70` — a low-confidence vote is the unreliable one the majority exists to backstop;
+  - the first vote fails the minimum bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 (abstained, or `confidence <= 3`);
   - the first vote is `refuted` AND the finding's `convergence_count >= 2` — the verdict contradicts cross-dimension agreement on the same finding, exactly the contested case majority arbitrates (that agreement no longer admits anything at §4.1, but a verdict cutting against it still marks the finding as disputed);
   - the finding is CRITICAL or HIGH AND the first vote is `refuted` — one vote never drops a high-stakes finding.
 - **Accept the single vote** (no escalation) otherwise: a high-confidence first vote that agrees with the upstream signal — a `confirmed`/`clarified` of any survivor, or a `refuted` of a lone (`convergence_count < 2`) MEDIUM finding. Cross-dim convergence on the finding already corroborates a confirm, so the lone verifier is not the only evidence; a lone low-stakes refute is cheap to act on if wrong. A `refuted` at CRITICAL or HIGH never reaches this branch — it always escalates, which is deep mode's form of the standard-mode high-stakes refutation guard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5 rule 1).
@@ -67,8 +65,6 @@ When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no ti
 - **Abstain = parse failure.** A verifier whose raw output won't parse into the schema **abstains** — it counts toward neither "stands" nor "drop", and never demotes a finding. A first-vote abstention triggers escalation (run the other 2); if all 3 abstain, quorum fails.
 - **Quorum.** If fewer than 2 verifiers returned a parseable vote on an escalated finding (≥2 abstained), there is no majority → **fail-safe**: run ONE fresh single-pass verifier and take its verdict. Note `verification: deep-mode quorum fail-safe (single-pass)` in the finding's `Verification-evidence`. If that single-pass verifier also fails to spawn or returns nothing parseable, apply the standard spawn-failure fail-open — the orchestrator assigns `Validation: unverified` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4.5 (finding kept, excluded from the PR post set, surfaced under `## Caveats`).
 - **Persist into existing fields — no schema bump.** Write the verdict to the finding's existing `Validation` field; record the vote path in `Verification-evidence` — `1-vote (corroborated): confirmed, conf 88` for the accepted-single path, `3-vote: 2 confirmed / 1 refuted / 0 abstain → confirmed` for the escalated path. Do NOT add new per-finding schema fields — the consumer (`/geniro:implement` Step 12, §7.0 guard) reads `Validation` unchanged.
-
-**Why signal-gating preserves precision while cutting votes:** a single verifier can hallucinate — false-confirm a non-bug or false-refute a real one (the documented multi-judge failure mode). The 3-vote majority tolerates one bad vote, but only the contested dispositions actually need that tolerance: a confirm that agrees with cross-dim convergence is already corroborated by independent producers, and a lone low-stakes refute is cheap if wrong. Spending the extra 2 votes only where the first vote is low-confidence, contradicts upstream agreement, or would drop a high-stakes finding keeps the hallucination-tolerance exactly where a flipped disposition is costly — at roughly `N + 2·(contested fraction)·N` votes instead of `3N`.
 
 ---
 
@@ -81,7 +77,7 @@ Two fan-outs: the Phase 2 recall script and the Phase 4.2 vote script (may be on
 **Review's escalation predicate** — the one skill-specific piece of the vote skeleton. It keys on cross-dim `convergence_count` (not the within-dim `seen_in`) and escalates a high-stakes finding only on a `refuted` first vote, not in both directions, because review reports rather than fixes:
 
 ```
-// review's needsEscalation(first, f) = first abstained (parse-fail) OR first.confidence < 70
+// review's needsEscalation(first, f) = deep-mode.md §3 minimum (abstained OR confidence <= 3)
 //   OR (first.validation === 'refuted' && f.convergence_count >= 2)
 //   OR (first.validation === 'refuted' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'))
 ```
@@ -132,4 +128,4 @@ The cross-skill rows — deep-mode-is-not-speed, the workflow wrapper does not s
 | Your reasoning | Why it's wrong |
 |---|---|
 | "Three angle passes of the bugs dim all found it — that's convergence_count 3, treat it as corroborated." | The 3 angle passes of ONE dimension agreeing is that dimension agreeing with itself, not cross-dim convergence — and agreement among correlated samplers is the least informative kind. Dedup intra-dim BEFORE computing cross-dim convergence (§5), or deep mode feeds its own escalation predicate and the pitfall auto-emit a number it manufactured. |
-| "Run one verifier per survivor in deep mode — the §4.1 gate already vetted them, that saves the most tokens." | The single-vote path is gated by signal, not blanket (§3): a first vote with `confidence < 70`, a `refuted` of a finding with `convergence_count >= 2`, or any `refuted` of a CRITICAL/HIGH finding escalates to the full 3. Blanket single-vote re-opens the single-hallucination flip the majority prevents. |
+| "Run one verifier per survivor in deep mode — the §4.1 gate already vetted them, that saves the most tokens." | The single-vote path is gated by signal, not blanket (§3): a first vote that fails the `_shared/deep-mode.md` §3 minimum bar, a `refuted` of a finding with `convergence_count >= 2`, or any `refuted` of a CRITICAL/HIGH finding escalates to the full 3. Blanket single-vote re-opens the single-hallucination flip the majority prevents. |

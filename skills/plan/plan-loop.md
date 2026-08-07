@@ -133,7 +133,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 6 — Write spec.md
 
-`phase: write-spec`. Steps in `loop-phase-6-write-spec.md`: §6.1 write contract (including the `workflow_refs[]` copy and the `m5-v1`/`m5-v2`/`m5-v3` schema-version rule) · §6.2 no auto-commit · §6.3 milestone-mode write fan-out · §6.4 idempotent re-entry (compaction-safe). This is the canonical writer of all three design-doc detection markers.
+`phase: write-spec`. Steps in `loop-phase-6-write-spec.md`: §6.0 refresh custom instructions · §6.1 write contract (including the `workflow_refs[]` copy and the `m5-v1`/`m5-v2`/`m5-v3` schema-version rule) · §6.2 no auto-commit · §6.3 milestone-mode write fan-out · §6.4 idempotent re-entry (compaction-safe). This is the canonical writer of all three design-doc detection markers.
 
 ## Phase 7 — Mechanical validator
 

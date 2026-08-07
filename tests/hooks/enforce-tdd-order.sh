@@ -129,6 +129,23 @@ expect_allow "RED: truncate on a test file allowed" \
   "$(run_bash "truncate -s 0 $GITREPO/src/app.test.js")"
 expect_allow "RED: shred on a scratch (non-production, /dev) allowed" \
   "$(run_bash 'dd if=/dev/zero of=/dev/null')"
+# T4-8: this guard carries the same sed -i / cp / rsync / dd-of= write vectors
+# as file-protection.sh but had no BLOCK assertion for any of them — only a
+# /dev/null ALLOW control for dd exercised that vector at all.
+expect_block "RED: sed -i on production src blocked" \
+  "$(run_bash "sed -i.bak 's/a/b/' $GITREPO/src/app.js")"
+expect_allow "RED: sed -i on a test file allowed" \
+  "$(run_bash "sed -i.bak 's/a/b/' $GITREPO/src/app.test.js")"
+expect_block "RED: cp onto production src blocked" \
+  "$(run_bash "cp /tmp/x $GITREPO/src/app.js")"
+expect_allow "RED: cp FROM production src (read) allowed" \
+  "$(run_bash "cp $GITREPO/src/app.js /tmp/inspect.js")"
+expect_block "RED: rsync destination onto production src blocked" \
+  "$(run_bash "rsync -a /tmp/src/ $GITREPO/src/app.js")"
+expect_allow "RED: rsync destination onto a test file allowed" \
+  "$(run_bash "rsync -a /tmp/src/ $GITREPO/src/app.test.js")"
+expect_block "RED: dd of= onto production src blocked" \
+  "$(run_bash "dd if=/dev/zero of=$GITREPO/src/app.js")"
 # Spaced-tag heredoc must be recognized so its target is classified — a spaced
 # `<< EOF` into production blocks; into a test file allows.
 expect_block "RED: spaced-tag heredoc into production blocked" \

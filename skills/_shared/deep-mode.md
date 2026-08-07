@@ -66,7 +66,7 @@ const verified = await parallel(candidates.map(c => () => (async () => {
 return verified.filter(v => v.verdict !== 'refuted')                     // survivors continue down the skill's own path
 ```
 
-`needsEscalation(first, candidate)` is the one skill-specific piece — each consuming reference states its own predicate. Every predicate carries these two clauses at minimum: the first vote abstained (parse failure), or its `confidence < 70`. The remaining clauses express what that skill treats as contested or high-stakes, per the §3 precision layer.
+`needsEscalation(first, candidate)` is the one skill-specific piece — each consuming reference cites this clause rather than restating it, adding only its own contested/high-stakes clauses. Every predicate carries these two clauses at minimum: the first vote abstained (parse failure), or its `confidence <= 3`. `confidence` is the 1-5 coarse scale its owner defines (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §3: 1 = "low — could be wrong", 5 = "certain — direct evidence") — only a 4 or 5 is trusted alone; 1-3 still needs the majority's tolerance for one bad vote. The remaining clauses express what that skill treats as contested or high-stakes, per the §3 precision layer.
 
 ## 4. Workflow mitigations (mandatory)
 

@@ -204,9 +204,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 
 ## 3. File-size guidance
 
-**Soft guidance: when an instruction file passes ~2,500 words, consider splitting** (by scope or by topic). A somewhat larger file that's well-organized and all-load-bearing is fine.
-
-Count words, not lines — a table-dense file and a prose-dense file with the same line count differ by 2-3× in what they cost. Measure with `awk '{w+=NF} END{print w}'`, not `wc -w`, whose locale-dependent word classification makes the same file measure ~3% apart on different machines.
+**The enforced bar is 300 lines** — `/geniro:instructions validate` (`mode-validate.md` §Step 2) reports a LOW-severity split suggestion past it, overridable via `--max-lines N` or `GENIRO_INSTRUCTIONS_MAX_LINES`. A somewhat larger file that's well-organized and all-load-bearing is fine — the check is advisory, not a hard limit; consider splitting by scope or by topic once it fires.
 
 ---
 

@@ -40,6 +40,8 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 7. **Every approved finding has an owner.** Before spawning Phase 5 fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding silently assigned to nobody is work the user approved and never received — and it surfaces, if at all, only because an agent happens to notice it sitting in one of its files.
 8. **A mechanic is never deleted on a blanket approval.** A D6 proposal to remove a whole phase, gate, step, spawn, dimension, or helper gets its own gate and its own explanation, whatever the user picked at the action gate — "Fix everything" included, which approves fixes rather than removals. Every other finding changes something the user can inspect afterwards; a deleted gate leaves nothing behind to inspect, because the run that would have objected is the one removed. Walk them per `dimensions-reference.md` §Deletion gate.
 
+**Turn-completion check** (deliberately un-numbered, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check): before stopping, re-read the last emitted paragraph — a stated intent to render a finding, fire the action gate, or walk a deletion gate is not the same as having done it. Phase 4's finding render and Phase 5's per-item deletion gate are exactly the seam this guards.
+
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
@@ -65,7 +67,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | one spawn per selected dimension (D5 splits into markdown + shell) + shard splits, hard cap 12 spawns; shards count against the cap; scoped runs spawn only the relevant subset |
+| Reviewer spawns per batch | one spawn per selected dimension (D5 splits into markdown + shell) + shard splits, hard cap 12 spawns; shards count against the cap; scoped runs spawn only the relevant subset. The cap exists because Phase 3 re-reads every spawn's table by hand — a full audit's 9-dimension baseline (D1 runs inline; D5 always splits into two) already leaves room for only 3 dimensions to shard, so when a run's scope would push a 4th dimension past the split threshold, that dimension stays a single unsharded spawn (a larger read for one reviewer) rather than breaching the cap |
 | Shards per dimension | ≤2, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |

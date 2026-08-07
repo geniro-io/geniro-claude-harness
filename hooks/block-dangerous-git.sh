@@ -130,7 +130,7 @@ _geniro_extract_inner_payloads() {
   local _wv_wargs='([[:space:]]+(-[^[:space:];|&<>]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:];|&<>]*|[0-9]+[smhd]?|[{}]+))*'
   local _wv_pfx="(${_wv_wrd}${_wv_wargs}[[:space:]]+)*"
   local _wv_shq='["'\'']?'
-  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_shq}"
+  local _wv_sh="${_wv_pfx}${_wv_shq}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_shq}"
   # One quoted literal; and the payload operand form, which may also be bare.
   local _wv_lit='("[^"]*"|'\''[^'\'']*'\'')'
   local _wv_arg='("[^"]*"|'\''[^'\'']*'\''|[^[:space:];|&]+)'
@@ -191,6 +191,22 @@ _geniro_extract_inner_payloads() {
     _pl="${_pl#\'}"; _pl="${_pl%\'}"
     [ -n "$_pl" ] && printf '%s\n' "$_pl"
   done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_lit}"'[^|"'\'']*\|[[:space:]]*'"${_wv_sh}"'([[:space:]]+'"${_wv_nonc}"')*[[:space:]]*($|[;&|])' 2>/dev/null || true)"
+
+  # Arm 7 — a herestring fed to a shell (`bash <<< '<payload>'`,
+  # `sh -s <<< "<payload>"`). `<<<` feeds the right-hand operand on stdin exactly
+  # like arm 3's pipe, but the shell word comes FIRST and the payload follows the
+  # operator instead of being piped in from the left — the mirror image of arm 3.
+  # Neither arm 1 (no `-c` argument here), arm 3 (no pipe) nor the heredoc scrub
+  # (which explicitly excludes `<<<` from heredoc-opener detection, so this text
+  # survives it unscrubbed) extracts it.
+  local _wv_hspfx="${_wv_sh}([[:space:]]+${_wv_flag})*[[:space:]]*<<<[[:space:]]*"
+  while IFS= read -r _m; do
+    [ -z "$_m" ] && continue
+    _pl=$(printf '%s' "$_m" | sed -E "s#^[^[:alnum:]_]?${_wv_hspfx}##")
+    _pl="${_pl#\"}"; _pl="${_pl%\"}"
+    _pl="${_pl#\'}"; _pl="${_pl%\'}"
+    [ -n "$_pl" ] && printf '%s\n' "$_pl"
+  done <<< "$(printf '%s\n' "$cmd" | grep -oE '(^|[^[:alnum:]_])'"${_wv_hspfx}${_wv_arg}" 2>/dev/null || true)"
 
   # Arm 4 — a heredoc body fed to a shell (`bash <<EOF … EOF`, `cat <<EOF | sh`).
   # This is the mirror image of arm 3: the body is stdin, and every guard's
@@ -313,7 +329,7 @@ _geniro_extract_inner_payloads() {
       _pl="${_pl#\'}"; _pl="${_pl%\'}"
       _pl="${_pl%\\}"
       [ -n "$_pl" ] && printf '%s\n' "$_pl"
-    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
+    done <<< "$(printf '%s\n' "$cmd" | grep -oE "${_wv_q}"'([^[:space:];|&<>"'\'']*/)?(sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc)'"${_wv_q}${_wv_nq}"'*'"${_wv_q}${_wv_cflag}${_wv_q}${_wv_nq}"'*'"${_wv_lit}" 2>/dev/null || true)"
 
     # Ruby's and Perl's backtick literal is the same shell-out with no call
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
@@ -536,10 +552,16 @@ fi
 
 # 3. reset --hard — span-bounded to the `git reset` command itself, so a --hard*
 #    token from a DIFFERENT command chained after it (e.g. `git reset HEAD~1 &&
-#    npm run build -- --hardened`) cannot false-positive.
+#    npm run build -- --hardened`) cannot false-positive. `git read-tree --reset
+#    -u HEAD` is the plumbing equivalent — it overwrites both the index and the
+#    working tree from HEAD exactly like `reset --hard` does, on the same
+#    matcher shape `git add -f`'s plumbing coverage already uses.
 if ! is_allowed "reset-hard"; then
   if echo "$PADDED" | grep -qE 'git[[:space:]]+reset[^&;|]*[[:space:]]--hard([[:space:];&|]|$)'; then
     block "reset-hard" "git reset --hard discards uncommitted work irreversibly"
+  fi
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+read-tree[^&;|]*[[:space:]]--reset([[:space:];&|]|$)'; then
+    block "reset-hard" "git read-tree --reset resets the index and working tree exactly like reset --hard"
   fi
 fi
 
@@ -606,6 +628,27 @@ if ! is_allowed "checkout-mass-discard"; then
   if echo "$PADDED" | grep -qE 'git[[:space:]]+checkout[^&;|]*[[:space:]]\*'; then
     block "checkout-mass-discard" "git checkout with a * pathspec discards ALL uncommitted changes"
   fi
+fi
+
+# 6b. checkout/switch force-discard. `-f`/`--force` on `git checkout` and
+#    `-f`/`--force`/`--discard-changes` on `git switch` (`--force` is a
+#    documented alias for `--discard-changes` there) throw away ALL
+#    uncommitted changes tree-wide when switching branches — no bare `.` / `*`
+#    pathspec required at all, so item 6 above never sees it. Bounded to the
+#    checkout/switch span so a -f from a chained command cannot false-positive;
+#    `-b`/`-c` (new-branch creation) carry no letter `f`, so an ordinary
+#    `git checkout -b feature/x` / `git switch -c feature/x` stays allowed.
+if ! is_allowed "checkout-mass-discard"; then
+  CO_SPANS=$(echo "$PADDED" | grep -oE 'git[[:space:]]+(checkout|switch)[^&;|]*' || true)
+  while IFS= read -r CO_SPAN; do
+    [ -z "$CO_SPAN" ] && continue
+    if echo "$CO_SPAN" | grep -qE '[[:space:]]--force([[:space:]]|$)|[[:space:]]--discard-changes([[:space:]]|$)'; then
+      block "checkout-mass-discard" "git checkout/switch --force or --discard-changes discards ALL uncommitted changes"
+    fi
+    if echo "$CO_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'; then
+      block "checkout-mass-discard" "git checkout/switch -f (including combined flags) discards ALL uncommitted changes"
+    fi
+  done <<< "$CO_SPANS"
 fi
 
 # 7. restore mass-discard. Same standalone-token rule as checkout: a bare `.`,

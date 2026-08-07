@@ -14,7 +14,7 @@ Code style, naming conventions, documentation, consistency, and compliance with 
 
 ## What to check
 
-### 1. Naming Conventions
+### 1. Naming conventions
 - Variable names unclear or misleading (`data`, `x`, `temp`, `result`)
 - Inconsistent naming style (camelCase vs snake_case mixed)
 - Names don't reflect purpose (`fn`, `proc`, `handler` without context)
@@ -35,7 +35,7 @@ grep -nE "(==|<|>|<=|>=|\(|,)[[:space:]]*[0-9]{2,}" file.js | grep -vE "^[0-9]+:
 - Names that don't match what variable stores
 - Abbreviations that aren't obvious
 
-### 2. Function & Class Naming
+### 2. Function & class naming
 - Generic function names (`process`, `handle`, `do`, `execute` without context)
 - Function names not describing what they do
 - Inconsistent verb tense (get vs gets, create vs creating)
@@ -48,7 +48,7 @@ grep -nE "(==|<|>|<=|>=|\(|,)[[:space:]]*[0-9]{2,}" file.js | grep -vE "^[0-9]+:
 - No clear verb (get, create, fetch, validate, check, transform)
 - Private methods unclear (\_process, \_handle)
 
-### 3. Code Formatting & Style
+### 3. Code formatting & style
 - Inconsistent indentation (tabs vs spaces mixed)
 - Line length exceeding the project's configured limit (e.g. >120 chars)
 - Missing blank lines between logical sections
@@ -68,7 +68,7 @@ awk '/^\t/{tabs++} /^ /{spaces++} END{print "tab-indented:", tabs+0, "space-inde
 - No blank lines between functions/logic blocks
 - Random blank lines within functions
 
-### 4. Comments & Documentation
+### 4. Comments & documentation
 - Missing comments on complex logic
 - Comments that state the obvious
 - Comments that don't match code
@@ -89,7 +89,7 @@ awk 'prev !~ /(\*\/|"""|^[[:space:]]*(\/\/|#))/ && /^[[:space:]]*(export )?(asyn
 - TODO comments without issue reference
 - No function parameter/return documentation
 
-### 4.5. Comment Accuracy & Comment-Rot
+### 4.5. Comment accuracy & comment-rot
 
 A comment that lies is worse than no comment — the reader trusts it and reasons from a false premise. Three shapes, all documentation-class (LOW/MEDIUM per the Severity tagging section below):
 
@@ -104,7 +104,7 @@ Do not flag from the comment alone — read the code the comment describes and c
 - Comment references a symbol / path / flag that grep cannot find in the current tree
 - Doc-comment `@param` / `@returns` that no longer matches the signature
 
-### 5. Code Duplication
+### 5. Code duplication
 - Copy-pasted code blocks (>5 lines repeated)
 - Similar logic in multiple functions
 - Utility code scattered across files
@@ -118,7 +118,7 @@ Do not flag from the comment alone — read the code the comment describes and c
 - Similar function implementations
 - Utility code duplicated across tests
 
-### 6. Imports & Dependencies
+### 6. Imports & dependencies
 - Unnecessary imports (unused modules)
 - Wildcard imports (import *)
 - Circular import patterns
@@ -132,7 +132,7 @@ Do not flag from the comment alone — read the code the comment describes and c
 - Relative imports going up many levels (`../../..`)
 - Circular dependency patterns
 
-### 7. Type Annotation Hygiene
+### 7. Type annotation hygiene
 
 This section owns the *declared types* — annotations, `any` breadth, unsafe casts. It does NOT own runtime validation: missing input validation at an API boundary is `security`'s (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/security-criteria.md` §5 Input Validation & Output Encoding), and a missing null / undefined check on external input is `bugs`' (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/bugs-criteria.md` §1). Both reach the user through their own dimension at a severity a style rubric cannot assign — emitting them here caps a real defect at LOW and reports it twice.
 

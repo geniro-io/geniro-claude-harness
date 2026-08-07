@@ -35,7 +35,7 @@ Phase 5 cluster rendering (`loop-phase-5-section-approval.md` §5.2) renders eve
 | 5. Risks | Specific failure scenario + observable symptom: "Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate" |
 | 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) |
 | 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" |
-| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — what /geniro:implement will ask the user mid-run |
+| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — step anchors where a pause is warranted during the /geniro:implement run, advisory, per the section-8 note in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` |
 | 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch, each criterion closing on its acceptance command: `verify: pnpm test orders.spec` |
 | 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
 | 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |

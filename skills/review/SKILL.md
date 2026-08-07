@@ -149,10 +149,10 @@ The safety hooks apply across ALL phases; the complete list and what each blocks
 
 Per-phase mechanics live in the phase files; this is the final contract check, and skipping any item leaves the review incomplete or unsafe.
 
-- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual. On the standard single-pass path, §4.0b also confirmed spawn instances == `spawn_dims_count`; in deep mode that comparison is replaced by the angle-pass count check in `deep-mode-reference.md` §2 (the standard-path check does not apply — deep mode never fires the single batch it counts).
+- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual. On the standard single-pass path, §4.0b also confirmed spawn instances == `spawn_dims_count`; deep mode carries no equivalent per-pass instance count — `deep-mode-reference.md` §2 checks only the declared dimension SET, since deep mode never fires the single batch that count measures.
 - [ ] The spawn echo (`Spawning <N> reviewers: ...`), carrying the declared count, went out in the same response that fired the batch (§2.3.1).
 - [ ] A fresh `finding-verifier-agent` verdict exists for EVERY admitted CRITICAL / HIGH / MEDIUM survivor (same-file findings cluster into a shared spawn at the cluster size in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4); refuted findings demoted to `## Filtered` — a CRITICAL / HIGH refutation only after a second independent verdict agreed, per the same file §5 rule 1.
-- [ ] The multi-signal admission gate was applied — not a single confidence threshold (invariant #6).
+- [ ] The admission gate was applied per its canonical rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) — not a single confidence threshold.
 - [ ] Every kept finding carries a severity (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1), a decision type, and a `[NEW]` / `[PRE-EXISTING]` tag.
 - [ ] The needs-your-decision gate fired for every such finding at any severity, and all are resolved or wontfix BEFORE the handoff is offered or anything is posted (§7.0 Pre-Post guard).
 - [ ] `phase:` was stamped via `atomic_state_write` on ENTRY to each phase (invariant #10), so both declarations existed before the gates reading them.
@@ -166,7 +166,7 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 
 ## Phase 1 — Triage & context collect
 
-`phase: triage` · Steps: `phase-1-triage.md` (13 Steps). Resolve the review target; load PR, tracker, plan, and memory context. Exit when frontmatter holds `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref` — plus `deep-mode` when the depth step ran — and `approvals[]` holds any AUQ answers.
+`phase: triage` · Steps: `phase-1-triage.md`. Resolve the review target; load PR, tracker, plan, and memory context. Exit when frontmatter holds `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref` — plus `deep-mode` when the depth step ran — and `approvals[]` holds any AUQ answers.
 
 ## Phase 1.5 — Mechanical pre-pass
 
@@ -182,7 +182,7 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 
 ## Phase 4 — Stratification & test gate
 
-`phase: stratify` · Steps: `phase-3-4-filter-stratify.md` §4.0-§4.3 — the post-spawn verification gate, **§4.1 multi-signal threshold filter**, per-finding empirical-reproduction verification, failing-to-passing test-confirmation gate. Exit when every admitted CRITICAL / HIGH / MEDIUM finding carries a verifier verdict (or `Validation: unverified`), refuted findings have moved to `## Filtered`, and the test gate has fired — or was skipped on an empty eligible set.
+`phase: stratify` · Steps: `phase-3-4-filter-stratify.md` §4.0-§4.3 — the post-spawn verification gate, **§4.1 multi-signal admission gate**, per-finding empirical-reproduction verification, failing-to-passing test-confirmation gate. Exit when every admitted CRITICAL / HIGH / MEDIUM finding carries a verifier verdict (or `Validation: unverified`), refuted findings have moved to `## Filtered`, and the test gate has fired — or was skipped on an empty eligible set.
 
 ## Phase 5 — Persist & emit
 

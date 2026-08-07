@@ -101,6 +101,10 @@ expect_block "bash: sed -i on state file blocks"       "$(rc_bash "sed -i.bak 's
 expect_block "bash: mv onto state path blocks"         "$(rc_bash 'mv new.md .geniro/state/onboard/s/state.md')"
 expect_block "bash: cp onto state path blocks"         "$(rc_bash 'cp tmp.md .geniro/workflow/linear.md')"
 expect_block "bash: dd of= into state path blocks"     "$(rc_bash 'dd if=/dev/stdin of=.geniro/knowledge/learnings.jsonl')"
+# T4-8: this guard carries the same rsync-destination vector as file-protection.sh
+# (vector 8) but had no assertion of its own for it.
+expect_block "bash: rsync destination onto state path blocks" "$(rc_bash 'rsync -a /tmp/src/ .geniro/planning/td/state.md')"
+expect_allow "bash: rsync FROM a state file allowed"    "$(rc_bash 'rsync -a .geniro/state/review/s/state.md /tmp/backup/')"
 
 # ===== Bash branch: sanctioned helpers, reads, exemptions, non-state writes allow =====
 expect_allow "bash: atomic_state_write invocation allowed" "$(rc_bash 'atomic_state_write .geniro/state/review/s/state.md < body.txt')"

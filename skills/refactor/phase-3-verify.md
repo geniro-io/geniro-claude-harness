@@ -1,6 +1,6 @@
 # /geniro:refactor — Phase 3: verify
 
-Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry to Phase 3, and again on any resumption of it, including after a compaction. The spine keeps the state machine, the loop invariants, the anti-rationalization table, the budgets, §Git constraint and the tool surface — this file carries the Steps. Bare `§3.M` refs below point at this file's own sub-sections; `§ <name>` refs name a section inside the cited helper, and a `Phase 1 §1.M` / `Phase 2 §2.M` ref points at the sibling phase file (`refactor/SKILL.md` for Phase 1, `refactor/phase-2-apply.md` for Phase 2).
+Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry to Phase 3, and again on any resumption of it, including after a compaction. The spine keeps the state machine, the loop invariants, the anti-rationalization table, the budgets, §Git constraint and the tool surface — this file carries the Steps. Bare `§3.M` refs below point at this file's own sub-sections; `§ <name>` refs name a section inside the cited helper, and a `Phase 1 §1.M` / `Phase 2 §2.M` ref points at the sibling phase file (`refactor/phase-1-plan.md` for Phase 1, `refactor/phase-2-apply.md` for Phase 2).
 
 ## Contents
 
@@ -9,7 +9,8 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry t
 - 3.3 Orchestrator disposition logic — PRODUCT-DECISION escalation, the ADR path, the 1-round fix loop
 - 3.4 Completion summary
 - 3.5 Emit learnings + the recurring-pattern rule-capture offer
-- 3.6 Cleanup
+- 3.6 Custom post-verify steps
+- 3.7 Cleanup
 
 ---
 
@@ -30,6 +31,8 @@ Skipped for Trivial and Small per Step 3.
 **Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash before invoking the custom-reviewer helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
 
 For Medium and Big: spawn a fresh reviewer-agent (focus areas — accidental public-API changes / test assertion mutations / invariant drift / new coupling / dead-code removal that had references) PLUS any custom reviewers discovered via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (matched by `paths:` filter against changed files). All spawns go in ONE parallel batch — same assistant response. The reviewer-agent reads `bugs-criteria.md`, `architecture-criteria.md`, `tests-criteria.md` itself; do NOT pre-read into orchestrator context.
+
+As the batch returns, read each report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report — an agent that skipped its project-rules load is otherwise indistinguishable from one that ran it.
 
 Full spawn template (acceptance criteria, pre-inlined `code-style.md`, focus areas, criteria-file list, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §3.
 
@@ -109,7 +112,13 @@ At Phase 3 exit:
 
 **Offer to capture a recurring pattern as a project rule** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/recurrence-rule-capture.md` with `LEARNING_NOUN: pattern`, the refactor scope routing (`discovery` pattern extracted → `code-style.md`; `discovery` architectural insight → `global.md`; `pitfall` refactor-specific footgun → `refactor.md`; otherwise the user picks), and rejection args `"/geniro:refactor" "refactor/<scope>" "promote_pattern_to_rule"`. The helper reads the just-emitted entry's `recurrence_count` back (routed to the memory backend under a `## Memory Backend` block per its §0) and gates the offer on `>= 3`.
 
-### 3.6 Cleanup
+### 3.6 Custom post-verify steps
+
+Execute any user-authored post-verify steps from the loaded L4 `<skill>.md` (`.geniro/instructions/refactor.md`) — the Phase 2 §2.1 refresh carries this content into Phase 3, so no separate load is needed here. Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the anchor for this skill's terminal phase is `### After verify` (`verify` is the final non-terminal phase enum value; post-verify steps run after its work completes). Run any subsection whose phase anchor is post-verify.
+
+Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes. §Git constraint still binds here: a post-verify step never runs `git add` / `git commit` / `git push` even when the user's instruction names one — refactor ships no commits regardless of what triggers the step.
+
+### 3.7 Cleanup
 
 After Phase 3 completes:
 

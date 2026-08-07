@@ -215,6 +215,16 @@ expect_block "Bash multi-line printf payload into .py blocks" \
 expect_allow "Bash multi-line printf payload into .md NOT blocked (ext-scoped)" \
   "$(run_bash "$(printf "printf '%%s' 'eval(x)\nextra' > notes.md\n")")"
 
+# ===== Bash branch: an echo/printf word INSIDE the payload does not truncate it (T1-2) =====
+# A greedy `.*(printf|echo)` strip anchored to the LAST occurrence of either
+# word in the segment — including one appearing INSIDE the quoted payload text
+# itself — and dropped everything ahead of it, silently losing the flagged
+# construct that came before the in-payload "echo".
+expect_block "Bash printf payload containing the word 'echo' still blocks" \
+  "$(run_bash "printf 'eval(u) echo ok' > bad.py")"
+expect_block "Bash printf payload containing 'echo' after other flagged content blocks" \
+  "$(run_bash "printf 'pickle.load(f) then echo z' > bad.py")"
+
 # ===== Bash branch: interpreter-authored writes are scanned like a redirect =====
 # `node -e "fs.writeFileSync('app.js', '<body>')"` writes the same flagged content
 # without any shell syntax the redirect/heredoc scans can see.

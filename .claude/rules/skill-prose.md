@@ -30,7 +30,7 @@ Routine procedure needs none of it: "Read `<task-dir>/.kr-out.md`." / "Set `phas
 
 Caps and MUST have exactly one home: the right-hand cell of an anti-rationalization row, where the left cell is the rationalization and the right cell has to confront it bluntly. Caps in normal prose are the yellow flag.
 
-**Phrase a rule as a requirement, not a prohibition.** Requirement-type constraints hold their compliance across a long session; prohibition-type constraints decay as context accumulates — 73% compliance at turn 5 falling to 33% by turn 16, with requirements flat over the same span ([arXiv 2604.20911](https://arxiv.org/abs/2604.20911)). A long agentic run is exactly where a prohibition is load-bearing and exactly where it fades. So "write one-line comments" beats "never write verbose comments", and any prohibition you keep pairs with what to do instead. Where the bar is a data-loss or external-effect boundary with no positive rewrite, keep the prohibition and restate it at the point of use, not only in a rules list.
+**Phrase a rule as a requirement, not a prohibition.** Requirement-type constraints hold their compliance across a long session; prohibition-type constraints decay as context accumulates, with requirements flat over the same span ([arXiv 2604.20911](https://arxiv.org/abs/2604.20911)). A long agentic run is exactly where a prohibition is load-bearing and exactly where it fades. So "write one-line comments" beats "never write verbose comments", and any prohibition you keep pairs with what to do instead. Where the bar is a data-loss or external-effect boundary with no positive rewrite, keep the prohibition and restate it at the point of use, not only in a rules list.
 
 ## Assume a capable model
 
