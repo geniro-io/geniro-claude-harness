@@ -50,19 +50,21 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 
 Literal question shapes for the Step 0c workspace-setup AUQ. SKILL.md §PHASE 1 Step 0c owns when each fires; these are the verbatim templates.
 
-### Question 1 — workspace (rules 5/6)
+### Question 1 — workspace (rules 3/5/6)
+
+The option labels below carry NO `(Recommended)` suffix. The rule that fired in the 0b decision tree names which option gets it — rule 3 and rule 6 flip the label depending on `CONCURRENT_ACTIVITY`, so a suffix baked into a label here would render the wrong option as Recommended on every run those rules govern. Append ` (Recommended)` to exactly one label at render time: the one the fired rule names. Never fire this question with no Recommended option at all — an unlabeled set anchors the user on whichever option is listed first (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy).
 
 ```
 header: "Git workspace"
 question: "Where should /geniro:implement land its edits?"
 multiSelect: false
 options:
-  - label: "New feature branch (Recommended)"
+  - label: "New feature branch"
     description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
   - label: "Current branch"
     description: "Pre-flight only; no git mutation. Echo 'Continuing on <branch> at <toplevel>.'"
   - label: "Git worktree"
-    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback. Same branch-name-format conformance as 'New feature branch'."
+    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback; the checkout you are in is left untouched. Same branch-name-format conformance as 'New feature branch'."
 ```
 
 ### No-ticket-ID sub-flow
@@ -105,8 +107,8 @@ The `approvals[]` entry shapes (0d), the edge-case behaviors (0f), and the spec 
 approvals:
   - category: implement_workspace_setup
     prompt: "Where should /geniro:implement land its edits?"
-    options: ["New feature branch (Recommended)", "Current branch", "Git worktree"]
-    picked: "New feature branch (Recommended)"
+    options: ["New feature branch", "Current branch", "Git worktree (Recommended)"]
+    picked: "Git worktree (Recommended)"
     at: <ISO-8601 UTC>
     asked_in_phase: analyze
     why: "the branch already carried a commit from this same work stream"
