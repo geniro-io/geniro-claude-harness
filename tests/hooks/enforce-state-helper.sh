@@ -146,12 +146,79 @@ expect_allow "bypass: Edit/Write to state path allowed" "$(rc_path '/proj/.genir
 expect_allow "bypass: Bash redirect into state path allowed" "$(rc_bash 'echo x > .geniro/state/review/s/state.md')"
 cd "$TMPDIR_BASE" || exit 1
 
+# ===== T1 #8 (2026-08-07 audit): .geniro/safety.json itself — the file that
+# disables every guard by pattern ID — is outside every guarded prefix in
+# matches_state_path, so an agent could self-grant any bypass in one Write. =====
+expect_block "Edit/Write to .geniro/safety.json blocks" "$(rc_path '/proj/.geniro/safety.json')"
+expect_block "bash: redirect into .geniro/safety.json blocks" "$(rc_bash 'echo x > .geniro/safety.json')"
+expect_block "bash: cp destination onto .geniro/safety.json blocks" "$(rc_bash 'cp /tmp/x .geniro/safety.json')"
+# The DEDICATED "safety-json-edit" ID unlocks it, on both branches, WITHOUT
+# needing the broad "enforce-state-helper" grant — a narrower, independently
+# documented route rather than riding on the all-guards bypass.
+mkdir -p "$TMPDIR_BASE/byp-sj/.geniro"
+echo '{"allow_patterns":["safety-json-edit"]}' > "$TMPDIR_BASE/byp-sj/.geniro/safety.json"
+cd "$TMPDIR_BASE/byp-sj" || exit 1
+expect_allow "safety.json: safety-json-edit bypass allows Edit/Write to safety.json" \
+  "$(rc_path '/proj/.geniro/safety.json')"
+expect_allow "safety.json: safety-json-edit bypass allows bash redirect into safety.json" \
+  "$(rc_bash 'echo x > .geniro/safety.json')"
+# The dedicated bypass is scoped to safety.json only — an ordinary state path
+# still blocks under it.
+expect_block "safety.json: safety-json-edit bypass does NOT also unlock ordinary state paths" \
+  "$(rc_path '/proj/.geniro/state/review/slug/state.md')"
+cd "$TMPDIR_BASE" || exit 1
+
 # ===== Bash branch: additional write vectors into state paths block =====
 expect_block "bash: truncate on a state file blocks"   "$(rc_bash 'truncate -s 0 .geniro/state/review/s/state.md')"
 expect_block "bash: shred on learnings.jsonl blocks"   "$(rc_bash 'shred .geniro/knowledge/learnings.jsonl')"
 expect_block "bash: install into a state path blocks"  "$(rc_bash 'install -m 644 /tmp/x .geniro/instructions/global.md')"
 expect_block "bash: ln -sf over a state file blocks"   "$(rc_bash 'ln -sf /tmp/x .geniro/state/review/s/state.md')"
 expect_allow "bash: truncate on a non-state file allowed" "$(rc_bash 'truncate -s 0 /tmp/out.log')"
+
+# ===== T0 #1/#2 (2026-08-07 audit): a redirect riding on the SAME simple
+# command as a leading atomic_state_write/append call must still be seen —
+# the per-segment helper-trust mask used to drop the WHOLE segment, redirect
+# operand included, instead of stripping only the helper's own command word
+# and operand. =====
+expect_block "bash: atomic_state_write with trailing > onto a different state path blocks" \
+  "$(rc_bash 'atomic_state_write /tmp/f > .geniro/state/review/s/state.md')"
+expect_block "bash: atomic_state_write with trailing >> onto a state path blocks" \
+  "$(rc_bash 'atomic_state_write /tmp/f >> .geniro/state/review/s/state.md')"
+expect_block "bash: VAR=1 atomic_state_write with trailing > onto a state path blocks" \
+  "$(rc_bash 'VAR=1 atomic_state_write /tmp/f > .geniro/state/review/s/state.md')"
+# A genuine single-operand invocation (no trailing redirect) still allows.
+expect_allow "bash: atomic_state_write with no trailing redirect still allowed" \
+  "$(rc_bash 'atomic_state_write .geniro/state/review/s/state.md < body.txt')"
+# >| (noclobber override): the separator-split used to rewrite every `|` to a
+# newline BEFORE the redirect grep ran, orphaning the `>` from its operand.
+expect_block "bash: >| (noclobber override) into a state path blocks" \
+  "$(rc_bash 'echo x >| .geniro/state/review/s/state.md')"
+
+# ===== T0 #3/#4 (2026-08-07 audit): a trailing token after the real
+# destination must not displace it in the cp/mv/install/rsync/ln/ed/sponge
+# "last non-flag token" scan — 2>/dev/null is the single most common shell
+# idiom, so this is reachable by accident. =====
+expect_block "bash: cp destination onto state path with trailing 2>/dev/null blocks" \
+  "$(rc_bash 'cp /tmp/x .geniro/state/review/s/state.md 2>/dev/null')"
+expect_block "bash: mv destination onto state path with trailing 2>&1 blocks" \
+  "$(rc_bash 'mv /tmp/x .geniro/state/review/s/state.md 2>&1')"
+expect_block "bash: install destination onto state path with trailing 2>/dev/null blocks" \
+  "$(rc_bash 'install -m 644 /tmp/x .geniro/instructions/global.md 2>/dev/null')"
+expect_block "bash: rsync destination onto state path with trailing 2>/dev/null blocks" \
+  "$(rc_bash 'rsync -a /tmp/src/ .geniro/planning/td/state.md 2>/dev/null')"
+expect_block "bash: ln -sf onto state path with trailing 2>/dev/null blocks" \
+  "$(rc_bash 'ln -sf /tmp/x .geniro/state/review/s/state.md 2>/dev/null')"
+# sponge/ed: the finding's own reproduction is the SPACED stdin-redirect form
+# (`ed <state> < /tmp/patch.txt`), which is also ed/sponge's canonical usage.
+expect_block "bash: ed onto state path with trailing stdin redirect blocks" \
+  "$(rc_bash 'ed .geniro/state/review/s/state.md < /tmp/patch.txt')"
+expect_block "bash: sponge onto state path with trailing stdin redirect blocks" \
+  "$(rc_bash 'sponge .geniro/state/review/s/state.md < /tmp/in')"
+# Controls: same trailing-token shapes onto a non-state destination allow.
+expect_allow "bash: cp destination onto a non-state path with trailing 2>/dev/null allowed" \
+  "$(rc_bash 'cp /tmp/x notes.txt 2>/dev/null')"
+expect_allow "bash: ed onto a non-state path with trailing stdin redirect allowed" \
+  "$(rc_bash 'ed notes.txt < /tmp/patch.txt')"
 
 # ===== Bash branch: per-segment helper allow (T1-1) =====
 # A sanctioned helper call in one segment must NOT whitelist a raw redirect in
@@ -282,6 +349,33 @@ expect_block "malformed payload naming a canonical state path still blocked" \
   "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"mv /tmp/x .geniro/state/foo/state.md"')"
 expect_allow "malformed payload with no canonical state path allows" \
   "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hello"')"
+
+# ===== T1 #9 (2026-08-07 audit): jq ABSENT — the coarse raw-text fallback
+# scan is pure grep+sed and needs no jq, but it used to sit BELOW the
+# jq-missing fail-open branch, so it never ran when jq was absent at all
+# (only when jq was present but the payload was malformed, tested above).
+# FAKEBIN holds symlinks to every tool the fallback needs except jq. =====
+FAKEBIN="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$FAKEBIN"
+for _t in cat grep sed awk tr head printf env bash sh; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$FAKEBIN/$_t"
+done
+run_path_nojq() {  # <path>
+  printf '{"tool_input":{"file_path":"%s","content":"x"}}' "$1" | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+run_bash_nojq() {  # <command>
+  printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "jqless: write to a canonical state path still blocked" \
+  "$(run_path_nojq '.geniro/planning/task/state.md')"
+expect_block "jqless: bash redirect into a canonical state path still blocked" \
+  "$(run_bash_nojq 'echo x > .geniro/state/foo/state.md')"
+# Outside the coarse text scan the guard fails OPEN — jq is what the full
+# candidate-extraction pipeline needs, and the allowlist itself needs jq too.
+expect_allow "jqless: non-state write fails open" \
+  "$(run_path_nojq '/tmp/out.txt')"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

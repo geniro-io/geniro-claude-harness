@@ -104,6 +104,8 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 ## 5. Step 4 — Independent re-verification by the orchestrator
 
+The agent declares a `Context loaded:` line — check its report for it before consuming the report, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Reading the load report back; an `unreadable` path or a missing line is this spawn site's problem to act on, not the agent's.
+
 For EACH authored test in the agent's report's `### Authored Failing Tests (F→P verified)` section, the orchestrator runs the project's test command itself (single re-run; the agent already did 3× flake check). Subagent PASS reports are inputs, not evidence; the orchestrator's independent re-run IS the gate.
 
 Use `backpressure.sh` to keep failing-test output from flooding context:

@@ -11,7 +11,6 @@ Single source of truth for the optional `launch_config:` block in spec.md frontm
 - [Version & backward-compat](#version--backward-compat)
 - [Producer / consumer contract](#producer--consumer-contract)
 - [Validator contract](#validator-contract)
-- [Lockstep file set](#lockstep-file-set)
 
 ## When this applies
 
@@ -106,18 +105,3 @@ A shape-only check mirrors the `workflow_refs_consistency` check in `${CLAUDE_PL
 - **When present:** verify each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `deep_mode` ∈ {`true`, `false`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}; and, when the optional `tracker_status` key is present, `tracker_status` ∈ {`move-to-in-progress`, `leave-unchanged`} (key-presence-guarded — its absence inside a present block is valid, since it is written only when the spec had a linked tracker ticket). An out-of-enum value returns `fail` — the block is structurally broken.
 - **When absent:** skip the check entirely. Older specs without the block stay valid.
 - **Guard by `geniro_schema_version`:** the check runs only when `launch_config:` is present (which implies `m5-v4`); it never fires on a spec that omits the block, so a legacy `m5-v1` / `m5-v2` / `m5-v3` spec is never failed for not carrying it.
-
-## Lockstep file set
-
-These files describe one cohesive contract — when the `launch_config` shape, an enum value, the version rule, or the producer/consumer wiring changes, update all of them in the same change so a future editor cannot leave them inconsistent:
-
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` (this file) — the canonical schema.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` — the frontmatter example carrying the block.
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` — the shape-only enum check.
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` — the end-of-plan opt-in write (§8.3.5 capture, §8.4 step 2 write).
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` — the opt-in question wording.
-- `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` — the Step 0g read-and-apply path.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — the `approvals[]` category schema.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` — the plan→implement priming contract.
-- `${CLAUDE_PLUGIN_ROOT}/ARCHITECTURE.md` — the cross-skill architecture overview.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md` — the cross-skill launch-modifier rows.

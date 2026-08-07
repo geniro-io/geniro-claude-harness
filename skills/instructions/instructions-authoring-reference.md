@@ -231,7 +231,7 @@ An `Additional Steps` subsection must name a phase that a skill actually reads c
 | Scope | Legal anchor | Execution site |
 |---|---|---|
 | `implement` | `After ship` | `implement/phase-3-ship.md` §8.2 / `implement-reference.md` §Custom post-ship steps |
-| `plan` | `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) | `plan/SKILL.md` §8.7 |
+| `plan` | `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) | `plan/loop-phase-8-user-approval.md` §8.6 |
 | `refactor` | `After verify` | `refactor/phase-3-verify.md` §3.6 |
 | `global` | `After worktree-setup` (cross-skill; fires once, in the orchestrator, right after any skill creates a new worktree) | branch-freshness §3.1 and review triage |
 | `review`, `resolve`, `debug`, `onboard`, `investigate`, `reflect` | none — rules-only, no Additional Steps | n/a |

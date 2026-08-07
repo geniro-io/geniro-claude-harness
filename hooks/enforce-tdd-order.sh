@@ -782,6 +782,38 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     fi
   }
 
+  # Redirection tokens riding on the SAME simple command (2>/dev/null, 2>&1,
+  # >&2, >/dev/null, a spaced "2> file", a bare "<" whose target is the next
+  # token) are not a positional operand of cp/mv/install/rsync/ln/sponge/ed/ex
+  # — without stripping them first, each vector's "last non-flag token is the
+  # destination" scan below picks up the redirect's own target (or the bare
+  # operator itself) instead of the command's real destination.
+  # `2>/dev/null` is the single most common shell idiom, so this is reachable
+  # by accident, not only adversarially. A bare operator with NO target of its
+  # own attached (an exact `>`, `>>`, `<`, `2>`, …) also consumes the token
+  # that follows it, since that token IS the redirect's target, not a
+  # positional argument of the command.
+  _geniro_strip_redir_span() {
+    local span="$1" out="" tok skip=0
+    set -f
+    # shellcheck disable=SC2086
+    for tok in $span; do
+      if [ "$skip" = "1" ]; then skip=0; continue; fi
+      case "$tok" in
+        '>'|'>>'|'>|'|'<'|'<<'|'>&'|'&>'|[0-9]'>'|[0-9]'>>'|[0-9]'>|'|[0-9]'<'|[0-9]'<<'|[0-9]'>&'|[0-9]'&>')
+          skip=1
+          continue
+          ;;
+        [0-9]'>'*|[0-9]'<'*|'>'*|'<'*|'&>'*)
+          continue
+          ;;
+      esac
+      out="${out}${tok} "
+    done
+    set +f
+    printf '%s' "$out"
+  }
+
   # 1) Redirection targets: > file, >> file, >| file. fd-dups (>&2) never yield a
   #    target; 2>/dev/null lands on /dev/null, skipped as non-production below.
   while IFS= read -r tok; do
@@ -841,11 +873,13 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    FROM a file is a read and stays allowed.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
+    [ -z "$span" ] && continue
     last=""
     set -f
     # shellcheck disable=SC2086
     for tok in $span; do
-      case "$tok" in -*) continue ;; esac
+      case "$tok" in cp|mv|*/cp|*/mv|-*) continue ;; esac
       last="$tok"
     done
     set +f
@@ -900,6 +934,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    like cp/mv; an install `-t DIR` / `--target-directory DIR` writes into DIR.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
+    [ -z "$span" ] && continue
     last=""
     tgt_dir=""
     take_dir=0
@@ -928,6 +964,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    when -f/--force is present (without -f, ln refuses to clobber).
   while IFS= read -r span; do
     [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
+    [ -z "$span" ] && continue
     printf '%s' "$span" | grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force' || continue
     last=""
     set -f
@@ -952,6 +990,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #                            FIRST positional (a second positional would be
   #                            the patch file itself, which is read-only)
   while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    span=$(_geniro_strip_redir_span "$span")
     [ -z "$span" ] && continue
     last=""
     set -f

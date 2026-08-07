@@ -306,6 +306,66 @@ else
   fail "stale-lock reclaim: rc=$rc, lock-exists=$([ -f .geniro/planning/.codebase-map.lock ] && echo yes || echo no)"
 fi
 
+# ---------------------------------------------------------------------------
+# Signal safety: --replace must release the lock on TERM
+# ---------------------------------------------------------------------------
+#
+# T1 finding #12: the --replace commit used to call
+# `atomic_state_write "$target_path" < "$tmp"` by REDIRECTION, so it ran in
+# THIS shell. atomic_state_write installs its own INT/TERM trap
+# (atomic-state-write.sh:72-73), and bash traps are process-global, not
+# function-scoped — so its trap clobbered update_semantic's own
+# lock-releasing trap (set earlier in this file, around the case statement)
+# for the duration of the call. A TERM landing during the commit fired
+# atomic_state_write's handler only, which frees its OWN tmp file but never
+# $lock_path — orphaning .geniro/planning/.codebase-map.lock and wedging
+# every later L3 write at rc=11 for the reclaim window (lock-reclaim.sh).
+#
+# Stub `mv` to drop a marker file the instant it's invoked, then delay
+# before actually renaming — the one line both the pre-fix and the fixed
+# code eventually reach for the commit. The parent polls for the marker
+# (bounded) instead of guessing a sleep duration: the redact_secrets pass
+# ahead of the commit shells out to `git` per pattern and its wall-clock
+# cost varies by machine, so a blind pre-kill sleep lands the TERM before
+# the vulnerable window is even entered (verified empirically — a fixed
+# 0.2s sleep landed mid-redaction, not mid-commit, and passed for the
+# wrong reason on both the buggy and the fixed code). Polling for the
+# marker removes that race: the TERM is sent only once the commit has
+# actually started. Bash then defers the pending trap until the stub's
+# `sleep` returns, so the signal is guaranteed to be processed right
+# before the real rename — the exact race this test needs.
+new_sandbox
+echo "- src/foo.ts — original" > .geniro/planning/_CODEBASE_MAP.md
+marker="$SANDBOX_DIR/.mv-stub-entered"
+rm -f "$marker"
+mv() { : > "$marker"; sleep 0.6; command mv "$@"; }
+set +e
+( update_semantic --file codebase-map --replace "- src/foo.ts" "- src/foo.ts — REPLACED" >/dev/null 2>&1 ) &
+sig_pid=$!
+entered=0
+for _ in $(seq 1 100); do
+  if [ -f "$marker" ]; then
+    entered=1
+    break
+  fi
+  sleep 0.05
+done
+if [ "$entered" -eq 1 ]; then
+  kill -TERM "$sig_pid" 2>/dev/null
+fi
+wait "$sig_pid" 2>/dev/null
+set -e
+unset -f mv
+if [ "$entered" -ne 1 ]; then
+  kill -TERM "$sig_pid" 2>/dev/null
+  fail "TERM-during-replace-commit: mv was never reached within 5s — cannot exercise the race"
+elif [ ! -f .geniro/planning/.codebase-map.lock ]; then
+  pass "TERM during --replace commit releases the lock (no orphan)"
+else
+  rm -f .geniro/planning/.codebase-map.lock
+  fail "TERM during --replace commit orphaned .codebase-map.lock"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

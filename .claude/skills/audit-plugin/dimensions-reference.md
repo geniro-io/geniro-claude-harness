@@ -39,7 +39,7 @@ Review ONLY your dimension; other dimensions are covered by parallel reviewers.
 {{paste the full D<N> section from dimensions-reference.md}}
 
 ### Severity tiers and output contract
-{{paste §Severity tiers from dimensions-reference.md + §Finding output contract from ${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md}}
+{{paste §Severity tiers from dimensions-reference.md + §Finding output contract from skills/_shared/audit-pipeline.md}}
 
 ### Do-not-flag list
 {{paste §Do-not-flag list}}
@@ -59,7 +59,7 @@ Do NOT fix anything. Do NOT review outside your dimension. Report only.
 ```
 
 Dimension-specific notes:
-- **D4 (rules compliance):** instruct the reviewer to load the three `.claude/rules/*.md` files first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
+- **D4 (rules compliance):** instruct the reviewer to load every `.claude/rules/*.md` file first as its rubric source (`scripts/dump-md.sh .claude/rules` — they're too long to paste).
 - **D5:** two spawns — D5a scope `skills/ agents/ .claude/skills/`, D5b scope `hooks/ lib/ tests/`.
 - **D6:** paste the no-execution-site and over-constraint candidate lists from the D1 battery into the `### Mechanical pre-pass context` slot, as D3 and D7 already get theirs.
 - **D8:** paste the dead-matcher candidates from the D1 activation-reachability check.
@@ -78,11 +78,11 @@ Read at Phase 0, alongside this file's rubric sections.
 - Docs (drift targets): `CLAUDE.md`, `README.md`, `HOOKS.md`, `ARCHITECTURE.md`, `MIGRATION.md`, `CONTRIBUTING.md`.
 - Tests: `tests/**` (coverage map input for D8). `design/` and `evals/` are out of scope unless `$ARGUMENTS` names them.
 
-**State checkpoint** — write `.geniro/state/audit-plugin/<slug>/state.md` (producer `audit-plugin` — not in the handoff helper's enumerated producer set, but adopting its contract shape verbatim) via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook). Slug and the full slug-scoped T1.5 frontmatter per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules and §Producer contract — the field set, the line-1 rule, and the `validate_state_file` consequences live there. Each checkpoint records: phase completed, scope, dimensions selected, finding counts.
+**State checkpoint** — write `.geniro/state/audit-plugin/<slug>/state.md` (producer `audit-plugin` — not in the handoff helper's enumerated producer set, but adopting its contract shape verbatim) via `atomic_state_write` (source `lib/atomic-state-write.sh` — a direct `Write` to a `.geniro/state/` path trips the state-helper hook). Slug and the full slug-scoped T1.5 frontmatter per `skills/_shared/within-skill-state-handoff.md` §Slug rules and §Producer contract — the field set, the line-1 rule, and the `validate_state_file` consequences live there. Each checkpoint records: phase completed, scope, dimensions selected, finding counts.
 
 ## Fix-round execution
 
-Read at Phase 5 when a fix path is approved — you already have this file open from Phase 2. The disjoint-scope grouping, the ownership assert, and the 1-round budget are in SKILL.md §Phase 5. The shared discipline — the three things that reliably happen after fix agents spawn, dead-agent ground-truthing, and the verification order — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Fix-round discipline. Plugin-repo specifics:
+Read at Phase 5 when a fix path is approved — you already have this file open from Phase 2. The disjoint-scope grouping, the ownership assert, and the 1-round budget are in SKILL.md §Phase 5. The shared discipline — the three things that reliably happen after fix agents spawn, dead-agent ground-truthing, and the verification order — is canonical in `skills/_shared/audit-pipeline.md` §Fix-round discipline. Plugin-repo specifics:
 
 - **Once-per-round integration steps:** regenerating `cursor/agents/` from edited `agents/*.md` sources, accepting a size baseline, and completing a deletion across the files that referenced the deleted thing.
 - **Routing:** large structural items (multi-file refactors, reference-graph re-homing) are better routed to `/improve-template` with the finding rows as `$ARGUMENTS`; say so instead of attempting them inline.
@@ -91,7 +91,7 @@ Read at Phase 5 when a fix path is approved — you already have this file open 
 
 Read at Phase 0 with the rest of this file, and still here at Phase 5 when decisions are written back.
 
-`design/audit-ledger.tsv` is tracked. One row per finding any audit has raised: `fingerprint`, `file`, `class`, `tier`, `disposition`, `runs`, `note`. API in `${CLAUDE_PLUGIN_ROOT}/lib/audit-ledger.sh`.
+`design/audit-ledger.tsv` is tracked. One row per finding any audit has raised: `fingerprint`, `file`, `class`, `tier`, `disposition`, `runs`, `note`. API in `lib/audit-ledger.sh`.
 
 **Why it exists.** Seven whole-repo rounds produced 138, 121, 101, 87 and 130 findings and never trended down. Every round began blind: the report goes to gitignored `design/scratch/` and each run gets a fresh container, so no run read its predecessor's decisions. The only durable memory was the do-not-flag list, which grew from 11 entries to 16 while roughly 700 findings passed through it. A finding rejected in round 3 came back identically in round 4.
 
@@ -107,7 +107,7 @@ Read at Phase 0 with the rest of this file, and still here at Phase 5 when decis
 
 Read at Phase 5 alongside §Fix-round execution, and reachable from this file rather than SKILL.md on purpose: Phase 5 arrives late in a long run, which is exactly when a compaction has dropped SKILL.md's tail, and this file is re-read there anyway. SKILL.md's no-blanket-deletion invariant — a mechanic is never deleted on a blanket approval — survives in the spine and is what sends you here.
 
-Walk the mechanism-level D6 proposals one at a time. Per proposal, render the explanation as its own chat message and then fire a lean `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`.
+Walk the mechanism-level D6 proposals one at a time. Per proposal, render the explanation as its own chat message and then fire a lean `AskUserQuestion`, per `skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `skills/_shared/gate-rendering.md`.
 
 The render carries the four things the finding had to establish, plus what the user is left with:
 
@@ -137,7 +137,7 @@ Dimensions are review lenses; tiers classify the output. Every finding gets exac
 
 ## Finding output contract (shared reviewer schema)
 
-The table schema, row cap, and inadmissibility rule are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Finding output contract — paste that section into reviewer prompts alongside §Severity tiers above.
+The table schema, row cap, and inadmissibility rule are canonical in `skills/_shared/audit-pipeline.md` §Finding output contract — paste that section into reviewer prompts alongside §Severity tiers above.
 
 ---
 
@@ -218,7 +218,7 @@ Tier mapping: hard exclusions / hard structure breaches → T2; prose-guideline 
 3. **Tool-surface mismatches.** Body instructs using a tool absent from `allowed-tools`; AskUserQuestion specs exceeding 4 options; spawn prompts using slots never filled.
 4. **State-machine holes.** `phase:`/`status:` enum values written but never read (or read but never written); terminal states unhandled by resume logic.
 5. **Broken procedures.** Steps referencing outputs of steps that don't produce them; counters that reset on compaction while the skill claims compaction-safety.
-6. **Turn-completion seams.** A step that emits content and then owes a tool call — a gate render followed by its question, a spawn batch followed by its collection, an echo attesting to a Read — where the wording lets the run come to rest between the two. The underlying model has a documented early-stopping failure mode on exactly this seam: it ends on a statement of intent and the promised call never happens, which reads as a completed step from every angle except the user's. Flag a step whose obligation spans a turn boundary with nothing closing it, and one that states intent as its own completion criterion. The canonical closure and its recovery are in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` — flag the site that lacks it, never the contract.
+6. **Turn-completion seams.** A step that emits content and then owes a tool call — a gate render followed by its question, a spawn batch followed by its collection, an echo attesting to a Read — where the wording lets the run come to rest between the two. The underlying model has a documented early-stopping failure mode on exactly this seam: it ends on a statement of intent and the promised call never happens, which reads as a completed step from every angle except the user's. Flag a step whose obligation spans a turn boundary with nothing closing it, and one that states intent as its own completion criterion. The canonical closure and its recovery are in `skills/_shared/gate-rendering.md` §Turn-completion guard and `skills/_shared/loop-invariants.md` — flag the site that lacks it, never the contract.
 
 5b checks (shell):
 1. **Quoting & word-splitting** on user-controlled or file-derived values; unquoted globs.

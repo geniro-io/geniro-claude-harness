@@ -76,4 +76,4 @@ For high-concurrency contention scenarios, callers can implement bounded retry w
 
 - **Stale-lock recovery is time-bounded, not manual.** A SIGKILL/crash leaves the lock file, but the next writer auto-reclaims it once its mtime exceeds the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, per `lib/lock-reclaim.sh`). The leak is therefore limited to a lock younger than that window.
 - **One call, one atomic unit.** An append carries as much as fits under the byte ceiling; past it the caller splits into further calls.
-- **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. Acceptable per the spec's "single-line replacement; no mass rewrites" guarantee.
+- **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. This is the intended guarantee — single-line replacement, no mass rewrites — not a bug.

@@ -106,14 +106,14 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 ## ACI per-phase tool surface
 
 **Phase 1 (Classify+Scope):**
-- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`); WebSearch / WebFetch (rare for Phase 1 prelim).
+- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; `atomic_state_write` for the state checkpoint and the Step 2.5 escalation write; the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare for Phase 1 prelim).
 - Allowed Agent spawns: none yet.
 - Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
 
 **Phase 2 (Investigate+Verify):**
 - Allowed Agent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
 - Each spawned agent runs with its own tool whitelist (per the Phase 2 Step 1 spawn templates):
-- Codebase: Read / Grep / Glob / Bash (read-only); blocked: Edit / Write / NotebookEdit.
+- Codebase (`codebase-research-agent`): exactly its own `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one.
 - Git: Read / Bash (read-only git verbs); blocked: Edit / Write / mutating git.
 - Internet: WebSearch / WebFetch; blocked: Edit / Write / local Bash.
 - Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
@@ -249,7 +249,7 @@ State.md `phase: present`. Synthesizes verified findings, a fresh verifier agent
 
 ## State file schema
 
-T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Write via `atomic_state_write`. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Termination reason / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
+T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Write via `atomic_state_write`. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires, and category `duplicate_answer` populated when Phase 1 Step 2.6's duplicate-answer check fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Termination reason / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
 
 ## State recovery
 

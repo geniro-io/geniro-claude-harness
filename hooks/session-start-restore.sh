@@ -852,9 +852,8 @@ BLOCK5E=""
 ARCHIVED_COUNT=0
 # Auto-archive paths anchor to the primary worktree so cross-session writes
 # (learnings.jsonl, the hash marker, the lock dir) survive linked-worktree
-# removal. safety.json keeps its walk-up resolution below — file-protection.sh
-# and block-dangerous-git.sh use the same walk-up and the patterns must stay
-# aligned across the three hooks.
+# removal. safety.json keeps its walk-up resolution below — the pattern must
+# stay aligned across every hook that resolves safety.json.
 _learnings_log="$GENIRO_ROOT/.geniro/knowledge/learnings.jsonl"
 _threshold="${GENIRO_AUTO_ARCHIVE_THRESHOLD:-5000}"
 # Sanitize — a non-numeric override (e.g. "5k") would make the `-gt` test below

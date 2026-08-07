@@ -196,7 +196,7 @@ open_questions:
     question: "API seeder additions in-scope or split into separate PR?"  # the actual question, verbatim
     context: |                                      # OPTIONAL but RECOMMENDED — 2-6 line problem framing rendered with the question
       The PR includes 3 new seeder files under db/seeders/ alongside the API
-      endpoint changes; spec.md §Forbidden Actions bars seeder modifications
+      endpoint changes; spec.md `forbidden_actions` bars seeder modifications
       outside dedicated seeder PRs.
     evidence:                                       # OPTIONAL but RECOMMENDED — code anchors with snippets, rendered in AUQ preview
       - file: db/seeders/api_users.sql
@@ -210,7 +210,7 @@ open_questions:
         preview: |
           ## Effect
           - 3 seeder files stay in this PR
-          - spec.md §Forbidden Actions gets a per-task exception line
+          - spec.md `forbidden_actions` gets a per-task exception line
       - id: B     # "Split — revert seeders to a separate PR" — same shape as A (label + description + preview)
       - id: C     # "Out of scope — drop entirely" — same shape as A
     recommendation:                                 # OPTIONAL — producer's recommended option + rationale

@@ -63,11 +63,28 @@ _wired() {  # <hooks.json> -> registered script basenames, one per line
 
 _names() { printf '%s\n' "$1" | sed '/^$/d' | cut -d'|' -f1 | sort -u; }
 
+# Prose-count hits, scoped to tracked files only. A plain tree grep also reads
+# gitignored `.geniro/` local planning files, which can carry stale counts a
+# fresh checkout never sees — the repo's own gate then fails for reasons that
+# have nothing to do with the repo. `git ls-files` is the tracked-file source
+# of truth; the design/ exclusion is preserved on the tracked-path form.
+_GAP_PATTERN='\b(one|two|three|four|five|six|seven|eight|nine|ten|[0-9]{1,2})\b[^.]{0,50}(deliberately[ -]unwired|unwired)[^.]{0,30}cursor'
+_prose_gap_hits() {
+  if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git ls-files -z -- '*.md' 2>/dev/null \
+      | xargs -0 grep -nHiE "$_GAP_PATTERN" 2>/dev/null \
+      | grep -v '^design/'
+  else
+    grep -rniE "$_GAP_PATTERN" --include='*.md' . 2>/dev/null | grep -v '^\./design/'
+  fi
+  return 0
+}
+
 claude_wired="$(_wired hooks/hooks.json)"
 cursor_wired="$(_wired cursor/hooks.json)"
 
 # --- 1. Every script in hooks/ is wired or declared unwired -------------------
-present="$(ls hooks/*.sh hooks/*.js 2>/dev/null | xargs -n1 basename 2>/dev/null | sort -u)"
+present="$(find hooks -maxdepth 1 \( -name '*.sh' -o -name '*.js' \) -exec basename {} \; 2>/dev/null | sort -u)"
 undeclared="$(comm -23 <(printf '%s\n' "$present") \
                        <(printf '%s\n%s\n' "$claude_wired" "$(_names "$UNWIRED_BY_DESIGN")" | sort -u))"
 if [ -n "$undeclared" ]; then
@@ -118,9 +135,32 @@ while IFS= read -r hit; do
     "$gap_n") ;;
     *) report_fail "$f:$ln says $n hooks are unwired for Cursor; the wiring files say $gap_n" ;;
   esac
-done < <(grep -rniE '\b(one|two|three|four|five|six|seven|eight|nine|ten|[0-9]{1,2})\b[^.]{0,50}(deliberately[ -]unwired|unwired)[^.]{0,30}cursor' \
-            --include='*.md' . 2>/dev/null | grep -v '^\./design/' || true)
+done < <(_prose_gap_hits)
 [ "$prose_checked" -gt 0 ] && echo "OK: $prose_checked prose count(s) of the Cursor gap agree with the wiring files"
+
+# --- self-test: check 3 does not read untracked/ignored files -----------------
+# A tree-wide grep would also read gitignored `.geniro/` local planning files —
+# that is exactly how this check went red on a clean working tree while CI, which
+# checks out tracked files only, stayed green. Plant a wrong count under the
+# gitignored `.geniro/planning/` tree and confirm the scan never sees it.
+_selftest_probe=""
+if mkdir -p .geniro/planning 2>/dev/null; then
+  _selftest_probe="$(mktemp .geniro/planning/lint-wiring-selftest.XXXXXX 2>/dev/null || true)"
+fi
+if [ -n "$_selftest_probe" ]; then
+  trap 'rm -f "$_selftest_probe" 2>/dev/null' EXIT
+  printf '17 hooks are deliberately unwired for Cursor.\n' > "$_selftest_probe"
+  _selftest_hit="$(_prose_gap_hits | grep -F "$_selftest_probe" || true)"
+  rm -f "$_selftest_probe"
+  trap - EXIT
+  if [ -n "$_selftest_hit" ]; then
+    report_fail "self-test: the prose-count scan read an untracked/gitignored file ($_selftest_probe) — the tracked-file scope is not holding"
+  else
+    echo "OK: self-test — the prose-count scan does not read untracked/ignored files"
+  fi
+else
+  echo "SKIP: self-test — could not create a probe file under .geniro/planning/"
+fi
 
 echo
 if [ "$FAILS" -gt 0 ]; then

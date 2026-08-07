@@ -20,7 +20,11 @@ State.md `phase: implement` on entry.
 
 1. **Read spec source** — Phase 1 resolved either a spec.md path OR wrote `## Inline Plan` to state.md body. Inline-Read the spec.md (full body) and the Codebase-Explorer "Likely-Touched Files" + "Reuse Inventory" sections.
 
-2. **Decompose into todos via TodoWrite (Phase 2 entry — before any Edit).** Author N concrete edit-tasks via TodoWrite. Each todo = one logical unit of change, sliced vertically — one behavior paired with the test that pins it (e.g., "Add migration X + test the new column round-trips", "Add expiry check to Y controller + test expired tokens get 401") — never horizontally (all production edits first, then a trailing "add tests" todo). Tests authored in bulk after the code pass on first run and discriminate nothing; pairing each behavior with its test keeps every test anchored to a change it actually observed. N typically:
+2. **Decompose into todos via TodoWrite (Phase 2 entry — before any Edit).** Author N concrete edit-tasks via TodoWrite. Each todo = one logical unit of change, sliced vertically — one behavior paired with the test that pins it (e.g., "Add migration X + test the new column round-trips", "Add expiry check to Y controller + test expired tokens get 401") — never horizontally (all production edits first, then a trailing "add tests" todo). Tests authored in bulk after the code pass on first run and discriminate nothing; pairing each behavior with its test keeps every test anchored to a change it actually observed.
+
+   When state.md carries `Authored-tests:` (a resolved `/geniro:debug` handoff's pre-existing reproduction tests), name each path — and its `Authored-tests-intent:` annotation when present — in the description of the todo whose slice it pins, so the pre-existing test surfaces as that todo's acceptance gate and the production-fix work cannot ship without it going GREEN.
+
+   N typically:
    - 1-3 todos for Small scope
    - 3-10 todos for Medium scope
    - up to 15 todos for Big scope (unless already split into milestones)

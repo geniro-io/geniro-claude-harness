@@ -82,7 +82,7 @@ Query the thread for Geniro-skill signals:
 - Was an `Agent(subagent_type=...)` call made? → record spawn sites for Phase 2 checks A1-A7.
 - Was an `AskUserQuestion` call made? → record approval gates for Phase 2 check D2.
 - Was a TodoWrite call made? → record final state for Phase 2 check D3.
-- Were `${CLAUDE_PLUGIN_ROOT}` / `_shared/` paths referenced? → confirms plugin-context.
+- Were `CLAUDE_PLUGIN_ROOT`-rooted / `_shared/` paths referenced? → confirms plugin-context.
 
 Skip plugin-specific checks (the `[plugin]` rows in checks-reference.md) when `geniro-run: no` AND no plugin signals appear. Generic checks still apply.
 
@@ -118,7 +118,7 @@ The I- and K-class coverage checks are the exception on both counts, because the
 
 ### Step 2: Spawn the LLM-judge
 
-ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve `${CLAUDE_PLUGIN_ROOT}` inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
+ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve a `CLAUDE_PLUGIN_ROOT`-rooted path inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
 - The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the 8 K seed budget.
 - **This thread's expectation set** from Phase 1 Step 4b, with the degradation level it was built at. The judged coverage checks (the judged I/K-class rows in `checks-reference.md` §4) have no declared side without it and silently return nothing; the judge cannot re-derive it, because the turns it came from may not survive the excerpt slice. Send the set itself, never a pointer.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).

@@ -51,7 +51,7 @@ The subagent verifies nothing beyond this. `WORKTREE` is absolute, so `cd` eithe
 
 Pass `BRANCH:` only into a spawn whose agent contract actually reads it (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md` reports it as the source branch). Elsewhere it is an unread slot.
 
-**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="haiku"` agent converting a structured spec into prose) do not need the anchor — cwd cannot matter if nothing reads it.
+**Exempt spawn sites.** Pure transformer spawns that never invoke Bash, never read files outside paths the orchestrator pre-inlines, and never touch git (e.g., a `model="sonnet"` agent converting a structured spec into prose) do not need the anchor — cwd cannot matter if nothing reads it.
 
 ## Forbidden subagent-spawn moves
 

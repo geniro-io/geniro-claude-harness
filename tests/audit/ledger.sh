@@ -199,6 +199,36 @@ else
   fail "prune kept a row for a file that no longer exists"
 fi
 
+# --- unset-default fallback (the exact site finding #5 broke) -----------------
+#
+# Every case above presets GENIRO_AUDIT_LEDGER before sourcing (line 21), which
+# bypasses the `${GENIRO_AUDIT_LEDGER:-$_LEDGER_ROOT/design/audit-ledger.tsv}`
+# default entirely — the fallback branch never ran in any case above, under any
+# shell. Source fresh, in a subshell with the var UNSET, and check the resolved
+# path directly, under both bash and zsh: BASH_SOURCE is bash-only, and an
+# unguarded ${BASH_SOURCE[0]} used to error under zsh's `set -u` and mis-resolve
+# LEDGER_PATH to "/design/audit-ledger.tsv" (filesystem root) instead of falling
+# through to the real repo root.
+WANT_DEFAULT="$REPO_ROOT/design/audit-ledger.tsv"
+
+got_bash="$(unset GENIRO_AUDIT_LEDGER GENIRO_REPO_ROOT; bash -c "source '$REPO_ROOT/lib/audit-ledger.sh' && ledger_path" 2>/dev/null)"
+if [ "$got_bash" = "$WANT_DEFAULT" ]; then
+  pass "bash: unset GENIRO_AUDIT_LEDGER falls back to the real repo's design/audit-ledger.tsv"
+else
+  fail "bash: unset GENIRO_AUDIT_LEDGER resolved to '$got_bash', want '$WANT_DEFAULT'"
+fi
+
+if command -v zsh >/dev/null 2>&1; then
+  got_zsh="$(unset GENIRO_AUDIT_LEDGER GENIRO_REPO_ROOT; zsh -c "source '$REPO_ROOT/lib/audit-ledger.sh' && ledger_path" 2>/dev/null)"
+  if [ "$got_zsh" = "$WANT_DEFAULT" ]; then
+    pass "zsh: unset GENIRO_AUDIT_LEDGER falls back to the real repo's design/audit-ledger.tsv"
+  else
+    fail "zsh: unset GENIRO_AUDIT_LEDGER resolved to '$got_zsh', want '$WANT_DEFAULT'"
+  fi
+else
+  echo "SKIP: zsh not available on this machine — cannot verify the zsh fallback path."
+fi
+
 echo
 echo "Ran $TESTS_RUN tests, $TESTS_FAILED failed."
 [ "$TESTS_FAILED" -eq 0 ] || exit 1

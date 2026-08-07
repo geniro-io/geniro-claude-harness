@@ -130,7 +130,7 @@ Parse `$ARGUMENTS` per §Arguments and echo the resolved mode. Transient — no 
 
 On Phase 1 entry:
 
-1. **Load custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract. Loads `global.md` + `onboard.md` + `code-style.md`.
+1. **Load custom instructions** — `load-custom-instructions(SKILL_SLUG: onboard, LOAD_TIER: pipeline, MODE: initial-load)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract.
 2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
 3. **Query past learnings** — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; under `mode: replace` the local file is empty, so only the backend read recalls anything), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag onboard --scope global --limit 5`. Surfaces prior architectural decisions and gotchas relevant to the scan (matches the `scope: global` discovery entries this skill emits in §2.3).
 4. **Cross-layer conflict resolution** — `resolve-conflicts` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).

@@ -57,7 +57,7 @@ The zero-behavior-change guarantee is enforced per-step via the orchestrator-inl
 
 1. **Plan** — discover scope, capture a baseline, classify effort tier, detect and filter smells, build and approve the transformation plan.
 2. **Apply** — execute the approved plan one step at a time, each transformation gated by its own regression run.
-3. **Verify** — diff sanity check, independent review, disposition (fix loop / escalate / ADR), completion summary, and cleanup.
+3. **Verify** — diff sanity check, independent review, disposition (fix loop / escalate / document-and-keep), completion summary, and cleanup.
 
 ---
 

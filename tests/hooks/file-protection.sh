@@ -125,6 +125,27 @@ expect_allow "bash: ln -s (no -f) allowed"               "$(run_bash 'ln -s real
 # install -t DIR: the trailing token is a SOURCE (read), not the destination.
 expect_allow "bash: install -t DIR (source not flagged) allowed" "$(run_bash 'install -t config src.pem')"
 
+# ===== T0 #3/#4 (2026-08-07 audit): a trailing token after the real
+# destination must not displace it in the "last non-flag token" scan —
+# 2>/dev/null is the single most common shell idiom, so this is reachable by
+# accident, not only adversarially. =====
+expect_block "bash: cp onto .env with trailing 2>/dev/null blocked"   "$(run_bash 'cp .env.example .env 2>/dev/null')"
+expect_block "bash: mv onto server.pem with trailing 2>&1 blocked"    "$(run_bash 'mv new.pem server.pem 2>&1')"
+expect_block "bash: install into credentials.json with trailing 2>/dev/null blocked" \
+  "$(run_bash 'install -m 600 src config/credentials.json 2>/dev/null')"
+expect_block "bash: rsync onto secrets.yaml with trailing 2>/dev/null blocked" \
+  "$(run_bash 'rsync -a a.txt secrets.yaml 2>/dev/null')"
+expect_block "bash: ln -sf over .env with trailing 2>/dev/null blocked" "$(run_bash 'ln -sf real .env 2>/dev/null')"
+expect_block "bash: ed onto .env with trailing stdin redirect blocked" \
+  "$(run_bash 'ed .env < /tmp/patch.txt')"
+expect_block "bash: sponge onto .env with trailing stdin redirect blocked" \
+  "$(run_bash 'sponge .env < /tmp/in')"
+# Controls: same trailing-token shapes onto a non-protected destination allow.
+expect_allow "bash: cp onto a normal file with trailing 2>/dev/null allowed" \
+  "$(run_bash 'cp src.txt out.txt 2>/dev/null')"
+expect_allow "bash: ed onto a normal file with trailing stdin redirect allowed" \
+  "$(run_bash 'ed out.txt < /tmp/patch.txt')"
+
 # ===== Bash branch: spaced-tag heredoc body is DATA (no false block) =====
 # `<< EOF` (space before the tag) must be recognized so its body is dropped —
 # else a doc heredoc mentioning `cmd > .env` would hard-block.

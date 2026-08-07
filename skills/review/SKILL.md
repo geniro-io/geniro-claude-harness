@@ -124,7 +124,7 @@ When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLA
 
 | Phase | Allowed tools | Restricted |
 |---|---|---|
-| Phase 1 / 1.5 | Read, Grep, Glob, read-only Bash (`gh pr view`, `git diff`, lint, `tsc --noEmit`) plus `atomic_state_write`, **read-only `mcp__linear__*` (`get_issue` / `list_issues`; degrade silently if unregistered)** | No Edit/Write — the state file goes through the helper; no Linear `update_issue` / `create_comment` (those stay in /geniro:implement Ship) |
+| Phase 1 / 1.5 | Read, Grep, Glob, read-only Bash (`gh pr view`, `git diff`, lint, `tsc --noEmit`) plus `atomic_state_write`, **read-only `mcp__linear__*` (`get_issue` / `list_issues`; degrade silently if unregistered)**, Agent (`codebase-research-agent`, for codebase-research side queries) | No Edit/Write — the state file goes through the helper; no Linear `update_issue` / `create_comment` (those stay in /geniro:implement Ship) |
 | Phase 2 / 3 / 4 | Agent (reviewer-agent, finding-verifier-agent, adversarial-tester-agent); read-only Bash for §2.7 build verification plus `atomic_state_write`; Phase 3 dedup inline | No Edit/Write — the state file goes through the helper; no other mutating Bash |
 | Phase 5 / 6 | `Bash` for `atomic_state_write` on the handoff path (the Phase 5.1 write, gate resolutions, `approvals[]`); `emit-learning`; `gh api POST /pulls/N/reviews` with `event` omitted (§5.4, Post drill only); Phase 6 AskUserQuestion; Agent — one `finding-verifier-agent` spawn, only on the "Challenge this finding" pick (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3 Step 0) | No Edit/Write anywhere — a reporter never mutates source or rules, and the state-helper hook hard-blocks direct writes under `.geniro/state/`, so the helper is the only route to the handoff. Never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES`, never the submit endpoint `gh api POST /pulls/N/reviews/<id>/events` (publishing a pending review is the user's action); no reviewer re-spawn without the Round-N gate pick |
 
@@ -136,7 +136,7 @@ The safety hooks apply across every phase; the complete list and what each block
 
 | Phase | Helper |
 |---|---|
-| Phase 1 entry | `load-custom-instructions` (read L4, `initial-load`, scope `review` + `global` + `code-style`) · `load-semantic` (read L3, `refresh`: `_project.md` + `_CODEBASE_MAP.md`, with drift check) · `query-learnings` (read L2: tags from changed-file paths, type bias `pitfall`, top-K default 5) · `resolve-conflicts` over the three |
+| Phase 1 entry | `load-custom-instructions` (read L4, `initial-load`) · `load-semantic` (read L3, `refresh`: `_project.md` + `_CODEBASE_MAP.md`, with drift check) · `query-learnings` (read L2: tags from changed-file paths, type bias `pitfall`, top-K default 5) · `resolve-conflicts` over the three |
 | Phase 2 entry | `load-custom-instructions` (read L4, `refresh`, same scope) — compaction may have dropped the rules |
 | Phase 5 · 6 | `atomic_state_write` (write T2) — handoff path, full body; then updated `approvals[]` |
 | Phase 5.3 | `emit-learning` (write L2) — producer /geniro:review, type `pitfall`, trust `verified` |

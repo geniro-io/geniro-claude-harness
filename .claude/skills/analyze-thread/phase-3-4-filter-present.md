@@ -86,7 +86,7 @@ The coverage table is a scoreboard, not a second findings list: every gap cites 
 
 ### Step 2: Gate uncertain findings
 
-For EACH uncertain finding, render it to chat first and then fire a lean `AskUserQuestion` — the message-first shape in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering (do NOT batch into one multiSelect — per-finding gating is what the user asked for):
+For EACH uncertain finding, render it to chat first and then fire a lean `AskUserQuestion` — the message-first shape in `skills/_shared/per-finding-question.md` §Message-first rendering (do NOT batch into one multiSelect — per-finding gating is what the user asked for):
 
 1. **Render the finding to a chat message before the question fires**, as its own separate assistant message: a plain-English title using the check's `Name` column from `checks-reference.md` (never the bare `<check_id>` — that identifier fails the fresh-user test on its own), what the trace shows, why it matters, the evidence excerpt, and the three options below with their consequences.
 2. **Then fire a lean `AskUserQuestion`** that points at the chat message rather than restating its rationale:
@@ -113,7 +113,7 @@ Print the updated confirmed list (including newly-promoted UNCERTAIN items). Fir
 
 ### Step 4: Emit the handoff
 
-If the user chose either of the first two options, write `.geniro/state/handoff/from-analyze-thread-<branch>.md` via `atomic_state_write`. Emit each kept finding as a machine-readable `open_questions[]` frontmatter entry per the T2 contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 (each entry needs `id` / `source` / `question` / `status`; `severity`, `recurrence`, and `suggested_action` are producer-specific extensions). The body `## Open questions` block is a human-readable mirror only — the frontmatter array is the source of truth a consumer parses.
+If the user chose either of the first two options, write `.geniro/state/handoff/from-analyze-thread-<branch>.md` via `atomic_state_write`. Emit each kept finding as a machine-readable `open_questions[]` frontmatter entry per the T2 contract in `skills/_shared/state-tier-spec.md` §T2 (each entry needs `id` / `source` / `question` / `status`; `severity`, `recurrence`, and `suggested_action` are producer-specific extensions). The body `## Open questions` block is a human-readable mirror only — the frontmatter array is the source of truth a consumer parses.
 
 ```yaml
 ---
@@ -159,4 +159,4 @@ If the user chose "emit handoff only" or "skip": print the handoff path and the 
 
 `rm -rf .geniro/state/analyze-thread/<slug>/` per the helper § Cleanup contract — the whole slug directory, and only this run's slug, never globbing sibling slugs.
 
-The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T2 and survives until `/improve-template` consumes it (per the standard handoff lifecycle in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`).
+The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T2 and survives until `/improve-template` consumes it (per the standard handoff lifecycle in `skills/_shared/state-tier-spec.md`).

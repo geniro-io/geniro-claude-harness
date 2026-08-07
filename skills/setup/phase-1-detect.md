@@ -85,6 +85,7 @@ skill_inventory:
 - {slug: investigate, purpose: "Codebase Q&A"}
 - {slug: reflect, purpose: "On-demand session-history rule mining"}
 - {slug: instructions, purpose: "Custom project-rules management (create/edit/delete)"}
+- {slug: audit-instructions, purpose: "Repo-wide AI-instruction audit"}
 - {slug: actions, purpose: "Workflow-helper CRUD + runner"}
 - {slug: setup, purpose: "Project bootstrap"}
 - {slug: update, purpose: "Plugin update + integrity check"}

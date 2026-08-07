@@ -105,7 +105,7 @@ The helper calls `redact_secrets` on:
 - `body` (if present)
 - Every string-valued path inside `ext` (recursive — handles nested objects and arrays)
 
-Top-level non-string fields, `tags`, `producer`, `scope`, etc. are NOT sanitized — they are assumed to be control-plane metadata where secrets shouldn't appear and where sanitization would corrupt structure.
+Top-level non-string fields, `producer`, `scope`, etc. are NOT sanitized — they are assumed to be control-plane metadata where secrets shouldn't appear and where sanitization would corrupt structure. (`tags[]` string elements ARE sanitized — a per-element `redact_secrets` pass, separate from the paths above.)
 
 ## Injection rejection
 

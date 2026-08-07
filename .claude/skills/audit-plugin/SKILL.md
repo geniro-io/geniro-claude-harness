@@ -31,7 +31,7 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 ## Loop invariants
 
-The shared audit-pipeline invariants apply in full — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Shared invariants. This skill binds their three parameterized ones and adds one of its own:
+The shared audit-pipeline invariants apply in full — `skills/_shared/audit-pipeline.md` §Shared invariants. This skill binds their three parameterized ones and adds one of its own:
 
 - **Do-not-flag list** (shared invariant 4) = `dimensions-reference.md` §Do-not-flag list.
 - **Subtraction sweep** (shared invariant 5) = D6, which spawns on every run — full, path-scoped, single-dimension, and `--quick`.
@@ -39,7 +39,7 @@ The shared audit-pipeline invariants apply in full — `${CLAUDE_PLUGIN_ROOT}/sk
 
 S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 
-**Turn-completion check** (deliberately un-numbered, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check): before stopping, re-read the last emitted paragraph — a stated intent to render a finding, fire the action gate, or walk a deletion gate is not the same as having done it. Phase 4's finding render and Phase 5's per-item deletion gate are exactly the seam this guards.
+**Turn-completion check** (deliberately un-numbered, per `skills/_shared/loop-invariants.md` §Turn-completion check): before stopping, re-read the last emitted paragraph — a stated intent to render a finding, fire the action gate, or walk a deletion gate is not the same as having done it. Phase 4's finding render and Phase 5's per-item deletion gate are exactly the seam this guards.
 
 ## Anti-rationalization
 
@@ -73,7 +73,7 @@ S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=`, inheriting the orchestrator's tier so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this audit's finding table. Phase 5 fix agents pin `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, receiving findings the user already approved and a file allowlist it may not extend. Phase 3's T0/T1 cold-verify uses the `finding-verifier-agent` ladder (OMIT `model=`), and the Phase 1 suite run goes through `test-runner-agent` — isolation there buys output containment, not judgment. The rest of the battery and of Phase 3 is orchestrator-inline.
+All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=`, inheriting the orchestrator's tier so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this audit's finding table. Phase 5 fix agents pin `model="sonnet"` — an execution spawn per `skills/_shared/model-tiering.md` category 4, receiving findings the user already approved and a file allowlist it may not extend. Phase 3's T0/T1 cold-verify uses the `finding-verifier-agent` ladder (OMIT `model=`), and the Phase 1 suite run goes through `test-runner-agent` — isolation there buys output containment, not judgment. The rest of the battery and of Phase 3 is orchestrator-inline.
 
 ---
 
@@ -86,14 +86,14 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
    - A dimension name (`consistency`, `staleness`, `rules`, `logic`, `shell`, `simplicity`, `numbers`, `safety`, `wiring`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and D6, unless `simplicity` already names it.
 
    D6 spawns on every one of these — full, scoped, or `--quick` — per shared invariant 5.
-2. **Load the rubric:** Glob `.claude/rules/*.md` and Read every match, plus `.claude/skills/audit-plugin/dimensions-reference.md`, in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Glob rather than a fixed list, so a rule file added later is still applied. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
-3. **Load the ledger.** Source `${CLAUDE_PLUGIN_ROOT}/lib/audit-ledger.sh`, run `ledger_validate` (malformed → report it and treat the ledger as empty rather than half-read), and assign this run the next unused `r<N>` id from the `runs` column. Carry that id to Phases 3 and 5. Contract and rationale: `dimensions-reference.md` §Ledger contract — the mechanism that makes the audit converge rather than re-raise.
+2. **Load the rubric:** Glob `.claude/rules/*.md` and Read every match, plus `.claude/skills/audit-plugin/dimensions-reference.md`, in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Glob rather than a fixed list, so a rule file added later is still applied. Also read `skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
+3. **Load the ledger.** Source `lib/audit-ledger.sh`, run `ledger_validate` (malformed → report it and treat the ledger as empty rather than half-read), and assign this run the next unused `r<N>` id from the `runs` column. Carry that id to Phases 3 and 5. Contract and rationale: `dimensions-reference.md` §Ledger contract — the mechanism that makes the audit converge rather than re-raise.
 4. **Build the inventory and write the state checkpoint**
 per `dimensions-reference.md` §Run setup — the scope enumeration and the checkpoint's frontmatter contract live there. Checkpoint after every phase.
 
 ## PHASE 1 — Mechanical pre-pass (orchestrator-inline)
 
-Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, activation reachability, file-size caps, TOC presence, orphan-candidate grep, declaration inventory. Preflight external tools: a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. Run the test-suites check through a `test-runner-agent` spawn (ladder per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`): it returns a structured pass/fail summary with failure snippets, so a red run's raw stdout never reaches your context — the summary is that check's captured output. For every other command: capture output verbatim. Non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
+Run the full D1 battery from `dimensions-reference.md` §D1 — tests, authoring lint, shellcheck, deleted-skill grep, hooks.json wiring, frontmatter fields, activation reachability, file-size caps, TOC presence, orphan-candidate grep, declaration inventory. Preflight external tools: a missing tool records its check as "skipped: tool unavailable" — a tool-absence exit is an environment gap, not a code defect, and must never become a finding. Run the test-suites check through a `test-runner-agent` spawn (ladder per `skills/_shared/spawn-agent.md`): it returns a structured pass/fail summary with failure snippets, so a red run's raw stdout never reaches your context — the summary is that check's captured output. For every other command: capture output verbatim. Non-zero exits and lint FAILs become machine findings (pre-verified — they skip Phase 3 re-reads); the deleted-skill and orphan greps produce CANDIDATE lists, not findings.
 
 Sort the results into:
 - **Machine findings** — deterministic failures with tier per the D1 table.
@@ -118,7 +118,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 4b. **Sort by oracle, and hold the ones that have none.** Ask of each finding: could some check say "fixed" without anyone's taste being the judge? A dangling reference, a wrong count, a broken hook, a wrong shell branch — yes, and those proceed on this run's evidence alone. "These two sections could merge", "this reads better" — no; nothing confirms those but another reader's agreement.
 
    For a no-oracle finding the oracle is agreement between INDEPENDENT runs, so run `ledger_run_count`: **below 3 it is reported but not proposed for fixing** — rendered in its tier table as `held (seen in N run(s))`, visible and still pickable by the user, absent from the fix option. At 3 or more it proposes normally. Why the bar is set there, and what it cost not to have it: §Ledger contract.
-5. **Cold-verify the critical tiers.** Every finding still T0 or T1 after calibration gets one independent verdict from a `finding-verifier-agent` spawn (ladder per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, OMIT `model=`); same-file findings cluster into one spawn. Input contract, cluster shape, and anti-sycophancy guards per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 / §4 / §6, treating the audit finding as the finding. Refuted → move to Filtered with the verdict reason; clarified → amend the row; skip the step when no T0/T1 survives. Step 2 catches fabricated citations; this step catches real quotes carrying wrong conclusions — the tiers that drive the "fix safety + correctness now" recommendation are the ones a false positive costs most.
+5. **Cold-verify the critical tiers.** Every finding still T0 or T1 after calibration gets one independent verdict from a `finding-verifier-agent` spawn (ladder per `skills/_shared/spawn-agent.md`, OMIT `model=`); same-file findings cluster into one spawn. Input contract, cluster shape, and anti-sycophancy guards per `skills/_shared/finding-verification.md` §2 / §4 / §6, treating the audit finding as the finding. Refuted → move to Filtered with the verdict reason; clarified → amend the row; skip the step when no T0/T1 survives. Step 2 catches fabricated citations; this step catches real quotes carrying wrong conclusions — the tiers that drive the "fix safety + correctness now" recommendation are the ones a false positive costs most.
 6. Checkpoint: counts per tier, filtered count, verifier verdicts.
 
 ## PHASE 4 — Report
@@ -157,7 +157,7 @@ T0-T1 carries the `(Recommended)` marker: the smallest change set that closes ev
 
 ## State recovery
 
-On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.md`. If present: first source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
+On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.md`. If present: first source `lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
 
 ## Definition of done
 
@@ -178,9 +178,9 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 
 - `.claude/skills/audit-plugin/dimensions-reference.md` — dimension checklists, severity tiers, output contract, do-not-flag list
 - `.claude/rules/*.md` — the D4 rubric source, read by glob; `rule-writing.md` among them binds `.claude/rules/` and `CLAUDE.md` themselves
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
+- `skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
+- `skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `tests/run-all.sh` + `tests/authoring/lint-skills.sh` — the D1 battery core
 - `scripts/measure-run-load.sh [--detail] <profile>` — what one run actually loads, in words, per component and with per-spawn multipliers. The cost evidence a D6 check-13 deletion proposal cites instead of asserting one
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` / `gate-rendering.md` — the message-first render plus lean question the Phase 5 deletion gate fires
+- `skills/_shared/per-finding-question.md` / `gate-rendering.md` — the message-first render plus lean question the Phase 5 deletion gate fires
 - `scripts/dump-md.sh [path ...]` — full-content markdown dump (filename header + complete body per tracked file); reviewers survey their markdown scope with it instead of grep
