@@ -671,3 +671,39 @@ _geniro_interp_delete_targets() {
   [ "$unresolved" = "1" ] && return 10
   return 0
 }
+
+# ---------------------------------------------------------------------------
+# E. _geniro_wv_unquote_words <text>
+#
+# Recover the word the SHELL will actually pass, for the quoting and escaping
+# that a guard's line-oriented passes destroy before they can match it.
+#
+# Three shell-inert spellings name one word, and every guard here matches words:
+#
+#   1. `$'--force'` / `$"--force"` — ANSI-C and locale quoting delimit a word
+#      exactly like a plain quote, but leave a `$` glued to the token once the
+#      marks come off, so a whitespace-anchored matcher never anchors.
+#   2. `'--force'`, `"--force"`, `--fo""rce`, `.e""nv` — a quoted span carrying
+#      no whitespace is one word, so its marks are noise. Blanking it as data
+#      (correct for prose) erases a flag or a path operand instead.
+#   3. `\-\-force`, `--for\ce`, `.\env` — a backslash before an ordinary
+#      character is dropped by the shell. Only ordinary characters are
+#      unescaped here: `\ `, `\\`, `\$`, `\"`, `\'` and a line continuation all
+#      change what the shell does, so they are left alone.
+#
+# A quoted span CONTAINING whitespace stays quoted — that is prose, and
+# unquoting `echo "never run git push --force"` would block a sentence. The
+# whitespace test is what separates an operand from a quotation.
+#
+# Callers run this BEFORE their quoted-literal blanking pass, so the blanking
+# that follows sees only spans that really are data.
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}

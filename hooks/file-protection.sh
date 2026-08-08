@@ -634,6 +634,20 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+# GENIRO-VENDORED-END _geniro_wv_unquote_words
+fi
 if ! command -v _geniro_wv_cd_prefix >/dev/null 2>&1; then
 # GENIRO-VENDORED-BEGIN _geniro_wv_cd_prefix
 _geniro_wv_cd_prefix() {
@@ -760,6 +774,12 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # documented miss this guard keeps) — otherwise two ordinary prose
   # apostrophes straddling a `;` pair across it and blank the real command
   # between them.
+  # Recover words the shell would pass but the blanking below would erase — a
+  # quoted or backslash-escaped TARGET (`echo x > '.env'`, `> .e""nv`) is one
+  # shell word, so blanking it as data hides the protected path outright.
+  # Contract: lib/write-vectors.sh §E.
+  JOINED=$(_geniro_wv_unquote_words "$JOINED")
+
   JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
   # Pad each LINE (leading/trailing space) rather than collapsing the

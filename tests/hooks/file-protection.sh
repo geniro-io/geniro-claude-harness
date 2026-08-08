@@ -92,8 +92,12 @@ expect_allow "bash: fd dup >&2 allowed"                   "$(run_bash 'echo err 
 expect_allow "bash: plain git command allowed"            "$(run_bash 'git status')"
 expect_allow "bash: sed without -i on go.sum allowed"     "$(run_bash "sed 's/a/b/' go.sum")"
 
-# Data contexts (quoted strings, heredoc bodies, sed scripts) must not block —
-# and the quoted-target miss is the documented trade-off of that scrub.
+# Data contexts (quoted strings, heredoc bodies, sed scripts) must not block.
+# The line between a quotation and an operand is whitespace, not quoting: a
+# quoted span carrying a space is prose and stays blanked, while a
+# whitespace-free one is a single shell word and is unquoted before matching
+# (lib/write-vectors.sh §E). That is what lets the two assertions below —
+# "set x > .env to configure" allowed, `> ".env"` blocked — both hold.
 expect_allow "bash: quoted-string mention of > .env allowed"  "$(run_bash 'echo "set x > .env to configure"')"
 expect_allow "bash: quoted sed script naming .env allowed"    "$(run_bash "sed -i 's/.env.example/.env.sample/' README.md")"
 expect_allow "bash: unquoted sed script naming .env allowed"  "$(run_bash 'sed -i s/.env.example/.env.sample/ README.md')"
@@ -103,7 +107,10 @@ DOC')"
 expect_block "bash: heredoc INTO .env still blocked"          "$(run_bash 'cat <<DOC > .env
 K=v
 DOC')"
-expect_allow "bash: QUOTED redirect target is a documented miss" "$(run_bash 'echo k > ".env"')"
+expect_block "bash: quoted redirect target blocked"           "$(run_bash 'echo k > ".env"')"
+expect_block "bash: single-quoted redirect target blocked"    "$(run_bash "echo k > '.env'")"
+expect_block "bash: intra-word-quoted target blocked"         "$(run_bash 'echo k > .e""nv')"
+expect_block "bash: backslash-escaped target blocked"         "$(run_bash 'echo k > .e\nv')"
 
 # safety.json bypass applies to the Bash branch too
 cd "$TMPDIR_BASE/proj-bypass" || exit 1

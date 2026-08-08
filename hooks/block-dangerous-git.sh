@@ -396,6 +396,20 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+# GENIRO-VENDORED-END _geniro_wv_unquote_words
+fi
 
 # Re-run THIS guard on each extracted payload (unblanked); a block inside
 # propagates out. Nested indirection terminates because each payload is
@@ -459,7 +473,13 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_o
 # (`[[:space:]]--force`) never anchors. Normalizing `$'`/`$"` to a bare `'`/`"`
 # BEFORE the unquote pass makes `git push $'--force'` read exactly like
 # `git push '--force'`.
-JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/\\\$([\"'])/\\1/g")
+#
+# A backslash before an ordinary character is dropped by the shell too, so
+# `git push \-\-force` and `git push --for\ce` both run the force push while
+# every `--force` matcher below sees a different string. Both spellings, and
+# the whitespace-free unquote of Pass A, are single-sourced in
+# lib/write-vectors.sh §E — this call does all three.
+JOINED=$(_geniro_wv_unquote_words "$JOINED")
 
 # Quoted string literals are DATA, not commands — with two exceptions handled by
 # pass ordering. Pass A UNQUOTES a whitespace-free quoted token (a quoted flag or
@@ -496,7 +516,13 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/(^|[[:space:]])#.*$//')
 # (`git clean -n` ⏎ `git clean -fd` walked past the guard this way). A
 # backslash-newline continuation is not affected — it was already joined to
 # one line above.
-PADDED=$(printf '%s\n' "$JOINED" | sed -E 's/^/ /; s/$/ /')
+# Grouping metacharacters are word boundaries to the shell but ordinary
+# characters to a `[[:space:]]-fd[[:space:]]` matcher, so `(git clean -fd)`
+# glues `)` onto the flag and every whitespace-anchored flag matcher below
+# stops anchoring. Pad them out to real spaces first — `(`, `)` and `}` cannot
+# appear inside an operand here, because the quote passes above already
+# consumed every quoted span that could carry one.
+PADDED=$(printf '%s\n' "$JOINED" | sed -E 's/[(){}]/ & /g; s/^/ /; s/$/ /')
 
 # Find the nearest .geniro/safety.json walking up from cwd
 find_safety_json() {

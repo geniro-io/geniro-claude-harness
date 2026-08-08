@@ -674,6 +674,20 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+# GENIRO-VENDORED-END _geniro_wv_unquote_words
+fi
 if ! command -v _geniro_wv_cd_prefix >/dev/null 2>&1; then
 # GENIRO-VENDORED-BEGIN _geniro_wv_cd_prefix
 _geniro_wv_cd_prefix() {
@@ -800,6 +814,12 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # this comment exists to prevent) — otherwise two ordinary prose apostrophes
   # straddling a `;` pair into one "literal" and blank the real command sitting
   # between them.
+  # Recover words the shell would pass but the blanking below would erase — a
+  # quoted or backslash-escaped state path (`echo x > '.geniro/.../state.md'`)
+  # is one shell word, so blanking it as data lets the write through.
+  # Contract: lib/write-vectors.sh §E.
+  JOINED=$(_geniro_wv_unquote_words "$JOINED")
+
   JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
   # Strip trailing comments. Quotes are already blanked above, so a `#` at a
   # word boundary is a real comment — drop it (to the end of ITS line, which is
