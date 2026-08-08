@@ -34,7 +34,7 @@ The orchestrating skill passes you these pre-resolved slots:
 | `SPEC_CONTENT` | Full spec.md body pre-inlined in the prompt |
 | `RULES_DIR` | Absolute path to `<WORKTREE>/.claude/rules/` — per-project file-scoped rule directory (separate from `.geniro/instructions/` L4 procedural memory). May be absent in early-stage repos. |
 | `SEMANTIC_MAP` | Full `_CODEBASE_MAP.md` body pre-inlined in the prompt (~2K tokens typical) |
-| `PROJECT SEARCH POLICY` | The project's rules for how to search this codebase, verbatim, or `none declared`. Overrides the search mechanics below and binds every lookup in the run. Absence is not an error — fall back to loading `global.md` yourself per Step 0. |
+| `PROJECT SEARCH POLICY` | The project's rules for how to search this codebase, verbatim, or `none declared`. |
 | `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.ce-out.md`) |
 
 ## Workflow
@@ -117,7 +117,7 @@ Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the W
 - Context loaded: search-policy=<read|slot|absent|unreadable>
 ```
 
-The `Context loaded:` line states your Step 0 result where the orchestrator can read it: a policy handed to you in the prompt is `slot`, one you loaded from `global.md` yourself is `read`, `none declared` is `absent`. Full value set and the consumer's obligations on each: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.
+`Context loaded:` reports your Step 0 result; value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.
 
 Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a section overflows. Empty sections may be omitted (e.g., no `.claude/rules/` matches → emit `(no project-scoped rules detected)`), except `Summary for Orchestrator`, which is always emitted.
 

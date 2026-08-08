@@ -355,7 +355,7 @@ Some contracts are described in more than one file by design — the schema in o
 - `skills/_shared/launch-config-schema.md` — the canonical schema
 - `skills/_shared/spec-template.md` — the frontmatter example carrying the block
 - `skills/plan/validator-checks.md` — the shape-only enum check
-- `skills/plan/loop-phase-8-user-approval.md` — the end-of-plan opt-in write (§8.3.5 capture, §8.4 step 2 write)
+- `skills/plan/loop-phase-8-user-approval.md` — the end-of-plan opt-in write (§8.3.5 capture, §8.4's launch-config enum assertion)
 - `skills/plan/plan-auq-reference.md` — the opt-in question wording
 - `skills/implement/phase-1-analyze.md` — the Step 0g read-and-apply path
 - `skills/_shared/state-tier-spec.md` — the `geniro_schema_version` frontmatter row (spec.md's `m5-v4` bump documents the block)

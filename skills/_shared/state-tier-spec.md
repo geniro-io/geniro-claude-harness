@@ -178,8 +178,12 @@ Each entry is `{action, completed-at, <action-specific-fields>}`, where `complet
 | `pr-review-comment-batch` | `/geniro:review` | `pr-ref`, `finding-count`, `comment-ids` |
 | `pr-comment-amended` | `/geniro:review` (review-handoff.md §7.8) | `pr-ref`, `comment-id`, `kind: edit\|reply\|delete` |
 | `git-commit` | `/geniro:plan`, `/geniro:implement` | `commit-sha` |
+| `slack-notify-sent` | none today — reserved | `channel`, `ts` |
+| `release-tagged` | none today — reserved | `tag` |
 
 An unrecognized `action` renders via the hook's generic fallback.
+
+The last two carry no producer: the hook renders them and `tests/hooks/session-start-restore.sh` pins that rendering, but no skill emits either one — a `.geniro/actions/` workflow that posts to Slack or tags a release is the case they were built for, and actions are stateless, so nothing writes a state file to put them in. They stay listed because the renderer is the thing this table has to match: an enum value the hook handles but the table omits is the lockstep breaking in the direction nothing detects. Wiring a producer, or removing value + branch + test together, are both fine; dropping the row alone is not.
 
 ### T2 required `open_questions` array
 

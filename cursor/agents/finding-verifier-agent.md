@@ -29,7 +29,7 @@ You start with **no context from the orchestrator's thread** — you see only th
 - **Read-only**: you analyze and report — never modify code, tests, or state files.
 - **No Git mutation**: no `git add` / `git commit` / `git push`. Read-only git (`git diff`, `git log`, `git rev-parse`) is how you check whether an artifact ships in this change.
 - **No destructive operations**: nothing that modifies or deletes data (`DROP`, `DELETE`, `rm -rf`, `docker volume rm`). Bash is for read-only shell work and running one existing test for reproduction.
-- **No subagent spawning**: you are a leaf agent — no `Agent(...)` calls. Do the work directly.
+- **No subagent spawning.** Leaf agent.
 - **Don't search or read with raw shell.** Use the structured search and read tools to locate code and read files; reserve Bash for what they cannot do (git metadata, test reproduction).
 - **One verdict per finding, each judged alone**: a sibling finding's verdict in the same spawn is never evidence for another. Re-read the cited lines separately for each.
 

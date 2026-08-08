@@ -115,6 +115,7 @@ The lean `AskUserQuestion` that follows the render obeys these conventions at ev
 - **Single-select** unless the gate is explicitly multi-select (e.g. a pick loop).
 - **Never auto-default on an empty answer.** An empty answer indicates an upstream tool bug, not a user choice — re-ask. Only a repeated *empty-answer* loop (the tool keeps returning nothing) justifies falling back to a plain-text question in chat. A `gate-render` block (`exit 2`) is neither an empty answer nor a tool failure — recover it per §Turn-completion guard (render, then re-fire the same `AskUserQuestion`), never with the plain-text fallback.
 - **≤4 options per call**, chaining a follow-up question per per-finding-question.md §Cap-extension when more exist; never drop or merge options to fit one call.
+- **`header` ≤12 characters.** The option chip hard-truncates past that, and a chip cut off mid-word reads as a rendering glitch rather than a label the user can scan across gates.
 - **`preview` stays empty or a one-line recap.** The chat message is the rendering surface: `AskUserQuestion` renders `preview` as a narrow monospace side-box that hard-truncates long content with no scroll, and it is often absent entirely in an interactive session — a body placed there is unreadable or invisible, so the body stays in the chat message, which has full width, and the lean question captures only the decision.
 
 ## Why this exists

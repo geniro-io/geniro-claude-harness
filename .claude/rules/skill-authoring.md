@@ -44,8 +44,7 @@ Apply the no-op test to every sentence: does it change the model's behavior vers
 
 - Re-explanations of standard tooling ("the Read tool reads a file").
 - Over-detailed mechanics the model derives itself — platform command recipes, shell hand-holding, prescribed loop shapes where a goal + bound suffices. State goal + constraint per `.claude/rules/skill-prose.md` §"Assume a capable model"; remove such a passage when editing near it, even if your change didn't introduce it.
-- Hedging without a condition ("this may or may not work depending"). State the condition or drop the line.
-- Restatements of the preceding paragraph in summary form.
+- Hedge clauses and restatement summaries — both cut per `.claude/rules/skill-prose.md` §Token budget awareness, which names the shapes and the remedy.
 - "Note:" / "Important:" / "Keep in mind:" on lines that are neither.
 
 ### 5. Out-of-scope content
@@ -67,7 +66,7 @@ A `skills/foo/SKILL.md` covers only what /foo does. Strip:
 
 ## User-facing strings — plain English only
 
-Any string the orchestrator surfaces to the user must pass the **fresh-user test**: a user with the plugin installed but no architecture docs loaded can act on it without first learning a Geniro-specific identifier (`T2`, `L4`, `KR`, `FIX-NOW`, `Phase 4.3`). Translation tables, scope, and exempt cases: `.claude/rules/skill-prose.md` §"User-facing output uses plain English". Fix **step titles** first when auditing — they get echoed in narration verbatim.
+Any string the orchestrator surfaces to the user must pass the **fresh-user test**. The test itself, the translation tables, the scope, the exempt cases, and which surface to audit first: `.claude/rules/skill-prose.md` §"User-facing output uses plain English".
 
 ## Allowed and load-bearing
 
