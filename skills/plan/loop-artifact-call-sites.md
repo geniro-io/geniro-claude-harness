@@ -19,7 +19,7 @@ The sites, in loop order — a site missing from this table is an artifact updat
 | §4.4 after the approach pick persists | Update (`approach`) | chosen approach + considered alternatives |
 | §5.2 step 1, before each cluster gate | Before-gate (`sections`) | the cluster's section digests + steps-flow diagram |
 | §5.2 Revise path, after re-authoring | Before-gate (`sections`) | the revised sections — refresh the panel, don't blank it; the gate is being re-presented |
-| §5.2 step 5, after a cluster's picks persist | Update (`sections`) | that cluster's approved sections |
+| §5.2's next-cluster authoring, after a cluster's picks persist | Update (`sections`) | that cluster's approved sections |
 | §6.1 after spec.md is written | Update (`spec`) | steps / validation / done conditions |
 | §8.2 before the final-approval question | Before-gate (`approval`) | the pending approval decision, per option |
-| §8.4 step 5 after approval | Update (`approval`) | approved state — status badge approved, every tracker stop done |
+| §8.4's artifact finalize, after approval | Update (`approval`) | approved state — status badge approved, every tracker stop done |

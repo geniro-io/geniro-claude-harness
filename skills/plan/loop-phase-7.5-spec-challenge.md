@@ -1,6 +1,6 @@
 # Phase 7.5 — Spec challenge
 
-A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentation contract, echo contract, phase order, terminal states, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`.
+The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
 State.md `phase: spec-challenge` during this phase. **Fires only when the Phase 1.2 effort tier is Big OR state.md has `deep-mode: true`** (the §7.4 branch); on a standard Trivial/Small/Medium run the loop transitions validator → `phase: user-approve` directly. Entered after the Phase 7 validator passes (or its hard-fails were user-accepted) and before the Phase 8 approval AUQ. At entry the spec is: full text on disk, validator-clean, uncommitted, `lifecycle: draft`.
 

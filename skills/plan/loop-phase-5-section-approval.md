@@ -1,6 +1,6 @@
 # Phase 5 — Section approval
 
-A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentation contract, echo contract, phase order, terminal states, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`.
+The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
 State.md `phase: section-approve` during this phase.
 
@@ -42,7 +42,7 @@ Per cluster, apply the Gate presentation contract:
 
 2. **Render the cluster to a chat message in the Visual rendering language** (Gate presentation contract): the progress tracker (this cluster `●`, with `step N of 3`), a one-sentence opener stating what the cluster decides, the cluster-level visual (cluster 1: the in-scope/out-of-scope map; cluster 2: the steps flow diagram; cluster 3: the done-condition checklist), then one icon-headed sub-heading per section with its friendly digest block — lead sentence, `**Why:**` grounded in a Phase 1 finding `file:line` + the Phase 4 approach, `**How it gets built:**`, `**You'll see:**` — closing with the section's concrete example (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example per section type") and its visual (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map"). A "none — task scope precludes" section is a one-line note here, not a rendered section.
 
-3. **Fire ONE lean AUQ for the cluster** — `header` = a ≤12-char chip matching the cluster's journey-tracker stop ("Goal & scope" / "Steps" / "Safety"); the chip never reads "Approach", which already tags the Phase 4 decision; options:
+3. **Fire ONE lean AUQ for the cluster** — `header` (per the Gate presentation contract's cap) matches the cluster's journey-tracker stop ("Goal & scope" / "Steps" / "Safety"); the chip never reads "Approach", which already tags the Phase 4 decision; options:
    - **Approve all (N sections)** (Recommended) — accept every section in the cluster as rendered.
    - **Explain a section further** — opens the same section picker as Revise. For each picked section, render a deeper walkthrough message — the full evidence chain (additional `file:line` cites), an expanded or alternative diagram, edge-case behavior, and exactly what /geniro:implement will and will not touch — then re-fire this AUQ. A reading aid, not a decision (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option): it writes no `approvals[]` entry, never changes section content, and does not count toward the 3 revision rounds.
    - **Revise specific sections** — opens a follow-up multi-select picker of the cluster's section names (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` multi-select schema). For each picked section, capture the revision (free-text), re-author it AND any same-cluster sections that depend on it, re-render the cluster message, then fire the before-gate update for this Revise site (call-site table in `loop-artifact-call-sites.md`) so the page mirrors the re-rendered chat. Then re-fire this AUQ. Max 3 revision rounds per cluster — on a 4th, re-render with Revise dropped (Approve all / Explain a section further / Cancel planning) and note that a change still wanted rides to the final approval gate, whose Request-changes path re-enters this phase.

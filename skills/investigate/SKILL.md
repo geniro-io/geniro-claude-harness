@@ -18,6 +18,7 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 - Subagent model tiering · Subagent spawn contract
 - Evidence Standard
 - ACI per-phase tool surface
+- Memory I/O
 - Git constraint
 - Definition of done
 - Phase 1 (Classify+Scope) · Phase 2 (Investigate+Verify) · Phase 3 (Synthesize+Review+Present)
@@ -36,11 +37,11 @@ state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (h
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §1.
 
-**After a compaction, re-Read the current phase's body file before continuing it** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. Phase 2 and Phase 3 keep their Steps in a sibling file (state.md `phase:` says which); Phase 1's Steps stay inline in this spine. If state.md `phase:` itself is gone, re-invoke the skill and resume from Phase 1.
+**After a compaction, re-Read the current phase's body file before continuing it** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. Phase 1, Phase 2, and Phase 3 each keep their Steps in a sibling file (state.md `phase:` says which). If state.md `phase:` itself is gone, re-invoke the skill and resume from Phase 1.
 
 ## Loop invariants
 
-**Phase bodies.** Phases 2 and 3 keep their Steps in sibling files (`phase-2-investigate.md`, `phase-3-present.md`). Read the matching one before any step of that phase and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — those files hold this skill's gates (the missing-data gate, the per-finding save approvals) and the further files they defer to are bound by the same contract.
+**Phase bodies.** Phases 1, 2, and 3 keep their Steps in sibling files (`phase-1-classify.md`, `phase-2-investigate.md`, `phase-3-present.md`). Read the matching one before any step of that phase and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — those files hold this skill's gates (the glossary-mismatch gate, the missing-data gate, the per-finding save approvals) and the further files they defer to are bound by the same contract.
 
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply, with two investigate-specific bindings:
 
@@ -125,6 +126,20 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 
 The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
+## Memory I/O
+
+| Phase | Helper | Direction | MODE |
+|---|---|---|---|
+| Phase 1 entry | `load-custom-instructions` | read L4 | `initial-load` |
+| Phase 1 entry | `load-semantic` | read L3 | default top-2 |
+| Phase 1 entry | `query-learnings` | read L2 | n/a |
+| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
+| Phase 1 Step 2.6 (conditional) | `query-learnings` | read L2 | n/a (duplicate-answer re-query, sharpened keywords) |
+| Phase 3 Step 0 | `load-custom-instructions` | read L4 | `refresh` |
+| Phase 3 Step 5 (conditional) | `emit-learning` | write L2 | n/a (type `discovery` with `ext.{area, insight}`, trust label required — Phase 3 Step 5 trigger) |
+
+`update-semantic` is not called. /geniro:investigate answers questions; it does not write `_project.md` or `_CODEBASE_MAP.md`.
+
 ## Git constraint
 
 Do not run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
@@ -147,24 +162,11 @@ These are the load-bearing exit gates — the checks that, if skipped, make the 
 
 $ARGUMENTS
 
-**If `$ARGUMENTS` is empty**, use the `AskUserQuestion` tool with header "Investigation" and question "What would you like to investigate?" with options "How does [feature] work?" / "Why was [pattern/decision] chosen?" / "What are the risks of changing [area]?" / "Compare approaches for [goal]". Do not proceed until a question is provided.
+**If `$ARGUMENTS` is empty**, use the `AskUserQuestion` tool with header "Investigation" and question "What kind of investigation, and about what?" with options "Trace how a feature works" / "Explain why a decision was made" / "Assess the risk of a change" / "Compare two approaches" — each answer must name the actual feature, decision, or area, not just the shape. Do not proceed until a subject is named.
 
 ## Phase 1: Classify+Scope
 
 State.md `phase: classify`. Low cost — a semantic $ARGUMENTS classification + memory-layer load (instructions + snapshot + past learnings) + glossary-mismatch check. Critical for correctness: bad classification → wrong agent set → wasted research budget.
-
-### Step 0: Load custom instructions + past learnings
-
-On Phase 1 entry:
-
-1. **Load custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Both the helper's §Procedure imperative `Read` and §Echo contract are mandatory — the helper's §Procedure owns the load set.
-2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). `_CODEBASE_MAP.md` content (if present) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
-3. **Query past learnings** — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the file is empty under `mode: replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <kw1> --tag <kw2> --scope global --limit 5` (one `--tag` per keyword inferred from $ARGUMENTS). To find prior answers and avoid duplicate research.
-4. **Cross-layer conflict resolution** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
-
-Echo the loaded lines per each helper's §Echo contract.
-
-### Step 1: Parse the question
 
 Classify the question into one of the types below. The "Agents needed" column is the literal spawn set — 1, 2, or 3 agents.
 
@@ -180,58 +182,9 @@ Classify the question into one of the types below. The "Agents needed" column is
 | **Compare** | Compare approaches for X (the project's approach vs alternatives). | Codebase + Internet |
 | **Risk** | What are the risks of X? Evidence needed from all three. | Codebase + Git + Internet |
 
-### Step 1.5: External-lookup routing (Internet-only → consider /deep-research)
+A question that classifies **External docs lookup** routes through a `/deep-research` offer before Phase 2 spawns, when your environment provides that workflow.
 
-When the question classifies as **External docs lookup** (Internet only — no project code or git evidence needed), a `/deep-research` workflow, when your environment provides one, runs deeper multi-source web research than this skill's single Internet Researcher: it fans out searches across several angles, cross-checks the sources against each other, and votes on each claim before reporting. Offer it before spawning Phase 2.
-
-Fire `AskUserQuestion` (header "Research depth"):
-- **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
-- **Options**: "Run /deep-research instead" / "Continue with /geniro:investigate"
-
-On "Run /deep-research instead": surface the one-line directive `Run: /deep-research <question>` and terminate (`phase: routed`) — do not auto-invoke; before exiting, remove the run's state directory (`rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true` — no handoff file to delete, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract). On "Continue": proceed to Step 2 with the Internet Researcher as normal. If `/deep-research` is unavailable (workflows disabled, or no WebSearch tool), skip this step silently and continue.
-
-This routing fires only for the Internet-only classification — any question that needs code or git evidence stays in /geniro:investigate, since `/deep-research` has no codebase or git access.
-
-### Step 2: Identify scope
-
-From the question, extract:
-- **Target area**: which files, modules, or patterns are relevant
-- **Depth needed**: surface-level overview vs deep trace
-- **Skip criteria** — prune agents the Phase 1 Step 1 row includes; they never add agents beyond it (the table wins). Each criterion is testable against the question text:
-- **Skip Codebase** when the question is answerable purely from git log/blame ("when did X change?", "who wrote Y?") or purely from external docs ("what does library Z's API do?").
-- **Skip Git** when the question is about current code behavior only and does not ask about history, evolution, rationale, or recent changes.
-- **Skip Internet** when the question is fully internal — the project's code, patterns, and commits — and does not reference external libraries, frameworks, standards, best practices, alternatives, or security advisories.
-
-### Step 2.5: Glossary-mismatch check (pauses only on mismatch)
-
-CLAUDE.md is auto-loaded and may contain a "Domain Context" section (added by `/geniro:setup` Phase 3.2) listing domain entities, safety rules, and API contracts. Before Phase 2 spawn, check whether the user's question uses terms that conflict with the documented glossary — investigating with the wrong vocabulary returns the wrong answer.
-
-Procedure:
-
-1. **Extract domain terms from the question** — proper-noun-shaped tokens, role names, entity names (e.g., "tenant", "workspace", "task", "invoice"). Skip generic technical terms ("function", "endpoint", "cache").
-2. **Look each term up in the auto-loaded CLAUDE.md** — its Domain Context definitions, entity lists, and safety rules.
-3. **Classify each match:**
-- **No match** — the term may be new domain vocabulary; note it in the answer and proceed without challenge.
-- **Exact match** — the user's term aligns with the glossary; proceed.
-- **Mismatch** — the user's term appears in the glossary but the question's usage suggests a different meaning (e.g., user says "workspace" meaning "browser tab" but glossary defines "workspace" as "tenant container"). Fire the gate.
-4. **If mismatch found:** write `phase: classify-escalated` to state.md via `atomic_state_write` first — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of silently re-running Phase 1 from scratch — then use `AskUserQuestion` with header "Glossary" before spawning Phase 2 agents:
-- **Question**: "Your CLAUDE.md defines `<term>` as `<glossary definition>`. Your question seems to use `<term>` as `<inferred usage>`. Which one should I investigate?"
-- **Options**: "Use the glossary definition" / "Use my new meaning (and note the divergence in the answer)" / "Both — these are genuinely different concepts that share a name (please pick disambiguating names)"
-5. Record the resolution in the answer's Sources section so the synthesized answer carries the disambiguation forward.
-
-**Approvals-persistence:** persist the user's pick to state.md frontmatter `approvals[]` with category `glossary_resolve`, and write `phase: classify` back once resolved. Subsequent compaction-resume reads prior pick from `approvals[]` rather than re-asking. The state.md `## Persisted approvals` body section renders this. Re-ask only if context materially changed (new glossary section added since the pick).
-
-Skip this step entirely when CLAUDE.md has no Domain Context section, when the question has no domain-shaped terms, or when all terms are exact matches. When in doubt, skip — false positives waste user time more than false negatives waste investigation budget.
-
-### Step 2.6: JIT retrieval cadence
-
-The exact refs cited in Phase 2 findings (per the Evidence Standard) are what the Phase 3 `discovery` emit persists in `ext.{area, insight}`.
-
-Unique requirement: state.md `## JIT Cadence` body section logs which steps fired for this run — the audit trail that makes the JIT discipline reviewable.
-
-**Duplicate-answer check** — before spawning agents, re-query past learnings for this question or closely related topics, routed as in Phase 1 Step 0 item 3 but with the keywords the classification has since sharpened. Log the outcome to state.md `## JIT Cadence` — either the prior answer found, or `none — duplicate-answer check ran and found nothing`, so the section shows this step fired even when it turned up nothing. If a comprehensive prior answer exists, present it and ask via `AskUserQuestion` whether the user wants a fresh investigation, then persist the pick to state.md frontmatter `approvals[]` with category `duplicate_answer` so a compaction-resume does not re-ask.
-
-**Ambiguous scope** — when the question's scope is ambiguous, use the `AskUserQuestion` tool to clarify it before spawning agents. Ask one focused question, not multiple.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-1-classify.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — Steps 0, 1.5, 2, 2.5, 2.6: the memory-layer load, the `/deep-research` routing offer, scope identification, the glossary-mismatch gate, and the JIT retrieval cadence. Read it again on any resumption of the phase, including after a compaction.
 
 ## Phase 2: Investigate+Verify
 

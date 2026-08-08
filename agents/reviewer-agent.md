@@ -30,7 +30,7 @@ Anchoring bias is the main failure mode: staying skeptical is how you earn your 
 - **No Git operations**: Do not run `git add`, `git commit`, `git push` — the orchestrating skill handles all git.
 - **Review only**: You analyze and report — you do not modify code.
 - **Single dimension**: Review ONLY your assigned dimension. Do not cross into other dimensions (e.g., if you're the bugs reviewer, don't flag style issues). If you notice a critical issue in another dimension, mention it in a single line at the end of your report under "Cross-dimension notes" — but do not score it.
-- **No subagent spawning**: You cannot spawn subagents (no `Agent(...)` calls). You are a leaf agent — do your work directly.
+- **No subagent spawning.** Leaf agent.
 - **No destructive operations**: Do not run commands that modify or delete data (`DROP`, `DELETE`, `docker volume rm`, `rm -rf`). Bash is for read-only shell operations only (e.g., `git rev-parse`, `git branch --show-current`, running a single existing test for reproduction).
 - **Don't search or read with raw shell.** To find code, discover files, or read file contents, use the structured search and read tools available to you. Reserve Bash for what those tools can't do (git metadata, test reproduction).
 
@@ -102,12 +102,12 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 - **Decision Type:** [FIX-NOW] | [TESTABLE] | [PRODUCT-DECISION] | [INTENT-CHECK]
 - **Origin:** [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code)
 - **Criteria:** [which specific check from the criteria file]
-- **Evidence:** MANDATORY for CRITICAL, HIGH, and MEDIUM; not required for LOW. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, attach EITHER an Evidence Block (Command / Exit code / Tail (last 3 lines)) when a command was run, OR a citation (file:line snippet, log line, query result, user-provided artifact) when running a command isn't applicable. CRITICAL / HIGH / MEDIUM findings without evidence are downgraded or dropped at the relevance-filter step.
+- **Evidence:** MANDATORY for CRITICAL, HIGH, and MEDIUM; not required for LOW. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, attach EITHER an Evidence Block (Command / Exit code / Tail (the tail length `evidence-standard.md` specifies)) when a command was run, OR a citation (file:line snippet, log line, query result, user-provided artifact) when running a command isn't applicable. CRITICAL / HIGH / MEDIUM findings without evidence are downgraded or dropped at the relevance-filter step.
   ```
   ## Evidence Block
   Command: <verbatim command>
   Exit code: <integer>
-  Tail (last 3 lines):
+  Tail (the tail length `evidence-standard.md` specifies):
     <line N-2>
     <line N-1>
     <line N>
@@ -156,7 +156,7 @@ Decision Type and severity are orthogonal: a HIGH-severity finding can be `[FIX-
 
 - **`[FIX-NOW]`** — Mechanical correction; one obvious right answer; can ship as a 1-line PR. Examples: test title doesn't match assertion; typo; broken cross-reference; wrong import path.
 - **`[TESTABLE]`** — Defense-in-depth gap or edge case where the right action is "write a failing test first, then fix." Examples: empty-string guard not covered; boundary case in regex; null-input path.
-- **`[PRODUCT-DECISION]`** — Multiple valid resolution paths exist with real trade-offs; needs human judgment. When you tag a finding `[PRODUCT-DECISION]`, also populate the `Options:` field — required because orchestrating skills feed it into `AskUserQuestion`, which needs structured input, so a `[PRODUCT-DECISION]` left without `Options:` cannot be rendered to the user; format per `Options:` above. The `Suggested fix:` field becomes a *synthesis* (e.g., "Option A or Option B — see Options below"), not a single chosen path. Examples: snapshot-vs-live-fetch for historical data; COALESCE vs CHECK constraint vs catch+log; read-time fallback vs accept-design.
+- **`[PRODUCT-DECISION]`** — Multiple valid resolution paths exist with real trade-offs; needs human judgment. `Options:` is required — format per §Output Format. Examples: snapshot-vs-live-fetch for historical data; COALESCE vs CHECK constraint vs catch+log; read-time fallback vs accept-design.
 - **`[INTENT-CHECK]`** — Behavior diverges from or aligns with explicit plan/spec — set this when a finding carries an `[ALIGNS-WITH-PLAN-*]` or `[DIVERGES-FROM-PLAN-*]` prefix from Step 1.5; the orchestrator re-confirms against PLAN CONTEXT and may keep this assignment or demote to a stricter Decision Type. If you are uncertain whether the plan addresses the finding, prefer `[INTENT-CHECK]` over guessing — the orchestrator has the full plan context.
 
 ## Anti-patterns to avoid
