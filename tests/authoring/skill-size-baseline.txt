@@ -1,5 +1,5 @@
 .claude/skills/analyze-thread/SKILL.md 3882
-.claude/skills/audit-plugin/SKILL.md 4139
+.claude/skills/audit-plugin/SKILL.md 3926
 .claude/skills/find-threads/SKILL.md 3404
 .claude/skills/improve-template/SKILL.md 4053
 agents/adversarial-tester-agent.md 3187

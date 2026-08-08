@@ -88,11 +88,11 @@ done
 #        — which the Bash tool does. Enumerated by glob, not by hand, so a newly
 #        added lib/ helper is covered the moment it lands.
 #
-#        rc==0 alone is not enough: `audit-ledger.sh` used to print a
+#        rc==0 alone is not enough: a helper can print a
 #        `BASH_SOURCE[0]: parameter not set` error to stderr under zsh and
 #        still return 0 (bash's `set -u` aborts the file; zsh's warns and
-#        continues) — the exact shape that let #5 (mis-resolved ledger root)
-#        ship with this suite green. Assert the captured output is empty too.
+#        continues) — the exact shape that lets a mis-resolved repo root ship
+#        with this suite green. Assert the captured output is empty too.
 for helper in "$REPO_ROOT"/lib/*.sh; do
   [ -f "$helper" ] || continue
   hname="$(basename "$helper")"
@@ -112,7 +112,7 @@ done
 #        as resolving to the RIGHT path — a helper can silently mis-resolve
 #        (e.g. ${BASH_SOURCE:-} empty → dirname "" → ".") without printing
 #        anything or returning non-zero. For every helper that exposes its
-#        derived script-dir (or, for audit-ledger.sh, its ledger path) as an
+#        derived script-dir as an
 #        accessible variable/function after sourcing, assert it equals the
 #        REAL path — under both shells. Helpers with no such accessor are
 #        skipped rather than given one invented for the test.
@@ -129,19 +129,6 @@ for probe in $_SCRIPT_DIR_PROBES; do
       fail "$shell: lib/$hname resolved $var to '$got', want '$REPO_ROOT/lib'"
     fi
   done
-done
-
-# audit-ledger.sh has no _script_dir var — probe its own accessor (ledger_path)
-# against the real repo's design/audit-ledger.tsv instead.
-for shell in zsh bash; do
-  new_sandbox
-  got=$(cd "$SANDBOX_DIR" && "$shell" -c "source '$REPO_ROOT/lib/audit-ledger.sh' && ledger_path" 2>/dev/null)
-  want="$REPO_ROOT/design/audit-ledger.tsv"
-  if [ "$got" = "$want" ]; then
-    pass "$shell: lib/audit-ledger.sh resolves ledger_path to the real repo root"
-  else
-    fail "$shell: lib/audit-ledger.sh resolved ledger_path to '$got', want '$want'"
-  fi
 done
 
 # --- 2. End-to-end emit under zsh: entry lands in the SANDBOX log (repo root
