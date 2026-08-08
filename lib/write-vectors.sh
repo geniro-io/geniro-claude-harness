@@ -707,3 +707,46 @@ _geniro_wv_unquote_words() {
     s/\\\\([A-Za-z0-9._/-])/\\1/g
   "
 }
+
+# ---------------------------------------------------------------------------
+# F. _geniro_wv_expand_assignments <text>
+#
+# Put an assigned literal back where its expansion sits, so a guard matches the
+# command the shell will actually run.
+#
+# There are two shapes and they need opposite treatment from the payload
+# extractor. A variable can hold a whole destructive COMMAND (`C="<force-push
+# spelled out>"; $C`), or it can hold just the OPERAND a destructive command
+# will act on (`P=<guarded dir>; rm -rf $P`). Re-running a guard on the value
+# only works for the first — a bare path proves nothing on its own.
+# Substituting the value back into the text covers both, because in both cases
+# the value is what reaches the shell.
+#
+# Only single-pass literal assignments are expanded — a value that is itself an
+# expansion, a substitution, or the output of a command is left alone rather
+# than chased, since nothing here evaluates anything. Longest names first, so
+# `$AB` is not clobbered by a rule for `$A`.
+_geniro_wv_expand_assignments() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  local _asn _name _val _pairs=""
+  while IFS= read -r _asn; do
+    [ -z "$_asn" ] && continue
+    _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
+    _name="${_asn%%=*}"
+    _val="${_asn#*=}"
+    case "$_val" in
+      '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
+      "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
+    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+
+  while IFS=' ' read -r _ _name _val; do
+    [ -z "${_name:-}" ] && continue
+    text="${text//\$\{$_name\}/$_val}"
+    text="${text//\$$_name/$_val}"
+  done <<< "$(printf '%s' "$_pairs" | sort -rn)"
+  printf '%s\n' "$text"
+}

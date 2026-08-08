@@ -18,19 +18,18 @@
 #              branch-delete-force, clean-fd, checkout-mass-discard,
 #              restore-mass-discard, update-ref-delete, filter-branch
 #
-# Known bypass (accepted, not closed): every matcher below requires the git
-# SUBCOMMAND to be a literal token adjacent to `git` (`git[[:space:]]+push`,
-# `git[[:space:]]+reset`, …). A command word reached through a variable —
-# `SUB=push; git $SUB --force origin main` — evades every one of them, because
-# none expand a shell variable before matching. Verified passing (rc=0) where
-# the literal spelling blocks. The same shape defeats block-geniro-deletion.sh's
-# argument spans too. Not closed: resolving an arbitrary variable into the
-# subcommand POSITION (a different problem from resolving one inside a
-# quoted-literal PAYLOAD, which lib/write-vectors.sh already handles for the
-# interpreter-write vectors) would need a second matching pass for every
-# pattern in this file, and the shape requires the attacker to have already
-# planted an assignment earlier in the same command — a narrower bar than the
-# direct spellings these guards exist to catch.
+# Every matcher below requires the git SUBCOMMAND to be a literal token adjacent
+# to `git` (`git[[:space:]]+push`, `git[[:space:]]+reset`, …), so a command word
+# or an operand reached through a variable used to evade all of them. That is
+# now closed upstream rather than per pattern: lib/write-vectors.sh §F
+# substitutes assigned literals back into the text before any matcher runs, so
+# the subcommand position, the flag and the path operand are all covered by one
+# pass. Pinned in tests/hooks/obfuscation-matrix.sh.
+#
+# Still open, and deliberately so: a command word produced by a SUBSTITUTION
+# rather than an assignment (`$(echo git) push --force`) is not resolved,
+# because nothing here evaluates anything and guessing at the output of an
+# arbitrary command is not a guard's job.
 
 set -euo pipefail
 
@@ -396,6 +395,34 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_expand_assignments >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_expand_assignments
+_geniro_wv_expand_assignments() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  local _asn _name _val _pairs=""
+  while IFS= read -r _asn; do
+    [ -z "$_asn" ] && continue
+    _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
+    _name="${_asn%%=*}"
+    _val="${_asn#*=}"
+    case "$_val" in
+      '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
+      "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
+    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+
+  while IFS=' ' read -r _ _name _val; do
+    [ -z "${_name:-}" ] && continue
+    text="${text//\$\{$_name\}/$_val}"
+    text="${text//\$$_name/$_val}"
+  done <<< "$(printf '%s' "$_pairs" | sort -rn)"
+  printf '%s\n' "$text"
+}
+# GENIRO-VENDORED-END _geniro_wv_expand_assignments
+fi
 if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
 # GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
 _geniro_wv_unquote_words() {
@@ -447,6 +474,12 @@ JOINED="${SCRUBBED//\\$'\n'/ }"
 # quotes never separates two commands), leaving every command-separating newline
 # for that pass. Contract: lib/write-vectors.sh.
 JOINED=$(_geniro_join_quoted_newlines "$JOINED")
+
+# A variable carries its value into the command the shell runs, so a guard
+# matching literal tokens misses every operand and every command word that
+# arrived through one. Substitute assigned literals back in before matching.
+# Contract: lib/write-vectors.sh §F.
+JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 
 # Strip git GLOBAL options (`git -C <path> push`, `git -c k=v push`, --git-dir/
 # --work-tree/--namespace, pager flags) so the subcommand matchers below see

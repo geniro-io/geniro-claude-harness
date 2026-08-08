@@ -165,6 +165,32 @@ for pre in "cd .geniro &&" "pushd .geniro &&"; do
     "$pre rm -rf planning" 2
 done
 
+# --- axis 4: a value carried in through a variable --------------------------
+# A variable can hold the subcommand, the flag, the whole command, or the path
+# an otherwise-plain command acts on. All four reach the shell as their value,
+# so all four must match; a variable holding something benign must not.
+check "block-dangerous-git.sh [var: subcommand] blocks" "block-dangerous-git.sh" \
+  'SUB=push; git $SUB --force origin main' 2
+check "block-dangerous-git.sh [var: braced subcommand] blocks" "block-dangerous-git.sh" \
+  'SUB=push; git ${SUB} --force origin main' 2
+check "block-dangerous-git.sh [var: whole command] blocks" "block-dangerous-git.sh" \
+  'C="git push --force origin main"; $C' 2
+check "block-dangerous-git.sh [var: benign subcommand] allows" "block-dangerous-git.sh" \
+  'B=status; git $B' 0
+check "block-geniro-deletion.sh [var: path] blocks" "block-geniro-deletion.sh" \
+  'P=.geniro; rm -rf $P' 2
+check "block-geniro-deletion.sh [var: benign path] allows" "block-geniro-deletion.sh" \
+  'P=build; rm -rf $P' 0
+check "file-protection.sh [var: target] blocks" "file-protection.sh" \
+  'T=.env; echo k > $T' 2
+check "file-protection.sh [var: benign target] allows" "file-protection.sh" \
+  'T=notes.txt; echo k > $T' 0
+# A value that is itself a substitution is NOT chased — nothing here evaluates
+# anything, so an unresolvable value must leave the text alone rather than
+# blank it and hide what follows.
+check "block-dangerous-git.sh [var: unresolvable value] allows" "block-dangerous-git.sh" \
+  'V=$(date); echo $V' 0
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"
