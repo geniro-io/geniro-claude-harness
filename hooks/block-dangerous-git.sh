@@ -449,6 +449,18 @@ JOINED=$(_geniro_join_quoted_newlines "$JOINED")
 _op='("[^"]*"|'\''[^'\'']*'\''|[^[:space:]]+)'
 JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
 
+# ANSI-C quoting ($'...') and locale quoting ($"...") name the SAME quoted span
+# as a plain '...'/"..." — the shell strips the quote marks and (for $'...')
+# expands escape sequences, but a $'-prefixed operand still delimits one shell
+# word exactly like a bare-quoted one. The unquote pass below strips a quote's
+# OUTER marks but never looks at the character immediately before the opening
+# quote, so `git push $'--force' origin main` keeps its `$` glued onto the
+# unquoted token (`$--force`) and every whitespace-anchored matcher below
+# (`[[:space:]]--force`) never anchors. Normalizing `$'`/`$"` to a bare `'`/`"`
+# BEFORE the unquote pass makes `git push $'--force'` read exactly like
+# `git push '--force'`.
+JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/\\\$([\"'])/\\1/g")
+
 # Quoted string literals are DATA, not commands — with two exceptions handled by
 # pass ordering. Pass A UNQUOTES a whitespace-free quoted token (a quoted flag or
 # subcommand like "--force"): such a token is a single shell word, so unquoting
@@ -465,10 +477,26 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_o
 # force-push between them and blanked it.
 JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/\"([^\"[:space:]]*)\"/\1/g; s/'([^'[:space:]]*)'/\1/g; s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
-# Now pad and collapse: the subcommand matchers below are single-line and
-# whitespace-anchored (the padding lets `[[:space:]]-f[[:space:]]` hit a flag
-# sitting at the very start or end of the command).
-PADDED=" ${JOINED//$'\n'/ } "
+# Strip trailing comments. Quotes are already blanked above, so a `#` at a
+# word boundary is a real comment — drop it (to the end of ITS line, which is
+# why this runs before the newline-preserving pad below) so
+# `# git push --force` and `echo hi # git push --force` never reach the
+# destructive-op matchers. Mirrors enforce-state-helper.sh:779.
+JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/(^|[[:space:]])#.*$//')
+
+# Pad each LINE (leading/trailing space) rather than collapsing newlines into
+# spaces: the subcommand matchers below are whitespace-anchored (the padding
+# lets `[[:space:]]-f[[:space:]]` hit a flag sitting at the very start or end
+# of a line), and every `grep -oE`/`grep -qE` against $PADDED processes its
+# input per line by default (no -z), so a real newline between two commands
+# already bounds a span exactly like `;`/`&`/`|` do. Collapsing newlines to
+# spaces first destroys that boundary — a dry-run `git clean -n` on one line
+# and a real `git clean -fd` on the next then read as ONE span, and the
+# dry-run flag on that span masks the destructive one sitting right beside it
+# (`git clean -n` ⏎ `git clean -fd` walked past the guard this way). A
+# backslash-newline continuation is not affected — it was already joined to
+# one line above.
+PADDED=$(printf '%s\n' "$JOINED" | sed -E 's/^/ /; s/$/ /')
 
 # Find the nearest .geniro/safety.json walking up from cwd
 find_safety_json() {
@@ -543,6 +571,12 @@ if ! is_allowed "force-push"; then
   if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]][+][^[:space:]]+'; then
     block "force-push" "git push with a +refspec (e.g. +main) force-overwrites remote history"
   fi
+  # --mirror force-updates EVERY ref to match the local repo exactly, including
+  # refs no --force/-f flag names — the same unconditional overwrite force-push
+  # exists to block, just spelled as a whole-repo mode instead of a single flag.
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]--mirror([[:space:];&|]|$)'; then
+    block "force-push" "git push --mirror force-updates every remote ref (and deletes remote refs absent locally) to match the local repo exactly"
+  fi
 fi
 
 # 2b. push-delete — remote-branch deletion via `git push <remote> --delete/-d
@@ -562,6 +596,12 @@ if ! is_allowed "push-delete"; then
     fi
     if echo "$PUSH_SPAN" | grep -qE '[[:space:]]:[^[:space:];&|]+'; then
       block "push-delete" "git push with a :refspec (e.g. origin :branch) deletes that branch on the remote"
+    fi
+    # --prune deletes every remote-tracking ref that no longer exists locally —
+    # the same remote-ref-loss --delete/-d cause, just applied in bulk instead
+    # of to one named branch.
+    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]--prune([[:space:];&|]|$)'; then
+      block "push-delete" "git push --prune deletes every remote ref that no longer exists locally"
     fi
   fi
 fi
@@ -606,9 +646,11 @@ fi
 if ! is_allowed "clean-fd"; then
   # Extract each `git clean ...` span and match flags only within it, so flags
   # from a different command chained after `git clean` (e.g. `git clean -n &&
-  # tar -fd`) cannot false-positive. Spans are evaluated one per line so a
-  # dry-run span cannot mask a destructive sibling in the same command
-  # (`git clean -n && git clean -fd`).
+  # tar -fd`) cannot false-positive. Spans are bounded by &/;/| AND by a real
+  # newline (grep's own per-line matching, since $PADDED preserves them — see
+  # the PADDED comment above), so a dry-run span cannot mask a destructive
+  # sibling in the same command regardless of which separator joins them
+  # (`git clean -n && git clean -fd`, or the same pair on two physical lines).
   CLEAN_SPANS=$(echo "$PADDED" | grep -oE 'git[[:space:]]+clean[^&;|]*' || true)
   while IFS= read -r CLEAN_SPAN; do
     [ -z "$CLEAN_SPAN" ] && continue

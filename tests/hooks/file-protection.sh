@@ -249,6 +249,31 @@ expect_block "malformed payload naming .env still blocked" \
 expect_allow "malformed payload with no protected name allows" \
   "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hello"')"
 
+# ===== T0-1: `pushd` reaches the same builtin `cd` does and must not evade =====
+# `pushd .git && echo x > config` spelled no `.git` path in the redirect
+# target at all, yet wrote exactly where `echo x > .git/config` would.
+expect_block "bash: pushd .git && echo x > config blocked" \
+  "$(run_bash 'pushd .git && echo x > config')"
+expect_block "bash: cd .git && echo x > config still blocked" \
+  "$(run_bash 'cd .git && echo x > config')"
+# `pushd -n` (suppress directory-stack printing) must not be read as the target.
+expect_block "bash: pushd -n .git && echo x > HEAD blocked" \
+  "$(run_bash 'pushd -n .git && echo x > HEAD')"
+expect_allow "bash: pushd into a non-.git dir allowed" \
+  "$(run_bash 'pushd src && echo x > app.js')"
+
+# ===== T1-1: a newline must not let one line's content leak into another's span =====
+# Newlines used to be collapsed to spaces before the write-vector extraction,
+# so a benign command on one line and an unrelated write on the next read as
+# ONE span — a read (`cat`) that merely MENTIONS a protected name on one line
+# must not block an unrelated write on a different line.
+expect_allow "bash: cp then cat .env (newline) allowed" \
+  "$(run_bash $'cp a.txt b.txt\ncat .env')"
+expect_block "bash: real write to .env on line 1 (newline) still blocked" \
+  "$(run_bash $'echo x > .env\necho done')"
+expect_block "bash: real write to .env on line 2 (newline) still blocked" \
+  "$(run_bash $'echo done\necho x > .env')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

@@ -262,6 +262,24 @@ rm -f "$STATE_FILE"
 expect_allow "no state file: Bash production write allowed" \
   "$(run_bash "$(printf 'cat > %s/src/app.js <<EOF\nx\nEOF\n' "$GITREPO")")"
 
+# ===== T4-5: jq-less fail-open — the guard cannot inspect tool input without
+# jq and, unlike the data-loss guards, carries no coarse raw-text fallback, so
+# it fails open UNCONDITIONALLY. FAKEBIN holds symlinks to every tool the
+# guard needs except jq (mirrors block-dangerous-git.sh's shape). =====
+write_phase RED
+FAKEBIN="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$FAKEBIN"
+for _t in cat grep sed awk tr head printf env bash sh git; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$FAKEBIN/$_t"
+done
+run_edit_nojq() {
+  printf '{"tool_input":{"file_path":"%s","new_string":"x"}}' "$1" \
+    | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_allow "jqless: RED production edit fails open (no coarse fallback in this guard)" \
+  "$(run_edit_nojq "$GITREPO/src/app.js")"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

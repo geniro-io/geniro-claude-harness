@@ -51,56 +51,200 @@ TRANSCRIPT="$PROJ/transcript.jsonl"
   jq -nc '{type:"assistant", message:{content:[{type:"tool_use", name:"Bash", input:{}}]}}'
 } > "$TRANSCRIPT"
 
-# --- per-guard probe -----------------------------------------------------------
-# Each probe is one input the guard blocks with no safety.json present, so the
-# only thing a class can change is whether the bypass fires. Prints 2 when the
-# guard fires, 0 when it does not.
-probe() {  # <hook-basename>
-  local hook="$HOOKS/$1"
-  case "$1" in
-    file-protection.sh)
-      jq -nc '{tool_name:"Write", tool_input:{file_path:".env", content:"x"}}' | bash "$hook" >/dev/null 2>&1
-      echo $? ;;
-    block-dangerous-git.sh)
-      jq -nc '{tool_name:"Bash", tool_input:{command:"git push --force origin main"}}' | bash "$hook" >/dev/null 2>&1
-      echo $? ;;
-    block-geniro-deletion.sh)
-      jq -nc '{tool_name:"Bash", tool_input:{command:"rm -rf .geniro/"}}' | bash "$hook" >/dev/null 2>&1
-      echo $? ;;
-    enforce-state-helper.sh)
-      jq -nc '{tool_name:"Write", tool_input:{file_path:".geniro/planning/task/state.md", content:"x"}}' | bash "$hook" >/dev/null 2>&1
-      echo $? ;;
-    enforce-tdd-order.sh)
-      jq -nc '{tool_name:"Write", tool_input:{file_path:"src/app.js", content:"x"}}' | bash "$hook" >/dev/null 2>&1
-      echo $? ;;
-    security-pattern-check.sh)
-      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"r = eval(user_input)"}}' | bash "$hook" >/dev/null 2>&1
-      echo $? ;;
-    enforce-gate-render.sh)
+# --- per-pattern-ID probe -------------------------------------------------------
+# T4-4: the bypass branch used to be asserted for one representative ID per
+# guard (7 rows) while the guards' OTHER pattern IDs had their block path
+# tested elsewhere but never their bypass — the allow_patterns wiring for
+# those 20+ IDs was unverified. Every pattern ID a guard exposes is its own
+# independently-grantable bypass (`is_allowed("<id>")` gates a distinct
+# block() call site), so each one needs its own grant+control pair, not a
+# single stand-in per guard file.
+#
+# probe_for_id dispatches on the pattern ID (globally unique across every
+# guard) to the EXACT minimal input that trips that ID's own block() call —
+# not merely "a" block in that guard, which would validate the wrong
+# is_allowed() check. Prints "<hook-basename> <exit-code>".
+#
+# The remote-download-piped-to-a-shell probe text is assembled from two
+# variables set on separate lines rather than as one contiguous literal: this
+# suite is itself a .sh file, and security-pattern-check.sh's own matcher for
+# that pattern applies to .sh content — a contiguous match in THIS file's
+# source would block this suite's own edits. That matcher is newline-bounded,
+# so splitting the download half and the shell-pipe half across two lines is
+# enough; the runtime-joined string still matches when the probe hands it to
+# the hook under test.
+probe_for_id() {  # <pattern-id>
+  local pid="$1" hook
+  case "$pid" in
+    # --- block-dangerous-git.sh (10 IDs) ---
+    force-push)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git push --force origin main"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    force-push-with-lease)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git push --force-with-lease origin main"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    push-delete)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git push origin --delete feature-x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    reset-hard)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git reset --hard"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    branch-delete-force)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git branch -D feature"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    clean-fd)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git clean -fd"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    checkout-mass-discard)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git checkout ."}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    restore-mass-discard)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git restore ."}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    update-ref-delete)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git update-ref -d refs/heads/x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    filter-branch)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git filter-branch --tree-filter true HEAD"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    # --- block-geniro-deletion.sh (6 IDs) ---
+    rm-geniro-tree)
+      hook=block-geniro-deletion.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"rm -rf .geniro/"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    rm-geniro-subdir)
+      hook=block-geniro-deletion.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"rm -rf .geniro/instructions/"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    rm-geniro-state-subdir)
+      hook=block-geniro-deletion.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"rm -rf .geniro/state/review/"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    find-geniro-delete)
+      hook=block-geniro-deletion.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"find .geniro -name \"*.md\" -delete"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    worktree-remove-with-state)
+      hook=block-geniro-deletion.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git worktree remove ../wt"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    git-add-force-geniro)
+      hook=block-geniro-deletion.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git add -f .geniro/actions/foo.md"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    # --- file-protection.sh (7 IDs) ---
+    write-env)
+      hook=file-protection.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:".env", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    write-git-internal)
+      hook=file-protection.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:".git/config", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    write-lockfile)
+      hook=file-protection.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"package-lock.json", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    write-cert-key)
+      hook=file-protection.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"server.pem", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    write-credentials)
+      hook=file-protection.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"credentials.json", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    write-tfstate)
+      hook=file-protection.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"terraform.tfstate", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    write-vault)
+      hook=file-protection.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"config.vault", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    # --- enforce-state-helper.sh (2 IDs) ---
+    enforce-state-helper)
+      hook=enforce-state-helper.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:".geniro/planning/task/state.md", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    safety-json-edit)
+      hook=enforce-state-helper.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:".geniro/safety.json", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    # --- enforce-tdd-order.sh (1 ID) ---
+    tdd-order)
+      hook=enforce-tdd-order.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"src/app.js", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    # --- enforce-gate-render.sh (1 ID) ---
+    gate-render)
+      hook=enforce-gate-render.sh
       jq -nc --arg t "$TRANSCRIPT" \
         '{tool_name:"AskUserQuestion", transcript_path:$t,
           tool_input:{questions:[{question:"Full explanation above. Approve?", options:[{label:"Approve"},{label:"Cancel"}]}]}}' \
-        | bash "$hook" >/dev/null 2>&1
-      echo $? ;;
-    *) echo "probe: unknown hook $1" >&2; echo 1 ;;
+        | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    # --- security-pattern-check.sh (8 IDs) ---
+    sec-eval-exec)
+      hook=security-pattern-check.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"r = eval(user_input)"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    sec-pickle)
+      hook=security-pattern-check.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"o = pickle.loads(data)"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    sec-yaml-unsafe)
+      hook=security-pattern-check.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"cfg = yaml.load(data)"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    sec-shell-injection)
+      hook=security-pattern-check.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"os.system(cmd)"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    sec-curl-pipe-sh)
+      hook=security-pattern-check.sh
+      _cp_dl="curl http://example.com/install.sh"
+      _cp_pipe="| sh"
+      jq -nc --arg c "$_cp_dl $_cp_pipe" '{tool_name:"Write", tool_input:{file_path:"x.sh", content:$c}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    sec-tls-bypass)
+      hook=security-pattern-check.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"requests.get(url, verify=False)"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    sec-xss-sink)
+      hook=security-pattern-check.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.js", content:"el.innerHTML = data"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    sec-weak-crypto)
+      hook=security-pattern-check.sh
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"h = hashlib.md5(data)"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    *)
+      echo "probe_for_id: unknown pattern ID $pid" >&2
+      hook=""
+      false ;;
   esac
+  local rc=$?
+  echo "$hook $rc"
 }
 
-# <hook-basename> <its pattern ID>
-GUARDS="file-protection.sh:write-env
-block-dangerous-git.sh:force-push
-block-geniro-deletion.sh:rm-geniro-tree
-enforce-state-helper.sh:enforce-state-helper
-enforce-tdd-order.sh:tdd-order
-security-pattern-check.sh:sec-eval-exec
-enforce-gate-render.sh:gate-render"
+# The full pattern-ID roster this guard set exposes (35 IDs across 7 guards).
+GUARDS="force-push
+force-push-with-lease
+push-delete
+reset-hard
+branch-delete-force
+clean-fd
+checkout-mass-discard
+restore-mass-discard
+update-ref-delete
+filter-branch
+rm-geniro-tree
+rm-geniro-subdir
+rm-geniro-state-subdir
+find-geniro-delete
+worktree-remove-with-state
+git-add-force-geniro
+write-env
+write-git-internal
+write-lockfile
+write-cert-key
+write-credentials
+write-tfstate
+write-vault
+enforce-state-helper
+safety-json-edit
+tdd-order
+gate-render
+sec-eval-exec
+sec-pickle
+sec-yaml-unsafe
+sec-shell-injection
+sec-curl-pipe-sh
+sec-tls-bypass
+sec-xss-sink
+sec-weak-crypto"
 
 # The security scan is Perl-implemented and exits 0 when perl is absent, which
-# would read as "bypassed" for every class. Drop it rather than report a verdict
-# the host cannot produce.
+# would read as "bypassed" for every class. Drop its IDs rather than report a
+# verdict the host cannot produce.
 if ! command -v perl >/dev/null 2>&1; then
-  echo "NOTE: perl not found — security-pattern-check.sh excluded from this run." >&2
-  GUARDS=$(printf '%s\n' "$GUARDS" | grep -v '^security-pattern-check\.sh:')
+  echo "NOTE: perl not found — security-pattern-check.sh's sec-* IDs excluded from this run." >&2
+  GUARDS=$(printf '%s\n' "$GUARDS" | grep -v '^sec-')
 fi
 
 # --- classes -------------------------------------------------------------------
@@ -143,19 +287,19 @@ describe() {  # <class>
 for class in absent exact whitespace superstring nonstring string_field unparseable empty; do
   want=$(verdict_for "$class")
   desc=$(describe "$class")
-  while IFS= read -r row; do
-    [ -z "$row" ] && continue
-    hook="${row%%:*}"
-    pid="${row##*:}"
+  while IFS= read -r pid; do
+    [ -z "$pid" ] && continue
     rm -f "$PROJ/.geniro/safety.json"
     if [ "$class" != "absent" ]; then
       safety_json "$class" "$pid" > "$PROJ/.geniro/safety.json"
     fi
-    got=$(probe "$hook")
+    result=$(probe_for_id "$pid")
+    hook="${result%% *}"
+    got="${result##* }"
     if [ "$got" = "$want" ]; then
-      pass "$hook [$class]: $desc"
+      pass "$hook [$pid] [$class]: $desc"
     else
-      fail "$hook [$class]: $desc (expected exit=$want, got exit=$got)"
+      fail "$hook [$pid] [$class]: $desc (expected exit=$want, got exit=$got)"
     fi
   done <<< "$GUARDS"
 done

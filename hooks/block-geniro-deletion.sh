@@ -506,6 +506,35 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_cd_prefix >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_cd_prefix
+_geniro_wv_cd_prefix() {
+  local text="${1:-}" marker="${2:-}"
+  [ -z "$text" ] && return 0
+  [ -z "$marker" ] && return 0
+  local prefix="" _cd_span _cd_tok
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|pushd|*/cd|*/pushd|-*|+*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */"$marker"/*) prefix="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[\\|;&(/[:space:]])(cd|pushd)[[:space:]]+[^|;&]*' || true)"
+  printf '%s' "$prefix"
+  return 0
+}
+# GENIRO-VENDORED-END _geniro_wv_cd_prefix
+fi
 
 # Re-run THIS guard on each extracted payload (unblanked); a block inside
 # propagates out. Nested indirection terminates because each payload is
@@ -560,6 +589,18 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_o
 # tokens apart, never hide a command from the matchers.
 JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/\\[;&|]/ /g')
 
+# ANSI-C quoting ($'...') and locale quoting ($"...") name the SAME quoted span
+# as a plain '...'/"..." — the shell strips the quote marks and (for $'...')
+# expands escape sequences, but a $'-prefixed operand still delimits one shell
+# word exactly like a bare-quoted one. The unquote pass below strips a quote's
+# OUTER marks but never looks at the character immediately before the opening
+# quote, so `rm -rf $'.geniro/state'` keeps its `$` glued onto the unquoted
+# token (`$.geniro/state`) and the segment-depth gates below never see a real
+# `.geniro/...` path. Normalizing `$'`/`$"` to a bare `'`/`"` BEFORE the
+# unquote pass makes `rm -rf $'.geniro/state'` read exactly like
+# `rm -rf '.geniro/state'`.
+JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/\\\$([\"'])/\\1/g")
+
 # Quoted string literals are DATA, not commands — with two exceptions handled by
 # pass ordering. Pass A UNQUOTES a whitespace-free quoted token: a quoted rm
 # OPERAND (`rm -rf ".geniro/"`) or a quoted SUBCOMMAND token (`git worktree
@@ -576,9 +617,17 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/\\[;&|]/ /g')
 # delete between them and blanked it.
 JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/\"([^\"[:space:]]*)\"/\1/g; s/'([^'[:space:]]*)'/\1/g; s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
-# Now pad and collapse: the span matchers below are single-line and
-# whitespace-anchored.
-PADDED=" ${JOINED//$'\n'/ } "
+# Pad each LINE (leading/trailing space) rather than collapsing newlines into
+# spaces: the span matchers below are whitespace-anchored, and every `grep -oE`
+# against $PADDED processes its input per line by default (no -z), so a real
+# newline between two commands already bounds a span exactly like `;`/`&`/`|`
+# do. Collapsing newlines to spaces first destroys that boundary — a `rm -rf
+# .geniro/instructions` on one line and an unrelated command on the next then
+# read as ONE span, letting a benign second line's content leak into the first
+# line's segment-depth check (and, symmetrically, letting a destructive SECOND
+# line hide inside a first line's already-decided span). A backslash-newline
+# continuation is not affected — it was already joined to one line above.
+PADDED=$(printf '%s\n' "$JOINED" | sed -E 's/^/ /; s/$/ /')
 
 find_safety_json() {
   local dir="$PWD"
@@ -773,32 +822,17 @@ check_delete_arg() {
   return 0
 }
 
-# A `cd` INTO the guarded tree hides every later delete operand from the spans
-# below: `cd .geniro && rm -rf instructions` spells no `.geniro` path at all, yet
-# loses exactly what `rm -rf .geniro/instructions` loses — and changing directory
-# first is the most ordinary way an agent removes a subdirectory. Derive that
-# prefix once; check_delete_arg_cd re-prefixes each relative OPERAND with it.
-# The LAST such `cd` wins, matching execution order.
-CD_PREFIX=""
-while IFS= read -r _cd_span; do
-  [ -z "$_cd_span" ] && continue
-  set -f
-  # shellcheck disable=SC2086
-  for _cd_tok in $_cd_span; do
-    # `(cd .geniro; …)` and `\cd` reach the same builtin; the span's first token
-    # carries whichever prefix the boundary class matched.
-    _cd_tok="${_cd_tok#\\}"
-    while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
-    case "$_cd_tok" in cd|*/cd|-*) continue ;; esac
-    _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
-    _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
-    case "/${_cd_tok%/}/" in
-      */.geniro/*) CD_PREFIX="${_cd_tok%/}" ;;
-    esac
-    break
-  done
-  set +f
-done <<< "$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])cd[[:space:]]+[^|;&]*' || true)"
+# A `cd`/`pushd` INTO the guarded tree hides every later delete operand from
+# the spans below: `cd .geniro && rm -rf instructions` (or `pushd .geniro && …`)
+# spells no `.geniro` path at all, yet loses exactly what
+# `rm -rf .geniro/instructions` loses — and changing directory first is the
+# most ordinary way an agent removes a subdirectory. Derive that prefix via the
+# single-sourced helper (contract: lib/write-vectors.sh's
+# `_geniro_wv_cd_prefix`, shared with enforce-state-helper.sh and
+# file-protection.sh so the derivation cannot drift between them again);
+# check_delete_arg_cd re-prefixes each relative OPERAND with it. The LAST such
+# `cd`/`pushd` wins, matching execution order.
+CD_PREFIX=$(_geniro_wv_cd_prefix "$PADDED" ".geniro")
 
 # Evaluate one operand, then — when a `cd` into the tree preceded it — the same
 # operand resolved against that directory. Only a plausible OPERAND is
@@ -1012,14 +1046,21 @@ if ! is_allowed "git-add-force-geniro"; then
   # `git add` invocation with -f or --force present, AND a .geniro/ path
   # argument. `git update-index --add --force` is the plumbing equivalent —
   # same ignored-file-becomes-tracked data-loss vector, different porcelain —
-  # so the subcommand alternation covers both.
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+(add|update-index)[[:space:]]'; then
-    if echo "$PADDED" | grep -qE 'git[[:space:]]+(add|update-index)[[:space:]]+([^|;&]*[[:space:]])?(-[a-zA-Z]*f[a-zA-Z]*[[:space:]]|--force[[:space:]])'; then
-      if echo "$PADDED" | grep -qE '(/|[[:space:]"'"'"'])\.geniro(/|[[:space:]"'"'"';|&])'; then
+  # so the subcommand alternation covers both. Both the flag check and the
+  # path probe run against the SAME extracted `git add`/`git update-index`
+  # span (bounded to the next &/;/| separator), not the whole padded command —
+  # otherwise a `.geniro` mention ANYWHERE else in the command (an unrelated
+  # commit message, a later command) satisfies the path probe on its own, and
+  # force-adding a path that has nothing to do with .geniro/ blocks.
+  ADD_SPANS=$(printf '%s' "$PADDED" | grep -oE 'git[[:space:]]+(add|update-index)[[:space:]]+[^|;&]*' || true)
+  while IFS= read -r ADD_SPAN; do
+    [ -z "$ADD_SPAN" ] && continue
+    if echo "$ADD_SPAN" | grep -qE '(^|[[:space:]])(-[a-zA-Z]*f[a-zA-Z]*|--force)([[:space:]]|$)'; then
+      if echo "$ADD_SPAN" | grep -qE '(/|[[:space:]"'"'"'])\.geniro(/|[[:space:]"'"'"';|&])'; then
         block "git-add-force-geniro" "git add -f (or the git update-index --add --force plumbing equivalent) on .geniro/ paths makes ignored files appear in the IDE's Source Control panel — one click of 'Discard All Changes' then deletes them. To track .geniro/ subdirs, negate them in .gitignore instead (e.g. \`!.geniro/actions/\` and \`!.geniro/actions/**\`)."
       fi
     fi
-  fi
+  done <<< "$ADD_SPANS"
 fi
 
 exit 0

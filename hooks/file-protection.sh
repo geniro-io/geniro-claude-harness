@@ -634,6 +634,35 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_cd_prefix >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_cd_prefix
+_geniro_wv_cd_prefix() {
+  local text="${1:-}" marker="${2:-}"
+  [ -z "$text" ] && return 0
+  [ -z "$marker" ] && return 0
+  local prefix="" _cd_span _cd_tok
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|pushd|*/cd|*/pushd|-*|+*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */"$marker"/*) prefix="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[\\|;&(/[:space:]])(cd|pushd)[[:space:]]+[^|;&]*' || true)"
+  printf '%s' "$prefix"
+  return 0
+}
+# GENIRO-VENDORED-END _geniro_wv_cd_prefix
+fi
 
 if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: shell-side writes into protected paths ----
@@ -733,37 +762,30 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # between them.
   JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
-  # Collapse the remaining (command-separating) newlines so multi-line commands
-  # can't split a write apart (mirrors block-dangerous-git.sh).
-  ONELINE="${JOINED//$'\n'/ }"
+  # Pad each LINE (leading/trailing space) rather than collapsing the
+  # remaining (command-separating) newlines into spaces: the vectors below are
+  # whitespace-anchored, and every `grep -oE` against $ONELINE processes its
+  # input per line by default (no -z), so a real newline between two commands
+  # already bounds a span exactly like `;`/`&`/`|` do. Collapsing newlines to
+  # spaces first destroys that boundary — a benign command on one line and an
+  # unrelated write on the next then read as ONE span, and a token that merely
+  # MENTIONS a protected name on one line blocks a write on a different line
+  # entirely (mirrors block-dangerous-git.sh / block-geniro-deletion.sh).
+  ONELINE=$(printf '%s\n' "$JOINED" | sed -E 's/^/ /; s/$/ /')
 
-  # A `cd` into `.git/` hides the write target from the redirect/tee/…
-  # candidate extraction below: `cd .git && echo x > config` spells no `.git`
-  # path in the write operand at all, yet writes exactly where
-  # `echo x > .git/config` would. Derive that prefix the same way
-  # block-geniro-deletion.sh's CD_PREFIX does (its ~lines 689-738), scoped to a
-  # cd target that is itself under `.git/`; add_candidate below re-prefixes
-  # each relative operand with it. The LAST such `cd` wins, matching execution
-  # order. Filename-matched patterns (.env, *.pem, *.key, …) need no help here
-  # — they match on the operand text alone, cd or not.
-  CD_PREFIX=""
-  while IFS= read -r _cd_span; do
-    [ -z "$_cd_span" ] && continue
-    set -f
-    # shellcheck disable=SC2086
-    for _cd_tok in $_cd_span; do
-      _cd_tok="${_cd_tok#\\}"
-      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
-      case "$_cd_tok" in cd|*/cd|-*) continue ;; esac
-      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
-      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
-      case "/${_cd_tok%/}/" in
-        */.git/*) CD_PREFIX="${_cd_tok%/}" ;;
-      esac
-      break
-    done
-    set +f
-  done <<< "$(printf '%s\n' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])cd[[:space:]]+[^|;&]*' || true)"
+  # A `cd`/`pushd` into `.git/` hides the write target from the redirect/tee/…
+  # candidate extraction below: `cd .git && echo x > config` (or
+  # `pushd .git && …`) spells no `.git` path in the write operand at all, yet
+  # writes exactly where `echo x > .git/config` would. Derive that prefix via
+  # the single-sourced helper (contract: lib/write-vectors.sh's
+  # `_geniro_wv_cd_prefix`, shared with enforce-state-helper.sh and
+  # block-geniro-deletion.sh so the derivation cannot drift between them
+  # again), scoped to a cd/pushd target that is itself under `.git/`;
+  # add_candidate below re-prefixes each relative operand with it. The LAST
+  # such `cd`/`pushd` wins, matching execution order. Filename-matched
+  # patterns (.env, *.pem, *.key, …) need no help here — they match on the
+  # operand text alone, cd or not.
+  CD_PREFIX=$(_geniro_wv_cd_prefix "$ONELINE" ".git")
 
   CANDIDATES=""
   add_candidate() {

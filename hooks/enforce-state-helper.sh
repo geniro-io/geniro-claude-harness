@@ -674,6 +674,35 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_cd_prefix >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_cd_prefix
+_geniro_wv_cd_prefix() {
+  local text="${1:-}" marker="${2:-}"
+  [ -z "$text" ] && return 0
+  [ -z "$marker" ] && return 0
+  local prefix="" _cd_span _cd_tok
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|pushd|*/cd|*/pushd|-*|+*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */"$marker"/*) prefix="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[\\|;&(/[:space:]])(cd|pushd)[[:space:]]+[^|;&]*' || true)"
+  printf '%s' "$prefix"
+  return 0
+}
+# GENIRO-VENDORED-END _geniro_wv_cd_prefix
+fi
 
 if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: shell-side writes into canonical state paths ----
@@ -840,33 +869,18 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   done <<< "$_sep_split"
   ONELINE="$MASKED"
 
-  # A `cd` INTO the guarded tree hides every later write operand from the
-  # candidate extraction below: `cd .geniro && echo x > knowledge/learnings.jsonl`
-  # spells no `.geniro` path in the redirect target at all, yet writes exactly
-  # where `echo x > .geniro/knowledge/learnings.jsonl` would. Derive that prefix
-  # the same way block-geniro-deletion.sh's CD_PREFIX does (its ~lines 689-738);
-  # add_candidate below re-prefixes each relative operand with it. Each line of
-  # $ONELINE is already one separator-bounded simple command (the split above),
-  # so — unlike the other guard's PADDED single-line form — no further span
-  # extraction is needed here. The LAST such `cd` wins, matching execution order.
-  CD_PREFIX=""
-  while IFS= read -r _cd_span; do
-    [ -z "$_cd_span" ] && continue
-    set -f
-    # shellcheck disable=SC2086
-    for _cd_tok in $_cd_span; do
-      _cd_tok="${_cd_tok#\\}"
-      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
-      case "$_cd_tok" in cd|*/cd|-*) continue ;; esac
-      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
-      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
-      case "/${_cd_tok%/}/" in
-        */.geniro/*) CD_PREFIX="${_cd_tok%/}" ;;
-      esac
-      break
-    done
-    set +f
-  done <<< "$(printf '%s\n' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])cd[[:space:]]+[^|;&]*' || true)"
+  # A `cd`/`pushd` INTO the guarded tree hides every later write operand from
+  # the candidate extraction below: `cd .geniro && echo x > knowledge/learnings.jsonl`
+  # (or `pushd .geniro && …`) spells no `.geniro` path in the redirect target
+  # at all, yet writes exactly where `echo x > .geniro/knowledge/learnings.jsonl`
+  # would. Derive that prefix via the single-sourced helper (contract:
+  # lib/write-vectors.sh's `_geniro_wv_cd_prefix`, shared with
+  # block-geniro-deletion.sh and file-protection.sh so the derivation cannot
+  # drift between them again); add_candidate below re-prefixes each relative
+  # operand with it. Each line of $ONELINE is already one separator-bounded
+  # simple command (the split above), so — unlike the other guards' PADDED/
+  # ONELINE single-string form — no further span extraction is needed here.
+  CD_PREFIX=$(_geniro_wv_cd_prefix "$ONELINE" ".geniro")
 
   CANDIDATES=""
   add_candidate() {

@@ -268,6 +268,56 @@ expect_block "malformed payload with destructive token still blocked" \
 expect_allow "malformed payload with no destructive token allows" \
   "$(run_raw '{"tool_input":{"command":"git status"')"
 
+# ===== T0-2: ANSI-C quoting ($'...') must not evade the guard =====
+# The unquote pass strips a token's outer quote marks but used to leave the `$`
+# sigil glued onto the result ($'--force' -> $--force), so the whitespace-
+# anchored matchers never anchored. One case per affected pattern ID.
+expect_block "push \$'--force' (ANSI-C quote) blocked"  "$(run_cmd "git push \$'--force' origin main")"
+expect_block "reset \$'--hard' (ANSI-C quote) blocked"  "$(run_cmd "git reset \$'--hard'")"
+expect_block "clean \$'-fd' (ANSI-C quote) blocked"     "$(run_cmd "git clean \$'-fd'")"
+expect_block "\$'filter-branch' (ANSI-C quote) blocked" "$(run_cmd "git \$'filter-branch' --tree-filter true HEAD")"
+
+# ===== T0-3 / T4-6: newline must not mask a destructive sibling =====
+# Newlines used to be collapsed to spaces before span extraction, so a whole
+# multi-line script became ONE span and a leading dry-run flag masked the
+# destructive command sitting right after it. Order-independent.
+expect_block "clean -n then clean -fd (newline) still blocked" \
+  "$(run_cmd $'git clean -n\ngit clean -fd')"
+expect_block "clean -fd then clean -n (newline, order flipped) still blocked" \
+  "$(run_cmd $'git clean -fd\ngit clean -n')"
+
+# ===== T1-1 / T4-6: newline-separated benign commands must not false-positive =====
+# The same newline collapse let a benign SECOND line's content leak into the
+# first line's span, so an unrelated flag/token on a following line blocked a
+# harmless first command. Newline-separated siblings of the existing span-
+# bounding cases above (git reset + chained --hardened flag, chained rm -f).
+expect_allow "push then chained tar -f (newline) allowed" \
+  "$(run_cmd $'git push origin main\ntar -f a.tar d')"
+expect_allow "branch --list then chained gcc -DFOO (newline) allowed" \
+  "$(run_cmd $'git branch --list\ngcc -DFOO x.c')"
+expect_allow "reset + chained --hardened flag (newline) allowed" \
+  "$(run_cmd $'git reset HEAD~1\nnpm run build -- --hardened')"
+expect_allow "chained rm -f after push (newline) allowed" \
+  "$(run_cmd $'git push origin main\nrm -f stale.txt')"
+
+# ===== T0-4: git push --mirror / --prune are unmatched force/delete spellings =====
+# --mirror force-updates and deletes remote refs to match the local repo
+# exactly; --prune deletes every remote ref absent locally. Both cause the
+# same remote-history loss --force/--delete exist to block.
+expect_block "push --mirror blocked" "$(run_cmd 'git push --mirror origin')"
+expect_block "push --prune blocked"  "$(run_cmd 'git push --prune origin')"
+
+# ===== T1-3: a `#` comment must not be scanned as a live command =====
+# The sibling data-loss guards strip trailing comments before matching; this
+# guard had no such pass, so text that never executes still blocked.
+expect_allow "commented-out force-push (own line) allowed" \
+  "$(run_cmd $'# git push --force\necho hi')"
+expect_allow "trailing-comment force-push allowed" \
+  "$(run_cmd 'echo hi # git push --force')"
+# A real, unquoted, uncommented destructive command still blocks.
+expect_block "real force-push still blocks after comment-strip" \
+  "$(run_cmd 'git push --force')"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

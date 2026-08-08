@@ -2,13 +2,15 @@
 # Single source of truth for the write/delete vectors a Bash-side guard cannot
 # see by matching shell syntax alone.
 #
-# Three families live here:
+# Four families live here:
 #   A. `_geniro_extract_inner_payloads` — shell indirection (`sh -c`, `eval`, a
 #      pipe, a heredoc, a process substitution, an interpreter shelling out).
 #   B. `_geniro_interp_write_targets` / `_geniro_interp_delete_targets` —
 #      interpreter-mediated file writes and deletes.
 #   C. `_geniro_join_quoted_newlines` — a quoted literal spanning a newline,
 #      which every line-oriented pass in a guard reads as two unbalanced lines.
+#   D. `_geniro_wv_cd_prefix` — a `cd`/`pushd` into a guarded tree, which hides
+#      every later relative operand from a caller's own path matchers.
 #
 # Every recognizer here is STRUCTURAL, not enumerative. A shell is reached by
 # more spellings than a bare word — `/bin/sh` names it by path, `"sh"` quotes it,
@@ -371,6 +373,61 @@ _geniro_join_quoted_newlines() {
       if (q != "") { printf "%s", buf } else { printf "%s", out }
     }
   ' 2>/dev/null || printf '%s\n' "$cmd"
+}
+
+# ---------------------------------------------------------------------------
+# A `cd` or `pushd` INTO a guarded tree hides every later relative operand
+# from a caller's own path-shaped matchers: `cd .geniro && rm -rf instructions`
+# (or `pushd .geniro && …`) spells no `.geniro` path in the command that
+# follows at all, yet resolves to exactly the same target
+# `rm -rf .geniro/instructions` would. `pushd` reaches the identical
+# directory-change builtin `cd` does — it changes the working directory and
+# pushes the old one onto a stack — so a matcher keyed on the literal word
+# `cd` alone lets `pushd` walk straight through.
+#
+# _geniro_wv_cd_prefix <text> <marker>
+#
+# Scans <text> for the LAST `cd`/`pushd` invocation whose target contains
+# <marker> (a literal substring like ".geniro" or ".git", matched between
+# slashes so a prefix collision — e.g. a directory named `.geniroX`, or a repo
+# named `.gitignore-tools` — does not count), and prints that target with any
+# trailing slash stripped. Empty stdout when no such invocation is found. The
+# LAST one wins, matching shell execution order — a later `cd`/`pushd`
+# overrides an earlier one for every operand that follows it.
+#
+# <text> must already be split so each `cd`/`pushd` invocation's own operand
+# span cannot run past the boundary of an unrelated line or command — this
+# function relies on `grep` matching per LINE (its default, unset by any `-z`),
+# so the caller's own separator/newline handling is what keeps that honest,
+# not this function.
+#
+# `pushd`'s own flags (`-n`) and stack-index operands (`+2`, `-1`) fall out of
+# the same leading-`-`-or-`+`-or-flag skip `cd`'s flags do; `(cd .geniro; …)`
+# subshell wrapping and a `\cd`/`\pushd` escape are unwrapped before matching.
+_geniro_wv_cd_prefix() {
+  local text="${1:-}" marker="${2:-}"
+  [ -z "$text" ] && return 0
+  [ -z "$marker" ] && return 0
+  local prefix="" _cd_span _cd_tok
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|pushd|*/cd|*/pushd|-*|+*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */"$marker"/*) prefix="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[\\|;&(/[:space:]])(cd|pushd)[[:space:]]+[^|;&]*' || true)"
+  printf '%s' "$prefix"
+  return 0
 }
 
 # ---------------------------------------------------------------------------

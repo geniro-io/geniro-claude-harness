@@ -296,6 +296,59 @@ expect_block "malformed payload with recursive rm still blocked" \
 expect_allow "malformed payload with no destructive token allows" \
   "$(run_raw '{"tool_input":{"command":"ls .geniro/"')"
 
+# ===== T0-1: `pushd` reaches the same builtin `cd` does and must not evade =====
+# `pushd .geniro && rm -rf instructions` spelled no `.geniro` path in the rm
+# operand at all, yet lost exactly what `rm -rf .geniro/instructions` loses.
+expect_block "pushd .geniro && rm -rf instructions blocked" \
+  "$(run_cmd 'pushd .geniro && rm -rf instructions')"
+expect_block "cd .geniro && rm -rf instructions still blocked" \
+  "$(run_cmd 'cd .geniro && rm -rf instructions')"
+expect_block "pushd .geniro && mv instructions elsewhere blocked" \
+  "$(run_cmd 'pushd .geniro && mv instructions /tmp/gone')"
+expect_block "pushd .geniro/state && rm -rf tdd blocked" \
+  "$(run_cmd 'pushd .geniro/state && rm -rf tdd')"
+# `pushd -n` (suppress directory-stack printing) must not be read as the target.
+expect_block "pushd -n .geniro && rm -rf actions blocked" \
+  "$(run_cmd 'pushd -n .geniro && rm -rf actions')"
+expect_allow "pushd into a non-.geniro dir allowed" \
+  "$(run_cmd 'pushd build && rm -rf tmp')"
+
+# ===== T0-2: ANSI-C quoting ($'...') must not evade the guard =====
+# The unquote pass strips a token's outer quote marks but used to leave the `$`
+# sigil glued onto the result ($'.geniro/state' -> $.geniro/state), so the
+# segment-depth gates never saw a real .geniro/... path.
+expect_block "rm -rf \$'.geniro/state' (ANSI-C quote) blocked" \
+  "$(run_cmd "rm -rf \$'.geniro/state'")"
+expect_block "rm -rf \$'.geniro' (ANSI-C quote) blocked" \
+  "$(run_cmd "rm -rf \$'.geniro'")"
+expect_block "rm -rf \$'.geniro/' (ANSI-C quote) blocked" \
+  "$(run_cmd "rm -rf \$'.geniro/'")"
+expect_block "rm -rf \$'.geniro/planning' (ANSI-C quote) blocked" \
+  "$(run_cmd "rm -rf \$'.geniro/planning'")"
+
+# ===== T1-1: a newline must not let one line's content leak into another's span =====
+# Newlines used to be collapsed to spaces before the rm/mv/rmdir span
+# extraction, so a benign command on one line and an unrelated write on the
+# next read as ONE span.
+expect_allow "unrelated rm then mkdir .geniro (newline) allowed" \
+  "$(run_cmd $'rm -rf /tmp/x\nmkdir -p .geniro/state')"
+expect_block "destructive rm on line 1 (newline) still blocked" \
+  "$(run_cmd $'rm -rf .geniro/instructions\necho done')"
+expect_block "destructive rm on line 2 (newline) still blocked" \
+  "$(run_cmd $'echo done\nrm -rf .geniro/instructions')"
+
+# ===== T1-2: git-add-force-geniro's path probe must be bound to the add span =====
+# Previously any `.geniro` mention ANYWHERE in the command satisfied the path
+# probe, so a `.geniro` mention unrelated to the `git add -f` invocation
+# blocked a force-add that has nothing to do with .geniro/.
+expect_allow "unrelated .geniro mention does not block an unrelated force-add" \
+  "$(run_cmd 'git commit -m "mentions .geniro somewhere" && git add -f README.md')"
+expect_allow "unrelated .geniro mention before a force-add of another path" \
+  "$(run_cmd 'echo .geniro/notes.md && git add -f build/out.js')"
+# The real thing (a force-add of an actual .geniro/ path) still blocks.
+expect_block "git add -f .geniro/ still blocks (span-bound regression)" \
+  "$(run_cmd 'git add -f .geniro/actions/foo.md')"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"
