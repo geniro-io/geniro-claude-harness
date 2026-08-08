@@ -94,7 +94,7 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 ```
 
 **Constraints:**
-- Content length ≤ 4094 bytes (`GENIRO_APPEND_MAX_BYTES`, single-sourced in `lib/atomic-state-write.sh`); the 2 reserved bytes are the newline framing, so content + framing stays within the 4096-byte ceiling. POSIX `PIPE_BUF` atomicity is platform-dependent — 4096 bytes on Linux but only 512 on macOS — so do not rely on a raw pipe writing a single line near the boundary atomically.
+- Content length ≤ `GENIRO_APPEND_MAX_BYTES` (single-sourced in `lib/atomic-state-write.sh`); the 2 reserved bytes are the newline framing, so content + framing stays within the PIPE_BUF ceiling that constant is derived from. POSIX `PIPE_BUF` atomicity is platform-dependent — 4096 bytes on Linux but only 512 on macOS — so do not rely on a raw pipe writing a single line near the boundary atomically.
 - One line per invocation. Multi-line appends must call repeatedly.
 
 **Empty stdin is a deliberate no-op** — the same guard `atomic_state_write` documents above, so a failed upstream pipe can never inject a blank line into the JSONL log.
@@ -106,7 +106,7 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"featur
 | 0 | Success |
 | 64 | Target path missing |
 | 65 | `mkdir -p` failed |
-| 68 | Content exceeds 4094 bytes (content + 2-byte framing would exceed the 4096-byte ceiling) |
+| 68 | Content exceeds `GENIRO_APPEND_MAX_BYTES` (content + 2-byte newline framing would exceed it) |
 | 69 | Append failed |
 
 ---
