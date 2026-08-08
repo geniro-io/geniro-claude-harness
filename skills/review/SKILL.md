@@ -3,7 +3,7 @@ name: review
 description: "Use when a comprehensive code review of pending changes (a diff, branch, or PR) is needed. Reporter workflow: triage, a cheap mechanical pre-pass, then parallel single-dimension reviewers (bugs, security, architecture, tests, regressions, conventions, and more, plus any custom ones) whose findings are filtered and individually verified, then persisted. Emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/geniro:implement, or the user manually) apply the fixes — review never edits code itself, and asks before authoring tests or posting to a PR. Optional --deep reviews each check from several angles and majority-verifies contested findings (higher quality, higher cost)."
 context: main
 model: inherit
-allowed-tools: [Read, Glob, Grep, Bash, Agent, AskUserQuestion, EnterWorktree, ExitWorktree, Workflow]
+allowed-tools: [Read, Glob, Grep, Bash, Agent, AskUserQuestion, EnterWorktree, ExitWorktree, Workflow, "mcp__*"]
 argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep]"
 ---
 
@@ -51,7 +51,7 @@ State.md `phase:` enum transitions:
 └── aborted ── (round-limit / safety / tool-unavailable)
 ```
 
-**Terminal states:** `done`, `aborted`, `escalated` — SessionStart recovery treats all three as "review complete / cancelled". `done` includes a Phase 6 handoff line; `aborted` writes a `## Termination reason` body section; `escalated` (round-limit hand-off) surfaces its reason in `## Open Questions` instead (mapping: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9). Recovery rolls the seven **non-terminal** states back to phase-entry and re-runs from there — idempotent, because `approvals[]` makes the Phase 6 AUQ skip already-answered picks.
+**Terminal states:** `done`, `aborted`, `escalated` — SessionStart recovery treats all three as "review complete / cancelled". `done` includes a Phase 6 handoff line; `aborted` writes a `## Termination reason` body section; `escalated` (round-limit hand-off) surfaces its reason in `## Open Questions` instead (mapping: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9). Recovery rolls every **non-terminal** state back to phase-entry and re-runs from there — idempotent, because `approvals[]` makes the Phase 6 AUQ skip already-answered picks.
 
 **After a compaction, re-Read the phase file for the phase `phase:` says you are resuming** — only this spine is re-attached, the Steps are gone, and reconstructing a phase from a summary's recollection is how a spawn batch or a gate gets skipped.
 
@@ -141,7 +141,7 @@ The safety hooks apply across every phase; the complete list and what each block
 | Phase 5 · 6 | `atomic_state_write` (write T2) — handoff path, full body; then updated `approvals[]` |
 | Phase 5.3 | `emit-learning` (write L2) — producer /geniro:review, type `pitfall`, trust `verified` |
 
-`pitfall` is the only L2 type /geniro:review emits, and only on convergence ≥3.
+`pitfall` is the only L2 type /geniro:review emits, and only on the convergence threshold `phase-5-6-emit-handoff.md` §5.3 defines.
 
 ---
 

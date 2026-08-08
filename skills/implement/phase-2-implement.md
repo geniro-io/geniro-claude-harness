@@ -64,7 +64,7 @@ State.md `phase: implement` on entry.
    - B) Accept the failing check as a documented limitation — state.md `phase: self-review`, append `## Accepted Failures` block (label is source-neutral: the failure may be a test OR a spec `verify:` acceptance check)
    - C) Abort — state.md `phase: aborted` (terminal)
 
-   Empty answer = upstream bug, fall back to plain text and re-ask. Do not auto-default.
+   Empty answer — re-ask through the tool first; fall back to plain text only on a repeated empty-answer loop, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 
    **Early-escalation triggers (derived from state.md `## Errors` + `## Tool log` history — no new state surface).** Fire the same AUQ before retries exhaust when any of these holds, because each is a signal the loop has stalled rather than progressed:
    - **No forward progress between two checkpoints.** Two consecutive retry checkpoints produce no new passing tests AND no forward diff progress (the changed-files set and failing-test set are unchanged across the pair). The fix edits are not moving the suite.

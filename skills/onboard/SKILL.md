@@ -144,7 +144,7 @@ Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-i
 1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod, .github/, src/.
 2. **Estimate scan size** — count the repo's source files, honoring its ignore rules and any `--depth N`; record `scan_depth: N` in state.md frontmatter so Phase 2 mapping honors the same bound.
 3. **Apply the read budget:** sample within it — files chosen for relevance (entry points, manifests, top-level modules), not directory order — and proceed: 50 files by default, `--cap N` to raise it, `--focus` to narrow what gets sampled, `--depth N` to bound traversal. Proceeding is the default because the question is unanswerable before the user has seen anything about the repo, and the budget already bounds the cost. Escalate only when the repo is large enough that a 50-file sample can no longer represent it (50,000+ files) and no `--focus` or `--cap` was given: auto-apply `--depth 2` so traversal doesn't stall, then fire the repo-size scan cap AUQ — header "Repo-size cap":
-- **"Apply --focus <area>"** — user supplies focus areas; re-run scan with filter.
+- **"Narrow to specific areas"** — user supplies focus areas (the `--focus <area>` flag); re-run scan with that filter.
 - **"Expand scan (specify cap)"** — user provides explicit cap (e.g. 200, 500). **Persists to state.md `approvals[]` with category `expand_scope`.**
 - **"Truncate at top 50"** — proceeds with top 50 most-likely-relevant files. Terminal state on completion: `map-truncated`.
 - **"Abort"** — terminal `aborted`.
@@ -152,7 +152,7 @@ Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-i
 **Approvals-persistence:** before firing the expand-scope AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: expand_scope`. If found, use prior `picked` (typical compaction-resume scenario). The state.md `## Persisted approvals` section renders this.
 
 **Edge cases:**
-- **Empty or near-empty repo** (no source files found): terminal `routed` with suggestion "Repo appears empty. Use `/geniro:investigate` to clarify project state." Run the §2.5 cleanup before writing this terminal phase, as with every other terminal exit.
+- **Empty or near-empty repo** (no source files found): terminal `routed` with suggestion "Repo appears empty. Use `/geniro:investigate` to clarify project state." Write the terminal phase first, then run the §2.5 cleanup, as with every other terminal exit.
 - **Permission errors on key directories** — log to `## Errors` body section; note gaps in final map's `## Tech Debt & Notes`.
 
 ### 1.4 Step 3 — Scan structure
@@ -230,7 +230,7 @@ After the map ships, end the onboarding report with a printed "Next steps" block
 
 ### 2.5 Cleanup
 
-Run this before EVERY terminal `phase:` write — `done`, `map-truncated`, `routed`, and `aborted` alike, not only the happy path. The migration walk scans `.geniro/planning`, never `.geniro/state`, so a slug directory left behind by an early exit has no later sweep and persists indefinitely.
+Run this after EVERY terminal `phase:` write — `done`, `map-truncated`, `routed`, and `aborted` alike, not only the happy path — never before: the write's own `mkdir -p` would silently recreate a slug dir a preceding cleanup just removed, leaving it behind despite cleanup having "run". The migration walk scans `.geniro/planning`, never `.geniro/state`, so a slug directory left behind by an early exit has no later sweep and persists indefinitely.
 
 State.md `phase: map` → `done` on the happy path. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 

@@ -108,7 +108,7 @@ Failure paths report a structured reason in the final user message.
 | Cause | Format |
 |---|---|
 | User cancelled at any question | `aborted: user cancelled at <step>` |
-| Scope resolution failed after 3 question retries | `aborted: scope unresolved after 3 rounds of questions` |
+| Scope resolution retry cap exhausted (cap set in `phase-1-parse.md` §Ambiguity resolution) | `aborted: scope unresolved after 3 rounds of questions` |
 | Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>; see .geniro/safety.json` |
 | Delete blocked by `.geniro/` deletion guard | `aborted: .geniro/ deletion guard blocked rm of <path>; see .geniro/safety.json` |
 
@@ -119,13 +119,13 @@ The stable scope set:
 | Scope | File path | Loaded by | Notes |
 |---|---|---|---|
 | `global` | `.geniro/instructions/global.md` | Every pipeline + discovery skill at Step 0 + phase-boundary refresh | Rules and Constraints, plus the one cross-skill `### After worktree-setup` event step |
-| `code-style` | `.geniro/instructions/code-style.md` | All code-writing skills (`implement`, `refactor`) AND all code-review steps (`review`, `implement` Phase self-review, `refactor` Phase verify); pre-inlined into reviewer-agent prompts for the conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
+| `code-style` | `.geniro/instructions/code-style.md` | Every `LOAD_TIER: pipeline` skill (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Caller contract) — grep `LOAD_TIER: pipeline` across `skills/**/*.md` for current membership; pre-inlined into reviewer-agent prompts for the conventions/design/architecture dimensions | Cross-cutting; no per-skill phase mapping |
 | `memory` | `.geniro/instructions/memory.md` | Every pipeline + discovery skill (and operational skills that emit L2) at Step 0 + phase-boundary refresh, loaded alongside `global.md` | Holds the `## Memory Backend` block only — no Rules/Constraints/Additional Steps |
 | `review-extra/<slug>` | `.geniro/instructions/review-extra/<slug>.md` (directory-style) | `/geniro:review` Phase llm-spawn, `/geniro:implement` Phase self-review, `/geniro:refactor` Phase verify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` | Directory-style; one file per slug. Frontmatter: `slug`, `description`, `model`, `paths`, `severity-default`, `requires-context` |
 | `implement` · `plan` · `review` · `resolve` · `debug` · `refactor` · `onboard` · `investigate` | `.geniro/instructions/<skill>.md` | that skill at Step 0 + phase-boundary refresh | `implement`, `plan`, and `refactor` each accept exactly one `Additional Steps` anchor (`instructions-authoring-reference.md` §5); `review`, `resolve`, `debug`, `onboard`, and `investigate` take Rules and Constraints only — no phase currently reads a custom step for them |
 | `reflect` | `.geniro/instructions/reflect.md` | `/geniro:reflect` at Step 0 | Rules and Constraints only (stateless — no Additional Steps) |
 
-**Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`) do NOT load instruction files** beyond `global.md`.
+**Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`, `/geniro:audit-instructions`) load only the `rules-only` tier** — `global.md` + `memory.md` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Caller contract) — never the per-skill or `code-style.md` layers.
 
 **External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo copy at the primary worktree root (`"$PRIMARY_ROOT"/.geniro/instructions/`) — the path keeps the literal `.geniro/` segment, so the atomic-write helper and the `.geniro/` deletion guard stay engaged; an external location would bypass both. To manage the external set, edit it directly at its path. The override covers the loaded instruction set (`global.md`, `memory.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
 
@@ -148,7 +148,7 @@ The optional `## Verification Surface` section — same scopes — declares what
 The single source for every field's value set and length cap — validate-mode's per-scope check resolves here rather than restating them.
 
 - `slug` (required) — must satisfy the rules `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 4 enforces at load time: the filename without `.md`, matching `^[a-z][a-z0-9-]*$`, and not colliding with a reserved dimension name. That file owns the reserved list, because it is the runtime enforcer — a slug this skill accepts but the loader rejects produces a file the user believes is active while its criteria silently never run.
-- `description` (required) — one-line summary, ≤250 chars; the same routing-surface role `description-quality.md` grades, so the cap mirrors `_VAF_DESC_MAX_CHARS` in `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh`, the action-file description's cap.
+- `description` (required) — one-line summary; the same routing-surface role `description-quality.md` grades, so the cap mirrors `_VAF_DESC_MAX_CHARS` in `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh`, the action-file description's cap.
 - `model` (optional) — `haiku`/`sonnet`/`opus`/`inherit`; omitted = `inherit` (the reviewer runs at the orchestrator's tier, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`). Declare a tier only to deliberately pin this reviewer cheaper or stronger than the session.
 - `paths` (optional) — list of globs.
 - `severity-default` (optional) — `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`; default `MEDIUM`.

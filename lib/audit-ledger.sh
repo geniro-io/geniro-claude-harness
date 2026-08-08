@@ -195,6 +195,16 @@ ledger_record() {
   case "$class" in
     ''|*[!a-z0-9-]*) echo "audit-ledger: class must be a lowercase-hyphen slug, got '$class'" >&2; return 64 ;;
   esac
+  # `note` is model-authored free text with no fixed vocabulary, but it still
+  # lands raw in a tab-separated row: an embedded tab silently grows that row
+  # to 8 columns, and an embedded CR/LF splits it into two. ledger_validate
+  # then fails the whole file, and the documented caller treats a failing
+  # ledger as EMPTY — so one free-text note can discard every prior run's
+  # decisions. Reject rather than escape: the caller re-invokes with the
+  # note collapsed to one line, same as it would fix an unknown disposition.
+  case "$note" in
+    *[$'\t\r\n']*) echo "audit-ledger: note must not contain tabs or newlines (breaks the TSV row) — collapse it to one line" >&2; return 64 ;;
+  esac
   # A rejection with no reason is the row a future round cannot act on: it
   # suppresses a finding while telling nobody why, which is how a suppression
   # store rots into an unreviewable blanket.

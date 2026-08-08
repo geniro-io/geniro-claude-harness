@@ -167,6 +167,36 @@ else
   fail "a non-slug class was accepted"
 fi
 
+# T1-7: a note written raw into a TSV row corrupts it — a tab grows the row
+# to 8 columns, an embedded newline splits it into two broken rows — and the
+# documented caller treats a ledger that fails ledger_validate as EMPTY, so
+# one bad note would discard every prior run's decisions. Both must be
+# refused before they ever reach the file, and the ledger (still holding
+# only the "dedup" row from the semantics block above) must stay valid.
+if ! ledger_record "$FIX" 7 tabnote T4 rejected r9 "$(printf 'bad\tnote')" >/dev/null 2>&1; then
+  pass "a note containing a tab is refused"
+else
+  fail "a note containing a tab was accepted"
+fi
+
+if ledger_validate >/dev/null 2>&1; then
+  pass "the ledger stays valid after a tab-bearing note is refused"
+else
+  fail "a refused tab-bearing note still corrupted the ledger"
+fi
+
+if ! ledger_record "$FIX" 7 newlinenote T4 rejected r9 "$(printf 'bad\nnote')" >/dev/null 2>&1; then
+  pass "a note containing a newline is refused"
+else
+  fail "a note containing a newline was accepted"
+fi
+
+if ledger_validate >/dev/null 2>&1; then
+  pass "the ledger stays valid after a newline-bearing note is refused"
+else
+  fail "a refused newline-bearing note still corrupted the ledger"
+fi
+
 if ledger_validate >/dev/null 2>&1; then
   pass "a well-formed ledger validates"
 else

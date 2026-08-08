@@ -63,7 +63,7 @@ The zero-behavior-change guarantee is enforced per-step via the orchestrator-inl
 
 ## State machine
 
-state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: `done`, `verify-summary-only`, `reverted`, `aborted`, `routed` (SessionStart recovery treats all five as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (session-level blocked-ratio cap exceeded — §Budgets), `verify-escalated` (1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — your previous options:" so the user re-picks without losing context.
+state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: see §Terminal states below (SessionStart recovery treats all five as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (session-level blocked-ratio cap exceeded — §Budgets), `verify-escalated` (1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — your previous options:" so the user re-picks without losing context.
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
 
@@ -73,7 +73,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ## Terminal states
 
-`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Every transition into any of the five first runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) and only then writes the terminal `phase:` via `atomic_state_write` — a terminal write that skips cleanup leaves the slug dir behind, where nothing else sweeps `.geniro/state/`. `done`, `verify-summary-only`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.7 is the phase's own next step. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe the call explicitly: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
+`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Every transition into any of the five first writes the terminal `phase:` via `atomic_state_write`, and only then runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) — reversing the order lets cleanup's `rm -rf` run against a directory the write's own `mkdir -p` then silently recreates, leaving the slug dir behind despite cleanup having "run". `done`, `verify-summary-only`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.3 already writes the terminal phase and §3.7 is a later step in the same phase file. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe both calls explicitly, in this order — terminal write then cleanup: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
 
 ---
 
@@ -85,9 +85,11 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 - **Invariant #5 (escalation gates, not silent abort)** — the blocked-ratio cap AUQ (§Budgets) + PRODUCT-DECISION always waits for the user.
 - **Invariant #7 (errors → structured observations)** — per-step blocked rationale, baseline validation failure, and reviewer CRITICAL findings all become structured `## Tool log` / `## Errors` entries.
 
-This skill adds one invariant:
+This skill adds two invariants:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+
+S2. **One todo in_progress at a time.** §Task tracking's phase-level and per-step todos enforce sequential focus — marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop).
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
@@ -255,6 +257,6 @@ T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categor
 
 ## Task tracking
 
-Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level todos: Plan, Apply, Verify. During Phase 2, add dynamic per-step todos derived from the approved plan. Mark `in_progress` → `completed` as phases run. At most ONE todo is `in_progress` at a time.
+Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level todos: Plan, Apply, Verify. During Phase 2, add dynamic per-step todos derived from the approved plan. Mark `in_progress` → `completed` as phases run, per §Loop invariants invariant S2.
 
 ---

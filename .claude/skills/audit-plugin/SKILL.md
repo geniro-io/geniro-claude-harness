@@ -59,7 +59,7 @@ S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
 | "There are 80 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
 | "This instruction reads fine — leave it." | Reading fine is not the bar. A rule can be live and still cost more than it buys: a fixed threshold where a criterion would let the model read the situation, an example that narrows the solution space, a guardrail written for a weaker model. D6 hunts those, not only redundancy. |
-| "That paragraph explains why the rule exists — useful context, keep it." | Useful to a human deciding whether to keep the rule; inert to the model following it. D6 check 14 splits the two: the reason inside a rule the model would rationalize around stays, the case assembled for a reviewer — sources, evidence grading, refutations, origin narration — goes. It is the hardest bloat to see, because it reads as thorough. |
+| "That paragraph explains why the rule exists — useful context, keep it." | Useful to a human deciding whether to keep the rule; inert to the model following it. D6's case-for-the-rule check splits the two: the reason inside a rule the model would rationalize around stays, the case assembled for a reviewer — sources, evidence grading, refutations, origin narration — goes. It is the hardest bloat to see, because it reads as thorough. |
 
 ## Budgets
 
@@ -181,6 +181,6 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - `skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `tests/run-all.sh` + `tests/authoring/lint-skills.sh` — the D1 battery core
-- `scripts/measure-run-load.sh [--detail] <profile>` — what one run actually loads, in words, per component and with per-spawn multipliers. The cost evidence a D6 check-13 deletion proposal cites instead of asserting one
+- `scripts/measure-run-load.sh [--detail] <profile>` — what one run actually loads, in words, per component and with per-spawn multipliers. The cost evidence a D6 mechanism-level-subtraction deletion proposal cites instead of asserting one
 - `skills/_shared/per-finding-question.md` / `gate-rendering.md` — the message-first render plus lean question the Phase 5 deletion gate fires
 - `scripts/dump-md.sh [path ...]` — full-content markdown dump (filename header + complete body per tracked file); reviewers survey their markdown scope with it instead of grep

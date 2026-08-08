@@ -82,7 +82,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase files; this list is the final correctness/contract check, not a re-listing of every step.
 
-- [ ] Generated CLAUDE.md contains ZERO Geniro-plugin content — every entry on `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content checked and absent
+- [ ] Generated CLAUDE.md contains no Geniro-plugin content — every entry on `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content checked and absent
 - [ ] Verification subagent passed within the retry cap, or resolved via the final-round AUQ escalation (cap owned by `phase-4-validate.md` §4.2)
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
@@ -130,7 +130,7 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 | CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Project-only content per `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content. Preserves user customizations via orchestrator-inline merge |
 | L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
 | L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
-| L4 `.geniro/instructions/*.md` | Phase 1 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
+| L4 `.geniro/instructions/*.md` | Phase 0 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
 
 ## Phase 0: Pre-flight
 

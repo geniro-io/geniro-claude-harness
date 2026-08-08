@@ -86,7 +86,7 @@ Two fan-outs: the Phase 2 recall script and the Phase 4.2 vote script (may be on
 
 ## 5. Convergence-dedup rule (load-bearing)
 
-`convergence_count` (the §3 escalation predicate; Phase 5.3 ≥3 pitfall auto-emit — it admits nothing at Phase 4.1) counts **distinct dimensions** that reported the same issue — it is a cross-reviewer agreement signal. The 3 angle passes of ONE dimension finding the same issue is one dimension's own passes agreeing, NOT cross-dim convergence.
+`convergence_count` (the §3 escalation predicate; the Phase 5.3 pitfall auto-emit threshold — it admits nothing at Phase 4.1) counts **distinct dimensions** that reported the same issue — it is a cross-reviewer agreement signal. The 3 angle passes of ONE dimension finding the same issue is one dimension's own passes agreeing, NOT cross-dim convergence.
 
 Therefore: **dedup the 3 angle passes of a dimension into a single per-dim finding set BEFORE Phase 3 computes cross-dim convergence.** The recall skeleton (§4) does this in-script, at its within-stage dedup step, so the per-dim set the orchestrator receives already collapses intra-dim duplicates. If this dedup is skipped, three angle passes of `bugs` finding the same defect would inflate its `convergence_count` to 3 on a single dimension's repeated output — suppressing the §3 escalation of a refuted verdict and tripping the Phase 5.3 pitfall auto-emit, both on agreement a single dimension manufactured with itself.
 

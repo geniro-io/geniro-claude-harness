@@ -1,6 +1,6 @@
 # Geniro Plugin
 
-Production-grade Claude Code plugin: AI-driven setup, multi-agent workflows, safety hooks. One `skills/` directory ships to two runtimes, Claude Code and Cursor.
+One `skills/` directory ships to two runtimes, Claude Code and Cursor.
 
 ## Skill routing
 
@@ -8,7 +8,7 @@ Each skill's frontmatter description is the routing surface, and Claude Code alr
 
 - **`/geniro:implement` is the only skill that ships code.** `/geniro:plan`, `/geniro:review`, `/geniro:resolve`, and `/geniro:debug` are producers: they end at a `spec.md` and/or a handoff file that `/geniro:implement` consumes and applies.
 - **Read-only means no production-source edit — not an empty tool surface.** `/geniro:review`, `/geniro:resolve`, `/geniro:debug`, and `/geniro:investigate` never edit production source, and an elevated-effort or workflow run does not relax that (`skills/_shared/reporter-boundary.md` §1). `/geniro:resolve`, `/geniro:investigate`, and `/geniro:review` bind it at the tool level — their `allowed-tools` omits `Write` and `Edit` outright. `/geniro:debug` declares `Write, Edit` for experiments and the reproduction test, so for that one the boundary is a contract its tool surface does not enforce. `/geniro:refactor` does edit production source, but never ships: the working-tree diff is its deliverable.
-- **Eight skills were deleted.** A name that doesn't resolve isn't necessarily a typo — check the catalogue for its replacement.
+- **Skills have been deleted.** A name that doesn't resolve isn't necessarily a typo — check the catalogue for its replacement.
 
 ## Path Rules
 
@@ -46,7 +46,7 @@ Every fact the plugin itself persists lives in exactly one of four layers. Write
 
 **Not a layer — Claude Code's native auto-memory.** A fifth store exists, and `/geniro:investigate` and `/geniro:reflect` deliberately route collaboration preferences to it. It is not a substitute for any layer above and does not subsume them: it is per-user and orchestrator-only — never committed, never shared with teammates, and unreadable by any spawned subagent. L4 is the committed team-shared rules layer; L2/L3 are shell-queryable, so a subagent can read them.
 
-**Cross-layer precedence (when layers disagree): L4 > L3 > L2.** L4 is user-curated explicit rules (highest trust); L3 is drift-monitored current state; L2 is historical events with the lowest cross-layer trust. L1 is task-scoped and never conflicts cross-layer.
+**Cross-layer precedence (when layers disagree): L4 > L3 > L2.** L1 is task-scoped and never conflicts cross-layer.
 
 **Within-layer:** recency wins. L2 uses the `supersedes` chain. L3 uses fingerprint refresh / file mtime. L4 uses file mtime.
 
@@ -71,7 +71,7 @@ bash tests/run-all.sh                 # every tests/**/*.sh suite
 bash tests/authoring/lint-skills.sh   # authoring lint (hard failures + advisory warnings)
 ```
 
-`.github/workflows/ci.yml` runs `tests/run-all.sh` plus ShellCheck on every pull request and on pushes to `main`. The release workflow tags its bump commit `[skip ci]`, so CI never runs on the bot's version-bump push.
+`.github/workflows/ci.yml` runs `tests/run-all.sh` plus ShellCheck on every pull request and on pushes to `main`.
 
 ## Where the rest lives
 

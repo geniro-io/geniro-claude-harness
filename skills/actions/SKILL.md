@@ -123,7 +123,7 @@ Action frontmatter MAY include tools outside `/geniro:actions`' own `allowed-too
 |---|---|
 | Scope checkpoint (Phase 4.3) — user picked "Stop here, keep what's changed" | `aborted: stopped at scope checkpoint after step <N>`; edits stay in place and the Phase 4.4 summary, with its `/geniro:review` recommendation, prints before the transition |
 | User cancelled at any question other than the scope checkpoint above | `aborted: user cancelled at <step>` |
-| Slug resolution failed after 3 rounds of asking | `aborted: slug unresolved after 3 rounds of asking` |
+| Slug resolution retry cap exhausted (cap set in `actions-reference.md` §Target resolution Step 3) | `aborted: slug unresolved after 3 rounds of asking` |
 | Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
 | Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>` |
@@ -131,7 +131,7 @@ Action frontmatter MAY include tools outside `/geniro:actions`' own `allowed-too
 
 ## Phase 1: Parse intent from `$ARGUMENTS`
 
-**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Procedure prescribes an imperative `Read` of `global.md`; its §Echo contract requires one observable line. Both are mandatory.
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. Echo per the helper's §Echo contract — one observable line per file loaded.
 
 Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which action is targeted. Surface every WAIT gate through the `AskUserQuestion` tool, not plain-text questions — plain-text prompts aren't gated and the run can proceed without an answer.
 
