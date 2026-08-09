@@ -45,3 +45,5 @@ evals/runs/
 design/scratch/
 .codegraph
 evals/cursor-review/runs/
+evals/loop/runs/
+evals/loop/cache/

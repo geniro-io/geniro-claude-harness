@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.spec.ts",
+      "lines": [
+        285
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Commit 63ef625ecb91 (\"test(client-digest): cover feature-flag branches (PII routing + kill-switch)\", 2026-05-08T17:21:29Z) adds the ON-branch test for CLIENT_DIGEST_REAL_RECIPIENTS in this exact spec file; commit message explicitly says 'Addresses PR #1838 review feedback (HIGH)'.",
+      "description": "All tests in digest-queue.processor.spec.ts hardcode the CLIENT_DIGEST_REAL_RECIPIENTS feature flag to false, so the ON branch that routes drafts to the real attorney.email (vs. the jane@manifestlabs.com test fallback mailbox) had zero coverage. An inverted conditional in a future refactor could silently route every attorney's PII-bearing drafts to a single internal mailbox undetected."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.processor.spec.ts",
+      "lines": [
+        166
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Same commit 63ef625ecb91 adds a dispatch-queue.processor.spec.ts test asserting addBulk is called with an empty array when the CLIENT_DIGEST kill-switch flag is OFF.",
+      "description": "Both dispatch-queue tests hardcode the CLIENT_DIGEST master kill-switch flag to true, leaving the OFF branch (which should suppress all digest dispatch) completely untested. A regression that inverted this conditional would silently dispatch digests to every eligible attorney-client pair even before rollout begins."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-subject.ts",
+      "lines": [
+        18
+      ],
+      "class": "api-contract",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit 0509a6e3377e (\"fix(client-digest): cap subject length with ellipsis truncation\", 2026-05-08T17:26:23Z) adds a 160-char truncation with ellipsis in buildClientDigestSubject plus a new client-digest-subject.spec.ts; commit message: 'Addresses PR #1838 review feedback (MEDIUM)'.",
+      "description": "buildClientDigestSubject returns `Weekly Update for ${clientName} | ${weekOf}` with no length guard, so an unusually long client name (up to ~64 chars via the email fallback) could push the result past the DigestContentSchema's `.max(160)` cap. Since the schema's parse is never actually invoked on the assembled digest object in the processor, that cap is dead enforcement, making the overflow silent rather than caught."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        294
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit 5d580c7ef41c (\"feat(client-digest): rebalance email header hierarchy + guard empty key-details\", 2026-05-08T21:29:28Z) wraps the SectionBlock in a length guard; commit message explicitly notes 'The reviewer's red regression test in digest-template.renderer.spec.ts goes green. (N1)'.",
+      "description": "When the LLM returns an empty keyDetailsDiscussed array (schema allows `.min(0)`), the template still rendered the 'Some key details discussed' section header above an empty bullet list, producing a visibly broken empty card in the email. The sibling NeedsList component already had an empty-state fallback; BulletList did not."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.processor.spec.ts",
+      "lines": [
+        60
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "PR author replied directly (comment 3210340574, 2026-05-08T17:37:04Z) declining the request: the active/closed filter runs inside the DB query so a unit test can't exercise the drop, and a real regression guard would need an integration test which the author didn't want to bundle into this PR. No mixed-status or closed-only fixture was added to dispatch-queue.processor.spec.ts in any later commit.",
+      "description": "The two existing dispatch tests cover 'client has an ACTIVE case' and 'client has no cases' but not the two boundary cases that actually stress the D-2 ACTIVE-only filter: a client with both ACTIVE and CLOSED/ON_HOLD cases (should still be included) and a client with only CLOSED/ON_HOLD cases (should be excluded). If the ACTIVE predicate were accidentally widened or dropped, the existing tests would not catch it."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.spec.ts",
+      "lines": [
+        261
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit ec787de4b4ff (\"test(client-digest): cover resolveParticipants throw path\", 2026-05-08T17:39:04Z) adds a test that returns only the client from the em.find mock and asserts the InternalServerErrorException shape.",
+      "description": "The processor throws an InternalServerErrorException with a structured attorneyFound/clientFound payload when either participant lookup fails, but no test exercised that path since the spec's em.find mock always returned both users."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        172
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit 32029951aa9e (\"refactor(client-digest): clean up llm-processing service\", 2026-05-08T18:35:11Z) explicitly drops the formatWeekOfLabel alias and calls formatClientDigestWeekOfLabel directly, per its own description item 1.",
+      "description": "`const formatWeekOfLabel = formatClientDigestWeekOfLabel;` aliases an imported function that is used exactly once, diverging from the sibling processor's convention of calling the function directly. Purely a dead-refactor-remnant / stylistic issue, not a functional bug."
+    },
+    {
+      "id": "gt-8",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-date.ts",
+      "lines": [
+        12
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit 0509a6e3377e added client-digest-subject.spec.ts (92 lines) for the subject helper, and commit 86a45e86a7ce (\"test(client-digest): add sibling spec for week-label formatter\", 2026-05-08T18:37:52Z) added client-digest-date.spec.ts covering EDT/EST DST boundaries and cross-timezone rendering, closing out both halves of the finding.",
+      "description": "The two new pure-function helper modules (client-digest-date.ts, client-digest-subject.ts) shipped without dedicated *.spec.ts siblings, unlike the repo's convention for similar utility modules, leaving DST edge cases and the name/email-fallback branch only indirectly exercised through the processor spec."
+    },
+    {
+      "id": "gt-9",
+      "file": "apps/api/src/case-radar/client-digest/dto/digest-content.dto.spec.ts",
+      "lines": [
+        94
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit 9a3238055ee9 (\"test(client-digest): pin keyDetailsDiscussed upper bound at the true cap\", 2026-05-08T18:41:01Z) renames the test to 'more than 6' and feeds exactly 7 items, matching the recommendation verbatim.",
+      "description": "A test titled 'should reject more than 8 key detail items' actually feeds 9 items against a schema capped at `.max(6)`; the test passes but doesn't pin the true boundary, so a future change that loosened the cap to 8 would leave the test green while the real protection silently weakened."
+    },
+    {
+      "id": "gt-10",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        40
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit 0a293e9c8371 (\"refactor(client-digest): extract DIGEST_SYSTEM_PROMPT to prompts/\", 2026-05-08T18:45:00Z) moves the prompt to a new prompts/ directory, matching the repo convention cited in the finding.",
+      "description": "The 16-line DIGEST_SYSTEM_PROMPT is defined inline in the service alongside OpenAI SDK call and error-handling logic, unlike the 4 other AI services in the repo which extract their prompts into a dedicated *.prompt.ts file. Convention/maintainability finding, not a functional bug."
+    },
+    {
+      "id": "gt-11",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        40
+      ],
+      "class": "api-contract",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Same commit 32029951aa9e explicitly removes the stale 'weekOf' clause from the system prompt per its item 2 description, citing the exact contradiction with the user prompt.",
+      "description": "The system prompt instructs the LLM to 'use the provided weekOf label ... verbatim', but per an earlier design decision the LLM no longer outputs weekOf at all (LlmDigestContentSchema excludes it) and the user prompt separately tells the model not to output or infer it — a direct contradiction between system and user prompt instructions."
+    },
+    {
+      "id": "gt-12",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        267
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit ca287f9f8462 (\"refactor(client-digest): use getEmailAssetUrl for hero banner\", 2026-05-08T18:48:10Z) switches the template to call getEmailAssetUrl(...) as recommended.",
+      "description": "The email template's header image hardcodes the production asset bucket URL instead of using the repo's getEmailAssetUrl helper (used by three other templates), which would break per-environment asset routing in dev/UAT. Confidence was noted as moderate (65%) since a sibling notification template has the same pre-existing inconsistency."
+    },
+    {
+      "id": "gt-13",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        278
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit ba0346c31344 (\"feat(client-digest): make email headline deterministic (client name only)\", 2026-05-08T19:53:18Z) removes the `${digest.caseType || 'Case update'}` expression entirely, replacing the headline with just clientName -- eliminating the dead fallback branch (via a different resolution than the reviewer's suggested one-liner, but the underlying dead-code complaint is resolved).",
+      "description": "`digest.caseType || 'Case update'` is dead code: LlmDigestContentSchema declares caseType as a required, non-empty string, so after zodResponseFormat parsing it can never be falsy, making the fallback branch unreachable and misleading to future maintainers about nullability."
+    },
+    {
+      "id": "gt-14",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-date.ts",
+      "lines": [
+        12
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Author replied directly (comment 3210865610, 2026-05-08T19:25:48Z): 'Folded this into the consolidation change...'; commit 908f91a3e6d3 (2026-05-08T19:24:40Z) merges both helpers into utils/client-digest-formatting.util.ts.",
+      "description": "client-digest-date.ts and client-digest-subject.ts are two separate single-export helper files that feed the same weekOfLabel-to-subject pipeline; a PRODUCT-DECISION suggestion to consolidate them into one utility module, offered as optional/stylistic."
+    },
+    {
+      "id": "gt-15",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-date.ts",
+      "lines": [
+        1
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Same commit 908f91a3e6d3 (\"refactor(client-digest): consolidate formatting helpers into utils/\") relocates both helpers to client-digest/utils/, explicitly citing 'Also addresses the placement question (LOW [PRODUCT-DECISION])' in its commit message.",
+      "description": "Both new helper modules sit at the client-digest module root rather than in a module-local utils/ subdirectory, unlike the sibling case-radar/analysis/utils/ convention; PRODUCT-DECISION-tagged placement suggestion, acceptable to leave as-is per the finding itself."
+    }
+  ]
+}

@@ -171,9 +171,10 @@ judge is designed to avoid (plan §6, §15). Read the trend post-hoc via `/genir
 Phase 0 (driver) ✅ · Phase A (ledger + suites + seam) ✅ · Phase B (ingest: cost + CIs) ✅ ·
 Phase C (submodule + aggregate-runs + run-suite + cache-aware cost) ✅ · Phase D
 (`/review` calibration + κ + 20–50 tasks + cross-family judge + `/geniro:eval`) —
-**largely delivered by [`cursor-review/`](cursor-review/)**, a sibling harness that trades
-this pipeline's full-skill runs for cheap single-reviewer content evals: a 14-task
-`/review` benchmark (planted defects + real Geniro-reviewed PRs, dev/holdout), blind
-judges, task-clustered CIs, and a committed run ledger (`cursor-review/runs.jsonl`).
+**delivered by [`loop/`](loop/)**, the module-agnostic improvement loop (rubric-versioned
+benchmarks incl. negative tasks, content-keyed cache, built-in cost guard, calibrated
+blind judges + `kappa.py`, trial reducers, MDE-aware paired verdicts, experiment
+registry), driven by the repo-local `/eval-loop` skill. Its v1 predecessor
+[`cursor-review/`](cursor-review/) stays frozen as the H1–H6 historical record.
 This SDK pipeline remains the orchestration-regression and promotion gate. Phase E
 (end-to-end + `analyze-thread` trajectory) stays open.

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/api/wallet.ts",
+      "lines": [
+        10,
+        19
+      ],
+      "class": "race",
+      "dimension_hint": "bugs",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "description": "withdraw does check-then-update without a transaction or row lock: two concurrent withdrawals both pass the balance check and overdraw the wallet"
+    },
+    {
+      "id": "gt-2",
+      "file": "src/api/wallet.ts",
+      "lines": [
+        20,
+        20
+      ],
+      "class": "floating-promise",
+      "dimension_hint": "bugs",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "auditLog(...) is fire-and-forget: not awaited and no .catch, so a rejected insert is an unhandled rejection and the audit entry can be silently lost"
+    },
+    {
+      "id": "gt-3",
+      "file": "src/api/wallet.ts",
+      "lines": [
+        24,
+        31
+      ],
+      "class": "off-by-one",
+      "dimension_hint": "bugs",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "listTransactions pagination slices start..start+limit-1, returning limit-1 rows per page — the last item of every page is dropped"
+    }
+  ]
+}

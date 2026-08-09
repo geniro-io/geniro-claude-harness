@@ -1,0 +1,10 @@
+{
+  "id": "pr-2802",
+  "mode": "git",
+  "repo_path": "/Users/sergeirazumovskij/Desktop/Projects/ManifestLab/ManifestOS",
+  "base_sha": "81acf815cecf8c1efaf8d1e6dc46c0a81a293d2a",
+  "head_sha": "6e8fd61c9fd27857d9a106b458cca52aefcf62a5",
+  "lang": "typescript",
+  "project_context": "ManifestOS monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack. PR title: feat(CW-525): Collaborators Multi Select",
+  "include_repo_rules": true
+}

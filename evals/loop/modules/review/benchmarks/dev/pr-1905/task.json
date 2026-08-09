@@ -1,0 +1,10 @@
+{
+  "id": "pr-1905",
+  "mode": "git",
+  "repo_path": "/Users/sergeirazumovskij/Desktop/Projects/ManifestLab/ManifestOS",
+  "base_sha": "7fde3a8a602c3e17e96494ddde9c06594d283b14",
+  "head_sha": "7845cb9ca24cc8e210cc743099f3a5296bc0302e",
+  "lang": "typescript",
+  "project_context": "ManifestOS monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack. PR title: feat(beneficiaries): surface Case Radar sentiment in /beneficiaries [CI-186]",
+  "include_repo_rules": true
+}

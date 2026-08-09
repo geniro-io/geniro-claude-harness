@@ -1,5 +1,12 @@
 # cursor-review — cheap eval loop for /geniro:review content
 
+> **Superseded by [`evals/loop/`](../loop/)** — the module-agnostic v2 stand
+> (rubric versioning, content-keyed cache, built-in cost guard, judge
+> calibration, trial reducers, experiment registry). This directory is the
+> frozen v1 reference: its 14 tasks migrated to
+> `loop/modules/review/benchmarks/`, its `runs.jsonl` stays the historical
+> record of the H1–H6 experiments. Iterate in `loop/`, not here.
+
 Design and rationale: [DESIGN.md](DESIGN.md). One-command flow:
 
 ```bash

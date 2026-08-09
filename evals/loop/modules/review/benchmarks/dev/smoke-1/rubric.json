@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/orders/total.ts",
+      "lines": [
+        8,
+        9
+      ],
+      "class": "null-deref",
+      "dimension_hint": "bugs",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "discount is optional on OrderItem but itemTotal dereferences item.discount.pct without a guard — crashes for any undiscounted item"
+    },
+    {
+      "id": "gt-2",
+      "file": "src/orders/total.ts",
+      "lines": [
+        17,
+        22
+      ],
+      "class": "silent-fallback",
+      "dimension_hint": "bugs",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "fetchOrderItems swallows query failure with .catch(() => []) — callers cannot distinguish an empty order from a failed query"
+    },
+    {
+      "id": "gt-3",
+      "file": "src/api/users.ts",
+      "lines": [
+        7,
+        9
+      ],
+      "class": "sql-injection",
+      "dimension_hint": "security",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "description": "searchUsers concatenates user input into the SQL string instead of using a parameterized query — SQL injection"
+    }
+  ]
+}
