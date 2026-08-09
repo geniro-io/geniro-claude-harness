@@ -1,0 +1,11 @@
+[
+  {"id": "gt-1", "file": "src/report.ts", "lines": [8, 18],
+   "class": "n-plus-one", "dimension_hint": "optimizations", "severity": "HIGH", "must_find": true,
+   "description": "buildCustomerReport issues one order_items query per order id in a loop (N+1) — tens of thousands of sequential queries on a hot path instead of one IN/JOIN query"},
+  {"id": "gt-2", "file": "src/report.ts", "lines": [10, 17],
+   "class": "unbounded-memory", "dimension_hint": "optimizations", "severity": "MEDIUM", "must_find": false,
+   "description": "The report accumulates unbounded rows into one in-memory string via += concatenation — memory and quadratic-copy risk for very large customers (streaming/chunking expected)"},
+  {"id": "gt-3", "file": "src/report.ts", "lines": [21, 23],
+   "class": "boundary", "dimension_hint": "bugs", "severity": "HIGH", "must_find": true,
+   "description": "averageOrderValue calls reduce without an initial value and divides by length — throws TypeError on an empty array (reduce of empty array with no initial value) and NaN risk"}
+]

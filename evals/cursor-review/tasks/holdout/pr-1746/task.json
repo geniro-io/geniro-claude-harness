@@ -1,0 +1,10 @@
+{
+  "id": "pr-1746",
+  "mode": "git",
+  "repo_path": "/Users/sergeirazumovskij/Desktop/Projects/ManifestLab/ManifestOS",
+  "base_sha": "53db87ceb2d853b0181e502abbe658c47ff723b8",
+  "head_sha": "ad1163b852892dbfa5a05efb90fd18934990d64f",
+  "lang": "typescript",
+  "project_context": "ManifestOS monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack. PR title: feat(case-radar): snapshot and backfill actor contact role on cm_case timeline rows [CI-141 backend]",
+  "include_repo_rules": true
+}

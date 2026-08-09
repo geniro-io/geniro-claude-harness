@@ -1,0 +1,10 @@
+{
+  "id": "pr-2023",
+  "mode": "git",
+  "repo_path": "/Users/sergeirazumovskij/Desktop/Projects/ManifestLab/ManifestOS",
+  "base_sha": "203c22ccd8c9b4f5399dbaa8c8007ac48543d168",
+  "head_sha": "7acff711c7cb1fc3361bdb6a4842e5d7fec3e654",
+  "lang": "typescript",
+  "project_context": "ManifestOS monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend. PR title: [CI-164 stacked 1/11] test infra: Redis testcontainer + BULLMQ_PREFIX DI + drainQueue",
+  "include_repo_rules": true
+}

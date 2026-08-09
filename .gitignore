@@ -44,3 +44,4 @@ evals/runs/
 # CI enforces and which stops firing once the violation is gone.
 design/scratch/
 .codegraph
+evals/cursor-review/runs/

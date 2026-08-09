@@ -1,0 +1,8 @@
+[
+  {"id": "gt-1", "file": "src/notify.ts", "lines": [12, 14],
+   "class": "regression", "dimension_hint": "regressions", "severity": "HIGH", "must_find": true,
+   "description": "The marketingOptIn guard was silently dropped from sendPromoEmail — promo emails now go to users who opted out, a behavior change the PR description ('no behavior change') does not authorize"},
+  {"id": "gt-2", "file": "src/digest.ts", "lines": [1, 5],
+   "class": "broken-caller", "dimension_hint": "bugs", "severity": "CRITICAL", "must_find": true,
+   "description": "formatNotification was renamed to renderNotification but src/digest.ts still imports and calls formatNotification — the module no longer compiles / crashes at import"}
+]

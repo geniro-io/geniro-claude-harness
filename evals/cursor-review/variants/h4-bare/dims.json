@@ -1,0 +1,4 @@
+{
+  "_hypothesis": "H4 floor: a single reviewer with no rubric at all — measures what the whole criteria+dimension apparatus buys over a bare competent model.",
+  "dims": [ { "name": "review", "criteria": ["review-criteria.md"] } ]
+}

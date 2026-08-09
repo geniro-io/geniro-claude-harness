@@ -1,0 +1,11 @@
+[
+  {"id": "gt-1", "file": "src/routes/admin.ts", "lines": [11, 14],
+   "class": "authz", "dimension_hint": "security", "severity": "CRITICAL", "must_find": true,
+   "description": "The new POST /admin/users/:id/ban route omits the requireAdmin middleware — any unauthenticated caller can ban users"},
+  {"id": "gt-2", "file": "src/slack.ts", "lines": [1, 1],
+   "class": "hardcoded-secret", "dimension_hint": "security", "severity": "CRITICAL", "must_find": true,
+   "description": "A Slack bot token is hardcoded in source (SLACK_TOKEN = xoxb-...) instead of an environment variable — committed credential"},
+  {"id": "gt-3", "file": "src/routes/admin.ts", "lines": [16, 18],
+   "class": "open-redirect", "dimension_hint": "security", "severity": "HIGH", "must_find": true,
+   "description": "/admin/login-return redirects to req.query.next without validation — open redirect to arbitrary external URLs (phishing vector)"}
+]

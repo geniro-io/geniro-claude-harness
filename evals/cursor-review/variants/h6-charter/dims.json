@@ -1,0 +1,11 @@
+{
+  "dims": [
+    { "name": "bugs",          "criteria": ["bugs-criteria.md"] },
+    { "name": "security",      "criteria": ["security-criteria.md"] },
+    { "name": "architecture",  "criteria": ["architecture-criteria.md"] },
+    { "name": "tests",         "criteria": ["tests-criteria.md"] },
+    { "name": "conventions",   "criteria": ["guidelines-criteria.md", "conventions-criteria.md", "rules-compliance-criteria.md"] },
+    { "name": "regressions",   "criteria": ["regressions-criteria.md"] },
+    { "name": "optimizations", "criteria": ["optimizations-criteria.md"] }
+  ]
+}

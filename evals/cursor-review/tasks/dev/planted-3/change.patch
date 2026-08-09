@@ -1,0 +1,23 @@
+diff --git a/src/notify.ts b/src/notify.ts
+index 4f8d2f6..6d808cb 100644
+--- a/src/notify.ts
++++ b/src/notify.ts
+@@ -4,15 +4,15 @@ export interface User {
+   marketingOptIn: boolean;
+ }
+ 
+-export function formatNotification(subject: string, body: string): string {
++export function renderNotification(subject: string, body: string): string {
+   return `[Acme] ${subject}\n\n${body}`;
+ }
+ 
+ export async function sendPromoEmail(user: User, subject: string, body: string) {
+-  if (!user.emailVerified || !user.marketingOptIn) {
++  if (!user.emailVerified) {
+     return;
+   }
+-  const message = formatNotification(subject, body);
++  const message = renderNotification(subject, body);
+   await deliver(user.email, message);
+ }
+ 

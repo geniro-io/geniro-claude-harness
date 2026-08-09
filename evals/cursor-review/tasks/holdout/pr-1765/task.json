@@ -1,0 +1,10 @@
+{
+  "id": "pr-1765",
+  "mode": "git",
+  "repo_path": "/Users/sergeirazumovskij/Desktop/Projects/ManifestLab/ManifestOS",
+  "base_sha": "338e597b64a79754960811f4814d3d920c805640",
+  "head_sha": "9d88bc1b97444b3a3e38618ba19a497bb3d953b9",
+  "lang": "typescript",
+  "project_context": "ManifestOS monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack. PR title: feat(action-items): add links-to-files field",
+  "include_repo_rules": true
+}

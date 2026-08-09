@@ -1,0 +1,10 @@
+{
+  "id": "pr-2091",
+  "mode": "git",
+  "repo_path": "/Users/sergeirazumovskij/Desktop/Projects/ManifestLab/ManifestOS",
+  "base_sha": "a8e0f5917bfdf17fcf7fa488f0ff2c8920f7c4fe",
+  "head_sha": "bf244d1c68a5520cf253ed1a15c10985bd3257a2",
+  "lang": "typescript",
+  "project_context": "ManifestOS monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack. PR title: feat(proof-of-submission): receipt notice upload on mailed submission step",
+  "include_repo_rules": true
+}

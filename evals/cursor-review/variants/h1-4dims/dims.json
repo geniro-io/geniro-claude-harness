@@ -1,0 +1,9 @@
+{
+  "_hypothesis": "H1: consolidate 7 dimensions into 4 — same criteria coverage, fewer spawns. Motivated by Anthropic's own /code-review keeping a narrow taxonomy; tests whether dimension count drives recall or just cost/noise.",
+  "dims": [
+    { "name": "correctness-and-regressions", "criteria": ["bugs-criteria.md", "regressions-criteria.md"] },
+    { "name": "security", "criteria": ["security-criteria.md"] },
+    { "name": "code-quality", "criteria": ["architecture-criteria.md", "guidelines-criteria.md", "conventions-criteria.md", "rules-compliance-criteria.md", "optimizations-criteria.md"] },
+    { "name": "tests", "criteria": ["tests-criteria.md"] }
+  ]
+}
