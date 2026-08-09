@@ -138,9 +138,9 @@ assemble_prompt() { # task_stage_dir facet_name criteria_files... -> prompt on s
   printf '\nYour workspace is the reviewed repository — Read/Grep it for callers and context beyond the diff.\nBegin the review now. Output ONLY the review in the exact format specified.\n'
 }
 
-spent_usd() { # measured spend so far across all raw results (blended rate)
+spent_usd() { # measured spend so far: stored results PLUS retried attempts' usage
   local toks
-  toks="$(cat "$OUT"/results/*/trial-*/raw-*.json 2>/dev/null \
+  toks="$(cat "$OUT"/results/*/trial-*/raw-*.json "$OUT"/results/*/trial-*/usage-extra-*.jsonl 2>/dev/null \
     | jq -s '[.[].usage // {} | ((.inputTokens // 0) + (.cacheReadTokens // 0) + (.outputTokens // 0))] | add // 0')"
   awk -v t="$toks" -v r="$RATE" 'BEGIN { printf "%.4f", t * r / 1000000 }'
 }
@@ -177,6 +177,9 @@ run_one() { # task_id trial facet criteria...
       cp "$rdir/raw-$facet.json" "$cached"
       return 0
     fi
+    # The retry will overwrite this raw file — keep the failed attempt's usage
+    # so spent_usd and the --max-usd ceiling still count what it billed.
+    jq -c '{usage: (.usage // {})}' "$rdir/raw-$facet.json" >> "$rdir/usage-extra-$facet.jsonl" 2>/dev/null || true
     attempt=$((attempt + 1))
   done
   jq -e '.type == "result"' "$rdir/raw-$facet.json" >/dev/null 2>&1 || \
