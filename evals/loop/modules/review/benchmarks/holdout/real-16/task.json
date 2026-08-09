@@ -1,0 +1,9 @@
+{
+  "id": "real-16",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "2be377700f85de25d1832da101735f92cd717441",
+  "head_sha": "10576eda15c2cd31e1823c3b4d73c548a6790af6",
+  "lang": "ts",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack (API service + raw-SQL page fetcher + web dashboard section). Change: rework a unified case-list endpoint to compute derivations only for the requested page slice, with a keyset candidate scan, opaque filter tokens, and a matching dashboard table update"
+}

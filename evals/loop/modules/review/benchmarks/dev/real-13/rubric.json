@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-workflow/case/services/case.service.ts",
+      "lines": [292, 300],
+      "class": "bug",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit f7de0c71b9 (2026-06-17) normalizes Date values to ISO date strings before the comparison, and commit a386a72991 (same day) adds integration tests pinning that an unchanged resent date no longer emits an update event.",
+      "description": "The changed-field detection compares each incoming DTO value against a map built from the serialized entity, but the entity types its seven date fields as Date objects while the update DTO types them as ISO date strings — so the inequality is always true for any non-null date field. A PATCH that re-sends an unchanged deadline (forms commonly resend all fields) reports that field as changed and publishes a case-updated event though nothing changed: a phantom event for every consumer and an unreliable changed-fields list, violating the repo's authored domain-events rule that events fire only on real state change. Values must be normalized to a common representation before comparing."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-workflow/task/services/task.service.ts",
+      "lines": [674, 676],
+      "class": "bug",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit f7de0c71b9 (2026-06-17) adds the transactional decorator to the method.",
+      "description": "The task-graph creation method publishes domain events but carries no transactional decorator of its own. All four current callers are transactional, so the publish rides the caller's transaction via required propagation — but the first future non-transactional caller hits a runtime enqueue-outside-transaction error, and unit tests with a mocked bus will not catch it. Decorate the method defensively so the publish is always inside a transaction."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-workflow/task/services/task-assignment.service.ts",
+      "lines": [115, 117],
+      "class": "bug",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit f7de0c71b9 (2026-06-17) adds the transactional decorator to the create method.",
+      "description": "The assignment-creation method publishes an assignment-created domain event but is not itself transactional; it is safe only because its sole current caller is transactional. The same fragility as the task-graph path: a future non-transactional caller fails at runtime rather than at compile or test time. Decorate the method to match the team convention of publishing inside a transaction."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-workflow/task/services/task.service.ts",
+      "lines": [677, 690],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit f7de0c71b9 (2026-06-17) adds a code comment documenting the asymmetry as intentional (bulk template hydration, not a user-driven assignment action) and pointing consumers at the task-created event instead.",
+      "description": "Provisioned tasks emit a created event per task, but their assignments are inserted in bulk by the repository layer, bypassing the assignment service — so provisioned assignments never emit assignment-created events while custom-task assignments do. Any downstream consumer wanting the full assignment lifecycle sees only a subset. The asymmetry needed an explicit intentional-or-gap decision; the author resolved it by documenting it as intentional in the code."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-workflow/task/repositories/task-assignment.repository.ts",
+      "lines": [288, 297],
+      "class": "convention",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit f7de0c71b9 (2026-06-17) deletes the method.",
+      "description": "A repository method that finds non-terminal assignments for a task has no callers anywhere — it is a leftover of a pre-read approach that was replaced by having the batch-cancel query return the actually-cancelled rows. Dead code added and orphaned within the same change; remove it."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/domain-events/events.ts",
+      "lines": [17],
+      "class": "convention",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit f7de0c71b9 (2026-06-17) renames the constant key and its usages.",
+      "description": "The event constant is keyed with a custom-created name although it is published for both custom and provisioned task sources — the prefix misleads consumers into assuming it covers only user-created tasks. The string value is fine; rename the constant key to the unqualified created form."
+    }
+  ]
+}

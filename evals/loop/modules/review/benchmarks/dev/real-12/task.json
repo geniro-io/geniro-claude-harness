@@ -1,0 +1,9 @@
+{
+  "id": "real-12",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "c13278b295812b95001357e7c08c4caf5dbe8a7a",
+  "head_sha": "30711bbcad4eb1f4a5f934887b35243ee803c67d",
+  "lang": "ts",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend domain-events layer. Change: migrates event publishing from a post-commit publisher to an in-transaction outbox with post-commit dispatch, updating emitters and their test suites."
+}

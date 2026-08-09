@@ -1,0 +1,9 @@
+{
+  "id": "real-10",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "87574b0bbb62c983d6f1d6973c0f6430a4110490",
+  "head_sha": "de2c964867c9d699c5614af7cef7d3fb6a2acd06",
+  "lang": "ts",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend serialization path. Change: renders meeting-summary notes as formatted rich-text via a markdown-to-editor-JSON serializer instead of the previous plain-text conversion."
+}

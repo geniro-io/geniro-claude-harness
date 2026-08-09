@@ -1,0 +1,9 @@
+{
+  "id": "real-9",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "e860c278f146e987a28cbd2ff3f4d4f4c1f29732",
+  "head_sha": "e5d0c89ade39b9522166cf0f3b8f3cd411e53297",
+  "lang": "ts",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend queue/scheduler. Change: adds a feature-flag-gated periodic backfill that scans for finalized meeting summaries missing timeline entries and re-enqueues fan-out jobs for them."
+}
