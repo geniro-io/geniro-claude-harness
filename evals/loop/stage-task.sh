@@ -41,12 +41,53 @@ if [ "$MODE" = "git" ]; then
   HEAD="$(jqr '.head_sha')"
   git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
   git -C "$REPO" cat-file -e "${HEAD}^{commit}" || { echo "head_sha absent in $REPO" >&2; exit 66; }
-  # A plain archive extract, not a linked worktree: the reviewed tree must not
-  # register in the source repo's worktree list (no cleanup coupling, no lock risk).
-  mkdir -p "$STAGE_DIR/tree"
-  git -C "$REPO" archive "$HEAD" | tar -x -C "$STAGE_DIR/tree"
   git -C "$REPO" diff "$BASE" "$HEAD" > "$STAGE_DIR/diff.patch"
   git -C "$REPO" diff --name-only "$BASE" "$HEAD" > "$STAGE_DIR/changed-files.txt"
+  # A plain archive extract, not a linked worktree: the reviewed tree must not
+  # register in the source repo's worktree list (no cleanup coupling, no lock risk).
+  SCOPE_MODE="$(jqr '.workspace_scope // "auto"')"
+  mkdir -p "$STAGE_DIR/tree"
+  if [ "$SCOPE_MODE" = "full" ]; then
+    git -C "$REPO" archive "$HEAD" | tar -x -C "$STAGE_DIR/tree"
+    echo full > "$STAGE_DIR/workspace-scope.txt"
+  else
+    # Prune the workspace to the diff's neighborhood: agent workspace reads are
+    # ~90% of a real task's token bill, and they scale with what exists to read.
+    # Scope = depth-2 subtrees holding changed files + workspace packages the
+    # changed files import (by package-name match) + root files + rule surfaces.
+    # Paths with spaces are unsupported here (fine for the repos we stage).
+    FULL="$STAGE_DIR/.full"
+    rm -rf "$FULL"; mkdir -p "$FULL"
+    git -C "$REPO" archive "$HEAD" | tar -x -C "$FULL"
+    SCOPE="$STAGE_DIR/workspace-scope.txt"
+    awk -F/ 'NF>=3 {print $1"/"$2} NF==2 {print $1}' "$STAGE_DIR/changed-files.txt" | sort -u > "$SCOPE.tmp"
+    NAMES="$STAGE_DIR/.pkgnames"
+    ( cd "$FULL" && find . -mindepth 2 -maxdepth 3 -name package.json | sed 's|^\./||' ) | while IFS= read -r pj; do
+      n="$(jq -r '.name // empty' "$FULL/$pj" 2>/dev/null)"
+      [ -n "$n" ] && printf '%s\t%s\n' "$n" "$(dirname "$pj")"
+    done > "$NAMES"
+    CF_LIST="$STAGE_DIR/.changed-present"
+    : > "$CF_LIST"
+    while IFS= read -r f; do
+      [ -f "$FULL/$f" ] && echo "$FULL/$f" >> "$CF_LIST"
+    done < "$STAGE_DIR/changed-files.txt"
+    if [ -s "$CF_LIST" ] && [ -s "$NAMES" ]; then
+      while IFS="	" read -r n d; do
+        # shellcheck disable=SC2046
+        grep -Fq "$n" $(cat "$CF_LIST") 2>/dev/null && echo "$d"
+      done < "$NAMES" >> "$SCOPE.tmp"
+    fi
+    sort -u "$SCOPE.tmp" > "$SCOPE"
+    STAGELIST="$STAGE_DIR/.stagelist"
+    ( cd "$FULL" && find . -maxdepth 1 -type f | sed 's|^\./||' ) > "$STAGELIST"
+    for d in .claude .cursor; do [ -d "$FULL/$d" ] && echo "$d" >> "$STAGELIST"; done
+    while IFS= read -r d; do
+      [ -e "$FULL/$d" ] && echo "$d"
+    done < "$SCOPE" >> "$STAGELIST"
+    # shellcheck disable=SC2046
+    ( cd "$FULL" && tar -cf - $(cat "$STAGELIST") ) | tar -x -C "$STAGE_DIR/tree"
+    rm -rf "$FULL" "$SCOPE.tmp" "$NAMES" "$CF_LIST" "$STAGELIST"
+  fi
 elif [ "$MODE" = "patch" ]; then
   TREE_DIR="$(jqr '.tree_dir // empty')"
   PATCH="$TASK_DIR/$(jqr '.patch')"

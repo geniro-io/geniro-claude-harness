@@ -29,6 +29,7 @@ MAX_USD="50"
 PROBE=0
 DRY=0
 NO_CACHE=0
+FACETS_FILTER=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -44,6 +45,7 @@ while [ $# -gt 0 ]; do
     --probe)   PROBE=1; shift;;
     --dry-run) DRY=1; shift;;
     --no-cache) NO_CACHE=1; shift;;
+    --facets)  FACETS_FILTER="$2"; shift 2;;
     *) echo "unknown arg: $1" >&2; exit 64;;
   esac
 done
@@ -152,11 +154,14 @@ run_one() { # task_id trial facet criteria...
   mkdir -p "$rdir"
   local prompt_file="$rdir/prompt-$facet.md"
   assemble_prompt "$stage" "$facet" "$@" > "$prompt_file"
-  local ver key cached
+  local ver key cached wsig
   ver="$(rubric_version "$TASKS/$task_id")"
   # trial is part of the key: trials must be independent samples, while a
-  # re-run/resume of the SAME trial index stays a free cache hit.
-  key="$(printf '%s|%s|t%s|v%s|%s' "$MODEL" "$task_id" "$trial" "$ver" "$(sha < "$prompt_file")" | sha)"
+  # re-run/resume of the SAME trial index stays a free cache hit. The workspace
+  # signature is too: identical prompts over differently-pruned trees are
+  # different measurement conditions.
+  if [ -f "$stage/workspace-scope.txt" ]; then wsig="$(sha < "$stage/workspace-scope.txt")"; else wsig="full"; fi
+  key="$(printf '%s|%s|t%s|v%s|w%s|%s' "$MODEL" "$task_id" "$trial" "$ver" "$wsig" "$(sha < "$prompt_file")" | sha)"
   cached="$CACHE_DIR/$key.json"
   if [ "$NO_CACHE" -eq 0 ] && [ -f "$cached" ]; then
     cp "$cached" "$rdir/raw-$facet.json"
@@ -201,16 +206,26 @@ done | jq -s '.')"
 BENCH_HASH="$(printf '%s' "$TASK_MANIFEST" | sha)"
 
 N_FACETS="$(jq '.facets | length' "$FACETS_JSON")"
-TOTAL_CALLS=$(( ${#TASK_IDS[@]} * TRIALS * N_FACETS ))
+if [ -n "$FACETS_FILTER" ]; then
+  FACET_IDX="$(jq -r --arg f "$FACETS_FILTER" '($f | split(",")) as $want
+    | .facets | to_entries[] | select(.value.name as $n | $want | index($n)) | .key' "$FACETS_JSON")"
+else
+  FACET_IDX="$(jq -r '.facets | keys[]' "$FACETS_JSON")"
+fi
+[ -n "$FACET_IDX" ] || { echo "--facets '$FACETS_FILTER' matches no facet" >&2; exit 64; }
+N_SEL="$(echo "$FACET_IDX" | wc -l | tr -d ' ')"
+TOTAL_CALLS=$(( ${#TASK_IDS[@]} * TRIALS * N_SEL ))
 
 jq -n --arg module "$MODULE" --arg variant "$(basename "$VARIANT")" \
       --arg variant_hash "$VARIANT_HASH" --arg model "$MODEL" --arg adapter "$ADAPTER" \
       --arg tasks "$TASKS" --arg bench_hash "$BENCH_HASH" \
       --argjson manifest "$TASK_MANIFEST" --argjson trials "$TRIALS" \
       --arg max_usd "$MAX_USD" --arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg facets "${FACETS_FILTER:-all}" \
       '{module:$module, variant:$variant, variant_hash:$variant_hash,
         model:$model, adapter:$adapter, tasks:$tasks, bench_hash:$bench_hash,
-        task_manifest:$manifest, trials:$trials, max_usd:$max_usd, started_at:$started}' \
+        task_manifest:$manifest, trials:$trials, max_usd:$max_usd,
+        facets:$facets, started_at:$started}' \
   > "$OUT/spec.json"
 
 # ---- stage every task once (keep a completed stage: resumes are frequent) ----
@@ -226,8 +241,7 @@ done
 
 if [ "$DRY" -eq 1 ]; then
   for task_id in "${TASK_IDS[@]}"; do
-    i=0
-    while [ "$i" -lt "$N_FACETS" ]; do
+    for i in $FACET_IDX; do
       facet="$(jq -r ".facets[$i].name" "$FACETS_JSON")"
       # shellcheck disable=SC2046
       set -- $(jq -r ".facets[$i].criteria[]" "$FACETS_JSON")
@@ -235,7 +249,6 @@ if [ "$DRY" -eq 1 ]; then
       mkdir -p "$(dirname "$p")"
       assemble_prompt "$OUT/stage/$task_id" "$facet" "$@" > "$p"
       echo "[dry] $task_id $facet: $(wc -c < "$p" | tr -d ' ') bytes"
-      i=$((i + 1))
     done
   done
   echo "[dry] total calls a real sweep would make: $TOTAL_CALLS"
@@ -245,9 +258,11 @@ fi
 
 if [ "$PROBE" -eq 1 ]; then
   task_id="${TASK_IDS[0]}"
-  facet="$(jq -r '.facets[0].name' "$FACETS_JSON")"
+  # shellcheck disable=SC2086
+  set -- $FACET_IDX; i="$1"
+  facet="$(jq -r ".facets[$i].name" "$FACETS_JSON")"
   # shellcheck disable=SC2046
-  set -- $(jq -r '.facets[0].criteria[]' "$FACETS_JSON")
+  set -- $(jq -r ".facets[$i].criteria[]" "$FACETS_JSON")
   echo "[probe] $task_id $facet on $MODEL"
   NO_CACHE=1   # a probe must measure a real call (harmless: probe exits below)
   run_one "$task_id" 1 "$facet" "$@"
@@ -272,8 +287,7 @@ for task_id in "${TASK_IDS[@]}"; do
   trial=1
   while [ "$trial" -le "$TRIALS" ]; do
     [ "$ABORTED" -eq 1 ] && break
-    i=0
-    while [ "$i" -lt "$N_FACETS" ]; do
+    for i in $FACET_IDX; do
       facet="$(jq -r ".facets[$i].name" "$FACETS_JSON")"
       # shellcheck disable=SC2046
       set -- $(jq -r ".facets[$i].criteria[]" "$FACETS_JSON")
@@ -290,7 +304,6 @@ for task_id in "${TASK_IDS[@]}"; do
       echo "[run] $task_id trial-$trial $facet"
       run_one "$task_id" "$trial" "$facet" "$@" &
       launched=$((launched + 1))
-      i=$((i + 1))
     done
     trial=$((trial + 1))
   done

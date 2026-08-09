@@ -3,13 +3,50 @@
   "version": 1,
   "parser": "review-findings",
   "facets": [
-    { "name": "bugs",          "criteria": ["bugs-criteria.md"] },
-    { "name": "security",      "criteria": ["security-criteria.md"] },
-    { "name": "architecture",  "criteria": ["architecture-criteria.md"] },
-    { "name": "tests",         "criteria": ["tests-criteria.md"] },
-    { "name": "conventions",   "criteria": ["guidelines-criteria.md", "conventions-criteria.md", "rules-compliance-criteria.md"] },
-    { "name": "regressions",   "criteria": ["regressions-criteria.md"] },
-    { "name": "optimizations", "criteria": ["optimizations-criteria.md"] }
+    {
+      "name": "bugs",
+      "criteria": [
+        "bugs-criteria.md"
+      ]
+    },
+    {
+      "name": "security",
+      "criteria": [
+        "security-criteria.md"
+      ]
+    },
+    {
+      "name": "architecture",
+      "criteria": [
+        "architecture-criteria.md"
+      ]
+    },
+    {
+      "name": "tests",
+      "criteria": [
+        "tests-criteria.md"
+      ]
+    },
+    {
+      "name": "conventions",
+      "criteria": [
+        "guidelines-criteria.md",
+        "conventions-criteria.md",
+        "rules-compliance-criteria.md"
+      ]
+    },
+    {
+      "name": "regressions",
+      "criteria": [
+        "regressions-criteria.md"
+      ]
+    },
+    {
+      "name": "optimizations",
+      "criteria": [
+        "optimizations-criteria.md"
+      ]
+    }
   ],
   "assembly": {
     "max_prompt_bytes": 614400,
@@ -22,14 +59,47 @@
   "pass_expr": ".recall_must == 1",
   "negative_pass_expr": "(.noise_strict // 0) == 0 and (.plausible_real // 0) == 0",
   "champion_sync": [
-    { "from": "skills/_shared/review-criteria/bugs-criteria.md",            "to": "criteria/bugs-criteria.md" },
-    { "from": "skills/_shared/review-criteria/security-criteria.md",        "to": "criteria/security-criteria.md" },
-    { "from": "skills/_shared/review-criteria/architecture-criteria.md",    "to": "criteria/architecture-criteria.md" },
-    { "from": "skills/_shared/review-criteria/tests-criteria.md",           "to": "criteria/tests-criteria.md" },
-    { "from": "skills/_shared/review-criteria/regressions-criteria.md",     "to": "criteria/regressions-criteria.md" },
-    { "from": "skills/_shared/review-criteria/optimizations-criteria.md",   "to": "criteria/optimizations-criteria.md" },
-    { "from": "skills/_shared/review-criteria/guidelines-criteria.md",      "to": "criteria/guidelines-criteria.md" },
-    { "from": "skills/_shared/review-criteria/conventions-criteria.md",     "to": "criteria/conventions-criteria.md" },
-    { "from": "skills/_shared/review-criteria/rules-compliance-criteria.md","to": "criteria/rules-compliance-criteria.md" }
+    {
+      "from": "skills/_shared/review-criteria/bugs-criteria.md",
+      "to": "criteria/bugs-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/security-criteria.md",
+      "to": "criteria/security-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/architecture-criteria.md",
+      "to": "criteria/architecture-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/tests-criteria.md",
+      "to": "criteria/tests-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/regressions-criteria.md",
+      "to": "criteria/regressions-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/optimizations-criteria.md",
+      "to": "criteria/optimizations-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/guidelines-criteria.md",
+      "to": "criteria/guidelines-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/conventions-criteria.md",
+      "to": "criteria/conventions-criteria.md"
+    },
+    {
+      "from": "skills/_shared/review-criteria/rules-compliance-criteria.md",
+      "to": "criteria/rules-compliance-criteria.md"
+    }
+  ],
+  "screen_facets": [
+    "bugs",
+    "security",
+    "tests",
+    "regressions"
   ]
 }

@@ -4,14 +4,16 @@
 # judge subagents, and the promotion decision.
 #
 #   loop.sh screen  --module M --variant <dir> [--trials N] [--model M]
-#                   [--baseline <run-dir>] [--tasks <dir>] [--yes]
+#                   [--baseline <run-dir>] [--tasks <dir>] [--facets a,b] [--yes]
 #   loop.sh confirm --module M --variant <dir> [--trials N] --model M2 [--yes]
 #   loop.sh verdict <candidate-run> <baseline-run>
 #
 # screen  = probe (1 paid call, prints extrapolated cost) then, only with --yes,
 #           sweep candidate + champion baseline on the dev set and prep judging.
+#           Runs the module's screen_facets subset by default (target.json);
+#           --facets overrides (an experiment adding its own facets needs that).
 # confirm = the same flow on the HOLDOUT set — run it only after a screen win,
-#           and on a second model family (pass --model explicitly).
+#           on a second model family (pass --model explicitly), FULL facet set.
 # verdict = finish scoring both runs and print the paired comparison.
 set -euo pipefail
 
@@ -21,7 +23,7 @@ CMD="${1:-}"; shift || true
 case "$CMD" in
   screen|confirm)
     MODULE=""; VARIANT=""; TRIALS=2; MODEL="composer-2.5"; BASELINE=""; TASKS=""; YES=0
-    MODEL_SET=0
+    MODEL_SET=0; FACETS=""
     while [ $# -gt 0 ]; do
       case "$1" in
         --module) MODULE="$2"; shift 2;;
@@ -30,6 +32,7 @@ case "$CMD" in
         --model) MODEL="$2"; MODEL_SET=1; shift 2;;
         --baseline) BASELINE="$2"; shift 2;;
         --tasks) TASKS="$2"; shift 2;;
+        --facets) FACETS="$2"; shift 2;;
         --yes) YES=1; shift;;
         *) echo "unknown arg: $1" >&2; exit 64;;
       esac
@@ -40,10 +43,14 @@ case "$CMD" in
       [ "$MODEL_SET" -eq 1 ] || { echo "confirm requires an explicit --model (second family)" >&2; exit 64; }
     else
       [ -n "$TASKS" ] || TASKS="$HERE/modules/$MODULE/benchmarks/dev"
+      # Screening runs the cheap facet subset unless the caller overrides.
+      [ -n "$FACETS" ] || FACETS="$(jq -r '(.screen_facets // []) | join(",")' "$HERE/modules/$MODULE/target.json" 2>/dev/null)"
     fi
+    FACETS_ARGS=()
+    [ -n "$FACETS" ] && [ "$CMD" = "screen" ] && FACETS_ARGS=(--facets "$FACETS")
     echo "== probe (1 paid call) =="
     bash "$HERE/run.sh" --module "$MODULE" --variant "$VARIANT" --tasks "$TASKS" --model "$MODEL" --probe \
-      --out "$HERE/runs/scratch/probe-$$"
+      ${FACETS_ARGS[@]+"${FACETS_ARGS[@]}"} --out "$HERE/runs/scratch/probe-$$"
     rm -rf "$HERE/runs/scratch/probe-$$"
     if [ "$YES" -ne 1 ]; then
       echo "== probe only. Re-run with --yes to launch the sweep =="
@@ -53,12 +60,12 @@ case "$CMD" in
     CAND_OUT="$HERE/runs/scratch/$STAMP-$CMD-$(basename "$VARIANT")"
     echo "== sweep: candidate =="
     bash "$HERE/run.sh" --module "$MODULE" --variant "$VARIANT" --tasks "$TASKS" \
-      --model "$MODEL" --trials "$TRIALS" --out "$CAND_OUT"
+      --model "$MODEL" --trials "$TRIALS" ${FACETS_ARGS[@]+"${FACETS_ARGS[@]}"} --out "$CAND_OUT"
     if [ -z "$BASELINE" ]; then
       BASELINE="$HERE/runs/scratch/$STAMP-$CMD-champion"
       echo "== sweep: champion baseline (cache makes unchanged calls free) =="
       bash "$HERE/run.sh" --module "$MODULE" --tasks "$TASKS" \
-        --model "$MODEL" --trials "$TRIALS" --out "$BASELINE"
+        --model "$MODEL" --trials "$TRIALS" ${FACETS_ARGS[@]+"${FACETS_ARGS[@]}"} --out "$BASELINE"
     fi
     echo "== prep judging =="
     bash "$HERE/score.sh" "$CAND_OUT" --phase prep --tasks "$TASKS"

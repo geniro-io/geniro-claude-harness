@@ -69,9 +69,17 @@ probe cost in a message, then one AUQ: run the screen / edit / drop.
 
 ### 2. Screen
 
-`bash loop.sh screen --module <m> --variant <dir> --yes` (after the approval
-above; it re-probes internally). On abort (exit 75) report the measured spend
+`bash loop.sh screen --module <m> --variant <dir> --trials 1 --yes` (after the
+approval above; it re-probes internally, and runs the module's
+`screen_facets` subset — a variant that ADDS facets needs an explicit
+`--facets` list including them). On abort (exit 75) report the measured spend
 and stop.
+
+Trials are sequential (rule pre-registered in DESIGN.md): judge the 1-trial
+pair first; an exact recall_must tie with |Δnoise| < 1.1/task is a recorded
+tie — stop there. Any other outcome → re-run both sweeps with `--trials 2`
+(trial-1 replays from cache) and judge only the new trial. Never promote from
+a 1-trial screen.
 
 ### 3. Judge (free path)
 

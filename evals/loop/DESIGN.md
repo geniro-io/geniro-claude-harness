@@ -59,9 +59,29 @@ digest lives in the session report; each mechanism below names its source.
 Money guards live in `run.sh`, not in prose: `--probe` runs one paid call and
 extrapolates the sweep from the measured usage row; `--max-usd` (default $50)
 aborts a sweep that crosses the measured ceiling; the content-keyed cache
-(model + task@rubric-version + prompt hash, successes only — promptfoo's
-recipe) makes re-runs and resumes free. Blended measured rates live in
-`adapters/cursor-prices.json` — re-probe after any workload-shape change.
+(model + task@rubric-version + trial + workspace-signature + prompt hash,
+successes only — promptfoo's recipe) makes re-runs and resumes free. Blended
+measured rates live in `adapters/cursor-prices.json` — re-probe after any
+workload-shape change.
+
+Screening economics (2026-08-09 config; a stand-condition change — pre-change
+baselines and the EXP-001 noise floor are indicative, not comparable):
+
+- **Pruned workspace** — `stage-task.sh` git mode stages the diff's
+  neighborhood (depth-2 subtrees of changed files + workspace packages the
+  changed files import + root files + `.claude`/`.cursor` rule surfaces), not
+  the whole monorepo; agent workspace reads were ~90% of a real task's bill.
+  `"workspace_scope": "full"` in task.json opts a task out. The scope list's
+  hash is part of the cache key.
+- **Screen facet subset** — screens run `target.json.screen_facets` (for
+  review: bugs/security/tests/regressions — every must item's class lives
+  there, and the legacy H1 result showed recall parity on 4 dimensions);
+  confirm always runs the FULL facet set.
+- **Sequential trials** (pre-registered escalation rule): screen both arms at
+  1 trial first; if the paired Δrecall_must is an exact tie AND |Δnoise| <
+  1.1/task (the A-vs-A noise-of-noise), record the tie and stop. Otherwise
+  sweep both arms at `--trials 2` — trial-1 replays free from cache — and
+  issue the standard 2-trial verdict. Never promote from a 1-trial screen.
 
 ## Scoring
 
