@@ -121,7 +121,7 @@ The pattern set is deliberately narrow. A false reject drops just one best-effor
 ## Dedup pipeline
 
 1. Compute or accept `dedup_key`.
-2. `tail -n 200` of the log file (cheap — covers the recency window where dups appear).
+2. `tail -n "$GENIRO_DEDUP_WINDOW"` of the log file (cheap — covers the recency window where dups appear; see §Known limitations for the default and how to override it).
 3. Find the **last** prior entry with matching `dedup_key` (handles supersede chains correctly — the comparison targets the head of the chain).
 4. Compare prior vs new excluding `ts`, `recurrence_count`, and `supersedes` via `jq -cS 'del(.ts, .recurrence_count, .supersedes)'` (canonicalized). All three are derived per-write fields: `ts` is auto-injected per write, `recurrence_count` is a re-emit counter, and `supersedes` is auto-injected only on a superseding entry — a fresh re-emit of that same content carries no `supersedes` at compare time. Excluding all three makes an identical re-emit of a superseding entry compare equal (correct no-op); comparing them would make every re-emit look "different", defeating the no-op return and falsely inflating `recurrence_count`.
 5. Decisions:

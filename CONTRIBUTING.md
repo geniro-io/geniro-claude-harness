@@ -58,19 +58,15 @@ We especially welcome:
 - **Test with real projects** — install the plugin, run `/geniro:setup`, and verify the generated output makes sense
 - **Follow existing patterns** — look at how existing agents/skills are structured before creating new ones
 - **Update ARCHITECTURE.md** — if your change affects design decisions, update the consolidated architecture reference
-- **Keep working docs local** — plans, research notes, audit reports, and other throwaway design artifacts go in `design/scratch/` (gitignored, never committed). Skills that generate such docs (e.g. `/audit-plugin`) write them there; nothing in the tracked tree should depend on them. The one tracked file under `design/` is `audit-ledger.tsv` — see below
+- **Keep working docs local** — plans, research notes, audit reports, and other throwaway design artifacts go in `design/scratch/` (gitignored, never committed). Skills that generate such docs (e.g. `/audit-plugin`) write them there; nothing in the tracked tree should depend on them
 
-### The audit ledger — `design/audit-ledger.tsv`
+### A recurring audit finding becomes a check, not a memo
 
-Tracked, and committed with whatever round wrote it. One row per finding any audit has ever raised, carrying what was decided and which runs saw it.
+`/audit-plugin` used to carry a suppression ledger so a finding decided in one round would not be re-raised in the next. It was removed: both halves of its key — a content fingerprint and a class slug — were produced by an LLM, and neither was stable enough to match a re-raise. Fifteen rows entered the last round it ran under and one matched.
 
-It exists because the audit did not converge without it. Seven whole-repo rounds produced 138, 121, 101, 87 and 130 findings, because each round began blind: the report goes to gitignored `design/scratch/` and every run gets a fresh container, so no run ever read its predecessor's decisions.
+What replaces it is the property that made the deterministic pre-pass never churn in the first place. When a finding class is decidable without taste — a reference that does not resolve, a declared tool absent from `allowed-tools`, a count contradicting the set it counts — add a hard check under `tests/authoring/` and let CI carry it. A check has a stable identity, fires identically every run, and stops firing permanently once the violation is fixed. Advisory checks do not get this property: the run that ignores a warning leaves it for the next reviewer to re-raise as prose, so make it hard or leave it out.
 
-Three things bind when you touch it:
-
-- **The key is content, not a line number.** `ledger_fingerprint` hashes 100 characters of context from the cited line, whitespace-insensitive, spanning line boundaries — the `primaryLocationLineHash` shape from GitHub's `codeql-action`. Inserting lines above a finding leaves its key alone; rewriting the passage moves it, and the finding correctly reopens. Never hand-edit a fingerprint.
-- **A `rejected` row states its reason.** The helper refuses one that does not. A suppression nobody can audit is how a ledger rots into a blanket that hides real defects — the failure mode measured across suppression stores generally, where most entries are never removed and the removed ones had long since stopped mattering.
-- **Prune by machine, never by argument.** `ledger_prune` drops rows whose file is gone and nothing else. Re-opening a decision means a new finding in a new run, not an edit to the old row.
+When a class needs taste to decide, it is not a candidate for a check and not a candidate for a memo either — prose findings from that pipeline were measured surviving at 6% against 86% for code.
 
 ### Authoring checks in `.claude/skills/analyze-thread/checks-reference.md`
 

@@ -2,13 +2,15 @@
 # Single source of truth for the write/delete vectors a Bash-side guard cannot
 # see by matching shell syntax alone.
 #
-# Three families live here:
+# Four families live here:
 #   A. `_geniro_extract_inner_payloads` — shell indirection (`sh -c`, `eval`, a
 #      pipe, a heredoc, a process substitution, an interpreter shelling out).
 #   B. `_geniro_interp_write_targets` / `_geniro_interp_delete_targets` —
 #      interpreter-mediated file writes and deletes.
 #   C. `_geniro_join_quoted_newlines` — a quoted literal spanning a newline,
 #      which every line-oriented pass in a guard reads as two unbalanced lines.
+#   D. `_geniro_wv_cd_prefix` — a `cd`/`pushd` into a guarded tree, which hides
+#      every later relative operand from a caller's own path matchers.
 #
 # Every recognizer here is STRUCTURAL, not enumerative. A shell is reached by
 # more spellings than a bare word — `/bin/sh` names it by path, `"sh"` quotes it,
@@ -374,6 +376,61 @@ _geniro_join_quoted_newlines() {
 }
 
 # ---------------------------------------------------------------------------
+# A `cd` or `pushd` INTO a guarded tree hides every later relative operand
+# from a caller's own path-shaped matchers: `cd .geniro && rm -rf instructions`
+# (or `pushd .geniro && …`) spells no `.geniro` path in the command that
+# follows at all, yet resolves to exactly the same target
+# `rm -rf .geniro/instructions` would. `pushd` reaches the identical
+# directory-change builtin `cd` does — it changes the working directory and
+# pushes the old one onto a stack — so a matcher keyed on the literal word
+# `cd` alone lets `pushd` walk straight through.
+#
+# _geniro_wv_cd_prefix <text> <marker>
+#
+# Scans <text> for the LAST `cd`/`pushd` invocation whose target contains
+# <marker> (a literal substring like ".geniro" or ".git", matched between
+# slashes so a prefix collision — e.g. a directory named `.geniroX`, or a repo
+# named `.gitignore-tools` — does not count), and prints that target with any
+# trailing slash stripped. Empty stdout when no such invocation is found. The
+# LAST one wins, matching shell execution order — a later `cd`/`pushd`
+# overrides an earlier one for every operand that follows it.
+#
+# <text> must already be split so each `cd`/`pushd` invocation's own operand
+# span cannot run past the boundary of an unrelated line or command — this
+# function relies on `grep` matching per LINE (its default, unset by any `-z`),
+# so the caller's own separator/newline handling is what keeps that honest,
+# not this function.
+#
+# `pushd`'s own flags (`-n`) and stack-index operands (`+2`, `-1`) fall out of
+# the same leading-`-`-or-`+`-or-flag skip `cd`'s flags do; `(cd .geniro; …)`
+# subshell wrapping and a `\cd`/`\pushd` escape are unwrapped before matching.
+_geniro_wv_cd_prefix() {
+  local text="${1:-}" marker="${2:-}"
+  [ -z "$text" ] && return 0
+  [ -z "$marker" ] && return 0
+  local prefix="" _cd_span _cd_tok
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|pushd|*/cd|*/pushd|-*|+*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */"$marker"/*) prefix="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[\\|;&(/[:space:]])(cd|pushd)[[:space:]]+[^|;&]*' || true)"
+  printf '%s' "$prefix"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Interpreter-mediated writes and deletes.
 #
 # A guard's shell-syntax vectors (redirection, tee, sed -i, cp/mv, rm) read a
@@ -613,4 +670,83 @@ _geniro_interp_delete_targets() {
 
   [ "$unresolved" = "1" ] && return 10
   return 0
+}
+
+# ---------------------------------------------------------------------------
+# E. _geniro_wv_unquote_words <text>
+#
+# Recover the word the SHELL will actually pass, for the quoting and escaping
+# that a guard's line-oriented passes destroy before they can match it.
+#
+# Three shell-inert spellings name one word, and every guard here matches words:
+#
+#   1. `$'--force'` / `$"--force"` — ANSI-C and locale quoting delimit a word
+#      exactly like a plain quote, but leave a `$` glued to the token once the
+#      marks come off, so a whitespace-anchored matcher never anchors.
+#   2. `'--force'`, `"--force"`, `--fo""rce`, `.e""nv` — a quoted span carrying
+#      no whitespace is one word, so its marks are noise. Blanking it as data
+#      (correct for prose) erases a flag or a path operand instead.
+#   3. `\-\-force`, `--for\ce`, `.\env` — a backslash before an ordinary
+#      character is dropped by the shell. Only ordinary characters are
+#      unescaped here: `\ `, `\\`, `\$`, `\"`, `\'` and a line continuation all
+#      change what the shell does, so they are left alone.
+#
+# A quoted span CONTAINING whitespace stays quoted — that is prose, and
+# unquoting `echo "never run git push --force"` would block a sentence. The
+# whitespace test is what separates an operand from a quotation.
+#
+# Callers run this BEFORE their quoted-literal blanking pass, so the blanking
+# that follows sees only spans that really are data.
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+
+# ---------------------------------------------------------------------------
+# F. _geniro_wv_expand_assignments <text>
+#
+# Put an assigned literal back where its expansion sits, so a guard matches the
+# command the shell will actually run.
+#
+# There are two shapes and they need opposite treatment from the payload
+# extractor. A variable can hold a whole destructive COMMAND (`C="<force-push
+# spelled out>"; $C`), or it can hold just the OPERAND a destructive command
+# will act on (`P=<guarded dir>; rm -rf $P`). Re-running a guard on the value
+# only works for the first — a bare path proves nothing on its own.
+# Substituting the value back into the text covers both, because in both cases
+# the value is what reaches the shell.
+#
+# Only single-pass literal assignments are expanded — a value that is itself an
+# expansion, a substitution, or the output of a command is left alone rather
+# than chased, since nothing here evaluates anything. Longest names first, so
+# `$AB` is not clobbered by a rule for `$A`.
+_geniro_wv_expand_assignments() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  local _asn _name _val _pairs=""
+  while IFS= read -r _asn; do
+    [ -z "$_asn" ] && continue
+    _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
+    _name="${_asn%%=*}"
+    _val="${_asn#*=}"
+    case "$_val" in
+      '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
+      "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
+    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+
+  while IFS=' ' read -r _ _name _val; do
+    [ -z "${_name:-}" ] && continue
+    text="${text//\$\{$_name\}/$_val}"
+    text="${text//\$$_name/$_val}"
+  done <<< "$(printf '%s' "$_pairs" | sort -rn)"
+  printf '%s\n' "$text"
 }

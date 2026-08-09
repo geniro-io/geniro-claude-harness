@@ -276,6 +276,30 @@ else
   fail "perl-absent: expected a systemMessage naming perl — got: $(cat "$NOPERL_OUT")"
 fi
 
+# ===== T4-5: jq-absent — the hook cannot parse tool input without jq, and (like
+# perl-absent above) carries no coarse fallback, so it fails open UNCONDITIONALLY.
+# FAKEBIN holds every tool the hook needs except jq; the payload is built with
+# printf, not jq, so the test harness itself does not depend on jq being on PATH
+# for this case (mirrors block-dangerous-git.sh's shape). =====
+NOJQ_FAKEBIN="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$NOJQ_FAKEBIN"
+for _t in perl cat grep sed awk tr head printf env bash sh dirname; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$NOJQ_FAKEBIN/$_t"
+done
+NOJQ_OUT="$TMPDIR_BASE/security-check-nojq.out"
+run_write_nojq() {  # <path> <content>
+  printf '{"tool_input":{"file_path":"%s","content":"%s"}}' "$1" "$2" \
+    | PATH="$NOJQ_FAKEBIN" bash "$HOOK" >"$NOJQ_OUT" 2>&1
+  echo $?
+}
+expect_allow "jq-absent: eval() in .py fails open (hook cannot run without jq)" \
+  "$(run_write_nojq /tmp/x.py 'r = eval(s)')"
+if grep -q "jq not found on PATH" "$NOJQ_OUT"; then
+  pass "jq-absent: systemMessage names jq as the missing dependency"
+else
+  fail "jq-absent: expected a systemMessage naming jq — got: $(cat "$NOJQ_OUT")"
+fi
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

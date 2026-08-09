@@ -1,6 +1,6 @@
 # Phase 0.5 — Problem discovery (opt-in, fires only on `--prd`)
 
-A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentation contract, echo contract, phase order, terminal states, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`.
+The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
 State.md `phase: problem-discovery` during this phase. **Fires only when `prd_mode: true`** (set in Phase 0.1 from a `--prd` flag in `$ARGUMENTS`). When `prd_mode` is unset, skip this phase entirely — the loop transitions Phase 0 → Phase 1 unchanged.
 

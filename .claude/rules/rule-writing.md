@@ -23,6 +23,6 @@ A rule file is payload for a model that has to act on it, not a document arguing
 - How the rule got here — the prior version, the incident, the debate.
 - Restatement of a neighbouring rule for emphasis.
 
-**Bounds.** A compression pass cuts the case, never the rule. Removing a rule is a separate decision with its own evidence bar — `skill-prose.md` §Token budget awareness carries the ceiling and why "I removed it and the run still worked" does not clear it. Where a rule binds one kind of work only, path-scope it rather than deleting it: what degrades rule-following is how many plausible-but-inapplicable rules the model has to adjudicate, so a scoped rule stops competing without being lost.
+**Bounds.** A compression pass cuts the case, never the rule. Removing a rule is a separate decision with its own evidence bar — `skill-prose.md` §Token budget awareness carries that bar, the reduction ceiling, and the path-scoping alternative to deletion.
 
 **Before committing**, confirm every heading another file cites by `§` still exists — `grep -rn "<filename>" --include=*.md --include=*.sh .` finds the citing sites. A renamed or dropped heading breaks a live cross-reference in a skill, an agent prompt, or the lint.

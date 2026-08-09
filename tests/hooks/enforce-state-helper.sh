@@ -377,6 +377,23 @@ expect_block "jqless: bash redirect into a canonical state path still blocked" \
 expect_allow "jqless: non-state write fails open" \
   "$(run_path_nojq '/tmp/out.txt')"
 
+# ===== T0-1: `pushd` reaches the same builtin `cd` does and must not evade =====
+# `pushd .geniro && echo x > safety.json` spelled no `.geniro` path in the
+# redirect target at all, yet wrote exactly where
+# `echo x > .geniro/safety.json` would — the headline exploit: a one-command
+# self-grant of every bypass in the plugin.
+expect_block "bash: pushd .geniro && write to safety.json blocks" \
+  "$(rc_bash 'pushd .geniro && echo x > safety.json')"
+expect_block "bash: cd .geniro && write to safety.json still blocks" \
+  "$(rc_bash 'cd .geniro && echo x > safety.json')"
+expect_block "bash: pushd .geniro/state && redirect into handoff blocks" \
+  "$(rc_bash 'pushd .geniro/state && echo x > handoff/from-x-y.md')"
+# `pushd -n` (suppress directory-stack printing) must not be read as the target.
+expect_block "bash: pushd -n .geniro && write to safety.json blocks" \
+  "$(rc_bash 'pushd -n .geniro && echo x > safety.json')"
+expect_allow "bash: pushd into a non-.geniro dir allowed" \
+  "$(rc_bash 'pushd /tmp && echo x > notes.txt')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

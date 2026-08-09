@@ -299,7 +299,7 @@ Each field is `null` when the producer had nothing to capture (no PR ref, or `gh
     ```<lang>
     <2-5 lines from reviewer-agent Evidence: codeblock>
     ```
-    OR (command-based form): `Command:` / `Exit code:` / `Tail (last 3 lines):`
+    OR (command-based form): `Command:` / `Exit code:` / `Tail (the tail length ${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md § Evidence Block schema specifies):`
   - **Validation:** `confirmed | refuted | clarified | unverified` [every kept finding — CRITICAL / HIGH / MEDIUM; emitted by Phase 4.2 per-finding verifier, except `unverified`, which only the orchestrator assigns when the verifier failed to spawn (finding-verification.md §4.5); ABSENT on LOW (which never enters Phase 4.2)]
   - **Recommended-action:** `fix-now | testable | product-decision | intent-check | drop` [every kept finding — verifier override; when `Validation: clarified`, this field supersedes the original `Decision Type:` for downstream routing]
   - **Verification-confidence:** `1 | 2 | 3 | 4 | 5` [every kept finding — coarse 1-5 scale, distinct from the LLM `Confidence: NN%` field above]

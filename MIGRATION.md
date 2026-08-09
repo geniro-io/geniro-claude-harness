@@ -92,6 +92,8 @@ The `require-evidence-on-completion.sh` Stop hook — which scanned the last ass
 
 ### Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead
 
+> **Superseded — historical record only.** The trailing clause below — that `/geniro:plan` and `/geniro:onboard` keep their inline candidate-drafting steps and that the recurring-pattern rule offers in `/geniro:debug` and `/geniro:refactor` are unchanged — no longer holds. All four were removed by *"Rule proposals are `/geniro:reflect` only — every other skill's rule offer removed"* (in the v5.0.0 section). No action beyond that entry.
+
 `/geniro:implement`, `/geniro:review`, and `/geniro:refactor` no longer spawn the `reflection-agent` automatically after a run settles — the "Suggest improvements" step (and its background-spawn/drain machinery) is removed from all three. Rule and improvement mining is now the dedicated `/geniro:reflect` skill: run it on demand to analyze recent sessions — diffs, findings, or transcript extracts — for durable rule candidates, walked one at a time with the same candidate bar and routing targets as before. `/geniro:plan` and `/geniro:onboard` keep their inline candidate-drafting steps, and the recurring-pattern rule offers in `/geniro:debug` and `/geniro:refactor` are unchanged.
 
 **Action required:** None beyond awareness — run `/geniro:reflect` when you want improvement suggestions; no state-file schema changed.
@@ -203,6 +205,10 @@ grep -l "## Carried-over" .geniro/state/handoff/from-review-*.md 2>/dev/null
 ---
 
 ## v3.0.0
+
+The v3 release lands the /implement 3-phase rewrite, MANDATORY /review spawn list with pre/post-spawn verification gates, /plan workflow_refs[] tracker linkage (m5-v2 schema), cluster-gated `/plan` approval (three dependency-ordered gates) with restored Phase 2 Visual Companion, structured `open_questions[]` in T2 handoffs with a 3-gate safety chain, T1/T1.5 state tier split for Ship-cleanup preservation, and universal `model: inherit` for all plugin subagents. Seven changes need user attention; auto-fix is provided where mechanical, manual review is called out where judgment is needed.
+
+---
 
 ### Persistent `.geniro/` content now writes to the main repo checkout (primary worktree)
 
@@ -360,8 +366,6 @@ grep -l "Validation: unverified" .geniro/state/handoff/from-review-*.md 2>/dev/n
 
 ---
 
-The v3 release lands the /implement 3-phase rewrite, MANDATORY /review spawn list with pre/post-spawn verification gates, /plan workflow_refs[] tracker linkage (m5-v2 schema), per-section AUQ `preview` field with restored Phase 2 Visual Companion, structured `open_questions[]` in T2 handoffs with a 3-gate safety chain, T1/T1.5 state tier split for Ship-cleanup preservation, and universal `model: inherit` for all plugin subagents. Seven changes need user attention; auto-fix is provided where mechanical, manual review is called out where judgment is needed.
-
 ### Post-task improvement suggestions now fire across implement / refactor / review / plan / onboard
 
 > **Superseded — historical record only.** The automatic `/implement`, `/refactor`, and `/review` spawns this entry added were removed by *"Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead"* (in the v2.78.0 section), which also retires the trailing "Improvements" prompt in those three skills; `/geniro:reflect` covers that work on demand. `/plan`'s and `/onboard`'s inline candidate-drafting steps were themselves later removed — see the v5.0.0 section, *"Rule proposals are `/geniro:reflect` only — every other skill's rule offer removed"*. Nothing from this entry still ships. No action.
@@ -418,7 +422,7 @@ find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o
 
 All plugin subagents (`reviewer-agent` / `knowledge-retrieval-agent` / `codebase-explorer-agent` / `test-runner-agent` / `adversarial-tester-agent`) now declare `model: inherit` in frontmatter, and spawn sites OMIT the `model=` argument. *[Updated: `test-runner-agent` and `knowledge-retrieval-agent` have since been re-pinned to `model: sonnet` as mechanical carve-outs per `skills/_shared/model-tiering.md` §carve-outs; `reviewer-agent` / `codebase-explorer-agent` / `adversarial-tester-agent` still declare `model: inherit`.]* If your orchestrator session is on Opus, every reviewer-agent per `/review` and every Phase-3 spawn per `/implement` also runs on Opus — significantly higher cost than the prior hardcoded Sonnet floor. To restore the cheaper baseline, switch orchestrator tier via `/model sonnet` before running `/review` or `/implement`.
 
-One spawn site deliberately retains a hardcoded tier per `skills/_shared/model-tiering.md`: the `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference). *[Updated: two corrections. First, this is no longer the only hardcoded-tier spawn — current doctrine has several execution-spawn `model="sonnet"` pins (`skills/_shared/model-tiering.md` §The rule, category 4, the authoritative site list: `/geniro:implement` Phase 2's bounded code-delegate, the `ui-preview-gate` description agent, and the `/improve-template` + `/audit-plugin` implementers and fix agents). Second, the "tool budget" framing above does not hold: the Agent tool carries no per-spawn tool allowlist (`ARCHITECTURE.md` §Model tiering), so the setup Phase-4 spawn's read-only floor is enforced only by its spawn-prompt instructions, not by a tool grant — a tier defended by a claimed tool budget is defended by nothing.]*
+One spawn site deliberately retains a hardcoded tier per `skills/_shared/model-tiering.md`: the `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference). *[Updated: two corrections. First, this is no longer the only hardcoded-tier spawn — current doctrine has several execution-spawn `model="sonnet"` pins; the authoritative site list is `skills/_shared/model-tiering.md` §The rule, category 4 (do not re-enumerate it here; it drifts). Second, the "tool budget" framing above does not hold: the Agent tool carries no per-spawn tool allowlist (`ARCHITECTURE.md` §Model tiering), so the setup Phase-4 spawn's read-only floor is enforced only by its spawn-prompt instructions, not by a tool grant — a tier defended by a claimed tool budget is defended by nothing.]*
 
 **Action required:** Informational. If cost-sensitive, set orchestrator tier explicitly per session via `/model sonnet`. User-authored custom reviewers (`.geniro/instructions/review-extra/*.md`) may declare an explicit `model:` field to opt OUT of inherit on a per-reviewer basis.
 
@@ -735,7 +739,7 @@ cd .geniro/planning && \
 
 `/setup`-generated CLAUDE.md from older installs lists 18 skills including the 8 deleted ones. Users following the table hit "command not found".
 
-**Action required:** Run `/geniro:setup` re-run mode. Phase Generate detects the `<!-- geniro-setup-version: -->` marker and runs orchestrator-inline section merge — preserves user-edited prose while applying the new 11-skill table. Phase Validate verifies zero refs to dropped skills.
+**Action required:** Run `/geniro:setup` re-run mode. Phase Generate runs orchestrator-inline section merge — preserves user-edited prose while updating detected project facts — and CLAUDE.md carries no plugin markers of any kind (it is user-owned content, not plugin-managed). The Geniro skill table itself is excluded content and is never written to CLAUDE.md (`skills/setup/verification-checks.md` §Excluded content), so the remedy is a general regeneration, not a table swap. Phase Validate verifies zero refs to dropped skills.
 
 **Auto-detect:** `grep -q '^\*\*Skills deleted' CLAUDE.md 2>/dev/null || grep -El '/geniro:(brainstorm|decompose|follow-up|deep-simplify|features|learnings|cleanup|vendor)\b' CLAUDE.md 2>/dev/null`
 

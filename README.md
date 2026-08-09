@@ -99,7 +99,7 @@ The plugin itself ships globally — agents, skills, and hooks live inside the i
 ├── planning/               # specs, plans, _CODEBASE_MAP.md, _FEATURES.md, _project.md, _focus-*.md
 │   └── <task-dir>/         # task-bound: spec.md, plan.md, state.md, milestone-N.md
 ├── state/                  # session-bound + handoff
-│   ├── <skill>/<slug>/state.md  # /debug, /refactor, /onboard, /investigate, /resolve
+│   ├── <skill>/<slug>/state.md  # /debug, /refactor, /onboard, /investigate, /resolve, /audit-instructions
 │   ├── setup/state.md      # /setup singleton
 │   └── handoff/            # inter-skill: from-<producer>-<branch>.md
 ├── knowledge/              # learnings.jsonl (L2 episodic)
@@ -347,7 +347,7 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 | **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec, bypass `push-delete`) |
 | **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/`, `git worktree remove`, `git add -f` on `.geniro/` paths |
 | **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions set + CLAUDE.md so context survives compaction |
-| **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files, including shell-side writes |
+| **TDD-order enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — when TDD state shows phase=RED, blocks edits to production-code files, including shell-side writes. Dormant: no skill writes the RED-phase state file today, so the guard exits 0 on every run (`HOOKS.md` §enforce-tdd-order.sh) |
 | **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
 | **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — regex scan of edit content and shell commands for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
 | **Gate-render enforcement** | PreToolUse `AskUserQuestion` (hard-block) — blocks a question that references content "above" OR carries finding-gate evidence shorthand (a PRODUCT-DECISION tag, convergence wording, or a finding-ID like `F5`/`M1b`) when no visible message precedes it in the turn, so decision gates can't fire blind |

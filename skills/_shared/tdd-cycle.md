@@ -2,6 +2,8 @@
 
 Canonical RED→GREEN→REFACTOR procedure. Consumer: `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A4. RED-phase workflow. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
 
+**Currently dormant.** §A4 cites this file's RED phase for its verification logic but never performs the `## phase: RED` state-file write below, and no other file under `skills/` writes `.geniro/state/tdd/state-<slug>.md` either. With no writer, the state file never exists, so `enforce-tdd-order.sh` takes its "state file does not exist → exit 0" branch on every run — the hook is wired but inert. Treat the cycle below as the contract a future consumer implements against, not as an active gate: do not rely on `enforce-tdd-order.sh` to block out-of-order edits until a consumer actually writes the state file.
+
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
 
 ## Contents
@@ -57,7 +59,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
 1. **Author the failing test FIRST.** Production code changes are forbidden in this phase. The test targets the new behavior using the already-approved public interface signatures.
 2. **Run the test command** (project-specific, captured from CLAUDE.md). Capture stdout/stderr + exit code verbatim.
 3. **Verify exit code != 0 AND the failure signature matches the behavior under test.** A test that fails with `ImportError: no module named X` does not prove the new behavior is uncovered — it proves the test file is malformed. The signature must be a real assertion failure (`AssertionError`, `expected X got Y`, or equivalent).
-4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` schema: command, exit code, last 3 lines of output. Reasoning-from-the-diff is forbidden — the captured run is the only proof.
+4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` schema: command, exit code, the tail length that schema specifies. Reasoning-from-the-diff is forbidden — the captured run is the only proof.
 5. **Update state file:** set `## phase` to `RED`. Use the atomic-write procedure above.
 
 If exit code is 0 (test passes on current code), REJECT the RED step — the test is testing existing behavior, not the new behavior. Re-author the test with a tighter assertion before proceeding.

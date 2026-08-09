@@ -44,7 +44,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
    - B) Accept findings, ship anyway — state.md `phase: ship`, append `## Accepted Findings` block
    - C) Abort — state.md `phase: aborted` (terminal)
 
-   Empty answer = upstream bug, fall back to plain text and re-ask. Do not auto-default.
+   Empty answer — re-ask through the tool first; fall back to plain text only on a repeated empty-answer loop, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 
    The Phase 2 early-escalation triggers (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 6) apply to this fix loop too — same trigger set, same once-per-run dedupe, so a scope-drift escalation that already fired in Phase 2 never re-fires here. Read them from the same state.md `## Errors` + `## Tool log` history, with review rounds and surviving findings substituting for retries and failing tests, and fire this AUQ before round 3 exhausts when one holds. State the plain-English reason in the AUQ question text — never the raw signal name.
 

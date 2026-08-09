@@ -214,7 +214,7 @@ RESEARCH_QUESTION: Which recorded decisions, invariants, and operational rules i
 
 DELIVERABLE_SHAPE: table of [{section name + file:line in ARCHITECTURE.md or the cited helper, the decision or rule, how it applies to the issue, already-followed yes/no}]. Research only — do NOT suggest implementation.
 
-SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract. For survey-depth evidence (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is at `git show 3bb0857~1:report.md` — it was removed from the working tree when the docs were consolidated.
+SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract. For survey-depth evidence (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is at `git show 3bb085756b58eaf9a4ab81c136d55536907c089a~1:report.md` — it was removed from the working tree when the docs were consolidated. This requires an unshallow clone; if the command errors, skip this source and rely on ARCHITECTURE.md and the codebase-exploration findings instead.
 
 OUTPUT_PATH: .geniro/state/improve-template/.research-architecture-<slug>.md
 
@@ -261,7 +261,7 @@ For each finding, assess yourself:
 
 **Evidence quality:**
 - **Strong:** documented in official Claude Code docs, proven in production framework, or demonstrated by screenshot/error
-- **Moderate:** backed by a recorded decision in ARCHITECTURE.md, used by 2+ frameworks in the historical survey (`git show 3bb0857~1:report.md`), or a logical extension of documented behavior
+- **Moderate:** backed by a recorded decision in ARCHITECTURE.md, used by 2+ frameworks in the historical survey (see the Step 2 SCOPE_HINT for how to reach it), or a logical extension of documented behavior
 - **Weak:** single blog post, theoretical benefit, "should work" reasoning
 - **Rejected:** no evidence, contradicts known limitations, or speculative
 

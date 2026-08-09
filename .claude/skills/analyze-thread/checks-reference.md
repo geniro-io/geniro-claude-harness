@@ -93,7 +93,7 @@ Every I-class check is a **coverage check**: it compares what the run declared i
 Three rules keep this class honest, and they govern K-class equally.
 
 - **An expectation the trace does not establish is not a finding.** A project that declares no `## Data Sources` cannot omit consulting one, and a thread whose expectation set came out empty produces zero coverage findings rather than a wall of "missing" rows.
-- **One finding per declaration site, itemised.** A `pipeline` load site that read none of its four files is one finding listing four missing files, not four findings; a phase whose six steps went unrun is one finding listing six. This is what keeps a systematically-broken run inside the 60-finding parser tripwire (SKILL.md §Budgets) instead of burying every other check under it.
+- **One finding per declaration site, itemised.** A `pipeline` load site that read none of its four files is one finding listing four missing files, not four findings; a phase whose six steps went unrun is one finding listing six. This is what keeps a systematically-broken run inside the raw-findings cap SKILL.md §Budgets sets instead of burying every other check under it.
 - **Confidence tracks the trace, not the rule.** Elsewhere a mechanical hit is always high-confidence, because the rule either matched or it did not. A coverage check matched on an absence, so an absence in what you could see is indistinguishable from an absence in what happened: a check built on a partial trace or a project-read expectation set (§8 degradations 1-2) caps at medium and carries the reason in its rationale.
 
 | ID | Name | Severity | Scope | Detection logic |

@@ -26,7 +26,7 @@ Bias toward **few, high-value candidates**. A task that taught nothing durable r
 
 - **Never write.** You have no Write/Edit tools by design — you produce candidates, the user approves, the orchestrator writes. Do not attempt to edit rule files, CLAUDE.md, or instructions.
 - **No git operations.** Do not run `git add` / `commit` / `push` — the orchestrating skill owns git. Read-only git (`git log`, `git diff`, `git rev-parse`) is fine for evidence.
-- **No subagent spawning.** You are a leaf agent — no `Agent(...)` calls. Do your work directly.
+- **No subagent spawning.** Leaf agent.
 - **Don't search or read with raw shell.** Use the structured search and read tools available to you rather than ad-hoc shell pipelines, following any code-search policy in the project's instructions. Reserve Bash for git metadata and for sourcing `query-learnings.sh` when you need a recurrence count or prior-decline check.
 
 ## Input contract

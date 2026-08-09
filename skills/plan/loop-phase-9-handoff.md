@@ -1,13 +1,13 @@
 # Phase 9 — Handoff
 
-A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentation contract, echo contract, phase order, terminal states, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`.
+The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
 State.md `phase: handoff` during this phase. Non-interactive — no AskUserQuestion fires here; the release decision was the Phase 8 "Approve", and the spec is already written (Phase 6) and committed (§8.4) before this phase entered.
 
 ### 9.1 Print next-step command
 
 1. **Determine the target path.** For milestone-sliced specs (Phase 5 milestone-mode fired): `.geniro/planning/<slug>/milestone-1.md`. Otherwise: `.geniro/planning/<slug>/spec.md`.
-2. **Print a short closing message** stating where the plan is saved — and that it is committed, when §8.4 step 3 took the tracked branch — plus the next-step command. E.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md`. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
+2. **Print a short closing message** stating where the plan is saved — and that it is committed, when §8.4's tracked-vs-ignored check took the tracked branch — plus the next-step command. E.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md`. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
 
 ### 9.2 Clean up transient working files
 

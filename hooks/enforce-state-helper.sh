@@ -674,6 +674,77 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_expand_assignments >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_expand_assignments
+_geniro_wv_expand_assignments() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  local _asn _name _val _pairs=""
+  while IFS= read -r _asn; do
+    [ -z "$_asn" ] && continue
+    _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
+    _name="${_asn%%=*}"
+    _val="${_asn#*=}"
+    case "$_val" in
+      '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
+      "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
+    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+
+  while IFS=' ' read -r _ _name _val; do
+    [ -z "${_name:-}" ] && continue
+    text="${text//\$\{$_name\}/$_val}"
+    text="${text//\$$_name/$_val}"
+  done <<< "$(printf '%s' "$_pairs" | sort -rn)"
+  printf '%s\n' "$text"
+}
+# GENIRO-VENDORED-END _geniro_wv_expand_assignments
+fi
+if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+# GENIRO-VENDORED-END _geniro_wv_unquote_words
+fi
+if ! command -v _geniro_wv_cd_prefix >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_cd_prefix
+_geniro_wv_cd_prefix() {
+  local text="${1:-}" marker="${2:-}"
+  [ -z "$text" ] && return 0
+  [ -z "$marker" ] && return 0
+  local prefix="" _cd_span _cd_tok
+  while IFS= read -r _cd_span; do
+    [ -z "$_cd_span" ] && continue
+    set -f
+    # shellcheck disable=SC2086
+    for _cd_tok in $_cd_span; do
+      _cd_tok="${_cd_tok#\\}"
+      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
+      case "$_cd_tok" in cd|pushd|*/cd|*/pushd|-*|+*) continue ;; esac
+      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
+      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
+      case "/${_cd_tok%/}/" in
+        */"$marker"/*) prefix="${_cd_tok%/}" ;;
+      esac
+      break
+    done
+    set +f
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[\\|;&(/[:space:]])(cd|pushd)[[:space:]]+[^|;&]*' || true)"
+  printf '%s' "$prefix"
+  return 0
+}
+# GENIRO-VENDORED-END _geniro_wv_cd_prefix
+fi
 
 if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: shell-side writes into canonical state paths ----
@@ -759,6 +830,12 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # newline for the pass below. Contract: lib/write-vectors.sh.
   JOINED=$(_geniro_join_quoted_newlines "$JOINED")
 
+  # A variable carries its value into the command the shell runs, so a guard
+  # matching literal tokens misses every operand and every command word that
+  # arrived through one. Substitute assigned literals back in before matching.
+  # Contract: lib/write-vectors.sh §F.
+  JOINED=$(_geniro_wv_expand_assignments "$JOINED")
+
   # Quoted string literals are data (`echo "see > .geniro/x"` writes nothing).
   # Scrubbed per LINE, newlines INTACT: a newline separates two commands exactly
   # as `;` does, and collapsing it to a space first put a canonical multi-line
@@ -771,6 +848,12 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # this comment exists to prevent) — otherwise two ordinary prose apostrophes
   # straddling a `;` pair into one "literal" and blank the real command sitting
   # between them.
+  # Recover words the shell would pass but the blanking below would erase — a
+  # quoted or backslash-escaped state path (`echo x > '.geniro/.../state.md'`)
+  # is one shell word, so blanking it as data lets the write through.
+  # Contract: lib/write-vectors.sh §E.
+  JOINED=$(_geniro_wv_unquote_words "$JOINED")
+
   JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
   # Strip trailing comments. Quotes are already blanked above, so a `#` at a
   # word boundary is a real comment — drop it (to the end of ITS line, which is
@@ -840,33 +923,18 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   done <<< "$_sep_split"
   ONELINE="$MASKED"
 
-  # A `cd` INTO the guarded tree hides every later write operand from the
-  # candidate extraction below: `cd .geniro && echo x > knowledge/learnings.jsonl`
-  # spells no `.geniro` path in the redirect target at all, yet writes exactly
-  # where `echo x > .geniro/knowledge/learnings.jsonl` would. Derive that prefix
-  # the same way block-geniro-deletion.sh's CD_PREFIX does (its ~lines 689-738);
-  # add_candidate below re-prefixes each relative operand with it. Each line of
-  # $ONELINE is already one separator-bounded simple command (the split above),
-  # so — unlike the other guard's PADDED single-line form — no further span
-  # extraction is needed here. The LAST such `cd` wins, matching execution order.
-  CD_PREFIX=""
-  while IFS= read -r _cd_span; do
-    [ -z "$_cd_span" ] && continue
-    set -f
-    # shellcheck disable=SC2086
-    for _cd_tok in $_cd_span; do
-      _cd_tok="${_cd_tok#\\}"
-      while [ "${_cd_tok#\(}" != "$_cd_tok" ]; do _cd_tok="${_cd_tok#\(}"; done
-      case "$_cd_tok" in cd|*/cd|-*) continue ;; esac
-      _cd_tok="${_cd_tok#\"}"; _cd_tok="${_cd_tok%\"}"
-      _cd_tok="${_cd_tok#\'}"; _cd_tok="${_cd_tok%\'}"
-      case "/${_cd_tok%/}/" in
-        */.geniro/*) CD_PREFIX="${_cd_tok%/}" ;;
-      esac
-      break
-    done
-    set +f
-  done <<< "$(printf '%s\n' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])cd[[:space:]]+[^|;&]*' || true)"
+  # A `cd`/`pushd` INTO the guarded tree hides every later write operand from
+  # the candidate extraction below: `cd .geniro && echo x > knowledge/learnings.jsonl`
+  # (or `pushd .geniro && …`) spells no `.geniro` path in the redirect target
+  # at all, yet writes exactly where `echo x > .geniro/knowledge/learnings.jsonl`
+  # would. Derive that prefix via the single-sourced helper (contract:
+  # lib/write-vectors.sh's `_geniro_wv_cd_prefix`, shared with
+  # block-geniro-deletion.sh and file-protection.sh so the derivation cannot
+  # drift between them again); add_candidate below re-prefixes each relative
+  # operand with it. Each line of $ONELINE is already one separator-bounded
+  # simple command (the split above), so — unlike the other guards' PADDED/
+  # ONELINE single-string form — no further span extraction is needed here.
+  CD_PREFIX=$(_geniro_wv_cd_prefix "$ONELINE" ".geniro")
 
   CANDIDATES=""
   add_candidate() {

@@ -1,6 +1,6 @@
 # Phase 3 — Grill (decision-tree clarification)
 
-A phase file of the `/geniro:plan` loop. The spine — HARD-GATE, gate presentation contract, echo contract, phase order, terminal states, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`.
+The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
 State.md `phase: clarify` during this phase.
 
@@ -28,7 +28,7 @@ Root = the feature. Branches = its major design axes (data model, integration su
 
 Apply the Gate presentation contract. Ask one question at a time — one `AskUserQuestion` call per question, never a multi-question batch. Before each question render its framing to a chat message first, sized to the question: a one-line orientation when every option is self-explanatory, a short per-option consequence block (a code anchor, config diff, or behavior trace) when an option's consequence needs more than its one-line `description`. Then fire the lean single-question AUQ with short labels + one-line `description`s. Give a recommended answer for every question (Recommended-first option) — the user is confirming a default, not authoring from scratch.
 
-Each answer reshapes the tree frontier — a still-pending child can become moot (drop it) or need reworded options — so do NOT pre-generate a fixed question list; regenerate the next question from the live tree after each answer. Each question uses `header` ≤12 chars, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. The grill is uncapped but bounded by the §3.4 checkpoint gate. Full literal example with the per-question chat message + single-question AUQ in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+Each answer reshapes the tree frontier — a still-pending child can become moot (drop it) or need reworded options — so do NOT pre-generate a fixed question list; regenerate the next question from the live tree after each answer. Each question uses a `header` per the Gate presentation contract's cap, `question` 1-2 sentences ending in a question mark, `options[]` of 2-4 explicit choices, `multiSelect: false` unless explicitly multi-select. Include a "Skip — proceed with stated assumption" option as the last choice when applicable. The grill is uncapped but bounded by the §3.4 checkpoint gate. Full literal example with the per-question chat message + single-question AUQ in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 When `--deep` is absent, ask the planning-depth question (Standard / Deep) once at grill wrap-up (§3.4) — full rules (checkpoint-cadence exemption, persistence, empty-answer default, Trivial flag-only) and the AUQ shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2a.
 

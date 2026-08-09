@@ -73,6 +73,7 @@ R1	criteria	1	skills/_shared/review-criteria/regressions-criteria.md
 
 # ---- R1: agent bodies (7 dimension spawns, no verifiers) ----
 R1	agent-body	7	agents/reviewer-agent.md
+R1	agent-body	7	agents/reviewer-agent-reference.md
 
 # ---- R2: orchestrator (R1's set plus what a spec, a PR and a verify pass add) ----
 R2	orchestrator	1	skills/review/SKILL.md
@@ -127,4 +128,5 @@ R2	criteria	1	skills/_shared/review-criteria/spec-compliance-criteria.md
 
 # ---- R2: agent bodies (10 dimension spawns + 5 verifier spawns) ----
 R2	agent-body	10	agents/reviewer-agent.md
+R2	agent-body	10	agents/reviewer-agent-reference.md
 R2	agent-body	5	agents/finding-verifier-agent.md

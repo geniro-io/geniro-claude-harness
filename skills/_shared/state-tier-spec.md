@@ -40,7 +40,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 |---|---|
 | `/implement` | `clean_task_transients` before EVERY terminal `phase:` write — `done`, `aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only` — not only the Ship path. |
 | `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
-| `/debug`, `/refactor`, `/onboard`, `/investigate` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. |
+| `/debug`, `/refactor`, `/onboard`, `/investigate`, `/audit-instructions` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. `/audit-instructions` deletes its slug dir at the Phase 5 action gate; the dated report at `.geniro/state/audit-instructions/report-<date>.md` lives outside the slug dir and survives (§Path roots → T1.5). |
 | `/review` | `rm -rf` `.geniro/state/review/<branch-slug>/` at the Phase 6 terminal write, when the test gate created it. It is keyed by branch rather than by run, so without this every reviewed branch leaves a directory behind permanently — and `/review` writes no state.md there, so session-restore never surfaces it either. |
 | `/resolve` | `clean_task_transients` on `.geniro/state/resolve/<slug>/` before every terminal `phase:` write — transients go, the dir stays. It is a spec producer whose `spec.md` and handoff are consumed downstream by `/implement`, so an `rm -rf` would delete the deliverable, the same reason `/plan` retains its planning task-dir and `/setup` its singleton. |
 
@@ -178,10 +178,12 @@ Each entry is `{action, completed-at, <action-specific-fields>}`, where `complet
 | `pr-review-comment-batch` | `/geniro:review` | `pr-ref`, `finding-count`, `comment-ids` |
 | `pr-comment-amended` | `/geniro:review` (review-handoff.md §7.8) | `pr-ref`, `comment-id`, `kind: edit\|reply\|delete` |
 | `git-commit` | `/geniro:plan`, `/geniro:implement` | `commit-sha` |
-| `slack-notify-sent` | `/geniro:actions` | `channel`, `ts` |
-| `release-tagged` | `/geniro:actions` | `tag` |
+| `slack-notify-sent` | none today — reserved | `channel`, `ts` |
+| `release-tagged` | none today — reserved | `tag` |
 
 An unrecognized `action` renders via the hook's generic fallback.
+
+The last two carry no producer: the hook renders them and `tests/hooks/session-start-restore.sh` pins that rendering, but no skill emits either one — a `.geniro/actions/` workflow that posts to Slack or tags a release is the case they were built for, and actions are stateless, so nothing writes a state file to put them in. They stay listed because the renderer is the thing this table has to match: an enum value the hook handles but the table omits is the lockstep breaking in the direction nothing detects. Wiring a producer, or removing value + branch + test together, are both fine; dropping the row alone is not.
 
 ### T2 required `open_questions` array
 

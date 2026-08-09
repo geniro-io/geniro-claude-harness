@@ -445,7 +445,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type="geniro:reviewer-agent"`; on `Agent type not found` or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` (reviewer-agent declares `model: inherit`).
 
-**Pass criteria paths, never criteria bodies — do not read the criteria files.** The dimensions table below names ~22,000 words of rubric across the five built-ins; pre-reading them to inline into prompts drags every word through the orchestrator's own context as pure pass-through payload, on every run, and the reviewer would have re-read them anyway. `reviewer-agent` holds `Read` and its §Step 1 reads whatever paths its prompt names. Inline a body only where the reviewer cannot Read the path but you can — say so in the slot so it knows which form it got. When the file is unreadable for you too, pass no criteria for that dimension and let the reviewer's §Fallback strategy run. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so those spawns pass content as before.
+**Pass criteria paths, never criteria bodies — do not read the criteria files.** The dimensions table below names a large rubric across the built-in dimensions; pre-reading them to inline into prompts drags every word through the orchestrator's own context as pure pass-through payload, on every run, and the reviewer would have re-read them anyway. `reviewer-agent` holds `Read` and its §Step 1 reads whatever paths its prompt names. Inline a body only where the reviewer cannot Read the path but you can — say so in the slot so it knows which form it got. When the file is unreadable for you too, pass no criteria for that dimension and let the reviewer's §Fallback strategy run. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so those spawns pass content as before.
 
 ```
 Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="""
@@ -476,17 +476,17 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 **Code-style pre-inline slot (code-quality + architecture reviewers only):** if the Phase 1 / Phase 3-entry L4 loader echoed `Loaded code-style.md …`, pre-inline that content under a `## Code-style instructions` header per the reviewer-agent contract. If the loader echoed `No code-style.md found — skipping.`, omit the slot. Bugs / security / tests reviewers do NOT get the slot (code-style is orthogonal).
 
-**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff: Read / Grep / Glob / Bash (read-only) only. Edit / Write / Agent / mutating Bash / external network are blocked. Enforcement: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` whitelist. Prompt-level reinforcement of "read-only" is a fallback layer.
+**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff. The `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` whitelist (`[Read, Glob, Grep, Bash, "mcp__*"]`) blocks Edit / Write / Agent outright — those tool names are absent from the grant. `Bash` itself is unrestricted by the whitelist, and the `mcp__*` grant is read-only *by prompt contract*, not by the whitelist: read-only Bash use and no mutating/external-network MCP calls are enforced by the inlined prompt instruction, per `${CLAUDE_PLUGIN_ROOT}/ARCHITECTURE.md` §Optional MCP companions.
 
-**Parallel invocation:** all 5 (or fewer, on round N+1) spawns happen in ONE assistant response — multiple `Agent(...)` tool uses in the same message. Serial invocation doubles wall-time and the spec's design intent is parallelism.
+**Parallel invocation:** all built-in-dimension spawns (or fewer, on round N+1) happen in ONE assistant response — multiple `Agent(...)` tool uses in the same message. Serial invocation doubles wall-time and the spec's design intent is parallelism.
 
 ### Custom reviewer dimensions (`.geniro/instructions/review-extra/`)
 
-Round 1 only — before issuing the 5 built-in spawns, first resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash (the helper's Step 1 dual-globs `.geniro/instructions/review-extra/*.md` against cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`, so in a linked worktree where `.geniro/instructions/` is gitignored and does not propagate on `git worktree add`, the main-worktree fallback is the only path that finds user-authored review-extra files), then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored `review-extra/<slug>.md` files. The helper returns a list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing its cap. Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the SAME parallel batch as the 5 built-ins (one assistant turn, one parallel batch — same rule as `/geniro:review` Phase llm-spawn and `/geniro:refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs).
+Round 1 only — before issuing the built-in spawns, first resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash (the helper's Step 1 dual-globs `.geniro/instructions/review-extra/*.md` against cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`, so in a linked worktree where `.geniro/instructions/` is gitignored and does not propagate on `git worktree add`, the main-worktree fallback is the only path that finds user-authored review-extra files), then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored `review-extra/<slug>.md` files. The helper returns a list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing its cap. Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the SAME parallel batch as the built-in dimensions (one assistant turn, one parallel batch — same rule as `/geniro:review` Phase llm-spawn and `/geniro:refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs).
 
 Round N+1: re-fire a custom reviewer only if its prior round flagged a CRITICAL or HIGH finding — the re-fire threshold for custom dimensions (built-ins follow their own actionable-findings re-spawn rule). The custom reviewer's spawn-spec list is recomputed only on round 1; round N+1 reuses the round-1 spec cache.
 
-If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero matches after path filtering, this section is a silent no-op — the round proceeds with the 5 built-ins.
+If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero matches after path filtering, this section is a silent no-op — the round proceeds with the built-in dimensions.
 
 ---
 
@@ -624,7 +624,7 @@ else:
    The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate — apply that section; don't restate it here.
 4. State.md records `## Termination reason` body line on aborted/handoff: `repeated-failure: phase-3 review-round-limit (<N> unresolved findings)`.
 
-The Always-WAIT contract applies: an empty `AskUserQuestion` answer is an upstream bug — fall back to plain text and re-ask, because defaulting to an option silently records a decision the user never made.
+The Always-WAIT contract applies: re-ask through the tool first on an empty `AskUserQuestion` answer, falling back to plain text only on a repeated empty-answer loop, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 
 ---
 
@@ -664,7 +664,7 @@ The `(Recommended)` marker follows `per-finding-question.md` §Recommended-label
 
 **Persist the pick** to state.md `approvals[]` with `category: minor_findings_disposition` via `atomic_state_write`. Before firing, check `approvals[]` for a prior `minor_findings_disposition` entry and re-apply it instead of re-asking — the same check-before-fire-on-resume protocol as `ship_mode`.
 
-**Empty answer** — re-ask once in plain text (an empty answer indicates an upstream tool bug); if still empty, take the conservative leave-listed path.
+**Empty answer** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions: re-ask through the tool; never auto-default to any option, including the leave-listed path. Only a repeated empty-answer loop falls back to a plain-text question in chat.
 
 **Boundary rules:**
 

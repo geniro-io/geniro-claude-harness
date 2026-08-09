@@ -14,6 +14,12 @@
 # scored zero instead of failing, the tool would report a REDUCTION in per-run
 # load caused entirely by its own blindness — the exact wrong answer, delivered
 # confidently. So the detector is self-tested before anything else is trusted.
+
+# Match with `grep -q PATTERN <<< "$var"`, never `printf '%s' "$var" | grep -q`.
+# `grep -q` exits on its first match, so the producer can still be mid-write when
+# the pipe closes; under `pipefail` that producer's SIGPIPE status becomes the
+# pipeline's, and the assertion reads as FAILED on output it actually matched.
+# A here-string is not a pipeline, so the shape cannot arise.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
@@ -47,14 +53,14 @@ trap 'rm -f "$_fixture" "$_adv"' EXIT
 
 out=$(GENIRO_RUN_LOAD_MANIFEST="$_fixture" "$SCRIPT" FIX 2>&1)
 rc=$?
-if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'deleted-by-a-later-step.md'; then
+if [ "$rc" -ne 0 ] && grep -q 'deleted-by-a-later-step.md' <<< "$out"; then
   pass "self-test: a manifest row naming a missing file fails and names the path"
 else
   fail "self-test: a missing path did not fail the run (rc=$rc) — the tool would report a load REDUCTION it caused itself"
 fi
 
 # A missing path must never be scored as zero words and folded into the total.
-if printf '%s' "$out" | grep -q 'MISSING'; then
+if grep -q 'MISSING' <<< "$out"; then
   pass "self-test: the missing path is reported as MISSING rather than counted as zero"
 else
   fail "self-test: MISSING row absent from the report — a vanished file may be silently scoring zero"
@@ -70,7 +76,7 @@ else
 fi
 
 for p in R1 R2; do
-  if printf '%s' "$all" | grep -q "^Profile $p$"; then
+  if grep -q "^Profile $p$" <<< "$all"; then
     pass "--all reports profile $p"
   else
     fail "--all does not report profile $p"
@@ -135,7 +141,7 @@ else
 fi
 
 detail=$("$SCRIPT" --detail R1 2>/dev/null)
-if printf '%s' "$detail" | grep -q 'agents/reviewer-agent.md'; then
+if grep -q 'agents/reviewer-agent.md' <<< "$detail"; then
   pass "--detail names the individual files behind each component"
 else
   fail "--detail did not list per-file rows"
@@ -196,7 +202,7 @@ for _bad in x3 0 -2; do
   out=$(GENIRO_RUN_LOAD_MANIFEST="$_adv" "$SCRIPT" FIX 2>&1)
   rc=$?
   scored=$(printf '%s\n' "$out" | awk '$1 == "agent-body" { print $3 }')
-  if [ "$rc" -ne 0 ] || printf '%s' "$out" | grep -qiE 'multiplier|malformed|invalid'; then
+  if [ "$rc" -ne 0 ] || grep -qiE 'multiplier|malformed|invalid' <<< "$out"; then
     pass "multiplier '$_bad' is surfaced instead of silently read as 1"
   else
     fail "multiplier '$_bad' scored the row at exactly 1x ($scored words, the file's own count is $README_WORDS) and exited 0 — the spawn multiplier is the one term this measurement exists to expose, so a value it cannot use has to fail the run the way a vanished path does"
@@ -243,7 +249,7 @@ done
   printf '%sagent-body%s1%sCLAUDE.md\n' "$TAB" "$TAB" "$TAB"; } > "$_adv"
 out=$(GENIRO_RUN_LOAD_MANIFEST="$_adv" "$SCRIPT" --all 2>&1)
 rc=$?
-if [ "$rc" -ne 0 ] || printf '%s' "$out" | grep -q 'CLAUDE.md'; then
+if [ "$rc" -ne 0 ] || grep -q 'CLAUDE.md' <<< "$out"; then
   pass "a row whose profile field is blank is surfaced rather than dropped from every profile"
 else
   fail "the row with a blank profile field belongs to no profile: --all exited 0, and CLAUDE.md's $CLAUDE_WORDS words are in no report. The row carries four fields, so the four-field hygiene check passes it as well — nothing in the tool or the suite sees it"
@@ -262,7 +268,7 @@ if [ "$seen_r1" = "1" ]; then
 else
   fail "--all printed 'Profile R1' $seen_r1 times for a manifest holding one profile — the list is expanded unquoted (for p in \$profiles), and the indented comment mentions R1, so R1 is measured twice and a reader diffing two reports sees a doubled run"
 fi
-if printf '%s' "$out" | grep -q "no manifest rows for profile 'the'"; then
+if grep -q "no manifest rows for profile 'the'" <<< "$out"; then
   fail "--all invented profiles from the words of an indented comment (\"no manifest rows for profile 'the'\") and exited $rc — a comment one space in is read as data"
 else
   pass "an indented comment line is not read as profile data"

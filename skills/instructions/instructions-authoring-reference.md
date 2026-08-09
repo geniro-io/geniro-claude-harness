@@ -201,7 +201,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 
 ## 3. File-size guidance
 
-**The enforced bar is 300 lines** — `/geniro:instructions validate` (`mode-validate.md` §Step 2) reports a LOW-severity split suggestion past it, overridable via `--max-lines N` or `GENIRO_INSTRUCTIONS_MAX_LINES`. A somewhat larger file that's well-organized and all-load-bearing is fine — the check is advisory, not a hard limit; consider splitting by scope or by topic once it fires.
+**The enforced bar is owned by `/geniro:instructions validate`** (`mode-validate.md` §Step 2), which reports a LOW-severity split suggestion past it, overridable via `--max-lines N` or `GENIRO_INSTRUCTIONS_MAX_LINES`. A somewhat larger file that's well-organized and all-load-bearing is fine — the check is advisory, not a hard limit; consider splitting by scope or by topic once it fires.
 
 ---
 
@@ -234,7 +234,7 @@ An `Additional Steps` subsection must name a phase that a skill actually reads c
 | `plan` | `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) | `plan/loop-phase-8-user-approval.md` §8.6 |
 | `refactor` | `After verify` | `refactor/phase-3-verify.md` §3.6 |
 | `global` | `After worktree-setup` (cross-skill; fires once, in the orchestrator, right after any skill creates a new worktree) | branch-freshness §3.1 and review triage |
-| `review`, `resolve`, `debug`, `onboard`, `investigate`, `reflect` | none — rules-only, no Additional Steps | n/a |
+| `review`, `resolve`, `debug`, `onboard`, `investigate`, `reflect` | none — Rules and Constraints only, no Additional Steps anchor | n/a |
 
 Free-form subsections raise `LOW`. Subsections naming a real phase this skill has (or a dropped one, e.g. `After Phase 4 (Implement)`) that isn't in this table raise `MEDIUM` — that phase exists or existed, but nothing reads a custom step there.
 

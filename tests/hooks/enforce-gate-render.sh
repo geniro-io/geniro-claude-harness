@@ -384,6 +384,26 @@ rc=$(jq -nc --arg t "$TR" \
   | PATH="$FAKESLEEP_BIN:$PATH" bash "$HOOK" >/dev/null 2>&1; echo $?)
 expect_block "fractional-sleep-rejecting host still blocks (does not fail open)" "$rc"
 
+# ===== T4-5: jq-less fail-open — the guard cannot parse tool input or scan the
+# transcript without jq, and carries no coarse fallback, so it fails open
+# UNCONDITIONALLY, even on a fixture that would otherwise block. FAKEBIN holds
+# symlinks to every tool the guard needs except jq (mirrors
+# block-dangerous-git.sh's shape). The payload is built with printf, not jq,
+# so the test harness itself does not depend on jq being on PATH for this case. =====
+FAKEBIN="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$FAKEBIN"
+for _t in cat grep sed awk tr head printf env bash sh; do
+  _s="$(command -v "$_t" 2>/dev/null)" && ln -sf "$_s" "$FAKEBIN/$_t"
+done
+{ user_text; asst_tooluse; } > "$TR"
+run_q_nojq() {  # <transcript-path>
+  printf '{"tool_name":"AskUserQuestion","transcript_path":"%s","tool_input":{"questions":[{"question":"Full explanation above. Approve?","options":[{"label":"Approve"},{"label":"Cancel"}]}]}}' "$1" \
+    | PATH="$FAKEBIN" bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_allow "jqless: render-less 'above' gate fails open (no coarse fallback in this guard)" \
+  "$(run_q_nojq "$TR")"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

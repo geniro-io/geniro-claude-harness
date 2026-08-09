@@ -92,8 +92,12 @@ expect_allow "bash: fd dup >&2 allowed"                   "$(run_bash 'echo err 
 expect_allow "bash: plain git command allowed"            "$(run_bash 'git status')"
 expect_allow "bash: sed without -i on go.sum allowed"     "$(run_bash "sed 's/a/b/' go.sum")"
 
-# Data contexts (quoted strings, heredoc bodies, sed scripts) must not block —
-# and the quoted-target miss is the documented trade-off of that scrub.
+# Data contexts (quoted strings, heredoc bodies, sed scripts) must not block.
+# The line between a quotation and an operand is whitespace, not quoting: a
+# quoted span carrying a space is prose and stays blanked, while a
+# whitespace-free one is a single shell word and is unquoted before matching
+# (lib/write-vectors.sh §E). That is what lets the two assertions below —
+# "set x > .env to configure" allowed, `> ".env"` blocked — both hold.
 expect_allow "bash: quoted-string mention of > .env allowed"  "$(run_bash 'echo "set x > .env to configure"')"
 expect_allow "bash: quoted sed script naming .env allowed"    "$(run_bash "sed -i 's/.env.example/.env.sample/' README.md")"
 expect_allow "bash: unquoted sed script naming .env allowed"  "$(run_bash 'sed -i s/.env.example/.env.sample/ README.md')"
@@ -103,7 +107,10 @@ DOC')"
 expect_block "bash: heredoc INTO .env still blocked"          "$(run_bash 'cat <<DOC > .env
 K=v
 DOC')"
-expect_allow "bash: QUOTED redirect target is a documented miss" "$(run_bash 'echo k > ".env"')"
+expect_block "bash: quoted redirect target blocked"           "$(run_bash 'echo k > ".env"')"
+expect_block "bash: single-quoted redirect target blocked"    "$(run_bash "echo k > '.env'")"
+expect_block "bash: intra-word-quoted target blocked"         "$(run_bash 'echo k > .e""nv')"
+expect_block "bash: backslash-escaped target blocked"         "$(run_bash 'echo k > .e\nv')"
 
 # safety.json bypass applies to the Bash branch too
 cd "$TMPDIR_BASE/proj-bypass" || exit 1
@@ -248,6 +255,31 @@ expect_block "malformed payload naming .env still blocked" \
   "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hi > .env"')"
 expect_allow "malformed payload with no protected name allows" \
   "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hello"')"
+
+# ===== T0-1: `pushd` reaches the same builtin `cd` does and must not evade =====
+# `pushd .git && echo x > config` spelled no `.git` path in the redirect
+# target at all, yet wrote exactly where `echo x > .git/config` would.
+expect_block "bash: pushd .git && echo x > config blocked" \
+  "$(run_bash 'pushd .git && echo x > config')"
+expect_block "bash: cd .git && echo x > config still blocked" \
+  "$(run_bash 'cd .git && echo x > config')"
+# `pushd -n` (suppress directory-stack printing) must not be read as the target.
+expect_block "bash: pushd -n .git && echo x > HEAD blocked" \
+  "$(run_bash 'pushd -n .git && echo x > HEAD')"
+expect_allow "bash: pushd into a non-.git dir allowed" \
+  "$(run_bash 'pushd src && echo x > app.js')"
+
+# ===== T1-1: a newline must not let one line's content leak into another's span =====
+# Newlines used to be collapsed to spaces before the write-vector extraction,
+# so a benign command on one line and an unrelated write on the next read as
+# ONE span — a read (`cat`) that merely MENTIONS a protected name on one line
+# must not block an unrelated write on a different line.
+expect_allow "bash: cp then cat .env (newline) allowed" \
+  "$(run_bash $'cp a.txt b.txt\ncat .env')"
+expect_block "bash: real write to .env on line 1 (newline) still blocked" \
+  "$(run_bash $'echo x > .env\necho done')"
+expect_block "bash: real write to .env on line 2 (newline) still blocked" \
+  "$(run_bash $'echo done\necho x > .env')"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

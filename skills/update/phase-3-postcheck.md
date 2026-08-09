@@ -49,11 +49,11 @@ diff <(printf '%s\n' "$USER_SNAPSHOT") <(printf '%s\n' "$CURRENT_SNAPSHOT") > /t
 fi
 ```
 
-If diff non-empty, AUQ:
+If diff non-empty, render it to chat first — the affected-files list and the diff itself (full diff at `/tmp/geniro-content-diff.log` if too long to inline) — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. Then fire a lean AUQ:
 
-- **Question:** `User content under .geniro/instructions/ or .geniro/actions/ changed during the update. Files affected: <list>. The plugin update should not touch user-authored content — review before continuing.`
+- **Question:** `User content under .geniro/instructions/ or .geniro/actions/ changed during the update — review the diff above before continuing.`
 - **Options:**
-- `Show diff and continue (review later)` — Print diff, then continue to the migration walk
+- `Continue to migration walk` — Proceed; the change stays as shown
 - `Abort — preserve current state` — Exit; investigate manually (Recommended)
 
 ### Step 3 — Refresh update cache

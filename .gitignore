@@ -39,8 +39,8 @@ evals/runs/
 # is committed. /audit-plugin writes its reports here, and a same-machine rerun can
 # still read them; a fresh clone simply starts without them.
 #
-# Cross-run memory does NOT depend on that. It lives in design/audit-ledger.tsv,
-# which is tracked precisely because this directory is not: every audit before the
-# ledger existed began blind, and the finding count never came down.
+# Nothing carries a decision forward from one audit round to the next, by design:
+# a finding worth remembering becomes a hard check under tests/authoring/, which
+# CI enforces and which stops firing once the violation is gone.
 design/scratch/
 .codegraph

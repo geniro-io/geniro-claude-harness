@@ -2,6 +2,8 @@
 
 Phase file for `/geniro:setup`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md`.
 
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: setup`, `LOAD_TIER: rules-only`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. This is the phase that writes `CLAUDE.md` and `.gitignore` into the user's tree; the only prior load is Phase 0, before the Detect scan and the full Interview.
+
 ### 3.0 Migration sweep (re-run only)
 
 When `mode == re-run`, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` now — before any step of the re-run, echoing per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, because it is the sole home of this skill's migration apply policy: which `Auto-fix:` values may reach a shell at all, the `manual-only`-tested-first ordering, and the destructive-command deferral. A run that improvises the sweep runs prose through `bash -c`, which is exactly what that policy exists to prevent. Then run its §3.0 sweep before generating content — that file carries every re-run-only procedure this run needs (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules, §5.4 restart warning).
@@ -39,7 +41,7 @@ Generated CLAUDE.md sections:
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
 
-All Writes AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / show preview first / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
+Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, and the statusline install — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
 
 ### 3.4 Conflict-resolution merge rules (re-run only)
 
