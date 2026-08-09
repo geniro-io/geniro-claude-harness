@@ -18,6 +18,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TASK_DIR="$(cd "$1" && pwd)"
 STAGE_DIR="$2"
+# The stage is disposable by definition — restage from scratch so a re-run
+# never trips over leftovers (a stale tree, an already-committed base).
+[ -n "$STAGE_DIR" ] && rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
 STAGE_DIR="$(cd "$STAGE_DIR" && pwd)"
 TASK_JSON="$TASK_DIR/task.json"

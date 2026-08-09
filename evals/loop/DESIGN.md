@@ -55,7 +55,7 @@ digest lives in the session report; each mechanism below names its source.
 | `mock.sh` | deterministic canned results for the test suite | free, no network |
 
 Money guards live in `run.sh`, not in prose: `--probe` runs one paid call and
-extrapolates the sweep from the measured usage row; `--max-usd` (default $5)
+extrapolates the sweep from the measured usage row; `--max-usd` (default $50)
 aborts a sweep that crosses the measured ceiling; the content-keyed cache
 (model + task@rubric-version + prompt hash, successes only — promptfoo's
 recipe) makes re-runs and resumes free. Blended measured rates live in
@@ -83,7 +83,9 @@ The task is the unit of randomization. `compare.sh`: paired per-task deltas,
 seeded task-clustered bootstrap CI (shared `evals/lib/eval-stats.sh`), and the
 **MDE** (CI half-width) printed with every verdict — "no difference" and "no
 power" are different findings (Error Bars paper). A-vs-A first on any new
-benchmark or model: it must come back a tie and it measures the noise floor.
+benchmark or model: it must come back a tie and it measures the noise floor —
+run its second arm with `--no-cache`, or identical prompts replay the first
+arm's cached responses and the tie is fake.
 Screening minimum: 2 trials (single-trial effects exaggerate — measured on H3).
 
 ## The cycle (mechanics in `loop.sh`, judgment in the /eval-loop skill)

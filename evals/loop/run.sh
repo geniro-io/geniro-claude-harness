@@ -18,14 +18,14 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 MODULE=""
-MODEL="cursor-composer-2.5"
+MODEL="composer-2.5"
 ADAPTER="cursor-cli"
 TRIALS=1
 CONC=4
 OUT=""
 VARIANT=""
 TASKS=""
-MAX_USD="5"
+MAX_USD="50"
 PROBE=0
 DRY=0
 NO_CACHE=0
@@ -154,7 +154,9 @@ run_one() { # task_id trial facet criteria...
   assemble_prompt "$stage" "$facet" "$@" > "$prompt_file"
   local ver key cached
   ver="$(rubric_version "$TASKS/$task_id")"
-  key="$(printf '%s|%s|v%s|%s' "$MODEL" "$task_id" "$ver" "$(sha < "$prompt_file")" | sha)"
+  # trial is part of the key: trials must be independent samples, while a
+  # re-run/resume of the SAME trial index stays a free cache hit.
+  key="$(printf '%s|%s|t%s|v%s|%s' "$MODEL" "$task_id" "$trial" "$ver" "$(sha < "$prompt_file")" | sha)"
   cached="$CACHE_DIR/$key.json"
   if [ "$NO_CACHE" -eq 0 ] && [ -f "$cached" ]; then
     cp "$cached" "$rdir/raw-$facet.json"
@@ -208,10 +210,14 @@ jq -n --arg module "$MODULE" --arg variant "$(basename "$VARIANT")" \
         task_manifest:$manifest, trials:$trials, max_usd:$max_usd, started_at:$started}' \
   > "$OUT/spec.json"
 
-# ---- stage every task once ----
+# ---- stage every task once (keep a completed stage: resumes are frequent) ----
 for task_id in "${TASK_IDS[@]}"; do
-  echo "[stage] $task_id"
-  bash "$HERE/stage-task.sh" "$TASKS/$task_id" "$OUT/stage/$task_id" >/dev/null
+  if [ -f "$OUT/stage/$task_id/changed-files.txt" ]; then
+    echo "[stage] $task_id (kept)"
+  else
+    echo "[stage] $task_id"
+    bash "$HERE/stage-task.sh" "$TASKS/$task_id" "$OUT/stage/$task_id" >/dev/null
+  fi
   cp "$TASKS/$task_id/task.json" "$OUT/stage/$task_id/task.json"
 done
 

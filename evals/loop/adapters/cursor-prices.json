@@ -2,7 +2,7 @@
   "unit": "blended USD per 1M total tokens (input + cache-read + output), measured from real billing rows — NOT list prices",
   "rule": "after ANY change to task shape / workspace size / model, run `run.sh --probe` and re-derive the rate from the actual usage row BEFORE launching a sweep (the $339 lesson: cache-read explodes ~30x on monorepo workspaces)",
   "models": {
-    "cursor-composer-2.5":  { "blended_per_mtok": 0.22, "measured": "2026-08-09", "note": "measured on the real review-task mix incl. monorepo cache reads" },
+    "composer-2.5":  { "blended_per_mtok": 0.22, "measured": "2026-08-09", "note": "measured on the real review-task mix incl. monorepo cache reads" },
     "cursor-grok-4.5-medium": { "blended_per_mtok": 1.0, "measured": "2026-08-09", "note": "rough upper estimate from the overspend incident; re-probe before any grok sweep" }
   }
 }

@@ -20,7 +20,7 @@ CMD="${1:-}"; shift || true
 
 case "$CMD" in
   screen|confirm)
-    MODULE=""; VARIANT=""; TRIALS=2; MODEL="cursor-composer-2.5"; BASELINE=""; TASKS=""; YES=0
+    MODULE=""; VARIANT=""; TRIALS=2; MODEL="composer-2.5"; BASELINE=""; TASKS=""; YES=0
     MODEL_SET=0
     while [ $# -gt 0 ]; do
       case "$1" in
