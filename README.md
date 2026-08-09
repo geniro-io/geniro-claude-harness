@@ -288,7 +288,7 @@ Stateless CRUD loop (parse → execute → done) over `.geniro/instructions/`. 5
 
 ### `/geniro:actions` — Custom workflow-helper management
 
-Stateless CRUD + runner loop (parse → execute → done) over `.geniro/actions/`. 6 operations: list / create / edit / run / delete / validate. `risk_class: low | medium | high` mandatory frontmatter field; run mode executes the action directly with no confirmation gate — invoking it is the authorization, and `risk_class` is metadata for the list view, delete warning, and lint. `validate` mode shares only its three `description:` quality-check rows with `/instructions validate review-extra` — both cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` as their source; the rest of the check set is actions-specific. L2 `discovery` emit on successful runs with `external-send: true`.
+Stateless CRUD + runner loop (parse → execute → done) over `.geniro/actions/`. 6 operations: list / create / edit / run / delete / validate. `risk_class: low | medium | high` mandatory frontmatter field; run mode executes the action directly with no confirmation gate — invoking it is the authorization, and `risk_class` is metadata for the list view, delete warning, and lint. `validate` mode shares only its three `description:` quality-check rows with `/instructions validate review-extra` — both cite `skills/_shared/description-quality.md` as their source; the rest of the check set is actions-specific. L2 `discovery` emit on successful runs with `external-send: true`.
 
 ```
 /geniro:actions list                                       # show all custom actions

@@ -4,12 +4,14 @@
 # Spec: skills/plan/validator-checks.md
 # Template being validated: skills/_shared/spec-template.md
 #
-# Runs the nine deterministic checks of the thirteen-check set — 1
-# single_objective, 2 bounded_scope, 4 allowed_tools, 6 budget, 7 checkpoints,
-# 10 placeholder_scan, 11 schema_completeness, 12 workflow_refs_consistency,
-# 13 launch_config_consistency. Checks 3, 5, 8 and 9 rest on judgment no command
-# can make (is this citation load-bearing, is this area sensitive, is this a real
-# verification method, is this an observable signal) and stay prose in
+# Runs every check in the thirteen-check set (skills/plan/validator-checks.md)
+# whose predicate a command can fully decide. This file's own emitted rows are
+# that enumeration — the check_id column of validate_plan_spec's output IS the
+# scripted set, so adding or removing one only ever means editing the call
+# list in validate_plan_spec() below, never a count or an index list kept in
+# sync elsewhere. The rest rest on judgment no command can make (is this
+# citation load-bearing, is this area sensitive, is this a real verification
+# method, is this an observable signal) and stay prose in
 # validator-checks.md, run orchestrator-side.
 #
 # API: validate_plan_spec <spec-path>
