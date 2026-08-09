@@ -1,0 +1,8 @@
+{
+  "id": "smoke-1",
+  "mode": "patch",
+  "tree_dir": "tree",
+  "patch": "change.patch",
+  "lang": "typescript",
+  "project_context": "Small TypeScript e-commerce backend. Postgres via a thin db.query(sql, params) wrapper; parameterized queries are the house rule."
+}

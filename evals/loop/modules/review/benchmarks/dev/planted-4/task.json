@@ -1,0 +1,8 @@
+{
+  "id": "planted-4",
+  "mode": "patch",
+  "tree_dir": "tree",
+  "patch": "change.patch",
+  "lang": "typescript",
+  "project_context": "TypeScript string-utils library. Jest for tests; every exported helper ships with a test file."
+}

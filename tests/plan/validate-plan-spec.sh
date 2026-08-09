@@ -34,18 +34,18 @@ reset_spec() {
   SCHEMA_VER="m5-v4"
   WFREFS='workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/x/issue/CI-303/backfill
+  issue_id: ENG-303
+  url: https://linear.app/x/issue/ENG-303/backfill
   fetched_at: 2026-07-29T09:42:13Z
   title: "Parallelize backfill"
   parent_ref:
     kind: linear
-    issue_id: CI-300
-    url: https://linear.app/x/issue/CI-300
+    issue_id: ENG-300
+    url: https://linear.app/x/issue/ENG-300
   siblings:
-  - issue_id: CI-301
+  - issue_id: ENG-301
     title: "Partitioning"
-  - issue_id: CI-302
+  - issue_id: ENG-302
   chain_fetched_at: 2026-07-29T09:42:15Z'
   BUDGET_BLOCK='budget:
   max_files_to_edit: 8
@@ -328,8 +328,8 @@ expect_status ph-fixme.md placeholder_scan fail "FIXME in the body"
 # Frontmatter is not body — a tracker title carrying TODO must not fail the spec.
 reset_spec; WFREFS='workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/x/issue/CI-303
+  issue_id: ENG-303
+  url: https://linear.app/x/issue/ENG-303
   fetched_at: 2026-07-29T09:42:13Z
   status: TODO'; mk_spec ph-fm.md
 expect_status ph-fm.md placeholder_scan pass "a placeholder-looking token in frontmatter is out of scope"
@@ -367,25 +367,25 @@ expect_status wf-none.md workflow_refs_consistency skip "no workflow_refs[] mean
 
 reset_spec; WFREFS='workflow_refs:
 - kind: linear
-  issue_id: CI-303
+  issue_id: ENG-303
   fetched_at: 2026-07-29T09:42:13Z'; mk_spec wf-nourl.md
 expect_status wf-nourl.md workflow_refs_consistency fail "entry missing the required url field"
 
 reset_spec; WFREFS='workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/x/issue/CI-303
+  issue_id: ENG-303
+  url: https://linear.app/x/issue/ENG-303
   fetched_at: 2026-07-29T09:42:13Z
   siblings:
-  - issue_id: CI-301
+  - issue_id: ENG-301
   - title: "no id here"
   chain_fetched_at: 2026-07-29T09:42:15Z'; mk_spec wf-sib.md
 expect_status wf-sib.md workflow_refs_consistency fail "a siblings[] entry with no issue_id"
 
 reset_spec; WFREFS='workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/x/issue/CI-303
+  issue_id: ENG-303
+  url: https://linear.app/x/issue/ENG-303
   fetched_at: 2026-07-29T09:42:13Z
   chain_fetched_at:'; mk_spec wf-chain.md
 expect_status wf-chain.md workflow_refs_consistency fail "an empty chain_fetched_at"
@@ -400,8 +400,8 @@ expect_rc wf-missingfile.md 0 "a warn-only spec still exits 0"
 
 reset_spec; WFREFS='workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/x/issue/CI-303
+  issue_id: ENG-303
+  url: https://linear.app/x/issue/ENG-303
   fetched_at: 2026-07-29T09:42:13Z
 - kind: jira
   issue_id: PROJ-42
@@ -411,11 +411,11 @@ expect_status wf-two.md workflow_refs_consistency fail "the second of two entrie
 # Deeper-indented sequence layout must parse the same as the flush-left one.
 reset_spec; WFREFS='workflow_refs:
   - kind: linear
-    issue_id: CI-303
-    url: https://linear.app/x/issue/CI-303
+    issue_id: ENG-303
+    url: https://linear.app/x/issue/ENG-303
     fetched_at: 2026-07-29T09:42:13Z
     siblings:
-      - issue_id: CI-301
+      - issue_id: ENG-301
         title: "Partitioning"'; mk_spec wf-indented.md
 expect_status wf-indented.md workflow_refs_consistency pass "indented sequence layout parses"
 

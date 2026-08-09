@@ -1,0 +1,8 @@
+{
+  "id": "planted-neg-1",
+  "mode": "patch",
+  "tree_dir": "tree",
+  "patch": "change.patch",
+  "lang": "typescript",
+  "project_context": "TypeScript notification service. Plain behavior-preserving refactor."
+}

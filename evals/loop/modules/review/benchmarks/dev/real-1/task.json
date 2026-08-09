@@ -1,0 +1,10 @@
+{
+  "id": "real-1",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "49aa6a4b1fab369981bd399f2526b6190b758a7e",
+  "head_sha": "bac1bb442e5e70043fc32f7ca45de1be5c3fcd0d",
+  "lang": "typescript",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend. Change: weekly update email changes (subject, email structure, prompt)",
+  "include_repo_rules": true
+}

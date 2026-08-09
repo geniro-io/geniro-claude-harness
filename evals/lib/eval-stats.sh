@@ -3,8 +3,8 @@
 #
 # Mirrors lib/score-formula.sh's contract: source this file, then prepend
 # "$GENIRO_EVAL_STATS_JQ_DEFS" to any jq program that needs the estimators. Keeping the
-# math in one jq-defs string is what guarantees ingest.sh and /geniro:eval (Phase D) can
-# never drift on HOW a CI is computed — they share the definitions, not a re-derivation.
+# math in one jq-defs string is what guarantees every consumer (evals/loop/compare.sh)
+# can never drift on HOW a CI is computed — they share the definitions, not a re-derivation.
 #
 # Why these specific estimators (plan §8/§9, decision 4):
 #   - PROPORTIONS (pass_rate, precision, recall_at1) → Wilson score interval. The right
@@ -12,8 +12,8 @@
 #   - WINRATE / RATIOS / pass^k → a task-clustered bootstrap. The TASK is the unit of
 #     randomization (between-task variance dominates), so the bootstrap resamples the vector
 #     of per-task means — NOT pooled trials, which would give a deceptively narrow CI.
-#   - The bootstrap is SEEDED via a self-contained LCG so the committed ledger's CI is
-#     reproducible: re-ingesting the same benchmark.json yields a byte-identical interval.
+#   - The bootstrap is SEEDED via a self-contained LCG so a recorded CI is
+#     reproducible: re-comparing the same scored runs yields a byte-identical interval.
 #     A CI that jiggles per run would undermine a committed scorecard.
 #
 # Plugin-developer / eval tooling only — NOT shipped to user projects, NOT loaded by any skill.

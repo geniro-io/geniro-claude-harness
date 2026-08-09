@@ -43,7 +43,7 @@ When a slot's value is the literal `none`, treat it as absent and proceed.
 ## Workflow
 
 ### Step 0 — Absorb project instructions
-Load `global.md` and `memory.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md` (its `memory.md` bullet carries the routing rationale). `global.md` serves two purposes — the project's search policy and an existing-rule source you dedupe candidates against later. A declared search policy overrides the search mechanics in the steps below and binds every lookup in this run, not just your first. For your prior-decline and recurrence reads below: if `memory.md` declares a `## Memory Backend` block for `learnings`, route those reads through the declared read tool per `query-learnings.md` §"Memory backend override" (you carry `mcp__*`; fail-open to the file query on a backend error).
+Load `global.md` and `memory.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md` (its `memory.md` bullet carries the routing rationale). `global.md` serves two purposes — the project's search policy and an existing-rule source you dedupe candidates against later. A declared search policy overrides the search mechanics in the steps below and binds every lookup in this run, not just your first. For your prior-decline and recurrence reads below: if `memory.md` declares a `## Memory Backend` block for `learnings`, route those reads through the declared read tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (you carry `mcp__*`; fail-open to the file query on a backend error).
 
 ### Step 1 — Read the change
 

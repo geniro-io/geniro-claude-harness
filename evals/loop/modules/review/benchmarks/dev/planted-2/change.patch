@@ -1,0 +1,34 @@
+diff --git a/src/api/wallet.ts b/src/api/wallet.ts
+index 0591bff..f266ddc 100644
+--- a/src/api/wallet.ts
++++ b/src/api/wallet.ts
+@@ -1,6 +1,29 @@
+ import { db } from "../db";
++import { auditLog } from "../audit";
+ 
+ export async function getBalance(userId: string): Promise<number> {
+   const rows = await db.query("SELECT balance FROM wallets WHERE user_id = $1", [userId]);
+   return rows[0]?.balance ?? 0;
+ }
++
++export async function withdraw(userId: string, amount: number): Promise<boolean> {
++  const balance = await getBalance(userId);
++  if (balance < amount) {
++    return false;
++  }
++  await db.query("UPDATE wallets SET balance = balance - $1 WHERE user_id = $2", [
++    amount,
++    userId,
++  ]);
++  auditLog("withdraw", { userId, amount });
++  return true;
++}
++
++export async function listTransactions(userId: string, page: number, limit: number) {
++  const rows = await db.query(
++    "SELECT * FROM transactions WHERE user_id = $1 ORDER BY at DESC",
++    [userId],
++  );
++  const start = (page - 1) * limit;
++  return rows.slice(start, start + limit - 1);
++}

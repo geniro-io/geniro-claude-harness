@@ -1,0 +1,398 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/shared/utils/email-assets.util.ts",
+      "lines": [
+        1,
+        22
+      ],
+      "class": "regression",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in cef7f032a (pre-existing on this branch) — getEmailAssetsBucket() restored to read process.env.PUBLIC_ASSETS_BUCKET_NAME with a prod fallback. Note: this fix commit landed at 21:18:38Z, before the reviewer's review was submitted at 21:40:34Z — the review's diff view was anchored to the stale commit 8ac7ee0a (19:57:40Z) and still showed the broken code.",
+      "description": "getEmailAssetsBucket() hardcoded the prod GCS bucket name and dropped the previous process.env.PUBLIC_ASSETS_BUCKET_NAME override, while its JSDoc still claimed to read from the env var. This meant dev/UAT digest drafts would embed image URLs pointing at the prod bucket."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        209,
+        209
+      ],
+      "class": "other",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 29ee0c628 — the entire AI-generated-footer disclaimer block (and its generatedAt/timeZone/footerNoteStyle plumbing) was removed rather than recolored, so the contrast issue became moot.",
+      "description": "The footer disclaimer rendered at a 2.52:1 contrast ratio (T.textVeryFaint on white), well under the WCAG AA 4.5:1 threshold for normal text. Product-decision styling/accessibility finding, marked Decided in the comment body."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.ts",
+      "lines": [
+        43,
+        43
+      ],
+      "class": "race",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — weekStart is now pinned once at dispatch time and threaded through ClientDigestJobData as weekStartIso; the processor derives weekStart from job.data.weekStartIso instead of recomputing Date.now()-7d. Verified present in the final merged code.",
+      "description": "weekStart was computed as new Date(Date.now() - 7d) at job-execution time rather than at dispatch/enqueue time. Because the processor runs with concurrency: 5, early- and late-executing jobs from the same fan-out could compute different week windows, causing the digest content window to drift by hours relative to the dispatch-time filter."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.processor.ts",
+      "lines": [
+        49,
+        63
+      ],
+      "class": "perf",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 63a3eae4a — added limit: MAX_DISPATCH_PAIRS (10k) with orderBy lastMessageAt DESC (most-recently-active pairs kept first) plus a logger.warn when the cap is hit.",
+      "description": "em.find(CrUserView, ...) in the dispatch processor had no limit on an unbounded, growing result set (all attorney/client pairs with recent messages), risking an OOM on the Cloud Run worker as feature usage grows."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        50,
+        96
+      ],
+      "class": "other",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Explicitly deferred — reply: 'Deferring to a follow-up — won't fix in this PR,' reasoning that React Email's JSX auto-escaping, encodeMimeHeader's base64 encoding, and the Zod .max() bounds already narrow the realistic injection surface. No code change made.",
+      "description": "LLM-generated subject/body text flows into an attorney's Gmail draft without post-LLM validation, so a crafted client email in the COMMUNICATIONS context could attempt to steer the generated draft content (prompt injection), even though HTML/MIME-header injection itself is blocked by existing escaping."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/case-radar/client-digest/services/gmail-draft.service.ts",
+      "lines": [
+        96,
+        151
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — MIME helpers extracted to gmail-mime.util.ts; gmail-draft.service.spec.ts rewritten with vi.mock('googleapis') to exercise createDraft's real public behavior plus all 3 SA-JSON constructor failure modes (9 service tests + 11 helper tests).",
+      "description": "createDraft() is the sole write surface of the whole client-digest feature (the call that actually creates the Gmail draft) yet had zero direct test coverage; the existing spec only exercised private __testing-exported helpers, not the public method."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/api/src/case-radar/client-digest/services/gmail-draft.service.spec.ts",
+      "lines": [
+        5,
+        5
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — the __testing export was removed from gmail-draft.service.ts; the old protocol-level assertions moved to gmail-mime.util.spec.ts (testing the now-public util) and the service spec was rewritten to mock googleapis and assert on createDraft directly.",
+      "description": "The gmail-draft service spec tested through a private __testing export rather than the public createDraft surface, so createDraft could be deleted entirely and all four tests would still pass — a test backdoor that doesn't actually guard the shipped behavior."
+    },
+    {
+      "id": "gt-8",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.processor.ts",
+      "lines": [
+        75,
+        115
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Explicitly deferred — reply: 'Deferring — won't fix in this PR,' citing the dispatcher's small size, attempts: 1, and a recoverable same-week-miss failure mode as not yet worth mock-heavy coverage; thread marked resolved without a code change.",
+      "description": "The dispatch processor's fan-out logic (flagByAttorney cache, null-attorney skip, per-pair feature-flag gating) had zero test coverage, so a bug that silently drops or duplicates an attorney/client pair would only surface in production on a Monday morning."
+    },
+    {
+      "id": "gt-9",
+      "file": "apps/api/src/case-radar/client-digest/services/gmail-draft.service.ts",
+      "lines": [
+        36,
+        36
+      ],
+      "class": "other",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 63a3eae4a — both InternalServerErrorException throws in gmail-draft.service.ts (constructor SA-JSON failure and the drafts.create no-id case) now pass structured { message, ...context } objects per the api.mdc convention.",
+      "description": "gmail-draft.service.ts threw InternalServerErrorException with a bare string message in two places, violating the project convention of always passing a structured object with message plus contextual identifiers, which hampers production debugging."
+    },
+    {
+      "id": "gt-10",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.producer.ts",
+      "lines": [
+        9,
+        9
+      ],
+      "class": "other",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 63a3eae4a — added CLIENT_DIGEST_DISPATCH_CRON (default '0 16 * * 5') and CLIENT_DIGEST_DISPATCH_TZ (default America/New_York) to api.schema.ts, all three tfvars, and .env.example; the producer now reads them via env.getOrThrow(...).",
+      "description": "The weekly dispatch cron pattern ('0 14 * * 1') was hardcoded as a constant instead of read from env, unlike the rest of the feature's cron config — meaning any schedule change would require a code commit and redeploy."
+    },
+    {
+      "id": "gt-11",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.ts",
+      "lines": [
+        181,
+        181
+      ],
+      "class": "other",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — all three local formatFullName helpers (template, LLM service, processor) replaced with the existing getFullName from @/shared/utils/format.",
+      "description": "formatFullName was independently duplicated in three files (plus similar clientHandle/toCommunications/toParticipant helpers) despite an existing shared getFullName utility with 11 other callers, violating the project's 'shared utils over privates' convention."
+    },
+    {
+      "id": "gt-12",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.ts",
+      "lines": [
+        66,
+        72
+      ],
+      "class": "silent-fallback",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No reply thread found, and no fix present in the final merged code (997c86fbda9): digest-queue.processor.ts still calls timelineService.findByUser with perPage: 1000 and never checks timeline.meta.total/totalCount for truncation; the suggested TimelineService.findForDigest was never added.",
+      "description": "findByUser is called with perPage: 1000 and orders messageAt DESC, so a high-volume client's older messages within the 7-day digest window are silently dropped from the LLM context with no detection or logging of the truncation."
+    },
+    {
+      "id": "gt-13",
+      "file": "apps/api/src/case-radar/client-digest/services/gmail-draft.service.ts",
+      "lines": [
+        189,
+        189
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — the new gmail-mime.util rejects CR/LF in raw-inserted addresses via a guardAddress helper, and encodeMimeHeader now also encoded-words ASCII display names containing RFC 5322 atom-specials (e.g. 'Smith, John <addr>' round-trips as one mailbox).",
+      "description": "MIME header construction inserted To:/From: addresses raw with no CRLF/control-char guard, and encodeMimeHeader only base64-encoded non-ASCII text, so an ASCII display name containing RFC 5322 special characters (e.g. a comma) would produce a malformed From: header."
+    },
+    {
+      "id": "gt-14",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.ts",
+      "lines": [
+        203,
+        225
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — added 3 indirect tests in digest-queue.processor.spec.ts covering the null-senderEmail/senderPartyType drop, the STAFF-based isFromAttorney derivation, and the zero-communications early-exit.",
+      "description": "The toCommunications filter (which drops entries with null senderEmail/senderPartyType and derives isFromAttorney from the STAFF enum) and the communications.length === 0 early-exit in processJob both had no test coverage."
+    },
+    {
+      "id": "gt-15",
+      "file": "apps/api/src/case-radar/client-digest/dto/digest-content.dto.spec.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — added a round-trip equality assertion on the happy path, nextWeekItems.max(6) and needsFromClient.max(6) upper-bound tests, and extra-property rejection tests for the nested .strict() schemas.",
+      "description": "The digest-content DTO spec had three gaps: no transformation guard on the happy path, an untested nextWeekItems.max(6) upper bound (asymmetric with the tested progressItems bound), and no extra-property rejection test for the nested .strict() ProgressItem/NeedsItem schemas."
+    },
+    {
+      "id": "gt-16",
+      "file": "apps/api/src/case-radar/client-digest/services/digest-template.renderer.spec.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — added two render-path tests: an empty needsFromClient renders the 'Nothing outstanding' copy instead of the section heading, and an all-unflagged digest renders no flag indicator.",
+      "description": "The digest-template renderer spec never exercised the empty needsFromClient: [] state or an all-flagged:false digest — its fixture always included one flagged item and one needs item, leaving two render branches unverified."
+    },
+    {
+      "id": "gt-17",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.spec.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 63a3eae4a — llm-processing.service.test.ts and digest-template.renderer.test.ts renamed to .spec.ts via a git mv-tracked rename.",
+      "description": "Two new unit-test files used the .test.ts extension instead of the project's .spec.ts convention for unit tests (per .claude/rules/vitest.md and every sibling case-radar file)."
+    },
+    {
+      "id": "gt-18",
+      "file": "apps/api/src/case-radar/client-digest/services/digest-template.renderer.tsx",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No reply thread found, and no fix present in the final merged code: digest-template.renderer.tsx still exports DigestTemplateRendererService as an @Injectable() class wrapping render(), not converted to the recommended plain factory function.",
+      "description": "DigestTemplateRendererService is a stateless @Injectable class wrapping a single render() call, diverging from the modal pattern used by all 9 sibling email templates (a plain exported factory function); the .renderer.tsx extension is also unique within services/."
+    },
+    {
+      "id": "gt-19",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.types.ts",
+      "lines": [
+        11,
+        11
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — dispatch-queue.types.ts and digest-queue.types.ts now hold types only; the runtime @Injectable() DI-token abstract classes and queue-name constants moved to new digest-queue.ts / dispatch-queue.ts files.",
+      "description": "*.types.ts files mixed three concerns — a runtime queue-name constant, a TypeScript JobData type, and an @Injectable() abstract DI-token class — violating the project's dot-separator convention that *.types.ts hold types only."
+    },
+    {
+      "id": "gt-20",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        23,
+        23
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Resolved in 04dfdfab7 — T.pageBg changed from #e8e6e2 to #edebe7 to match the --color-brown-50 oklch source value; the comment was updated to reference it.",
+      "description": "T.pageBg ('#e8e6e2') was documented as mirroring the --color-brown-50 design token, but the actual oklch value resolves to approximately #edebe7 — a visible ~2% darker drift, with an incorrect comment."
+    },
+    {
+      "id": "gt-21",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        65,
+        73
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No reply thread found, and no fix present in the final merged code: llm-processing.service.ts still builds the exception message as `OpenAI refused to generate digest: ${message.refusal}`, so the raw refusal text is still concatenated into the surfaced error.",
+      "description": "OpenAI's free-text refusal explanation (message.refusal) is concatenated directly into the thrown exception's message field; if error reporting or Bull Board surfaces 500-error bodies, this could leak paraphrased prompt fragments — a PII-adjacent exposure."
+    },
+    {
+      "id": "gt-22",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.ts",
+      "lines": [
+        160,
+        179
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No reply thread found; verified against final merged code — digest-queue.processor.ts still imports User directly from '@/auth/entities/user.entity' with no AuthService.findUsersByIds added, so it's unclear whether 'accept-as-is' was a deliberate decision or the finding simply wasn't revisited.",
+      "description": "The client-digest processor reads the User entity (owned by AuthModule) directly across a module boundary rather than through an AuthService method, though the comment itself notes 3+ existing modules already do this as an accepted 'list' carve-out."
+    },
+    {
+      "id": "gt-23",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.processor.ts",
+      "lines": [
+        7,
+        7
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No reply thread found; verified against final merged code — dispatch-queue.processor.ts still imports CrUserView directly from the user-views sub-module with no UserViewService wrapper added.",
+      "description": "The dispatch processor imports the CrUserView entity (owned by the user-views sub-module) directly rather than through UserViewService, though the comment frames sibling-module access within case-radar as conventionally lighter-weight than cross-package access."
+    },
+    {
+      "id": "gt-24",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.spec.ts",
+      "lines": [
+        106,
+        172
+      ],
+      "class": "test-gap",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No fix expected — the finding itself states it is 'flagged for visibility, not correction.'",
+      "description": "Two LLM-processing tests assert on mock-call arguments (response_format shape, prompt text containing participant names) rather than on observable output; defensible since prompt grounding is part of the LLM contract, but flagged as an intent-check rather than a required fix."
+    },
+    {
+      "id": "gt-25",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        31,
+        31
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Partially addressed — verified against final merged code: T.textFaint was fully removed from client-digest.template.tsx, but T.logoBrown ('#33221B') is still defined in the theme object and remains unreferenced anywhere in the file.",
+      "description": "T.textFaint and T.logoBrown were defined in the email template's color palette but never referenced anywhere in the component; textFaint's 2.81:1 contrast would fail WCAG AA if it were ever used, so leaving it in the palette invited a future accidental regression."
+    },
+    {
+      "id": "gt-26",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        313,
+        319
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No reply thread found, and no fix present in the final merged code: the hero <Img> still has width=\"600\" height=\"400\" HTML attrs alongside the CSS style override, unchanged from review time.",
+      "description": "The hero <Img> combines width=\"600\"/height=\"400\" HTML attributes with a style={{ width: '100%', height: 'auto' }} CSS override; old Outlook's Word-based renderer ignores inline CSS on <Img> and uses the HTML attrs verbatim, so the image would overflow once the card narrows below 600px."
+    },
+    {
+      "id": "gt-27",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        39,
+        39
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "No reply thread found, and no fix present in the final merged code: FONT_STACK is still \"'Hanken Grotesk', sans-serif\", not aligned with the auth-template's richer fallback stack.",
+      "description": "The digest template's font fallback is just 'Hanken Grotesk', sans-serif; most desktop email clients can't resolve the @import'd webfont, and the fallback is thinner than the richer system-font stack already used by the auth email template."
+    },
+    {
+      "id": "gt-28",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        16,
+        16
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Self-resolved within the finding body — '✅ Verified — model is enabled in the project's OpenAI account; ship as-is.' No code change; the reviewer verified the model id directly rather than flagging a real defect.",
+      "description": "Model identifier gpt-5.5-2026-04-23 looked future-dated and reasoning_effort: 'medium' plus attempts: 1 with no SDK timeout/retry raised a concern that a 404 could silently fail every digest job, but the reviewer verified the model was actually valid and enabled on the project's OpenAI account."
+    }
+  ]
+}

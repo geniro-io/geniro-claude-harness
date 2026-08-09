@@ -1,0 +1,8 @@
+{
+  "id": "planted-3",
+  "mode": "patch",
+  "tree_dir": "tree",
+  "patch": "change.patch",
+  "lang": "typescript",
+  "project_context": "TypeScript notification service. PR description says: 'Refactor: rename formatNotification to renderNotification for consistency. No behavior change.'"
+}

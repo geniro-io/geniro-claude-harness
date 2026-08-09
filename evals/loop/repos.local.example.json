@@ -1,0 +1,4 @@
+{
+  "_": "Copy to repos.local.json (gitignored) and map each alias used by git-mode benchmark tasks to a local clone. Aliases keep committed task files free of repo names and machine paths.",
+  "monorepo-a": "/absolute/path/to/the/local/clone"
+}

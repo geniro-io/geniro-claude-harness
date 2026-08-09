@@ -29,10 +29,8 @@ Thumbs.db
 # Node (if any tooling is added)
 node_modules/
 
-# Evals — raw per-trial transcripts/outputs are local-only (eval plan §14 decision 9).
-# The ledger (evals/history.jsonl + evals/HISTORY.md), price-map, suites, and harness
-# ARE committed; only the bulky per-run capture is ignored.
-evals/runs/
+# Evals — raw per-trial transcripts/outputs are local-only; the framework,
+# benchmarks, and the runs.jsonl ledger ARE committed.
 
 # design/scratch/ — local-only working area for ALL skill-/maintainer-generated
 # design docs: plans, research, fix-pass progress, AND audit reports. Nothing here
@@ -44,3 +42,8 @@ evals/runs/
 # CI enforces and which stops firing once the violation is gone.
 design/scratch/
 .codegraph
+evals/loop/runs/
+evals/loop/cache/
+# Machine-local mappings that keep committed content free of repo names/paths
+evals/loop/repos.local.json
+.claude/skills/find-threads/roots.local

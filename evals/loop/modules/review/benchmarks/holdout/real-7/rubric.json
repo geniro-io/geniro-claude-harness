@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/web/src/features/action-item/components/action-item-row.tsx",
+      "lines": [
+        643,
+        643
+      ],
+      "class": "other",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Author replied on-thread (2026-05-04T17:11:21Z): 'Skipping this as it breaks the table, and already works well enough.' Confirmed by diff: packages/ui/src/components/table.tsx is byte-identical between review-time head and final merge head, and the rewritten LinksCell (added in commit 0000839bb0) still wraps links in a div[role=\"button\"], not a literal <button> element, so TableCell's `[&:has(button)]:overflow-visible` escape selector still cannot fire.",
+      "description": "The multi-link `<span class=\"flex flex-wrap gap-1\">` cell is wrapped in a `div[role=\"button\"]` editable affordance, but the parent `TableCell` applies `whitespace-nowrap overflow-hidden text-ellipsis max-w-0` and its overflow-escape selector matches only a literal `<button>` element, not `div[role=\"button\"]`. Net effect: multiple links collapse to one ellipsized, unwrapped line instead of wrapping onto multiple lines."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/web/src/features/action-item/form-schema.ts",
+      "lines": [
+        12,
+        12
+      ],
+      "class": "api-contract",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit ac7271fc36 ('migrate linksToFiles to text[] with z.array(z.httpUrl())', 2026-05-04T16:27:42Z) changed create-action-item.dto.ts, update-action-item.dto.ts, and responses.dto.ts from `z.string().max(5000)` to `z.array(z.httpUrl().max(2048)).max(50)`. form-schema.ts itself keeps a raw string (with a superRefine validator) for the textarea's React Hook Form state and splits to an array on submit, which resolves the finding's core concern (server no longer stores/returns an unvalidated raw string).",
+      "description": "The `linksToFiles` field used a bare `z.string()` at four DTO/schema sites, which the project's zod rule flags as a bug for a known-format (URL) field with no `z.url()`/`z.httpUrl()` validation. The team's chosen resolution was migrating the field to `z.array(z.httpUrl())` on the API DTOs, paired with a PG `text[]` storage column."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/action-item/entities/action-item.entity.ts",
+      "lines": [
+        63,
+        63
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Same commit ac7271fc36 changed the entity property to `@Property({ type: 'array', columnType: 'text[]', nullable: true }) linksToFiles: string[] | null = null;`, matching the finding's recommended resolution exactly.",
+      "description": "`linksToFiles` was stored as a scalar `string | null` text blob holding whitespace/comma-separated URLs, even though the field semantically represents a list — making sort non-deterministic on the raw blob and search a full-string ILIKE with no per-link structure. The chosen resolution migrated the column to a PostgreSQL `text[]`."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/action-item/action-item.integration.test.ts",
+      "lines": [
+        985,
+        985
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit 2483dcca0b ('add search/sort guard assertions for linksToFiles', 2026-05-04T16:42:50Z) added both a case-insensitive search test ('should find items by linksToFiles search term case-insensitively', searching 'UNIQUE-LINK-XYZ' against a lowercase-stored URL) and a no-match test ('should return no items when search term matches no linksToFiles', asserting meta.total === 0).",
+      "description": "The integration test for `linksToFiles` search covered only a single same-case search term, leaving the load-bearing case-insensitivity of the new `$ilike` branch untested, and had no assertion that a non-matching search term correctly excludes all items."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/web/src/features/action-item/components/action-item-utils.test.ts",
+      "lines": [
+        250,
+        250
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Final test file contains a `describe('linksToFiles', ...)` block nested inside `describe('buildActionItemUpdatePayload')` covering the space-separated valid-URL case, filtering non-http(s) URLs, empty-string-to-null, whitespace-only-to-null, all-invalid-to-null, and deduplication.",
+      "description": "The new `case 'linksToFiles'` branch in `buildActionItemUpdatePayload` (trimming the value and converting an empty result to `null`) had no corresponding unit test, despite the file already exercising the analogous `assigneeNotes` case and adding a `parseLinksToFiles` describe block for a different function."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/web/src/features/action-item/components/action-item-row.tsx",
+      "lines": [
+        631,
+        631
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Commit e4e24fea8b ('use project link token for action item file links', 2026-05-04T17:13:27Z) changed the anchor className to `text-primary underline-offset-4 hover:underline`, matching the Button `link` variant token exactly as recommended.",
+      "description": "The file-link anchors used `className=\"underline hover:no-underline\"`, which renders as plain foreground text and removes its underline on hover — inverting the standard link-affordance pattern and diverging from the project's `text-primary underline-offset-4 hover:underline` link-token convention used elsewhere (e.g. the Button `link` variant)."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/api/src/action-item/action-item.integration.test.ts",
+      "lines": [
+        1043,
+        1043
+      ],
+      "class": "test-gap",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not fixed with the recommended total-guard assertion. Instead, the entire sort-by-linksToFiles capability was removed: `ActionItemSortBy.LINKS_TO_FILES` was deleted from query-action-items.dto.ts and the 'should sort by linksToFiles ascending' test (including its unguarded `links[0]`/`links[1]` indexing) was deleted outright, apparently as part of the round-2 fix for a separate 'text[] sort with implicit lex-first-element semantics' finding. The original test no longer exists to carry a guard.",
+      "description": "The `linksToFiles` sort test indexed into `result.data` (`links[0]`, `links[1]`) without first asserting `result.meta.total === 2`, so a regression returning zero rows would fail with an opaque 'expected undefined' message instead of clearly indicating zero items were returned. The adjacent search test already used this guard pattern."
+    }
+  ]
+}

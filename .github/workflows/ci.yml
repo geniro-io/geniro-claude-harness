@@ -25,12 +25,7 @@ jobs:
     # A hung suite must not idle the runner to GitHub's 360-min default.
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        with:
-          # evals/vendor/skills pins the judge prompts (grader.md / comparator.md). Without it the
-          # run-suite comparator builds an empty prompt and every comparison degrades to a no-winner
-          # TIE (primary_value 0.5). The public anthropics/skills submodule must be checked out.
-          submodules: true
+      - uses: actions/checkout@v4
 
       - name: Verify jq is available
         run: jq --version
@@ -46,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: actions/checkout@v4
 
       - name: Ensure shellcheck is installed
         run: shellcheck --version || (sudo apt-get update && sudo apt-get install -y shellcheck)

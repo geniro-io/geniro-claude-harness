@@ -750,13 +750,18 @@ block() {
 # tests/hooks/path-normalize-matrix.sh feeds both guards every spelling above
 # and asserts identical exit codes — a one-sided edit fails it.
 _geniro_normalize_path() {
-  local p="${1:-}" prev
+  local p="${1:-}"
   while [ "${p#./}" != "$p" ]; do p="${p#./}"; done
-  prev=""
-  while [ "$prev" != "$p" ]; do
-    prev="$p"
-    p="${p//\/\//\/}"
-    p="${p//\/.\//\/}"
+  # Collapse `//` and `/./` with prefix/suffix cuts, looped to a fixed point —
+  # NOT ${p//pat/repl}: bash 3.2 (macOS /bin/bash) keeps the backslash of an
+  # escaped `/` in the replacement, emitting `\/` into the result and silently
+  # un-matching every guard pattern downstream (fails OPEN).
+  while :; do
+    case "$p" in
+      *//*)  p="${p%%//*}/${p#*//}" ;;
+      */./*) p="${p%%/./*}/${p#*/./}" ;;
+      *) break ;;
+    esac
   done
   while [ "${p%/.}" != "$p" ]; do p="${p%/.}"; done
   while [ "${p%/}" != "$p" ] && [ -n "${p%/}" ]; do p="${p%/}"; done
@@ -836,7 +841,7 @@ check_delete_arg() {
   #    PARENT, the same loss as wiping .geniro/instructions/ itself. Matching only
   #    a bare `*` let `.geniro/instructions/*.md` keep its 3rd segment and pass the
   #    gate while `.geniro/instructions/*` was correctly blocked.
-  while [ "$norm" != "${norm//\/\//\/}" ]; do norm="${norm//\/\//\/}"; done
+  while :; do case "$norm" in *//*) norm="${norm%%//*}/${norm#*//}" ;; *) break ;; esac; done
   case "${norm##*/}" in *'*'*) norm="${norm%/*}" ;; esac
 
   # After dropping a trailing glob, a bare `.geniro` means "delete everything in

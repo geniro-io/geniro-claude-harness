@@ -140,7 +140,7 @@ Type the most **distinctive** token you remember from the thread. Distinctive be
 
 | You remember… | Type | Why it works |
 |---|---|---|
-| the tracker ticket | `CI-317` or `CI317` | An issue key matches separator-insensitively — `CI-317`, `CI317`, `CI 317` all find the canonical hyphenated spelling threads use. Type it however you remember it; the hyphen is optional |
+| the tracker ticket | `ENG-317` or `ENG317` | An issue key matches separator-insensitively — `ENG-317`, `ENG317`, `ENG 317` all find the canonical hyphenated spelling threads use. Type it however you remember it; the hyphen is optional |
 | the PR it reviewed | `2649` | A bare 3–6 digit query is read as a PR reference (`pull/2649`, `#2649`, `pr-2649`), so it ignores the same digits buried in UUIDs, token counts, and timestamps |
 | an error or log string | `ECONNREFUSED` or `null pointer` | Rare strings match few threads — high precision |
 | a file it edited | `case-radar.ts` | Filenames appear verbatim in edit-tool calls |
@@ -149,7 +149,7 @@ Type the most **distinctive** token you remember from the thread. Distinctive be
 Tips:
 - A vague paraphrase (`didnt post low`) matches loosely — every thread containing "post" or "low" is kept, and ranking does the work. Prefer a PR number or a unique token when you have one.
 
-**Finding a whole feature, not one thread.** A single ticket key only finds threads that *name that ticket*. But a feature's real work-in-progress is spread across sibling tickets, follow-up PRs, and threads titled after the feature (not the key) — so one key shows fragments, never the whole epic. To assemble the complete chain, pass several terms at once: the feature noun plus the sibling keys — `CI-315 CI-316 CI-317 cw_case`. The terms are OR-matched into one ranked list, with threads touching several of them floated to the top by proximity. When a user asks for "all the work on X" and a single key returns a thin set, widen to a multi-term query before concluding the work isn't there.
+**Finding a whole feature, not one thread.** A single ticket key only finds threads that *name that ticket*. But a feature's real work-in-progress is spread across sibling tickets, follow-up PRs, and threads titled after the feature (not the key) — so one key shows fragments, never the whole epic. To assemble the complete chain, pass several terms at once: the feature noun plus the sibling keys — `ENG-315 ENG-316 ENG-317 case_table`. The terms are OR-matched into one ranked list, with threads touching several of them floated to the top by proximity. When a user asks for "all the work on X" and a single key returns a thin set, widen to a multi-term query before concluding the work isn't there.
 
 ---
 

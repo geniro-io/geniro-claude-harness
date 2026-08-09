@@ -1,0 +1,35 @@
+diff --git a/src/api/users.ts b/src/api/users.ts
+index 110bc6c..52a1fc4 100644
+--- a/src/api/users.ts
++++ b/src/api/users.ts
+@@ -3,3 +3,7 @@ import { db } from "../db";
+ export async function getUser(id: string) {
+   return db.query("SELECT * FROM users WHERE id = $1", [id]);
+ }
++
++export async function searchUsers(name: string) {
++  return db.query("SELECT * FROM users WHERE name LIKE '%" + name + "%'");
++}
+diff --git a/src/orders/total.ts b/src/orders/total.ts
+index 1efa444..3c11c6a 100644
+--- a/src/orders/total.ts
++++ b/src/orders/total.ts
+@@ -5,9 +5,17 @@ export interface OrderItem {
+ }
+ 
+ export function itemTotal(item: OrderItem): number {
+-  return item.price * item.qty;
++  const discounted = item.price * (1 - item.discount.pct / 100);
++  return discounted * item.qty;
+ }
+ 
+ export function orderTotal(items: OrderItem[]): number {
+   return items.reduce((sum, it) => sum + itemTotal(it), 0);
+ }
++
++export async function fetchOrderItems(orderId: string): Promise<OrderItem[]> {
++  const { db } = await import("../db");
++  return db
++    .query("SELECT price, qty, discount FROM order_items WHERE order_id = $1", [orderId])
++    .catch(() => []) as Promise<OrderItem[]>;
++}

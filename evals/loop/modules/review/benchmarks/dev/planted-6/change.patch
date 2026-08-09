@@ -1,0 +1,24 @@
+diff --git a/src/report.ts b/src/report.ts
+index b550a8d..0d29758 100644
+--- a/src/report.ts
++++ b/src/report.ts
+@@ -4,3 +4,19 @@ export async function getOrderIds(customerId: string): Promise<string[]> {
+   const rows = await db.query("SELECT id FROM orders WHERE customer_id = $1", [customerId]);
+   return rows.map((r) => r.id);
+ }
++
++export async function buildCustomerReport(customerId: string): Promise<string> {
++  const ids = await getOrderIds(customerId);
++  let report = "";
++  for (const id of ids) {
++    const items = await db.query("SELECT * FROM order_items WHERE order_id = $1", [id]);
++    for (const item of items) {
++      report += `${id},${item.sku},${item.qty},${item.price}\n`;
++    }
++  }
++  return report;
++}
++
++export function averageOrderValue(totals: number[]): number {
++  return totals.reduce((a, b) => a + b) / totals.length;
++}

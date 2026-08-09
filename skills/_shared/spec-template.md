@@ -32,24 +32,24 @@ effort_tier: <trivial|small|medium|big> # extension
 lifecycle: draft # design-doc lifecycle (draft|approved|superseded)
 workflow_refs: # optional — tracker linkage (Linear / Jira / GitHub Issues / Asana)
 - kind: linear # matches .geniro/workflow/<kind>.md filename
-  issue_id: CI-303
-  url: https://linear.app/.../issue/CI-303/...
+  issue_id: ENG-303
+  url: https://linear.app/.../issue/ENG-303/...
   fetched_at: 2026-05-26T10:42:13Z # ISO-8601 UTC — staleness check by downstream
-  title: "Parallelize Case Radar backfill via per-user jobs"
+  title: "Parallelize telemetry backfill via per-user jobs"
   suggested_branch: ci-303-parallelize-case-radar-backfill-via-per-user-jobs
   status: Todo # tracker status at fetch time
   parent_ref: # optional — Linear parent epic / Jira epic
     kind: linear
-    issue_id: CI-300
+    issue_id: ENG-300
     url: https://linear.app/...
-    title: "Case Radar performance epic" # optional (m5-v3)
+    title: "Telemetry performance epic" # optional (m5-v3)
     status: In Progress # optional (m5-v3)
-    scope: "Cut Case Radar backfill latency below 5 min across all tenants." # optional (m5-v3)
+    scope: "Cut telemetry backfill latency below 5 min across all tenants." # optional (m5-v3)
   siblings: # optional (m5-v3)
-  - issue_id: CI-301
+  - issue_id: ENG-301
     title: "Add per-user job partitioning"
     status: Done
-  - issue_id: CI-302
+  - issue_id: ENG-302
     title: "Backfill progress telemetry"
     status: In Progress
   chain_fetched_at: 2026-05-26T10:42:15Z # optional (m5-v3)

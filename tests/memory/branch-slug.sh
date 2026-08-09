@@ -30,7 +30,7 @@ eq() { # eq <got> <want> <label>
 # lowercase + collapse a single separator
 eq "$(_geniro_branch_slug 'Feature/Foo')" "feature-foo" "lowercases and collapses '/' to a dash"
 # collapse every non-alnum run (slash, underscore, space) to one dash
-eq "$(_geniro_branch_slug 'feat/CI-303_bar baz')" "feat-ci-303-bar-baz" "collapses every non-alnum run to a single dash"
+eq "$(_geniro_branch_slug 'feat/ENG-303_bar baz')" "feat-eng-303-bar-baz" "collapses every non-alnum run to a single dash"
 eq "$(_geniro_branch_slug 'a//__  b')" "a-b" "adjacent separators collapse to one dash"
 # strip leading/trailing dashes
 eq "$(_geniro_branch_slug '/lead/trail/')" "lead-trail" "strips leading and trailing dashes"

@@ -1,7 +1,7 @@
 .claude/skills/analyze-thread/SKILL.md 3882
 .claude/skills/audit-plugin/SKILL.md 3926
 .claude/skills/find-threads/SKILL.md 3404
-.claude/skills/improve-template/SKILL.md 4053
+.claude/skills/improve-template/SKILL.md 3158
 agents/adversarial-tester-agent.md 3187
 agents/codebase-explorer-agent.md 1362
 agents/codebase-research-agent.md 1936
@@ -10,14 +10,14 @@ agents/knowledge-retrieval-agent.md 1316
 agents/reflection-agent.md 1619
 agents/reviewer-agent-reference.md 185
 agents/reviewer-agent.md 3308
-agents/test-runner-agent.md 1113
+agents/test-runner-agent.md 1095
 skills/actions/SKILL.md 2821
 skills/audit-instructions/SKILL.md 3349
 skills/debug/SKILL.md 2957
 skills/implement/SKILL.md 4224
 skills/instructions/SKILL.md 2549
 skills/investigate/SKILL.md 3158
-skills/onboard/SKILL.md 2986
+skills/onboard/SKILL.md 2972
 skills/plan/SKILL.md 3045
 skills/refactor/SKILL.md 3253
 skills/reflect/SKILL.md 3135
