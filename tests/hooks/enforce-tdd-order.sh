@@ -244,6 +244,16 @@ expect_allow "RED: awk numeric compare allowed" \
   "$(run_bash "awk '{print (a > b) ? 1 : 2}' src/app.js")"
 expect_allow "RED: running a python script allowed" \
   "$(run_bash 'python3 manage.py migrate')"
+# Regression from the #6 fix: unquoting a whitespace-free token before the
+# blank pass (needed so a quoted write TARGET survives) also un-hides a
+# whitespace-free awk PROGRAM that used to be blanked as quoted data — the
+# in-place-awk vector had no name-based skip for that shape the way sed's
+# script-token skip already does, so `{print}` itself became a bogus second
+# candidate and hard-blocked the write to the REAL (test-file) target.
+expect_allow "RED: gawk -i inplace with an unquoted brace program on a test file allowed" \
+  "$(run_bash 'gawk -i inplace "{print}" src/app.test.js')"
+expect_block "RED: gawk -i inplace with an unquoted brace program on production blocks" \
+  "$(run_bash 'gawk -i inplace "{print}" src/app.js')"
 
 # ===== NotebookEdit branch: notebook_path is classified like file_path =====
 run_notebookedit() {
@@ -261,6 +271,30 @@ write_phase RED
 rm -f "$STATE_FILE"
 expect_allow "no state file: Bash production write allowed" \
   "$(run_bash "$(printf 'cat > %s/src/app.js <<EOF\nx\nEOF\n' "$GITREPO")")"
+
+# ===== T1 #6 (2026-08-09 audit): quoting the write target must not bypass
+# the RED gate — the quote-blank ran with no preceding unquote pass, so the
+# whole shell word (including a quoted `src/app.js`) was erased as data. =====
+write_phase RED
+expect_block "RED: bash unquoted redirect into production blocks (control)" \
+  "$(run_bash "echo x > $GITREPO/src/app.js")"
+expect_block "RED: bash double-quoted redirect target blocks" \
+  "$(run_bash "echo x > \"$GITREPO/src/app.js\"")"
+expect_block "RED: bash single-quoted redirect target blocks" \
+  "$(run_bash "echo x > '$GITREPO/src/app.js'")"
+expect_allow "RED: bash quoted redirect into a test file allowed" \
+  "$(run_bash "echo x > \"$GITREPO/tests/app.test.js\"")"
+
+# ===== T1 #10 (2026-08-09 audit): collapsing newlines to spaces merged two
+# separate simple commands, so an unrelated flag on line 2 (`grep -i`) was
+# misread as line 1's `sed -i` in-place flag and hard-blocked a read-only
+# span. The `&&`-joined equivalent (already one line, never collapsed) must
+# decide the SAME way. =====
+write_phase RED
+expect_allow "RED: sed(no -i)+grep -i on separate lines stays allowed" \
+  "$(run_bash "$(printf "sed 's/a/b/' %s/src/app.js > /tmp/o\ngrep -i foo %s/notes.txt\n" "$GITREPO" "$GITREPO")")"
+expect_allow "RED: sed(no -i)+grep -i joined with && stays allowed (control)" \
+  "$(run_bash "sed 's/a/b/' $GITREPO/src/app.js > /tmp/o && grep -i foo $GITREPO/notes.txt")"
 
 # ===== T4-5: jq-less fail-open — the guard cannot inspect tool input without
 # jq and, unlike the data-loss guards, carries no coarse raw-text fallback, so

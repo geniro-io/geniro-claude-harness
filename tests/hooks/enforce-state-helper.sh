@@ -394,6 +394,22 @@ expect_block "bash: pushd -n .geniro && write to safety.json blocks" \
 expect_allow "bash: pushd into a non-.geniro dir allowed" \
   "$(rc_bash 'pushd /tmp && echo x > notes.txt')"
 
+# ===== T0 #1/#2 (2026-08-09 audit): a `/./` segment defeats BOTH the
+# safety-json-edit gate and the general state-path gate — nothing in the
+# guard collapsed a `.` path segment before matching. A single-tool `Write`
+# to `.geniro/./safety.json` was a self-grant of every bypass pattern ID in
+# one call. =====
+expect_block "safety.json: /./ segment still blocks (Write)" \
+  "$(rc_path '/proj/.geniro/./safety.json')"
+expect_block "safety.json: /./ segment still blocks (bash redirect)" \
+  "$(rc_bash 'echo x > .geniro/./safety.json')"
+expect_block "state path: /./ segment still blocks (Write)" \
+  "$(rc_path '/proj/.geniro/./planning/t/state.md')"
+expect_block "state path: /./ segment still blocks (bash redirect)" \
+  "$(rc_bash 'echo x > .geniro/./planning/t/state.md')"
+expect_block "state path: repeated-slash + /./ comb still blocks" \
+  "$(rc_bash 'echo x > .geniro//./planning/t//state.md')"
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

@@ -889,6 +889,13 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #     argument the same way sed -i does above. `-i` and `inplace` are TWO
   #     tokens (unlike sed's attached-suffix `-i.bak`), so the literal word
   #     `inplace` is skipped as the flag's VALUE, not read as a file argument.
+  #     An UNQUOTED, whitespace-free awk PROGRAM token (`{print}`, `/re/`) is
+  #     skipped the same way sed's own script token is skipped above — added
+  #     alongside the #6 fix (2026-08-09 audit): unquoting a whitespace-free
+  #     token before the blank pass, needed so a quoted write TARGET survives,
+  #     also un-hides a whitespace-free awk PROGRAM that used to be blanked as
+  #     quoted data, and this vector had no name-based skip for that shape the
+  #     way sed's `s[!a-zA-Z0-9]*|y[!a-zA-Z0-9]*` skip already does.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
     printf '%s' "$span" | grep -qE '[[:space:]]-i[[:space:]]+inplace([[:space:].]|$)' || continue
@@ -897,6 +904,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     for tok in $span; do
       case "$tok" in
         *awk|-*|inplace) continue ;;
+        *'{'*|'/'*'/') continue ;;
       esac
       add_candidate "$tok"
     done

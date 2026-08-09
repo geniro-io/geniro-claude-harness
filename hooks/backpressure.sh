@@ -57,7 +57,13 @@ run_silent() {
         # instead of always reporting "0 packages ok".
         if [ -z "$summary" ]; then
             local ok_count
-            ok_count=$(grep -c "^ok" "$tmp_file" 2>/dev/null)
+            # `grep -c` exits 1 on zero matches even though it still prints "0" —
+            # a bare assignment with no pipe propagates that rc to $?, so a caller
+            # that sourced this function under `set -e` aborts here on the
+            # SUCCESS path (2026-08-09 audit #89). `:52` and `:55` above pipe
+            # through `tail`, whose own rc is what `$?` sees, so they are already
+            # unaffected.
+            ok_count=$(grep -c "^ok" "$tmp_file" 2>/dev/null) || true
             [ "${ok_count:-0}" -gt 0 ] && summary="$ok_count packages ok"
         fi
         # Generic: line count
