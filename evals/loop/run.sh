@@ -140,10 +140,16 @@ assemble_prompt() { # task_stage_dir facet_name criteria_files... -> prompt on s
   printf '\nYour workspace is the reviewed repository — Read/Grep it for callers and context beyond the diff.\nBegin the review now. Output ONLY the review in the exact format specified.\n'
 }
 
-spent_usd() { # measured spend so far: stored results PLUS retried attempts' usage
+spent_usd() { # measured PAID spend: retried attempts count, cache-served results don't
   local toks
-  toks="$(cat "$OUT"/results/*/trial-*/raw-*.json "$OUT"/results/*/trial-*/usage-extra-*.jsonl 2>/dev/null \
-    | jq -s '[.[].usage // {} | ((.inputTokens // 0) + (.cacheReadTokens // 0) + (.outputTokens // 0))] | add // 0')"
+  toks="$({
+    for f in "$OUT"/results/*/trial-*/raw-*.json; do
+      [ -f "$f" ] || continue
+      d="${f%/*}"; b="${f##*/raw-}"; b="${b%.json}"
+      [ -f "$d/.cached-$b" ] || cat "$f"
+    done
+    cat "$OUT"/results/*/trial-*/usage-extra-*.jsonl 2>/dev/null || true
+  } | jq -s '[.[].usage // {} | ((.inputTokens // 0) + (.cacheReadTokens // 0) + (.outputTokens // 0))] | add // 0')"
   awk -v t="$toks" -v r="$RATE" 'BEGIN { printf "%.4f", t * r / 1000000 }'
 }
 
@@ -169,9 +175,11 @@ run_one() { # task_id trial facet criteria...
   cached="$CACHE_DIR/$key.json"
   if [ "$NO_CACHE" -eq 0 ] && [ -f "$cached" ]; then
     cp "$cached" "$rdir/raw-$facet.json"
+    : > "$rdir/.cached-$facet"   # marker: this result was NOT paid for by this run
     echo "[cache] $task_id trial-$trial $facet"
     return 0
   fi
+  rm -f "$rdir/.cached-$facet"
   # Prompt over stdin: argv has a hard size ceiling, prompts do not.
   local attempt=1
   while [ "$attempt" -le 2 ]; do
