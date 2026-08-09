@@ -154,14 +154,18 @@ run_one() { # task_id trial facet criteria...
   mkdir -p "$rdir"
   local prompt_file="$rdir/prompt-$facet.md"
   assemble_prompt "$stage" "$facet" "$@" > "$prompt_file"
-  local ver key cached wsig
+  local ver key cached wseg
   ver="$(rubric_version "$TASKS/$task_id")"
   # trial is part of the key: trials must be independent samples, while a
-  # re-run/resume of the SAME trial index stays a free cache hit. The workspace
-  # signature is too: identical prompts over differently-pruned trees are
-  # different measurement conditions.
-  if [ -f "$stage/workspace-scope.txt" ]; then wsig="$(sha < "$stage/workspace-scope.txt")"; else wsig="full"; fi
-  key="$(printf '%s|%s|t%s|v%s|w%s|%s' "$MODEL" "$task_id" "$trial" "$ver" "$wsig" "$(sha < "$prompt_file")" | sha)"
+  # re-run/resume of the SAME trial index stays a free cache hit. A PRUNED
+  # workspace adds its scope hash: identical prompts over differently-pruned
+  # trees are different measurement conditions. Full trees keep the legacy
+  # key shape so paid full-workspace caches stay valid.
+  wseg=""
+  if [ -f "$stage/workspace-scope.txt" ] && [ "$(head -1 "$stage/workspace-scope.txt")" != "full" ]; then
+    wseg="|w$(sha < "$stage/workspace-scope.txt")"
+  fi
+  key="$(printf '%s|%s|t%s|v%s%s|%s' "$MODEL" "$task_id" "$trial" "$ver" "$wseg" "$(sha < "$prompt_file")" | sha)"
   cached="$CACHE_DIR/$key.json"
   if [ "$NO_CACHE" -eq 0 ] && [ -f "$cached" ]; then
     cp "$cached" "$rdir/raw-$facet.json"

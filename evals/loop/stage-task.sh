@@ -45,7 +45,11 @@ if [ "$MODE" = "git" ]; then
   git -C "$REPO" diff --name-only "$BASE" "$HEAD" > "$STAGE_DIR/changed-files.txt"
   # A plain archive extract, not a linked worktree: the reviewed tree must not
   # register in the source repo's worktree list (no cleanup coupling, no lock risk).
-  SCOPE_MODE="$(jqr '.workspace_scope // "auto"')"
+  # Default full: a 2026-08-09 probe measured pruning saving ~nothing on real
+  # monorepo tasks ($0.438 vs $0.44/call) — the agent's reads track its own
+  # exploration budget, not tree size. "auto" pruning stays as a per-task
+  # opt-in for repos/tasks where a narrow slice is the honest workspace.
+  SCOPE_MODE="$(jqr '.workspace_scope // "full"')"
   mkdir -p "$STAGE_DIR/tree"
   if [ "$SCOPE_MODE" = "full" ]; then
     git -C "$REPO" archive "$HEAD" | tar -x -C "$STAGE_DIR/tree"

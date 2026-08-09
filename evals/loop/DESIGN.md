@@ -67,12 +67,15 @@ workload-shape change.
 Screening economics (2026-08-09 config; a stand-condition change — pre-change
 baselines and the EXP-001 noise floor are indicative, not comparable):
 
-- **Pruned workspace** — `stage-task.sh` git mode stages the diff's
-  neighborhood (depth-2 subtrees of changed files + workspace packages the
-  changed files import + root files + `.claude`/`.cursor` rule surfaces), not
-  the whole monorepo; agent workspace reads were ~90% of a real task's bill.
-  `"workspace_scope": "full"` in task.json opts a task out. The scope list's
-  hash is part of the cache key.
+- **Workspace pruning — measured a dud, default stays full.** The hypothesis
+  (agent workspace reads are ~90% of a real task's bill → prune the tree) was
+  probed 2026-08-09: a pruned real task cost $0.438/call vs $0.44 full — the
+  agent's reads track its exploration budget, not tree size. `stage-task.sh`
+  keeps `"workspace_scope": "auto"` as a per-task OPT-IN (depth-2 changed
+  subtrees + imported workspace packages + root/rule files), and a pruned
+  stage adds its scope hash to the cache key; full-workspace keys keep the
+  legacy shape so paid caches survive. Don't re-propose pruning as a cost
+  lever without new evidence.
 - **Screen facet subset** — screens run `target.json.screen_facets` (for
   review: bugs/security/tests/regressions — every must item's class lives
   there, and the legacy H1 result showed recall parity on 4 dimensions);
