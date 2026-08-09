@@ -219,9 +219,7 @@ Suspicion score per event = sum of:
 - `+1` if the event is in the first 10 or last 10 events of the thread (start/end carry context)
 - `0` otherwise
 
-Sort events by suspicion descending; take top events until 60K-token budget is reached; sort the selection back into chronological order for the judge. Always include the opening user message and the closing assistant turn regardless of score (anchors for E3 task-drift judging).
-
-**One reservation on top of the ranking.** The judged coverage checks (I8-I11, K7, K8) each need a specific pair of events — a declaration and the place it should have taken effect — and a purely score-sorted slice reliably keeps the first and drops the second, because a boundary where nothing happened scores near zero for exactly the reason it is the finding. Before spending the budget on the ranked tail, reserve room for both ends of each declaration the expectation set carries: the tool_result that established it, and the turns at the boundary where it applied. Where an excerpt had to be dropped anyway, tell the judge which checks are running on partial evidence rather than letting it read absence as proof.
+Sort events by suspicion descending; take top events until 60K-token budget is reached; sort the selection back into chronological order for the judge. Always include the opening user message and the closing assistant turn regardless of score (anchors for E3 task-drift judging), and both ends of each declaration the expectation set carries — the tool_result that established it, and the turns at the boundary where it applied — before spending the budget on the ranked tail: a purely score-sorted slice reliably keeps the declaration and drops its boundary, because a boundary where nothing happened scores near zero for exactly the reason it is the finding, and the judged coverage checks (I8-I11, K7, K8) need that empty boundary as evidence, not just the declaration. Where an excerpt had to be dropped anyway, tell the judge which checks are running on partial evidence rather than letting it read absence as proof.
 
 ---
 

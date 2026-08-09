@@ -445,6 +445,61 @@ else
   fail "links.refs[1] not sanitized: '$lnk'"
 fi
 
+# Sanitization: SCALAR ext (T0 #5 regression). `paths(strings)` on `.ext`
+# alone yields no paths when `.ext` is itself a plain string — the string has
+# no descendants — so a scalar ext used to persist verbatim. The deep walk
+# over the WHOLE entry catches it because a scalar `ext` value is a leaf at
+# path ["ext"], same as any other string field.
+new_sandbox
+jq -nc '{
+  producer:"/debug", scope:"x", summary:"y", tags:["bug"],
+  ext:"leaked key ghp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AB"
+}' | emit_learning
+ext_scalar=$(read_log | jq -r '.ext')
+if echo "$ext_scalar" | grep -q '\[REDACTED:api-key:github\]'; then
+  pass "scalar ext sanitization fires (T0 #5)"
+else
+  fail "scalar ext not sanitized: '$ext_scalar'"
+fi
+
+# Sanitization: SCALAR links (same shape as scalar ext above).
+new_sandbox
+jq -nc '{
+  producer:"/review", scope:"x", summary:"y", tags:["bug"],
+  links:"https://api.example.com/hook?key=AKIAIOSFODNN7EXAMPLE"
+}' | emit_learning
+links_scalar=$(read_log | jq -r '.links')
+if echo "$links_scalar" | grep -q '\[REDACTED:aws-key\]'; then
+  pass "scalar links sanitization fires"
+else
+  fail "scalar links not sanitized: '$links_scalar'"
+fi
+
+# Sanitization: a non-string element inside tags[] (T1 #11 regression). The
+# old tags[] loop skipped any element whose own type wasn't "string", so a
+# secret nested inside an object element reached the log unredacted. The deep
+# walk reaches it because the nested string is a leaf regardless of what
+# container (object, in this case) holds it.
+new_sandbox
+jq -nc '{
+  producer:"/debug", scope:"x", summary:"y",
+  tags:["bug", {"k":"sk-ant-api03-leaked-in-a-tag-object"}]
+}' | emit_learning
+tag_obj=$(read_log | jq -r '.tags[1].k')
+if echo "$tag_obj" | grep -q '\[REDACTED:api-key:anthropic\]'; then
+  pass "non-string (object) tags[] element sanitization fires (T1 #11)"
+else
+  fail "tags[1].k not sanitized: '$tag_obj'"
+fi
+# The object element must stay an object (structure preserved, not
+# flattened/stringified by the redaction pass).
+tag_obj_type=$(read_log | jq -r '.tags[1] | type')
+if [ "$tag_obj_type" = "object" ]; then
+  pass "non-string tags[] element keeps its object shape after sanitization"
+else
+  fail "tags[1] type corrupted by sanitization: '$tag_obj_type'"
+fi
+
 # Oversize guard counts BYTES, not characters. A body of 1400 three-byte UTF-8
 # code points is ~1400 characters (the serialized line stays well under 4096
 # chars) but ~4200 bytes — over the PIPE_BUF atomicity limit. A char-count guard

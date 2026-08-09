@@ -28,7 +28,7 @@ Run the gate AFTER the workspace decision is known but BEFORE the first code edi
 
 ## 2. Shared sub-steps
 
-Both modes start here. The default-branch resolution follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule #3 sub-bullets (b)/(c) (origin/HEAD → local main/master), restated inline so this gate stays self-contained; it adds one terminal `"main"` offline-safety fallback beyond those sub-bullets, for a repo with no remote and no main/master branch yet. Resolve two values, keeping these names — the rest of this file reads them:
+Both modes start here. The default-branch resolution follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`'s base-branch fallback chain (origin/HEAD → local main/master), restated inline so this gate stays self-contained; it adds one terminal `"main"` offline-safety fallback beyond that chain, for a repo with no remote and no main/master branch yet. Resolve two values, keeping these names — the rest of this file reads them:
 
 - **`DEFAULT_BRANCH`** — the target of `origin/HEAD`; failing that a local `main` or `master`; failing that the literal `main`.
 - **`BASE`** — the freshest known tip of that branch. Attempt a best-effort fetch of `DEFAULT_BRANCH` first, bounded to ~5s so an unreachable remote cannot hang the run. `BASE` is `origin/$DEFAULT_BRANCH` when that fetch succeeded and the remote-tracking ref exists; otherwise the local `$DEFAULT_BRANCH`, which is only as fresh as the user's last fetch or pull.

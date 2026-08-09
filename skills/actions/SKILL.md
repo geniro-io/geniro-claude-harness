@@ -123,7 +123,7 @@ Action frontmatter MAY include tools outside `/geniro:actions`' own `allowed-too
 |---|---|
 | Scope checkpoint (Phase 4.3) — user picked "Stop here, keep what's changed" | `aborted: stopped at scope checkpoint after step <N>`; edits stay in place and the Phase 4.4 summary, with its `/geniro:review` recommendation, prints before the transition |
 | User cancelled at any question other than the scope checkpoint above | `aborted: user cancelled at <step>` |
-| Slug resolution retry cap exhausted (cap set in `actions-reference.md` §Target resolution Step 3) | `aborted: slug unresolved after 3 rounds of asking` |
+| Slug resolution retry cap exhausted (cap set in `actions-reference.md` §Target resolution Step 3) | `aborted: slug unresolved after <cap> rounds of asking` |
 | Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
 | Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>` |

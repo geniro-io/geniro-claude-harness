@@ -5,7 +5,7 @@ The two procedures more than one sub-command uses. Read this file whenever a sub
 ## Contents
 
 - Target resolution — Steps 1-4: build the registry, exact-slug fast path, free-text picker, canonical-copy resolution (used by `run` / `edit` / `delete` / `validate`)
-- Validation gate — the thirteen create/validate checks and what to do with each verdict (used by `create` / `edit` / `validate`)
+- Validation gate — every create/validate check decided by `validate-action-file.sh` and what to do with each verdict (used by `create` / `edit` / `validate`)
 
 ---
 
@@ -53,7 +53,7 @@ For `edit` and `delete`, after Step 2 or Step 3 resolves `<resolved-slug>`, chec
 
 ## Validation gate
 
-Fires after `create` writes the file, after `edit` returns from the external editor, and once per file in `validate` mode. One call decides all thirteen checks:
+Fires after `create` writes the file, after `edit` returns from the external editor, and once per file in `validate` mode. One call decides every check in `validate-action-file.sh`:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh"

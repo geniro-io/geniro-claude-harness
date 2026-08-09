@@ -26,8 +26,12 @@
 #
 # Excluded from both profiles, deliberately: the adversarial-tester spawn (its
 # Phase 4.3 gate is approval-bound, so it is not part of a floor or a ceiling),
-# the deep-mode paths (both profiles are single-pass), and memory-backend.md
-# (loaded only when a project declares a backend).
+# the deep-mode paths (both profiles are single-pass), memory-backend.md
+# (loaded only when a project declares a backend), and spawn-agent.md /
+# model-tiering.md — phase-2-spawns.md gates the spawn-agent.md Read behind a
+# not-found error or an empty spawn result, and model-tiering.md is cited, not
+# Read, at every review call site; neither is paid for on the happy path this
+# floor/ceiling pair measures.
 
 # ---- R1: orchestrator ----
 R1	orchestrator	1	skills/review/SKILL.md
@@ -42,8 +46,6 @@ R1	orchestrator	1	skills/_shared/gate-rendering.md
 R1	orchestrator	1	skills/_shared/per-finding-question.md
 R1	orchestrator	1	skills/_shared/review-handoff.md
 R1	orchestrator	1	skills/_shared/severity-calibration.md
-R1	orchestrator	1	skills/_shared/spawn-agent.md
-R1	orchestrator	1	skills/_shared/model-tiering.md
 R1	orchestrator	1	skills/_shared/state-tier-spec.md
 R1	orchestrator	1	skills/_shared/primary-worktree.md
 R1	orchestrator	1	skills/_shared/workspace-signals.md
@@ -90,8 +92,6 @@ R2	orchestrator	1	skills/_shared/per-finding-question.md
 R2	orchestrator	1	skills/_shared/review-handoff.md
 R2	orchestrator	1	skills/_shared/review-handoff-post.md
 R2	orchestrator	1	skills/_shared/severity-calibration.md
-R2	orchestrator	1	skills/_shared/spawn-agent.md
-R2	orchestrator	1	skills/_shared/model-tiering.md
 R2	orchestrator	1	skills/_shared/state-tier-spec.md
 R2	orchestrator	1	skills/_shared/primary-worktree.md
 R2	orchestrator	1	skills/_shared/workspace-signals.md

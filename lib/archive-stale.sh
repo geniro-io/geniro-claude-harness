@@ -80,7 +80,17 @@ archive_stale_learnings() {
   # needed to keep the prose, the filter, and the
   # hooks/session-start-restore.sh stderr grep (see the "criteria:" line
   # below) in lockstep.
+  # 180 days (~two quarters): long enough that a learning tied to a slow
+  # release cycle isn't swept just for being old — age is only one of the
+  # four AND'd criteria below, so an old-but-still-queried or old-but-verified
+  # entry survives on the other legs.
   local stale_age_days=180
+  # 0.1: low enough on the compound score (recency_decay × trust_weight ×
+  # access_weight × recurrence_weight, lib/score-formula.sh) that a single
+  # weak factor rarely pushes an entry under it alone — reaching this floor
+  # normally takes several of the weights compounding low at once (old AND
+  # low-trust AND unrecurring), matching the four-way AND's conservative bias
+  # (skills/_shared/archive-stale.md §Criteria).
   local stale_score_max=0.1
   local criteria="age>${stale_age_days}d AND score<${stale_score_max} AND access_count==0"
 

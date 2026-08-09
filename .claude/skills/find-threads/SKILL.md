@@ -23,7 +23,7 @@ argument-hint: "[search query — PR number / phrase / filename — or empty for
 
 ---
 
-You are the orchestrator for finding past Claude Code conversation threads that did substantive agentic work and routing the ones the user picks to the existing `/analyze-thread` skill. The sibling `scan.py` enumerates every project's session logs across all config dirs, keeps threads that edited code OR ran a skill OR spawned a subagent (tagging each `edited` or `read-only`, so read-only review/debug/investigate runs are surfaced too), and — when the user passes a query — searches inside the thread bodies and ranks the matches. You present the survivors, take a free-text selection, then launch `/analyze-thread` on the first batch of up to five picks and print any overflow batches as a ready-to-run queue. You only READ session logs — you never modify them, and you never edit `/analyze-thread`.
+You are the orchestrator for finding past Claude Code conversation threads that did substantive agentic work and routing the ones the user picks to the existing `/analyze-thread` skill. The sibling `scan.py` enumerates every project's session logs across all config dirs, keeps threads that edited code OR ran a skill OR spawned a subagent (tagging each `edited` or `read-only`, so read-only review/debug/investigate runs are surfaced too), and — when the user passes a query — searches inside the thread bodies and ranks the matches. You present the survivors, take a free-text selection, then launch `/analyze-thread` on the first batch, sized to its per-run cap (its §Budgets & quality gates), and print any overflow batches as a ready-to-run queue. You only READ session logs — you never modify them, and you never edit `/analyze-thread`.
 
 **Input:** an optional query and/or the `--code-only` flag in `$ARGUMENTS`.
 - **Empty** → list every work-bearing thread (edited + read-only), grouped by project.
@@ -166,7 +166,7 @@ Rows arrive sorted by project then newest-first. Walk them top to bottom; start 
 
 ### <project name>  (<full path>)
    1.  <date>  <title>                        (<turns> turns)
-   2.  <date>  <title>  [read-only] [>5 MB]   (<turns> turns)
+   2.  <date>  <title>  [read-only] [oversize]   (<turns> turns)
    ...
   10.  <date>  <title>  [read-only]           (<turns> turns)
   … +<K> more in this project (#11–<last>) — reply "more <project name>" to reveal them
@@ -176,7 +176,7 @@ Rules:
 - The header's four counts come from the engine's `#SUMMARY` line, not from tallying rows.
 - Numbers are assigned once across the full kept set and never change. Show the newest 10 rows per project; hidden rows keep their already-assigned numbers and are *revealed*, not renumbered, on `more <project name>`.
 - Tag `read-only` rows with `[read-only]`; `edited` rows carry no tag (they are the common case, so tagging only the minority keeps the list scannable).
-- Mark oversize rows with `[>5 MB]` and note once that `/analyze-thread` refuses them.
+- Mark oversize rows with `[oversize]` (over `/analyze-thread`'s file-size cap — its §Budgets & quality gates) and note once that `/analyze-thread` refuses them.
 - Keep titles on one line (already truncated to ~100 characters).
 
 ### Search mode (a query)
@@ -197,7 +197,7 @@ Rules:
 - Include the snippet so the user can tell matches apart at a glance.
 - Tag `read-only` rows with `[read-only]`; `edited` rows carry no tag. The kind is load-bearing when the user is hunting a pipeline run (a read-only `/geniro:review` is exactly an `/analyze-thread` target).
 - Before presenting, sanity-check the top candidates against what the user asked for (invariant #7) — e.g. if they want a `/review` run, confirm the rank-#1 thread actually ran that skill, not merely mentions the PR. Note any candidate you down-rank and why.
-- Mark oversize rows with `[>5 MB]`.
+- Mark oversize rows with `[oversize]`, per the same cap as list mode.
 
 If the list is empty, say no work-bearing threads matched (name the query) and stop.
 
@@ -217,16 +217,16 @@ Parse the reply against the numbered list, resolve each number to its absolute p
 
 ### Step 2 — Confirm
 
-Echo the resolved set back as a short list (`#`, title, path) so the user sees exactly what will run. Then fire ONE `AskUserQuestion`:
+Echo the resolved set back as a short list (`#`, title, path) so the user sees exactly what will run. Then fire ONE `AskUserQuestion`, substituting `/analyze-thread`'s per-run cap (its §Budgets & quality gates) for `<cap>` below:
 
 - **Header:** "Launch analysis"
-- **Question:** "Launch /analyze-thread on these N threads? Up to five are analyzed together in one run; any beyond that print as a queue."
+- **Question:** "Launch /analyze-thread on these N threads? Up to <cap> are analyzed together in one run; any beyond that print as a queue."
 - **Options:**
-  - "Launch — up to five now, rest queued (Recommended)"
+  - "Launch — up to <cap> now, rest queued (Recommended)"
   - "Let me re-pick" — return to Step 1
   - "Cancel" — stop, change nothing
 
-If any selected thread is oversize (`>5 MB`), name those here and warn that `/analyze-thread` rejects them as-is — Step 3 keeps them out of the runnable queue.
+If any selected thread is oversize (over `/analyze-thread`'s file-size cap — its §Budgets & quality gates), name those here and warn that `/analyze-thread` rejects them as-is — Step 3 keeps them out of the runnable queue.
 
 ### Step 3 — Launch the first, queue the rest
 
@@ -245,12 +245,12 @@ Queued — run this after the first finishes:
 /analyze-thread <abs-path-6> <abs-path-7> … --format=jsonl
 ```
 
-List any oversize picks separately under "Too large to analyze as-is (over 5 MB — split first)" with their paths — do NOT put them in the runnable queue, because `/analyze-thread` refuses them and the command would just fail. If every pick is oversize, launch nothing and say so, naming the oversize threads.
+List any oversize picks separately under "Too large to analyze as-is (over the size cap — split first)" with their paths — do NOT put them in the runnable queue, because `/analyze-thread` refuses them and the command would just fail. If every pick is oversize, launch nothing and say so, naming the oversize threads.
 
 ---
 
 ## REFERENCE
 
 - `scan.py` (sibling) — the discovery + search engine. Module docstring documents every column, root-resolution, the PR-number rule, the proximity score, the `edited`/`read-only` classification, and the `--code-only` flag. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default.
-- `.claude/skills/analyze-thread/SKILL.md` — the downstream consumer: input contract (one or more thread paths in `$ARGUMENTS`, clamped at 5 per run), the `--format=jsonl` modifier, the 5 MB cap, and the sibling-launch pattern this skill mirrors
+- `.claude/skills/analyze-thread/SKILL.md` — the downstream consumer: input contract (one or more thread paths in `$ARGUMENTS`, clamped at its per-run cap), the `--format=jsonl` modifier, its file-size cap (both in its §Budgets & quality gates), and the sibling-launch pattern this skill mirrors
 - `.claude/rules/skill-authoring.md` · `.claude/rules/skill-prose.md` · `.claude/rules/skill-structure.md` — authoring conventions this skill follows by convention (project-local skills are outside CI lint scope)

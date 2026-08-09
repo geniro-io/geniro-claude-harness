@@ -38,7 +38,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Race condition with a specific cited scenario (the scenario must be cited, not hypothesized)
 - Missing validation that lets malformed input reach a downstream consumer
 - Deleted production code with cross-file callers (the `regressions` dim signal: deletion + caller-blast)
-- Performance issue exceeding a measured threshold (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md`: >100 items, >1000 rows, >100KB minified — these are HIGH; below those, MEDIUM)
+- Performance issue exceeding the measured threshold owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` — HIGH at or above it, MEDIUM below
 - Behavior change outside stated intent when an intent source exists (spec.md / PR body / commit message contradicts the diff)
 
 **Excludes:**
@@ -196,7 +196,7 @@ Per-dim criteria files may tighten this rubric (e.g., `${CLAUDE_PLUGIN_ROOT}/ski
 
 - Documentation, PR-description, and cosmetic suggestions stay at LOW in every criteria file. Lifting one above LOW is how a dim smuggles a paper cut past the shared gate and onto the PR surface.
 - CRITICAL stays exactly the §1 inclusion list. Widening it in one dim out-ranks the taxonomy every downstream consumer reads, so the same defect scores differently depending on which reviewer found it.
-- Dim-specific HIGH/MEDIUM signals are welcome — regressions: deleted-symbol caller-blast → HIGH; optimizations: >1000 rows → HIGH.
+- Dim-specific HIGH/MEDIUM signals are welcome — regressions: deleted-symbol caller-blast → HIGH; optimizations: at or above its owned threshold (§1) → HIGH.
 
 A per-dim file that specializes severity cites §1 as the canonical taxonomy and documents only its own specialization. Restating the tiers locally is how the taxonomy forks: the local copy drifts, and two dims then disagree about what MEDIUM means.
 

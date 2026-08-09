@@ -6,6 +6,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/onboard/SKILL.md` t
 
 1. _CODEBASE_MAP.md format example — full 8-section worked example
 2. Invocation examples — three worked `/geniro:onboard` invocations
+3. Discovery-learning emit payload — the `emit_learning` call SKILL.md §2.3 fires
 
 ---
 
@@ -159,3 +160,29 @@ Express App (index.ts)
 → Understand current schema and relationships
 → Use map to plan where new feature fits
 → Trace existing data flow patterns
+
+---
+
+## 3. Discovery-learning emit payload
+
+The exact `emit_learning` call SKILL.md §2.3 fires after `_CODEBASE_MAP.md` write, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
+emit_learning <<'EOF'
+{
+"producer": "/geniro:onboard",
+"type": "discovery",
+"tags": ["onboard", "architecture", "<language>"],
+"scope": "global",
+"trust": "verified",
+"summary": "<one-line architectural pattern>",
+"ext": {
+"area": "<top-level area, e.g. 'services', 'hexagonal-ports'>",
+"insight": "<2-3 sentence non-obvious finding from the scan>"
+}
+}
+EOF
+```
+
+After a successful emit, echo `Recorded learning: <summary>` to the user.

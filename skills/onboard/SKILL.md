@@ -18,10 +18,10 @@ argument-hint: "[optional: --focus area1,area2 --depth N --cap N]"
 - Anti-rationalization
 - Quality-first budgets
 - ACI per-phase tool surface
+- Definition of done
 - Phase 1 — Discover
 - Phase 2 — Map
 - State file schema
-- Definition of done
 - Examples
 
 ---
@@ -91,7 +91,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
 | "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
 | "The repo has 5000 files but I'll just scan everything — better safe than sorry" (or "it's monorepo-scale, so bypass the cap silently" / "add a wall-time kill cap so long discovery aborts cleanly") | Both directions break the same contract. The read budget — not a hard abort — is what bounds cost: sample the most relevant files and record what was covered in `## Scope`. Expansion is explicit (`--cap N` up front, or the §1.3 Step 2 AUQ), so raising it on your own authority defeats the cost control; a wall-time kill cap would abort legitimate complex discovery mid-stride, and a repo too large for the sample to represent already escalates via that AUQ. |
-| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`, `## Open Questions`. Without them, compaction mid-scan loses scan progress and the user re-runs from scratch. The `## Tool log` in particular is what records the scan process — which directories were covered, which raised permission errors — so a failed onboard stays diagnosable without repeating the whole scan. |
+| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`. Without them, compaction mid-scan loses scan progress and the user re-runs from scratch. The `## Tool log` in particular is what records the scan process — which directories were covered, which raised permission errors — so a failed onboard stays diagnosable without repeating the whole scan. |
 
 ## Quality-first budgets
 
@@ -115,6 +115,21 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 - Explicitly blocked: direct `Write`/`Edit` to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source Edit/Write, `git add` / `git commit` / `git push`.
 
 The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
+
+---
+
+## Definition of done
+
+These are the load-bearing exit gates — the invariants that, if skipped, make the onboarding incomplete or unsafe. The 8-section map content is enforced by the §2 template, not re-listed here.
+
+- [ ] `_CODEBASE_MAP.md` created/updated at `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` via `update-semantic`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
+- [ ] Every critical path the scanned scope exposes is traced and documented, or `## Critical Paths` says none was found
+- [ ] Map line count under 1000 (`wc -l` on `_CODEBASE_MAP.md`; use `--focus` for large repos)
+- [ ] Map is skimmable in 5 minutes — headers and summaries alone orient a reader (§Outputs)
+- [ ] Project-snapshot fingerprint refreshed via `update_fingerprint` (per §2.2)
+- [ ] L2 `discovery` emit fired per trigger conditions
+- [ ] Next-steps suggestions printed at the end of the report (per §2.4)
+- [ ] State.md cleaned up per §2.5
 
 ---
 
@@ -177,7 +192,7 @@ Canonical path: `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md`. Resolve `<PR
 
 Compose the map content in-context using the 8-section template from §Outputs above — do not write it to disk yet. Apply `--focus` concentration per the rule in §Outputs (sections 3 / 4 / 6 / 7 concentrate on focus areas; 1 / 2 / 5 / 8 stay full-scope). §2.2 persists the composed content through the `update-semantic` helper.
 
-### 2.2 Persist the codebase map via `update-semantic`
+### 2.2 Persist the codebase map
 
 Persist the composed map through `update-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.md` — that helper IS the write mechanism, holding the `.codebase-map.lock` for an atomic lock-guarded write. Do NOT write `_CODEBASE_MAP.md` with the `Write` tool directly: `.geniro/planning/_*.md` is a guarded persistent path and a direct write trips the state-helper enforcement hook and double-writes the file.
 
@@ -190,29 +205,11 @@ Exit codes (including the over-ceiling and lock-held cases) and the defer-and-re
 
 After the map persists, refresh the project-snapshot fingerprint — `update_fingerprint` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` §API. Every other skill's staleness check compares the current stack files against that fingerprint; leaving it stale keeps the "re-run /geniro:onboard" warning firing after a successful onboard, which teaches users to ignore the one signal that says the map is out of date.
 
-### 2.3 Emit `discovery` learning
+### 2.3 Record what the scan learned
 
 After `_CODEBASE_MAP.md` write:
 
-- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded). After a successful emit, echo `Recorded learning: <summary>` to the user, per that file's §"Caller contract".
-
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
-emit_learning <<'EOF'
-{
-"producer": "/geniro:onboard",
-"type": "discovery",
-"tags": ["onboard", "architecture", "<language>"],
-"scope": "global",
-"trust": "verified",
-"summary": "<one-line architectural pattern>",
-"ext": {
-"area": "<top-level area, e.g. 'services', 'hexagonal-ports'>",
-"insight": "<2-3 sentence non-obvious finding from the scan>"
-}
-}
-EOF
-```
+- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded). After a successful emit, echo `Recorded learning: <summary>` to the user, per that file's §"Caller contract". Exact payload: `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §3.
 
 **Trigger:** emit on **first successful onboarding of a new codebase** OR **major architectural shift detected** (existing `_CODEBASE_MAP.md` content significantly diverges from previous version — heuristic: compare section counts / module-count delta / new top-level entries). Skip when re-running onboard against a stable codebase (no architectural change).
 
@@ -282,9 +279,6 @@ scan_depth: <N|null>
 ## Errors
 <permission errors, tool failures>
 
-## Open Questions
-<missing access AUQs>
-
 ## Termination reason
 <— only on terminal aborted/routed states; >
 
@@ -304,21 +298,6 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 ## _CODEBASE_MAP.md format example
 
 Full 8-section worked example (sample TypeScript/Express project) in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §1. The 8-section template in §Outputs is the operative spec; the example illustrates the rendering.
-
----
-
-## Definition of done
-
-These are the load-bearing exit gates — the invariants that, if skipped, make the onboarding incomplete or unsafe. The 8-section map content is enforced by the §2 template, not re-listed here.
-
-- [ ] `_CODEBASE_MAP.md` created/updated at `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` via `update-semantic`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
-- [ ] Every critical path the scanned scope exposes is traced and documented, or `## Critical Paths` says none was found
-- [ ] Map line count under 1000 (`wc -l` on `_CODEBASE_MAP.md`; use `--focus` for large repos)
-- [ ] Map is skimmable in 5 minutes — headers and summaries alone orient a reader (§Outputs)
-- [ ] Project-snapshot fingerprint refreshed via `update_fingerprint` (per §2.2)
-- [ ] L2 `discovery` emit fired per trigger conditions
-- [ ] Next-steps suggestions printed at the end of the report (per §2.4)
-- [ ] State.md cleaned up per §2.5
 
 ---
 

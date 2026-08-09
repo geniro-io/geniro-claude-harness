@@ -75,7 +75,7 @@ Skipped for Trivial and Small per Step 3.
 
 The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn, for the state-continuity reason spelled out at Phase 2 §2.2. For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
 
-**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 — full smell taxonomy + change-impact scoring + escalation rules. Bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: Read it before the step that needs it and echo it. It is the sole home of the Data Safety Rule (no `DROP TABLE` / `TRUNCATE` / volume removal during a refactor) and of the test-file approval gate — and `/geniro:refactor` runs those phases orchestrator-inline, so no injected agent body carries them and no hook covers the commands they name. The orchestrator reads this file once at entry and applies the rubric inline.
+**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Code Smell Detection — full smell taxonomy + change-impact scoring + escalation rules. Bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: Read it before the step that needs it and echo it. It is the sole home of the Data Safety Rule (no `DROP TABLE` / `TRUNCATE` / volume removal during a refactor) and of the test-file approval gate — and `/geniro:refactor` runs those phases orchestrator-inline, so no injected agent body carries them and no hook covers the commands they name. The orchestrator reads this file once at entry and applies the rubric inline.
 
 **Per-smell procedure:**
 
@@ -129,7 +129,7 @@ KEEP smells enter plan-build. FILTERED smells are noted in state.md `## Filtered
 
 Orchestrator builds the plan from the smell-evidence inline output (Medium+) or directly from scope-files (Trivial/Small):
 
-1. **Classify risk per smell** using the consumer-count table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 1 § "Step 2: Change Impact Scoring" (public API / module export / shared-type change is HIGH regardless of consumer count).
+1. **Classify risk per smell** using the consumer-count table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § "Step 2: Change Impact Scoring" (public API / module export / shared-type change is HIGH regardless of consumer count).
 2. **Order the plan**: safer transformations first (LOW → MEDIUM → HIGH). Within the same tier, group by file to minimize re-reads.
 3. **Mark HIGH-risk steps for user confirmation** (gated via the approval gate below).
 4. **Build the final plan** with: smells, ordered steps, risk per step, consumer counts, files that will change, what will NOT change (public APIs, DB schema, test behavior), `max_risk` (max across all step risks).

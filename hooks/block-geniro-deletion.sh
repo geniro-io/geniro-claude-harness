@@ -730,6 +730,39 @@ block() {
 #   - `.geniro/state/<file>.<ext>` (3 segments where last is a file with extension)
 #   - `.geniro/state/<skill>/<file>` (4+ segments) — slug-scoped state files
 
+# Collapse a path to the exact string the shell/filesystem treats as the
+# target, before any segment-counting or literal-suffix match runs: repeated
+# slashes (`.geniro//x`), a `.` segment (`.geniro/./x`), and a trailing slash
+# or run of them (`.geniro/x/`, `.geniro/x//`) all resolve to the SAME path a
+# `.geniro/x` spelling does, and every equivalent spelling must decide
+# identically or one of them is an open bypass (2026-08-09 audit #3/#4: a `.`
+# segment inflated the segment count past the gate, and a residual trailing
+# slash after a single strip did the same). Looped to a fixed point so a comb
+# of these in one path (`.geniro/./x//./`) fully collapses regardless of
+# order — a single pass only shortens a run of 3+ slashes by one. Does NOT
+# resolve `..`: check_delete_arg rejects a `..` segment outright below rather
+# than resolving it, and folding that in here would silently turn a rejection
+# into a resolution.
+# Duplicated verbatim in hooks/enforce-state-helper.sh — lib/write-vectors.sh
+# is out of scope for this fix (owned by a different maintainer pass), and
+# both guards already vendor their own inline fallbacks of lib/ helpers for
+# the same reason (a missing lib/ must never make either guard fail open).
+# tests/hooks/path-normalize-matrix.sh feeds both guards every spelling above
+# and asserts identical exit codes — a one-sided edit fails it.
+_geniro_normalize_path() {
+  local p="${1:-}" prev
+  while [ "${p#./}" != "$p" ]; do p="${p#./}"; done
+  prev=""
+  while [ "$prev" != "$p" ]; do
+    prev="$p"
+    p="${p//\/\//\/}"
+    p="${p//\/.\//\/}"
+  done
+  while [ "${p%/.}" != "$p" ]; do p="${p%/.}"; done
+  while [ "${p%/}" != "$p" ] && [ -n "${p%/}" ]; do p="${p%/}"; done
+  printf '%s' "$p"
+}
+
 # Evaluate ONE delete operand against the .geniro/ depth rules. `recursive` is 1
 # for a delete that removes a tree (`rm -r`, an interpreter rmtree) and 0 for a
 # per-file delete, which bulk-deletes only through a glob. Shared by the rm loop,
@@ -754,12 +787,14 @@ check_delete_arg() {
 
   # Remember whether the arg explicitly named a directory (trailing slash) — a
   # dotted DIRECTORY name (.geniro/state/review.bak/) must not be mistaken for a
-  # file by the extension carve-out below.
+  # file by the extension carve-out below. Checked against the ORIGINAL arg,
+  # before normalization strips every trailing slash.
   had_trailing_slash=0
   case "$arg" in */) had_trailing_slash=1 ;; esac
 
-  # Strip a trailing slash for segment-counting.
-  stripped="${arg%/}"
+  # Collapse `.` segments and repeated/trailing slashes for segment-counting
+  # (see _geniro_normalize_path above).
+  stripped="$(_geniro_normalize_path "$arg")"
 
   # A prefix-glob token expands to .geniro/ at execution time even though the
   # literal token never spells the full name (`rm -rf .gen*`). Treat any glob
@@ -868,6 +903,29 @@ check_delete_arg() {
 # `cd`/`pushd` wins, matching execution order.
 CD_PREFIX=$(_geniro_wv_cd_prefix "$PADDED" ".geniro")
 
+# `for <name> in <words>; do rm -rf $<name>; done` binds each WORD to <name>
+# across loop iterations — a binding shape `_geniro_wv_expand_assignments`
+# (VAR=value) does not cover, since a for-loop assigns a WORD per iteration,
+# not one fixed value. An operand reached through such a variable therefore
+# reaches check_delete_arg still spelled "$name" (unresolved), evading every
+# check above (2026-08-09 audit #8). Deliberately NOT routed through
+# lib/write-vectors.sh: that file is out of scope for this fix, and this
+# binding shape is local to THIS guard's delete/move/rmdir/rsync operands, not
+# a general write-target resolution every guard needs. Scoped to the SAME
+# variable name the unresolved operand names, so it only fires when a real
+# for-loop binds that exact name — not a broad "any .geniro mention in the
+# command" scan, which would false-positive on an unrelated .geniro mention
+# sharing the command with an ordinary `rm -f "$SOME_OTHER_VAR"`.
+_geniro_for_loop_words() {  # <text> <varname>
+  local text="${1:-}" vn="${2:-}"
+  [ -z "$text" ] || [ -z "$vn" ] && return 0
+  local span
+  while IFS= read -r span; do
+    [ -z "$span" ] && continue
+    printf '%s\n' "$span" | sed -E "s/^[[:space:]]*for[[:space:]]+${vn}[[:space:]]+in[[:space:]]+//"
+  done <<< "$(printf '%s\n' "$text" | grep -oE "(^|[;&|(])[[:space:]]*for[[:space:]]+${vn}[[:space:]]+in[[:space:]]+[^;]*" || true)"
+}
+
 # Evaluate one operand, then — when a `cd` into the tree preceded it — the same
 # operand resolved against that directory. Only a plausible OPERAND is
 # re-prefixed: the command word and its flags are not paths, and prefixing them
@@ -875,8 +933,33 @@ CD_PREFIX=$(_geniro_wv_cd_prefix "$PADDED" ".geniro")
 # operand that already carries a `.geniro` segment needs no help, which is also
 # what stops this from recursing.
 check_delete_arg_cd() {
-  local raw="$1" recursive="$2" cmdword="$3" a
+  local raw="$1" recursive="$2" cmdword="$3" a vn w
   check_delete_arg "$raw" "$recursive"
+  # An operand still carrying an unresolved `$name`/`${name}` reference: check
+  # whether that exact name is bound by a `for name in <words>` clause anywhere
+  # in the command, and run the SAME depth rules on every word in that list.
+  case "$raw" in
+    '$'[A-Za-z_]*)
+      vn="${raw#\$}"
+      case "$vn" in *[!A-Za-z0-9_]*) vn="" ;; esac
+      ;;
+    '${'*'}')
+      vn="${raw#\$\{}"; vn="${vn%\}}"
+      case "$vn" in ''|*[!A-Za-z0-9_]*) vn="" ;; esac
+      ;;
+    *) vn="" ;;
+  esac
+  if [ -n "$vn" ]; then
+    while IFS= read -r w; do
+      [ -z "$w" ] && continue
+      set -f
+      # shellcheck disable=SC2086
+      for w in $w; do
+        check_delete_arg "$w" "$recursive"
+      done
+      set +f
+    done <<< "$(_geniro_for_loop_words "$PADDED" "$vn")"
+  fi
   [ -n "$CD_PREFIX" ] || return 0
   a="${raw#\\}"
   while [ "${a#\(}" != "$a" ]; do a="${a#\(}"; done
@@ -1021,19 +1104,64 @@ if [ -n "$_id_targets" ] || [ "$_id_unresolved" = "1" ]; then
   fi
 fi
 
+# Does a find -path/-name/-ipath/-iname GLOB ARGUMENT cover .geniro without
+# spelling it literally (`find . -path '*geniro*' -delete`, 2026-08-09 audit
+# #9)? find matches -name/-iname against the found entry's BASENAME and
+# -path/-ipath against its full traversed PATH, so a bare ".geniro" probes the
+# -name shape and a path with a leading segment probes -path; bash's own
+# case/glob engine — the SAME engine a real shell filename expansion would
+# use — decides both, so no separate fnmatch reimplementation is needed.
+find_glob_covers_geniro() {
+  local pattern="$1"
+  case ".geniro" in $pattern) return 0 ;; esac
+  case "./.geniro" in $pattern) return 0 ;; esac
+  case "a/.geniro/b" in $pattern) return 0 ;; esac
+  return 1
+}
+
+# A find SPAN "targets" .geniro either by spelling it literally anywhere in the
+# span (the existing check) or via a -path/-name/-ipath/-iname glob argument
+# that covers it (this is check_delete_arg's own prefix-glob probe, applied to
+# find's ARGUMENT STRING instead of a shell-expanded token). Quotes around the
+# glob argument are already stripped by the JOINED pipeline's unquote pass
+# before $PADDED is built, so a token here is bare either way.
+find_span_targets_geniro() {
+  local span="$1" tok take=0 pat
+  case "$span" in *.geniro*) return 0 ;; esac
+  set -f
+  # shellcheck disable=SC2086
+  for tok in $span; do
+    if [ "$take" = "1" ]; then
+      take=0
+      pat="${tok#\"}"; pat="${pat%\"}"
+      pat="${pat#\'}"; pat="${pat%\'}"
+      if find_glob_covers_geniro "$pat"; then set +f; return 0; fi
+      continue
+    fi
+    case "$tok" in -path|-name|-ipath|-iname) take=1 ;; esac
+  done
+  set +f
+  return 1
+}
+
 # 3. find ... .geniro ... -delete / -exec rm / piped to xargs rm — bulk deletion
 #    that walks the tree. All three spellings produce the same loss.
 if ! is_allowed "find-geniro-delete"; then
-  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-delete'; then
-    block "find-geniro-delete" "find ... -delete on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path, or pathlib.Path.unlink in Python) so each deletion is auditable."
-  fi
-  # The executed command is any of the loss family, not `rm` alone: `-exec mv` is
-  # the displacement this guard's mv span already blocks directly,
-  # unlink/shred/truncate destroy each matched file exactly as `rm` does, and
-  # `rmdir` removes each matched (empty) directory node the same way.
-  if echo "$PADDED" | grep -qE 'find[[:space:]]+[^|;&]*\.geniro[^|;&]*-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv|rmdir)([[:space:]]|$)'; then
-    block "find-geniro-delete" "find ... -exec rm/mv/unlink/shred/truncate/rmdir on .geniro/ wipes or displaces user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
-  fi
+  FIND_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])find[[:space:]]+[^|;&]*' || true)
+  while IFS= read -r FIND_SPAN; do
+    [ -z "$FIND_SPAN" ] && continue
+    find_span_targets_geniro "$FIND_SPAN" || continue
+    if echo "$FIND_SPAN" | grep -qE -- '-delete'; then
+      block "find-geniro-delete" "find ... -delete on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path, or pathlib.Path.unlink in Python) so each deletion is auditable."
+    fi
+    # The executed command is any of the loss family, not `rm` alone: `-exec mv` is
+    # the displacement this guard's mv span already blocks directly,
+    # unlink/shred/truncate destroy each matched file exactly as `rm` does, and
+    # `rmdir` removes each matched (empty) directory node the same way.
+    if echo "$FIND_SPAN" | grep -qE -- '-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv|rmdir)([[:space:]]|$)'; then
+      block "find-geniro-delete" "find ... -exec rm/mv/unlink/shred/truncate/rmdir on .geniro/ wipes or displaces user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
+    fi
+  done <<< "$FIND_SPANS"
   # `xargs rm` deletes in bulk whatever the left-hand side lists, and find is only
   # one of the producers (`echo .geniro | xargs rm -rf`, `ls .geniro/x | xargs rm`
   # lose the same content), so the arm matches any pipeline whose left side names

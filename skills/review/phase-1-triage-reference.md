@@ -385,7 +385,6 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 
 | Helper | Inputs | Outputs |
 |---|---|---|
-| `load-custom-instructions` MODE: refresh | scope = the pipeline load set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` | concatenated rule body |
 | `load-semantic` MODE: refresh | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + fingerprint drift check |
 | `query-learnings` (route per `query-learnings.md` §"Memory backend override" — declared backend read tool under a `## Memory Backend` block; the file is empty under `replace`) | tags inferred from changed-file paths | top-K matching L2 entries (default K=5; filter superseded/deprecated) |
 | `resolve-conflicts` | transitive | hard conflict → AUQ |

@@ -349,6 +349,70 @@ expect_allow "unrelated .geniro mention before a force-add of another path" \
 expect_block "git add -f .geniro/ still blocks (span-bound regression)" \
   "$(run_cmd 'git add -f .geniro/actions/foo.md')"
 
+# ===== T0 #3 (2026-08-09 audit): a `.` path segment inflates the segment
+# count past the 2-segment top-level-subdir gate — `check_delete_arg` rejected
+# `..` but not a lone `.`. =====
+expect_block "rm -rf .geniro/./instructions blocked (/./ segment)" \
+  "$(run_cmd 'rm -rf .geniro/./instructions')"
+expect_block "rm -rf .geniro/state/./review blocked (/./ segment, 3-seg state)" \
+  "$(run_cmd 'rm -rf .geniro/state/./review')"
+
+# ===== T0 #4 (2026-08-09 audit): only ONE trailing slash was stripped before
+# the //-squeeze ran, so a residual slash raised the segment count from 2 to
+# 3 and slipped the gate. =====
+expect_block "rm -rf .geniro/instructions// blocked (double trailing slash)" \
+  "$(run_cmd 'rm -rf .geniro/instructions//')"
+
+# ===== Path-spelling matrix (closes the class, not just the instance): every
+# equivalent spelling of the SAME 2-segment top-level-subdir delete must
+# decide identically. =====
+for spelling in \
+  '.geniro/instructions' \
+  '.geniro/./instructions' \
+  '.geniro//instructions' \
+  '.geniro/instructions/' \
+  '.geniro/instructions//' \
+  '.geniro/./instructions/' \
+  './.geniro/instructions'
+do
+  expect_block "path-spelling matrix: rm -rf '$spelling' blocks" \
+    "$(run_cmd "rm -rf $spelling")"
+done
+
+# ===== T1 #8 (2026-08-09 audit): a `for <name> in <words>` binding is
+# invisible to the assignment-expansion pass (it assigns a WORD per
+# iteration, not one fixed value), so a delete operand reached through the
+# loop variable evaded every check. =====
+expect_block "for-loop-bound rm operand still blocks (bare \$var)" \
+  "$(run_cmd 'for d in .geniro/instructions; do rm -rf $d; done')"
+expect_block "for-loop-bound rm operand still blocks (quoted \"\$var\")" \
+  "$(run_cmd 'for d in .geniro/instructions; do rm -rf "$d"; done')"
+expect_block "for-loop-bound mv operand still blocks (displacement)" \
+  "$(run_cmd 'for d in .geniro/instructions; do mv $d /tmp/gone; done')"
+expect_allow "for-loop-bound rm operand over a non-.geniro word allowed" \
+  "$(run_cmd 'for f in a.txt b.txt; do rm -f $f; done')"
+# An unresolved variable that is NOT for-loop-bound (an ordinary assignment or
+# an external var) must not trigger the broad fallback and must not
+# false-positive on an UNRELATED .geniro mention sharing the same command.
+expect_allow "unresolved non-for-loop var operand does not false-positive" \
+  "$(run_cmd 'mkdir -p .geniro/scratch && rm -f "$TMPFILE"')"
+expect_allow "assignment-resolved operand stays allowed" \
+  "$(run_cmd 'TMPFILE=/tmp/x; rm -f "$TMPFILE"')"
+
+# ===== T1 #9 (2026-08-09 audit): the find -delete/-exec arm required the
+# LITERAL string ".geniro" in the span, so a -path/-name GLOB that matches the
+# tree without spelling the dotted name walked through. =====
+expect_block "find -path glob covering .geniro -delete blocks" \
+  "$(run_cmd "find . -path '*geniro*' -delete")"
+expect_block "find -name glob covering .geniro -delete blocks" \
+  "$(run_cmd "find . -name '*geniro*' -delete")"
+expect_block "find -path glob covering .geniro -exec rm blocks" \
+  "$(run_cmd "find . -path '*geniro*' -exec rm {} +")"
+expect_allow "find -path glob NOT covering .geniro stays allowed" \
+  "$(run_cmd "find . -path '*.git*' -delete")"
+expect_allow "find -name glob NOT covering .geniro stays allowed" \
+  "$(run_cmd "find /tmp -name '*.log' -delete")"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

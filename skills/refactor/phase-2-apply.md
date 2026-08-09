@@ -23,7 +23,7 @@ On Phase 2 entry, single `load-custom-instructions(SKILL_SLUG: refactor, LOAD_TI
 
 The orchestrator executes the approved plan inline, one step at a time — no subagent spawn. Sequential per-step refactoring needs continuous state across steps, which a spawned subagent loses; running inline preserves state continuity and halves test runs via the per-step regression-skip predicate.
 
-**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` Phase 3 — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. Bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: Read it before the first transformation and echo it — it also carries the Data Safety Rule and the test-file approval gate, and a refactor that rewrote an assertion to make a step pass yields a green suite, which is the very evidence the behavior-preservation claim rests on. The orchestrator applies this verbatim inline.
+**Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Atomic Application & Verification — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. Bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: Read it before the first transformation and echo it — it also carries the Data Safety Rule and the test-file approval gate, and a refactor that rewrote an assertion to make a step pass yields a green suite, which is the very evidence the behavior-preservation claim rests on. The orchestrator applies this verbatim inline.
 
 **Pre-loop setup:**
 
@@ -37,7 +37,7 @@ The orchestrator executes the approved plan inline, one step at a time — no su
 For each step N in `## Plan steps` where `status: pending`:
 
 1. **Re-read the target files** (Read tool) — capture current state of files affected by step N.
-2. **Pre-condition check** (orchestrator applies skip predicate per `refactor-patterns.md` Phase 3 Step 2):
+2. **Pre-condition check** (orchestrator applies skip predicate per `refactor-patterns.md` § Step Execution Protocol, step 2):
 - REQUIRED if N == 1, OR `last_post_check == unset|REVERTED`, OR external edits intervened
 - SKIPPED if N > 1 AND `last_post_check == PASS` (no edits intervene between sequential transformations — the previous step's post-check already validated the same baseline)
 - When required: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check step <N>" "<test_cmd_affected>"`. On fail: stop and report (broken baseline).
@@ -51,7 +51,7 @@ For each step N in `## Plan steps` where `status: pending`:
 
 A catastrophic Edit failure (filesystem error, unreadable target) is the one exit from this loop: revert the refactor's changes per SKILL.md §Git constraint with user confirmation, then escalate to the user with the failure context — retrying a transformation against a tree the tool cannot write leaves the working tree half-applied.
 
-State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` Phase 2 schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
+State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` § Refactoring Plan schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
 
 ### 2.3 Session-level cap + escalation gate
 

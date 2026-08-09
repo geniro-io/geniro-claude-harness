@@ -61,6 +61,28 @@ else
   fail "summary extraction — rc=$rc out='$out'"
 fi
 
+# T1 #89 (2026-08-09 audit): the Go-summary `grep -c "^ok"` at :60 is a bare
+# assignment with no pipe, so its rc is 1 on zero matches (grep -c's own exit
+# code, even though it still prints "0") — a caller that sources this file
+# under `set -e` must NOT abort on the SUCCESS path just because the output
+# happened to contain no line starting with "ok". Run in a FRESH subshell with
+# `set -e` active for the whole run_silent call (not toggled off around it, as
+# the assertions above do) so the bug — an abort BEFORE the checkmark line
+# ever prints — is what this test would catch.
+set +e
+out=$(bash -c '
+  set -e
+  source "'"$REPO_ROOT"'/hooks/backpressure.sh"
+  run_silent "SetE" "echo hello"
+' 2>&1)
+rc=$?
+set -e
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '✓ SetE passed'; then
+  pass "success path survives a sourcing caller's set -e with zero '^ok' lines"
+else
+  fail "set -e survival — rc=$rc out='$out'"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

@@ -20,9 +20,10 @@ Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:inves
 
 A Reporter-class skill produces findings, not changes. Inside every workflow step the same boundary holds:
 
-- No `Edit` / `Write` to production source.
 - No push of fixes or production-source — no `git add` / `git commit` / `git push` of any production or fix change.
 - No `gh pr create` / `gh pr merge`.
+
+`/geniro:review`, `/geniro:debug`, `/geniro:investigate`, and `/geniro:resolve` are read-only producers on top of that: no `Edit` / `Write` to production source, full stop. `/geniro:refactor` is the one consumer that does edit production source — its deliverable IS the working-tree diff, per `CLAUDE.md` §Skill routing — so its binding here is no-ship only, the two bullets above; it is never held to the no-edit rule.
 
 The skill's documented on-disk deliverable (handoff file, reproduction test, or working-tree diff) and its sanctioned side-effects (for example, `/geniro:review` posting a PENDING PR review) are the ONLY outputs. That review side-effect is bounded: `/geniro:review` posts a PENDING draft only, after the explicit action-gate pick, and never publishes/submits the review it creates (never the `reviews/<id>/events` endpoint) — submitting fires notifications to the PR author and is the user's own github.com action, across all rounds. The action gate always fires before posting, and chat text ("submit it yourself") never substitutes for it. Route fixes to `/geniro:implement` — never apply them in-skill.
 

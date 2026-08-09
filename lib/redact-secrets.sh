@@ -14,7 +14,7 @@
 # .geniro/safety.json knobs:
 #   { "redaction": {
 #       "additional_patterns": [ { "name": "...", "regex": "...", "replacement": "..." } ],
-#       "ignore_patterns": [ "high-entropy", ... ],
+#       "ignore_patterns": [ "bearer", ... ],
 #       "audit_log_enabled": true
 #   } }
 

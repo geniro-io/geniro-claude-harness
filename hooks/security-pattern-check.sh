@@ -562,6 +562,20 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
   fi
+  if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+# GENIRO-VENDORED-END _geniro_wv_unquote_words
+  fi
   if ! command -v _geniro_wv_resolve >/dev/null 2>&1; then
 # GENIRO-VENDORED-BEGIN _geniro_wv_resolve
 _geniro_wv_resolve() {
@@ -870,7 +884,18 @@ _geniro_interp_write_targets() {
       # in-payload one, or the derived extension is wrong and the scan is
       # skipped. The raw segment is kept below for the content (the quoted
       # payload IS what we scan).
-      seg_nq=$(printf '%s' "$seg" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
+      #
+      # UNQUOTE whitespace-free tokens first, THEN blank what's left: a quoted
+      # redirect target (`> 'bad.py'`) is one whitespace-free shell word, and
+      # blanking it outright (without unquoting first) erased it completely —
+      # `tgt` came back empty and the whole write was skipped unscanned
+      # (2026-08-09 audit #7: `printf 'eval(x)' > 'bad.py'` scanned as nothing
+      # while the unquoted `printf 'eval(x)' > bad.py` correctly blocked). The
+      # in-payload case above still works after this: "a=x > 0" carries
+      # whitespace, so the unquote pass leaves it quoted and the blank below
+      # still erases it. Contract: lib/write-vectors.sh §E.
+      seg_nq=$(_geniro_wv_unquote_words "$seg")
+      seg_nq=$(printf '%s' "$seg_nq" | sed -E "s/'[^']*'/ /g; s/\"[^\"]*\"/ /g")
       # Target: a redirect `> file` / `>> file`, else a `tee file` argument.
       tgt=$(printf '%s' "$seg_nq" | grep -oE '>{1,2}\|?[[:space:]]*[^[:space:];|&<>)]+' | head -1 | sed -E 's/^>{1,2}\|?[[:space:]]*//' || true)
       if [ -z "$tgt" ]; then

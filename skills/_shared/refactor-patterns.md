@@ -1,8 +1,3 @@
----
-name: refactor-patterns
-description: "Smell taxonomy, change-impact scoring, and atomic per-step execution protocol for /geniro:refactor. Orchestrator-inline reference."
----
-
 # Refactor Patterns Reference
 
 Smell detection + change-impact scoring + per-step execution protocol for `/geniro:refactor`. The orchestrator reads this file in Phase 1 (smell detection) and Phase 2 (per-step execution) and applies the patterns inline.
@@ -11,9 +6,9 @@ Smell detection + change-impact scoring + per-step execution protocol for `/geni
 
 - Core principle — the behavior-preservation invariant
 - Data safety rule — never destroy local data or volumes
-- Phase 1: Code Smell Detection — smell taxonomy + change-impact scoring
-- Phase 2: Refactoring Plan — plan-line schema
-- Phase 3: Atomic Application & Verification — per-step execution + Blocked Step Protocol
+- Code Smell Detection — smell taxonomy + change-impact scoring
+- Refactoring Plan — plan-line schema
+- Atomic Application & Verification — per-step execution + Blocked Step Protocol
 - Guardrails — what to avoid without approval, and what to do every step
 - When to Stop the Session & Report Back — terminal conditions
 
@@ -27,7 +22,7 @@ Don't run `docker volume rm`, `podman volume rm`, `docker compose down -v`, `pod
 
 ---
 
-## Phase 1: Code Smell Detection
+## Code Smell Detection
 
 ### Step 0: Read Project Conventions
 
@@ -116,7 +111,7 @@ For each detected smell, score its change impact before including it in the plan
 
 ---
 
-## Phase 2: Refactoring Plan
+## Refactoring Plan
 
 The orchestrator builds a structured, prioritized plan in /geniro:refactor SKILL.md (plan-build), persisted to state.md `## Plan steps`. Plan-line schema:
 
@@ -141,7 +136,7 @@ HIGH-risk steps require user confirmation via /geniro:refactor AUQ before Phase 
 
 ---
 
-## Phase 3: Atomic Application & Verification (orchestrator-inline)
+## Atomic Application & Verification (orchestrator-inline)
 
 Apply **one transformation at a time** and verify tests pass between steps. The orchestrator runs the loop inline.
 
@@ -231,4 +226,4 @@ Stop the entire refactoring session when:
 - Requested change contradicts guardrails
 - Codebase has no test infrastructure
 
-If a single transformation fails after 3 attempts, use the **Blocked Step Protocol** (Phase 3) — revert that step and continue to the next. A per-step failure reverts that step, not the whole session.
+If a single transformation fails after 3 attempts, use the **Blocked Step Protocol** (§ Atomic Application & Verification) — revert that step and continue to the next. A per-step failure reverts that step, not the whole session.

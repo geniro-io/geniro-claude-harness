@@ -44,9 +44,12 @@ if [ -z "${_VAF_DEPS_LOADED:-}" ]; then
   readonly _VAF_NO_TARGET=64
   readonly _VAF_UNREADABLE=65
 
-  # Description length cap. This constant is the single home — see
-  # skills/actions/skill-template.md §Authoring rules, which cites it by name
-  # rather than restating the number.
+  # Description length cap. The description is also the free-text match
+  # target for Target resolution (actions-reference.md §Target resolution) —
+  # past this length it reads as a paragraph rather than a routing summary,
+  # which dilutes match precision more than a longer description improves it.
+  # This constant is the single home — see skills/actions/skill-template.md
+  # §Authoring rules, which cites it by name rather than restating the number.
   readonly _VAF_DESC_MAX_CHARS=250
 
   # File-length guideline. An action body is followed step-by-step inline by the
@@ -55,9 +58,12 @@ if [ -z "${_VAF_DEPS_LOADED:-}" ]; then
   # blocking — length alone never makes an action wrong.
   readonly _VAF_MAX_LINES=500
 
-  # Slug length cap. This constant, and the reserved-word list below, are the
-  # single home for the slug-shape rule — skills/actions/SKILL.md §Name
-  # validation cites this check by name rather than restating either.
+  # Slug length cap. The slug is the filename (`.geniro/actions/<slug>.md`)
+  # and the token typed at `/geniro:actions run <slug>` — long past this and
+  # it stops being something a user types or scans in a list. This constant,
+  # and the reserved-word list below, are the single home for the slug-shape
+  # rule — skills/actions/SKILL.md §Name validation cites this check by name
+  # rather than restating either.
   readonly _VAF_SLUG_MAX_CHARS=64
 
   # Reserved words a slug may not equal: the three vendor names plus every

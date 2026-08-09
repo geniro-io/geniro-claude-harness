@@ -11,24 +11,34 @@ argument-hint: "<issue description or area to improve>"
 
 ## Contents
 
+- Loop invariants
 - Subagent model tiering · State persistence
 - Mode detection · Handoff-ingestion path · Complexity gate · Research selection matrix
 - Anti-rationalization · Definition of done
-- Phase 1 (investigate) · Phase 2 (cross-reference & filter) · Phase 2b (redundancy validation)
-- Phase 3 (present to user) · Phase 4 (implement) · Phase 5 (self-review) · Phase 6 (report & complete) — Phases 4-6 in `phase-4-6-implement-review.md`
+- Phase 1 (investigate) · Phase 2 (cross-reference & filter) · Phase 2b (redundancy validation) · Phase 3 (present to user) — Phases 1-3 in `phase-1-3-investigate-present.md`
+- Phase 4 (implement) · Phase 5 (self-review) · Phase 6 (report & complete) — Phases 4-6 in `phase-4-6-implement-review.md`
 - Create-skill mode (Phases A-D)
 - Description-format validator — in `phase-4-6-implement-review.md`
-- Mid-flow user input
 
 ---
 
 You are the orchestrator for investigating and fixing issues in the Geniro plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You never implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
+## Loop invariants
+
+1. **Spawn every batch of parallel agents in ONE assistant response.** Phase 1's up-to-three research agents, Phase 4's implementation agents, and any Phase 3b re-research round all serialize into full per-agent wall-clock latency if split across turns.
+2. **Review is always a fresh agent that saw neither the research nor the implementation prompt.** Phase 5 Step 1, the Phase 5 Step 3 pre-existing-bug re-review, and the create-skill Phase C review all depend on anchoring-free eyes — reusing an agent from an earlier phase defeats the check it exists to run.
+3. **The Phase 3 evidence gate is a WAIT: proceed only on an explicit answer, never an assumed one.** Phase 2b's filter and the Phase 3b challenge loop both feed findings back into this same gate rather than around it.
+4. **Never implement a change directly beyond a 1-2 line, unambiguous fix.** A larger or ambiguous change — in any phase, not only Phase 4 — goes through an implementation subagent; the orchestrator coordinates, agents edit.
+5. **Mid-flow user input folds into the current phase; it never restarts the pipeline.** Corrections/context fold into the current phase (note in the checkpoint); preferences apply at the next decision point; blockers halt the phase and ask how to proceed; new issues are noted and queued for after the current pipeline completes.
+
 **Template path:** (repo root — skills/, agents/, hooks/, lib/, scripts/, cursor/)
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
 **Authoring rules:** `.claude/rules/skill-structure.md` (file-size limits, section ordering, reference graph) and `.claude/rules/skill-prose.md` (voice, rule placement) govern every skill / agent file this pipeline writes. §File-size limits is the single source for the word budgets, what counts as overflow, and the never-trim-load-bearing-content clause — cite that section everywhere, never restate its numbers, and give subagents the repo-relative path plus an explicit instruction to read it before editing.
 
-**After a compaction:** re-invoke `/improve-template` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
+**Phase bodies.** This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `.claude/skills/improve-template/`: `phase-1-3-investigate-present.md` (Phases 1-3) · `phase-4-6-implement-review.md` (Phases 4-6). That Read is the phase's physically-first action, per `skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (including the Phase 3 evidence gate and the Phase 3b challenge loop) and their spawn templates, so work started before the Read runs outside them.
+
+**After a compaction:** re-Read the phase file for whatever phase is running before continuing it — only the front-loaded prefix re-attaches, so a mid-phase summary can drop the Steps while leaving this spine intact. If which phase was running is also gone, re-invoke `/improve-template` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
 
 ## Subagent model tiering
 
@@ -80,7 +90,7 @@ Detect which of three modes the request wants — **process-handoff** (consume f
 
 **create-skill mode.** Triggers on an explicit phrase — `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill` — which routes straight through. When `$ARGUMENTS` merely describes a capability with no matching SKILL.md, confirm before routing (`AskUserQuestion`: "This reads as a new skill rather than a fix to an existing one — create a new skill?"). Most improvement requests also name a scope no SKILL.md matches ("make the review dimension for X better"), and an unconfirmed route skips the complexity gate and Phase 1 to drop a fix request into an authoring interview.
 
-If create-skill mode is detected, Read `.claude/skills/improve-template/create-skill-mode.md` now — per `skills/_shared/phase-entry-read.md`, that Read is this branch's physically-first action — and route to the **create-skill flow** it carries, skipping the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
+If create-skill mode is detected, Read `.claude/skills/improve-template/create-skill-mode.md` now — per `skills/_shared/phase-entry-read.md`, that Read is this branch's physically-first action — and route to the **create-skill flow** it carries, skipping the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 4-phase author flow).
 
 Otherwise default to **improve-existing-skill mode** (complexity gate → Phase 1).
 
@@ -169,166 +179,25 @@ These are the load-bearing exit gates — the checks that, if skipped, ship an u
 
 ## PHASE 1: INVESTIGATE (parallel research)
 
-**Purpose:** Gather evidence from the research sources the matrix selected — up to three independent sources (codebase / ARCHITECTURE.md / internet).
-
-**Input:** User describes an issue, shows a screenshot, or names an area to improve.
-
-### Step 1: Parse the request
-
-Classify the request, then look up its research sources in the matrix above:
-- **Bug fix** — something broken (screenshot, error, false positive). Extract: what happened, expected behavior, affected file(s).
-- **Improvement** — enhance existing behavior. Extract: which skill/agent/hook, what aspect.
-- **New capability** — add something missing. Extract: what, why, which files affected. Internet research is mandatory here — new patterns require external evidence.
-
-### Step 2: Spawn the selected research agents in ONE response
-
-Spawn ONLY the agents the matrix selected — all in the same assistant turn, NOT one per turn. Skipped sources are NOT failures; the matrix is the contract. Log omitted source(s) in the state checkpoint with the matching skip reason. The agent prompts below stay as written; just omit the agents you skip.
-Replace every `{{placeholder}}` with the actual content from Step 1 before spawning.
-
-The two codebase-facing spawns use the plugin's `codebase-research-agent`, which carries the file:line citation contract and its own output cap. The calls below are step 1 of the ladder in §Subagent model tiering — degrade them on `not found`. Internet research has no plugin agent and stays a general spawn.
-
-```
-Agent(prompt="""
-## Task: Internet Research
-Search for patterns, best practices, and known solutions related to:
-{{issue description from Step 1}}
-
-Search for:
-- Claude Code documentation and GitHub issues related to this
-- Community patterns from claude-code plugins/frameworks
-- General best practices for {{relevant domain from Step 1}}
-
-For each finding, provide:
-- Source (URL or reference)
-- Key pattern or technique
-- Direct applicability to the issue
-- Evidence strength (strong/moderate/weak)
-
-Return findings as a structured table. Do NOT suggest implementation — research only.
-""", description="Research: internet patterns")
-
-Agent(subagent_type="geniro:codebase-research-agent",
-      description="Research: ARCHITECTURE.md decisions",
-      prompt="""
-RESEARCH_QUESTION: Which recorded decisions, invariants, and operational rules in `ARCHITECTURE.md` constrain or inform {{issue description from Step 1}}, and does the template already follow each one?
-
-DELIVERABLE_SHAPE: table of [{section name + file:line in ARCHITECTURE.md or the cited helper, the decision or rule, how it applies to the issue, already-followed yes/no}]. Research only — do NOT suggest implementation.
-
-SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract. For survey-depth evidence (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is at `git show 3bb085756b58eaf9a4ab81c136d55536907c089a~1:report.md` — it was removed from the working tree when the docs were consolidated. This requires an unshallow clone; if the command errors, skip this source and rely on ARCHITECTURE.md and the codebase-exploration findings instead.
-
-OUTPUT_PATH: .geniro/state/improve-template/.research-architecture-<slug>.md
-
-THOROUGHNESS: medium
-""")
-
-Agent(subagent_type="geniro:codebase-research-agent",
-      description="Research: codebase exploration",
-      prompt="""
-RESEARCH_QUESTION: What is the current state of the template files related to {{issue description from Step 1}} — which files are affected, what do they do today, and where are the gaps, inconsistencies, or broken cross-references?
-
-DELIVERABLE_SHAPE: table of [{file:line range, current behavior, gap or inconsistency found, how other template files handle the same situation}]. Research only — do NOT suggest implementation.
-
-SCOPE_HINT: repo root — skills/, agents/, hooks/, lib/, scripts/, cursor/. Read each affected file in full rather than sampling: keyword search shows matching lines only, which misses reworded coverage of the same rule and produces false "missing" findings. `scripts/dump-md.sh [path ...]` prints every tracked `.md` file under the given paths in full. Cover cross-references in both directions (does file A reference file B correctly, are the paths valid) and check whether another skill already solves the same problem.
-
-OUTPUT_PATH: .geniro/state/improve-template/.research-codebase-<slug>.md
-
-THOROUGHNESS: medium
-""")
-```
-
-### Step 3: Collect and record
-
-Wait for all spawned agents. The two `codebase-research-agent` spawns report to their `OUTPUT_PATH` files rather than inline — read each one; the internet agent returns inline. Write key findings plus `research-sources: [list]` to the state checkpoint.
+Steps: `phase-1-3-investigate-present.md` §Phase 1. Read it now — it also carries Phase 2, Phase 2b, and Phase 3 below. Gather evidence from the research sources the matrix selected — up to three independent sources (codebase / ARCHITECTURE.md / internet).
 
 ---
 
 ## PHASE 2: CROSS-REFERENCE & FILTER
 
-**Purpose:** Filter raw research to evidence-backed improvements only. This is orchestrator work — you aggregate and filter directly, no subagents needed.
-
-### Step 1: Build a combined findings list
-
-Merge findings from the research agents that ran (1-3, depending on the matrix). Group by topic. Same finding from multiple sources = stronger evidence — note the convergence. If only one source ran, evidence strength caps at what that source supports.
-
-### Step 2: Filter each finding
-
-For each finding, assess yourself:
-
-**Structural compatibility:**
-- Compatible with template architecture? (skills = orchestrators, agents = leaf workers)
-- Would it break existing patterns or cross-references?
-- Which files would need changes?
-
-**Evidence quality:**
-- **Strong:** documented in official Claude Code docs, proven in production framework, or demonstrated by screenshot/error
-- **Moderate:** backed by a recorded decision in ARCHITECTURE.md, used by 2+ frameworks in the historical survey (see the Step 2 SCOPE_HINT for how to reach it), or a logical extension of documented behavior
-- **Weak:** single blog post, theoretical benefit, "should work" reasoning
-- **Rejected:** no evidence, contradicts known limitations, or speculative
-
-### Step 3: Build the evidence table
-
-Keep only findings that are:
-- Structurally compatible (or adaptable)
-- Evidence quality: strong or moderate
-- Not contradicted by other findings
-
-Write checkpoint with approved finding count.
+Steps: `phase-1-3-investigate-present.md` §Phase 2 (continued from the Phase 1 Read above). Filter raw research to evidence-backed improvements only — orchestrator work, no subagents.
 
 ---
 
 ## PHASE 2b: REDUNDANCY & RELEVANCE VALIDATION (orchestrator-inline)
 
-**Purpose:** Adversarial gate BEFORE the user sees findings — catches items that duplicate existing instructions or propose theoretical/over-engineered changes.
-
-Orchestrator-inline validation per finding (no subagent — light synthesis that fits the orchestrator's context, which a spawn would only wrap in isolation this work doesn't need; same rationale as /review Phase 3 dedup). For each Phase 2-approved finding, the orchestrator:
-
-1. **Redundancy check (ALIGNS / CONTRADICTS / NEUTRAL):** Grep target files for instructions covering the same ground. CONTRADICTS = duplicate; ALIGNS = compatible with existing; NEUTRAL = novel-but-non-conflicting.
-2. **Relevance check (APPROPRIATE / OVER-ENGINEERED):** weigh against current scope — APPROPRIATE if needed for stated purpose; OVER-ENGINEERED if YAGNI or defensive polish.
-3. **One-line rationale** captures the why.
-
-Then tag: FILTER if CONTRADICTS (redundant) or OVER-ENGINEERED (not needed); otherwise KEEP. Write checkpoint with KEEP count. Filtered findings appear in Phase 3's "Filtered" section for transparency but are not proposed for implementation.
+Steps: `phase-1-3-investigate-present.md` §Phase 2b (continued from the Phase 1 Read above). Adversarial gate before the user sees findings — catches items that duplicate existing instructions or propose theoretical/over-engineered changes.
 
 ---
 
 ## PHASE 3: PRESENT TO USER (WAIT)
 
-**Purpose:** Show evidence-backed findings and get approval before any changes.
-
-### Step 1: Present the evidence table
-
-```
-## Investigation Results: [issue/area]
-
-### Findings (evidence-backed only)
-
-| # | Finding | Evidence | Source(s) | Files Affected | Complexity |
-|---|---------|----------|-----------|----------------|------------|
-| 1 | [what to change] | [why — specific evidence] | [internet/report/codebase] | [file list] | [trivial/small/medium] |
-| 2 | ... | ... | ... | ... | ... |
-
-### Rejected (insufficient evidence)
-- [finding] — rejected because [reason]
-
-### Filtered by Phase 2b (redundant or over-engineering)
-- [finding] — filtered because [redundant with <file:line> | over-engineering for current scope]
-
-### Implementation plan
-For each finding: which files change, what changes, estimated line impact.
-```
-
-### Step 2: Ask for approval
-
-Use the `AskUserQuestion` tool (do NOT output options as plain text — the tool provides a structured UI). Call it with:
-- **Question:** "How should I proceed with these findings?"
-- **Options (use these exactly):**
-  - "Implement all findings" — every KEEP finding becomes the Phase 4 approved set
-  - "Let me pick which ones to implement" — present the findings by number; the subset the user selects becomes the Phase 4 approved set
-  - "I disagree with some findings — let me challenge them" — go to Phase 3b
-  - "Research deeper on specific items" — go to Phase 3b
-
-### Phase 3b: challenge resolution
-
-For each challenged finding, spawn a research agent with: the finding description, the user's concern, and instructions to search for definitive evidence. Update the evidence table based on results. Re-present to user. Loop until approved.
+Steps: `phase-1-3-investigate-present.md` §Phase 3 (continued from the Phase 1 Read above), including the Phase 3b challenge-resolution loop. Show evidence-backed findings and get approval before any changes.
 
 ---
 
@@ -350,7 +219,7 @@ Steps: `phase-4-6-implement-review.md` §Phase 6 (continued from the Phase 4 Rea
 
 ---
 
-## Create-skill mode (3-phase author flow)
+## Create-skill mode (4-phase author flow)
 
 Steps: `create-skill-mode.md` (Phases A-D). Read it at the mode-detection branch above — this section's body lives there because the default improve-existing-skill and process-handoff paths never take this branch. Phase A interviews the user and runs the pre-existing-instruction check; Phase B spawns an author agent and validates; Phase C runs a fresh-agent review against the create-skill checklist; Phase D reuses Phase 6 to report and commit.
 
@@ -359,10 +228,4 @@ Steps: `create-skill-mode.md` (Phases A-D). Read it at the mode-detection branch
 ## Description-format validator (Phase 4 Step 3 extension)
 
 Steps: `phase-4-6-implement-review.md` §Description-format validator. The 6 format checks it adds to the Phase 4 validation gate apply to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
-
----
-
-## Mid-flow user input
-
-If the user interjects mid-phase: corrections/context fold into the current phase (note in checkpoint); preferences apply at the next decision point; blockers halt the phase and you ask how to proceed; new issues are noted and queued for after the current pipeline completes.
 

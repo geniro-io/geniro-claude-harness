@@ -74,7 +74,7 @@ Schema (one JSONL line per `(pattern, entry)` fire):
     "additional_patterns": [
       {"name": "internal-token", "regex": "INT-[A-Z0-9]{16}", "replacement": "[REDACTED:internal]"}
     ],
-    "ignore_patterns": ["high-entropy"],
+    "ignore_patterns": ["bearer"],
     "audit_log_enabled": true
   }
 }

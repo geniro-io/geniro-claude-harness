@@ -38,7 +38,7 @@ The orchestrating skill passes you these pre-resolved slots:
 
 ### Step 1 — Run the test command
 
-From WORKTREE, execute TEST_COMMAND once with both stdout and stderr redirected to a uniquely-named log file under `/tmp`, and capture the exit code. Redirect rather than pipe — redirection preserves the command's own exit code in `$?` without a PIPESTATUS workaround.
+From WORKTREE, execute TEST_COMMAND once with both stdout and stderr redirected to a uniquely-named log file under `/tmp`, and capture the exit code.
 
 ### Step 2 — Parse the saved log
 
