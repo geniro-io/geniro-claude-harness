@@ -125,10 +125,43 @@ esac
 # approval) the same way every other pattern ID here is unlocked; that first
 # grant just can't come from the agent overwriting the file itself.
 #
+# Collapse a path to the exact string the shell/filesystem treats as the
+# target, before any prefix/tier regex runs against it: repeated slashes
+# (`.geniro//x`), a `.` segment (`.geniro/./x`), and a trailing slash or run of
+# them (`.geniro/x/`, `.geniro/x//`) all resolve to the SAME path a bare
+# `.geniro/x` spelling does, and every equivalent spelling must decide
+# identically or one of them is an open bypass (2026-08-09 audit #1/#2: a
+# `/./` segment defeated both is_safety_json_path and matches_state_path).
+# Looped to a fixed point so a comb of these in one path
+# (`.geniro/./x//./`) fully collapses regardless of order — a single pass only
+# shortens a run of 3+ slashes by one. Does NOT resolve `..`: every call site
+# here treats a `..` segment as its own separate concern (reject or leave
+# alone) rather than resolving it, and folding that in here would silently
+# turn a rejection into a resolution.
+# Duplicated verbatim in hooks/block-geniro-deletion.sh — lib/write-vectors.sh
+# is out of scope for this fix (owned by a different maintainer pass), and
+# both guards already vendor their own inline fallbacks of lib/ helpers for
+# the same reason (a missing lib/ must never make either guard fail open).
+# tests/hooks/path-normalize-matrix.sh feeds both guards every spelling above
+# and asserts identical exit codes — a one-sided edit fails it.
+_geniro_normalize_path() {
+  local p="${1:-}" prev
+  while [ "${p#./}" != "$p" ]; do p="${p#./}"; done
+  prev=""
+  while [ "$prev" != "$p" ]; do
+    prev="$p"
+    p="${p//\/\//\/}"
+    p="${p//\/.\//\/}"
+  done
+  while [ "${p%/.}" != "$p" ]; do p="${p%/.}"; done
+  while [ "${p%/}" != "$p" ] && [ -n "${p%/}" ]; do p="${p%/}"; done
+  printf '%s' "$p"
+}
+
 # Pattern ID: safety-json-edit
 is_safety_json_path() {
   local p
-  p="$(printf '%s' "$1" | sed -E 's#/+#/#g')"
+  p="$(_geniro_normalize_path "$1")"
   echo "$p" | grep -qE '(^|/)\.geniro/safety\.json$'
 }
 
@@ -147,11 +180,13 @@ check_safety_json_write() {
 # absolute (/x/.geniro/...) forms.
 matches_state_path() {
   local p="$1"
-  # Collapse repeated slashes first: the protected-prefix regexes below require
-  # an EXACT `.geniro/<tier>/` span, so a path built by joining a variable that
-  # already ends in `/` (`.geniro//planning/foo/state.md`) inserts a second `/`
-  # right where "planning" must start and the match silently fails.
-  p="$(printf '%s' "$p" | sed -E 's#/+#/#g')"
+  # Collapse repeated slashes and `.` segments first: the protected-prefix
+  # regexes below require an EXACT `.geniro/<tier>/` span, so a path built by
+  # joining a variable that already ends in `/` (`.geniro//planning/foo/state.md`)
+  # inserts a second `/` right where "planning" must start, and a `/./` segment
+  # (`.geniro/./planning/foo/state.md`) inserts a segment the span doesn't
+  # expect either — both silently fail the match without this.
+  p="$(_geniro_normalize_path "$p")"
   # Exclusions — files under .geniro/ that are NOT frontmatter-bearing state
   # files and shouldn't trigger the helper warning:
   #   *.lock      — coordination locks (e.g., .geniro/planning/.codebase-map.lock)
@@ -841,8 +876,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # as `;` does, and collapsing it to a space first put a canonical multi-line
   # `atomic_state_write … <<EOF` call and a raw redirect on the following line
   # into ONE segment, which the per-segment helper exemption then cleared
-  # wholesale. The span EXCLUDES ; & | (mirrors block-dangerous-git.sh:394's
-  # blanking pass, minus its unquote pass — unquoting a whitespace-free helper
+  # wholesale. The span EXCLUDES ; & | (mirrors block-dangerous-git.sh's own
+  # quoted-literal blanking pass, minus its unquote pass — unquoting a whitespace-free helper
   # NAME here would re-expose a quoted MENTION, e.g. `echo "atomic_state_write"
   # > .geniro/x`, as a real command word, which is exactly what the blank below
   # this comment exists to prevent) — otherwise two ordinary prose apostrophes

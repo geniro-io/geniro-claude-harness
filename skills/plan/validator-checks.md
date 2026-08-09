@@ -136,6 +136,6 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ## Check API contract
 
-The `(check_id, status, finding_text, fix_hint)` tuple is fixed regardless of which surface produced it — the script for the nine, orchestrator-side reasoning for the four.
+The `(check_id, status, finding_text, fix_hint)` tuple is fixed regardless of which surface produced it — the script for its own emitted rows, orchestrator-side reasoning for everything tagged *Judgment*.
 
 `status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in table order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally ("13/13 clean") is not a validator result: it reads the same whether all thirteen ran or five did, which is exactly how a partial pass reaches the user looking like a complete one.
