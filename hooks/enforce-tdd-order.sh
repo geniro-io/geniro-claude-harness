@@ -681,6 +681,20 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+# GENIRO-VENDORED-END _geniro_wv_unquote_words
+fi
 
 block_production() {
   local target="$1"
@@ -757,19 +771,39 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # inside quotes never separates two commands). Contract: lib/write-vectors.sh.
   JOINED=$(_geniro_join_quoted_newlines "$JOINED")
 
+  # Recover words the shell would pass but the blanking below would erase — a
+  # quoted or backslash-escaped write TARGET (`echo x > "src/app.js"`,
+  # `> a"pp".js`) is one shell word, so blanking it as data hides the real
+  # write target from every candidate-extraction vector below (2026-08-09 audit
+  # #6: this call was missing here while file-protection.sh and
+  # enforce-state-helper.sh already make it — the ordinary habit of quoting a
+  # filename bypassed the gate entirely: `echo x > "src/app.js"` during RED
+  # scanned as a quote-blanked no-op instead of a production write). Contract:
+  # lib/write-vectors.sh §E.
+  JOINED=$(_geniro_wv_unquote_words "$JOINED")
+
   # Quoted string literals are data (`echo "writing app.js"` writes nothing).
   # Scrubbed per LINE, newlines INTACT, and only THEN collapsed: collapsing
   # first let two ordinary prose apostrophes on two different lines
   # (`# don't` … `# won't`) pair into one "literal" that swallowed the
   # production-source write between them.
-  # The span EXCLUDES ; & | (mirrors block-dangerous-git.sh:394's blanking
-  # pass, minus its unquote pass — file-protection.sh keeps a deliberately
-  # QUOTED write target a documented miss, and this scan mirrors that scan) —
-  # otherwise two ordinary prose apostrophes straddling a `;` pair across it
-  # and blank the real write between them.
+  # The span EXCLUDES ; & | (mirrors block-dangerous-git.sh's own
+  # quoted-literal blanking pass) — otherwise two ordinary prose apostrophes
+  # straddling a `;` pair across it and blank the real write between them.
   JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/'[^';&|]*'/ /g; s/\"[^\";&|]*\"/ /g")
 
-  ONELINE="${JOINED//$'\n'/ }"
+  # Pad each LINE (leading/trailing space) rather than collapsing newlines into
+  # spaces: the vectors below are whitespace-anchored, and every `grep -oE`
+  # against $ONELINE processes its input per line by default (no -z), so a real
+  # newline between two commands already bounds a span exactly like `;`/`&`/`|`
+  # do. Collapsing newlines to spaces first destroys that boundary — a benign
+  # command on one line and an unrelated write on the next then read as ONE
+  # span (2026-08-09 audit #10: a two-line `sed 's/a/b/' src/app.js > /tmp/o` /
+  # `grep -i foo notes.txt`, joined by a real newline, let the `-i` on line 2
+  # read as sed's own in-place flag and hard-blocked a read-only span; the
+  # same pair joined with `&&` on one line correctly stayed allowed). Mirrors
+  # block-dangerous-git.sh / block-geniro-deletion.sh / file-protection.sh.
+  ONELINE=$(printf '%s\n' "$JOINED" | sed -E 's/^/ /; s/$/ /')
 
   CANDIDATES=""
   add_candidate() {

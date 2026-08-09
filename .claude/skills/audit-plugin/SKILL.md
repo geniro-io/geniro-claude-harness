@@ -64,8 +64,8 @@ S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | one spawn per selected dimension (D5 splits into markdown + shell) + shard splits, hard cap 12 spawns; shards count against the cap; scoped runs spawn only the relevant subset. The cap exists because Phase 3 re-reads every spawn's table by hand — a full audit's dimension list (Phase 0 Step 1's enumeration, below; D1 runs inline, D5 always splits into two) already leaves little headroom to shard further, so when a run's scope would push another dimension past the split threshold, that dimension stays a single unsharded spawn (a larger read for one reviewer) rather than breaching the cap |
-| Shards per dimension | ≤2, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
+| Reviewer spawns per batch | one spawn per selected dimension (D5 splits into markdown + shell) + shard splits, hard cap 12 spawns; shards count against the cap, and a sharded D6's extra cross-file-checks spawn (`dimensions-reference.md` §Reviewer spawn template — D6 sharding) counts as one more; scoped runs spawn only the relevant subset. The cap exists because Phase 3 re-reads every spawn's table by hand — a full audit's dimension list (Phase 0 Step 1's enumeration, below; D1 runs inline, D5 always splits into two) already leaves little headroom to shard further, so when a run's scope would push another dimension past the split threshold, that dimension stays a single unsharded spawn (a larger read for one reviewer) rather than breaching the cap |
+| Shards per dimension | ≤2 line-balanced shards, both in the same batch, plus D6's unsharded cross-file-checks spawn when D6 itself shards; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |
 | Reviewer re-spawn on malformed output | 1 retry, then proceed with what parsed |
@@ -104,7 +104,7 @@ If `--quick`: jump to Phase 4 with machine findings only.
 
 Spawn the selected reviewers in ONE response. Each prompt is self-contained — reviewers must not need to discover their own rubric. Spawn template, the per-dimension notes, and the sharding rule: `dimensions-reference.md` §Reviewer spawn template — you are already reading that file to paste each reviewer's rubric sections, so it costs no extra load here.
 
-Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-<reviewer>.md` (via `atomic_state_write`), where `<reviewer>` is the spawn's unique label — the dimension id, its split halves (`D5a`/`D5b`), or its shards (`D4-shardA`/`D4-shardB`) — so no two spawns share a filename and overwrite each other. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
+Collect all outputs. If a reviewer returns prose instead of the table, re-spawn once with "return ONLY the table"; on second failure, salvage what parses and note the gap in the report. Persist each reviewer's table to `.geniro/state/audit-plugin/<slug>/findings-<reviewer>.md` (via `atomic_state_write`), where `<reviewer>` is the spawn's unique label — the dimension id, its split halves (`D5a`/`D5b`), its shards (`D4-shardA`/`D4-shardB`), or D6's unsharded cross-file spawn (`D6-crossfile`) — so no two spawns share a filename and overwrite each other. Record the paths in the checkpoint — this is what makes resume after compaction possible without re-spawning, and what the Phase 5 cleanup deletes.
 
 ## PHASE 3 — Merge, verify, filter
 

@@ -803,8 +803,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # first let two ordinary prose apostrophes on two different lines
   # (`# don't` … `# won't`) pair into one "literal" that swallowed the real
   # command between them — a fail-open on benign input, not on an attack.
-  # The span EXCLUDES ; & | (mirrors block-dangerous-git.sh:394's blanking
-  # pass, minus its unquote pass — a deliberately QUOTED redirect target is a
+  # The span EXCLUDES ; & | (mirrors block-dangerous-git.sh's own
+  # quoted-literal blanking pass, minus its unquote pass — a deliberately QUOTED redirect target is a
   # documented miss this guard keeps) — otherwise two ordinary prose
   # apostrophes straddling a `;` pair across it and blank the real command
   # between them.

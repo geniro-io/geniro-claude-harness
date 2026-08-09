@@ -534,7 +534,7 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/\"([^\"[:space:]]*)\"/\1/g; s/'([^'
 # word boundary is a real comment — drop it (to the end of ITS line, which is
 # why this runs before the newline-preserving pad below) so
 # `# git push --force` and `echo hi # git push --force` never reach the
-# destructive-op matchers. Mirrors enforce-state-helper.sh:779.
+# destructive-op matchers. Mirrors enforce-state-helper.sh's own trailing-comment strip.
 JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/(^|[[:space:]])#.*$//')
 
 # Pad each LINE (leading/trailing space) rather than collapsing newlines into
