@@ -91,10 +91,11 @@ A learning emitted with `trust: verified` is grounded in a captured observation 
 - `ts` — auto-injected as UTC ISO-8601 if absent.
 - `dedup_key` — auto-computed as `sha256(producer|scope|normalize(summary))[:12]` if absent. `normalize` = lowercase + whitespace collapse + trim. Documented so callers can reproduce the key if they want to look up an entry later.
 - `body` — sanitized via `redact_secrets`.
-- `ext` — every string-valued path inside (including inside arrays) is sanitized via `redact_secrets`. Path labels in the audit log use dotted notation (e.g. `ext.symptom`, `ext.options.0`).
+- `ext` — every string value anywhere inside is sanitized via `redact_secrets`, whatever shape `ext` takes: a scalar string, an object, or arrays nested inside. Path labels in the audit log use dotted notation (e.g. `ext.symptom`, `ext.options.0`).
+- `links` — walked and sanitized the same way as `ext` — a credential-bearing URL must not land unredacted, so `links` routes through `redact_secrets` like every other free-text field (e.g. `links.pr`, `links.refs.0`).
 - `supersedes` — if the caller provides it, it's preserved verbatim. Otherwise the helper may auto-inject it (see Dedup).
 - `recurrence_count` — how many times this learning has recurred. Defaults to `1` on a fresh emit. On a dedup match (different content under an existing `dedup_key`), the helper carries forward the prior entry's value and increments by 1, so a learning re-observed N times ends at `recurrence_count: N`. Callers normally leave this unset and let the helper manage it. The helper does not echo the resulting value — a caller that needs to read the post-write count re-queries after the emit via `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --include-superseded`, filtered by `dedup_key`. Entries written before this field existed have it absent — `query-learnings` treats absent as `1`, so legacy entries score and rank exactly as they did before the field was added.
-- `type`, `trust`, `links`, `deprecated` — passed through unchanged.
+- `type`, `trust`, `deprecated` — passed through unchanged.
 
 Unknown fields are also passed through — the schema is open.
 
@@ -103,9 +104,9 @@ Unknown fields are also passed through — the schema is open.
 The helper calls `redact_secrets` on:
 - `summary`
 - `body` (if present)
-- Every string-valued path inside `ext` (recursive — handles nested objects and arrays)
+- Every remaining string value anywhere else in the entry, at any depth and regardless of container — `ext`, `links`, `tags[]` elements (including a string nested inside a non-string element), and any caller-added key. One walk covers all of them, so a shape none of the schema fields anticipate (a scalar `ext`, an object buried in `tags[]`) is still reached.
 
-Top-level non-string fields, `producer`, `scope`, etc. are NOT sanitized — they are assumed to be control-plane metadata where secrets shouldn't appear and where sanitization would corrupt structure. (`tags[]` string elements ARE sanitized — a per-element `redact_secrets` pass, separate from the paths above.)
+The control-plane identifiers — `producer`, `scope`, `type`, `trust`, `ts`, `dedup_key`, `supersedes` — are excluded from that walk: they are assumed to hold no secrets, and sanitizing them would corrupt structure the helper itself relies on.
 
 ## Injection rejection
 

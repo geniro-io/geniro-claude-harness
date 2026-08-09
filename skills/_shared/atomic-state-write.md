@@ -151,12 +151,6 @@ For T3 CRUD files (`instructions/*.md`, `actions/*.md`, etc.), the caller is res
 
 Compute mtime with a portable stat (GNU `stat -c %Y`, falling back to BSD/macOS `stat -f %m` — without the fallback the check silently no-ops on macOS), once at read time and again just before the write. Three outcomes: the target still doesn't exist at either time — no prior state to conflict with, proceed; `stat` failed at either time — treat as a conflict rather than silently disabling the check; the mtime changed since read — open an `AskUserQuestion` with three options: Overwrite (lose remote changes), Show diff, Abort.
 
-```bash
-atomic_state_write "$target" <<EOF
-...
-EOF
-```
-
 T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-branch parallel writes are rare/abusive and last-writer-wins is acceptable.
 
 ## Known limitations

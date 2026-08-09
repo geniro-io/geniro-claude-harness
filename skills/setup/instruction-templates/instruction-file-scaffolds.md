@@ -36,9 +36,6 @@ The anchors below are the ones each skill actually fires. `/geniro:instructions 
 
 ## Additional Steps
 
-### After implement
-<!-- Steps to run after code changes are applied -->
-
 ### After ship
 <!-- Steps to run once the change has shipped -->
 

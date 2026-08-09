@@ -11,24 +11,34 @@ argument-hint: "<issue description or area to improve>"
 
 ## Contents
 
+- Loop invariants
 - Subagent model tiering · State persistence
 - Mode detection · Handoff-ingestion path · Complexity gate · Research selection matrix
 - Anti-rationalization · Definition of done
-- Phase 1 (investigate) · Phase 2 (cross-reference & filter) · Phase 2b (redundancy validation)
-- Phase 3 (present to user) · Phase 4 (implement) · Phase 5 (self-review) · Phase 6 (report & complete) — Phases 4-6 in `phase-4-6-implement-review.md`
+- Phase 1 (investigate) · Phase 2 (cross-reference & filter) · Phase 2b (redundancy validation) · Phase 3 (present to user) — Phases 1-3 in `phase-1-3-investigate-present.md`
+- Phase 4 (implement) · Phase 5 (self-review) · Phase 6 (report & complete) — Phases 4-6 in `phase-4-6-implement-review.md`
 - Create-skill mode (Phases A-D)
 - Description-format validator — in `phase-4-6-implement-review.md`
-- Mid-flow user input
 
 ---
 
 You are the orchestrator for investigating and fixing issues in the Geniro plugin. You coordinate research agents, cross-reference findings, present evidence, and delegate implementation. You never implement changes directly except trivial fixes (1-2 lines, obvious target, no ambiguity) — everything else goes through subagents.
 
+## Loop invariants
+
+1. **Spawn every batch of parallel agents in ONE assistant response.** Phase 1's up-to-three research agents, Phase 4's implementation agents, and any Phase 3b re-research round all serialize into full per-agent wall-clock latency if split across turns.
+2. **Review is always a fresh agent that saw neither the research nor the implementation prompt.** Phase 5 Step 1, the Phase 5 Step 3 pre-existing-bug re-review, and the create-skill Phase C review all depend on anchoring-free eyes — reusing an agent from an earlier phase defeats the check it exists to run.
+3. **The Phase 3 evidence gate is a WAIT: proceed only on an explicit answer, never an assumed one.** Phase 2b's filter and the Phase 3b challenge loop both feed findings back into this same gate rather than around it.
+4. **Never implement a change directly beyond a 1-2 line, unambiguous fix.** A larger or ambiguous change — in any phase, not only Phase 4 — goes through an implementation subagent; the orchestrator coordinates, agents edit.
+5. **Mid-flow user input folds into the current phase; it never restarts the pipeline.** Corrections/context fold into the current phase (note in the checkpoint); preferences apply at the next decision point; blockers halt the phase and ask how to proceed; new issues are noted and queued for after the current pipeline completes.
+
 **Template path:** (repo root — skills/, agents/, hooks/, lib/, scripts/, cursor/)
 **Architecture path:** `ARCHITECTURE.md` (consolidated design decisions from all milestones + operational rules)
 **Authoring rules:** `.claude/rules/skill-structure.md` (file-size limits, section ordering, reference graph) and `.claude/rules/skill-prose.md` (voice, rule placement) govern every skill / agent file this pipeline writes. §File-size limits is the single source for the word budgets, what counts as overflow, and the never-trim-load-bearing-content clause — cite that section everywhere, never restate its numbers, and give subagents the repo-relative path plus an explicit instruction to read it before editing.
 
-**After a compaction:** re-invoke `/improve-template` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
+**Phase bodies.** This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `.claude/skills/improve-template/`: `phase-1-3-investigate-present.md` (Phases 1-3) · `phase-4-6-implement-review.md` (Phases 4-6). That Read is the phase's physically-first action, per `skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (including the Phase 3 evidence gate and the Phase 3b challenge loop) and their spawn templates, so work started before the Read runs outside them.
+
+**After a compaction:** re-Read the phase file for whatever phase is running before continuing it — only the front-loaded prefix re-attaches, so a mid-phase summary can drop the Steps while leaving this spine intact. If which phase was running is also gone, re-invoke `/improve-template` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
 
 ## Subagent model tiering
 
@@ -80,7 +90,7 @@ Detect which of three modes the request wants — **process-handoff** (consume f
 
 **create-skill mode.** Triggers on an explicit phrase — `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill` — which routes straight through. When `$ARGUMENTS` merely describes a capability with no matching SKILL.md, confirm before routing (`AskUserQuestion`: "This reads as a new skill rather than a fix to an existing one — create a new skill?"). Most improvement requests also name a scope no SKILL.md matches ("make the review dimension for X better"), and an unconfirmed route skips the complexity gate and Phase 1 to drop a fix request into an authoring interview.
 
-If create-skill mode is detected, Read `.claude/skills/improve-template/create-skill-mode.md` now — per `skills/_shared/phase-entry-read.md`, that Read is this branch's physically-first action — and route to the **create-skill flow** it carries, skipping the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 3-phase author flow).
+If create-skill mode is detected, Read `.claude/skills/improve-template/create-skill-mode.md` now — per `skills/_shared/phase-entry-read.md`, that Read is this branch's physically-first action — and route to the **create-skill flow** it carries, skipping the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 4-phase author flow).
 
 Otherwise default to **improve-existing-skill mode** (complexity gate → Phase 1).
 
@@ -214,7 +224,7 @@ RESEARCH_QUESTION: Which recorded decisions, invariants, and operational rules i
 
 DELIVERABLE_SHAPE: table of [{section name + file:line in ARCHITECTURE.md or the cited helper, the decision or rule, how it applies to the issue, already-followed yes/no}]. Research only — do NOT suggest implementation.
 
-SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract. For survey-depth evidence (how production frameworks solve this), the historical 14-framework best-practices survey (4,440 lines) is at `git show 3bb085756b58eaf9a4ab81c136d55536907c089a~1:report.md` — it was removed from the working tree when the docs were consolidated. This requires an unshallow clone; if the command errors, skip this source and rely on ARCHITECTURE.md and the codebase-exploration findings instead.
+SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract.
 
 OUTPUT_PATH: .geniro/state/improve-template/.research-architecture-<slug>.md
 
@@ -261,7 +271,7 @@ For each finding, assess yourself:
 
 **Evidence quality:**
 - **Strong:** documented in official Claude Code docs, proven in production framework, or demonstrated by screenshot/error
-- **Moderate:** backed by a recorded decision in ARCHITECTURE.md, used by 2+ frameworks in the historical survey (see the Step 2 SCOPE_HINT for how to reach it), or a logical extension of documented behavior
+- **Moderate:** backed by a recorded decision in ARCHITECTURE.md, or a logical extension of documented behavior
 - **Weak:** single blog post, theoretical benefit, "should work" reasoning
 - **Rejected:** no evidence, contradicts known limitations, or speculative
 
@@ -350,7 +360,7 @@ Steps: `phase-4-6-implement-review.md` §Phase 6 (continued from the Phase 4 Rea
 
 ---
 
-## Create-skill mode (3-phase author flow)
+## Create-skill mode (4-phase author flow)
 
 Steps: `create-skill-mode.md` (Phases A-D). Read it at the mode-detection branch above — this section's body lives there because the default improve-existing-skill and process-handoff paths never take this branch. Phase A interviews the user and runs the pre-existing-instruction check; Phase B spawns an author agent and validates; Phase C runs a fresh-agent review against the create-skill checklist; Phase D reuses Phase 6 to report and commit.
 
@@ -359,10 +369,4 @@ Steps: `create-skill-mode.md` (Phases A-D). Read it at the mode-detection branch
 ## Description-format validator (Phase 4 Step 3 extension)
 
 Steps: `phase-4-6-implement-review.md` §Description-format validator. The 6 format checks it adds to the Phase 4 validation gate apply to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
-
----
-
-## Mid-flow user input
-
-If the user interjects mid-phase: corrections/context fold into the current phase (note in checkpoint); preferences apply at the next decision point; blockers halt the phase and you ask how to proceed; new issues are noted and queued for after the current pipeline completes.
 

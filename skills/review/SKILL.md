@@ -65,7 +65,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 - **Invariant #2 (args validated)** — `$ARGUMENTS` flag parsing is semantic, no CLI grammar; a PR ref validates via `mcp__github__pull_request_read` or the GraphQL fallback.
 - **Invariant #3 (permission before side-effect)** — the Phase 6 Action gate always fires and waits before any post to GitHub; never auto-post, never substitute a chat-text suggestion for it. The post creates a PENDING review that /geniro:review never submits, on every round — submitting is the user's own github.com action (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4). State.md writes go through `atomic_state_write`.
 - **Invariant #4 (bounded results)** — reviewer-agent output is capped per dimension by its own contract (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap); output schema per the same file's §Output Format.
-- **Invariant #5 (escalation gates)** — round-N ≥3 fires the Phase 6 escalation gate.
+- **Invariant #5 (escalation gates)** — round-N ≥3 fires the Phase 1 round-N gate first (`phase-1-triage-reference.md` §7 step 4, two options: Continue / Escalate); Escalate exits terminal before Phase 6 is reached. A Continue pick lets the Phase 6 Round-N gate (`review-handoff.md` §5, Continue / Escalate / Abort) fire as its conditional follow-on.
 - **Invariant #6 (grounded in observations) — binds at every kept severity.** The Phase 6 handoff message cites the state.md path so the user can audit the source; every REPORTED CRITICAL / HIGH / MEDIUM finding carries an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` quoting the cited file or caller chain literally, because a severity claim without a literal quote is unverifiable. This binds at emit, not at admission: a CRITICAL or HIGH may enter Phase 4.2 on a thin citation, and the verifier (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §3) is what supplies the quote for every §4.1 survivor.
 - **Invariant #7 (errors → structured observations)** — reviewer spawn failures land in the `## Errors` body section; `gh` fail-open is not silent — log it there too.
 
@@ -102,7 +102,7 @@ S3. **Stamp `phase:` on entry, before the phase's work.** A checkpoint written o
 
 ## Budgets — quality-first
 
-No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. The one bound escalates rather than aborts: at **round 3 the Phase 6 Round-N gate fires** (Continue / Escalate / Abort); its hard ceiling lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §5. Over-size reviewer output truncates (invariant #4); the Phase 3 dedup pass runs once per round inline, so it cannot fail.
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. The one bound escalates rather than aborts: at **round 3 the Phase 1 round-N gate fires first** (two options, Continue / Escalate — `phase-1-triage-reference.md` §7 step 4); an Escalate pick exits terminal before Phase 6 is ever reached. A Continue pick lets the run proceed into the **Phase 6 Round-N gate** as its conditional follow-on (Continue / Escalate / Abort); its hard ceiling lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §5. Over-size reviewer output truncates (invariant #4); the Phase 3 dedup pass runs once per round inline, so it cannot fail.
 
 ---
 

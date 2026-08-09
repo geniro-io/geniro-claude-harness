@@ -11,7 +11,7 @@ Mode body for `.claude/skills/improve-template/SKILL.md`. Read on entry to creat
 
 ---
 
-## Create-skill mode (3-phase author flow)
+## Create-skill mode (4-phase author flow)
 
 When mode detection routes to create-skill, run this flow instead of the
 Investigate → Filter → Implement pipeline.

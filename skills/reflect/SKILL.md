@@ -1,6 +1,6 @@
 ---
 name: reflect
-description: "Use when the user wants to turn recent session experience into project rules, or asks what should be learned from the last sessions. Mines session history for durable rule and improvement candidates — recurring user corrections, rejected suggestions, repeated friction — and routes approved candidates to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / learnings. Pass a search string to mine the past sessions that mention it, --this-session to mine the running session's own corrections, or nothing to pick the most recent working sessions. Skip for questions about the codebase itself (/geniro:investigate) or reviewing a pending diff (/geniro:review)."
+description: "Use when the user wants to turn recent session experience into project rules, or asks what should be learned from the last sessions. Mines session history for durable rule and improvement candidates — recurring user corrections, rejected suggestions, repeated friction — and routes approved candidates to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Pass a search string to mine the past sessions that mention it, --this-session to mine the running session's own corrections, or nothing to pick the most recent working sessions. Skip for questions about the codebase itself (/geniro:investigate) or reviewing a pending diff (/geniro:review)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
@@ -165,13 +165,13 @@ Spawn slots:
 - **Dedupe targets:** paths to `CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*` — the agent greps them itself and emits per-candidate ADD / UPDATE / NOOP verdicts.
 - **Prior declines:** the query output above (or the literal `none`) — previously-declined candidates are dropped, not re-surfaced.
 
-The agent returns at most 3 candidates that passed `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar, each carrying target / file / change / evidence / significance / dedupe verdict / recurrence flag. Cross-session recurrence (the same correction in 2+ analyzed sessions) is the strongest evidence — tell the agent to weight it accordingly.
+The agent returns the candidates that passed `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar, capped there, each carrying target / file / change / evidence / significance / dedupe verdict / recurrence flag. Cross-session recurrence (the same correction in 2+ analyzed sessions) is the strongest evidence — tell the agent to weight it accordingly.
 
 ## Phase 4: Present and route
 
 **Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: reflect`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Phases 2-3 ingest whole transcripts and pre-inlined extracts, exactly the kind of load that triggers a mid-run compaction; this phase writes rules and dedupes against the project's existing ones, so it needs them current.
 
-A candidate carrying `Recurrence-eligible: yes` never enters the walk — its lesson has already been seen 3+ times, so hand it to `/geniro:instructions create`, which collects its own approval; walking it here would be the second prompt for the same rule (improvement-routing.md §"Coexistence with recurrence rule-capture").
+A candidate carrying `Recurrence-eligible: yes` never enters the walk — its lesson has already been seen 3+ times, so hand it to `/geniro:instructions create`, which collects its own approval; walking it here would be the second prompt for the same rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Recurrence-eligible candidates").
 
 Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation — render each candidate as a self-contained chat message first (the exact rule text in a fenced block, where it lands, the transcript evidence behind it), then fire its own lean `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. Options per candidate: **Write this rule** / **Skip this rule** / **Skip the rest**.
 
@@ -179,6 +179,8 @@ Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_s
 
 - **CLAUDE.md / `.claude/rules/<scope>.md` / ADR** — ordinary `Edit`/`Write` by the orchestrator; these are user-visible project files, and the approval you just collected is the authorization.
 - **`.geniro/instructions/<skill>.md` / `code-style.md`** — hand off to the `/geniro:instructions create` patterns, or write via `atomic_state_write` (`source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"`); direct `Edit`/`Write` is hook-blocked there (invariant #5).
+- **Project rules/hooks (CI, lint, project-local hooks)** — outside this skill's tool surface: name the exact change (which config, which check) in chat and let the user apply it in their own automation.
+- **Memory (native auto-memory)** — no file write exists to route to; state the approved preference plainly in the chat response so Claude Code's own auto-memory captures it.
 - **Learnings** — `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract; never a raw write to the append-only log.
 
 **On decline** (Skip this rule / Skip the rest / explicit no), log it so future runs stop re-suggesting it:

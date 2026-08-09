@@ -32,15 +32,13 @@ Use `AskUserQuestion` (header: `"Onboard"`):
 - **Label:** `"Map codebase now (Recommended)"` / **Description:** `"Run /geniro:onboard to scan the codebase and produce _CODEBASE_MAP.md — gives all skills structural awareness of your project."`
 - **Label:** `"Skip — I'll do it later"` / **Description:** `"You can run /geniro:onboard any time."`
 
-Run §5.3 state file cleanup next regardless of the pick — the Definition of done requires the deletion on every success path, not only "Skip". Then: on "Map codebase now" → print `Running /geniro:onboard...` and invoke the onboard skill inline (same session, no restart needed); on "Skip" → done.
+Run §5.3 state file cleanup next regardless of the pick — the Definition of done requires it to run on every success path, not only "Skip" (§5.3 itself carries the one carve-out). Then: on "Map codebase now" → print `Running /geniro:onboard...` and invoke the onboard skill inline (same session, no restart needed); on "Skip" → done.
 
 **Skip this AUQ in re-run mode** — the user already has a codebase map from a prior `/geniro:onboard` run (or chose to skip it). Re-run is for refreshing CLAUDE.md and running migrations, not re-onboarding.
 
 ### 5.3 State file cleanup
 
-Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`, then remove the now-empty `state/setup/` directory (ignore the failure when it is not empty). This is the **only** Geniro state file deleted on success — the named exception recorded in §State file schema.
-
-**Exception:** if `mode == re-run` AND user opted for `accept-with-warnings` at round 4, the state file is **kept** with `phase: done` and `## Open Questions` populated — surfaces for the next re-run.
+Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`, then remove the now-empty `state/setup/` directory (ignore the failure when it is not empty) — unless `mode == re-run` AND the user opted for `accept-with-warnings` at round 4, in which case keep the state file instead, with `phase: done` and `## Open Questions` populated as a surface for the next re-run. Outside that one carve-out, this is the **only** Geniro state file deleted on success — the named exception recorded in §State file schema.
 
 ### 5.4 Restart-session warning (re-run only, plugin-version delta)
 

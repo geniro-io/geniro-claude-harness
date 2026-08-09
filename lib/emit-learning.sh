@@ -18,8 +18,9 @@
 #       (defense-in-depth — these get replayed into context by query_learnings).
 #   2. Compute dedup_key if absent: sha256(producer|scope|normalize(summary))[:12]
 #   3. Auto-inject ts (UTC ISO-8601) if absent.
-#   4. Sanitize summary, body, and every string-valued path inside ext via
-#      redact_secrets.
+#   4. Sanitize summary and body directly, then sweep every remaining string
+#      value anywhere else in the entry (ext, links, tags, any caller-added
+#      key) via redact_secrets — one walk, not a loop per field.
 #   5. Default recurrence_count to 1 if absent.
 #   6. Scan the last 200 entries for matching dedup_key:
 #        - identical content (excluding ts) → no-op return 0
@@ -176,58 +177,32 @@ emit_learning() {
     rebuilt=$(printf '%s' "$rebuilt" | jq -c --arg b "$body_sanitized" '.body = $b')
   fi
 
-  # Sanitize every string-valued path inside ext (one redact_secrets call per
-  # path; preserves array shape via setpath).
-  if printf '%s' "$rebuilt" | jq -e 'has("ext") and (.ext != null)' >/dev/null 2>&1; then
-    local paths_json
-    paths_json=$(printf '%s' "$rebuilt" | jq -c '[.ext | paths(strings)]')
-    local path_count
-    path_count=$(printf '%s' "$paths_json" | jq 'length')
-    local i
-    for ((i = 0; i < path_count; i++)); do
-      local path_arr val field_label sanitized
-      path_arr=$(printf '%s' "$paths_json" | jq -c ".[$i]")
-      val=$(printf '%s' "$rebuilt" | jq -r --argjson p "$path_arr" '.ext | getpath($p)')
-      field_label=$(printf '%s' "$path_arr" | jq -r '"ext." + (map(tostring) | join("."))')
-      sanitized=$(printf '%s' "$val" | redact_secrets "$producer" "$field_label" "$dedup_key")
-      rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson p "$path_arr" --arg v "$sanitized" \
-        '.ext = (.ext | setpath($p; $v))')
-    done
-  fi
-
-  # Sanitize every string-valued path inside links (mirrors the ext loop — a
-  # credential-bearing URL in a link must not land unredacted; emit_learning's
-  # other paths route through redact_secrets, so links must too).
-  if printf '%s' "$rebuilt" | jq -e 'has("links") and (.links != null)' >/dev/null 2>&1; then
-    local lpaths_json lpath_count li
-    lpaths_json=$(printf '%s' "$rebuilt" | jq -c '[.links | paths(strings)]')
-    lpath_count=$(printf '%s' "$lpaths_json" | jq 'length')
-    for ((li = 0; li < lpath_count; li++)); do
-      local lpath_arr lval lfield_label lsanitized
-      lpath_arr=$(printf '%s' "$lpaths_json" | jq -c ".[$li]")
-      lval=$(printf '%s' "$rebuilt" | jq -r --argjson p "$lpath_arr" '.links | getpath($p)')
-      lfield_label=$(printf '%s' "$lpath_arr" | jq -r '"links." + (map(tostring) | join("."))')
-      lsanitized=$(printf '%s' "$lval" | redact_secrets "$producer" "$lfield_label" "$dedup_key")
-      rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson p "$lpath_arr" --arg v "$lsanitized" \
-        '.links = (.links | setpath($p; $v))')
-    done
-  fi
-
-  # Sanitize every remaining string, at ANY depth, under a non-schema key.
-  # summary / body are sanitized above, ext.* and links.* have their own deep
-  # walks, tags[] is handled below, and ts / dedup_key / supersedes / producer /
-  # scope / type / trust are control-plane identifiers — so those roots are
-  # excluded here. Everything else is walked with `paths(strings)` rather than a
-  # top-level `type == "string"` selection: the old form matched only scalar
-  # top-level fields, so a caller stashing a secret one level down (`meta: {tok:
-  # "..."}`) persisted it verbatim into learnings.jsonl, which query_learnings
-  # then replays into context. Redaction has to reach as deep as the writer can nest.
+  # Sanitize every remaining string, at ANY depth, anywhere except the
+  # control-plane identifiers (ts / dedup_key / supersedes / producer / scope /
+  # type / trust) and summary / body, already sanitized above. This ONE walk
+  # is deliberately the only path into ext, links, AND tags — no per-field
+  # loop for any of them, because a per-field loop only catches the shape it
+  # was written for: a dedicated `.ext | paths(strings)` call finds nothing
+  # when `ext` itself is a scalar string (paths(strings) enumerates paths to
+  # DESCENDANTS, and a scalar has none), and a loop keyed on `.tags[$i]`'s own
+  # type skips a non-string element (e.g. an object) even though a secret can
+  # be nested inside it. Walking `paths(strings)` over the WHOLE entry finds
+  # every string leaf regardless of which key or container holds it — a
+  # scalar `ext`/`links` value is itself a leaf at path `["ext"]`/`["links"]`,
+  # and a string nested inside a non-string `tags[]` element is a leaf same as
+  # any other. `paths(strings)` rather than a top-level `type == "string"`
+  # selection for the same reason: the old top-level form matched only scalar
+  # top-level fields, so a caller stashing a secret one level down (`meta:
+  # {tok: "..."}`) persisted it verbatim into learnings.jsonl, which
+  # query_learnings then replays into context. Path labels use dotted
+  # notation throughout (`ext.options.0`, `links.refs.1`, `tags.0`, or
+  # `tags.0.k` for a string nested inside a non-string tag).
   local dpaths_json dpath_count di
   dpaths_json=$(printf '%s' "$rebuilt" | jq -c \
     '[paths(strings)
       | select(.[0] as $k
                | ["ts","dedup_key","summary","body","supersedes","producer",
-                  "scope","type","trust","ext","links","tags"]
+                  "scope","type","trust"]
                | index($k) == null)]')
   dpath_count=$(printf '%s' "$dpaths_json" | jq 'length')
   for ((di = 0; di < dpath_count; di++)); do
@@ -237,21 +212,6 @@ emit_learning() {
     dlabel=$(printf '%s' "$dpath_arr" | jq -r 'map(tostring) | join(".")')
     dsan=$(printf '%s' "$dval" | redact_secrets "$producer" "$dlabel" "$dedup_key")
     rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson p "$dpath_arr" --arg v "$dsan" 'setpath($p; $v)')
-  done
-
-  # Sanitize string elements of the tags[] array. The string-key loop above
-  # walks only scalar top-level string fields, so a secret stashed in a tag
-  # label would otherwise reach the log unredacted. Non-string elements (if any)
-  # are left untouched — redacting them would change their type.
-  local tags_count ti
-  tags_count=$(printf '%s' "$rebuilt" | jq '(.tags // []) | length')
-  for ((ti = 0; ti < tags_count; ti++)); do
-    local ttype tval tsan
-    ttype=$(printf '%s' "$rebuilt" | jq -r --argjson i "$ti" '.tags[$i] | type')
-    [ "$ttype" = "string" ] || continue
-    tval=$(printf '%s' "$rebuilt" | jq -r --argjson i "$ti" '.tags[$i]')
-    tsan=$(printf '%s' "$tval" | redact_secrets "$producer" "tags[$ti]" "$dedup_key")
-    rebuilt=$(printf '%s' "$rebuilt" | jq -c --argjson i "$ti" --arg v "$tsan" '.tags[$i] = $v')
   done
 
   # Dedup scan — last N entries (window overridable; see skills/_shared/emit-learning.md).

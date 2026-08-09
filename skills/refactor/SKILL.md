@@ -89,7 +89,7 @@ This skill adds two invariants:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-S2. **One todo in_progress at a time.** §Task tracking's phase-level and per-step todos enforce sequential focus — marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop).
+S2. **One todo in_progress at a time.** Use `TodoWrite` to expose per-phase progress: at skill start, create phase-level todos (Plan, Apply, Verify); during Phase 2, add dynamic per-step todos derived from the approved plan; mark `in_progress` → `completed` as phases run. These phase-level and per-step todos enforce sequential focus — marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop). §Task tracking.
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
@@ -245,7 +245,7 @@ state.md `phase: apply`. The orchestrator executes the approved plan one step at
 
 ## Phase 3 — verify
 
-state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`** — it carries the Steps (§3.1 diff sanity · §3.2 the reviewer batch · §3.3 disposition, including the PRODUCT-DECISION escalation · §3.4 completion summary · §3.5 learnings · §3.6 custom post-verify steps · §3.7 cleanup), and every `Phase 3 §3.M` citation in this skill resolves there. Exit: a terminal state — `done`, `verify-summary-only`, `reverted`, `routed`, or `verify-escalated` when the 1-round fix loop exhausts. No `git push` / `gh pr create`: refactor never ships code, only a working-tree diff and a state-file audit trail.
+state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`** — it carries the Steps (§3.1 diff sanity · §3.2 the reviewer batch · §3.3 disposition, including the PRODUCT-DECISION escalation · §3.4 completion summary · §3.5 learnings · §3.6 custom post-verify steps · §3.7 cleanup), and every `Phase 3 §3.M` citation in this skill resolves there. Exit: a terminal state — `done`, `verify-summary-only`, `reverted`, `aborted`, or `routed` — or the paused escalation state `verify-escalated` when the 1-round fix loop exhausts. No `git push` / `gh pr create`: refactor never ships code, only a working-tree diff and a state-file audit trail.
 
 ---
 
@@ -257,6 +257,6 @@ T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categor
 
 ## Task tracking
 
-Use `TodoWrite` to expose per-phase progress. At skill start, create phase-level todos: Plan, Apply, Verify. During Phase 2, add dynamic per-step todos derived from the approved plan. Mark `in_progress` → `completed` as phases run, per §Loop invariants invariant S2.
+Canonical at §Loop invariants invariant S2 (front-loaded, so it survives compaction).
 
 ---

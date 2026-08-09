@@ -88,7 +88,7 @@ External sends: not in `/geniro:update` ACI ever.
 
 | Cause | Message |
 |---|---|
-| Network error after the retry cap (cap and backoff ladder set in `phase-2-update.md` §Step 1) | `aborted: network error during plugin marketplace update after 4 retries` |
+| Network error after the retry cap (cap and backoff ladder set in `phase-2-update.md` §Step 1) | `aborted: network error during plugin marketplace update after <cap> retries` |
 | Install recorded under the legacy plugin id | `aborted: plugin renamed — reinstall required` (`phase-1-precheck.md` §Legacy install-id check prints the reinstall commands) |
 | Update succeeded but registry missing entry | `aborted: registry missing the geniro plugin entry — see ~/.claude/plugins/installed_plugins.json` |
 | Hash-check failed | `aborted: plugin integrity check failed — missing file(s) or manifest hash mismatch on <file>` |

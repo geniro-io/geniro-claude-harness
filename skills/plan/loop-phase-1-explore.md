@@ -35,7 +35,7 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 | Trivial (typo / config tweak / mechanical rename — no logic change) | 1 agent OR 0 if obviously scope-bound |
 | Small (localized, single-concern change) | 1-2 agents (existing-impl; integration-surface only if it spans a boundary) |
 | Medium (a feature, or a change that touches a contract / boundary) | 2 agents (existing-impl + integration-surface) |
-| Big (a hard escalation signal is present, or dimension score 7+ per effort-scaling.md) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
+| Big (a hard escalation signal is present, or the Big dimension-score band per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`) | 3-4 agents (subsystem-A + subsystem-B + cross-cutting + conventions) |
 
 Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium` (default) or `very thorough` for Big-tier subsystem facets.
 

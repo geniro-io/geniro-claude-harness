@@ -33,7 +33,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 
 | Check | Severity |
 |---|---|
-| No references to dropped skills (`/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor`) | HIGH |
+| No references to dropped skills — this row is the canonical home of the list: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor` | HIGH |
 | No references to dropped phase names (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM |
 | `Additional Steps` subsections match the scope's legal anchor(s) in `instructions-authoring-reference.md` §5 — a real phase with no read site is rejected the same as a dropped one, and so is any `### Before <phase>` subsection (no skill reads that prefix) | MEDIUM |
 

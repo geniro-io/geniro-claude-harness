@@ -70,7 +70,7 @@ Fires at the very start of planning (Phase 0) — after the mode resolves, befor
       description: "Plan in chat with no page."
 ```
 
-Empty answer → default OFF: artifact mode stays off and no artifact fields are written, consistent with how the §2a depth question defaults to Standard. On the "Yes" pick, the run is in artifact mode — set `artifact_mode: true` and `artifact_status: pending` in the §1 frontmatter; on "No", leave all artifact fields absent.
+Empty answer → re-ask, never auto-default, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. On the "Yes" pick, the run is in artifact mode — set `artifact_mode: true` and `artifact_status: pending` in the §1 frontmatter; on "No", leave all artifact fields absent.
 
 Persist the pick to `approvals[]` (§1 entry shape) with category `artifact_choice`, `asked_in_phase: mode-detect`, so a resume after compaction doesn't re-ask.
 
@@ -130,7 +130,7 @@ When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question once at
       description: "A judge-panel approach search plus 3x verification of the spec's cited claims with majority vote; higher quality at higher token cost."
 ```
 
-Empty answer → default Standard (`deep-mode: false`). Phase 3 is skipped on Trivial tasks, so depth there stays flag-only.
+Empty answer → re-ask, never auto-default, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. Phase 3 is skipped on Trivial tasks, so depth there stays flag-only.
 
 Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an `approvals[]` entry (§1 entry shape) with category `deep_mode_choice`, `asked_in_phase: clarify`.
 

@@ -71,7 +71,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns; shards count against the cap — when sharding every dimension would exceed it, shard the dimensions with the largest candidate lists first; scoped runs spawn only the relevant subset |
+| Reviewer spawns per batch | dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns; shards count against the cap. The cap exists because Phase 3 re-reads every spawn's table by hand — the five-dimension full-audit list already leaves headroom for at most a few shards, so when sharding every dimension would exceed it, shard the dimensions with the largest candidate lists first rather than breaching the cap; scoped runs spawn only the relevant subset |
 | Shards per dimension | ≤2, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |
@@ -123,6 +123,8 @@ Sort the results into:
 If `--quick`: run the inline bloat sweep, then jump to Phase 4 with the machine findings.
 
 ## PHASE 2 — Parallel dimension reviewers
+
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: audit-instructions`, `LOAD_TIER: rules-only`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Re-derive `$PROJECT_SEARCH_POLICY` from the refreshed `global.md` before composing the reviewer batch's `PROJECT SEARCH POLICY:` slots below — a dropped policy would silently strip the search-governing rules from every reviewer prompt.
 
 Spawn the selected reviewers in ONE response. Each prompt is self-contained — reviewers must not need to discover their own rubric. The spawn template, per-dimension paste notes, and the sharding rule are in the reference §Reviewer spawn template — you already have that file open from Phase 0.
 
