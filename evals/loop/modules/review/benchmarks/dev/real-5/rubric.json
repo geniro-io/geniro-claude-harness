@@ -13,7 +13,7 @@
       "severity": "HIGH",
       "must_find": true,
       "accepted": true,
-      "acceptance_evidence": "Commit ca0c2643cb0d ('Collaborators Invite Through e-mail', 2026-06-10T22:41Z) re-added `debouncedContributor`, `searchText: debouncedContributor || undefined`, and `onSearchValueChange` wiring to the contributor query.",
+      "acceptance_evidence": "Accepted; fix commit(s): ca0c2643cb0d.",
       "description": "An earlier commit dropped `searchText` from the contributor search query, so the MultiSelect only ever fetched one fixed page of 50 client users and filtered client-side with no server search. Any client user outside that first page of 50 became invisible and unaddable, a functional regression from the prior combobox which server-searched all clients."
     },
     {
@@ -27,7 +27,7 @@
       "severity": "HIGH",
       "must_find": true,
       "accepted": true,
-      "acceptance_evidence": "Same commit disabled the admin-only search query for beneficiaries (`editRole !== 'beneficiary'`), added a new POST /:id/contributor-invite endpoint + `inviteCaseContributor` service method, and an email-invite UI for beneficiaries. Author also replied directly on the thread: \"Big change here, beneficiaries are going to be able to add collaborators by e-mail.\"",
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
       "description": "Once the sidebar gate was removed, beneficiaries could reach the manage-team panel and see the contributor slot as editable, but the underlying candidate query hits `GET /api/users/list`, which is admin-only and 403s for client sessions. A beneficiary could remove a contributor but never add one, contradicting the panel's own subtitle claiming they could do both."
     },
     {
@@ -41,7 +41,7 @@
       "severity": "HIGH",
       "must_find": true,
       "accepted": true,
-      "acceptance_evidence": "The literal `!isBeneficiary` gate around `<TeamSection>` in case-details-sidebar.tsx was never restored (that file has zero diff between review time and merge), but team-section.tsx was changed post-review to branch on `useIsBeneficiary()`: beneficiaries now see only contributor rows (\"Beneficiary collaborator\"), while second chair, paralegal, and employer/hiring-manager cells are hidden from them. No feature flag or kill switch was added, so the literal process ask went unaddressed even though the info-exposure itself was closed.",
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
       "description": "This PR removed the `!isBeneficiary` gate (added five days earlier in #2650) around the team section, so all client users could suddenly see 1st/2nd chair attorney, paralegal, and hiring-manager assignments with no feature flag protecting the change, despite `feature-flags.mdc` requiring one for removing an existing UI flow."
     },
     {
@@ -55,7 +55,7 @@
       "severity": "HIGH",
       "must_find": true,
       "accepted": true,
-      "acceptance_evidence": "Commit ca0c2643cb0d added `hideClearAll` and `maxCount={Infinity}` to the contributor MultiSelect, exactly the recommended fix. The Backspace-skips-the-disabled-guard edge case was not separately addressed.",
+      "acceptance_evidence": "Accepted; fix commit(s): ca0c2643cb0d.",
       "description": "Every implicit bulk-deselect surface of the MultiSelect could revoke collaborator access with no confirmation: the trigger's clear-all fired `onValueChange([])` removing everyone in one click, and the \"+N more\" badge's clear button truncated to the default `maxCount` of 3, silently dropping every collaborator past the first three chips."
     },
     {
@@ -69,7 +69,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "`invalidateTeam()` still calls `queryClient.setQueryData()` per mutation response in the final merged code, with no invalidate-once or mutation `scope` added — unchanged from review time.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "A multi-add or clear-all fires N parallel mutations, and each response writes its own full-team snapshot via `setQueryData` right after only its own request completed. If an earlier snapshot lands last, it can resurrect already-removed members in the cache, and the MultiSelect's chips sync straight from that cache."
     },
     {
@@ -83,7 +83,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "use-case-realtime-sync.ts was changed post-review to add `caseWorkflowApiFacadeCaseWorkflowGetTeamQueryKey(caseId)` to the realtime invalidation list — the exact one-line fix recommended, and outside the original PR diff (it only appears in the base→final diff, not base→review-time diff).",
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
       "description": "The `cw:case-updated` realtime publish never refreshed the team panel for other open sessions: the listener invalidated the tasks/details/snapshot query keys but not the team key, and `refetchOnWindowFocus` was off, so collaborator changes appeared stale until a manual remount."
     },
     {
@@ -97,7 +97,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "Only a `unsyncSingleCaseRoleAssignment` mock stub was added post-review (3-line diff); no archived-rejection test, publish-throws test, strengthened idempotent assertion, or `findOneWithLegalEntity`/FK-linked-beneficiary seed was added.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "Key paths of `removeCaseContributor` were unpinned by tests: no test rejects removal on an archived case, the realtime publish is stubbed but never asserted, there is no publish-throws test (unlike sibling flows), and the idempotent no-op test checks only that `removeMember` wasn't called rather than the no-event invariant its sibling pins."
     },
     {
@@ -111,7 +111,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "The `useCaseWorkflowApiFacadeCaseWorkflowSetCaseContributor`/`RemoveCaseContributor` mocks in the final test file still return only `{ mutate, isPending }` with no captured options argument — onSuccess/onError paths remain untested, including for the newly-added `InviteCaseContributor` mock.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "The hook mocks in this test file take no arguments, so the component's `onSuccess`/`onError` mutation options never run in any test — meaning the new error-recovery behavior (`multiSelectRef.current?.reset()` restoring a chip after a failed remove), toasts, and cache writes are all uncovered."
     },
     {
@@ -125,7 +125,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "domain-event.types.ts and events.ts have zero diff between the review-time head and the final merged commit — no vestigial-field comment or vocabulary convergence was added.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "The contributor domain events mix vocabularies in what is meant to be an append-only stream: assignment keeps the old single-slot shape with a now-permanently-null `previousContributorId`, while removal introduces a new set-based shape, and lawyer/paralegal removal is still modeled as an assignment with `new: null`."
     },
     {
@@ -139,7 +139,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "No AnalyticsService/trackEvent calls were added anywhere in the contributor add/remove mutation handlers in the final diff.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "Adding and removing a collaborator are new primary user actions but ship with no analytics events, even though the adjacent team section already tracks a panel-opened event and the facade service already injects `AnalyticsService` without using it here."
     },
     {
@@ -153,7 +153,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "removeCaseContributor still has no `@Transactional()` wrapping and `publishContributorRemoved` still runs as a separate call after `removeMember` commits, unchanged from review time.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "If the domain-event publish throws after `removeMember` has already committed, the removal stands permanently with no corresponding `domain_event` row, and a retry hits the method's early `!isContributor` return so the event can never be recovered — unlike the sibling lawyer-assignment flow, which has a synthetic backfill this flow doesn't."
     },
     {
@@ -167,7 +167,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "No aria-disabled or pending-indicator threading into the MultiSelect popover items was added in the final diff; only the trigger-level `disabled` prop remains.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "While a mutation is pending, `disabled` only reaches the MultiSelect's trigger button — the open popover stays interactive, items keep a pointer cursor, and clicks silently no-op — so rapid multi-adds during an in-flight request lose selections with no visible feedback to the user."
     },
     {
@@ -181,7 +181,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "Commit ca0c2643cb0d (the first commit after the review) initially fixed this by switching to the scoped `removeMemberRole(caseId, contributorUserId, 'contributor')` call. A later commit, d561728b78c9 ('use removeMember for contributor removal', 2026-06-11T12:44:32Z), explicitly reverted it back to the broad `removeMember()` call. The final merged code (932bc9dcf) therefore still has the over-broad deletion the finding raised — a fix was applied and then un-applied within the same PR.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted). Commits referenced: ca0c2643cb0d, d561728b78c9, 932bc9dcf.",
       "description": "The guard only checks that the target holds a `contributor` row, but the removal call (`removeMember` → `unsyncCaseRoleAssignments`) deletes every case role and FGA tuple the target holds with no role filter, and users can hold multiple case roles. A beneficiary authorized only to manage the contributor slot could therefore also silently revoke a target's staff-role grants, with only `removedContributorId` recorded in the event."
     },
     {
@@ -195,7 +195,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "`multiSelectRef`'s declaration was moved above the mutation definitions in commit ca0c2643cb0d, matching the recommendation exactly.",
+      "acceptance_evidence": "Accepted; fix commit(s): ca0c2643cb0d.",
       "description": "`multiSelectRef` was declared after the two `onError` closures that reference it, which only worked because those closures run post-mount rather than at declaration time."
     },
     {
@@ -209,7 +209,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "`setCaseContributor`'s opening `await this.caseService.findOne(caseId)` was changed to `await this.caseService.assertCaseNotArchived(caseId)` in the post-review diff, matching the remove path.",
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
       "description": "The add-contributor path opened with a plain `findOne`, so an archived case returned a generic \"Case not found\" 404 on add but a \"Case is archived\" 409 on remove — two different error shapes for the same underlying constraint on one control."
     },
     {
@@ -223,7 +223,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "The explanatory comment (\"Use getCaseTeamForActiveCase (not findCaseTeam) so that beneficiaries linked via the case-management FK ... are included\") was added directly above the duplicated authz block in `removeCaseContributor` — the fallback option the finding offered instead of extracting a shared helper.",
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
       "description": "The authz block in `removeCaseContributor` duplicated `setCaseContributor`'s block verbatim but was missing the comment explaining why `getCaseTeamForActiveCase` (not `findCaseTeam`) is required there, since FK-linked beneficiaries have no direct IAM row."
     },
     {
@@ -237,7 +237,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": false,
-      "acceptance_evidence": "`removeCaseContributor` still unconditionally calls `findCaseTeam` for `teamBefore` after the `canManageUsers` branch already fetched `getCaseTeamForActiveCase` — the redundant fetch pattern is unchanged in the final code.",
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
       "description": "On the beneficiary path, the team is fetched three times in one request: once by the guard's `getCaseTeamForActiveCase`, once more via `findCaseTeam` right after, and again when rebuilding the response, even though the guard's resolved team is already a superset of what the second fetch needs."
     },
     {
@@ -251,7 +251,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "The add-mutation's onError toast copy was changed from 'Failed to update collaborator' to 'Failed to add collaborator' in the post-review diff.",
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
       "description": "The contributor-add mutation is now add-only, but its error fallback copy still read \"Failed to update collaborator\" while the success toast said \"Collaborator added\", a leftover mismatch from before the flow was split."
     }
   ]

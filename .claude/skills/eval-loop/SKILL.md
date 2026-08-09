@@ -30,6 +30,8 @@ judgment the scripts deliberately do not encode.
   with the prediction written down. A tie is a result — record it.
 - **Rubric edits bump `version`** (integer, any edit) — and invalidate every
   standing baseline run for that task; re-sweep the champion before comparing.
+  Carve-out: `acceptance_evidence` is non-scoring provenance — an edit
+  touching only it does not bump.
 - **Read transcripts before trusting numbers.** No verdict is reported to the
   user until you have opened at least the failing trials' findings and one
   judge verdict and confirmed the failures look fair.
@@ -40,8 +42,9 @@ judgment the scripts deliberately do not encode.
   review-comment IDs, or machine-local paths. Repo location goes through
   `repo_alias` + the gitignored `repos.local.json`; commit SHAs and in-repo
   file paths are fine (needed for staging and matching). Before committing a
-  new task, grep it for the source repo's name, the ticket prefix, and the
-  author handles — this repo is public, the benchmark sources are not.
+  new task, grep it for the source repo's name, the ticket prefix, the author
+  handles, `PR #`, and long digit runs (comment IDs) — this repo is public,
+  the benchmark sources are not.
 
 ## Intake
 

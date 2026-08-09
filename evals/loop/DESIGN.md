@@ -32,7 +32,9 @@ digest lives in the session report; each mechanism below names its source.
 
   `version` is an integer bumped on ANY rubric edit (lm-eval-harness rule);
   `compare.sh` hard-fails on version mismatch — scores across rubric versions
-  are never comparable. `negative: true` marks a task whose correct answer is
+  are never comparable. One carve-out: `acceptance_evidence` is provenance
+  metadata that never enters a prompt or a score — editing only it does not
+  bump. `negative: true` marks a task whose correct answer is
   zero findings (Anthropic: test both directions or the loop optimizes toward
   overtriggering). `holdout/` is physically separate and never read while
   tuning; it gates promotion. Tasks mined from real repositories are committed

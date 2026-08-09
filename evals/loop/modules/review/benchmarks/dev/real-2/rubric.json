@@ -13,7 +13,7 @@
       "severity": "HIGH",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "Fix commit 80df1ba32c ('apply review feedback') replaces the cast with `const SENTIMENT_LEVEL_SET: ReadonlySet<string> = new Set(SENTIMENT_LEVELS)` and `SENTIMENT_LEVEL_SET.has(value)` in isSentimentLevel — matches the reviewer's exact suggestion; diff verified locally.",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "The isSentimentLevel type predicate does `(SENTIMENT_FILTER_IDS as readonly string[]).includes(value)`, an `as` type cast that violates the project's 'no type casts' style rule. Reviewer recommended a `Set<string>` lookup instead, which avoids the cast entirely."
     },
     {
@@ -27,7 +27,7 @@
       "severity": "HIGH",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "Fix commit 80df1ba32c message: 'H2: drop the four item!.sentiment non-null assertions ... item?.sentiment keeps the runtime guard and lets TypeScript stay strict.'",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "Four `item!.sentiment` non-null assertions (lines 142, 161, 177, 191) violate the project's 'no non-null assertions' style rule. The preceding `expect(item).toBeDefined()` is only a runtime check and does not narrow the TypeScript type, so the `!` silently suppresses the compile-time null check."
     },
     {
@@ -41,7 +41,7 @@
       "severity": "HIGH",
       "must_find": true,
       "accepted": true,
-      "acceptance_evidence": "Fix commit 80df1ba32c message: 'H3: add the missing expect(ids).toContain(critical.beneficiaryId) assertion to the silently-drop-for-clients test ... closes the regression-guard gap if the seeded set ever changes.'",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "The security-guard test 'should silently drop the sentiments filter for client callers' asserts `total === 3` and that two other beneficiaries are present, but never asserts the critical-sentiment beneficiary is also included. A future regression that returned all 3 beneficiaries while specifically excluding the critical one would still pass this test — a real gap in a test meant to guard client-side sentiment-filter authorization."
     },
     {
@@ -55,7 +55,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "Diff of fix commit 80df1ba32c on this file confirmed locally: import retargeted from `@/case-radar/analysis/analysis.module` to `@/case-radar/beneficiary-views/beneficiary-views.module`, per commit message M1 ('re-export CrSentimentLevel from beneficiary-views.module.ts and retarget the 3 imports').",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "`CrSentimentLevel` is imported directly from `@/case-radar/analysis/analysis.module` in this DTO (and in responses.dto.ts and beneficiary-query.service.ts), bypassing the beneficiary-views/BeneficiaryViewService cross-module chokepoint this PR otherwise establishes for case-radar access, leaving two independent case-radar coupling points instead of one."
     },
     {
@@ -69,7 +69,7 @@
       "severity": "MEDIUM",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "Fix commit 80df1ba32c message M2 confirms the skeleton was changed to `rounded`. Independently corroborated: the second review round (2026-05-15, comment 3247632122) re-examines the exact same line and finds a different remaining issue (height, not shape), which only makes sense if the rounded-full-vs-rounded mismatch was already fixed by then.",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "The sentiment-cell loading skeleton used `rounded-full` (pill shape), but the actual rendered SentimentBadge uses `rounded` (link variant) or no rounding (plain span variant), producing a visible shape pop when the real data loads in."
     },
     {
@@ -83,7 +83,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "Fix commit 80df1ba32c message: 'L1: strip sentiments symmetrically in applySentimentFilterGuard ... the success branch returns { ...query, userIds } and was leaving sentiments on the forwarded query.'",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "`applySentimentFilterGuard` strips the `sentiments` field only on the `!enabled` branch (destructuring it out); the staff+enabled branch returns `{ ...query, userIds }` and leaves `sentiments` on the object. `buildWhere` ignores the field today so there is no active bug, but the asymmetry is confusing and a latent risk if `buildWhere` ever starts reading it."
     },
     {
@@ -97,7 +97,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "Fix commit 80df1ba32c message: 'L2: memoise validatedSentiments in BeneficiaryList.'",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "`validatedSentiments = sentiments.filter(isSentimentLevel)` is recomputed on every render, producing a new array reference that feeds into the TanStack Query queryKey. TanStack deep-equals queryKeys so this doesn't cause spurious refetches today, but it is an unnecessary per-render allocation and a risk if any future consumer assumes referential stability."
     },
     {
@@ -111,7 +111,7 @@
       "severity": "LOW",
       "must_find": false,
       "accepted": true,
-      "acceptance_evidence": "Diff of fix commit 80df1ba32c on this file confirmed locally: the two-line `'use client';` directive was removed from the shim, per commit message L3 ('move use client from the case-radar shim to the canonical @/shared/components/sentiment-badge.tsx').",
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
       "description": "The `'use client'` directive sits on this re-export shim rather than on the canonical `apps/web/src/shared/components/sentiment-badge.tsx`, which actually uses `Link` and `MouseEventHandler` and needs the directive. Consumers that import the canonical path directly (bypassing the shim) would not get the directive at all."
     }
   ]
