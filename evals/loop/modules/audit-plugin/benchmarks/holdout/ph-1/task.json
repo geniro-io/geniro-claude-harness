@@ -2,5 +2,9 @@
   "id": "ph-1",
   "mode": "audit",
   "tree_dir": "tree",
-  "project_context": "A review plugin: one skill, two shared helper docs, one agent definition, one registered hook. ${CLAUDE_PLUGIN_ROOT} resolves to the repo root. An agent spawn resolves by matching its name against a file in agents/."
+  "project_context": "A review plugin: one skill, two shared helper docs, one agent definition, one registered hook. ${CLAUDE_PLUGIN_ROOT} resolves to the repo root. An agent spawn resolves by matching its name against a file in agents/.",
+  "expected_unresolved": [
+    ".plugin/instructions/global.md"
+  ],
+  "expected_unresolved_why": "A runtime path in the project the plugin is installed into, correctly absent from the plugin repo itself."
 }

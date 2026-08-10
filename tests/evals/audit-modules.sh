@@ -294,6 +294,70 @@ else
   fail "fixture inconsistencies:"$'\n'"$VIOL"
 fi
 
+# --- no unplanted defects in a fixture --------------------------------------
+#
+# A path an instruction file cites that does not resolve is a real finding
+# whether or not the fixture author meant to plant it. Left out of the rubric it
+# scores as noise, so a correct reviewer is penalized for being right and the
+# stand reads worse than the skill is. Every non-resolving citation must
+# therefore be either covered by a rubric item or declared in task.json
+# `expected_unresolved` — which is how a runtime path in the installed-into
+# project, absent from the plugin repo by design, stays legal.
+
+STRAY="$(python3 - "$LOOP/modules/audit-instructions/benchmarks/dev" "$LOOP/modules/audit-plugin/benchmarks/dev" <<'PY'
+import json, os, re, sys
+
+TOK = re.compile(r'`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+|[A-Za-z0-9_./-]+/)`')
+SKIP = re.compile(r'^(https?:|\$\{)')
+INSTRUCTION = (".md", ".mdc")
+BARE = {".cursorrules", ".clinerules", ".windsurfrules"}
+
+bad = []
+for root in sys.argv[1:]:
+    module = os.path.basename(os.path.dirname(os.path.dirname(root)))
+    for task in sorted(os.listdir(root)):
+        d = os.path.join(root, task)
+        tree = os.path.join(d, "tree")
+        if not os.path.isdir(tree):
+            continue
+        present = set()
+        for dp, dns, fns in os.walk(tree):
+            for n in fns:
+                present.add(os.path.relpath(os.path.join(dp, n), tree))
+            for n in dns:
+                present.add(os.path.relpath(os.path.join(dp, n), tree) + "/")
+        rubric_text = json.dumps(json.load(open(os.path.join(d, "rubric.json"))))
+        meta = json.load(open(os.path.join(d, "task.json")))
+        declared = set(meta.get("expected_unresolved") or [])
+
+        for dp, _, fns in os.walk(tree):
+            for n in fns:
+                if not n.endswith(INSTRUCTION) and n not in BARE:
+                    continue
+                rel = os.path.relpath(os.path.join(dp, n), tree)
+                text = open(os.path.join(dp, n), errors="replace").read()
+                for m in TOK.finditer(text):
+                    t = m.group(1)
+                    if SKIP.match(t) or t in declared:
+                        continue
+                    if t in present or t.rstrip("/") + "/" in present:
+                        continue
+                    if any(p.startswith(t.rstrip("/") + "/") for p in present):
+                        continue
+                    if t in rubric_text:
+                        continue
+                    bad.append(f"{module}/{task}: {rel} cites {t}, absent from the tree "
+                               f"and named in neither the rubric nor expected_unresolved")
+
+print("\n".join(sorted(set(bad))))
+PY
+)"
+if [ -z "$STRAY" ]; then
+  pass "no dev fixture cites a path that is absent, unplanted, and undeclared"
+else
+  fail "unplanted fixture defects (a correct reviewer would be scored as noisy):"$'\n'"$STRAY"
+fi
+
 echo
 echo "audit-modules: $TESTS_RUN run, $TESTS_FAILED failed"
 [ "$TESTS_FAILED" -eq 0 ]

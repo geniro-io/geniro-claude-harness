@@ -1,11 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "negative": false,
   "items": [
     {
       "id": "gt-1",
       "file": "CLAUDE.md",
-      "lines": [16, 20],
+      "lines": [
+        16,
+        20
+      ],
       "class": "dead-command",
       "dimension_hint": "accuracy",
       "severity": "HIGH",
@@ -15,7 +18,10 @@
     {
       "id": "gt-2",
       "file": "CLAUDE.md",
-      "lines": [24, 26],
+      "lines": [
+        24,
+        26
+      ],
       "class": "moved-path",
       "dimension_hint": "accuracy",
       "severity": "HIGH",
@@ -25,7 +31,10 @@
     {
       "id": "gt-3",
       "file": "CLAUDE.md",
-      "lines": [7, 7],
+      "lines": [
+        7,
+        7
+      ],
       "class": "stack-claim",
       "dimension_hint": "accuracy",
       "severity": "HIGH",
@@ -35,7 +44,10 @@
     {
       "id": "gt-4",
       "file": "AGENTS.md",
-      "lines": [3, 4],
+      "lines": [
+        3,
+        4
+      ],
       "class": "mirror-drift",
       "dimension_hint": "consistency",
       "severity": "HIGH",
@@ -45,7 +57,10 @@
     {
       "id": "gt-5",
       "file": "CLAUDE.md",
-      "lines": [9, 15],
+      "lines": [
+        9,
+        15
+      ],
       "class": "stack-claim",
       "dimension_hint": "accuracy",
       "severity": "MEDIUM",
@@ -55,7 +70,10 @@
     {
       "id": "gt-6",
       "file": "CLAUDE.md",
-      "lines": [32, 33],
+      "lines": [
+        32,
+        33
+      ],
       "class": "stale-count",
       "dimension_hint": "accuracy",
       "severity": "MEDIUM",
@@ -65,7 +83,10 @@
     {
       "id": "gt-7",
       "file": "CLAUDE.md",
-      "lines": [37, 37],
+      "lines": [
+        37,
+        37
+      ],
       "class": "dangling-pointer",
       "dimension_hint": "accuracy",
       "severity": "MEDIUM",

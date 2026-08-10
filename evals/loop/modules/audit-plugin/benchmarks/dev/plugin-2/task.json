@@ -2,5 +2,9 @@
   "id": "plugin-2",
   "mode": "audit",
   "tree_dir": "tree",
-  "project_context": "A small agent plugin whose README states it runs on macOS and Linux. lib/ holds shell helpers sourced by hooks and skills; tests/ covers one of them."
+  "project_context": "A small agent plugin whose README states it runs on macOS and Linux. lib/ holds shell helpers sourced by hooks and skills; tests/ covers one of them.",
+  "expected_unresolved": [
+    ".plugin/settings.json"
+  ],
+  "expected_unresolved_why": "A runtime path in the project the plugin is installed into, correctly absent from the plugin repo itself."
 }

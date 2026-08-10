@@ -2,5 +2,9 @@
   "id": "plugin-3",
   "mode": "audit",
   "tree_dir": "tree",
-  "project_context": "A small agent plugin whose safety model is documented in docs/SAFETY.md: PreToolUse guards that hard-block, and that fail closed when their allowlist cannot be read. Hook exit code 2 blocks a tool call; any other non-zero exit is a hook error and the call proceeds."
+  "project_context": "A small agent plugin whose safety model is documented in docs/SAFETY.md: PreToolUse guards that hard-block, and that fail closed when their allowlist cannot be read. Hook exit code 2 blocks a tool call; any other non-zero exit is a hook error and the call proceeds.",
+  "expected_unresolved": [
+    ".plugin/state/"
+  ],
+  "expected_unresolved_why": "A runtime path in the project the plugin is installed into, correctly absent from the plugin repo itself."
 }

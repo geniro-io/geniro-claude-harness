@@ -2,5 +2,9 @@
   "id": "plugin-1",
   "mode": "audit",
   "tree_dir": "tree",
-  "project_context": "A small agent plugin: one skill (deploy) with a reference file, one shared helper doc, one agent definition, two registered hooks, a lib helper, and a test suite. ${CLAUDE_PLUGIN_ROOT} resolves to the repo root."
+  "project_context": "A small agent plugin: one skill (deploy) with a reference file, one shared helper doc, one agent definition, two registered hooks, a lib helper, and a test suite. ${CLAUDE_PLUGIN_ROOT} resolves to the repo root.",
+  "expected_unresolved": [
+    "state.md"
+  ],
+  "expected_unresolved_why": "A runtime path in the project the plugin is installed into, correctly absent from the plugin repo itself."
 }

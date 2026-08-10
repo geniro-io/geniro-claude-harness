@@ -1,11 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "negative": false,
   "items": [
     {
       "id": "gt-1",
       "file": ".cursor/rules/api-conventions.mdc",
-      "lines": [1, 5],
+      "lines": [
+        1,
+        5
+      ],
       "class": "unreachable-rule",
       "dimension_hint": "structure",
       "severity": "HIGH",
@@ -15,7 +18,10 @@
     {
       "id": "gt-2",
       "file": ".cursor/rules/testing.md",
-      "lines": [1, 5],
+      "lines": [
+        1,
+        5
+      ],
       "class": "unreachable-rule",
       "dimension_hint": "structure",
       "severity": "HIGH",
@@ -25,7 +31,10 @@
     {
       "id": "gt-3",
       "file": "CLAUDE.md",
-      "lines": [16, 27],
+      "lines": [
+        16,
+        27
+      ],
       "class": "scoping-misuse",
       "dimension_hint": "structure",
       "severity": "MEDIUM",
@@ -35,17 +44,23 @@
     {
       "id": "gt-4",
       "file": ".cursor/rules/legacy-mobile.mdc",
-      "lines": [3, 3],
+      "lines": [
+        3,
+        3
+      ],
       "class": "zero-match-glob",
       "dimension_hint": "structure",
       "severity": "MEDIUM",
       "must_find": false,
-      "description": "globs mobile/**/*.tsx matches zero files — the repo has no mobile/ directory. The rule can never attach. Whether that is a typo or a rule for an unbuilt area decides the tier, not whether it is a finding."
+      "description": "globs mobile/**/*.tsx matches zero files — the repo has no mobile/ directory, and the rule body also cites mobile/screens/, which is equally absent. The rule can never attach. Whether that is a typo or a rule for an unbuilt area decides the tier, not whether it is a finding."
     },
     {
       "id": "gt-5",
       "file": "CLAUDE.md",
-      "lines": [7, 9],
+      "lines": [
+        7,
+        9
+      ],
       "class": "model-known",
       "dimension_hint": "bloat",
       "severity": "LOW",
@@ -55,7 +70,10 @@
     {
       "id": "gt-6",
       "file": "CLAUDE.md",
-      "lines": [13, 14],
+      "lines": [
+        13,
+        14
+      ],
       "class": "menu-without-default",
       "dimension_hint": "bloat",
       "severity": "MEDIUM",
@@ -65,7 +83,10 @@
     {
       "id": "gt-7",
       "file": "CLAUDE.md",
-      "lines": [29, 36],
+      "lines": [
+        29,
+        36
+      ],
       "class": "hand-maintained-duplicate",
       "dimension_hint": "consistency",
       "severity": "MEDIUM",
