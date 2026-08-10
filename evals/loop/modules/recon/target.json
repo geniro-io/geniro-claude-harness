@@ -1,0 +1,43 @@
+{
+  "module": "recon",
+  "version": 1,
+  "parser": "recon-items",
+  "facets": [
+    { "name": "knowledge", "criteria": ["knowledge-agent.md"] },
+    { "name": "explorer", "criteria": ["explorer-agent.md"] }
+  ],
+  "assembly": {
+    "max_prompt_bytes": 614400,
+    "repo_rules_slot": false
+  },
+  "output_contract": {
+    "retry_regex": "### ",
+    "clean_regex": "Summary for Orchestrator"
+  },
+  "judge_framing": {
+    "intro": "You are grading a reconnaissance report against a known ground-truth list of items the report was required to surface. Return STRICT JSON only — no prose, no markdown fences.",
+    "gt_heading": "Ground-truth items the report had to surface",
+    "negative_note": "(none — this is a NEGATIVE task: there was nothing relevant to surface, so every item below goes to residue)",
+    "findings_heading": "Report items to grade",
+    "gt_noun": "ground-truth item",
+    "match_rule": "SAME item — the same file, learning, handoff, rule or inventory entry, surfaced for the\n   reason the ground truth states. Each item's title begins with the report section it came\n   from; a path offered under the wrong section (an exemplar listed as a likely-touched file)\n   is NOT a match, because the two sections make different claims about it.",
+    "plausible_real": "a real, correctly-cited item that is genuinely relevant to this\n     task, just not on the ground-truth list",
+    "noise": "a file, learning, rule or helper that does not exist in the tree, or one with no\n     bearing on this task",
+    "nitpick": "real and correctly cited, but of no consequence to the change"
+  },
+  "pass_expr": ".recall_must == 1",
+  "negative_pass_expr": "(.noise_strict // 0) == 0",
+  "champion_sync": [
+    {
+      "from": "agents/knowledge-retrieval-agent.md",
+      "to": "criteria/knowledge-agent.md"
+    },
+    {
+      "from": "agents/codebase-explorer-agent.md",
+      "to": "criteria/explorer-agent.md"
+    }
+  ],
+  "screen_facets": ["knowledge", "explorer"],
+  "noise_floor": 1.33,
+  "noise_floor_note": "UPPER BOUND, single-judge. Measured by EXP-015's A-vs-A: the combined `noise` axis swung 1.33 findings/task between IDENTICAL champion arms at an MDE of 1.50, while `noise_strict` moved 0.00 -> 0.33. Every trial behind that figure was scored by ONE judge call, and the audit modules later showed single-call residue bucketing swinging ~1.5/task on identical input (score.sh --judge-votes) — the same order as this band, so most of the 1.33 is likely judge taste rather than executor behavior. That is the same conclusion EXP-015 reached from its own numbers, and it is why this module reads `noise_strict` for verdicts. Re-measure with a panel before reading a near-threshold result on the combined axis."
+}

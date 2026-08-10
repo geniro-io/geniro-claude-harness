@@ -1,0 +1,8 @@
+{
+  "id": "planted-2",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "python",
+  "project_context": "Python reporting CLI. The task is being scoped by /geniro:implement Phase 1 before any code is written: what does the orchestrator need to know, and what already exists that this change should reuse?"
+}

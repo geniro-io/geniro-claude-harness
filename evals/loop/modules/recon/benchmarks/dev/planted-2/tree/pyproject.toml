@@ -1,0 +1,4 @@
+[project]
+name = "reporting"
+version = "0.9.1"
+dependencies = ["click>=8.1"]

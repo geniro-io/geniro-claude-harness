@@ -1,0 +1,114 @@
+{
+  "version": 2,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/middleware/throttle.ts",
+      "lines": [
+        20,
+        20
+      ],
+      "class": "reuse-as-is",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The reuse inventory must reach `throttle()` in src/middleware/throttle.ts and classify it REUSE-AS-IS (or EXTEND): it is a Redis fixed-window limiter that already accepts a keyBy discriminator, so the per-tenant requirement needs no new limiter. Nothing in the spec's vocabulary ('rate limit', 'per-tenant') appears in the file or its name — it is reachable through src/routes/report.ts, which imports it, or through the codebase-map row naming it the only limiter. A report that declares a limiter NO-ANALOGUE, or proposes writing a new one, does not satisfy this item."
+    },
+    {
+      "id": "gt-2",
+      "file": "src/routes/export.ts",
+      "lines": [
+        10,
+        15
+      ],
+      "class": "touched-file",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "src/routes/export.ts named as a likely-touched file — the export route the limiter is attached to."
+    },
+    {
+      "id": "gt-3",
+      "file": "src/routes/report.ts",
+      "lines": [
+        5,
+        15
+      ],
+      "class": "exemplar",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "src/routes/report.ts offered as the exemplar to mirror: it is the one route already composing requireTenant + throttle with keyBy: req => req.tenantId, which is exactly the shape the export route needs. Must appear as an exemplar/pattern-to-mirror, not merely as a file that exists."
+    },
+    {
+      "id": "gt-4",
+      "file": ".claude/rules/routes.md",
+      "lines": [
+        1,
+        3
+      ],
+      "class": "rule-match",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": ".claude/rules/routes.md reported as a matching rule. Its frontmatter paths glob is src/routes/**, which matches the export route being edited. The sibling .claude/rules/web-ui.md does NOT match (web/** and *.tsx) and reporting it as relevant is noise, not a match for this item."
+    },
+    {
+      "id": "gt-5",
+      "file": ".geniro/knowledge/learnings.jsonl",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "learning",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The learnings sweep must surface the IP-keying pitfall (dedup_key a1b2c3d4e5f6): fixed-window buckets keyed by req.ip collapse every tenant behind one NAT gateway into a single quota, so the fix is passing keyBy: req => req.tenantId. It is the single most task-relevant entry in the store and it is what makes the default throttle() configuration wrong for this task."
+    },
+    {
+      "id": "gt-6",
+      "file": ".geniro/knowledge/learnings.jsonl",
+      "lines": [
+        2,
+        2
+      ],
+      "class": "learning",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The middleware-ordering pitfall (dedup_key b2c3d4e5f6a1): the limiter must be registered after requireTenant or req.tenantId is undefined when keyBy runs. Genuinely relevant but the routes rule states the same constraint, so a report carrying either one has the orchestrator covered — scores in recall_all only."
+    },
+    {
+      "id": "gt-7",
+      "file": ".geniro/state/handoff/from-review-feat-export-limits.md",
+      "lines": [
+        1,
+        20
+      ],
+      "class": "handoff",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The review handoff from-review-feat-export-limits.md must be surfaced: its branch suffix matches the spec's branch (feat/export-limits) and it carries two open findings that constrain this change — the cursor-before-rejection ordering and the never-expiring bucket."
+    },
+    {
+      "id": "gt-8",
+      "file": "src/lib/redis.ts",
+      "lines": [
+        6,
+        10
+      ],
+      "class": "touched-file",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "src/lib/redis.ts surfaced as relevant — bumpCounter is the TTL primitive the hourly window depends on, and the handoff flags its expire-on-create behavior. Optional: an implementation that only configures throttle() never edits this file."
+    },
+    {
+      "id": "gt-9",
+      "file": "src/routes/export.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "change-scope",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "change_scope reported as `trivial` or `small`. The work is composing one existing middleware into one existing route with a keyBy option; `medium` or `big` overstates it and would wrongly gate downstream effort scaling."
+    }
+  ]
+}

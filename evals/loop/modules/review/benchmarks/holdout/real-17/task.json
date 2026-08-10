@@ -1,9 +1,0 @@
-{
-  "id": "real-17",
-  "mode": "git",
-  "repo_alias": "monorepo-a",
-  "base_sha": "f2fb188b73ada9f099ff21eacd2d5e731cecc6df",
-  "head_sha": "811704fdecebe72e9cda35c7b06236fff9a6afa3",
-  "lang": "ts",
-  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: CI workflow + standalone TypeScript scripts. Change: add a scheduled weekly duty-rotation script that picks the next person from a roster, records pick history in the repo, and announces the pick to a team chat channel"
-}

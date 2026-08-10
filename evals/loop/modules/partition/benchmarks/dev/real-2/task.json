@@ -1,9 +1,0 @@
-{
-  "id": "real-2",
-  "mode": "spec",
-  "repo_alias": "geniro-app",
-  "base_sha": "487033503e4b78e5ce887c224d30531520152596",
-  "spec": "spec.md",
-  "lang": "typescript",
-  "project_context": "pnpm monorepo; apps/ui is an Electron app whose sandboxed renderer reaches the privileged main process only through a preload bridge. Four approved todos are being partitioned for parallel implementation before any code is written."
-}

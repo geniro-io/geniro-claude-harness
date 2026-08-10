@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": ".claude/rules/api/handlers.md",
+      "lines": [
+        1,
+        3
+      ],
+      "class": "rule-match",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": ".claude/rules/api/handlers.md reported as a matching rule. It sits one directory deep under the rules dir, and its paths glob src/api/**/*.ts matches the webhook files being added — a rules scan that only lists the top level of .claude/rules/ misses it."
+    },
+    {
+      "id": "gt-2",
+      "file": ".claude/rules/testing.md",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "rule-match",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": ".claude/rules/testing.md reported as a matching rule. It declares NO paths/globs frontmatter at all, which the contract defines as unconditional — it matches every file and so applies here. Omitting it because it has no glob is the failure this item detects."
+    },
+    {
+      "id": "gt-3",
+      "file": "src/api/webhooks/index.ts",
+      "lines": [
+        3,
+        7
+      ],
+      "class": "touched-file",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "src/api/webhooks/index.ts named as a likely-touched file — the composition point where a new provider is registered."
+    },
+    {
+      "id": "gt-4",
+      "file": "src/api/webhooks/stripe.ts",
+      "lines": [
+        1,
+        9
+      ],
+      "class": "exemplar",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "src/api/webhooks/stripe.ts offered as the exemplar to mirror — the one existing provider file, and the shape the Adyen file copies."
+    },
+    {
+      "id": "gt-5",
+      "file": "src/api/webhooks/adyen.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "change-scope",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "change_scope reported as `trivial` or `small` — one new file mirroring an existing one, plus a registration line."
+    },
+    {
+      "id": "gt-6",
+      "file": ".claude/rules/legacy-gateway.mdc",
+      "lines": [
+        1,
+        3
+      ],
+      "class": "rule-match",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": ".claude/rules/legacy-gateway.mdc reported as a matching rule. It uses the Cursor spelling the contract names — a comma-separated globs: string, here 'src/api/**, src/legacy/**' — whose first pattern matches. Scored must_find:false deliberately: the contract's own Step 3 says to Glob <RULES_DIR>/**/*.md, which cannot return a .mdc file, so requiring it would be requiring behavior the instruction forecloses. It scores in recall_all and its absence is a documented contract gap, not an agent failure."
+    },
+    {
+      "id": "gt-7",
+      "file": ".claude/rules/mobile.md",
+      "lines": [
+        1,
+        3
+      ],
+      "class": "rule-nonmatch",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": ".claude/rules/mobile.md (paths: mobile/**) and .claude/rules/docs.md (paths: docs/**, *.mdx) match no file this change touches. The report must NOT present either as a rule that applies here. Listing one under a heading of non-matching or deliberately-excluded rules is not asserting it.",
+      "polarity": "absence"
+    }
+  ]
+}

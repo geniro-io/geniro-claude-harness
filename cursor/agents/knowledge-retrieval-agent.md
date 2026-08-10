@@ -1,7 +1,7 @@
 ---
 name: knowledge-retrieval-agent
 description: "Read-only past-knowledge search across the memory layers. Use at /geniro:implement Phase 1 for a full multi-layer sweep — past learnings + project snapshots + prior review/debug handoffs + prior plans. /geniro:review, /geniro:debug, /geniro:refactor spawn it scoped to just the backend learnings read (SCOPE: learnings-backend) when memory.md routes learnings to an MCP backend their own tools can't reach. Returns a condensed bullet report (≤3K chars) with file:line citations."
-model: inherit
+model: auto
 readonly: true
 ---
 <!-- Generated from agents/knowledge-retrieval-agent.md by scripts/build-cursor-agents.sh. Edit the source and re-run; do not edit this copy. -->

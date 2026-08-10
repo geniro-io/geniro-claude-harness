@@ -1,0 +1,9 @@
+---
+globs: "src/api/**, src/legacy/**"
+---
+
+# Legacy gateway constraints
+
+Partner-facing routes under `src/api/` must stay backwards compatible for two
+minor versions. Adding a required request field is a breaking change; add it
+optional and deprecate the old shape first.

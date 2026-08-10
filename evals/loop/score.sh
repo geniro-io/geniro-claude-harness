@@ -48,7 +48,9 @@ do_prep() {
     rubric="$TASKS/$task_id/rubric.json"
     [ -f "$rubric" ] || { echo "no rubric for $task_id — skipping" >&2; continue; }
     python3 "$HERE/loop_lib.py" parse --parser "$PARSER" "$trdir"raw-*.json > "$trdir/findings.json"
-    python3 "$HERE/loop_lib.py" judgeprompt "$rubric" "$trdir/findings.json" > "$trdir/judge-prompt.txt"
+    # TARGET carries the module's optional judge_framing; absent, the prompt is
+    # byte-identical to the pre-knob wording and standing baselines stay comparable.
+    python3 "$HERE/loop_lib.py" judgeprompt "$rubric" "$trdir/findings.json" "$TARGET" > "$trdir/judge-prompt.txt"
     echo "[prep] $task_id $(basename "$trdir"): $(jq 'length' "$trdir/findings.json") findings"
   done
 }

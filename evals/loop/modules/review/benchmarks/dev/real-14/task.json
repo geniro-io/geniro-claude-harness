@@ -1,9 +1,0 @@
-{
-  "id": "real-14",
-  "mode": "git",
-  "repo_alias": "monorepo-a",
-  "base_sha": "baf4b2c5031fbecd113836eb4b833e565f56d51c",
-  "head_sha": "e3bbe2f22dcf8d72c34cb92bf66f51b8cdd4bb45",
-  "lang": "ts",
-  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend queue processor. Change: makes a digest-drafting job idempotent via a find-or-create run row with step-resume persistence, replacing a unit-spec suite with an integration suite."
-}
