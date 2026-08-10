@@ -260,6 +260,74 @@ else
   fail "a tied residue vote counted against the reviewer"
 fi
 
+# --- the noise-floor guard in compare.sh ------------------------------------
+#
+# An A-vs-A does not generally bracket zero on noise, so a CI excluding zero is
+# not evidence of an effect. Without a floor to beat, compare.sh printed
+# "candidate better on noise, recall held" for two byte-identical variants.
+
+mkrun() { # mkrun <dir> <module> <noise-per-task>
+  mkdir -p "$1/results"
+  python3 - "$1" "$2" <<'SPEC'
+import json, sys
+d, mod = sys.argv[1], sys.argv[2]
+json.dump({"module": mod, "tasks": "x",
+           "task_manifest": [{"id": f"t{i}", "version": 1} for i in range(6)]},
+          open(f"{d}/spec.json", "w"))
+SPEC
+  python3 - "$1" "$3" <<'PY'
+import json, sys
+d, noise = sys.argv[1], float(sys.argv[2])
+rows = [{"task": f"t{i}", "trial": "trial-1", "rubric_version": 1, "negative": False,
+         "recall_must": 1.0, "recall_weighted": 1.0, "noise": noise, "noise_strict": noise,
+         "nitpick": 0, "findings_total": 10, "plausible_real": 0,
+         "precision_proxy": 1.0, "tokens_in": 0, "tokens_out": 0, "wall_ms": 0,
+         "missed_must": [], "contested_must": [], "pass": True} for i in range(6)]
+json.dump({"rows": rows, "contested": [],
+           "mean": {"recall_must": 1.0, "noise": noise},
+           "reducers": {"per_task": [], "pass_rate": 1.0, "pass_at_k": 1.0, "pass_hat_k": 1.0}},
+          open(f"{d}/metrics.json", "w"))
+PY
+}
+
+# audit-instructions records a 2.6/task floor. A 1-per-task improvement sits
+# inside it and must not read as an effect.
+mkrun "$SANDBOX/cand-small" audit-instructions 4
+mkrun "$SANDBOX/base-small" audit-instructions 5
+V="$(bash "$LOOP/compare.sh" "$SANDBOX/cand-small" "$SANDBOX/base-small" 2>/dev/null | jq -r '.verdict')"
+case "$V" in
+  *"noise-of-noise band"*) pass "a noise gain inside the measured floor is not called an effect" ;;
+  *) fail "the floor guard let a sub-floor noise delta through: $V" ;;
+esac
+
+# A 5-per-task improvement clears the floor and may be read.
+mkrun "$SANDBOX/cand-big" audit-instructions 1
+mkrun "$SANDBOX/base-big" audit-instructions 6
+V="$(bash "$LOOP/compare.sh" "$SANDBOX/cand-big" "$SANDBOX/base-big" 2>/dev/null | jq -r '.verdict')"
+case "$V" in
+  *"better on noise"*) pass "a noise gain clearing the floor still reads as an effect" ;;
+  *) fail "the floor guard suppressed a real effect: $V" ;;
+esac
+
+# A module that never ran its A-vs-A has no floor, so the axis is not read.
+mkrun "$SANDBOX/cand-nofloor" no-such-module 1
+mkrun "$SANDBOX/base-nofloor" no-such-module 6
+V="$(bash "$LOOP/compare.sh" "$SANDBOX/cand-nofloor" "$SANDBOX/base-nofloor" 2>/dev/null | jq -r '.verdict')"
+case "$V" in
+  *"no measured noise floor"*) pass "a module with no A-vs-A does not get a noise verdict" ;;
+  *) fail "an unmeasured module got a noise verdict: $V" ;;
+esac
+
+# Every shipped module must carry a floor, or it silently loses the axis.
+NOFLOOR="$(for t in "$LOOP"/modules/*/target.json; do
+  jq -e 'has("noise_floor")' "$t" >/dev/null 2>&1 || basename "$(dirname "$t")"
+done)"
+if [ -z "$NOFLOOR" ]; then
+  pass "every module records a measured noise floor"
+else
+  fail "modules with no noise_floor: $NOFLOOR"
+fi
+
 # --- sync-champion.sh section extraction ------------------------------------
 
 # Extract from the real shipped reference: the source whose §Reviewer spawn

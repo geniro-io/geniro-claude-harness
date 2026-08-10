@@ -5,35 +5,78 @@
   "facets": [
     {
       "name": "consistency",
-      "criteria": ["D2-consistency.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D2-consistency.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     },
     {
       "name": "staleness",
-      "criteria": ["D3-staleness.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D3-staleness.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     },
     {
       "name": "rules",
-      "criteria": ["D4-rules.md", "rule-skill-authoring.md", "rule-skill-prose.md", "rule-skill-structure.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D4-rules.md",
+        "rule-skill-authoring.md",
+        "rule-skill-prose.md",
+        "rule-skill-structure.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     },
     {
       "name": "logic",
-      "criteria": ["D5-logic.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D5-logic.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     },
     {
       "name": "simplicity",
-      "criteria": ["D6-simplicity.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D6-simplicity.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     },
     {
       "name": "numbers",
-      "criteria": ["D7-numbers.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D7-numbers.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     },
     {
       "name": "safety",
-      "criteria": ["D8-safety.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D8-safety.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     },
     {
       "name": "wiring",
-      "criteria": ["D9-wiring.md", "severity-tiers.md", "output-contract.md", "do-not-flag.md"]
+      "criteria": [
+        "D9-wiring.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
     }
   ],
   "assembly": {
@@ -47,20 +90,79 @@
   "pass_expr": ".recall_must == 1",
   "negative_pass_expr": "(.noise_strict // 0) == 0 and (.plausible_real // 0) == 0",
   "champion_sync": [
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D2 — Cross-file consistency", "to": "criteria/D2-consistency.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D3 — Stale rules & dead references", "to": "criteria/D3-staleness.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D4 — Authoring-rules compliance", "to": "criteria/D4-rules.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D5 — Logic & syntax correctness", "to": "criteria/D5-logic.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D6 — Over-complication & instruction bloat", "to": "criteria/D6-simplicity.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D7 — Magic numbers & duplicated constants", "to": "criteria/D7-numbers.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D8 — Safety & test coverage", "to": "criteria/D8-safety.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "D9 — Wiring completeness (declared vs. wired)", "to": "criteria/D9-wiring.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "Severity tiers (shared output classification)", "to": "criteria/severity-tiers.md" },
-    { "from": ".claude/skills/audit-plugin/dimensions-reference.md", "section": "Do-not-flag list (endorsed patterns)", "to": "criteria/do-not-flag.md" },
-    { "from": "skills/_shared/audit-pipeline.md", "section": "Finding output contract", "to": "criteria/output-contract.md" },
-    { "from": ".claude/rules/skill-authoring.md", "to": "criteria/rule-skill-authoring.md" },
-    { "from": ".claude/rules/skill-prose.md", "to": "criteria/rule-skill-prose.md" },
-    { "from": ".claude/rules/skill-structure.md", "to": "criteria/rule-skill-structure.md" }
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D2 \u2014 Cross-file consistency",
+      "to": "criteria/D2-consistency.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D3 \u2014 Stale rules & dead references",
+      "to": "criteria/D3-staleness.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D4 \u2014 Authoring-rules compliance",
+      "to": "criteria/D4-rules.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D5 \u2014 Logic & syntax correctness",
+      "to": "criteria/D5-logic.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D6 \u2014 Over-complication & instruction bloat",
+      "to": "criteria/D6-simplicity.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D7 \u2014 Magic numbers & duplicated constants",
+      "to": "criteria/D7-numbers.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D8 \u2014 Safety & test coverage",
+      "to": "criteria/D8-safety.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "D9 \u2014 Wiring completeness (declared vs. wired)",
+      "to": "criteria/D9-wiring.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "Severity tiers (shared output classification)",
+      "to": "criteria/severity-tiers.md"
+    },
+    {
+      "from": ".claude/skills/audit-plugin/dimensions-reference.md",
+      "section": "Do-not-flag list (endorsed patterns)",
+      "to": "criteria/do-not-flag.md"
+    },
+    {
+      "from": "skills/_shared/audit-pipeline.md",
+      "section": "Finding output contract",
+      "to": "criteria/output-contract.md"
+    },
+    {
+      "from": ".claude/rules/skill-authoring.md",
+      "to": "criteria/rule-skill-authoring.md"
+    },
+    {
+      "from": ".claude/rules/skill-prose.md",
+      "to": "criteria/rule-skill-prose.md"
+    },
+    {
+      "from": ".claude/rules/skill-structure.md",
+      "to": "criteria/rule-skill-structure.md"
+    }
   ],
-  "screen_facets": ["staleness", "logic", "safety", "wiring"]
+  "screen_facets": [
+    "staleness",
+    "logic",
+    "safety",
+    "wiring"
+  ],
+  "noise_floor": 2.75
 }
