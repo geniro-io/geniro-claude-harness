@@ -14,6 +14,7 @@ This file contains templates, examples, and detailed procedures referenced by SK
 - Phase 1: Subagent spawn template
 - Phase 1: Library reuse audit (build-vs-buy)
 - Phase 1: Handoff round-trip write
+- Phase 2: Code-delegate spawn template
 - Phase 2: test-runner-agent spawn template
 - Phase 2: Implement — error-handling
 - Phase 3: Self-review reviewer-agent template
@@ -314,6 +315,58 @@ Canonical schema for all of it: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier
 
 ---
 
+## Phase 2: Code-delegate spawn template
+
+Applies when Phase 2 Step 3's delegation rule (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 3) selects a group for delegation. Spawn `subagent_type="general-purpose"` — no plugin agent owns this shape, and no `agents/*.md` file carries production-source write authority. Pass `model="sonnet"` explicitly: an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4 — the slice, its file set, and its paired test are already decided, so the delegate only applies them. The delegate runs in the SAME worktree as the orchestrator; the disjoint file-set allowlist is the isolation mechanism, not `isolation: worktree`.
+
+**Pre-spawn ownership assert.** The orchestrator computes the file-set partition into disjoint delegate groups at Phase 2 Step 2 (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 2) — a delegate never discovers its own file set. Before any delegate fires, verify: every todo in the delegated set appears in exactly one delegate's allowlist; every file those todos touch falls inside exactly one allowlist; anything with no owner is echoed to the user and assigned before spawning.
+
+The orchestrator pre-resolves these slots per delegate:
+
+| Slot | Source |
+|---|---|
+| `WORKTREE` | `git rev-parse --show-toplevel` |
+| `TODO_SPEC_EXCERPT` | The todo's spec excerpt — the behavior it implements |
+| `ALLOWED_FILES` | This delegate's file-set allowlist (newline-separated absolute paths) — edit only these |
+| `OTHER_DELEGATES_FILES` | Every other in-flight delegate's allowlist, newline-separated — touching one means the slice spans a boundary |
+| `EXEMPLAR_FILES` | 1-3 exemplar file paths, pre-inlined content, to mirror |
+| `PAIRED_TEST` | The test path this slice must make pass, and what it asserts |
+| `CODE_STYLE` | Pre-inlined code-style / conventions content relevant to `ALLOWED_FILES`, or omit when none applies |
+| `PROJECT SEARCH POLICY` | Verbatim `global.md` search rules, or `none declared` — governs every lookup the delegate makes, not just the first |
+
+```
+Agent(subagent_type="general-purpose", model="sonnet", description="Implementing: <todo summary>", prompt="""
+WORKTREE: [absolute path]
+TODO_SPEC_EXCERPT: [pre-inlined]
+ALLOWED_FILES: [newline-separated absolute paths — edit ONLY these]
+OTHER_DELEGATES_FILES: [newline-separated absolute paths other delegates own — if the slice needs one
+  of these, stop and report that instead of editing it]
+EXEMPLAR_FILES: [pre-inlined content of 1-3 files to mirror]
+PAIRED_TEST: [path + what it asserts]
+CODE_STYLE: [pre-inlined code-style / conventions content, or omit this line when none applies]
+PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
+
+Implement TODO_SPEC_EXCERPT against ALLOWED_FILES only — nothing beyond the slice. Match the
+surrounding files' conventions. Do NOT edit OTHER_DELEGATES_FILES or any file outside
+ALLOWED_FILES — general-purpose carries no tool-level restriction to them, so this boundary is
+a prompt-level contract the orchestrator checks against your returned diff. Do NOT run the full
+test suite — the orchestrator runs it once at end of phase.
+
+Critical constraints (prompt-level contract; general-purpose carries no tool-level restriction to
+enforce these):
+- No git mutation.
+- No destructive Bash.
+- No subagent spawning (leaf agent).
+
+Report back every path you edited and a one-line summary of the change in each. If the slice
+needs a file outside ALLOWED_FILES, stop and report that instead of editing it.
+
+Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
+""")
+```
+
+---
+
 ## Phase 2: test-runner-agent spawn template
 
 Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=` — test-runner-agent declares `model: sonnet` in frontmatter (mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Spawn `subagent_type="geniro:test-runner-agent"` (not-found error or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form).
@@ -324,7 +377,7 @@ The orchestrator pre-resolves these slots:
 |---|---|
 | `WORKTREE` | `git rev-parse --show-toplevel` |
 | `TEST_COMMAND` | Project's test command from CLAUDE.md "Essential Commands" (e.g., `pnpm --filter api test:unit`, `pytest tests/`, `go test ./...`) |
-| `CHANGED_FILES` | List of paths Edited in Phase 2 (newline-separated) |
+| `CHANGED_FILES` | Paths this run edited — by the orchestrator directly or by a code delegate on its behalf (newline-separated) |
 | `OUTPUT_PATH` | `<task-dir>/.tr-out.md` (overwritten per retry) |
 | `MAX_FAILURES_REPORTED` | `15` (default) |
 
@@ -884,6 +937,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Resume path only — a state.md that already existed when Phase 1 resolved the task slug was pre-flighted through `validate_state_file` before its `phase:` was trusted, and a failed validation opened the recovery question. A fresh task-dir writes its own state.md and has nothing to pre-flight, so this row is satisfied by having no pre-existing file.
 - [ ] Phase 1 ran the build-vs-buy library-reuse audit on NO-ANALOGUE components (skip trivial); any library adoption was user-confirmed via the gate.
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures`).
+- [ ] Every delegated todo's diff was read before it was marked completed, and every delegate-authored path is in `CHANGED_FILES`.
 - [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
 - [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — dims with actionable findings only); exited clean OR escalated.
 - [ ] Minor-findings gate fired after the fix loop converged, or skipped on `## Deferred Findings`'s `none — …` sentinel — disposition persisted to `approvals[]` as `minor_findings_disposition`.

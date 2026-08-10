@@ -4,7 +4,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 ## Contents
 
-- Steps 1-6 — read spec source, TodoWrite decomposition, sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
+- Steps 1-6 — read spec source, TodoWrite decomposition + file-set partition, sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
 - State.md update on phase exit · past-learning emit on retry exit
 - Loop visualization
 
@@ -33,6 +33,8 @@ State.md `phase: implement` on entry.
 
    A library adopted at the Phase 1 build-vs-buy library-reuse audit (`approvals[]` category `library_adoption`) also becomes a todo here: add it through the package manager (not by editing a lockfile — lockfile writes stay hook-protected) and integrate it in place of the hand-written component.
 
+   **Partition the todos by file set.** Name each todo's file set from the Codebase-Explorer "Likely-Touched Files" inventory and the spec, then form delegate groups: a group may bundle several todos whose file sets are pairwise disjoint from each other and from every other group's, and that together share no in-flux type, contract, or import with any other group. A todo whose file set overlaps another todo's, or that shares in-flux type/contract/import with work outside its own group, joins the single coupled group instead, edited inline. This partition is the orchestrator's own call, recorded against the todos (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §"What this category does NOT cover"). Fewer than 2 disjoint groups is the common case, not a shortfall: the single group stays inline unless it is itself a decided mechanical slice (Step 3).
+
 3. **Work through todos sequentially — one in_progress at a time** (Loop invariant S2):
    ```
    for each todo in pending order:
@@ -45,13 +47,15 @@ State.md `phase: implement` on entry.
        e. Move to next todo
    ```
 
-   **Delegating a todo (bounded).** Default is inline — the orchestrator edits directly. Delegate a todo to a `general-purpose` subagent (same worktree, `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the slice, its file set, and its paired test are already decided, so the delegate only applies them) only when the slice is genuinely independent: its file set overlaps no other todo's, it shares no in-flux type/contract/import with concurrently-edited code, and the prompt can carry everything the delegate needs (the todo's spec excerpt, exemplar file paths, the paired test, and the relevant code-style/conventions content inlined — a subagent inherits no orchestrator context). Good candidates: a mechanical wide edit (a rename across many call sites), an isolated leaf module, boilerplate generation. Coupled slices stay inline — splitting them across agents produces the style drift and duplicated implementations that lint/compile cannot catch. Rules: the delegate edits ONLY its named file set; on return, read its diff before marking the todo completed — the orchestrator owns every line it ships; the end-of-phase suite still runs once for the whole phase. Multiple delegates may run in parallel ONLY when their file sets are pairwise disjoint; integrate their results one at a time (invariant S2 governs the todo states, not the spawns).
+   **Delegating a group.** Step 2's partition sets the default: 2 or more disjoint groups delegate, one `general-purpose` subagent per group (`model="sonnet"` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the slice is already decided, so the delegate only applies it). A single group delegates too when it is a decided mechanical slice — fully determined, no design judgment required (a rename across many call sites is the canonical case); otherwise it stays inline as the common case, the orchestrator editing directly. Delegated todos are marked `in_progress` at spawn and `completed` on diff read (invariant S2 covers the exception). Delegate every group the partition yielded, spawned in ONE assistant response, same assistant turn, NOT one per turn — separate turns serialize the spawns and the delegation buys nothing. The binding constraint is the orchestrator's own context: each returned diff is read into the one context that also holds the spec, the rules, and the remaining todos, so when returns come back large, integrate before spawning more. Spawn per the template at `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Code-delegate spawn template". Rules: a delegate edits ONLY its named file set; on return, read its diff and check every reported path against that allowlist — an out-of-bounds path is a boundary violation to surface, not to fold in — then fold the in-bounds paths into `CHANGED_FILES` and mark its todos completed; integrate multiple delegates' returns one at a time.
+
+   A delegate that returns empty, errors, or can't finish its slice: check its allowlist for edits already made — a tool error returns no path list; a boundary stop after partial progress often leaves files changed. Surface any out-of-allowlist path as a boundary violation rather than folding it in; fold the rest into `CHANGED_FILES`, reconcile the inline work against that state, then take the rest inline. Never re-spawn the same slice, and never mark its todo completed without a diff to read.
 
    **Scope discipline.** Build what the todo's slice requires and nothing beyond it — no speculative abstractions, configuration options, or generalized helpers for needs the spec doesn't name. Generality added "while we're here" is scope the user never approved, and the code-quality reviewer flags it as speculative generality in Phase 3.
 
    **Comment discipline.** Match the surrounding file's comment density and idiom. Write a comment only where the code cannot show the constraint itself — a non-obvious WHY, an invariant the types don't express, a legal header, a TODO with an issue reference. Never restate what a line does, narrate the change being made ("added X", "now handles Y"), or address the reviewer — those comments are noise the moment the diff merges, and the reviewer reads the diff, not annotations. A per-project `code-style.md` rule overrides this default where they conflict.
 
-   **Halt on unbidden working-tree mutation.** Between Edits, if the working tree changes in ways this run did not make — an Edit/Write repeatedly fails with "file changed since read", or files/tests this run never authored appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Workspace changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a working tree another process is mutating risks the commit being orphaned by an external reset.
+   **Halt on unbidden working-tree mutation.** Between Edits, if the working tree changes in ways no in-flight delegate's declared file set accounts for — an Edit/Write repeatedly fails with "file changed since read", or files/tests appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Workspace changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a working tree another process is mutating risks the commit being orphaned by an external reset.
 
 4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, OUTPUT_PATH `<task-dir>/.tr-out.md`, and `MAX_FAILURES_REPORTED` (default per the `test-runner-agent` spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md`). Spawn `subagent_type="geniro:test-runner-agent"`; on `Agent type not found` or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` — test-runner-agent declares `model: sonnet` (mechanical run-and-parse carve-out). Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
@@ -80,18 +84,23 @@ State.md `phase: implement` on entry.
 ### Loop visualization
 
 ```
-PHASE 2 (sequential, single-context):
+PHASE 2 (todo loop — coupled work inline, disjoint groups delegated, both running at once):
 
   spec.md + Codebase-Explorer report
        ↓
   [Phase 2 entry] TodoWrite: decompose into N todos
        ↓
-  ┌─→ todo[i].in_progress ──→ Edit/Write batch ──→ todo[i].completed ─┐
-  │                                                                    │
-  │                          [i++; loop until all completed]           │
-  │                                                                    │
-  └────────────────────────────────────────────────────────────────────┘
-       ↓
+  Partition by file set (Step 2 close)
+       │
+       ├─ coupled work (inline, sequential):
+       │    ┌─→ todo[i].in_progress ──→ Edit/Write batch ──→ todo[i].completed ─┐
+       │    │                  [i++; loop until all completed]                  │
+       │    └───────────────────────────────────────────────────────────────────┘
+       │
+       └─ disjoint groups (delegated, spawned together in one response):
+            mark in_progress at spawn, completed on diff read,
+            fold in-bounds paths into CHANGED_FILES (integrate large returns before spawning more)
+       ↓  (both tracks run at once — rejoin here)
   [End-of-Phase] test-runner-agent spawn (one shot)
        ↓
   [3-retry fix-loop on failures]
