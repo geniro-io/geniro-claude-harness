@@ -1,0 +1,5 @@
+{ "id": "real-1", "mode": "spec",
+  "repo_url": "https://github.com/pydata/xarray.git",
+  "base_sha": "8cc34cb412ba89ebca12fc84f76a9e452628f1bc",
+  "spec": "spec.md", "lang": "python",
+  "project_context": "N-d labelled array library. The spec plans an argument rename with a deprecation cycle." }

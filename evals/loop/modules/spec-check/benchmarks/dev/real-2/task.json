@@ -1,0 +1,5 @@
+{ "id": "real-2", "mode": "spec",
+  "repo_url": "https://github.com/pylint-dev/pylint.git",
+  "base_sha": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+  "spec": "spec.md", "lang": "python",
+  "project_context": "Python linter. The spec plans a fix for comma splitting inside regex options." }
