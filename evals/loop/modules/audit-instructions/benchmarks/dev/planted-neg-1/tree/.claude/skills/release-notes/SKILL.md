@@ -5,5 +5,5 @@ description: "Use when drafting release notes for a tagged version — changelog
 
 # Release notes
 
-Read the merge commits between the previous tag and this one, group by
-conventional-commit type, and write one line per user-visible change.
+One line per user-visible change. Drop `chore:` and `test:` entries — they ship
+nothing a reader of the notes can act on.

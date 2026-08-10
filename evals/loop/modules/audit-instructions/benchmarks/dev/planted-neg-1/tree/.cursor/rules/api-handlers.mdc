@@ -4,9 +4,6 @@ globs: src/api/**/*.go
 alwaysApply: false
 ---
 
-Cursor attaches this rule whenever a handler file is in context, so it states
-only what a handler edit needs and nothing the repo-wide surface already says.
-
 - Every handler returns `(status int, body any)`; never writes to the response
   writer directly.
 - A handler that needs a flag calls the evaluator; it never reads Postgres.
