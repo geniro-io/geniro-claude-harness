@@ -1,0 +1,1 @@
+CREATE TABLE payments (id UUID PRIMARY KEY, amount_cents BIGINT NOT NULL);

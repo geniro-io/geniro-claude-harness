@@ -1,0 +1,84 @@
+{
+  "version": 3,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "CLAUDE.md",
+      "lines": [
+        8,
+        9
+      ],
+      "class": "direct-contradiction",
+      "dimension_hint": "consistency",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md forbids comments in code outright; .github/copilot-instructions.md:7-8 requires a JSDoc block on every exported function plus inline comments on non-obvious branches. The two surfaces give opposite instructions on the same question, so the output depends on which tool the contributor used."
+    },
+    {
+      "id": "gt-2",
+      "file": "AGENTS.md",
+      "lines": [
+        7,
+        7
+      ],
+      "class": "threshold-divergence",
+      "dimension_hint": "consistency",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Maximum line length is stated three times with three values: CLAUDE.md:7 says 100, AGENTS.md:7 says 120, .cursor/rules/general.mdc:8 says 80. One limit, three numbers, no mechanism reconciling them."
+    },
+    {
+      "id": "gt-3",
+      "file": ".cursor/rules/general.mdc",
+      "lines": [
+        10,
+        11
+      ],
+      "class": "direct-contradiction",
+      "dimension_hint": "consistency",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The always-attached Cursor rule states tests come after the implementation is reviewed. AGENTS.md:12-13 states the test is written first, always, landing in the same commit. Opposite test-first policies on two surfaces that can both be live in one session."
+    },
+    {
+      "id": "gt-4",
+      "file": "CLAUDE.md",
+      "lines": [
+        14,
+        15
+      ],
+      "class": "hand-maintained-duplicate",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The identical commit-message rule is copied verbatim into three surfaces — CLAUDE.md:14-15, AGENTS.md:17-18, .cursor/rules/general.mdc:15-16 — with no symlink or generation mechanism. The copies agree today, which is exactly when the fix is cheap: one home, the others pointing at it."
+    },
+    {
+      "id": "gt-5",
+      "file": "CLAUDE.md",
+      "lines": [
+        27,
+        28
+      ],
+      "class": "appended-patch",
+      "dimension_hint": "bloat",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "A trailing NOTE narrows two earlier rules in the same file — the two-approval rule directly above it and the no-comments rule twenty lines up — instead of being folded into either. The reader either misses it or burns attention reconciling the pair, and the no-comments rule now reads correctly nowhere."
+    },
+    {
+      "id": "gt-6",
+      "file": "CLAUDE.md",
+      "lines": [
+        32,
+        33
+      ],
+      "class": "dangling-pointer-chain",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "CLAUDE.md defers error handling to AGENTS.md; AGENTS.md:20-23 defers it to the always-attached Cursor rule; `.cursor/rules/general.mdc` carries no error-handling content at all. The chain dead-ends on the second hop, and the repo has error-handling code in `src/retry.ts` with no documented convention on any surface. Each pointer is individually valid — both named targets exist and both are live — so this is visible only by walking the chain to its end."
+    }
+  ]
+}

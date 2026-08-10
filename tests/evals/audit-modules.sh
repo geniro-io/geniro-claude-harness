@@ -1,0 +1,524 @@
+#!/usr/bin/env bash
+# Suite for the evals/loop audit modules: stage-task.sh "audit" mode, the
+# loop_lib.py "audit-findings" parser, and sync-champion.sh section extraction.
+#
+# Run: bash tests/evals/audit-modules.sh
+#
+# Both directions on every assertion: a shape that must parse and one that must
+# not, so a parser silently reduced to "emit nothing" is visible here rather
+# than as a zero-recall sweep nobody can explain.
+#
+# Plugin-developer tooling only — not shipped to user projects.
+
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+LOOP="$REPO_ROOT/evals/loop"
+
+SANDBOX="$(mktemp -d)"
+trap 'rm -rf "$SANDBOX"' EXIT
+
+TESTS_RUN=0
+TESTS_FAILED=0
+pass() { TESTS_RUN=$((TESTS_RUN + 1)); echo "PASS: $1"; }
+fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo "FAIL: $1" >&2; }
+
+# --- module declarations ----------------------------------------------------
+
+for m in audit-instructions audit-plugin; do
+  T="$LOOP/modules/$m/target.json"
+  if jq -e '.parser == "audit-findings" and .pass_expr != null and .negative_pass_expr != null' \
+       "$T" >/dev/null 2>&1; then
+    pass "$m target.json names the audit-findings parser and both pass expressions"
+  else
+    fail "$m target.json is missing the parser or a pass expression"
+  fi
+
+  if [ -f "$LOOP/modules/$m/variants/champion/preamble.md" ]; then
+    pass "$m champion carries a preamble"
+  else
+    fail "$m champion has no preamble.md"
+  fi
+
+  # Every facet's criteria must resolve, or a sweep assembles a prompt with a
+  # missing rubric and the dimension silently reviews against nothing.
+  MISSING="$(jq -r '.facets[].criteria[]' "$T" | sort -u | while IFS= read -r c; do
+    [ -f "$LOOP/modules/$m/variants/champion/criteria/$c" ] || echo "$c"
+  done)"
+  if [ -z "$MISSING" ]; then
+    pass "$m every facet criteria file exists in the champion"
+  else
+    fail "$m champion is missing criteria:"$'\n'"$MISSING"
+  fi
+
+  # A screen facet naming a facet that does not exist would silently screen nothing.
+  BADSCREEN="$(jq -r '(.facets | map(.name)) as $f | .screen_facets[] | select(. as $s | $f | index($s) | not)' "$T")"
+  if [ -z "$BADSCREEN" ]; then
+    pass "$m every screen facet is a declared facet"
+  else
+    fail "$m screen_facets names undeclared facets: $BADSCREEN"
+  fi
+
+  # Every champion_sync source must still resolve. sync-champion.sh already
+  # hard-fails on a renamed heading, but only when someone runs it — which is
+  # after the skill edit has landed. Checking here moves the break to the commit
+  # that renames the heading.
+  UNRESOLVED="$(jq -r '.champion_sync[] | [.from, (.section // "")] | @tsv' "$T" | while IFS=$'\t' read -r from section; do
+    if [ ! -f "$REPO_ROOT/$from" ]; then
+      echo "missing source: $from"
+    elif [ -n "$section" ] && ! grep -qxF "## $section" "$REPO_ROOT/$from"; then
+      echo "missing section '## $section' in $from"
+    fi
+  done)"
+  if [ -z "$UNRESOLVED" ]; then
+    pass "$m every champion_sync source and section resolves"
+  else
+    fail "$m champion_sync is stale:"$'\n'"$UNRESOLVED"
+  fi
+
+  # Resolving is not the same as matching. sync-champion.sh runs when someone
+  # remembers to run it, and a landed skill edit without one leaves the champion
+  # a snapshot of text that no longer ships — every later sweep then measures
+  # the old skill and reports it as the current one. That failure is invisible:
+  # the run succeeds, the numbers look normal, and nothing in them says which
+  # revision produced them.
+  DRIFTED="$(jq -r '.champion_sync[] | [.from, (.section // ""), .to] | @tsv' "$T" | while IFS=$'\t' read -r from section to; do
+    have="$LOOP/modules/$m/variants/champion/$to"
+    [ -f "$REPO_ROOT/$from" ] && [ -f "$have" ] || continue
+    want="$SANDBOX/want-$m-$(basename "$to")"
+    if [ -n "$section" ]; then
+      awk -v want="$section" '
+        /^```/ { fence = !fence }
+        !fence && /^## / {
+          hdr = $0; sub(/^## /, "", hdr); sub(/[ \t]+$/, "", hdr)
+          if (found) exit
+          if (hdr == want) { found = 1; print; next }
+        }
+        found { print }
+      ' "$REPO_ROOT/$from" > "$want"
+    else
+      cp "$REPO_ROOT/$from" "$want"
+    fi
+    cmp -s "$want" "$have" || echo "$to no longer matches $from${section:+ § $section}"
+  done)"
+  if [ -z "$DRIFTED" ]; then
+    pass "$m champion criteria still match the shipped skill byte for byte"
+  else
+    fail "$m champion is a stale snapshot — run sync-champion.sh --module $m:"$'\n'"$DRIFTED"
+  fi
+done
+
+# --- stage-task.sh "audit" mode ---------------------------------------------
+
+TASK="$LOOP/modules/audit-instructions/benchmarks/dev/planted-1"
+STAGE="$SANDBOX/stage"
+if bash "$LOOP/stage-task.sh" "$TASK" "$STAGE" >/dev/null 2>&1; then
+  pass "audit mode stages without error"
+else
+  fail "stage-task.sh failed on an audit-mode task"
+fi
+
+if [ -d "$STAGE/tree" ] && [ -n "$(ls -A "$STAGE/tree" 2>/dev/null)" ]; then
+  pass "audit mode materializes a non-empty tree"
+else fail "audit mode left the tree empty"; fi
+if [ ! -f "$STAGE/diff.patch" ]; then pass "audit mode writes no diff — nothing changed"
+else fail "audit mode wrote a diff.patch"; fi
+if [ ! -f "$STAGE/spec.md" ]; then pass "audit mode writes no spec — the tree is the artifact"
+else fail "audit mode wrote a spec.md"; fi
+
+# surfaces.txt is the staged stand-in for the skill's mechanical pre-pass. An
+# empty one would hand every reviewer an empty scope and score as a capability
+# failure rather than a staging bug.
+if [ -s "$STAGE/surfaces.txt" ] && grep -q 'CLAUDE.md' "$STAGE/surfaces.txt"; then
+  pass "audit mode writes a non-empty surfaces.txt covering the tree"
+else
+  fail "surfaces.txt is empty or missing the instruction surfaces"
+fi
+if [ "$(wc -l < "$STAGE/surfaces.txt" | tr -d ' ')" = "$(find "$STAGE/tree" -type f | wc -l | tr -d ' ')" ]; then
+  pass "surfaces.txt has one row per staged file"
+else
+  fail "surfaces.txt row count does not match the staged tree"
+fi
+
+# A task whose tree_dir does not resolve must fail loudly, not stage an empty tree.
+BADTASK="$SANDBOX/badtask"
+mkdir -p "$BADTASK"
+cat > "$BADTASK/task.json" <<'JSON'
+{"id":"bad","mode":"audit","tree_dir":"absent"}
+JSON
+if bash "$LOOP/stage-task.sh" "$BADTASK" "$SANDBOX/stage-bad" >/dev/null 2>&1; then
+  fail "a missing tree_dir staged silently"
+else
+  pass "a missing tree_dir fails staging instead of running on an empty tree"
+fi
+
+# --- the audit-findings parser ----------------------------------------------
+
+mk_raw() {  # mk_raw <out-path> <result-text>
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+json.dump({"type": "result", "result": sys.argv[2], "is_error": False,
+           "usage": {"inputTokens": 10, "cacheReadTokens": 0, "outputTokens": 5}},
+          open(sys.argv[1], "w"))
+PY
+}
+parse() { python3 "$LOOP/loop_lib.py" parse --parser audit-findings "$1"; }
+count() { printf '%s' "$1" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))'; }
+
+mk_raw "$SANDBOX/raw-accuracy.json" '| id | tier | file:line | issue | evidence | fix | effort |
+|---|---|---|---|---|---|---|
+| D2-1 | T1 | CLAUDE.md:16 | Documented test command does not exist | `npm run test:unit` | Replace with `npm test` | S |
+| D2-2 | T3 | CLAUDE.md:32 | Service count is stale | "three services" | Point at the directory | S |
+
+## Dimension verdict
+Debt concentrated in the commands table.'
+OUT="$(parse "$SANDBOX/raw-accuracy.json")"
+
+if [ "$(count "$OUT")" = "2" ]; then pass "one finding per table row, header and separator skipped"
+else fail "expected 2 findings, got $(count "$OUT")"; fi
+
+fileref="$(printf '%s' "$OUT" | python3 -c 'import json,sys; f=json.load(sys.stdin); print(f[0]["file"], f[0]["line_start"], f[0]["tier"], f[0]["severity"])')"
+if [ "$fileref" = "CLAUDE.md 16 T1 HIGH" ]; then pass "file:line, tier, and the mapped severity all parse"
+else fail "row parse drifted: $fileref"; fi
+
+ev="$(printf '%s' "$OUT" | python3 -c 'import json,sys; print(all(x["has_evidence"] for x in json.load(sys.stdin)))')"
+if [ "$ev" = "True" ]; then pass "a non-empty evidence cell sets has_evidence"
+else fail "has_evidence not set from the evidence column"; fi
+
+# A reviewer that drops the id column still emits gradeable findings.
+mk_raw "$SANDBOX/raw-noid.json" '| tier | file:line | issue | evidence | fix |
+|---|---|---|---|---|
+| T0 | .github/copilot-instructions.md:15 | Credential in an instruction file | line carries a Postgres URL with an inline password | Move to a secret store | M |
+
+## Dimension verdict
+One safety finding.'
+if [ "$(count "$(parse "$SANDBOX/raw-noid.json")")" = "1" ]; then
+  pass "a table without the id column still parses"
+else
+  fail "an id-less table parsed to $(count "$(parse "$SANDBOX/raw-noid.json")") findings"
+fi
+
+# A clean pass — verdict only, no table — must parse to zero findings, not junk.
+mk_raw "$SANDBOX/raw-clean.json" '## Dimension verdict
+Healthy. Examined all four surfaces; considered and rejected the AGENTS.md
+mirror, which is generated and matches its source.'
+if [ "$(count "$(parse "$SANDBOX/raw-clean.json")")" = "0" ]; then
+  pass "a clean pass parses to zero findings"
+else
+  fail "clean pass produced $(count "$(parse "$SANDBOX/raw-clean.json")") findings"
+fi
+
+# An unrelated Markdown table must not be mistaken for a findings table.
+mk_raw "$SANDBOX/raw-other.json" '| What | Command |
+|---|---|
+| Test | `make test` |
+
+## Dimension verdict
+Healthy.'
+if [ "$(count "$(parse "$SANDBOX/raw-other.json")")" = "0" ]; then
+  pass "a table with no tier column is not parsed as findings"
+else
+  fail "an unrelated table produced findings"
+fi
+
+# Cross-talk: each parser must ignore the other's shape rather than half-match.
+n="$(python3 "$LOOP/loop_lib.py" parse "$SANDBOX/raw-accuracy.json" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+if [ "$n" = "0" ]; then pass "the review parser ignores audit tables (no cross-talk)"
+else fail "review parser matched $n audit rows"; fi
+n="$(python3 "$LOOP/loop_lib.py" parse --parser audit-findings "$SANDBOX/raw-clean.json" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+if [ "$n" = "0" ]; then pass "the audit parser emits nothing for a verdict-only result"
+else fail "audit parser invented $n findings from a verdict"; fi
+
+# --- judge panel consensus (loop_lib.py vote) -------------------------------
+#
+# Match verdicts reproduce on a single judge call; residue bucketing does not,
+# by the same order as the delta an A-vs-A resolves. The panel is what makes the
+# noise axis readable, so its arithmetic is checked in both directions here.
+
+V="$SANDBOX/votes"
+mkdir -p "$V"
+cat > "$V/1.json" <<'JSON'
+{"matches":[{"gt_id":"gt-1","finding_ids":["F1"]},{"gt_id":"gt-2","finding_ids":["F9"]}],
+ "residue":[{"finding_id":"F2","bucket":"noise"},{"finding_id":"F3","bucket":"plausible-real"}]}
+JSON
+cat > "$V/2.json" <<'JSON'
+{"matches":[{"gt_id":"gt-1","finding_ids":["F1"]},{"gt_id":"gt-2","finding_ids":[]}],
+ "residue":[{"finding_id":"F2","bucket":"noise"},{"finding_id":"F3","bucket":"nitpick"},{"finding_id":"F9","bucket":"noise"}]}
+JSON
+cat > "$V/3.json" <<'JSON'
+{"matches":[{"gt_id":"gt-1","finding_ids":[]},{"gt_id":"gt-2","finding_ids":[]}],
+ "residue":[{"finding_id":"F1","bucket":"noise"},{"finding_id":"F2","bucket":"plausible-real"},{"finding_id":"F3","bucket":"nitpick"},{"finding_id":"F9","bucket":"noise"}]}
+JSON
+CONSENSUS="$(python3 "$LOOP/loop_lib.py" vote "$V/1.json" "$V/2.json" "$V/3.json")"
+
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.matches[] | select(.gt_id=="gt-1") | .finding_ids | join(",")')" = "F1" ]; then
+  pass "a match carried by 2 of 3 judges survives the panel"
+else
+  fail "the panel dropped a 2-of-3 match"
+fi
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.matches[] | select(.gt_id=="gt-2") | .finding_ids | length')" = "0" ]; then
+  pass "a match claimed by only 1 of 3 judges does not survive"
+else
+  fail "a lone judge's match reached the consensus"
+fi
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.residue[] | select(.finding_id=="F2") | .bucket')" = "noise" ]; then
+  pass "the modal bucket wins (2 noise vs 1 plausible-real)"
+else
+  fail "modal bucket not taken"
+fi
+# F3: one plausible-real, two nitpick -> nitpick by majority.
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.residue[] | select(.finding_id=="F3") | .bucket')" = "nitpick" ]; then
+  pass "a 2-1 split resolves to the majority bucket"
+else
+  fail "a 2-1 residue split did not resolve to the majority"
+fi
+# A finding the panel matched must leave residue entirely, or it is counted twice.
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '[.residue[] | select(.finding_id=="F1")] | length')" = "0" ]; then
+  pass "a panel-matched finding is not also residue"
+else
+  fail "a matched finding was double-counted as residue"
+fi
+# An even split must break toward the bucket that does not penalize the reviewer.
+cat > "$V/tie1.json" <<'JSON'
+{"matches":[],"residue":[{"finding_id":"F5","bucket":"noise"}]}
+JSON
+cat > "$V/tie2.json" <<'JSON'
+{"matches":[],"residue":[{"finding_id":"F5","bucket":"plausible-real"}]}
+JSON
+if [ "$(python3 "$LOOP/loop_lib.py" vote "$V/tie1.json" "$V/tie2.json" | jq -r '.residue[0].bucket')" = "plausible-real" ]; then
+  pass "an even split breaks toward the conservative bucket"
+else
+  fail "a tied residue vote counted against the reviewer"
+fi
+
+# --- the noise-floor guard in compare.sh ------------------------------------
+#
+# An A-vs-A does not generally bracket zero on noise, so a CI excluding zero is
+# not evidence of an effect. Without a floor to beat, compare.sh printed
+# "candidate better on noise, recall held" for two byte-identical variants.
+
+mkrun() { # mkrun <dir> <module> <noise-per-task>
+  mkdir -p "$1/results"
+  python3 - "$1" "$2" <<'SPEC'
+import json, sys
+d, mod = sys.argv[1], sys.argv[2]
+json.dump({"module": mod, "tasks": "x",
+           "task_manifest": [{"id": f"t{i}", "version": 1} for i in range(6)]},
+          open(f"{d}/spec.json", "w"))
+SPEC
+  python3 - "$1" "$3" <<'PY'
+import json, sys
+d, noise = sys.argv[1], float(sys.argv[2])
+rows = [{"task": f"t{i}", "trial": "trial-1", "rubric_version": 1, "negative": False,
+         "recall_must": 1.0, "recall_weighted": 1.0, "noise": noise, "noise_strict": noise,
+         "nitpick": 0, "findings_total": 10, "plausible_real": 0,
+         "precision_proxy": 1.0, "tokens_in": 0, "tokens_out": 0, "wall_ms": 0,
+         "missed_must": [], "contested_must": [], "pass": True} for i in range(6)]
+json.dump({"rows": rows, "contested": [],
+           "mean": {"recall_must": 1.0, "noise": noise},
+           "reducers": {"per_task": [], "pass_rate": 1.0, "pass_at_k": 1.0, "pass_hat_k": 1.0}},
+          open(f"{d}/metrics.json", "w"))
+PY
+}
+
+# audit-instructions records a 2.6/task floor. A 1-per-task improvement sits
+# inside it and must not read as an effect.
+mkrun "$SANDBOX/cand-small" audit-instructions 4
+mkrun "$SANDBOX/base-small" audit-instructions 5
+V="$(bash "$LOOP/compare.sh" "$SANDBOX/cand-small" "$SANDBOX/base-small" 2>/dev/null | jq -r '.verdict')"
+case "$V" in
+  *"noise-of-noise band"*) pass "a noise gain inside the measured floor is not called an effect" ;;
+  *) fail "the floor guard let a sub-floor noise delta through: $V" ;;
+esac
+
+# A 5-per-task improvement clears the floor and may be read.
+mkrun "$SANDBOX/cand-big" audit-instructions 1
+mkrun "$SANDBOX/base-big" audit-instructions 6
+V="$(bash "$LOOP/compare.sh" "$SANDBOX/cand-big" "$SANDBOX/base-big" 2>/dev/null | jq -r '.verdict')"
+case "$V" in
+  *"better on noise"*) pass "a noise gain clearing the floor still reads as an effect" ;;
+  *) fail "the floor guard suppressed a real effect: $V" ;;
+esac
+
+# A module that never ran its A-vs-A has no floor, so the axis is not read.
+mkrun "$SANDBOX/cand-nofloor" no-such-module 1
+mkrun "$SANDBOX/base-nofloor" no-such-module 6
+V="$(bash "$LOOP/compare.sh" "$SANDBOX/cand-nofloor" "$SANDBOX/base-nofloor" 2>/dev/null | jq -r '.verdict')"
+case "$V" in
+  *"no measured noise floor"*) pass "a module with no A-vs-A does not get a noise verdict" ;;
+  *) fail "an unmeasured module got a noise verdict: $V" ;;
+esac
+
+# Every shipped module must carry a floor, or it silently loses the axis.
+NOFLOOR="$(for t in "$LOOP"/modules/*/target.json; do
+  jq -e 'has("noise_floor")' "$t" >/dev/null 2>&1 || basename "$(dirname "$t")"
+done)"
+if [ -z "$NOFLOOR" ]; then
+  pass "every module records a measured noise floor"
+else
+  fail "modules with no noise_floor: $NOFLOOR"
+fi
+
+# --- sync-champion.sh section extraction ------------------------------------
+
+# Extract from the real shipped reference: the source whose §Reviewer spawn
+# template holds a fenced block with `## ` lines of its own, which is exactly
+# what a naive scan truncates on.
+PROBE="$LOOP/modules/.probe-test"
+rm -rf "$PROBE"
+mkdir -p "$PROBE/variants/champion"
+touch "$PROBE/variants/champion/preamble.md"
+cat > "$PROBE/target.json" <<'JSON'
+{"module":".probe-test","champion_sync":[
+  {"from":"skills/audit-instructions/dimensions-reference.md",
+   "section":"Severity tiers (shared output classification)",
+   "to":"criteria/tiers.md"}]}
+JSON
+if bash "$LOOP/sync-champion.sh" --module .probe-test >/dev/null 2>&1; then
+  EXTRACTED="$PROBE/variants/champion/criteria/tiers.md"
+  if grep -q 'T0 | Safety' "$EXTRACTED"; then
+    pass "section extraction returns the named section's body"
+  else
+    fail "section extraction returned the wrong body"
+  fi
+  if ! grep -q 'Finding output contract' "$EXTRACTED"; then
+    pass "section extraction stops at the next heading"
+  else
+    fail "section extraction crossed into the next section"
+  fi
+  if ! grep -q 'AI-instruction audit — dimension' "$EXTRACTED"; then
+    pass "section extraction is fence-aware"
+  else
+    fail "a fenced ## line leaked into the extracted section"
+  fi
+else
+  fail "sync-champion.sh failed on a section entry"
+fi
+
+# A renamed heading upstream must break the sync loudly, not ship an empty file.
+sed -i.bak 's|Severity tiers (shared output classification)|Renamed Upstream|' "$PROBE/target.json"
+rm -f "$PROBE/target.json.bak"
+if bash "$LOOP/sync-champion.sh" --module .probe-test >/dev/null 2>&1; then
+  fail "a missing section synced silently"
+else
+  pass "a missing section fails the sync instead of shipping an empty criteria file"
+fi
+rm -rf "$PROBE"
+
+# --- fixture consistency across both dev sets -------------------------------
+#
+# Dev only. A holdout failure would print holdout content into the tuning
+# session, which is exactly what the dark-holdout rule forbids.
+
+VIOL="$(python3 - "$LOOP/modules/audit-instructions/benchmarks/dev" "$LOOP/modules/audit-plugin/benchmarks/dev" <<'PY'
+import json, os, sys
+
+bad = []
+for root in sys.argv[1:]:
+    module = os.path.basename(os.path.dirname(os.path.dirname(root)))
+    for task in sorted(os.listdir(root)):
+        d = os.path.join(root, task)
+        if not os.path.isdir(d):
+            continue
+        rubric = json.load(open(os.path.join(d, "rubric.json")))
+        tree = os.path.join(d, "tree")
+        lines_of = {}
+        for dirpath, _, names in os.walk(tree):
+            for n in names:
+                p = os.path.join(dirpath, n)
+                lines_of[os.path.relpath(p, tree)] = sum(1 for _ in open(p, errors="replace"))
+
+        if rubric.get("negative") and rubric.get("items"):
+            bad.append(f"{module}/{task}: negative task carries ground-truth items")
+        if not rubric.get("negative") and not rubric.get("items"):
+            bad.append(f"{module}/{task}: positive task carries no ground-truth items")
+        # A positive task with no must_find item can never pass: recall_must is
+        # null and the pass expression reads false however good the run was.
+        if not rubric.get("negative") and not [i for i in rubric["items"] if i.get("must_find")]:
+            bad.append(f"{module}/{task}: positive task has no must_find item — it can never pass")
+
+        for it in rubric.get("items", []):
+            f, ln = it.get("file"), it.get("lines") or []
+            if f not in lines_of:
+                bad.append(f"{module}/{task}/{it['id']}: file {f} is not in the tree")
+                continue
+            for n in ln:
+                if n > lines_of[f]:
+                    bad.append(f"{module}/{task}/{it['id']}: line {n} past end of {f} ({lines_of[f]} lines)")
+
+print("\n".join(bad))
+PY
+)"
+if [ -z "$VIOL" ]; then
+  pass "every dev fixture's rubric citations resolve in its own tree"
+else
+  fail "fixture inconsistencies:"$'\n'"$VIOL"
+fi
+
+# --- no unplanted defects in a fixture --------------------------------------
+#
+# A path an instruction file cites that does not resolve is a real finding
+# whether or not the fixture author meant to plant it. Left out of the rubric it
+# scores as noise, so a correct reviewer is penalized for being right and the
+# stand reads worse than the skill is. Every non-resolving citation must
+# therefore be either covered by a rubric item or declared in task.json
+# `expected_unresolved` — which is how a runtime path in the installed-into
+# project, absent from the plugin repo by design, stays legal.
+
+STRAY="$(python3 - "$LOOP/modules/audit-instructions/benchmarks/dev" "$LOOP/modules/audit-plugin/benchmarks/dev" <<'PY'
+import json, os, re, sys
+
+TOK = re.compile(r'`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+|[A-Za-z0-9_./-]+/)`')
+SKIP = re.compile(r'^(https?:|\$\{)')
+INSTRUCTION = (".md", ".mdc")
+BARE = {".cursorrules", ".clinerules", ".windsurfrules"}
+
+bad = []
+for root in sys.argv[1:]:
+    module = os.path.basename(os.path.dirname(os.path.dirname(root)))
+    for task in sorted(os.listdir(root)):
+        d = os.path.join(root, task)
+        tree = os.path.join(d, "tree")
+        if not os.path.isdir(tree):
+            continue
+        present = set()
+        for dp, dns, fns in os.walk(tree):
+            for n in fns:
+                present.add(os.path.relpath(os.path.join(dp, n), tree))
+            for n in dns:
+                present.add(os.path.relpath(os.path.join(dp, n), tree) + "/")
+        rubric_text = json.dumps(json.load(open(os.path.join(d, "rubric.json"))))
+        meta = json.load(open(os.path.join(d, "task.json")))
+        declared = set(meta.get("expected_unresolved") or [])
+
+        for dp, _, fns in os.walk(tree):
+            for n in fns:
+                if not n.endswith(INSTRUCTION) and n not in BARE:
+                    continue
+                rel = os.path.relpath(os.path.join(dp, n), tree)
+                text = open(os.path.join(dp, n), errors="replace").read()
+                for m in TOK.finditer(text):
+                    t = m.group(1)
+                    if SKIP.match(t) or t in declared:
+                        continue
+                    if t in present or t.rstrip("/") + "/" in present:
+                        continue
+                    if any(p.startswith(t.rstrip("/") + "/") for p in present):
+                        continue
+                    if t in rubric_text:
+                        continue
+                    bad.append(f"{module}/{task}: {rel} cites {t}, absent from the tree "
+                               f"and named in neither the rubric nor expected_unresolved")
+
+print("\n".join(sorted(set(bad))))
+PY
+)"
+if [ -z "$STRAY" ]; then
+  pass "no dev fixture cites a path that is absent, unplanted, and undeclared"
+else
+  fail "unplanted fixture defects (a correct reviewer would be scored as noisy):"$'\n'"$STRAY"
+fi
+
+echo
+echo "audit-modules: $TESTS_RUN run, $TESTS_FAILED failed"
+[ "$TESTS_FAILED" -eq 0 ]

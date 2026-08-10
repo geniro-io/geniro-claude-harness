@@ -1,0 +1,9 @@
+---
+description: Python conventions for the inventory API
+globs: app/**/*.py
+alwaysApply: false
+---
+
+- Type-annotate every function signature.
+- Endpoints declare their response schema explicitly.
+- Never call the ORM from a view; go through `app/repo.py`.

@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "hooks/block-state-write.sh",
+      "lines": [
+        12,
+        12
+      ],
+      "class": "guard-never-fires",
+      "dimension_hint": "safety",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "description": "The deny path exits 1, not 2. docs/SAFETY.md:16-17 states only exit 2 blocks and any other non-zero exit is reported as a hook error while the call proceeds. So the guard documented as a hard block prints its message and lets the bypassing write through — the failure is invisible because the message still appears."
+    },
+    {
+      "id": "gt-2",
+      "file": "hooks/block-rm-rf.sh",
+      "lines": [
+        12,
+        12
+      ],
+      "class": "fails-open",
+      "dimension_hint": "safety",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "description": "read_allow_patterns returns non-zero when .plugin/safety.json is missing or unparseable, and the hook responds with exit 0 — allow. docs/SAFETY.md:11-14 states every guard fails closed on an unreadable allowlist, precisely so deleting one file cannot disable it. The code does the opposite of the documented contract."
+    },
+    {
+      "id": "gt-3",
+      "file": "lib/safety.sh",
+      "lines": [
+        6,
+        10
+      ],
+      "class": "untested-helper",
+      "dimension_hint": "safety",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "read_allow_patterns has no test suite — tests/ covers lib/paths.sh and the rm-rf hook, nothing under lib/safety.sh. It is the function every guard's allow/deny decision routes through, and its three distinct failure modes (file absent, invalid JSON, empty array) are exactly what a passing suite would have to distinguish."
+    },
+    {
+      "id": "gt-4",
+      "file": "tests/hooks/block-rm-rf.sh",
+      "lines": [
+        13,
+        14
+      ],
+      "class": "one-direction-test",
+      "dimension_hint": "safety",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The suite asserts only that innocuous commands are allowed. Nothing asserts a recursive delete is blocked, so the guard could be inverted, emptied, or made to exit 0 on every path and the suite stays green — which is what makes gt-2's fail-open survive a passing run."
+    },
+    {
+      "id": "gt-5",
+      "file": "docs/SAFETY.md",
+      "lines": [
+        3,
+        3
+      ],
+      "class": "stale-count",
+      "dimension_hint": "consistency",
+      "severity": "LOW",
+      "must_find": false,
+      "description": "SAFETY.md opens with \"Three guards run as PreToolUse hooks\" while its own table lists two and hooks.json registers two. The fix removes the count and points at the table rather than refreshing it."
+    }
+  ]
+}

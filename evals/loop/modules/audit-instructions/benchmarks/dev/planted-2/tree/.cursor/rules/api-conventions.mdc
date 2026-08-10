@@ -1,0 +1,9 @@
+---
+title: API conventions
+priority: high
+owner: platform-team
+---
+
+Every route handler under `api/` validates its input with a zod schema before
+use. Errors surface as `{ error: { code, message } }`. Database access goes
+through `api/db/client.ts`.

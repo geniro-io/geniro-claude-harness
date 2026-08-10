@@ -1,0 +1,16 @@
+---
+description: Repo-wide conventions for the scheduling service
+alwaysApply: true
+---
+
+This rule is always attached, so keep it to what every edit needs.
+
+- Maximum line length: 80 characters.
+- Named exports only. No default exports.
+- Tests come after the implementation is reviewed — write the code, get the
+  shape agreed, then cover it.
+
+## Commits
+
+Conventional commits (`feat:`, `fix:`, `chore:`). Subject line under 72
+characters, imperative mood, no trailing period.

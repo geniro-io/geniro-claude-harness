@@ -1,0 +1,6 @@
+{
+  "id": "ph-2",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "A guards-only agent plugin. Hooks run as PreToolUse: exit code 2 blocks the tool call, and any other non-zero exit is reported as a hook error while the call proceeds. docs/GUARDS.md is the documented contract. ${CLAUDE_PLUGIN_ROOT} resolves to the repo root."
+}

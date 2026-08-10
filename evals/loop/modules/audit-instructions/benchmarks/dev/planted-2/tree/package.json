@@ -1,0 +1,9 @@
+{
+  "name": "admin-console",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "build": "tsc -b"
+  }
+}

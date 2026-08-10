@@ -1,0 +1,8 @@
+---
+description: Python style for application code
+globs: app/**/*.py
+alwaysApply: false
+---
+
+Type-annotate every public function. Prefer a dataclass over a dict for a
+structured return.

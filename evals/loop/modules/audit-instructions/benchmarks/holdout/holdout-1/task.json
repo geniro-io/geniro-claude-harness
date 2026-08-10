@@ -1,0 +1,6 @@
+{
+  "id": "holdout-1",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "Python inventory API managed with poetry. Claude Code, Cursor, and Copilot instruction surfaces are all present."
+}

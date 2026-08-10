@@ -1,0 +1,6 @@
+{
+  "id": "planted-neg-1",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "Go feature-flag service. AGENTS.md is generated from CLAUDE.md by scripts/gen-agents.sh. Claude Code and Cursor are both in use."
+}

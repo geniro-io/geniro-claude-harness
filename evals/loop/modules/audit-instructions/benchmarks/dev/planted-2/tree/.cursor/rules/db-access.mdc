@@ -1,0 +1,8 @@
+---
+description: Database access conventions
+globs: api/db/**
+alwaysApply: true
+---
+
+Every query runs inside the transaction helper — no bare query calls at a route
+boundary. Long-running reads take an explicit statement timeout.

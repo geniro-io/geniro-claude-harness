@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "skills/deploy/SKILL.md",
+      "lines": [26, 26],
+      "class": "dangling-reference",
+      "dimension_hint": "staleness",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Phase 0 instructs reading skills/_shared/rollback-contract.md before proceeding. No such file exists — skills/_shared/ holds only state-write.md. The step cannot run, and the phase's stated precondition is unobtainable."
+    },
+    {
+      "id": "gt-2",
+      "file": "hooks/hooks.json",
+      "lines": [8, 8],
+      "class": "unwired-declaration",
+      "dimension_hint": "wiring",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "hooks.json registers hooks/block-secret-commit.sh on PreToolUse Bash. The script does not exist in hooks/ — only block-force-push.sh does. A registered hook whose command is missing fails on every matching tool call, or silently does nothing, depending on the runtime."
+    },
+    {
+      "id": "gt-3",
+      "file": "skills/deploy/SKILL.md",
+      "lines": [43, 43],
+      "class": "unwired-declaration",
+      "dimension_hint": "wiring",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The REFERENCE list cites SKILL.md Phase 4 as the rollback walk. The body declares Phases 0 through 3 only — there is no Phase 4 anywhere in the file. A phase promised in the reference list and never built: the rollback path the citation implies does not exist."
+    },
+    {
+      "id": "gt-4",
+      "file": "skills/deploy/SKILL.md",
+      "lines": [38, 38],
+      "class": "stale-reference",
+      "dimension_hint": "staleness",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "Phase 3 hands off to /geniro:promote for the manual completion walk. No such skill exists in the repo, and README's Skills-deleted mapping does not list it either — so this is a live pointer at nothing, not documentation of a removal."
+    },
+    {
+      "id": "gt-5",
+      "file": "README.md",
+      "lines": [7, 8],
+      "class": "claimed-enforcement-no-mechanism",
+      "dimension_hint": "wiring",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "README claims remote branch deletion is blocked by the same pre-push guard. block-force-push.sh matches only `git push --force` and `git push -f`; nothing in it or in hooks.json matches a delete push (`--delete` or a colon refspec). Half the claimed guard has no mechanism behind it."
+    },
+    {
+      "id": "gt-6",
+      "file": "agents/verifier-agent.md",
+      "lines": [1, 6],
+      "class": "missing-frontmatter-field",
+      "dimension_hint": "wiring",
+      "severity": "LOW",
+      "must_find": false,
+      "description": "The agent frontmatter declares no maxTurns. Outside interactive use the default is 10 turns, which truncates a reasoning agent at its emit step and yields partial output rather than a visible failure."
+    }
+  ]
+}

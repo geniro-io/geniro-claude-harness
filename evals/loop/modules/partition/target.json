@@ -3,7 +3,10 @@
   "version": 1,
   "parser": "partition-couplings",
   "facets": [
-    { "name": "partition", "criteria": [] }
+    {
+      "name": "partition",
+      "criteria": []
+    }
   ],
   "assembly": {
     "max_prompt_bytes": 614400,
@@ -21,5 +24,8 @@
       "to": "reference/phase-2-implement.md"
     }
   ],
-  "screen_facets": ["partition"]
+  "screen_facets": [
+    "partition"
+  ],
+  "noise_floor": 0
 }
