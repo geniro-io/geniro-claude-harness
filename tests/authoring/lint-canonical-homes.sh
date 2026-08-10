@@ -26,6 +26,13 @@
 #   3. Both run over ALL tracked markdown — .claude/skills/ and the root docs
 #      included, which checks 2 and 5 of lint-skills.sh deliberately skip.
 #
+# One exclusion: `evals/loop/modules/` is eval data, not repo prose. Its champion
+# directories are machine-generated snapshots of files this check already reads
+# at their real home, where their relative citations resolve and in the copy
+# cannot; its benchmark trees are synthetic repos whose dangling references are
+# the planted ground truth. Both would fail here for being exactly what they are
+# meant to be.
+#
 # Scope discipline: only a backticked token carrying a file extension is treated
 # as a path. `owned by \`/geniro:instructions validate\`` names a skill command
 # and `lives in \`_shared/\`` names a directory — neither is a claim this check
@@ -142,7 +149,7 @@ while IFS= read -r file; do
         ;;
     esac
   done < <(grep -noiE "($KEYWORDS)[[:space:]]+\`[^\`]+\`([[:space:]]*§[^|]{0,90})?" "$file" 2>/dev/null || true)
-done < <(git ls-files '*.md' 2>/dev/null)
+done < <(git ls-files '*.md' 2>/dev/null | grep -v '^evals/loop/modules/')
 
 echo
 if [ "$FAILS" -gt 0 ]; then
