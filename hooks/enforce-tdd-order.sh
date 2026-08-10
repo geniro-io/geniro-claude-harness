@@ -681,6 +681,34 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
 fi
+if ! command -v _geniro_wv_expand_assignments >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_expand_assignments
+_geniro_wv_expand_assignments() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  local _asn _name _val _pairs=""
+  while IFS= read -r _asn; do
+    [ -z "$_asn" ] && continue
+    _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
+    _name="${_asn%%=*}"
+    _val="${_asn#*=}"
+    case "$_val" in
+      '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
+      "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
+    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+
+  while IFS=' ' read -r _ _name _val; do
+    [ -z "${_name:-}" ] && continue
+    text="${text//\$\{$_name\}/$_val}"
+    text="${text//\$$_name/$_val}"
+  done <<< "$(printf '%s' "$_pairs" | sort -rn)"
+  printf '%s\n' "$text"
+}
+# GENIRO-VENDORED-END _geniro_wv_expand_assignments
+fi
 if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
 # GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
 _geniro_wv_unquote_words() {
@@ -770,6 +798,13 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # syntax. Join the newlines INSIDE such a span first (lossless: a newline
   # inside quotes never separates two commands). Contract: lib/write-vectors.sh.
   JOINED=$(_geniro_join_quoted_newlines "$JOINED")
+
+  # A variable carries its value into the command the shell runs, so a gate
+  # matching literal tokens misses every write target that arrived through one
+  # (`F=src/app.js; echo x > $F` during RED). Substitute assigned literals back
+  # in before the candidate-extraction vectors below run. Contract:
+  # lib/write-vectors.sh §F.
+  JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 
   # Recover words the shell would pass but the blanking below would erase — a
   # quoted or backslash-escaped write TARGET (`echo x > "src/app.js"`,

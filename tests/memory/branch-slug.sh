@@ -6,6 +6,14 @@
 # each rule so a derivation change fails the suite instead of silently breaking
 # state resolution.
 #
+# Both hooks also carry an INLINE _geniro_branch_slug fallback (for a vendored
+# install shipping hooks/ without lib/), each a separate copy of the same
+# 60-char truncation. This suite extracts both and asserts they resolve
+# IDENTICALLY to the canonical helper above — mirroring
+# tests/memory/lock-reclaim.sh's own fallback-lockstep section — so a
+# fallback that drifts (e.g. a truncation length edited in one home and not
+# the other two) fails here instead of only misbehaving on a vendored install.
+#
 # Run: bash tests/memory/branch-slug.sh
 
 set -uo pipefail
@@ -48,6 +56,33 @@ eq "$(_geniro_branch_slug "$(printf 'a%.0s' {1..59}) x")" "$boundary_want" "stri
 sb="$(mktemp -d "$TMPDIR_BASE/repo.XXXXXX")"
 ( cd "$sb" && git init -q && git checkout -q -b 'Feature/Branch_Name' )
 eq "$(cd "$sb" && _geniro_branch_slug)" "feature-branch-name" "no-arg path derives the slug from the current git branch"
+
+# --- Fallback lockstep: session-start-restore.sh and enforce-tdd-order.sh each
+#     carry an inline _geniro_branch_slug fallback for a vendored install
+#     shipping hooks/ without lib/. Extract each and require it to resolve
+#     IDENTICALLY to the canonical helper sourced above, on the same ordinary,
+#     truncation-length, and truncation-boundary cases already pinned for the
+#     canonical form — a fallback edited in only one of its three homes (the
+#     shape the header above warns about) fails here.
+for hook in session-start-restore enforce-tdd-order; do
+  FALLBACK=$(awk '
+    /^if ! command -v _geniro_branch_slug /{inb=1; next}
+    inb && /^fi$/{exit}
+    inb{print}
+  ' "$REPO_ROOT/hooks/$hook.sh")
+  if [ -z "$FALLBACK" ]; then
+    fail "hooks/$hook.sh carries an inline _geniro_branch_slug fallback"
+    continue
+  fi
+  pass "hooks/$hook.sh carries an inline _geniro_branch_slug fallback"
+
+  for input in 'Feature/Foo' "$(printf 'a%.0s' {1..70})" "$(printf 'a%.0s' {1..59}) x"; do
+    want="$(_geniro_branch_slug "$input")"
+    got="$(bash -c "$FALLBACK
+_geniro_branch_slug \"\$1\"" _ "$input")"
+    eq "$got" "$want" "hooks/$hook.sh fallback matches canonical for '$input'"
+  done
+done
 
 echo
 echo "Tests run:    $TESTS_RUN"

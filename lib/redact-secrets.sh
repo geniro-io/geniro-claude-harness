@@ -131,7 +131,13 @@ _RED_REGEXES=(
   'AKIA[0-9A-Z]{16}'
   '[Aa][Ww][Ss]_[Ss][Ee][Cc][Rr][Ee][Tt]_[Aa][Cc][Cc][Ee][Ss][Ss]_[Kk][Ee][Yy][[:space:]]*=[[:space:]]*[A-Za-z0-9/+=]{40}'
   'sk-ant-[A-Za-z0-9_-]+'
-  'sk-[A-Za-z0-9_-]+'
+  # Boundary-anchored + 16-char floor on the tail: a bare 'sk-[A-Za-z0-9_-]+'
+  # matches the "sk-" inside ordinary prose ("task-dir", "disk-cache",
+  # "risk-register", "ask-user") and mangles the word. `(^|[^A-Za-z0-9_-])`
+  # requires "sk-" to start the string or follow a non-identifier character —
+  # every English "sk-" substring above is preceded by a word character, so
+  # none qualify — and the length floor is defense-in-depth for any that would.
+  '(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}'
   'pk_live_[A-Za-z0-9_]+'
   'pk_test_[A-Za-z0-9_]+'
   'ghp_[A-Za-z0-9_-]+'
@@ -140,7 +146,17 @@ _RED_REGEXES=(
   'xoxb-[A-Za-z0-9_-]+'
   'xox[a-z]-[A-Za-z0-9_-]+'
   'AIza[0-9A-Za-z_-]{35}'
-  '[Bb][Ee][Aa][Rr][Ee][Rr] [A-Za-z0-9._-]+'
+  # Same boundary + length-floor treatment as the api-key:sk entry above, for the
+  # same reason: a bare '[Bb]...[Rr] [A-Za-z0-9._-]+' matches the ordinary English
+  # "bearer of" / "bearer shares" and rewrites the following word as a credential
+  # ("The bearer of this letter" -> "The Bearer [REDACTED:bearer] this letter").
+  # The discriminator is SHAPE, not length. A length floor cannot separate the two
+  # sides here: "bearer certificate" and "bearer instrument" are real English (and
+  # real finance terms) at 11 and 10 chars, longer than plenty of real tokens. What
+  # actually divides them is that a credential carries a digit, dot, or underscore
+  # and an English word never does — so the token must contain at least one `[0-9._]`.
+  # `-` is deliberately NOT in that set: it would re-admit hyphenated English.
+  '(^|[^A-Za-z0-9_-])[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._-]*[0-9._][A-Za-z0-9._-]*'
   '(https?)://[^:/[:space:]]+:[^@/[:space:]]+@'
   '-----BEGIN [A-Z ]*PRIVATE KEY-----.*-----END [A-Z ]*PRIVATE KEY-----'
 )
@@ -154,7 +170,7 @@ _RED_REPLACEMENTS=(
   '[REDACTED:aws-key]'
   'aws_secret_access_key=[REDACTED:aws-secret]'
   '[REDACTED:api-key:anthropic]'
-  '[REDACTED:api-key:openai-or-similar]'
+  '\1[REDACTED:api-key:openai-or-similar]'
   '[REDACTED:api-key:stripe-live]'
   '[REDACTED:api-key:stripe-test]'
   '[REDACTED:api-key:github]'
@@ -163,7 +179,7 @@ _RED_REPLACEMENTS=(
   '[REDACTED:api-key:slack-bot]'
   '[REDACTED:api-key:slack]'
   '[REDACTED:api-key:google]'
-  'Bearer [REDACTED:bearer]'
+  '\1Bearer [REDACTED:bearer]'
   '\1://[REDACTED:url-cred]@'
   '[REDACTED:private-key]'
 )
@@ -245,9 +261,28 @@ redact_secrets() {
       continue
     fi
 
-    local m
+    local m mlen
     while IFS= read -r m; do
-      total=$((total + ${#m}))
+      mlen=${#m}
+      # Patterns opening with the `(^|[^A-Za-z0-9_-])` boundary-anchor idiom
+      # (see the api-key:sk entry above) capture a non-secret guard character
+      # into \1 so the match can't start mid-word; that character survives
+      # into the replacement via \1, so it was never actually redacted.
+      # grep -oE's full match includes it, over-counting by 1 whenever the
+      # boundary alternative (not the zero-width `^` alternative) fired —
+      # detectable from $m itself: the guard character is always outside
+      # [A-Za-z0-9_-], while every pattern using this idiom starts its real
+      # match with a word character, so a word-char first byte means `^`
+      # matched (nothing captured) and no correction is needed.
+      case "$regex" in
+        '(^|[^A-Za-z0-9_-])'*)
+          case "${m:0:1}" in
+            [A-Za-z0-9_-]) ;;
+            *) mlen=$((mlen - 1)) ;;
+          esac
+          ;;
+      esac
+      total=$((total + mlen))
     done <<< "$matches"
 
     # Control-char (\002) sed delimiter so a user pattern containing `|` can't

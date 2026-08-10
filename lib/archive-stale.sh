@@ -307,9 +307,18 @@ if [ "$_as_direct" = "1" ]; then
     # combined EXIT/INT/TERM trap would release the lock and then let bash
     # resume execution right after the interrupted command, running the rest of
     # the rewrite with the lock already free for a concurrent writer.
-    trap 'rmdir "$_as_lock" 2>/dev/null' EXIT
-    trap 'rmdir "$_as_lock" 2>/dev/null; exit 130' INT
-    trap 'rmdir "$_as_lock" 2>/dev/null; exit 143' TERM
+    # `rm -f "${tmp:-}"` also cleans up the rewrite temp from the real-run
+    # branch below (`$tmp="${log}.tmp.$$"`, declared `local` inside
+    # archive_stale_learnings) — a signal landing between the `jq … > "$tmp"`
+    # write and the `mv -f` rename would otherwise orphan
+    # learnings.jsonl.tmp.<pid> beside the log permanently, since only the
+    # lock (not the temp file) was released. Bash traps are dynamically
+    # scoped, so `$tmp` resolves to the function's local variable here even
+    # though the trap is set at this outer, direct-invocation scope — matching
+    # the peer site at query-learnings.sh's INT/TERM traps.
+    trap 'rmdir "$_as_lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null' EXIT
+    trap 'rmdir "$_as_lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; exit 130' INT
+    trap 'rmdir "$_as_lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; exit 143' TERM
   fi
   archive_stale_learnings "$@"
   exit $?

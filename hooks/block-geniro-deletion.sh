@@ -534,6 +534,20 @@ _geniro_wv_expand_assignments() {
 }
 # GENIRO-VENDORED-END _geniro_wv_expand_assignments
 fi
+if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
+_geniro_wv_unquote_words() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  printf '%s\n' "$text" | sed -E "
+    s/\\\$([\"'])/\\1/g
+    s/\"([^\"[:space:]]*)\"/\\1/g
+    s/'([^'[:space:]]*)'/\\1/g
+    s/\\\\([A-Za-z0-9._/-])/\\1/g
+  "
+}
+# GENIRO-VENDORED-END _geniro_wv_unquote_words
+fi
 if ! command -v _geniro_wv_cd_prefix >/dev/null 2>&1; then
 # GENIRO-VENDORED-BEGIN _geniro_wv_cd_prefix
 _geniro_wv_cd_prefix() {
@@ -633,7 +647,15 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/\\[;&|]/ /g')
 # `.geniro/...` path. Normalizing `$'`/`$"` to a bare `'`/`"` BEFORE the
 # unquote pass makes `rm -rf $'.geniro/state'` read exactly like
 # `rm -rf '.geniro/state'`.
-JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/\\\$([\"'])/\\1/g")
+#
+# A backslash before an ordinary character is dropped by the shell too, so
+# `rm -rf \.geniro`, `rm -rf .ge\niro`, `mv \.geniro/... `, `rmdir \.geniro/...`,
+# `git add -f \.geniro/...`, `rsync --delete ... \.geniro/...` and
+# `git worktree remo\ve` all run exactly like their unescaped spelling while
+# every literal matcher below sees a different string. Both spellings, and the
+# whitespace-free unquote of Pass A below, are single-sourced in
+# lib/write-vectors.sh §E — this call does all three.
+JOINED=$(_geniro_wv_unquote_words "$JOINED")
 
 # Quoted string literals are DATA, not commands — with two exceptions handled by
 # pass ordering. Pass A UNQUOTES a whitespace-free quoted token: a quoted rm

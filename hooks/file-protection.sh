@@ -11,17 +11,19 @@
 # Read-only access to protected files (cat/grep/cp FROM them) stays allowed.
 # Heredoc bodies are always scrubbed before extraction (a heredoc fed to
 # `cat > file` is data, not syntax). Quoted string literals are scrubbed for
-# vectors 1-11 — a deliberately QUOTED redirect target (`> ".env"`) is
-# therefore a documented miss there, accepted to avoid hard-blocking benign
-# commands that merely mention protected names in strings — but vector 12
-# (interpreter-mediated writes) scans the heredoc-scrubbed, QUOTE-INTACT text
-# instead: an interpreter's write target IS a quoted literal
-# (`open('.env','w')`), so blanking quotes there would blind the vector on its
-# own true positives. The scrubbed positions that ARE syntax are the
-# shell-indirection payloads — `sh -c "..."`, `eval "..."`, a quoted program
-# piped to a shell, a heredoc body fed to one, a process substitution a shell
-# reads, an interpreter shelling out: all of them are extracted before the
-# scrub and this guard re-runs on each.
+# vectors 1-11 — but a WHITESPACE-FREE quoted or backslash-escaped redirect
+# target (`> ".env"`, `> '.env'`, `> .e""nv`) is recovered first by the
+# unquote pass (§E below) before that blanking runs, so it is still caught:
+# only a target quoted WITH internal whitespace, or a protected name merely
+# MENTIONED inside prose, is blanked as data — that trade-off is what avoids
+# hard-blocking benign commands. Vector 12 (interpreter-mediated writes) scans
+# the heredoc-scrubbed, QUOTE-INTACT text instead: an interpreter's write
+# target IS a quoted literal (`open('.env','w')`), so blanking quotes there
+# would blind the vector on its own true positives. The scrubbed positions
+# that ARE syntax are the shell-indirection payloads — `sh -c "..."`,
+# `eval "..."`, a quoted program piped to a shell, a heredoc body fed to one,
+# a process substitution a shell reads, an interpreter shelling out: all of
+# them are extracted before the scrub and this guard re-runs on each.
 #
 # Per-project allowlist: .geniro/safety.json (in cwd or any ancestor) can opt out
 # of specific patterns by listing pattern IDs in the "allow_patterns" array.
@@ -157,7 +159,10 @@ check_protected_path() {
 
   # 4. Certificates and private keys
   if ! is_allowed "write-cert-key"; then
-    if printf '%s' "$p_lower" | grep -qE '\.pem$|\.key$|private-key'; then
+    # private-key is anchored to a path-segment/word boundary on both sides so
+    # a file merely CONTAINING the substring (src/lib/private-keyboard.tsx)
+    # isn't hard-blocked — mirrors write-credentials' identical anchoring below.
+    if printf '%s' "$p_lower" | grep -qE '\.pem$|\.key$|(^|/)[^/]*private[-_]key([^a-z0-9]|$)'; then
       block "write-cert-key" "certificate or private key file" "$p"
     fi
   fi
@@ -794,23 +799,23 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # Contract: lib/write-vectors.sh §F.
   JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 
-  # Quoted string literals are also data (`echo "see > .env"` writes nothing).
-  # Blank them out before extraction. Trade-off: a deliberately QUOTED redirect
-  # target (`> ".env"`) is no longer caught — accepted; the accidental
-  # overwrite shapes this guard exists for are unquoted.
+  # Quoted string literals that carry WHITESPACE are data (`echo "see > .env"`
+  # writes nothing) and get blanked out below. A WHITESPACE-FREE quoted or
+  # backslash-escaped redirect target (`> ".env"`, `> '.env'`, `> .e""nv`) is a
+  # single shell word, not prose — the unquote pass right below recovers it
+  # BEFORE the blanking pass runs, so it still reaches the candidate
+  # extraction and blocks. Order is load-bearing: unquote first, blank second.
   #
   # Scrubbed per LINE, newlines INTACT, and only THEN collapsed. Collapsing
   # first let two ordinary prose apostrophes on two different lines
   # (`# don't` … `# won't`) pair into one "literal" that swallowed the real
   # command between them — a fail-open on benign input, not on an attack.
   # The span EXCLUDES ; & | (mirrors block-dangerous-git.sh's own
-  # quoted-literal blanking pass, minus its unquote pass — a deliberately QUOTED redirect target is a
-  # documented miss this guard keeps) — otherwise two ordinary prose
-  # apostrophes straddling a `;` pair across it and blank the real command
-  # between them.
+  # quoted-literal blanking pass) — otherwise two ordinary prose apostrophes
+  # straddling a `;` pair across it and blank the real command between them.
   # Recover words the shell would pass but the blanking below would erase — a
   # quoted or backslash-escaped TARGET (`echo x > '.env'`, `> .e""nv`) is one
-  # shell word, so blanking it as data hides the protected path outright.
+  # shell word, so blanking it as data would hide the protected path outright.
   # Contract: lib/write-vectors.sh §E.
   JOINED=$(_geniro_wv_unquote_words "$JOINED")
 

@@ -33,6 +33,21 @@ TMPDIR_BASE="$(mktemp -d)"
 ORIGINAL_PWD="$PWD"
 trap 'cd "$ORIGINAL_PWD"; rm -rf "$TMPDIR_BASE"' EXIT
 
+# enforce-tdd-order.sh needs a RED-phase state file to have ANY verdict, keyed
+# to the current branch's slug — otherwise it exits 0 on every command
+# regardless of spelling, and its BASES row below would pass vacuously. Run
+# every check in this suite from inside one sandboxed git repo, pinned to a
+# fixed branch, with that file already present: harmless to every other guard
+# (none of them read TDD state), and it also removes this suite's incidental
+# dependency on the caller's own cwd/branch/safety.json.
+SANDBOX="$TMPDIR_BASE/sandbox"
+mkdir -p "$SANDBOX"
+cd "$SANDBOX" || exit 1
+git init -q
+git symbolic-ref HEAD refs/heads/obfuscation-matrix 2>/dev/null || true
+mkdir -p .geniro/state/tdd
+printf '## phase\nRED\n' > .geniro/state/tdd/state-obfuscation-matrix.md
+
 TESTS_RUN=0
 TESTS_FAILED=0
 pass() { TESTS_RUN=$((TESTS_RUN + 1)); echo "PASS: $1"; }
@@ -82,21 +97,8 @@ block-dangerous-git.sh|push-mirror|git push --mirror origin|git push --tags orig
 block-geniro-deletion.sh|rm-geniro|rm -rf .geniro|rm -rf build
 file-protection.sh|write-env|echo k > .env|echo k > notes.txt
 enforce-state-helper.sh|write-state|echo k > .geniro/planning/t/state.md|echo k > notes.txt
-'
-
-# ---------------------------------------------------------------------------
-# Word-level re-spellings of the FLAG, applied only to bases that carry one.
-# These are the shapes lib/write-vectors.sh §E canonicalizes; a guard matching
-# the literal flag text misses every one of them.
-# ---------------------------------------------------------------------------
-FLAG_SPELLINGS='
-ansi-c-quote|$FLAG
-single-quote|FLAG
-double-quote|FLAG
-intraword-dq|FLAG
-intraword-sq|FLAG
-backslash-dash|FLAG
-backslash-midword|FLAG
+security-pattern-check.sh|sec-eval-exec|printf '\''eval(x)'\'' > bad.py|printf '\''print(1)'\'' > ok.py
+enforce-tdd-order.sh|prod-write|echo x > src/app.js|echo x > src/app.test.js
 '
 
 run_guard() {  # <hook> <command>
@@ -153,6 +155,43 @@ while IFS='|' read -r hook id danger _benign; do
   done <<< "$(flag_variants "$flag")"
 done <<< "$BASES"
 
+# --- axis 2b: target-operand re-spellings ------------------------------------
+# Axis 2 above re-spells the FLAG on bases that carry one; this re-spells the
+# PATH OPERAND a guard matches against — backslash-escaped, $'…'-quoted, and
+# intra-word-quoted, driven against every guard whose trigger IS a path rather
+# than a flag. This is the exact axis T0 #1 (2026-08-10) walked through:
+# block-geniro-deletion.sh matched `.geniro` literally but never called
+# lib/write-vectors.sh's unquote/unescape helper, so `rm -rf \.geniro` (and
+# every other spelling below) blocked nothing while `rm -rf .geniro` blocked.
+# {T} in TARGET_BASES marks the operand path_variants re-spells.
+TARGET_BASES='
+block-geniro-deletion.sh|rm-geniro-target|rm -rf {T}|.geniro
+file-protection.sh|write-env-target|echo k > {T}|.env
+enforce-state-helper.sh|write-state-target|echo k > {T}|.geniro/planning/t/state.md
+enforce-tdd-order.sh|prod-write-target|echo x > {T}|src/app.js
+'
+
+path_variants() {  # <target> -> "id|spelling" lines
+  local t="$1"
+  printf '%s\n' \
+    "ansi-c-quote|\$'$t'" \
+    "single-quote|'$t'" \
+    "double-quote|\"$t\"" \
+    "intraword-dq|${t:0:2}\"\"${t:2}" \
+    "intraword-sq|${t:0:2}''${t:2}" \
+    "backslash-leading|\\$t" \
+    "backslash-midword|${t:0:2}\\${t:2}"
+}
+
+while IFS='|' read -r hook id tmpl target; do
+  [ -z "$hook" ] && continue
+  while IFS='|' read -r sid spelling; do
+    [ -z "$sid" ] && continue
+    check "$hook [$id/target:$sid] blocks" "$hook" \
+      "${tmpl/\{T\}/$spelling}" 2
+  done <<< "$(path_variants "$target")"
+done <<< "$TARGET_BASES"
+
 # --- axis 3: a directory change hides every later relative operand ----------
 # `cd`/`pushd` into a guarded tree is not a spelling of the command; it is a
 # spelling of the TARGET, and it applies to every guard that matches paths.
@@ -190,6 +229,44 @@ check "file-protection.sh [var: benign target] allows" "file-protection.sh" \
 # blank it and hide what follows.
 check "block-dangerous-git.sh [var: unresolvable value] allows" "block-dangerous-git.sh" \
   'V=$(date); echo $V' 0
+
+# --- axis 5: guard-helper parity ---------------------------------------------
+# The two T0 findings above (block-geniro-deletion.sh missing the backslash-
+# unescape rule; security-pattern-check.sh and enforce-tdd-order.sh missing
+# variable expansion) were the same shape twice: a guard that normalizes only
+# ONE of the two obfuscation axes lib/write-vectors.sh covers, silently, with
+# no signal anywhere that it had fallen behind its five siblings. This
+# assertion is the parity check itself — every Bash-matcher guard in
+# hooks/hooks.json must carry a REAL call site (not merely a mention, e.g. in a
+# comment or its own vendored function definition) to BOTH helpers, plus each
+# helper's inline `GENIRO-VENDORED` fallback for a vendored install shipping
+# hooks/ without lib/. It hard-fails the suite on any guard missing either —
+# the seventh guard someone writes cannot ship with the same hole unnoticed.
+BASH_GUARDS=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[].command' \
+  "$REPO_ROOT/hooks/hooks.json" 2>/dev/null | sed -E 's#.*/hooks/##; s/"$//')
+if [ -z "$BASH_GUARDS" ]; then
+  fail "guard-helper parity: parsed zero Bash-matcher guards from hooks/hooks.json — the schema drifted; fix this parser's anchor"
+fi
+while IFS= read -r guard; do
+  [ -z "$guard" ] && continue
+  gfile="$REPO_ROOT/hooks/$guard"
+  if [ ! -f "$gfile" ]; then
+    fail "guard-helper parity: $guard is registered on the Bash matcher but hooks/$guard does not exist"
+    continue
+  fi
+  for fn in _geniro_wv_unquote_words _geniro_wv_expand_assignments; do
+    if grep -qE '\$\('"$fn"'[[:space:]]' "$gfile"; then
+      pass "guard-helper parity: $guard calls $fn"
+    else
+      fail "guard-helper parity: $guard never calls $fn — a re-spelling that only $fn's normalization catches walks straight past it"
+    fi
+    if grep -q "GENIRO-VENDORED-BEGIN $fn" "$gfile"; then
+      pass "guard-helper parity: $guard carries a vendored $fn fallback"
+    else
+      fail "guard-helper parity: $guard has no inline $fn fallback — a vendored install shipping hooks/ without lib/ hits command-not-found and fails open"
+    fi
+  done
+done <<< "$BASH_GUARDS"
 
 echo
 echo "Tests run:    $TESTS_RUN"

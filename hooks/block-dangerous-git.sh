@@ -16,7 +16,8 @@
 #
 # Pattern IDs: force-push, force-push-with-lease, push-delete, reset-hard,
 #              branch-delete-force, clean-fd, checkout-mass-discard,
-#              restore-mass-discard, update-ref-delete, filter-branch
+#              restore-mass-discard, update-ref-delete, filter-branch,
+#              stash-drop
 #
 # Every matcher below requires the git SUBCOMMAND to be a literal token adjacent
 # to `git` (`git[[:space:]]+push`, `git[[:space:]]+reset`, …), so a command word
@@ -792,6 +793,22 @@ fi
 if ! is_allowed "filter-branch"; then
   if echo "$PADDED" | grep -qE 'git[[:space:]]+filter-branch'; then
     block "filter-branch" "git filter-branch rewrites entire history; use git filter-repo or BFG instead and only with team coordination"
+  fi
+fi
+
+# 10. stash-drop — `git stash clear` deletes EVERY stash entry; `git stash
+#     drop` deletes one (the most recent, or a named `stash@{N}` ref given
+#     afterward). Both are unrecoverable once the underlying commits fall out
+#     of the reflog. Unlike `git stash pop` (which keeps the entry if the
+#     apply fails) there is no dry-run form, so the subcommand itself is the
+#     whole finding — no span-bounded flag check needed, unlike clean-fd/
+#     branch-delete-force above.
+if ! is_allowed "stash-drop"; then
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+stash[[:space:]]+clear([[:space:];&|]|$)'; then
+    block "stash-drop" "git stash clear permanently deletes every stashed change"
+  fi
+  if echo "$PADDED" | grep -qE 'git[[:space:]]+stash[[:space:]]+drop([[:space:];&|]|$)'; then
+    block "stash-drop" "git stash drop permanently deletes a stashed change"
   fi
 fi
 

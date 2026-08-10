@@ -168,6 +168,73 @@ assert_eq "$(redact 'no secrets here just plain text')" \
           'no-match input passes through unchanged'
 
 # ---------------------------------------------------------------------------
+# False positives — ordinary prose must survive untouched. An unanchored,
+# no-minimum-length pattern (the historical shape of api-key:sk before it was
+# boundary-anchored) matches its trigger substring mid-word and mangles the
+# surrounding text; these guard against that class recurring, here and for
+# any other pattern that looks similarly unanchored.
+# ---------------------------------------------------------------------------
+
+new_sandbox
+assert_eq "$(redact 'refactor the task-list module and disk-cache')" \
+          'refactor the task-list module and disk-cache' \
+          'false-positive — sk- inside task-list / disk-cache left alone'
+
+new_sandbox
+assert_eq "$(redact 'risk-register and ask-user-question flows')" \
+          'risk-register and ask-user-question flows' \
+          'false-positive — sk- inside risk-register / ask-user left alone'
+
+new_sandbox
+assert_eq "$(redact 'the task-dir path is set correctly')" \
+          'the task-dir path is set correctly' \
+          'false-positive — sk- inside task-dir left alone (118x in this repo)'
+
+new_sandbox
+assert_eq "$(redact 'visit https://example.com/docs for more info')" \
+          'visit https://example.com/docs for more info' \
+          'false-positive — url-cred requires an actual user:pass@ credential, not just a scheme'
+
+new_sandbox
+assert_eq "$(redact 'The bearer of this letter should be trusted')" \
+          'The bearer of this letter should be trusted' \
+          'false-positive — bearer followed by an English word, not a token'
+
+new_sandbox
+assert_eq "$(redact 'the bearer shares are registered')" \
+          'the bearer shares are registered' \
+          'false-positive — bearer followed by a word longer than the old pattern tolerated'
+
+# These two are why the guard is a character-class test and not a length floor:
+# both are real finance terms, and both are LONGER than real tokens this suite
+# pins (7 and 11 chars). Any minimum-length rule that clears `Bearer abc.def`
+# necessarily swallows these.
+new_sandbox
+assert_eq "$(redact 'a bearer certificate was issued')" \
+          'a bearer certificate was issued' \
+          'false-positive — "bearer certificate" (11 chars, longer than a pinned real token)'
+
+new_sandbox
+assert_eq "$(redact 'the bearer instrument matured')" \
+          'the bearer instrument matured' \
+          'false-positive — "bearer instrument", same class'
+
+new_sandbox
+assert_eq "$(redact 'bearer well-known assets')" \
+          'bearer well-known assets' \
+          'false-positive — hyphenated English: `-` is deliberately outside the required set'
+
+new_sandbox
+assert_eq "$(redact 'Bearer 0123456789abcdef0123456789abcdef')" \
+          'Bearer [REDACTED:bearer]' \
+          'true-positive — a real opaque bearer token still redacts'
+
+new_sandbox
+assert_eq "$(redact 'x Bearer 0123456789abcdefgh')" \
+          'x Bearer [REDACTED:bearer]' \
+          'boundary guard char survives into the replacement (mid-string match)'
+
+# ---------------------------------------------------------------------------
 # Order dependency: sk-ant- must beat sk-
 # ---------------------------------------------------------------------------
 

@@ -108,9 +108,16 @@ if [ -n "$SAFETY_FILE" ] && [ -f "$SAFETY_FILE" ]; then
   ALLOWED=$(jq -r '.allow_patterns[]? | select(type == "string" and (test("[[:space:]]") | not))' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
 fi
 
-case " $ALLOWED " in
-  *" enforce-state-helper "*) exit 0 ;;
-esac
+# The broad "enforce-state-helper" grant is applied per-branch, AFTER
+# check_safety_json_write has had a chance to run on the actual write
+# target(s) — see the Edit/Write and Bash branches below. It must NOT exit
+# here, before that path-specific check: .geniro/safety.json disables every
+# guard by pattern ID, so a write to IT stays gated on its own,
+# separately-grantable "safety-json-edit" pattern even when the broad grant is
+# present. (Measured 2026-08-10: with only "enforce-state-helper" allowed, a
+# direct write to safety.json returned rc 0 through an early exit sitting
+# here — the same grant meant to unblock ordinary state-file writes also let
+# an agent rewrite the file that turns off every other guard in one Write.)
 
 # .geniro/safety.json disables every guard by pattern ID — an agent that can
 # freely overwrite it can self-grant any bypass in one Write, so it gets a
@@ -1346,6 +1353,16 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   while IFS= read -r cand; do
     [ -z "$cand" ] && continue
     check_safety_json_write "$cand"
+    # The broad grant applies to every OTHER candidate once the narrower
+    # safety.json gate above has had its say for THIS one — it must not skip
+    # that gate itself (see the comment on ALLOWED's earlier, now-removed
+    # early exit). Per-candidate rather than a single exit before the loop:
+    # a multi-target command (`cp a b .geniro/safety.json`) can carry a
+    # safety.json write alongside ordinary ones, and every candidate needs
+    # its own check_safety_json_write call regardless of this grant.
+    case " $ALLOWED " in
+      *" enforce-state-helper "*) continue ;;
+    esac
     # .geniro/state/tdd/ is a documented exception (own mktemp + mv procedure).
     # A `..` segment makes that prefix a lie — `.geniro/state/tdd/../../
     # planning/foo/state.md` contains the substring while resolving to a
@@ -1370,6 +1387,13 @@ if [ -z "$FILE_PATH" ]; then
 fi
 
 check_safety_json_write "$FILE_PATH"
+
+# The broad grant is applied HERE, after the narrower safety.json gate above
+# has already had its say — see the comment on ALLOWED's earlier, now-removed
+# early exit.
+case " $ALLOWED " in
+  *" enforce-state-helper "*) exit 0 ;;
+esac
 
 # A `..` segment makes the .geniro/state/tdd/ prefix a lie (see the Bash-branch
 # comment above); reject the traversal before the exemption is consulted.
