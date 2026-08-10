@@ -81,7 +81,7 @@ SKILL.md's Definition of done makes a dropped echo detectable.
 
 **Deep-mode branch (`deep-mode: true`).** Do NOT fire the single parallel batch below. Instead invoke the deep recall Workflow — 3 angle-diverse passes per declared dimension with in-script union + dedup — per `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §2, then proceed to Phase 3 over the deduped per-dim sets. The `spawn_dims_declared[]` declaration (§2.2) and the §4.0 verification gate still apply to the declared dimension SET (the 3 angles are a multiplier on each declared dim, not a new dim). Fail-safe to the single-pass batch below if the workflow errors (deep-mode-reference §6). Everything below describes the standard single-pass path.
 
-Then fire the parallel batch — single message with N parallel `Agent` tool uses, one per dimension. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn. Each spawn:
+Then fire the parallel batch — single message with N parallel `Agent` tool uses, one per dimension, plus an `atomic_state_write` append of `## Tool log` entry `[Phase 2 spawn batch fired] fired=<count of Agent reviewer spawns issued>`, welded like the §2.3.1 spawn echo into that SAME response so the fired count can never be dropped independently of the batch it records. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn. Each spawn:
 
 - `subagent_type: "geniro:reviewer-agent"` — on a not-found error or empty result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, per the deferred-read rule in SKILL.md §Subagent model tiering.
 - OMIT `model=` argument — reviewer-agent declares `model: inherit`. Custom reviewers that declare an explicit tier in their `.geniro/instructions/review-extra/<slug>.md` frontmatter pass that tier verbatim; otherwise OMIT.
@@ -103,17 +103,11 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
   - Dimension-specific criteria file path(s) — one absolute path per line, not the body (see **Criteria files** below).
   - Output schema per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format.
 
-After the parallel batch returns and before recording the count below, read each reviewer's report for its `Context loaded:` line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Reading the load report back — checked per agent, since one reviewer reporting a dropped load while its siblings report clean is a spawn defect, not a project without rules. Act on an `unreadable` or missing line (re-spawn or name the gap) rather than merely noting it. The conventions reviewer's line carries one extra item, `authored-rules=`, and it is the only record that the repo's own rule files were actually read: `absent` when §2.8 detected files means the slot was composed wrong, and `unreadable` means a path this orchestrator passed does not resolve — both are this spawn site's defect to fix and re-spawn, not the reviewer's.
+After the parallel batch returns, read each reviewer's report for its `Context loaded:` line per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Reading the load report back — checked per agent, since one reviewer reporting a dropped load while its siblings report clean is a spawn defect, not a project without rules. Act on an `unreadable` or missing line (re-spawn or name the gap) rather than merely noting it. The conventions reviewer's line carries one extra item, `authored-rules=`, and it is the only record that the repo's own rule files were actually read: `absent` when §2.8 detected files means the slot was composed wrong, and `unreadable` means a path this orchestrator passed does not resolve — both are this spawn site's defect to fix and re-spawn, not the reviewer's.
 
-Record how many reviewer spawns actually fired — via `atomic_state_write`, append one `## Tool log` entry:
+The Phase 4 §4.0b completeness check reads `spawn_dims_count` against the `fired=` count on the `[Phase 2 spawn batch fired]` entry written at batch-fire time (Step 2.3.2 above) — the only durable record of it: §2.2 persists the declaration (intent), so without that entry a compaction-resume into `phase: stratify` has no actual to compare against and the over-fire / under-fire branch cannot evaluate at all.
 
-```
-[Phase 2 spawn batch] fired=<count of Agent reviewer spawns issued>; returned=<count that emitted a structured result>
-```
-
-The Phase 4 §4.0b completeness check compares that `fired` count against `spawn_dims_count`, and it is the only durable record of it: §2.2 persists the declaration (intent), so without this line a compaction-resume into `phase: stratify` has no actual to compare against and the over-fire / under-fire branch cannot evaluate at all.
-
-Then narrate completion before transitioning to Phase 3:
+Narrate completion before transitioning to Phase 3:
 
 > All <N> reviewers returned. Aggregating findings.
 

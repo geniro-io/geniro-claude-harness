@@ -369,7 +369,7 @@ The status line shows an arrow when your version is behind, and names the step t
 
 ## Using with Cursor
 
-The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` shares `skills/` with Claude Code and points Cursor at its own agent and hook ports under `cursor/` (`cursor/agents/` — generated Cursor-frontmatter copies of the 8 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`'s past-session shapes, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
+The repository doubles as a Cursor plugin: `.cursor-plugin/plugin.json` points Cursor at its own skill, agent, and hook ports under `cursor/` (`cursor/skills/` — generated `geniro-<slug>`-prefixed copies of the 14 skills, prefixed because Cursor has no plugin namespace and some bare names collide with its built-ins or reserved CLI commands; `cursor/agents/` — generated Cursor-frontmatter copies of the 8 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`). Install by symlinking the repo to `~/.cursor/plugins/local/geniro` or importing it as a team-marketplace plugin. Full install steps, what works, and what stays Claude-Code-only (`/reflect`'s past-session shapes, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
 
 ## Plugin Structure
 
@@ -404,8 +404,9 @@ geniro/
 ├── lib/                         # shell helpers the skills and hooks source
 │                                # (atomic-state-write, validate-state-file,
 │                                # emit/query-learnings, load/update-semantic, ...)
-├── .cursor-plugin/plugin.json   # Cursor manifest (shares skills/, points at cursor/)
+├── .cursor-plugin/plugin.json   # Cursor manifest (points at cursor/)
 ├── cursor/                      # Cursor runtime port
+│   ├── skills/                  # generated geniro-<slug> skills (scripts/build-cursor-skills.sh)
 │   ├── agents/                  # generated Cursor-format agents (scripts/build-cursor-agents.sh)
 │   ├── hooks.json               # Cursor hook wiring (camelCase events)
 │   └── hooks/claude-hook-shim.sh# Cursor→Claude hook I/O adapter
