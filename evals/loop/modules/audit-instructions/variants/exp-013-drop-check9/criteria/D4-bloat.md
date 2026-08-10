@@ -32,5 +32,5 @@ Every removal proposal names what breaks if the removal is wrong. A shorten or m
 
 **Return the sweep, not a quota.** Zero findings is valid; a manufactured deletion is worse than none, because it is the one finding whose wrongness the user cannot notice later. Name what you examined, name the candidates you rejected and why, and say plainly when the pass found nothing. Rejections go in the verdict, not the table — they are what stops the next run re-litigating them.
 
-Tier mapping: T4 by default; pure style → T5; a drifted restatement that now contradicts its sibling → route to D3 as T2. Check 9's surface proposals tier by disposition: net-negative → T1 where the surface produces wrong agent behavior rather than merely costly loading, else T4; low-yield and cost → T4. The tier orders the report; it never decides the deletion, which is the user's call at its own gate.
+Tier mapping: T4 by default; a drifted restatement that now contradicts its sibling → route to D3 as T2. Check 9's surface proposals tier by disposition: net-negative → T1 where the surface produces wrong agent behavior rather than merely costly loading, else T4; low-yield and cost → T4. The tier orders the report; it never decides the deletion, which is the user's call at its own gate.
 
