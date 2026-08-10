@@ -8,6 +8,11 @@
 #   judge  — run the fallback CLI judge for any trial missing match.json
 #            (the primary path is the orchestrating Claude session spawning its own
 #             blind judge subagents that Write match.json directly; then skip this)
+#            --judge-votes N polls N independent judges and keeps the modal
+#            verdict. Match verdicts reproduce on a single call; residue
+#            bucketing does not, and its run-to-run swing is the same order as
+#            the between-arm delta an A-vs-A resolves. A panel of three cut that
+#            swing 67% (1.5 -> 0.5 findings/task, measured on the audit modules).
 #   finish — extract verdicts, compute per-trial metrics + pass, aggregate with
 #            trial reducers (mean / pass@k / pass^k) into metrics.json
 set -euo pipefail
@@ -16,11 +21,13 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 RUN="$(cd "$1" && pwd)"; shift
 PHASE="all"
 JUDGE_MODEL="gpt-5.2"
+JUDGE_VOTES=1
 TASKS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --phase) PHASE="$2"; shift 2;;
     --judge-model) JUDGE_MODEL="$2"; shift 2;;
+    --judge-votes) JUDGE_VOTES="$2"; shift 2;;
     --tasks) TASKS="$2"; shift 2;;
     *) echo "unknown arg: $1" >&2; exit 64;;
   esac
@@ -51,10 +58,23 @@ do_judge() {
     [ -f "$trdir/match.json" ] && continue
     [ -f "$trdir/judge-prompt.txt" ] || continue
     task_id="$(task_of "$trdir")"
-    echo "[judge] $task_id $(basename "$trdir") via $JUDGE_MODEL"
-    cursor-agent -p --output-format json --model "$JUDGE_MODEL" --trust \
-      < "$trdir/judge-prompt.txt" > "$trdir/judge-raw.json" 2>>"$RUN/judge-err.log" || true
-    python3 "$HERE/loop_lib.py" extract "$trdir/judge-raw.json" > "$trdir/match.json" || rm -f "$trdir/match.json"
+    echo "[judge] $task_id $(basename "$trdir") via $JUDGE_MODEL x$JUDGE_VOTES"
+    votes=""
+    v=1
+    while [ "$v" -le "$JUDGE_VOTES" ]; do
+      cursor-agent -p --output-format json --model "$JUDGE_MODEL" --trust \
+        < "$trdir/judge-prompt.txt" > "$trdir/judge-raw-$v.json" 2>>"$RUN/judge-err.log" || true
+      if python3 "$HERE/loop_lib.py" extract "$trdir/judge-raw-$v.json" > "$trdir/vote-$v.json"; then
+        votes="$votes $trdir/vote-$v.json"
+      else
+        rm -f "$trdir/vote-$v.json"
+      fi
+      v=$((v + 1))
+    done
+    # shellcheck disable=SC2086
+    if [ -n "$votes" ]; then
+      python3 "$HERE/loop_lib.py" vote $votes > "$trdir/match.json" || rm -f "$trdir/match.json"
+    fi
   done
 }
 

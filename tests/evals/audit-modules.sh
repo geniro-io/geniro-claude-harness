@@ -198,6 +198,68 @@ n="$(python3 "$LOOP/loop_lib.py" parse --parser audit-findings "$SANDBOX/raw-cle
 if [ "$n" = "0" ]; then pass "the audit parser emits nothing for a verdict-only result"
 else fail "audit parser invented $n findings from a verdict"; fi
 
+# --- judge panel consensus (loop_lib.py vote) -------------------------------
+#
+# Match verdicts reproduce on a single judge call; residue bucketing does not,
+# by the same order as the delta an A-vs-A resolves. The panel is what makes the
+# noise axis readable, so its arithmetic is checked in both directions here.
+
+V="$SANDBOX/votes"
+mkdir -p "$V"
+cat > "$V/1.json" <<'JSON'
+{"matches":[{"gt_id":"gt-1","finding_ids":["F1"]},{"gt_id":"gt-2","finding_ids":["F9"]}],
+ "residue":[{"finding_id":"F2","bucket":"noise"},{"finding_id":"F3","bucket":"plausible-real"}]}
+JSON
+cat > "$V/2.json" <<'JSON'
+{"matches":[{"gt_id":"gt-1","finding_ids":["F1"]},{"gt_id":"gt-2","finding_ids":[]}],
+ "residue":[{"finding_id":"F2","bucket":"noise"},{"finding_id":"F3","bucket":"nitpick"},{"finding_id":"F9","bucket":"noise"}]}
+JSON
+cat > "$V/3.json" <<'JSON'
+{"matches":[{"gt_id":"gt-1","finding_ids":[]},{"gt_id":"gt-2","finding_ids":[]}],
+ "residue":[{"finding_id":"F1","bucket":"noise"},{"finding_id":"F2","bucket":"plausible-real"},{"finding_id":"F3","bucket":"nitpick"},{"finding_id":"F9","bucket":"noise"}]}
+JSON
+CONSENSUS="$(python3 "$LOOP/loop_lib.py" vote "$V/1.json" "$V/2.json" "$V/3.json")"
+
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.matches[] | select(.gt_id=="gt-1") | .finding_ids | join(",")')" = "F1" ]; then
+  pass "a match carried by 2 of 3 judges survives the panel"
+else
+  fail "the panel dropped a 2-of-3 match"
+fi
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.matches[] | select(.gt_id=="gt-2") | .finding_ids | length')" = "0" ]; then
+  pass "a match claimed by only 1 of 3 judges does not survive"
+else
+  fail "a lone judge's match reached the consensus"
+fi
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.residue[] | select(.finding_id=="F2") | .bucket')" = "noise" ]; then
+  pass "the modal bucket wins (2 noise vs 1 plausible-real)"
+else
+  fail "modal bucket not taken"
+fi
+# F3: one plausible-real, two nitpick -> nitpick by majority.
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '.residue[] | select(.finding_id=="F3") | .bucket')" = "nitpick" ]; then
+  pass "a 2-1 split resolves to the majority bucket"
+else
+  fail "a 2-1 residue split did not resolve to the majority"
+fi
+# A finding the panel matched must leave residue entirely, or it is counted twice.
+if [ "$(printf '%s' "$CONSENSUS" | jq -r '[.residue[] | select(.finding_id=="F1")] | length')" = "0" ]; then
+  pass "a panel-matched finding is not also residue"
+else
+  fail "a matched finding was double-counted as residue"
+fi
+# An even split must break toward the bucket that does not penalize the reviewer.
+cat > "$V/tie1.json" <<'JSON'
+{"matches":[],"residue":[{"finding_id":"F5","bucket":"noise"}]}
+JSON
+cat > "$V/tie2.json" <<'JSON'
+{"matches":[],"residue":[{"finding_id":"F5","bucket":"plausible-real"}]}
+JSON
+if [ "$(python3 "$LOOP/loop_lib.py" vote "$V/tie1.json" "$V/tie2.json" | jq -r '.residue[0].bucket')" = "plausible-real" ]; then
+  pass "an even split breaks toward the conservative bucket"
+else
+  fail "a tied residue vote counted against the reviewer"
+fi
+
 # --- sync-champion.sh section extraction ------------------------------------
 
 # Extract from the real shipped reference: the source whose §Reviewer spawn

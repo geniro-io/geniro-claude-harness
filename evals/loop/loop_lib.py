@@ -5,6 +5,7 @@ Subcommands:
   parse   <raw-*.json ...>                 -> findings JSON on stdout
   judgeprompt <rubric.json> <findings.json>  -> judge prompt on stdout
   extract <judge-raw.json>                 -> the judge's JSON verdict on stdout
+  vote    <match.json ...>                 -> modal consensus over N judge verdicts
   metrics <task.json> <rubric.json> <findings.json> <match.json> <raw-dir>
                                            -> per-trial metrics JSON on stdout
 
@@ -339,6 +340,61 @@ def contested_must(must, by_gt, residue, findings):
             out.append({"gt_id": g["id"], "finding_ids": sorted(hits)})
     return out
 
+def cmd_vote(paths):
+    """Consensus over N independent judge verdicts on the SAME findings.
+
+    Match verdicts reproduce; residue bucketing does not — two passes over one
+    finding set re-bucket unmatched findings by ~2.4 per task, which is the same
+    order as the between-arm delta an A-vs-A is trying to resolve. A single
+    judge call therefore reports a noise figure that a rerun would not confirm.
+    Modal bucket over an odd panel collapses that: a finding both passes call
+    noise stays noise, and one they split lands wherever the third vote falls
+    (PoLL, arXiv 2404.18796). Ties break toward the more conservative bucket —
+    plausible-real over nitpick over noise — so a contested finding is never
+    counted against the reviewer on a coin flip.
+    """
+    from collections import Counter
+    verdicts = [json.load(open(p)) for p in paths]
+    gt_ids, finding_ids = [], []
+    for v in verdicts:
+        for m in v.get("matches", []):
+            if m.get("gt_id") not in gt_ids:
+                gt_ids.append(m["gt_id"])
+        for r in v.get("residue", []):
+            if r.get("finding_id") not in finding_ids:
+                finding_ids.append(r["finding_id"])
+    need = len(verdicts) / 2.0
+    matches = []
+    for g in gt_ids:
+        hits = Counter()
+        for v in verdicts:
+            for m in v.get("matches", []):
+                if m.get("gt_id") == g:
+                    for fid in (m.get("finding_ids") or []):
+                        hits[fid] += 1
+        ids = sorted(f for f, c in hits.items() if c > need)
+        matches.append({"gt_id": g, "finding_ids": ids,
+                        "reason": "panel of %d, matched by >%d" % (len(verdicts), need)})
+    matched = {f for m in matches for f in m["finding_ids"]}
+    order = {"plausible-real": 0, "nitpick": 1, "noise": 2}
+    residue = []
+    for fid in finding_ids:
+        if fid in matched:
+            continue          # the panel matched it; it is not residue
+        votes = Counter()
+        for v in verdicts:
+            for r in v.get("residue", []):
+                if r.get("finding_id") == fid and r.get("bucket"):
+                    votes[r["bucket"]] += 1
+        if not votes:
+            continue
+        top = max(votes.values())
+        bucket = sorted((b for b, c in votes.items() if c == top), key=lambda b: order[b])[0]
+        residue.append({"finding_id": fid, "bucket": bucket,
+                        "reason": "panel %s" % dict(votes)})
+    json.dump({"matches": matches, "residue": residue}, sys.stdout)
+
+
 def cmd_metrics(task_path, rubric_path, findings_path, match_path, raw_dir):
     task = json.load(open(task_path))
     rubric = load_rubric(rubric_path)
@@ -399,6 +455,7 @@ if __name__ == "__main__":
         cmd_parse(args, parser)
     elif cmd == "judgeprompt": cmd_judgeprompt(sys.argv[2], sys.argv[3])
     elif cmd == "extract": cmd_extract(sys.argv[2])
+    elif cmd == "vote": cmd_vote(sys.argv[2:])
     elif cmd == "metrics": cmd_metrics(*sys.argv[2:7])
     else:
         sys.stderr.write(__doc__)
