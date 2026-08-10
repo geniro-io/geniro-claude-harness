@@ -44,6 +44,8 @@ design/scratch/
 .codegraph
 evals/loop/runs/
 evals/loop/cache/
+# Raw sweep output of any eval suite — prompts, model responses, per-run scores
+evals/suites/*/runs/
 # Machine-local mappings that keep committed content free of repo names/paths
 evals/loop/repos.local.json
 .claude/skills/find-threads/roots.local
