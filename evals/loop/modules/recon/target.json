@@ -1,0 +1,41 @@
+{
+  "module": "recon",
+  "version": 1,
+  "parser": "recon-items",
+  "facets": [
+    { "name": "knowledge", "criteria": ["knowledge-agent.md"] },
+    { "name": "explorer", "criteria": ["explorer-agent.md"] }
+  ],
+  "assembly": {
+    "max_prompt_bytes": 614400,
+    "repo_rules_slot": false
+  },
+  "output_contract": {
+    "retry_regex": "### ",
+    "clean_regex": "Summary for Orchestrator"
+  },
+  "judge_framing": {
+    "intro": "You are grading a reconnaissance report against a known ground-truth list of items the report was required to surface. Return STRICT JSON only — no prose, no markdown fences.",
+    "gt_heading": "Ground-truth items the report had to surface",
+    "negative_note": "(none — this is a NEGATIVE task: there was nothing relevant to surface, so every item below goes to residue)",
+    "findings_heading": "Report items to grade",
+    "gt_noun": "ground-truth item",
+    "match_rule": "SAME item — the same file, learning, handoff, rule or inventory entry, surfaced for the\n   reason the ground truth states. Each item's title begins with the report section it came\n   from; a path offered under the wrong section (an exemplar listed as a likely-touched file)\n   is NOT a match, because the two sections make different claims about it.",
+    "plausible_real": "a real, correctly-cited item that is genuinely relevant to this\n     task, just not on the ground-truth list",
+    "noise": "a file, learning, rule or helper that does not exist in the tree, or one with no\n     bearing on this task",
+    "nitpick": "real and correctly cited, but of no consequence to the change"
+  },
+  "pass_expr": ".recall_must == 1",
+  "negative_pass_expr": "(.noise_strict // 0) == 0",
+  "champion_sync": [
+    {
+      "from": "agents/knowledge-retrieval-agent.md",
+      "to": "criteria/knowledge-agent.md"
+    },
+    {
+      "from": "agents/codebase-explorer-agent.md",
+      "to": "criteria/explorer-agent.md"
+    }
+  ],
+  "screen_facets": ["knowledge", "explorer"]
+}

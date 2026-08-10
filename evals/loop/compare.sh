@@ -32,9 +32,24 @@ CMOD="$(jq -r '.module' "$CAND/spec.json")"
 BMOD="$(jq -r '.module' "$BASE/spec.json")"
 [ "$CMOD" = "$BMOD" ] || { echo "module mismatch: $CMOD vs $BMOD" >&2; exit 65; }
 
-MISMATCH="$(jq -rn --slurpfile c "$CAND/spec.json" --slurpfile b "$BASE/spec.json" '
-  ($c[0].task_manifest | map({key:.id, value:.version}) | from_entries) as $cm
-  | ($b[0].task_manifest | map({key:.id, value:.version}) | from_entries) as $bm
+# Compare the versions the runs were SCORED under, not the ones they were STAGED
+# under. spec.json pins the manifest when the sweep launches; scoring reads the
+# rubric file whenever score.sh runs, and the two diverge whenever a rubric is
+# bumped between the sweep and the score — including the legitimate case of
+# re-scoring a standing baseline under a corrected rubric. Reading the manifest
+# there both false-blocks that comparison AND misses the dangerous inverse: two
+# runs staged at the same version but scored under different ones. metrics.json
+# carries the version each row was actually graded against, so it is the honest
+# source. Fall back to the manifest only for a run with no per-row version.
+MISMATCH="$(jq -rn --slurpfile c "$CAND/metrics.json" --slurpfile b "$BASE/metrics.json" \
+                   --slurpfile cs "$CAND/spec.json" --slurpfile bs "$BASE/spec.json" '
+  def scored($m; $s):
+    ( [ $m[0].rows[] | select(.rubric_version != null) | {key:.task, value:.rubric_version} ]
+      | from_entries ) as $fromrows
+    | if ($fromrows | length) > 0 then $fromrows
+      else ($s[0].task_manifest // [] | map({key:.id, value:.version}) | from_entries) end;
+  scored($c; $cs) as $cm
+  | scored($b; $bs) as $bm
   | [$cm | keys[] | select($bm[.] != null and $cm[.] != $bm[.])
       | "\(.): candidate v\($cm[.]) vs baseline v\($bm[.])"] | join("; ")')"
 [ -z "$MISMATCH" ] || { echo "RUBRIC VERSION MISMATCH — comparison invalid: $MISMATCH" >&2; exit 65; }
