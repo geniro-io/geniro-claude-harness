@@ -1,0 +1,10 @@
+{"task": "planted-4", "trial": "trial-2", "kind": "residue", "gt_id": null, "finding_id": "F4", "judge": "nitpick", "human": "nitpick"}
+{"task": "real-14", "trial": "trial-1", "kind": "residue", "gt_id": null, "finding_id": "F3", "judge": "plausible-real", "human": "plausible-real"}
+{"task": "planted-6", "trial": "trial-1", "kind": "residue", "gt_id": null, "finding_id": "F7", "judge": "plausible-real", "human": "plausible-real"}
+{"task": "real-14", "trial": "trial-1", "kind": "residue", "gt_id": null, "finding_id": "F8", "judge": "plausible-real", "human": "plausible-real"}
+{"task": "real-12", "trial": "trial-2", "kind": "match", "gt_id": "gt-6", "finding_id": "", "judge": "missed", "human": "missed"}
+{"task": "real-3", "trial": "trial-1", "kind": "match", "gt_id": "gt-7", "finding_id": "", "judge": "missed", "human": "missed"}
+{"task": "real-3", "trial": "trial-1", "kind": "residue", "gt_id": null, "finding_id": "F3", "judge": "plausible-real", "human": "nitpick"}
+{"task": "real-3", "trial": "trial-2", "kind": "residue", "gt_id": null, "finding_id": "F6", "judge": "noise", "human": "noise"}
+{"task": "real-11", "trial": "trial-1", "kind": "match", "gt_id": "gt-5", "finding_id": "", "judge": "missed", "human": "missed"}
+{"task": "real-4", "trial": "trial-1", "kind": "residue", "gt_id": null, "finding_id": "F13", "judge": "plausible-real", "human": "nitpick"}

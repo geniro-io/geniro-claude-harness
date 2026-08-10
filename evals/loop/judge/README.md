@@ -37,4 +37,22 @@ Shadowing):
    fix the judge prompt in `loop_lib.py`, re-shadow a fresh batch.
 
 Re-shadow after ANY judge-prompt change and after executor/judge model swaps.
-Labeled batches stay committed — they are the judge's regression suite.
+Labeled batches stay committed — they are the judge's regression suite (with
+the judge's `reason` prose stripped: it quotes finding text from private
+source repos).
+
+## Standing result — `labeled-2026-08-10.jsonl` (n=10, champion run)
+
+κ **0.72**, agreement 0.80, TNR 1.0 (3 match rows, all `missed`, all
+confirmed — no false matches, so no inflated recall; TPR undefined at this n).
+The judge is trusted above the κ ≥ 0.6 bar; recall figures in the EXP files
+stand.
+
+Both disagreements are the same theme: the judge bucketed an unmatched
+finding `plausible-real` where the human said `nitpick` (test-coverage claims
+for analytics events, and a test-env credential-hygiene note). The judge
+over-credits low-stakes findings. Consequence is bounded — the split affects
+only the `noise` vs `nitpick` reporting split, never `recall_must` or
+`noise_strict`, and it errs toward flattering the reviewer's residue. Fix
+only if a future experiment turns on the plausible-real column; then sharpen
+the `nitpick` definition in `loop_lib.py judgeprompt` and re-shadow.
