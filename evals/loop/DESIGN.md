@@ -81,10 +81,24 @@ baselines and the EXP-001 noise floor are indicative, not comparable):
   there, and the legacy H1 result showed recall parity on 4 dimensions);
   confirm always runs the FULL facet set.
 - **Sequential trials** (pre-registered escalation rule): screen both arms at
-  1 trial first; if the paired Δrecall_must is an exact tie AND |Δnoise| <
-  1.1/task (the A-vs-A noise-of-noise), record the tie and stop. Otherwise
-  sweep both arms at `--trials 2` — trial-1 replays free from cache — and
-  issue the standard 2-trial verdict. Never promote from a 1-trial screen.
+  1 trial first; if the paired Δrecall_must is an exact tie AND
+  **|Δnoise_strict|** is under the module's OWN A-vs-A noise-of-noise, record
+  the tie and stop. Otherwise sweep both arms at `--trials 2` — trial-1 replays
+  free from cache — and issue the standard 2-trial verdict. Never promote from
+  a 1-trial screen.
+
+  The threshold reads `noise_strict`, not the combined `noise`, and the band is
+  the one that module's own A-vs-A measured — not a constant borrowed from
+  another module (the 1.1/task figure this rule used to name came from review's
+  A-vs-A and was never re-derived elsewhere). Both corrections have one cause:
+  `noise` is noise_strict + nitpick, and nitpick is a judge's classification of
+  findings that matched no ground-truth item, so it tracks judge taste rather
+  than executor behavior. Recon's A-vs-A (EXP-011) measured it swinging 1.33
+  findings/task between IDENTICAL champion arms at an MDE of 1.50, while
+  `noise_strict` moved 0.00 → 0.33. An escalation trigger on the combined axis
+  therefore fires on judge variance and says nothing about the variant — which
+  is exactly what it did to EXP-013. A module that has not run its A-vs-A has no
+  band and cannot screen at all; that part is unchanged.
 
 ## Scoring
 

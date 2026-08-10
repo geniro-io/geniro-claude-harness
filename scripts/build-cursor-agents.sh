@@ -7,7 +7,7 @@
 # frontmatter (name, description, model, readonly), so each agent gets a
 # derived copy under cursor/agents/ with:
 #   - tools/maxTurns dropped (not enforceable in Cursor)
-#   - model forced to `inherit` ("sonnet" is not a Cursor model id)
+#   - model mapped from the source tier by cursor_model_for() below
 #   - readonly set from the agent's documented write contract below
 #   - the body copied verbatim, prefixed with a generated-file marker and a
 #     plugin-root resolution note (the bodies cite ${CLAUDE_PLUGIN_ROOT})
@@ -21,6 +21,36 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${1:-$REPO_ROOT/cursor/agents}"
 mkdir -p "$OUT_DIR"
+
+# Tier mapping, Claude Code -> Cursor. The two runtimes name models differently
+# and Cursor's roster changes constantly (193 ids as of 2026-08), so nothing here
+# names a model: the mapping is between INTENTS.
+#
+#   inherit (or unset) -> inherit
+#       Judgment-grade spawns. `model-tiering.md` §The rule keeps these on the
+#       tier the USER chose; Cursor's `inherit` means exactly that.
+#
+#   any concrete tier  -> auto
+#       The mechanical carve-outs (`model-tiering.md` category 3 — currently
+#       knowledge-retrieval-agent and test-runner-agent, which declare a cheaper
+#       tier in their own frontmatter). `auto` is Cursor's built-in selector,
+#       the first entry in `cursor-agent --list-models` and its documented
+#       default: a server-side classifier picks the model per task. That is the
+#       closest honest expression of "this workload is mechanical, spend
+#       accordingly" WITHOUT pinning a model id — which is what we want, since a
+#       pinned id rots with Cursor's roster and, when it is unavailable or
+#       blocked by a team policy, Cursor silently falls back to something else.
+#
+# Note `auto` is "Cursor decides", not "always cheaper": a session already
+# running a cheap model could see `auto` pick something dearer. It is the right
+# semantic for a mechanical agent regardless — the point is that the tier stops
+# being the user's reasoning-grade choice.
+cursor_model_for() {
+  case "${1:-}" in
+    ""|inherit) echo "inherit" ;;
+    *)          echo "auto" ;;
+  esac
+}
 
 # Write contract per agent: readonly=true for agents that never modify files.
 readonly_for() {
@@ -48,12 +78,13 @@ for src in "$REPO_ROOT"/agents/*.md; do
     exit 1
   fi
   body="$(awk '/^---$/{c++; next} c>=2' "$src")"
+  declared_model="$(awk '/^---$/{c++; next} c==1 && /^model:[[:space:]]*/ {sub(/^model:[[:space:]]*/,""); gsub(/[[:space:]"'"'"']/,""); print; exit}' "$src")"
 
   {
     printf -- '---\n'
     printf 'name: %s\n' "$name"
     printf '%s\n' "$description_line"
-    printf 'model: inherit\n'
+    printf 'model: %s\n' "$(cursor_model_for "$declared_model")"
     printf 'readonly: %s\n' "$(readonly_for "$name")"
     printf -- '---\n'
     printf '<!-- Generated from agents/%s by scripts/build-cursor-agents.sh. Edit the source and re-run; do not edit this copy. -->\n\n' "$base"
