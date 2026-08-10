@@ -1,9 +1,0 @@
-{
-  "id": "real-15",
-  "mode": "git",
-  "repo_alias": "monorepo-a",
-  "base_sha": "8d4486d270bd72525b2828c8ca2ec4eda2edcf00",
-  "head_sha": "0e2d11ddb639e7f4e3913b0dccb8c5c7330c3770",
-  "lang": "ts",
-  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend read path. Change: adds a role-allowlist filter to staff-listing read endpoints so non-attorney staff mailboxes stop surfacing in an attorney list."
-}

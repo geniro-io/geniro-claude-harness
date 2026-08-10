@@ -49,3 +49,9 @@ evals/suites/*/runs/
 # Machine-local mappings that keep committed content free of repo names/paths
 evals/loop/repos.local.json
 .claude/skills/find-threads/roots.local
+# Benchmark tasks mined from a PRIVATE repository. Their ground truth is that
+# repo's real file paths and identifiers, and it cannot be anonymized without
+# breaking what it measures — a rubric matches by real path against a tree
+# staged from that repo, so a renamed path matches nothing. This repository is
+# public, so those tasks live here, beside repos.local.json, and never in git.
+evals/loop/modules/*/benchmarks.local/
