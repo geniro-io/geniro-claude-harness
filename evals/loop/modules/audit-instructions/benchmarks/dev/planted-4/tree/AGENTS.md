@@ -16,3 +16,8 @@ commit, never after.
 
 Conventional commits (`feat:`, `fix:`, `chore:`). Subject line under 72
 characters, imperative mood, no trailing period.
+
+## Error handling
+
+Error handling is covered by the always-attached Cursor rule under
+`.cursor/rules/`, which is the single source for it. Do not restate it here.

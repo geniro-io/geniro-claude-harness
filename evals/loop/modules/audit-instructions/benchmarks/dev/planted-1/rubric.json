@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "negative": false,
   "items": [
     {
@@ -71,8 +71,8 @@
       "id": "gt-6",
       "file": "CLAUDE.md",
       "lines": [
-        32,
-        33
+        37,
+        38
       ],
       "class": "stale-count",
       "dimension_hint": "accuracy",
@@ -84,14 +84,27 @@
       "id": "gt-7",
       "file": "CLAUDE.md",
       "lines": [
-        37,
-        37
+        42,
+        42
       ],
       "class": "dangling-pointer",
       "dimension_hint": "accuracy",
       "severity": "MEDIUM",
       "must_find": false,
       "description": "CLAUDE.md points at AGENTS.md section \"Testing\" for testing conventions. AGENTS.md has no Testing section — its only sections are Stack and Essential commands."
+    },
+    {
+      "id": "gt-8",
+      "file": "CLAUDE.md",
+      "lines": [
+        32,
+        33
+      ],
+      "class": "over-claimed-command",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Two claims in one sentence, both false and both settled inside this tree. package.json defines `db:migrate` as `psql $DATABASE_URL -f migrations/0001_init.sql` — one hard-coded file, not every file in `migrations/` in filename order. And `migrations/0001_init.sql` is a bare `CREATE TABLE payments (...)` with no `IF NOT EXISTS` and no applied-migrations table, so the second run errors rather than no-ops. The script name resolves, which is what carries this past a check that only asks whether the documented command exists."
     }
   ]
 }

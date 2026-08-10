@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "scripts": {
+    "db:migrate": "psql $DATABASE_URL -f migrations/0001_init.sql",
     "dev": "tsx watch src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

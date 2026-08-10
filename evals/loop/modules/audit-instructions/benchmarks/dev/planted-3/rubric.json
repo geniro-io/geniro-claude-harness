@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "negative": false,
   "items": [
     {
@@ -55,7 +55,7 @@
     {
       "id": "gt-6",
       "file": "CLAUDE.md",
-      "lines": [1, 38],
+      "lines": [1, 41],
       "class": "missing-essentials",
       "dimension_hint": "coverage",
       "severity": "MEDIUM",
@@ -71,6 +71,16 @@
       "severity": "LOW",
       "must_find": false,
       "description": "\"Formatting is enforced automatically on save\" names no mechanism the repo carries — prettier is a devDependency and a Makefile fmt target, neither of which runs on save. Either the rule belongs in a formatter config the tooling actually runs, or the enforcement claim goes."
+    },
+    {
+      "id": "gt-8",
+      "file": "CLAUDE.md",
+      "lines": [40, 41],
+      "class": "false-safety-claim",
+      "dimension_hint": "coverage",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The instruction sends real credentials to `.env.local` on the stated ground that the file is gitignored, and tells the reader no check is needed before committing. `.gitignore` lists `.env`, which matches that name exactly and does not match `.env.local` — so the file this line fills with secrets is tracked. A dotenv pattern is present, which is what carries the claim past a reader who checks that the repo ignores dotenv files rather than that it ignores this one."
     }
   ]
 }

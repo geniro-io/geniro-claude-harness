@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "negative": false,
   "items": [
     {
@@ -13,7 +13,7 @@
       "dimension_hint": "structure",
       "severity": "HIGH",
       "must_find": true,
-      "description": "The .mdc frontmatter carries title/priority/owner and none of description, globs, or alwaysApply. Cursor activates a rule by one of those three, so this rule can never load however good its body is \u2014 it is silently disabled, not merely mis-scoped."
+      "description": "The .mdc frontmatter carries title/priority/owner and none of description, globs, or alwaysApply. Cursor activates a rule by one of those three, so this rule can never load however good its body is — it is silently disabled, not merely mis-scoped."
     },
     {
       "id": "gt-2",
@@ -26,7 +26,7 @@
       "dimension_hint": "structure",
       "severity": "HIGH",
       "must_find": true,
-      "description": "A plain .md file inside .cursor/rules/ is silently ignored by Cursor \u2014 only .mdc is read there. The frontmatter is well-formed, which is what makes the file look live; renaming it to .mdc is the fix."
+      "description": "A plain .md file inside .cursor/rules/ is silently ignored by Cursor — only .mdc is read there. The frontmatter is well-formed, which is what makes the file look live; renaming it to .mdc is the fix."
     },
     {
       "id": "gt-3",
@@ -39,7 +39,7 @@
       "dimension_hint": "structure",
       "severity": "MEDIUM",
       "must_find": true,
-      "description": "The Web styling section applies only to files under web/ but sits in an always-on CLAUDE.md, so every session pays for it including api-only work. A path-scoped home already exists \u2014 .cursor/rules/web-styling.mdc globs web/**/*.tsx and carries a subset of the same rules \u2014 so the finding is a move plus a merge, not a deletion."
+      "description": "The Web styling section applies only to files under web/ but sits in an always-on CLAUDE.md, so every session pays for it including api-only work. A path-scoped home already exists — .cursor/rules/web-styling.mdc globs web/**/*.tsx and carries a subset of the same rules — so the finding is a move plus a merge, not a deletion."
     },
     {
       "id": "gt-4",
@@ -52,7 +52,7 @@
       "dimension_hint": "structure",
       "severity": "MEDIUM",
       "must_find": false,
-      "description": "globs mobile/**/*.tsx matches zero files \u2014 the repo has no mobile/ directory, and the rule body also cites mobile/screens/, which is equally absent. The rule can never attach. Whether that is a typo or a rule for an unbuilt area decides the tier, not whether it is a finding."
+      "description": "globs mobile/**/*.tsx matches zero files — the repo has no mobile/ directory, and the rule body also cites mobile/screens/, which is equally absent. The rule can never attach. Whether that is a typo or a rule for an unbuilt area decides the tier, not whether it is a finding."
     },
     {
       "id": "gt-5",
@@ -104,7 +104,20 @@
       "dimension_hint": "bloat",
       "severity": "MEDIUM",
       "must_find": true,
-      "description": "A whole standalone section argues the case for a rule stated elsewhere in the file rather than stating a rule of its own: a source list, a grading of which rules rest on measurement and which on taste, a refutation of a theory the rule is not founded on, and the history of the previous threshold. None of it changes what an agent does, and all of it is paid on every session. This is the case FOR a rule, not the reason INSIDE one \u2014 the adjacent why on a rule an agent would rationalize around stays."
+      "description": "A whole standalone section argues the case for a rule stated elsewhere in the file rather than stating a rule of its own: a source list, a grading of which rules rest on measurement and which on taste, a refutation of a theory the rule is not founded on, and the history of the previous threshold. None of it changes what an agent does, and all of it is paid on every session. This is the case FOR a rule, not the reason INSIDE one — the adjacent why on a rule an agent would rationalize around stays."
+    },
+    {
+      "id": "gt-9",
+      "file": ".cursor/rules/db-access.mdc",
+      "lines": [
+        3,
+        4
+      ],
+      "class": "scoping-overridden",
+      "dimension_hint": "structure",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "`globs: api/db/**` and `alwaysApply: true` are declared together. alwaysApply wins: the rule attaches to every request in the repo and the glob is decorative, so a rule the author scoped to the one file under `api/db/` is paid on every `web/` edit as well. The frontmatter is well-formed and the rule does load, which is why this survives a check that only asks whether a rule can attach at all — the sibling `.cursor/rules/web-styling.mdc` shows the intended pairing, a glob with alwaysApply false."
     }
   ]
 }

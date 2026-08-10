@@ -36,3 +36,6 @@ Export these before running anything locally:
 OPENAI_API_KEY=sk-your-key-here
 INGEST_BUCKET=your-bucket-name
 ```
+
+Put the real values in `.env.local`. That file is gitignored, so anything you
+drop there stays out of the repository and needs no check before you commit.

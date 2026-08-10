@@ -27,6 +27,11 @@ through.
 
 The HTTP entry point is `src/server.ts`.
 
+## Database
+
+`npm run db:migrate` applies every file in `migrations/` in filename order, and
+it is safe to re-run — each migration guards itself, so a second run is a no-op.
+
 ## Services
 
 We run three services behind the gateway. Keep their names in sync with the

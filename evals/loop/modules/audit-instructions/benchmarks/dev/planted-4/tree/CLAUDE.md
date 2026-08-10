@@ -26,3 +26,8 @@ Two approvals before merge.
 
 NOTE: for hotfixes on `release/*` branches a single approval is enough, and the
 comment rule above does not apply to generated files.
+
+## Error handling
+
+Follow the error-handling conventions in AGENTS.md — that file is the source
+for anything this handbook does not cover.

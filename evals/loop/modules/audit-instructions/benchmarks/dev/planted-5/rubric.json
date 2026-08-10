@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "CLAUDE.md",
+      "lines": [
+        7,
+        8
+      ],
+      "class": "shim-path",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md sends every new endpoint to `app/handlers/`. That package exists, which is what makes the claim survive an existence check — but its only content is a deprecation docstring and two re-exports of `app/routes/`, and it says in its own words that nothing new belongs there. The live handlers are `app/routes/users.py` and `app/routes/orders.py`, and `app/main.py` imports from `app.routes`. An agent following the instruction adds code to a package scheduled for deletion."
+    },
+    {
+      "id": "gt-2",
+      "file": "CLAUDE.md",
+      "lines": [
+        25,
+        26
+      ],
+      "class": "claimed-enforcement-disabled",
+      "dimension_hint": "coverage",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md asserts a pre-commit hook runs ruff and rejects a failing commit, and tells the reader not to lint by hand. `.pre-commit-config.yaml` does configure ruff — and puts both hooks under `stages: [manual]`, which is the one stage a commit never triggers. The mechanism is present and never fires, so the instruction that depends on it is false while looking well-founded; a claim with no config at all would at least be visibly unbacked."
+    },
+    {
+      "id": "gt-3",
+      "file": ".cursor/rules/api.mdc",
+      "lines": [
+        3,
+        3
+      ],
+      "class": "malformed-glob",
+      "dimension_hint": "structure",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "`globs: app/**.py` — `**` spans directories only as a whole path segment, so this matches `app/main.py` and nothing under `app/routes/`, which is the layer the rule is about. The rule loads, for one file, and silently skips its subject. The sibling `.cursor/rules/style.mdc` in the same directory carries the correct form, `app/**/*.py`, so the contrast is in-repo."
+    },
+    {
+      "id": "gt-4",
+      "file": "CLAUDE.md",
+      "lines": [
+        14,
+        14
+      ],
+      "class": "absolute-with-silent-exception",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "The root states an absolute — all outbound I/O is async, use `httpx.AsyncClient`, never requests — and `app/workers/CLAUDE.md` instructs the opposite for that package, with a sound reason: the pool is thread-based and an async client would leak a connection per task. Scoping a rule to a subtree is the endorsed pattern; the defect is that the root's rule is written as a universal with no carve-out and neither file names the other, so an agent editing `app/workers/pool.py` holds two live instructions and nothing tells it which wins. The fix is the exception in the root, not the removal of either rule."
+    },
+    {
+      "id": "gt-5",
+      "file": "AGENTS.md",
+      "lines": [
+        34,
+        37
+      ],
+      "class": "edit-to-generated-file",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "AGENTS.md opens with a do-not-edit header naming `scripts/gen-agents.sh`, and that script writes the file whole from CLAUDE.md. The Release process section is in AGENTS.md and in no other surface, so the next regeneration deletes it without a diff anyone reads. Generating one surface from another is endorsed and the header is accurate; what is wrong is content living only downstream of the generator. The fix moves the section into CLAUDE.md and regenerates."
+    },
+    {
+      "id": "gt-6",
+      "file": "CLAUDE.md",
+      "lines": [
+        18,
+        21
+      ],
+      "class": "framework-default",
+      "dimension_hint": "bloat",
+      "severity": "LOW",
+      "must_find": false,
+      "description": "The Validation section describes what FastAPI does on its own — request bodies are validated against the declared Pydantic model, response models are checked on the way out. It states no project convention and changes no agent's behavior, and it is paid on every session."
+    }
+  ]
+}

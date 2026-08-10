@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "negative": false,
   "items": [
     {
@@ -52,7 +52,7 @@
       "dimension_hint": "consistency",
       "severity": "MEDIUM",
       "must_find": false,
-      "description": "The identical commit-message rule is copied verbatim into three surfaces \u2014 CLAUDE.md:14-15, AGENTS.md:17-18, .cursor/rules/general.mdc:15-16 \u2014 with no symlink or generation mechanism. The copies agree today, which is exactly when the fix is cheap: one home, the others pointing at it."
+      "description": "The identical commit-message rule is copied verbatim into three surfaces — CLAUDE.md:14-15, AGENTS.md:17-18, .cursor/rules/general.mdc:15-16 — with no symlink or generation mechanism. The copies agree today, which is exactly when the fix is cheap: one home, the others pointing at it."
     },
     {
       "id": "gt-5",
@@ -65,7 +65,20 @@
       "dimension_hint": "bloat",
       "severity": "MEDIUM",
       "must_find": true,
-      "description": "A trailing NOTE narrows two earlier rules in the same file \u2014 the two-approval rule directly above it and the no-comments rule twenty lines up \u2014 instead of being folded into either. The reader either misses it or burns attention reconciling the pair, and the no-comments rule now reads correctly nowhere."
+      "description": "A trailing NOTE narrows two earlier rules in the same file — the two-approval rule directly above it and the no-comments rule twenty lines up — instead of being folded into either. The reader either misses it or burns attention reconciling the pair, and the no-comments rule now reads correctly nowhere."
+    },
+    {
+      "id": "gt-6",
+      "file": "CLAUDE.md",
+      "lines": [
+        32,
+        33
+      ],
+      "class": "dangling-pointer-chain",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "CLAUDE.md defers error handling to AGENTS.md; AGENTS.md:20-23 defers it to the always-attached Cursor rule; `.cursor/rules/general.mdc` carries no error-handling content at all. The chain dead-ends on the second hop, and the repo has error-handling code in `src/retry.ts` with no documented convention on any surface. Each pointer is individually valid — both named targets exist and both are live — so this is visible only by walking the chain to its end."
     }
   ]
 }
