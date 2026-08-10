@@ -32,7 +32,7 @@ The orchestrating skill passes you these pre-resolved slots:
 |---|---|
 | `WORKTREE` | Absolute path returned by `git rev-parse --show-toplevel` |
 | `TEST_COMMAND` | The exact command to run (e.g., `pnpm --filter api test:unit`, `pytest tests/`, `go test ./...`). Pre-resolved by the orchestrator from CLAUDE.md "Essential Commands" or `package.json` scripts |
-| `CHANGED_FILES` | List of file paths recently Edited by the orchestrator — use this to flag whether each failure relates to the changed surface |
+| `CHANGED_FILES` | Paths this run edited (by the orchestrator directly or by a code delegate on its behalf) — use this to flag whether each failure relates to the changed surface |
 | `OUTPUT_PATH` | Absolute path where you write the structured report (e.g., `.geniro/planning/<task-slug>/.tr-out.md`) |
 | `MAX_FAILURES_REPORTED` | Cap on the number of distinct failures included in the report. Default: 15 |
 
