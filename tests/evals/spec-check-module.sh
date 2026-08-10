@@ -150,7 +150,20 @@ for task in sorted(os.listdir(root)):
     if not os.path.isdir(d):
         continue
     rubric = json.load(open(os.path.join(d, "rubric.json")))
+    meta = json.load(open(os.path.join(d, "task.json")))
     tree = os.path.join(d, "tree")
+
+    if not os.path.isdir(tree):
+        # A task whose tree is fetched at stage time (repo_url / repo_alias) has
+        # nothing to resolve against offline. Check it can be staged at all —
+        # that is what this suite can honestly assert without a network — and
+        # leave citation resolution to check-claims.py on the staged tree.
+        if not meta.get("base_sha"):
+            bad.append(f"{task}: no committed tree and no base_sha to fetch one")
+        if not any(meta.get(k) for k in ("repo_url", "repo_alias", "repo_path")):
+            bad.append(f"{task}: no committed tree and no repo_url/repo_alias/repo_path")
+        continue
+
     lines_of = {}
     for dirpath, _, names in os.walk(tree):
         for n in names:
@@ -232,6 +245,36 @@ if [ "$(printf '%s' "$CMOUT" | jq -r '[.contested_must[].finding_ids[]] | join("
   pass "a plausible-real finding on another file is not contested"
 else
   fail "contested_must matched an unrelated finding"
+fi
+
+# --- check-claims.py ---------------------------------------------------------
+#
+# The mechanical citation oracle (EXP-008). It was wrong five times while that
+# experiment ran, every time in the direction the author's hypothesis predicted,
+# so its behaviour is pinned here against fixtures whose ground truth is known.
+
+cc() { python3 "$LOOP/check-claims.py" "$MODULE/benchmarks/dev/$1/spec.md" "$MODULE/benchmarks/dev/$1/tree"; }
+
+if cc planted-2 | grep -q "^OOB .*src/loader.ts:42"; then
+  pass "check-claims flags planted-2's out-of-range citation"
+else
+  fail "check-claims missed the planted dangling citation"
+fi
+
+for t in planted-1 planted-3 planted-4 planted-5; do
+  if cc "$t" | grep -qE "^(MISSING|OOB|BARE) "; then
+    fail "check-claims reports a citation defect in $t, which has none"
+  else
+    pass "check-claims is clean on $t (its defects are semantic, not citational)"
+  fi
+done
+
+# A count/universal claim must reach the adjudication list rather than pass as
+# confirmed — those are the classes no file lookup can settle.
+if cc planted-1 | sed -n '/UNCHECKED/,$p' | grep -q "four routes"; then
+  pass "a spelled-out quantity claim is surfaced for adjudication"
+else
+  fail "the quantity claim in planted-1 was silently treated as checked"
 fi
 
 echo

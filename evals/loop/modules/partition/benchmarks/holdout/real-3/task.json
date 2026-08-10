@@ -1,0 +1,9 @@
+{
+  "id": "real-3",
+  "mode": "spec",
+  "repo_alias": "geniro-app",
+  "base_sha": "487033503e4b78e5ce887c224d30531520152596",
+  "spec": "spec.md",
+  "lang": "typescript",
+  "project_context": "pnpm monorepo; the daemon models agent backends as a closed kind union shared with the renderer through generated types. Four approved todos are being partitioned for parallel implementation before any code is written."
+}

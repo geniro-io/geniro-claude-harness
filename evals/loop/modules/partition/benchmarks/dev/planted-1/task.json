@@ -1,0 +1,8 @@
+{
+  "id": "planted-1",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "typescript",
+  "project_context": "TypeScript library package. Single public entry point; deep imports are lint-blocked. Five approved todos are being partitioned for parallel implementation before any code is written."
+}

@@ -1,0 +1,46 @@
+{
+  "version": 3,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/daemon/src/v1/agents/services/agent-adapter.registry.ts",
+      "lines": [26, 40],
+      "class": "shared-registry",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled through AgentAdapterRegistry. Its own docstring calls itself 'the ONE kind-to-adapter dispatch in the daemon' and exists so a new CLI cannot be silently omitted. Each new adapter must be added to the constructor signature and to the array the byKind map is built from, so two concurrent delegates both rewrite that constructor and one adapter is lost."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/daemon/src/v1/agents/agents.module.ts",
+      "lines": [130, 155],
+      "class": "shared-registry",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are additionally coupled through agents.module.ts, where each adapter is wired as a Nest provider with its own factory block. Both todos must add a provider entry to the same providers array; concurrent edits to that array drop one registration, and a missing provider fails at injection time rather than at compile time."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/daemon/src/v1/runs/runs.types.ts",
+      "lines": [110, 116],
+      "class": "closed-vocabulary",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled through the closed AgentKind vocabulary and everything derived from it. AgentKind is a two-member const object at runs.types.ts:110 with AgentKindSchema derived from it, and apps/daemon/src/v1/agents/utils/agent-binary.ts:11 holds `const OVERRIDE_ENV: Record<AgentKind, string>` — an exhaustive map, so widening the union without adding a key there is a compile error. Both new-backend todos must write both files."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/daemon/src/v1/agents/agents.module.ts",
+      "lines": [132, 162],
+      "class": "construction-site",
+      "dimension_hint": "partition",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "todo-3 may be coupled to todo-1 and todo-2 through the same providers array. AgentAdapter is not a Nest provider — it takes only AgentAdapterOptions, an option bag documenting itself as 'test seams, not user config' whose logger field says production wiring MUST pass a real one via agents.module.ts. The workspace's MetricsService (packages/metrics/src/services/metrics.service.ts:18, 'private register = new Registry()') is reachable only by injection, so a per-turn duration metric widens AgentAdapterOptions and edits each factory block in the very providers array both new-adapter todos append to. Scored as a bonus, not a must-find: todo-3 says the emission goes inside the base 'so individual adapters need no change', and an implementation that reuses the already-injected logger sink touches no module file at all."
+    }
+  ]
+}

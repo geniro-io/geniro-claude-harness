@@ -27,9 +27,9 @@ bash loop.sh confirm --module review --variant modules/review/variants/<exp> \
 ```
 
 Task anatomy (`modules/<m>/benchmarks/{dev,holdout}/<id>/`): `task.json`
-(staging: mode git|patch|spec|audit; git, spec, and audit modes name a
-`repo_alias` resolved through the gitignored `repos.local.json` — copy
-`repos.local.example.json`) +
+(staging: mode git|patch|spec|audit; `git` names a `repo_alias` resolved through
+the gitignored `repos.local.json` — copy `repos.local.example.json`; `spec` and
+`audit` take that, or a public `repo_url` shallow-fetched into `cache/repos/`) +
 `rubric.json` (`{version, negative, items}` — bump `version` on ANY edit) +
 `tree/`+`change.patch` for planted tasks. `spec` mode is for an artifact-under-test
 module: it stages the tree at `base_sha` with no diff and materializes the

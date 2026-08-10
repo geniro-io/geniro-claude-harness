@@ -1,0 +1,8 @@
+{
+  "id": "planted-5",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "python",
+  "project_context": "Python reporting CLI. Report columns are discovered by scanning a package directory — there is no central column registry. Four approved todos are being partitioned for parallel implementation before any code is written."
+}

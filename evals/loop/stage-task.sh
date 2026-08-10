@@ -6,9 +6,10 @@
 # Reads <task-dir>/task.json:
 #   mode "git":   { "repo_alias", "base_sha", "head_sha" } -> worktree at head, diff base..head
 #   mode "patch": { "fixture_cmd" | "tree_dir", "patch" }  -> copy tree, apply patch
-#   mode "spec":  { "tree_dir" | "repo_alias"+"base_sha", "spec" }
+#   mode "spec":  { "tree_dir" | ("repo_url"|"repo_alias")+"base_sha", "spec" }
 #                                                          -> tree at base, no diff
-#   mode "audit": { "tree_dir" | "repo_alias"+"base_sha" }  -> tree at base, no diff,
+#   mode "audit": { "tree_dir" | ("repo_url"|"repo_alias")+"base_sha" }
+#                                                          -> tree at base, no diff,
 #                                                             no artifact: the tree
 #                                                             audits itself
 # Writes: <stage-dir>/tree/ (the code under review), <stage-dir>/diff.patch,
@@ -16,9 +17,12 @@
 #         and no diff.patch (nothing changed — the spec is the artifact under test);
 #         in "audit" mode <stage-dir>/surfaces.txt and neither diff nor artifact
 #
-# Committed task files never carry a repo location or name — "repo_alias" is an
-# opaque label resolved through the machine-local, gitignored repos.local.json
-# (see repos.local.example.json). "repo_path" is accepted as a local-only escape
+# A task sourced from a PRIVATE repo never carries its location or name —
+# "repo_alias" is an opaque label resolved through the machine-local, gitignored
+# repos.local.json (see repos.local.example.json). A task sourced from a PUBLIC
+# repo uses "repo_url" instead: the URL is not a secret, and committing it is
+# what lets anyone else stage the task. Spec mode shallow-fetches that URL into
+# cache/repos/ on first use. "repo_path" is accepted as a local-only escape
 # hatch for uncommitted scratch tasks.
 set -euo pipefail
 
@@ -35,21 +39,44 @@ TASK_JSON="$TASK_DIR/task.json"
 jqr() { jq -r "$1" "$TASK_JSON"; }
 MODE="$(jqr '.mode')"
 
-resolve_repo() { # <what-the-mode-accepts> -> local clone path on stdout
-  local repo alias
+resolve_repo() { # <base-sha-or-empty> <what-this-mode-accepts> -> repo path on stdout
+  # A PRIVATE task resolves through repo_alias + the gitignored repos.local.json;
+  # a PUBLIC one commits repo_url, which is shallow-fetched at <base-sha>. Pass an
+  # empty base from a mode that needs more than one commit present: a shallow
+  # fetch of one sha cannot serve it, so repo_url is refused there rather than
+  # failing later on a missing ref.
+  local base="$1" accepts="$2" repo alias url cache
   repo="$(jqr '.repo_path // empty')"
-  if [ -z "$repo" ]; then
-    alias="$(jqr '.repo_alias // empty')"
-    [ -n "$alias" ] || { echo "task.json needs $1" >&2; exit 64; }
+  if [ -n "$repo" ]; then echo "$repo"; return 0; fi
+  alias="$(jqr '.repo_alias // empty')"
+  if [ -n "$alias" ]; then
     [ -f "$HERE/repos.local.json" ] || { echo "missing $HERE/repos.local.json — copy repos.local.example.json and map alias '$alias' to a local clone" >&2; exit 66; }
     repo="$(jq -r --arg a "$alias" '.[$a] // empty' "$HERE/repos.local.json")"
     [ -n "$repo" ] || { echo "alias '$alias' not mapped in $HERE/repos.local.json" >&2; exit 66; }
+    echo "$repo"; return 0
   fi
-  echo "$repo"
+  url="$(jqr '.repo_url // empty')"
+  [ -n "$url" ] && [ -n "$base" ] || { echo "task.json needs $accepts" >&2; exit 64; }
+  # Same cache root as adapter results — both are derived, disposable, and
+  # regenerable, so they share one gitignore rule and one thing to delete for a
+  # clean slate.
+  cache="${LOOP_CACHE_DIR:-$HERE/cache}/repos/$(printf '%s' "$url" | shasum | cut -c1-16)"
+  if ! git -C "$cache" cat-file -e "${base}^{commit}" 2>/dev/null; then
+    mkdir -p "$cache"
+    # Test for this directory's OWN .git, not `rev-parse --git-dir`: the cache
+    # lives inside this repository, so rev-parse walks up and finds the plugin's
+    # .git, skips init, and then fetches the task's commit from the plugin's
+    # origin — "upload-pack: not our ref".
+    [ -d "$cache/.git" ] || {
+      git -C "$cache" init -q && git -C "$cache" remote add origin "$url"; }
+    git -C "$cache" fetch -q --depth 1 origin "$base" \
+      || { echo "cannot fetch $base from $url" >&2; exit 66; }
+  fi
+  echo "$cache"
 }
 
 if [ "$MODE" = "git" ]; then
-  REPO="$(resolve_repo 'repo_alias (or local-only repo_path)')"
+  REPO="$(resolve_repo '' 'repo_alias (or local-only repo_path)')"
   BASE="$(jqr '.base_sha')"
   HEAD="$(jqr '.head_sha')"
   git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
@@ -129,8 +156,8 @@ elif [ "$MODE" = "spec" ]; then
   if [ -n "$TREE_DIR" ]; then
     cp -R "$TASK_DIR/$TREE_DIR/." "$STAGE_DIR/tree/"
   else
-    REPO="$(resolve_repo 'tree_dir, repo_alias, or local-only repo_path')"
     BASE="$(jqr '.base_sha')"
+    REPO="$(resolve_repo "$BASE" 'tree_dir, repo_url, repo_alias, or local-only repo_path')"
     git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
     git -C "$REPO" archive "$BASE" | tar -x -C "$STAGE_DIR/tree"
   fi
@@ -148,8 +175,8 @@ elif [ "$MODE" = "audit" ]; then
     [ -d "$TASK_DIR/$TREE_DIR" ] || { echo "task.json .tree_dir does not resolve: $TASK_DIR/$TREE_DIR" >&2; exit 66; }
     cp -R "$TASK_DIR/$TREE_DIR/." "$STAGE_DIR/tree/"
   else
-    REPO="$(resolve_repo 'tree_dir, repo_alias, or local-only repo_path')"
     BASE="$(jqr '.base_sha')"
+    REPO="$(resolve_repo "$BASE" 'tree_dir, repo_url, repo_alias, or local-only repo_path')"
     git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
     git -C "$REPO" archive "$BASE" | tar -x -C "$STAGE_DIR/tree"
   fi

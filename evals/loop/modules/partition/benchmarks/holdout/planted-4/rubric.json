@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/limits.ts",
+      "lines": [3, 7],
+      "class": "shared-config",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled through src/limits.ts, which its own header declares the single home of every quota. todo-1 changes maxQueueDepth there; todo-2 must replace maxConcurrentJobs with per-priority ceilings in the same object and change how scheduler.ts reads it. Two delegates rewriting that object concurrently lose one of the two edits."
+    }
+  ]
+}

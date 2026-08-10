@@ -1,0 +1,8 @@
+{
+  "id": "planted-2",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "python",
+  "project_context": "Python service. Handlers self-register in a package-level table; migrations are an ordered list applied by index. Five approved todos are being partitioned for parallel implementation before any code is written."
+}
