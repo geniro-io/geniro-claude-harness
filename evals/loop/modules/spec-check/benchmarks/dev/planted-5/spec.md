@@ -25,7 +25,7 @@ Delete the legacy ledger read path now that the unified path is fully rolled out
 - none, given the assumption above.
 
 ## 6. Steps
-- [ ] 1. Delete `readLegacy` and the branch that calls it (`src/ledger.ts:4`). <!-- step-1 -->
+- [ ] 1. Delete `readLegacy` and the branch that calls it (`src/ledger.ts:5`). <!-- step-1 -->
 - [ ] 2. Drop the now-unused `legacy-ledger-read` flag entry (`deploy/rollout.yaml:7`). <!-- step-2 -->
 
 ## 7. Tools Required

@@ -88,6 +88,8 @@ do_finish() {
     def mean_of(f): map(f // empty) | if length>0 then (add/length) else null end;
     {
       rows: .,
+      contested: [ .[] | . as $r | ($r.contested_must // [])[]
+                   | {task: $r.task, trial: $r.trial, gt_id, finding_ids} ],
       mean: {
         recall_must: mean_of(.recall_must),
         recall_weighted: mean_of(.recall_weighted),
@@ -113,7 +115,13 @@ do_finish() {
             pass_hat_k: ($per_task | map(select(.pass_hat_k)) | length / ($per_task|length))
           })
     }' "$rows" > "$RUN/metrics.json"
-  jq '{mean, reducers: (.reducers | del(.per_task))}' "$RUN/metrics.json"
+  jq '{mean, reducers: (.reducers | del(.per_task)), contested}' "$RUN/metrics.json"
+  if [ "$(jq '.contested | length' "$RUN/metrics.json")" -gt 0 ]; then
+    # Loud on purpose: a must-find missed while a discarded finding sits on its
+    # own lines usually means the rubric, not the run, is wrong. Read that
+    # trial before quoting the recall number.
+    echo "[finish] contested must-finds above — open those trials before trusting recall" >&2
+  fi
 }
 
 case "$PHASE" in

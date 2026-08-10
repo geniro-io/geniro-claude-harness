@@ -133,6 +133,107 @@ else
   fail "planted-1 rubric is malformed"
 fi
 
+# --- fixture consistency across the dev set ---------------------------------
+#
+# Dev only. A holdout failure would print holdout content into the tuning
+# session, which is exactly what the dark-holdout rule forbids.
+
+VIOL="$(python3 - "$MODULE/benchmarks/dev" <<'PY'
+import json, os, re, sys
+
+root = sys.argv[1]
+CITE = re.compile(r"([\w./-]+\.(?:ts|md|json|ya?ml)):(\d+)")
+bad = []
+
+for task in sorted(os.listdir(root)):
+    d = os.path.join(root, task)
+    if not os.path.isdir(d):
+        continue
+    rubric = json.load(open(os.path.join(d, "rubric.json")))
+    tree = os.path.join(d, "tree")
+    lines_of = {}
+    for dirpath, _, names in os.walk(tree):
+        for n in names:
+            p = os.path.join(dirpath, n)
+            lines_of[os.path.relpath(p, tree)] = sum(1 for _ in open(p, errors="replace"))
+
+    if rubric.get("negative") and rubric.get("items"):
+        bad.append(f"{task}: negative task carries ground-truth items")
+    if not rubric.get("negative") and not rubric.get("items"):
+        bad.append(f"{task}: positive task carries no ground-truth items")
+
+    dangling_ok = set()
+    for it in rubric.get("items", []):
+        f, ln = it.get("file"), it.get("lines") or []
+        if f not in lines_of:
+            bad.append(f"{task}/{it['id']}: file {f} is not in the tree")
+            continue
+        for n in ln:
+            # A citation-dangling item plants an out-of-range citation on
+            # purpose; every other class must land inside the file it names.
+            if n > lines_of[f] and it.get("class") != "citation-dangling":
+                bad.append(f"{task}/{it['id']}: line {n} past end of {f} ({lines_of[f]} lines)")
+            dangling_ok.add((f, n))
+
+    meta = json.load(open(os.path.join(d, "task.json")))
+    spec = open(os.path.join(d, meta.get("spec", "spec.md")), errors="replace").read()
+    for f, n in {(m.group(1), int(m.group(2))) for m in CITE.finditer(spec)}:
+        if f not in lines_of:
+            bad.append(f"{task}: spec cites {f}, absent from the tree")
+        elif n > lines_of[f] and (f, n) not in dangling_ok:
+            # Out of bounds is a defect only when no rubric item plants it.
+            bad.append(f"{task}: spec cites {f}:{n}, past end of file, unplanted")
+
+print("\n".join(bad))
+PY
+)"
+if [ -z "$VIOL" ]; then
+  pass "every dev fixture's rubric and spec citations resolve in its own tree"
+else
+  fail "fixture inconsistencies:"$'\n'"$VIOL"
+fi
+
+# --- contested_must ---------------------------------------------------------
+#
+# A must-find missed while a discarded finding sits on its own lines is the
+# fingerprint of a wrong rubric. It must show up as a pointer and must NOT
+# quietly become a match.
+
+CM="$SANDBOX/cm"
+mkdir -p "$CM"
+echo '{"id":"t"}' > "$CM/task.json"
+cat > "$CM/rubric.json" <<'JSON'
+{"version":1,"negative":false,"items":[
+ {"id":"gt-1","file":"a.yaml","lines":[6,8],"severity":"MEDIUM","must_find":true,"description":"x"},
+ {"id":"gt-2","file":"b.ts","lines":[1,2],"severity":"HIGH","must_find":true,"description":"y"}]}
+JSON
+cat > "$CM/findings.json" <<'JSON'
+[{"id":"F1","file":"a.yaml","line_start":6,"line_end":8,"severity":"MEDIUM"},
+ {"id":"F2","file":"c.ts","line_start":3,"line_end":3,"severity":"LOW"}]
+JSON
+cat > "$CM/match.json" <<'JSON'
+{"matches":[{"gt_id":"gt-1","finding_ids":[]},{"gt_id":"gt-2","finding_ids":[]}],
+ "residue":[{"finding_id":"F1","bucket":"noise"},{"finding_id":"F2","bucket":"plausible-real"}]}
+JSON
+CMOUT="$(python3 "$LOOP/loop_lib.py" metrics "$CM/task.json" "$CM/rubric.json" \
+           "$CM/findings.json" "$CM/match.json" "$CM")"
+
+if [ "$(printf '%s' "$CMOUT" | jq -r '.contested_must | map(.gt_id) | join(",")')" = "gt-1" ]; then
+  pass "a noise finding on a missed must-find's own lines is flagged contested"
+else
+  fail "contested_must did not flag the overlapping noise finding"
+fi
+if printf '%s' "$CMOUT" | jq -e '.recall_must == 0' >/dev/null; then
+  pass "contested_must is a pointer only — it does not inflate recall"
+else
+  fail "contested_must leaked into the recall score"
+fi
+if [ "$(printf '%s' "$CMOUT" | jq -r '[.contested_must[].finding_ids[]] | join(",")')" = "F1" ]; then
+  pass "a plausible-real finding on another file is not contested"
+else
+  fail "contested_must matched an unrelated finding"
+fi
+
 echo
 echo "spec-check-module: $TESTS_RUN run, $TESTS_FAILED failed"
 [ "$TESTS_FAILED" -eq 0 ]

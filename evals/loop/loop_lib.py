@@ -208,6 +208,38 @@ def cmd_extract(judge_raw_path):
         sys.exit(65)
     json.dump(obj, sys.stdout)
 
+def contested_must(must, by_gt, residue, findings):
+    """Missed must-finds whose own lines a discarded finding already cites.
+
+    A run that looked exactly where the rubric points and drew the opposite
+    conclusion is a different animal from a run that never looked. The first is
+    usually a defective fixture — the ground truth asserts something the tree
+    does not support — and it costs twice, once in recall and again in noise.
+    Scoring is untouched: this only tells the transcript read which trial to
+    open first.
+    """
+    by_id = {f.get("id"): f for f in findings}
+    out = []
+    for g in must:
+        if by_gt.get(g["id"]):
+            continue
+        lines = g.get("lines") or []
+        lo = lines[0] if lines else None
+        hi = lines[1] if len(lines) > 1 else lo
+        hits = []
+        for fid, bucket in residue.items():
+            if bucket not in ("noise", "nitpick"):
+                continue
+            f = by_id.get(fid)
+            if not f or not f.get("file") or f["file"] != g.get("file"):
+                continue
+            fs, fe = f.get("line_start"), f.get("line_end")
+            if lo is None or fs is None or (fs <= hi and (fe or fs) >= lo):
+                hits.append(fid)
+        if hits:
+            out.append({"gt_id": g["id"], "finding_ids": sorted(hits)})
+    return out
+
 def cmd_metrics(task_path, rubric_path, findings_path, match_path, raw_dir):
     task = json.load(open(task_path))
     rubric = load_rubric(rubric_path)
@@ -225,6 +257,7 @@ def cmd_metrics(task_path, rubric_path, findings_path, match_path, raw_dir):
     n_nitpick = sum(1 for b in residue.values() if b == "nitpick")
     n_plausible = sum(1 for b in residue.values() if b == "plausible-real")
     matched_ids = set(fid for ids in by_gt.values() for fid in ids)
+    contested = contested_must(must, by_gt, residue, findings)
     tok_in = tok_out = 0
     wall = 0
     for p in glob.glob(os.path.join(raw_dir, "raw-*.json")):
@@ -253,6 +286,7 @@ def cmd_metrics(task_path, rubric_path, findings_path, match_path, raw_dir):
         "precision_proxy": round((len(matched_ids) + n_plausible) / len(findings), 4) if findings else None,
         "tokens_in": tok_in, "tokens_out": tok_out, "wall_ms": wall,
         "missed_must": [g["id"] for g in must if not by_gt.get(g["id"])],
+        "contested_must": contested,
     }
     json.dump(out, sys.stdout, indent=1)
 
