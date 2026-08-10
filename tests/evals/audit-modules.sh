@@ -58,6 +58,23 @@ for m in audit-instructions audit-plugin; do
   else
     fail "$m screen_facets names undeclared facets: $BADSCREEN"
   fi
+
+  # Every champion_sync source must still resolve. sync-champion.sh already
+  # hard-fails on a renamed heading, but only when someone runs it — which is
+  # after the skill edit has landed. Checking here moves the break to the commit
+  # that renames the heading.
+  UNRESOLVED="$(jq -r '.champion_sync[] | [.from, (.section // "")] | @tsv' "$T" | while IFS=$'\t' read -r from section; do
+    if [ ! -f "$REPO_ROOT/$from" ]; then
+      echo "missing source: $from"
+    elif [ -n "$section" ] && ! grep -qxF "## $section" "$REPO_ROOT/$from"; then
+      echo "missing section '## $section' in $from"
+    fi
+  done)"
+  if [ -z "$UNRESOLVED" ]; then
+    pass "$m every champion_sync source and section resolves"
+  else
+    fail "$m champion_sync is stale:"$'\n'"$UNRESOLVED"
+  fi
 done
 
 # --- stage-task.sh "audit" mode ---------------------------------------------
