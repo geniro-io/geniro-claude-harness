@@ -1,0 +1,123 @@
+{
+  "version": 4,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": ".cursor/rules/api-conventions.mdc",
+      "lines": [
+        1,
+        5
+      ],
+      "class": "unreachable-rule",
+      "dimension_hint": "structure",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The .mdc frontmatter carries title/priority/owner and none of description, globs, or alwaysApply. Cursor activates a rule by one of those three, so this rule can never load however good its body is — it is silently disabled, not merely mis-scoped."
+    },
+    {
+      "id": "gt-2",
+      "file": ".cursor/rules/testing.md",
+      "lines": [
+        1,
+        5
+      ],
+      "class": "unreachable-rule",
+      "dimension_hint": "structure",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "A plain .md file inside .cursor/rules/ is silently ignored by Cursor — only .mdc is read there. The frontmatter is well-formed, which is what makes the file look live; renaming it to .mdc is the fix."
+    },
+    {
+      "id": "gt-3",
+      "file": "CLAUDE.md",
+      "lines": [
+        16,
+        27
+      ],
+      "class": "scoping-misuse",
+      "dimension_hint": "structure",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "The Web styling section applies only to files under web/ but sits in an always-on CLAUDE.md, so every session pays for it including api-only work. A path-scoped home already exists — .cursor/rules/web-styling.mdc globs web/**/*.tsx and carries a subset of the same rules — so the finding is a move plus a merge, not a deletion."
+    },
+    {
+      "id": "gt-4",
+      "file": ".cursor/rules/legacy-mobile.mdc",
+      "lines": [
+        3,
+        3
+      ],
+      "class": "zero-match-glob",
+      "dimension_hint": "structure",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "globs mobile/**/*.tsx matches zero files — the repo has no mobile/ directory, and the rule body also cites mobile/screens/, which is equally absent. The rule can never attach. Whether that is a typo or a rule for an unbuilt area decides the tier, not whether it is a finding."
+    },
+    {
+      "id": "gt-5",
+      "file": "CLAUDE.md",
+      "lines": [
+        7,
+        9
+      ],
+      "class": "model-known",
+      "dimension_hint": "bloat",
+      "severity": "LOW",
+      "must_find": true,
+      "description": "The General engineering paragraph re-states what any capable agent already does: write clean code, read a file before editing it, think about edge cases. Removing it changes no agent's behavior, and it is paid on every session."
+    },
+    {
+      "id": "gt-6",
+      "file": "CLAUDE.md",
+      "lines": [
+        13,
+        14
+      ],
+      "class": "menu-without-default",
+      "dimension_hint": "bloat",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "Three equivalent test commands are offered with no default and no condition selecting between them, so the agent picks arbitrarily. package.json declares exactly one: `test` (vitest run). Collapse to that one, plus the single condition that would switch it."
+    },
+    {
+      "id": "gt-7",
+      "file": "CLAUDE.md",
+      "lines": [
+        29,
+        36
+      ],
+      "class": "hand-maintained-duplicate",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The API conventions section is copied into .cursor/rules/api-conventions.mdc with no symlink or generation mechanism. The copies agree today; agreement today is drift tomorrow. Propose one home with the other pointing at it."
+    },
+    {
+      "id": "gt-8",
+      "file": "CLAUDE.md",
+      "lines": [
+        42,
+        57
+      ],
+      "class": "case-for-the-rule",
+      "dimension_hint": "bloat",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "A whole standalone section argues the case for a rule stated elsewhere in the file rather than stating a rule of its own: a source list, a grading of which rules rest on measurement and which on taste, a refutation of a theory the rule is not founded on, and the history of the previous threshold. None of it changes what an agent does, and all of it is paid on every session. This is the case FOR a rule, not the reason INSIDE one — the adjacent why on a rule an agent would rationalize around stays."
+    },
+    {
+      "id": "gt-9",
+      "file": ".cursor/rules/db-access.mdc",
+      "lines": [
+        3,
+        4
+      ],
+      "class": "scoping-overridden",
+      "dimension_hint": "structure",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "`globs: api/db/**` and `alwaysApply: true` are declared together. alwaysApply wins: the rule attaches to every request in the repo and the glob is decorative, so a rule the author scoped to the one file under `api/db/` is paid on every `web/` edit as well. The frontmatter is well-formed and the rule does load, which is why this survives a check that only asks whether a rule can attach at all — the sibling `.cursor/rules/web-styling.mdc` shows the intended pairing, a glob with alwaysApply false."
+    }
+  ]
+}

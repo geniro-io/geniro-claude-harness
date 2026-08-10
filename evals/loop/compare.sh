@@ -11,6 +11,15 @@
 #
 # Hard guard: both runs must have scored the same rubric versions for every
 # paired task — a rubric edit between runs invalidates the comparison.
+#
+# Second guard: a noise-based verdict requires the candidate's mean delta to
+# clear the module's measured noise-of-noise band, `noise_floor` in target.json.
+# A-vs-A runs do not generally bracket zero on noise — review's came back
+# [0.29, 1.13] and the audit modules' wider still — so a CI excluding zero is
+# not evidence of an effect on this axis, and the verdict string otherwise reads
+# "candidate better on noise" for two identical arms. The interval is correct;
+# what was missing is the floor it has to beat. A module with no recorded floor
+# has not run its A-vs-A, and its noise axis is not read at all.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -18,6 +27,11 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/../lib/eval-stats.sh"
 
 CAND="$(cd "$1" && pwd)"; BASE="$(cd "$2" && pwd)"; shift 2
+MODULE="$(jq -r '.module // empty' "$CAND/spec.json" 2>/dev/null)"
+NOISE_FLOOR=null
+if [ -n "$MODULE" ] && [ -f "$HERE/modules/$MODULE/target.json" ]; then
+  NOISE_FLOOR="$(jq -r '.noise_floor // "null"' "$HERE/modules/$MODULE/target.json")"
+fi
 SEED=20260809
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -55,7 +69,7 @@ MISMATCH="$(jq -rn --slurpfile c "$CAND/metrics.json" --slurpfile b "$BASE/metri
 [ -z "$MISMATCH" ] || { echo "RUBRIC VERSION MISMATCH — comparison invalid: $MISMATCH" >&2; exit 65; }
 
 jq -n --slurpfile c "$CAND/metrics.json" --slurpfile b "$BASE/metrics.json" \
-      --argjson seed "$SEED" "
+      --argjson seed "$SEED" --argjson noise_floor "$NOISE_FLOOR" "
 $GENIRO_EVAL_STATS_JQ_DEFS
   def task_means(\$rows; \$field):
     reduce \$rows[] as \$r ({}; .[\$r.task] += [\$r[\$field]])
@@ -95,6 +109,10 @@ $GENIRO_EVAL_STATS_JQ_DEFS
         elif .recall_must.ci95[1] != null and .recall_must.ci95[1] < 0
           then \"candidate WORSE on recall\"
         elif .noise.ci95[1] != null and .noise.ci95[1] < 0 and (.recall_must.ci95[0] == null or .recall_must.mean_delta >= 0)
-          then \"candidate better on noise, recall held\"
+          then (if \$noise_floor == null
+                  then \"noise moved, but this module has no measured noise floor — run an A-vs-A and record noise_floor before reading this axis\"
+                elif (.noise.mean_delta | fabs) <= \$noise_floor
+                  then \"noise delta \" + ((.noise.mean_delta | fabs | . * 100 | round / 100) | tostring) + \"/task is inside the module's measured noise-of-noise band (\" + (\$noise_floor | tostring) + \") — not an effect\"
+                else \"candidate better on noise, recall held\" end)
         else \"tie / inside CI — no promotion (effects below the recall MDE of \" + ((.recall_must.mde // 0) * 100 | round / 100 | tostring) + \" are invisible at this n)\" end) }
 "

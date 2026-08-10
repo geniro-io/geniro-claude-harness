@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "CLAUDE.md",
+      "lines": [10, 10],
+      "class": "dead-command",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md documents `make check` as the test command. The Makefile declares only `test` and `lint` — there is no check target, so the documented command fails outright."
+    },
+    {
+      "id": "gt-2",
+      "file": "CLAUDE.md",
+      "lines": [15, 16],
+      "class": "moved-path",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md states settings live in `app/settings.py` and that environment overrides are read there and nowhere else. The file is `app/config/settings.py`; no app/settings.py exists. A load-bearing path claim, not an example."
+    },
+    {
+      "id": "gt-3",
+      "file": "CLAUDE.md",
+      "lines": [3, 3],
+      "class": "stack-claim",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md claims Django 4.2 with DRF serializers. pyproject.toml depends on fastapi and pydantic with no Django or DRF entry, and app/main.py builds a FastAPI app. Both the framework and the serializer layer claims are contradicted."
+    },
+    {
+      "id": "gt-4",
+      "file": ".cursorrules",
+      "lines": [1, 5],
+      "class": "legacy-format",
+      "dimension_hint": "structure",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "The deprecated single-file .cursorrules coexists with .cursor/rules/python.mdc, and the two carry the same three rules. Two sources of truth for one rule set, one of them in a format Cursor has replaced."
+    },
+    {
+      "id": "gt-5",
+      "file": ".github/instructions/api.instructions.md",
+      "lines": [2, 2],
+      "class": "zero-match-glob",
+      "dimension_hint": "structure",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "applyTo matches services/**/*.py and the repo has no services/ directory, so the rule can never attach to anything. The code it describes — a single `handle` entry point per module — matches nothing in app/ either."
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "id": "planted-2",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "React + Node monorepo (web/ and api/). Claude Code and Cursor are both in use; .cursor/rules/ carries per-area rules alongside an always-on CLAUDE.md."
+}

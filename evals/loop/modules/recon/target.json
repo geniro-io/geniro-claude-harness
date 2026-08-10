@@ -37,5 +37,7 @@
       "to": "criteria/explorer-agent.md"
     }
   ],
-  "screen_facets": ["knowledge", "explorer"]
+  "screen_facets": ["knowledge", "explorer"],
+  "noise_floor": 1.33,
+  "noise_floor_note": "UPPER BOUND, single-judge. Measured by EXP-015's A-vs-A: the combined `noise` axis swung 1.33 findings/task between IDENTICAL champion arms at an MDE of 1.50, while `noise_strict` moved 0.00 -> 0.33. Every trial behind that figure was scored by ONE judge call, and the audit modules later showed single-call residue bucketing swinging ~1.5/task on identical input (score.sh --judge-votes) — the same order as this band, so most of the 1.33 is likely judge taste rather than executor behavior. That is the same conclusion EXP-015 reached from its own numbers, and it is why this module reads `noise_strict` for verdicts. Re-measure with a panel before reading a near-threshold result on the combined axis."
 }

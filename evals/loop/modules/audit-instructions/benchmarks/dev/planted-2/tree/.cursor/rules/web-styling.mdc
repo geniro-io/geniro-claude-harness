@@ -1,0 +1,7 @@
+---
+description: React component styling conventions
+globs: web/**/*.tsx
+alwaysApply: false
+---
+
+Tailwind utility classes only. Colors come from `web/tokens.css`.

@@ -102,9 +102,18 @@ assemble_prompt() { # task_stage_dir facet_name criteria_files... -> prompt on s
     cat "$(criteria_path "$c")"
   done
   printf '\n\n## Project context\n\n%s\n' "$(jq -r '.project_context // "No additional context."' "$stage/task.json" 2>/dev/null || echo "No additional context.")"
-  # Two artifact shapes. A diff task asks "is this change sound"; a spec task asks
-  # "do this document's claims hold against the tree". The tree is the evidence in
-  # both, so only the artifact block and the file list differ.
+  # Three artifact shapes. A diff task asks "is this change sound"; a spec task
+  # asks "do this document's claims hold against the tree"; an audit task has no
+  # artifact apart from the tree and asks "is this repository's own instruction
+  # set sound". The tree is the evidence in all three, so only the artifact block
+  # and the file list differ.
+  if [ -f "$stage/surfaces.txt" ]; then
+    printf '\n## Files in scope (mechanical pre-pass inventory)\n\n```\n'
+    cat "$stage/surfaces.txt"
+    printf '```\n'
+    printf '\nThe tree around you is the repository under audit, and the files above are\nits full scope. Read each one in full — they are short, and a skim misses the\nreworded half of a duplicated rule. Grep the wider tree only to settle a\nspecific claim: whether a command exists, whether a cited path resolves.\n\nBegin now. Output ONLY the findings table in the exact format specified.\n'
+    return 0
+  fi
   if [ -f "$stage/spec.md" ]; then
     printf '\n## Spec under test\n\n```markdown\n'
     cat "$stage/spec.md"

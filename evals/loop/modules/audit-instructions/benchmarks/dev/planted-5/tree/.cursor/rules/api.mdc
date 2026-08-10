@@ -1,0 +1,8 @@
+---
+description: Route conventions for the HTTP layer
+globs: app/**.py
+alwaysApply: false
+---
+
+Every route declares an explicit response model. Errors raise HTTPException with
+a code from the shared enum, never a bare dict.

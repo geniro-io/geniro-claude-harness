@@ -1,0 +1,9 @@
+{
+  "id": "plugin-neg-1",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "A small agent plugin: one skill, one shared contract file, one registered hook, one lib helper, and a test suite covering both the helper and the hook. Hook exit code 2 blocks a tool call. ${CLAUDE_PLUGIN_ROOT} resolves to the repo root.",
+  "expected_unresolved": [
+    ".plugin/safety.json"
+  ]
+}

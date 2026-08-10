@@ -1,0 +1,9 @@
+---
+description: HTTP handler conventions
+globs: src/api/**/*.go
+alwaysApply: false
+---
+
+- Every handler returns `(status int, body any)`; never writes to the response
+  writer directly.
+- A handler that needs a flag calls the evaluator; it never reads Postgres.

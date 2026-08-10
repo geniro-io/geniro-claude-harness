@@ -1,0 +1,6 @@
+{
+  "id": "holdout-2",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "Rust gRPC telemetry pipeline. Instruction surfaces: CLAUDE.md and .clinerules. src/generated/ is produced by build.rs from proto/."
+}

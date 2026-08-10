@@ -1,0 +1,6 @@
+{
+  "id": "planted-5",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "Python FastAPI inventory service. Four instruction surfaces are live at once: a root CLAUDE.md, a nested CLAUDE.md under app/workers/, an AGENTS.md generated from the root by scripts/gen-agents.sh, and two Cursor rules."
+}

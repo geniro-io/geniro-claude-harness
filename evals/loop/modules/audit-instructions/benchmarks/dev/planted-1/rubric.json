@@ -1,0 +1,110 @@
+{
+  "version": 3,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "CLAUDE.md",
+      "lines": [
+        16,
+        20
+      ],
+      "class": "dead-command",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md documents `npm run test:unit` as the unit-test command, twice. package.json declares no test:unit script — the only test script is `test` (vitest run), and CI runs `pnpm test`. An agent following the instruction runs a command that does not exist."
+    },
+    {
+      "id": "gt-2",
+      "file": "CLAUDE.md",
+      "lines": [
+        24,
+        26
+      ],
+      "class": "moved-path",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md states runtime configuration lives in `src/settings.ts` and that every environment value is read there. No such file exists; the loader is `src/config.ts`. This is a load-bearing path claim, not an illustrative example."
+    },
+    {
+      "id": "gt-3",
+      "file": "CLAUDE.md",
+      "lines": [
+        7,
+        7
+      ],
+      "class": "stack-claim",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md claims the stack is Express 4 with the classic middleware chain. package.json depends on fastify ^5.1.0 with no express entry, and src/server.ts imports Fastify. The framework claim is contradicted by the manifest."
+    },
+    {
+      "id": "gt-4",
+      "file": "AGENTS.md",
+      "lines": [
+        3,
+        4
+      ],
+      "class": "mirror-drift",
+      "dimension_hint": "consistency",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "AGENTS.md announces itself as a mirror of CLAUDE.md, but the two disagree on framework (Fastify vs Express), package manager (pnpm vs npm), and test command (pnpm test vs npm run test:unit). The mirroring itself is endorsed; the drift between the copies is the defect, and an agent's behavior now depends on which surface its tool loaded."
+    },
+    {
+      "id": "gt-5",
+      "file": "CLAUDE.md",
+      "lines": [
+        9,
+        15
+      ],
+      "class": "stack-claim",
+      "dimension_hint": "accuracy",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "CLAUDE.md instructs installing with `npm install`. package.json pins packageManager pnpm@9.12.0 and CI runs `pnpm install --frozen-lockfile`. The documented package manager contradicts the repo's own."
+    },
+    {
+      "id": "gt-6",
+      "file": "CLAUDE.md",
+      "lines": [
+        37,
+        38
+      ],
+      "class": "stale-count",
+      "dimension_hint": "accuracy",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "CLAUDE.md states three services run behind the gateway. services/ holds four (billing, ledger, notify, webhooks). The fix removes the number and points at the directory rather than refreshing it."
+    },
+    {
+      "id": "gt-7",
+      "file": "CLAUDE.md",
+      "lines": [
+        42,
+        42
+      ],
+      "class": "dangling-pointer",
+      "dimension_hint": "accuracy",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "CLAUDE.md points at AGENTS.md section \"Testing\" for testing conventions. AGENTS.md has no Testing section — its only sections are Stack and Essential commands."
+    },
+    {
+      "id": "gt-8",
+      "file": "CLAUDE.md",
+      "lines": [
+        32,
+        33
+      ],
+      "class": "over-claimed-command",
+      "dimension_hint": "accuracy",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Two claims in one sentence, both false and both settled inside this tree. package.json defines `db:migrate` as `psql $DATABASE_URL -f migrations/0001_init.sql` — one hard-coded file, not every file in `migrations/` in filename order. And `migrations/0001_init.sql` is a bare `CREATE TABLE payments (...)` with no `IF NOT EXISTS` and no applied-migrations table, so the second run errors rather than no-ops. The script name resolves, which is what carries this past a check that only asks whether the documented command exists."
+    }
+  ]
+}

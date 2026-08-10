@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": ".clinerules",
+      "lines": [5, 6],
+      "class": "direct-contradiction",
+      "dimension_hint": "consistency",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": ".clinerules instructs using expect(\"reason\") over ? in startup paths. CLAUDE.md:15-17 forbids unwrap() and expect() anywhere in the codebase and calls it the single most important rule in the repo. Opposite instructions on the same construct, and an agent's behavior depends on which tool loaded."
+    },
+    {
+      "id": "gt-2",
+      "file": ".windsurf/mcp_config.json",
+      "lines": [1, 8],
+      "class": "tool-in-use-no-instructions",
+      "dimension_hint": "coverage",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "A committed .windsurf/ config directory is an activity signal that Windsurf is in use here, and no Windsurf instruction surface exists — no .windsurf/rules/, no .windsurfrules. The fix is normally pointing the tool at an existing surface rather than authoring a parallel one."
+    },
+    {
+      "id": "gt-3",
+      "file": "CLAUDE.md",
+      "lines": [24, 27],
+      "class": "undocumented-invariant",
+      "dimension_hint": "coverage",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "src/generated/ is written by build.rs from proto/ and overwritten on every build — the file header and scripts/regen-proto.sh both say so. No instruction surface tells an agent that, so an agent asked to change a generated type edits src/generated/ and loses the edit on the next build. A non-obvious, recurring project invariant documented nowhere."
+    },
+    {
+      "id": "gt-4",
+      "file": "CLAUDE.md",
+      "lines": [19, 22],
+      "class": "enforceability-misplacement",
+      "dimension_hint": "coverage",
+      "severity": "LOW",
+      "must_find": false,
+      "description": "The Formatting section restates in prose what rustfmt.toml already configures — tab_spaces = 4 and group_imports = \"StdExternalCrate\". The formatter owns this rule mechanically; the prose copy costs attention on every load and can drift from the config."
+    },
+    {
+      "id": "gt-5",
+      "file": "CLAUDE.md",
+      "lines": [26, 27],
+      "class": "hand-maintained-duplicate",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The snake_case attribute rule and the 10,000-span batch cap are copied verbatim into .clinerules:7-8 with no symlink or generation mechanism. The copies agree today, which is when the fix is cheap: one home, the other pointing at it."
+    }
+  ]
+}

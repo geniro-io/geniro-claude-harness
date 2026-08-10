@@ -54,7 +54,7 @@
   },
   "output_contract": {
     "retry_regex": "### ",
-    "clean_regex": "## Dimension Summary|Review — 0 findings"
+    "clean_regex": "## Dimension Summary|Review \u2014 0 findings"
   },
   "pass_expr": ".recall_must == 1",
   "negative_pass_expr": "(.noise_strict // 0) == 0 and (.plausible_real // 0) == 0",
@@ -101,5 +101,6 @@
     "security",
     "tests",
     "regressions"
-  ]
+  ],
+  "noise_floor": 1.1
 }

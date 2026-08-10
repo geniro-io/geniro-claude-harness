@@ -3,7 +3,10 @@
   "version": 1,
   "parser": "spec-claims",
   "facets": [
-    { "name": "claims", "criteria": [] }
+    {
+      "name": "claims",
+      "criteria": []
+    }
   ],
   "assembly": {
     "max_prompt_bytes": 614400,
@@ -16,7 +19,13 @@
   "pass_expr": ".recall_must == 1",
   "negative_pass_expr": "(.noise_strict // 0) == 0 and (.plausible_real // 0) == 0",
   "champion_sync": [
-    { "from": "skills/_shared/spec-challenge.md", "to": "reference/spec-challenge.md" }
+    {
+      "from": "skills/_shared/spec-challenge.md",
+      "to": "reference/spec-challenge.md"
+    }
   ],
-  "screen_facets": ["claims"]
+  "screen_facets": [
+    "claims"
+  ],
+  "noise_floor": 0.33
 }
