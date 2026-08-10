@@ -1,0 +1,5 @@
+{ "id": "real-neg-1", "mode": "spec",
+  "repo_url": "https://github.com/pytest-dev/pytest.git",
+  "base_sha": "3c1534944cbd34e8a41bc9e76818018fadefc9a1",
+  "spec": "spec.md", "lang": "python",
+  "project_context": "Test framework. The spec plans MRO-aware collection of class markers." }

@@ -150,7 +150,20 @@ for task in sorted(os.listdir(root)):
     if not os.path.isdir(d):
         continue
     rubric = json.load(open(os.path.join(d, "rubric.json")))
+    meta = json.load(open(os.path.join(d, "task.json")))
     tree = os.path.join(d, "tree")
+
+    if not os.path.isdir(tree):
+        # A task whose tree is fetched at stage time (repo_url / repo_alias) has
+        # nothing to resolve against offline. Check it can be staged at all —
+        # that is what this suite can honestly assert without a network — and
+        # leave citation resolution to check-claims.py on the staged tree.
+        if not meta.get("base_sha"):
+            bad.append(f"{task}: no committed tree and no base_sha to fetch one")
+        if not any(meta.get(k) for k in ("repo_url", "repo_alias", "repo_path")):
+            bad.append(f"{task}: no committed tree and no repo_url/repo_alias/repo_path")
+        continue
+
     lines_of = {}
     for dirpath, _, names in os.walk(tree):
         for n in names:

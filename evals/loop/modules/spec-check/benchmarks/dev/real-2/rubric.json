@@ -1,0 +1,5 @@
+{ "version": 1, "negative": false, "items": [
+  { "id": "gt-1", "file": "pylint/checkers/base/name_checker/checker.py", "lines": [213, 213],
+    "class": "citation-contradicted", "dimension_hint": "claims",
+    "severity": "MEDIUM", "must_find": true,
+    "description": "Section 3 excludes \"the option help strings\" and cites pylint/checkers/base/name_checker/checker.py:213 and pylint/lint/base_options.py:58. Neither line is a help string: :213 is \"metavar\": \"<names>\" with help at 214-215, and :58 is \"default\": (re.compile(r\"^\\.#\"),) with help at 59-61. Both citations land one key before the one they name." } ] }

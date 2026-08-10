@@ -1,0 +1,5 @@
+{ "id": "real-neg-2", "mode": "spec",
+  "repo_url": "https://github.com/sphinx-doc/sphinx.git",
+  "base_sha": "dd1615c59dc6fff633e27dbb3861f2d27e1fb976",
+  "spec": "spec.md", "lang": "python",
+  "project_context": "Documentation generator. The spec plans autodoc support for inherited attributes." }
