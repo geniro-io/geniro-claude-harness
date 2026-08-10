@@ -57,21 +57,21 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
 ```yaml
 ## Workflow Refs
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/.../CI-303/...
+  issue_id: ENG-303
+  url: https://linear.app/.../ENG-303/...
   fetched_at: 2026-05-26T10:42:13Z
   title: "..."
   suggested_branch: ci-303-...
   status: Todo
   parent_ref:
     kind: linear
-    issue_id: CI-300
+    issue_id: ENG-300
     url: ...
-    title: "Case Radar performance epic"    # chain enrichment (§1.4 step 4)
+    title: "Telemetry performance epic"    # chain enrichment (§1.4 step 4)
     status: In Progress                      # chain enrichment
     scope: "Cut backfill latency below 5 min."  # chain enrichment — bounds per workflow-refs-schema.md
   siblings:                                  # chain enrichment — bounds per workflow-refs-schema.md, omit when none
-  - issue_id: CI-301
+  - issue_id: ENG-301
     title: "..."
     status: Done
   chain_fetched_at: 2026-05-26T10:42:15Z     # chain enrichment, independent staleness from fetched_at

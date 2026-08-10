@@ -184,8 +184,8 @@ geniro_kind: design-doc
 geniro_schema_version: m5-v2
 workflow_refs:
   - kind: linear
-    issue_id: CI-303
-    url: https://linear.app/.../CI-303/...
+    issue_id: ENG-303
+    url: https://linear.app/.../ENG-303/...
     fetched_at: 2026-05-26T10:42:13Z
     status: In Progress
 budget:

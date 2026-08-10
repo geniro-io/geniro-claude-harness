@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        139,
+        143
+      ],
+      "class": "regression",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): ca0c2643cb0d.",
+      "description": "An earlier commit dropped `searchText` from the contributor search query, so the MultiSelect only ever fetched one fixed page of 50 client users and filtered client-side with no server search. Any client user outside that first page of 50 became invisible and unaddable, a functional regression from the prior combobox which server-searched all clients."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        133,
+        133
+      ],
+      "class": "authz",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
+      "description": "Once the sidebar gate was removed, beneficiaries could reach the manage-team panel and see the contributor slot as editable, but the underlying candidate query hits `GET /api/users/list`, which is admin-only and 403s for client sessions. A beneficiary could remove a contributor but never add one, contradicting the panel's own subtitle claiming they could do both."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/case-details-sidebar.tsx",
+      "lines": [
+        50,
+        50
+      ],
+      "class": "authz",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
+      "description": "This PR removed the `!isBeneficiary` gate (added five days earlier in #2650) around the team section, so all client users could suddenly see 1st/2nd chair attorney, paralegal, and hiring-manager assignments with no feature flag protecting the change, despite `feature-flags.mdc` requiring one for removing an existing UI flow."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        416,
+        427
+      ],
+      "class": "regression",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): ca0c2643cb0d.",
+      "description": "Every implicit bulk-deselect surface of the MultiSelect could revoke collaborator access with no confirmation: the trigger's clear-all fired `onValueChange([])` removing everyone in one click, and the \"+N more\" badge's clear button truncated to the default `maxCount` of 3, silently dropping every collaborator past the first three chips."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        206,
+        210
+      ],
+      "class": "race",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "A multi-add or clear-all fires N parallel mutations, and each response writes its own full-team snapshot via `setQueryData` right after only its own request completed. If an earlier snapshot lands last, it can resurrect already-removed members in the cache, and the MultiSelect's chips sync straight from that cache."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/case-workflow/api-facade/services/case-facade.service.ts",
+      "lines": [
+        850,
+        853
+      ],
+      "class": "api-contract",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
+      "description": "The `cw:case-updated` realtime publish never refreshed the team panel for other open sessions: the listener invalidated the tasks/details/snapshot query keys but not the team key, and `refetchOnWindowFocus` was off, so collaborator changes appeared stale until a manual remount."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/api/src/case-workflow/api-facade/services/case-facade.service.integration.test.ts",
+      "lines": [
+        867,
+        867
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "Key paths of `removeCaseContributor` were unpinned by tests: no test rejects removal on an archived case, the realtime publish is stubbed but never asserted, there is no publish-throws test (unlike sibling flows), and the idempotent no-op test checks only that `removeMember` wasn't called rather than the no-event invariant its sibling pins."
+    },
+    {
+      "id": "gt-8",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.test.tsx",
+      "lines": [
+        129,
+        132
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "The hook mocks in this test file take no arguments, so the component's `onSuccess`/`onError` mutation options never run in any test — meaning the new error-recovery behavior (`multiSelectRef.current?.reset()` restoring a chip after a failed remove), toasts, and cache writes are all uncovered."
+    },
+    {
+      "id": "gt-9",
+      "file": "apps/api/src/domain-events/domain-event.types.ts",
+      "lines": [
+        73,
+        80
+      ],
+      "class": "api-contract",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "The contributor domain events mix vocabularies in what is meant to be an append-only stream: assignment keeps the old single-slot shape with a now-permanently-null `previousContributorId`, while removal introduces a new set-based shape, and lawyer/paralegal removal is still modeled as an assignment with `new: null`."
+    },
+    {
+      "id": "gt-10",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        195,
+        197
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "Adding and removing a collaborator are new primary user actions but ship with no analytics events, even though the adjacent team section already tracks a panel-opened event and the facade service already injects `AnalyticsService` without using it here."
+    },
+    {
+      "id": "gt-11",
+      "file": "apps/api/src/case-workflow/api-facade/services/case-facade.service.ts",
+      "lines": [
+        837,
+        847
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "If the domain-event publish throws after `removeMember` has already committed, the removal stands permanently with no corresponding `domain_event` row, and a retry hits the method's early `!isContributor` return so the event can never be recovered — unlike the sibling lawyer-assignment flow, which has a synthetic backfill this flow doesn't."
+    },
+    {
+      "id": "gt-12",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        400,
+        404
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "While a mutation is pending, `disabled` only reaches the MultiSelect's trigger button — the open popover stays interactive, items keep a pointer cursor, and clicks silently no-op — so rapid multi-adds during an in-flight request lose selections with no visible feedback to the user."
+    },
+    {
+      "id": "gt-13",
+      "file": "apps/api/src/case-workflow/api-facade/services/case-facade.service.ts",
+      "lines": [
+        833,
+        841
+      ],
+      "class": "authz",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted). Commits referenced: ca0c2643cb0d, d561728b78c9, 932bc9dcf.",
+      "description": "The guard only checks that the target holds a `contributor` row, but the removal call (`removeMember` → `unsyncCaseRoleAssignments`) deletes every case role and FGA tuple the target holds with no role filter, and users can hold multiple case roles. A beneficiary authorized only to manage the contributor slot could therefore also silently revoke a target's staff-role grants, with only `removedContributorId` recorded in the event."
+    },
+    {
+      "id": "gt-14",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        199,
+        199
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): ca0c2643cb0d.",
+      "description": "`multiSelectRef` was declared after the two `onError` closures that reference it, which only worked because those closures run post-mount rather than at declaration time."
+    },
+    {
+      "id": "gt-15",
+      "file": "apps/api/src/case-workflow/api-facade/services/case-facade.service.ts",
+      "lines": [
+        809,
+        809
+      ],
+      "class": "api-contract",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
+      "description": "The add-contributor path opened with a plain `findOne`, so an archived case returned a generic \"Case not found\" 404 on add but a \"Case is archived\" 409 on remove — two different error shapes for the same underlying constraint on one control."
+    },
+    {
+      "id": "gt-16",
+      "file": "apps/api/src/case-workflow/api-facade/services/case-facade.service.ts",
+      "lines": [
+        818,
+        830
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
+      "description": "The authz block in `removeCaseContributor` duplicated `setCaseContributor`'s block verbatim but was missing the comment explaining why `getCaseTeamForActiveCase` (not `findCaseTeam`) is required there, since FK-linked beneficiaries have no direct IAM row."
+    },
+    {
+      "id": "gt-17",
+      "file": "apps/api/src/case-workflow/api-facade/services/case-facade.service.ts",
+      "lines": [
+        832,
+        832
+      ],
+      "class": "perf",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "On the beneficiary path, the team is fetched three times in one request: once by the guard's `getCaseTeamForActiveCase`, once more via `findCaseTeam` right after, and again when rebuilding the response, even though the guard's resolved team is already a superset of what the second fetch needs."
+    },
+    {
+      "id": "gt-18",
+      "file": "apps/web/src/features/case-workflow/widgets/case-details-sidebar/sections/manage-team-panel/manage-team-panel.tsx",
+      "lines": [
+        180,
+        180
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted on the review thread (identifiers redacted).",
+      "description": "The contributor-add mutation is now add-only, but its error fallback copy still read \"Failed to update collaborator\" while the success toast said \"Collaborator added\", a leftover mismatch from before the flow was split."
+    }
+  ]
+}

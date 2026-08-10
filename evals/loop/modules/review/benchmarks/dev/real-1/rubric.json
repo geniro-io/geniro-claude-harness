@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.spec.ts",
+      "lines": [
+        285
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 63ef625ecb91.",
+      "description": "All tests in digest-queue.processor.spec.ts hardcode the CLIENT_DIGEST_REAL_RECIPIENTS feature flag to false, so the ON branch that routes drafts to the real attorney.email (vs. the test-fallback@example.com test fallback mailbox) had zero coverage. An inverted conditional in a future refactor could silently route every attorney's PII-bearing drafts to a single internal mailbox undetected."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.processor.spec.ts",
+      "lines": [
+        166
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 63ef625ecb91.",
+      "description": "Both dispatch-queue tests hardcode the CLIENT_DIGEST master kill-switch flag to true, leaving the OFF branch (which should suppress all digest dispatch) completely untested. A regression that inverted this conditional would silently dispatch digests to every eligible attorney-client pair even before rollout begins."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-subject.ts",
+      "lines": [
+        18
+      ],
+      "class": "api-contract",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 0509a6e3377e.",
+      "description": "buildClientDigestSubject returns `Weekly Update for ${clientName} | ${weekOf}` with no length guard, so an unusually long client name (up to ~64 chars via the email fallback) could push the result past the DigestContentSchema's `.max(160)` cap. Since the schema's parse is never actually invoked on the assembled digest object in the processor, that cap is dead enforcement, making the overflow silent rather than caught."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        294
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 5d580c7ef41c.",
+      "description": "When the LLM returns an empty keyDetailsDiscussed array (schema allows `.min(0)`), the template still rendered the 'Some key details discussed' section header above an empty bullet list, producing a visibly broken empty card in the email. The sibling NeedsList component already had an empty-state fallback; BulletList did not."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/client-digest/queue/dispatch-queue.processor.spec.ts",
+      "lines": [
+        60
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted).",
+      "description": "The two existing dispatch tests cover 'client has an ACTIVE case' and 'client has no cases' but not the two boundary cases that actually stress the D-2 ACTIVE-only filter: a client with both ACTIVE and CLOSED/ON_HOLD cases (should still be included) and a client with only CLOSED/ON_HOLD cases (should be excluded). If the ACTIVE predicate were accidentally widened or dropped, the existing tests would not catch it."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.spec.ts",
+      "lines": [
+        261
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): ec787de4b4ff.",
+      "description": "The processor throws an InternalServerErrorException with a structured attorneyFound/clientFound payload when either participant lookup fails, but no test exercised that path since the spec's em.find mock always returned both users."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        172
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 32029951aa9e.",
+      "description": "`const formatWeekOfLabel = formatClientDigestWeekOfLabel;` aliases an imported function that is used exactly once, diverging from the sibling processor's convention of calling the function directly. Purely a dead-refactor-remnant / stylistic issue, not a functional bug."
+    },
+    {
+      "id": "gt-8",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-date.ts",
+      "lines": [
+        12
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 0509a6e3377e, 86a45e86a7ce.",
+      "description": "The two new pure-function helper modules (client-digest-date.ts, client-digest-subject.ts) shipped without dedicated *.spec.ts siblings, unlike the repo's convention for similar utility modules, leaving DST edge cases and the name/email-fallback branch only indirectly exercised through the processor spec."
+    },
+    {
+      "id": "gt-9",
+      "file": "apps/api/src/case-radar/client-digest/dto/digest-content.dto.spec.ts",
+      "lines": [
+        94
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9a3238055ee9.",
+      "description": "A test titled 'should reject more than 8 key detail items' actually feeds 9 items against a schema capped at `.max(6)`; the test passes but doesn't pin the true boundary, so a future change that loosened the cap to 8 would leave the test green while the real protection silently weakened."
+    },
+    {
+      "id": "gt-10",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        40
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 0a293e9c8371.",
+      "description": "The 16-line DIGEST_SYSTEM_PROMPT is defined inline in the service alongside OpenAI SDK call and error-handling logic, unlike the 4 other AI services in the repo which extract their prompts into a dedicated *.prompt.ts file. Convention/maintainability finding, not a functional bug."
+    },
+    {
+      "id": "gt-11",
+      "file": "apps/api/src/case-radar/client-digest/services/llm-processing.service.ts",
+      "lines": [
+        40
+      ],
+      "class": "api-contract",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 32029951aa9e.",
+      "description": "The system prompt instructs the LLM to 'use the provided weekOf label ... verbatim', but per an earlier design decision the LLM no longer outputs weekOf at all (LlmDigestContentSchema excludes it) and the user prompt separately tells the model not to output or infer it — a direct contradiction between system and user prompt instructions."
+    },
+    {
+      "id": "gt-12",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        267
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): ca287f9f8462.",
+      "description": "The email template's header image hardcodes the production asset bucket URL instead of using the repo's getEmailAssetUrl helper (used by three other templates), which would break per-environment asset routing in dev/UAT. Confidence was noted as moderate (65%) since a sibling notification template has the same pre-existing inconsistency."
+    },
+    {
+      "id": "gt-13",
+      "file": "apps/api/src/case-radar/client-digest/email-templates/client-digest.template.tsx",
+      "lines": [
+        278
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): ba0346c31344.",
+      "description": "`digest.caseType || 'Case update'` is dead code: LlmDigestContentSchema declares caseType as a required, non-empty string, so after zodResponseFormat parsing it can never be falsy, making the fallback branch unreachable and misleading to future maintainers about nullability."
+    },
+    {
+      "id": "gt-14",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-date.ts",
+      "lines": [
+        12
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 908f91a3e6d3.",
+      "description": "client-digest-date.ts and client-digest-subject.ts are two separate single-export helper files that feed the same weekOfLabel-to-subject pipeline; a PRODUCT-DECISION suggestion to consolidate them into one utility module, offered as optional/stylistic."
+    },
+    {
+      "id": "gt-15",
+      "file": "apps/api/src/case-radar/client-digest/client-digest-date.ts",
+      "lines": [
+        1
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 908f91a3e6d3.",
+      "description": "Both new helper modules sit at the client-digest module root rather than in a module-local utils/ subdirectory, unlike the sibling case-radar/analysis/utils/ convention; PRODUCT-DECISION-tagged placement suggestion, acceptable to leave as-is per the finding itself."
+    }
+  ]
+}

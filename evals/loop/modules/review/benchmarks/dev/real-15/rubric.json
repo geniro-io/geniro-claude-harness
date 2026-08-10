@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.ts",
+      "lines": [581, 590],
+      "class": "authz",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 532e47c3c0 (2026-05-13, hours after the review) adds the role-allowlist condition to the detail lookup's predicate, with new unit and integration coverage; the commit message describes the missing third-entrypoint gate.",
+      "description": "The change gates the list endpoint and the filter-options endpoint on the attorney-role allowlist, but the single-attorney detail lookup in the same file still filters only on the staff party type — the third attorney-read entrypoint was left ungated. An internal or admin caller can request the detail route for any staff mailbox with a linked user id (ops, intake, recruiter, and so on) and receive its full detail page, contradicting the change's stated guarantee that non-attorney roles are excluded. The same allowlist predicate must be added to the detail lookup."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.ts",
+      "lines": [386, 388],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 532e47c3c0 (2026-05-13) repoints both the inline comment and the mirrored spec comment at the real enforcement locations (the derivation method and the one-shot SQL backfill); the commit message notes the cited method had been removed earlier.",
+      "description": "The new comment (and its mirror in the unit spec) justifies the read-path gate as mirroring a write-path gate in a named ingestion-service method — but that method does not exist, and the ingestion service contains no reference to the role allowlist at all. The actual write-path enforcement lives in a derivation method elsewhere in the same file and in a one-shot SQL backfill migration. A future engineer keeping the paths in sync would chase a ghost method; both comments must point at the real locations."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.ts",
+      "lines": [470, 473],
+      "class": "convention",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 532e47c3c0 (2026-05-13) drops the hoisted const and inlines the literal at all three sites, matching the sibling convention.",
+      "description": "One method hoists the allowlist filter into a const reused at its two sites, while the other gated method constructs a fresh inline literal of the same filter. Across eight sibling spread-into-in-operator sites in this domain, all use the inline-literal form — the hoisted-const variant is new and only partially applied within this change. Either form is fine; the mix is the inconsistency. Pick one and apply it at all three sites."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.spec.ts",
+      "lines": [814, 816],
+      "class": "test-gap",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 532e47c3c0 (2026-05-13) adds the strict length assertion to the second branch's test.",
+      "description": "The contact-id-branch unit test asserts the allowlist via an array-containing matcher but omits the exact-length guard its sibling test has. The two branches build their where objects on separate code paths, so a divergent regression — for example a fourth role accidentally added only to the contact-id branch — would silently pass. Add the length assertion to match the sibling's strict guard."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.integration.test.ts",
+      "lines": [352, 386],
+      "class": "test-gap",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 532e47c3c0 (2026-05-13) adds a real-DB integration canary for the listing method mirroring the existing one.",
+      "description": "Of the two methods that received the gate, only the filter-options method has a real-database integration test; the main listing method is covered only by unit tests that introspect the mocked entity manager's call arguments — they assert the predicate's shape, not its SQL effect. A regression bypassing the filter at the SQL level (an ORM filter-decorator override, a schema rename, a wrapper layer) would pass. Seed one allowlisted and one non-allowlisted staff contact and assert only the former is returned by the listing."
+    }
+  ]
+}

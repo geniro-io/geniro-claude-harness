@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.ts",
+      "lines": [219, 221],
+      "class": "bug",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 493d465f49 (2026-05-13, within an hour of the review) wraps the flush in a nested try/catch that logs the flush error and lets the original step exception propagate; the guard is still present at the merged head.",
+      "description": "The processor persists step-resume state with a bare `await em.flush()` in a finally block. When both a step await and the flush throw, JavaScript's try/finally semantics replace the original step error with the flush error, so the queue records only the flush failure and the information about which step actually failed is lost. This defeats the change's own postmortem strategy (the persisted null-pattern plus the original error), exactly in the double-failure production-degradation case where the signal matters most. The flush must be wrapped in its own try/catch that logs and swallows the flush error."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.integration.test.ts",
+      "lines": [255, 290],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 911e5ff4d3 (2026-05-13) adds a mixed-timeline scenario asserting the sender filtering and the attorney-flag mapping.",
+      "description": "The deleted unit spec explicitly covered the communications mapper: filtering out rows with a null sender email (system events), filtering out rows with a null sender party type, and mapping the staff party type to an is-from-attorney true flag versus false for client/external. The replacement integration suite seeds a single staff row and never asserts any of those behaviors, despite the change's claim of equivalent coverage. A mixed timeline seed (staff + client + a null-sender system row) should assert that only human-sender rows reach the LLM call with correct flags."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.integration.test.ts",
+      "lines": [594],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 911e5ff4d3 (2026-05-13) adds a scenario that deletes the user before reprocessing and asserts the rejection and that no draft is created.",
+      "description": "The deleted unit spec asserted that participant resolution throws an internal-server error with found-flags context when a user is missing. The new integration suite has no scenario where a user is soft-deleted between attempts, although the processor's own comment makes the live re-fetch a load-bearing safety control (refusing to deliver is the intended outcome). An integration test should seed a partial run, delete the user, and assert the job rejects without creating a draft."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/client-digest/queue/digest-queue.processor.integration.test.ts",
+      "lines": [349, 356],
+      "class": "convention",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 911e5ff4d3 (2026-05-13) removes the spy block and its assertion, leaving the state-based assertions as the specification.",
+      "description": "A resume-path test spies on an internal collaborator (the timeline lookup service running against the real test DB) and asserts it was not called. The invariant — a retry with persisted LLM input does not re-fetch the timeline — is already proven by the state-based assertions in the same test (persisted output equals the sample, and the drafted analytics event fires). The spy couples the test to routing implementation and adds refactor fragility without adding value; it should be removed."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/client-digest/entities/cr-client-digest-run.entity.ts",
+      "lines": [24, 42],
+      "class": "convention",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 30779cba6e (2026-05-13) moves both interfaces to the module's types file and imports them back into the entity.",
+      "description": "The new entity declares its two JSONB-shape interfaces inline, while all five sibling entities in the same domain defer their type shapes to a colocated types file — and this module already has such a types file housing related shapes that one of the inline interfaces imports. Move the two interfaces into the module types file and import them back, matching the domain convention."
+    }
+  ]
+}

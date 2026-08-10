@@ -82,12 +82,12 @@ Render both halves into one plain-English block for prompt injection. Worked exa
 
 ```
 TASK CHAIN CONTEXT
-This task: CI-303 "Parallelize Case Radar backfill" (Todo)
-Part of epic: CI-300 "Case Radar performance epic" (In Progress) — Cut backfill latency below 5 min.
+This task: ENG-303 "Parallelize telemetry backfill" (Todo)
+Part of epic: ENG-300 "Telemetry performance epic" (In Progress) — Cut backfill latency below 5 min.
 Related tasks in this epic:
-  - CI-301 "Per-user job partitioning" — Done (came before)
-  - CI-302 "Backfill progress telemetry" — In Progress (conflict: deploy-state shows shipped)
-  - CI-304 "Index tuning" — unconfirmed (tracker says Done; no data source could corroborate)
+  - ENG-301 "Per-user job partitioning" — Done (came before)
+  - ENG-302 "Backfill progress telemetry" — In Progress (conflict: deploy-state shows shipped)
+  - ENG-304 "Index tuning" — unconfirmed (tracker says Done; no data source could corroborate)
 Milestones in this plan:
   [x] milestone-1 "Schema migration" — done
   [>] milestone-2 "Per-user jobs" — current

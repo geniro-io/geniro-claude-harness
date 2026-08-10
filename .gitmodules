@@ -1,3 +1,0 @@
-[submodule "evals/vendor/skills"]
-	path = evals/vendor/skills
-	url = https://github.com/anthropics/skills

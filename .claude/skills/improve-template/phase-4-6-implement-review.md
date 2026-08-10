@@ -63,6 +63,9 @@ Apply the following approved changes:
   the only source for what counts as removable detail and for what earns its place — do not restate
   its list into the file you edit. Prefer tightening an existing line over adding a new one, and
   subtract in the sections you touch; signal density, not size, is the target.
+- **Adding text meant to change what a run finds or does:** read the same file's §"What adding
+  instructions buys" first. It carries when wording is the wrong tool for the change you were handed,
+  and what to reach for instead. Report back if the change you were given is one it rules out.
 """, description="Implement: [group name]")
 ```
 
@@ -193,17 +196,34 @@ Present to the user:
 
 ### Removed by this pass
 [what the pass subtracted, per Phase 5 checklist item 7 — or "nothing removed" plus the reviewer's justification]
+
+### Verification status
+[per change: tested / measured / unmeasured-by-choice — from Step 2]
 ```
 
-### Step 2: Extract learnings to memory
+### Step 2: Propose how to verify what landed
+
+The pass has evidence that its files changed and none that its changes work. Close that gap explicitly: classify every landed change into one of three kinds, render the table below, and offer the verifications that exist. Never claim a change is verified because the pipeline's own gates were green — lint and the reference checks prove the edit is well-formed, not that it does anything.
+
+| Kind | What landed | How it gets decided |
+|---|---|---|
+| **Deterministic** | A hook, a `lib/` helper, a script, a validator, a parser, a path or schema contract | A test case. Name the suite file it belongs in and the case: the input that reproduces the old behavior, and the assertion that fails without this change. |
+| **Behavioral** | Skill or agent prose that changes what a run finds, checks, or decides | A measured run — `/eval-loop` against the module the prose belongs to. Name the module, the task class the change targets, and that the screen is paid. |
+| **Neither** | Docs, naming, a structural move, a cross-reference repair | Say so in one line. Inventing a test for a rename is worse than admitting the change rides on review alone. |
+
+Then one `AskUserQuestion` offering only the kinds this pass actually produced: write the tests now / start the measurement now / ship unverified and record it. A behavioral change shipping unverified is legitimate — most do — but it ships named as unmeasured, so the next pass over that file knows the prose was never shown to work.
+
+**A behavioral instruction edit is a hypothesis, not a fix.** `.claude/rules/skill-prose.md` §"What adding instructions buys" carries what such edits reliably do and do not buy; a pass that added one and skipped the measurement has produced a candidate, and the summary says candidate.
+
+### Step 3: Extract learnings to memory
 
 Scan for user corrections, convention discoveries, and limitations encountered. Before writing, check if existing memory already covers the topic — update rather than duplicate. Skip if nothing novel was discovered.
 
-### Step 3: Cleanup
+### Step 4: Cleanup
 
 `rm -rf .geniro/state/improve-template/<slug>/` — the whole slug directory, per `skills/_shared/within-skill-state-handoff.md` § Cleanup contract — plus this run's two Phase 1 research reports (`.research-architecture-<slug>.md`, `.research-codebase-<slug>.md`). Delete only the current branch's slug; never glob across slugs. Also `rm -f` the two pre-rename paths, `.geniro/state/improve-template/state-<slug>.md` and `.geniro/improve-template-state.md` — the `/geniro:update` migration walk that owns legacy paths elsewhere runs against installed plugins and never sweeps this repo-local dev skill, so nothing else would remove them.
 
-### Step 4: Suggest commit & push
+### Step 5: Suggest commit & push
 
 After cleanup, run `bash tests/run-all.sh` — CI gates on it, so a red suite here is a red pull request. If a suite fails, report which one and stop; the ship options are not offered on a red suite. Otherwise show the user what is currently staged versus unstaged, then use the `AskUserQuestion` tool to offer shipping the changes:
 

@@ -120,8 +120,8 @@ approvals:
     asked_in_phase: analyze
     workflow_file: ".geniro/workflow/linear.md"
     transition: "Todo -> In Progress"
-    issue_id: "CI-303"
-    result: "CI-303 moved to In Progress"
+    issue_id: "ENG-303"
+    result: "ENG-303 moved to In Progress"
 ```
 
 Field names are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array". Two of them are easy to get wrong here. The timestamp key is `at`, not `timestamp` — the SessionStart restore hook reads `.at`, so an entry keyed `timestamp` loses its time to every later reader. And `why` / `evidence` / `result` are optional: record `why` on a pick a later reader could not reconstruct from `picked` alone, and `result` once the pick has been acted on, which for a tracker transition is the confirmation the transition landed.

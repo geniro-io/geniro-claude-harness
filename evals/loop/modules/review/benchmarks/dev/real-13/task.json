@@ -1,0 +1,10 @@
+{
+  "id": "real-13",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "acd0b204ab40f926a849a0d6f2757ff37fbd07f4",
+  "head_sha": "d8f5150bc08c0271b007d1978f961ee6bdabe022",
+  "lang": "ts",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: backend domain events + analytics. Change: adds nine new task/case lifecycle domain events plus changed-field detection on case updates, consumed by a snapshot-history handler.",
+  "include_repo_rules": true
+}

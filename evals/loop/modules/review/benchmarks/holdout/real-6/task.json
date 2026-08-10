@@ -1,0 +1,10 @@
+{
+  "id": "real-6",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "53db87ceb2d853b0181e502abbe658c47ff723b8",
+  "head_sha": "ad1163b852892dbfa5a05efb90fd18934990d64f",
+  "lang": "typescript",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack. Change: snapshot and backfill actor contact role on case timeline rows",
+  "include_repo_rules": true
+}

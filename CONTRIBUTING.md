@@ -22,20 +22,16 @@ Thank you for your interest in contributing! This project aims to provide the be
 
 ### Before you push
 
-Run these three locally before you push — it's the difference between a green PR and a red one. CI does not regenerate the Cursor agents itself (step 2); it only runs `tests/run-all.sh` (step 3), which includes a drift check that fails if `cursor/agents/*.md` is out of sync — so step 2 has to be run and its output committed locally first.
+Run these two locally before you push — it's the difference between a green PR and a red one. CI does not regenerate the Cursor agents itself (step 1); it only runs `tests/run-all.sh` (step 2), which includes a drift check that fails if `cursor/agents/*.md` is out of sync — so step 1 has to be run and its output committed locally first.
 
 ```bash
-# 1. Fetch the pinned judge prompts. The eval suites read evals/vendor/skills;
-#    without the submodule every comparison degrades to a no-winner tie.
-git submodule update --init
-
-# 2. Regenerate the Cursor agent copies — REQUIRED after any agents/*.md edit.
+# 1. Regenerate the Cursor agent copies — REQUIRED after any agents/*.md edit.
 #    cursor/agents/*.md are generated, never hand-written. CI
 #    (tests/cursor/build-agents-fresh.sh) hard-fails on drift, so commit
 #    agents/*.md and cursor/agents/*.md together.
 bash scripts/build-cursor-agents.sh
 
-# 3. Run every shell test suite (helpers, safety hooks, authoring lint).
+# 2. Run every shell test suite (helpers, safety hooks, authoring lint).
 #    Exits non-zero if any suite fails — this is the CI gate.
 bash tests/run-all.sh
 ```

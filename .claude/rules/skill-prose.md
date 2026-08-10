@@ -111,6 +111,16 @@ Heuristics, in priority order:
 
 Reference files carry no budget pressure until loaded — be generous there. SKILL.md stays lean.
 
+## What adding instructions buys
+
+Rule text raises compliance on a step the model would otherwise skip. It does not raise capability on a step the model already attempts: four separate attempts to make a reviewer catch more by adding text — a prose directive, a checklist item, a required output slot, an injected context file — each moved detection by zero, while a −75% rewrite of the same criteria held detection across two task sets and two executor families (`evals/loop/experiments/`).
+
+- **Diagnose before drafting.** A step that never runs is an instruction problem: write the rule. A step that runs and comes back shallow is a capability bound, and no wording reaches it — spend on a differently-angled second pass, or state the bound and stop.
+- **A required slot proves a step ran; it does not deepen it.** Forced enumeration comes back honest, thorough, and one hop short of the defect.
+- **Cut boldly or not at all.** Keeping a checklist's headings while dropping its content measured worse than either the full text or a charter — mission, common false positives, severity calibration — which is the shape a criteria file compresses to without loss.
+
+This does not license compressing constraint payload; §Token budget awareness carries that ceiling. The kinds differ: an enumeration of what to look for compresses to a charter, a set of rules to obey does not.
+
 ## Time-sensitive content
 
 Wrap a deprecated procedure in collapsible HTML rather than inlining it — still greppable, no longer competing with the current procedure for attention.

@@ -1,0 +1,10 @@
+{
+  "id": "real-11",
+  "mode": "git",
+  "repo_alias": "monorepo-a",
+  "base_sha": "ac63e893c238717cfe9df6f41d4789f586cbb3ab",
+  "head_sha": "0db2df7f759952a547d8263df549385a30a23d2f",
+  "lang": "ts",
+  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: full-stack (API read endpoints + web UI). Change: adds meeting summary/transcript read endpoints and a web modal that surfaces them from a timeline view.",
+  "include_repo_rules": true
+}

@@ -1,0 +1,52 @@
+diff --git a/src/truncate.ts b/src/truncate.ts
+new file mode 100644
+index 0000000..c86bc73
+--- /dev/null
++++ b/src/truncate.ts
+@@ -0,0 +1,18 @@
++export interface TruncateOptions {
++  maxLength: number;
++  ellipsis?: string;
++}
++
++export function truncate(input: string, options: TruncateOptions): string {
++  const ellipsis = options.ellipsis ?? "…";
++  if (options.maxLength <= 0) {
++    throw new RangeError(`maxLength must be positive, got ${options.maxLength}`);
++  }
++  if (input.length <= options.maxLength) {
++    return input;
++  }
++  if (options.maxLength <= ellipsis.length) {
++    return input.slice(0, options.maxLength);
++  }
++  return input.slice(0, options.maxLength - ellipsis.length) + ellipsis;
++}
+diff --git a/test/truncate.test.ts b/test/truncate.test.ts
+new file mode 100644
+index 0000000..6a03cf4
+--- /dev/null
++++ b/test/truncate.test.ts
+@@ -0,0 +1,22 @@
++import { truncate } from "../src/truncate";
++
++describe("truncate", () => {
++  it("returns short strings unchanged", () => {
++    expect(truncate("abc", { maxLength: 5 })).toBe("abc");
++  });
++  it("truncates with default ellipsis", () => {
++    expect(truncate("abcdefgh", { maxLength: 5 })).toBe("abcd…");
++  });
++  it("returns exact-length strings unchanged", () => {
++    expect(truncate("abcde", { maxLength: 5 })).toBe("abcde");
++  });
++  it("handles maxLength shorter than the ellipsis", () => {
++    expect(truncate("abcdefgh", { maxLength: 1 })).toBe("a");
++  });
++  it("supports a custom ellipsis", () => {
++    expect(truncate("abcdefgh", { maxLength: 6, ellipsis: "..." })).toBe("abc...");
++  });
++  it("throws on non-positive maxLength", () => {
++    expect(() => truncate("abc", { maxLength: 0 })).toThrow(RangeError);
++  });
++});

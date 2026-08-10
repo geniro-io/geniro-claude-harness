@@ -148,15 +148,15 @@ task_slug: ci-303
 lifecycle: draft
 workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/manifestlabs/issue/CI-303/parallelize
+  issue_id: ENG-303
+  url: https://linear.app/acme/issue/ENG-303/parallelize
   fetched_at: 2026-05-26T10:42:13Z
-  title: "Parallelize Case Radar backfill"
+  title: "Parallelize telemetry backfill"
   status: Todo
 ---
 
 <!-- geniro:design-doc -->
-# Parallelize Case Radar backfill
+# Parallelize telemetry backfill
 
 ## 1. Objective
 Speed up backfill.
@@ -225,7 +225,7 @@ task_slug: bad
 lifecycle: draft
 workflow_refs:
 - kind: linear
-  issue_id: CI-303
+  issue_id: ENG-303
   fetched_at: 2026-05-26T10:42:13Z
 ---
 
@@ -254,11 +254,11 @@ task_slug: multi
 lifecycle: draft
 workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/manifestlabs/issue/CI-303/foo
+  issue_id: ENG-303
+  url: https://linear.app/acme/issue/ENG-303/foo
   fetched_at: 2026-05-26T10:42:13Z
 - kind: linear
-  issue_id: CI-300
+  issue_id: ENG-300
   fetched_at: 2026-05-26T10:42:13Z
 ---
 
@@ -285,12 +285,12 @@ task_slug: multi
 lifecycle: draft
 workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/manifestlabs/issue/CI-303/foo
+  issue_id: ENG-303
+  url: https://linear.app/acme/issue/ENG-303/foo
   fetched_at: 2026-05-26T10:42:13Z
 - kind: linear
-  issue_id: CI-300
-  url: https://linear.app/manifestlabs/issue/CI-300/epic
+  issue_id: ENG-300
+  url: https://linear.app/acme/issue/ENG-300/epic
   fetched_at: 2026-05-26T10:42:13Z
 ---
 
@@ -320,26 +320,26 @@ task_slug: ci-303
 lifecycle: draft
 workflow_refs:
 - kind: linear
-  issue_id: CI-303
-  url: https://linear.app/manifestlabs/issue/CI-303/parallelize
+  issue_id: ENG-303
+  url: https://linear.app/acme/issue/ENG-303/parallelize
   fetched_at: 2026-05-26T10:42:13Z
-  title: "Parallelize Case Radar backfill"
+  title: "Parallelize telemetry backfill"
   status: Todo
   parent_ref:
     kind: linear
-    issue_id: CI-300
-    url: https://linear.app/manifestlabs/issue/CI-300/epic
-    title: "Case Radar performance epic"
+    issue_id: ENG-300
+    url: https://linear.app/acme/issue/ENG-300/epic
+    title: "Telemetry performance epic"
     status: In Progress
     scope: "Cut backfill latency below 5 min."
   siblings:
-  - issue_id: CI-301
+  - issue_id: ENG-301
     title: "Per-user job partitioning"
     status: Done
   chain_fetched_at: 2026-05-26T10:42:15Z
 ---
 
-# Parallelize Case Radar backfill
+# Parallelize telemetry backfill
 
 ## 1. Objective
 Speed up backfill.

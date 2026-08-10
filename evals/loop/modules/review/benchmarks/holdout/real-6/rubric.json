@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/ingestion/adapters/base-ingestion.adapter.ts",
+      "lines": [
+        904,
+        904
+      ],
+      "class": "silent-fallback",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": false,
+      "acceptance_evidence": "Not accepted; author declined on the review thread (identifiers redacted). Commits referenced: 18963cc0.",
+      "description": "In the Pass-1 actor contact-role lookup, `contact.user?.id` optional-chains past a hypothetically-null `user` on a row already filtered by `user_id IN (actorUserIds)`, so if MikroORM ever returned a partial row with null user, the entry would silently drop into Pass 2 with no log line marking the contract violation. Reviewer proposed an explicit undefined guard plus a warn log instead of silent degradation."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/ingestion/adapters/base-ingestion.adapter.ts",
+      "lines": [
+        313,
+        313
+      ],
+      "class": "api-contract",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): e06d784.",
+      "description": "The `actorUser` FK reference is frozen on re-ingest as a side effect of being absent from `onConflictMergeFields`, but the adjacent code comment only named `senderContactRole`/`actorContactRole` as frozen, leaving the FK-freeze behavior undocumented and its intentionality ambiguous for a future reader."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/ingestion/adapters/base-ingestion.adapter.ts",
+      "lines": [
+        923,
+        923
+      ],
+      "class": "silent-fallback",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): e06d784.",
+      "description": "The D-12 `OPS_FALLBACK_EMAILS` chain was applied post-hoc in the sender path (`upsertContacts`) but not inside `deriveContactRole` used by the actor's Step-2 derivation, so a future user-less ops mailbox would resolve to `'ops'` as a sender but `null` as an actor — an unobserved-in-prod but real path divergence."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/ingestion/adapters/base-ingestion-adapter.integration.test.ts",
+      "lines": [
+        597,
+        597
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 18963cc0.",
+      "description": "Two `afterEach(() => { vi.restoreAllMocks(); })` blocks in this integration test file are dead code since the file contains zero `vi.spyOn`/`vi.fn`/`vi.mock` calls, likely copy-pasted from the co-located spec file; reviewer noted 86% of sibling case-radar integration tests carry no such afterEach."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/ingestion/adapters/base-ingestion-adapter.integration.test.ts",
+      "lines": [
+        545,
+        545
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "No runtime integration test verified `actorContactRole` frozen-snapshot semantics on re-ingest — the existing unit test only asserted the shape of `onConflictMergeFields`, not that a re-ingest actually leaves the persisted role untouched, so a wrong conflict target or MikroORM-generated SQL bug would go undetected."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/case-radar/ingestion/adapters/base-ingestion-adapter.integration.test.ts",
+      "lines": [
+        546,
+        546
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "The runtime path for a soft-deleted actor user (post-loop null-fill in `resolveActorContactRoleByUserId`) had no adapter-level integration test, even though the analogous SQL backfill path was covered — a regression in the User entity's softDelete filter or a switch to `disableFilters: true` would silently populate a deleted user's role with no test catching it."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/api/src/case-radar/ingestion/adapters/base-ingestion-adapter.integration.test.ts",
+      "lines": [
+        547,
+        547
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "No test combined a Pass-1 actor (contact row hit) and a Pass-2 actor (contact row absent) within the same ingest batch, leaving the Set/filter logic in `resolveActorContactRoleByUserId` unverified for realistic multi-actor batches and its Pass-1/Pass-2 boundary handling untested."
+    },
+    {
+      "id": "gt-8",
+      "file": "apps/api/src/database/migrations/sql-scripts/backfill-actor-contact-role.sql",
+      "lines": [
+        31,
+        31
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "No SQL backfill test covered an actor whose `CommunicationContact` row exists but has `contact_role IS NULL`, a case Step 1 silently skips (via the `cc.contact_role IS NOT NULL` predicate) leaving Step 2 to derive the role through an independent JOIN path the TS resolver's tests can't stand in for."
+    },
+    {
+      "id": "gt-9",
+      "file": "apps/api/src/database/migrations/sql-scripts/backfill-actor-contact-role.sql",
+      "lines": [
+        71,
+        71
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "The `<=` tie-break operator in the equal-rank comparison between `best_permissions_role` and `filtered_user_role` documents that permissions_grant wins ties, but no test exercised equal-rank inputs, so a future accidental change from `<=` to `<` would silently flip tie-break behavior with nothing to catch it."
+    },
+    {
+      "id": "gt-10",
+      "file": "apps/api/src/database/migrations/sql-scripts/backfill-actor-contact-role.sql",
+      "lines": [
+        56,
+        56
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "The `LIMIT 1 ORDER BY array_position(...)` subquery picking the most-specific permissions_grant for a multi-grant user had no test seeding multiple grants, leaving the ordering/determinism of this core Step-2 logic — which touches ~40k production rows in a one-shot migration — unverified."
+    },
+    {
+      "id": "gt-11",
+      "file": "apps/api/src/database/migrations/sql-scripts/backfill-actor-contact-role.sql",
+      "lines": [
+        81,
+        81
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "No test covered an active actor whose `user.role` is unranked and who has no ranked `permissions_grant`, a case the WHERE clause excludes so the role stays NULL; without a test, a future loosening of the `ANY(role_ranks)` filter or the OR-clause exclusion could silently start attaching a wrong role to these rows."
+    },
+    {
+      "id": "gt-12",
+      "file": "apps/api/src/database/migrations/sql-scripts/backfill-actor-contact-role.sql",
+      "lines": [
+        73,
+        73
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "The `ELSE NULL` branch in the role-selection CASE expression is unreachable because the outer WHERE clause already excludes rows where both candidate roles are NULL; left unannotated, it's a maintenance trap where a future loosening of the WHERE clause would cause this branch to start silently writing NULL through the idempotency guard."
+    },
+    {
+      "id": "gt-13",
+      "file": "apps/api/src/case-radar/ingestion/migrations/backfill-actor-contact-role.integration.test.ts",
+      "lines": [
+        101,
+        101
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "`await client.connect()` sat outside the surrounding try block in the backfill integration test helper, so if connect() threw, the finally block's `client.end()` cleanup would never run, risking deferred error events / unhandled-rejection noise leaking into later tests."
+    },
+    {
+      "id": "gt-14",
+      "file": "apps/api/src/case-radar/communication/timeline/dto/timeline.dto.spec.ts",
+      "lines": [
+        124,
+        124
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "The DTO schema's `.trim()` accept-path for `actorContactRole` was untested — only the reject path (all-whitespace collapsing to null) was covered — so a value like `'  paralegal  '` trimming correctly to `'paralegal'` had no regression guard; removing `.trim()` accidentally would ship whitespace-padded values undetected."
+    },
+    {
+      "id": "gt-15",
+      "file": "apps/api/src/case-radar/communication/timeline/dto/timeline.dto.spec.ts",
+      "lines": [
+        125,
+        125
+      ],
+      "class": "test-gap",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "The `.catch(null)` soft-parse behavior for `actorContactRole` on type-mismatched (non-string) input had no test, so removing that catch clause would turn a backward-compatibility safety net into a hard validation failure with nothing to flag the regression."
+    },
+    {
+      "id": "gt-16",
+      "file": "apps/api/src/case-radar/communication/timeline/services/timeline.service.spec.ts",
+      "lines": [
+        333,
+        333
+      ],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "The `findByUser` test pinned `actorContactRole` pass-through through `serializeMessage`, but the parallel `findContext` test exercising the same private method did not assert on the field, so a future change dropping the field in the `findContext` code path specifically would go uncaught."
+    },
+    {
+      "id": "gt-17",
+      "file": "apps/api/src/case-radar/communication/types/communication.utils.spec.ts",
+      "lines": [
+        140,
+        140
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "A test resolved a SQL fixture path via `resolve(process.cwd(), '..', '..', relativePath)`, assuming the Vitest runner's CWD is `apps/api` with no enforcement; a CWD shift (monorepo-root invocation, IDE runner, config change) would surface as an opaque ENOENT instead of a meaningful drift-detection failure."
+    },
+    {
+      "id": "gt-18",
+      "file": "apps/api/src/database/seeders/case-radar.seeder.ts",
+      "lines": [
+        2477,
+        2477
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 9b0d8a0.",
+      "description": "A code comment claimed lawyerUsers' seeded contacts always have `contactRole='co-counsel'`, but the actual upstream seeding rotates through `STAFF_CONTACT_ROLES_FOR_QA` by index (lawyer/paralegal/co-counsel round-robin); the runtime code itself was correct, only the comment misstated the real invariant (contact row always exists, not that the role is fixed)."
+    }
+  ]
+}

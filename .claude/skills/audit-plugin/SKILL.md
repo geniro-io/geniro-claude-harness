@@ -145,6 +145,8 @@ T0-T1 carries the `(Recommended)` marker: the smallest change set that closes ev
   Spawn one agent per group in ONE response, with the finding rows and the constraint set from the repo rules (edit-in-place, no scope creep, caps are guidelines); the report file is the finding source of truth, so pass its path rather than re-inlining rows. Max 1 fix round — surviving failures go back to the user. Then run the round out per `dimensions-reference.md` §Fix-round execution, which carries what reliably goes wrong and the integration order.
 
   **A finding in executable code closes with a test, not with the fix.** Any finding whose subject is a hook, a `lib/` helper, or a test is not done until a test reproduces the defect and fails without the fix. Put it in the fix agent's brief and check it when the round returns. A fix alone is re-found next round because nothing prevents its return; a fix with a test cannot come back at all. The measurement behind that: `dimensions-reference.md` §Mechanize what recurs.
+
+  **A finding whose fix is instruction prose aimed at what a run finds or decides closes with a measurement, or ships named as unmeasured.** Wording changes of that kind are hypotheses — `.claude/rules/skill-prose.md` §"What adding instructions buys" carries what they reliably do and do not buy. Offer `/eval-loop` against the module the prose belongs to; when the user declines or no benchmark covers it, the report says the change is unmeasured rather than resolved. This is the prose half of the rule above: executable findings close with a test, behavioral ones with a number, and neither closes on the edit alone.
 - **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
 - **Report only:** proceed to cleanup.
 
@@ -168,6 +170,7 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 - [ ] Every mechanism-deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval, and the ones kept recorded as considered-and-kept (shared invariant 7)
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked, and every `§` citation into a changed file re-resolved
 - [ ] Every fix to a hook, a `lib/` helper, or a test carries a test that fails without it
+- [ ] Every behavioral instruction fix carries a measurement, or is reported as an unmeasured change
 - [ ] Every finding survived the oracle test; every decidable class the round found either ships a hard check or is named in the report as one nobody built
 - [ ] State cleaned up; commit offered
 

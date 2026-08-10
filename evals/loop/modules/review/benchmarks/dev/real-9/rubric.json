@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/meeting-summary/queue/cr-timeline-backfill.processor.ts",
+      "lines": [22],
+      "class": "bug",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 52a9eb441e (2026-06-16) deletes the redeclared logger field; a follow-up review round confirmed the typecheck job went green afterwards.",
+      "description": "The new queue processor class redeclares `private readonly logger` while its base processor class already declares the same member as `protected readonly logger`. Narrowing an inherited member's visibility is an illegal override (TS2415), so the project does not compile and the typecheck CI job is red on this head. Unit and integration tests still pass only because the test runner strips types, masking the breakage."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/meeting-summary/services/cr-timeline-backfill.service.ts",
+      "lines": [58, 63],
+      "class": "perf",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 6d311bec3d (2026-06-16) adds the entity-type equality to the NOT EXISTS subquery so the existing composite (entity_type, entity_id) index becomes usable; the author's thread reply confirms the change and a final review round verified it as a semantic no-op that enables the index.",
+      "description": "The scan's correlated NOT EXISTS subquery probes the timeline-entry table by (entity_id, source), but the only index containing entity_id leads with entity_type, which the query does not constrain — so each probe degrades toward a scan as the table grows. The PR adds no migration. Cheapest fix: also constrain entity_type in the subquery (the probed rows always carry a fixed entity type), which makes the existing composite index applicable without any new migration."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/meeting-summary/services/cr-timeline-backfill.service.ts",
+      "lines": [89, 97],
+      "class": "bug",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 0dc8ae93fe (2026-06-16) renames the field to `candidates` with a JSDoc noting it reflects rows submitted, not jobs actually created; the author's thread reply confirms the rename.",
+      "description": "The scan's result and log report `enqueued: rows.length`, but the bulk-enqueue producer dedups per summary, so the queue can create fewer jobs than rows submitted (the immediate scan and the periodic scan overlap). The metric therefore cannot detect a collapsed or stuck queue, which is its only purpose. Either relabel the count as candidates or report the post-dedup job count."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/meeting-summary/queue/cr-timeline-backfill.processor.ts",
+      "lines": [31, 41],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 0dc8ae93fe (2026-06-16) adds flag-off no-op and fanout-dispatch processor tests in the service integration suite; the author's thread reply lists the added cases.",
+      "description": "Only the backfill service has integration tests; the new processor and scheduler have none. Untested seams include the feature-flag-OFF early return (the production safety gate that ships the feature dark), the fan-out job branch, the default-case unrecoverable-error path, and the scheduler's deduplicated immediate enqueue. A regression flipping the flag gate or dropping the dedup id would ship undetected."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/meeting-summary/services/cr-timeline-backfill.service.integration.test.ts",
+      "lines": [351, 362],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 6d311bec3d (2026-06-16) renames the test to claim only the rejection it actually asserts; the author's thread reply confirms the rename.",
+      "description": "The scan error-path test is named as if it asserts that a scan-failed log signal is emitted, but its body only asserts that the service call rejects with the thrown error — the signal field on the error log is never asserted. A regression that drops the alertable event field from the catch-block log would stay green. Either rename the test to match what it asserts, or spy on the logger and assert the signal."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/knowledge-store/src/database/migrations/.snapshot-knowledge_store.json",
+      "lines": [1],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 6d311bec3d (2026-06-16) reverts the snapshot file; a final review round verified it byte-identical to the default branch again.",
+      "description": "A large ORM schema-snapshot file belonging to an unrelated service was committed as part of this queue/backfill change with no accompanying migration — pure ORM version churn (type-name renames plus one uniqueness delta). Leaving it risks flipping that service's schema-drift guard red on the next unrelated PR. It should be reverted from this change or shipped separately with its generating migration."
+    }
+  ]
+}

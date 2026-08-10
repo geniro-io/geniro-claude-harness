@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/web/src/features/beneficiary/beneficiary-list.constants.ts",
+      "lines": [
+        21,
+        21
+      ],
+      "class": "convention",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "The isSentimentLevel type predicate does `(SENTIMENT_FILTER_IDS as readonly string[]).includes(value)`, an `as` type cast that violates the project's 'no type casts' style rule. Reviewer recommended a `Set<string>` lookup instead, which avoids the cast entirely."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/beneficiary-query/beneficiary-query-sentiment.integration.test.ts",
+      "lines": [
+        142,
+        142
+      ],
+      "class": "convention",
+      "severity": "HIGH",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "Four `item!.sentiment` non-null assertions (lines 142, 161, 177, 191) violate the project's 'no non-null assertions' style rule. The preceding `expect(item).toBeDefined()` is only a runtime check and does not narrow the TypeScript type, so the `!` silently suppresses the compile-time null check."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/beneficiary-query/beneficiary-query-sentiment.integration.test.ts",
+      "lines": [
+        273,
+        273
+      ],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "The security-guard test 'should silently drop the sentiments filter for client callers' asserts `total === 3` and that two other beneficiaries are present, but never asserts the critical-sentiment beneficiary is also included. A future regression that returned all 3 beneficiaries while specifically excluding the critical one would still pass this test — a real gap in a test meant to guard client-side sentiment-filter authorization."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/beneficiary-query/dto/query-beneficiaries.dto.ts",
+      "lines": [
+        5,
+        5
+      ],
+      "class": "architecture",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "`CrSentimentLevel` is imported directly from `@/case-radar/analysis/analysis.module` in this DTO (and in responses.dto.ts and beneficiary-query.service.ts), bypassing the beneficiary-views/BeneficiaryViewService cross-module chokepoint this PR otherwise establishes for case-radar access, leaving two independent case-radar coupling points instead of one."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/web/src/features/beneficiary/components/beneficiary-row-skeleton.tsx",
+      "lines": [
+        33,
+        33
+      ],
+      "class": "other",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "The sentiment-cell loading skeleton used `rounded-full` (pill shape), but the actual rendered SentimentBadge uses `rounded` (link variant) or no rounding (plain span variant), producing a visible shape pop when the real data loads in."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/beneficiary-query/services/beneficiary-query.service.ts",
+      "lines": [
+        93,
+        104
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "`applySentimentFilterGuard` strips the `sentiments` field only on the `!enabled` branch (destructuring it out); the staff+enabled branch returns `{ ...query, userIds }` and leaves `sentiments` on the object. `buildWhere` ignores the field today so there is no active bug, but the asymmetry is confusing and a latent risk if `buildWhere` ever starts reading it."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/web/src/features/beneficiary/widgets/beneficiary-list.tsx",
+      "lines": [
+        119,
+        119
+      ],
+      "class": "perf",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "`validatedSentiments = sentiments.filter(isSentimentLevel)` is recomputed on every render, producing a new array reference that feeds into the TanStack Query queryKey. TanStack deep-equals queryKeys so this doesn't cause spurious refetches today, but it is an unnecessary per-render allocation and a risk if any future consumer assumes referential stability."
+    },
+    {
+      "id": "gt-8",
+      "file": "apps/web/src/features/case-radar/components/shared/sentiment-badge.tsx",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "other",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Accepted; fix commit(s): 80df1ba32c.",
+      "description": "The `'use client'` directive sits on this re-export shim rather than on the canonical `apps/web/src/shared/components/sentiment-badge.tsx`, which actually uses `Link` and `MouseEventHandler` and needs the directive. Consumers that import the canonical path directly (bypassing the shim) would not get the directive at all."
+    }
+  ]
+}

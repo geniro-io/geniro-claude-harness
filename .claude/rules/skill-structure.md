@@ -50,6 +50,7 @@ Where a contract's *shape* can carry a rule, prefer that to prose stating the ru
 - **Name the field for what it does.** A name implying a behavior the field lacks costs more than it saves: every consumer then needs a sentence undoing the implication, and those sentences are what drift.
 - **Let the tool surface state the boundary.** `allowed-tools` / `disallowedTools=` expresses read-only discipline structurally. Keep prose only for what the surface cannot express — a `Bash`-issued `git push` is not covered by withholding `Edit`.
 - **Return the value instead of asking the caller to remember it.** A helper that echoes its own result needs no rule telling callers to echo it.
+- **A slot buys auditability, not depth.** A required output section reliably comes back filled, which makes a step's output checkable; it does not make the work behind it deeper (`skill-prose.md` §What adding instructions buys). Add one to expose what a step did, never to raise how well it did it.
 
 When you find yourself writing a second sentence to clarify how a field should be used, check whether renaming the field or closing its value set removes the need for both.
 

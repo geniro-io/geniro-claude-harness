@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/meeting-summary/services/cr-meeting-summary-fanout.service.ts",
+      "lines": [214, 218],
+      "class": "bug",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 99baa7c3f7 (2026-06-23) rewrites the comments to describe the one-time-heal reality and the required rollout ordering; the author's thread reply names this sha as the fix.",
+      "description": "New code comments claim that a skipped note is healed by 'the idempotent backfill', implying a continuous recovery path. In reality note creation only runs on a fresh timeline insert; on any re-run the timeline conflict-ignore returns null and the note block is never re-entered, and neither continuous backfill scanner keys on missing notes. The only healer is a separate one-time repair migration, so a later miss (serialization throw, or a flag-off-to-on window) is permanent. The comments must be corrected to the one-time-heal semantics, and the repair migration must land before the flag is enabled anywhere."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-radar/meeting-summary/markdown-to-lexical-json.util.ts",
+      "lines": [41, 47],
+      "class": "security",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 8826ad2c55 (2026-06-23) drops the link transformer and link node so links render as inert text, and adds a unit test asserting no link node is produced; the author's thread reply names this sha.",
+      "description": "The serializer registers the LINK markdown transformer and the link node type, so LLM-generated markdown links in a meeting summary become clickable link nodes persisted into staff-facing notes — a new attacker/LLM-controlled-URL (phishing) surface the removed plain-text serializer never had. The feature's design routes transcript access through a UI affordance and needs no embedded links. Drop the link transformer and node so links render as inert text; if clickable links are ever wanted, gate them behind a serialize-time protocol allowlist."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-radar/meeting-summary/markdown-to-lexical-json.util.ts",
+      "lines": [44],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 473b12871d (2026-06-23) adds the colocated unit test and commit e8d57cd1c6 expands it per transformer family; the author's thread reply names both shas.",
+      "description": "The markdown-to-editor-JSON serializer is the core deliverable but has no colocated unit test — it is exercised only transitively through a DB-backed integration test whose sole formatted sample is bold plus one unordered list. Headings (a stated acceptance criterion), ordered lists, code, quote, strikethrough, the NUL-stripping guard, and the throw-on-error contract are never asserted, so a transformer mis-registration or an editor-library version bump could ship green. A fast, DB-free unit test should assert node output per transformer family plus the malformed-input behavior."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-radar/meeting-summary/cr-meeting-summary-fanout.integration.test.ts",
+      "lines": [2188],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit d338477611 (2026-06-23) gives that test a markdown summary and asserts the formatted node structure; the author's thread reply names this sha.",
+      "description": "The happy-path note-creation test for one of the two case-source branches uses a plain-text summary and asserts only that the note's plain-text projection contains the summary — an assertion that would still pass with the old plain-text serializer. Only the other branch's test asserts formatted nodes (bold format flag, list node). The test should use a markdown summary and assert the same structural nodes, closing the coverage asymmetry between the two branches."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/meeting-summary/services/cr-meeting-summary-fanout.service.ts",
+      "lines": [226, 240],
+      "class": "perf",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 99baa7c3f7 (2026-06-23) memoizes the serialized JSON once per fan-out with a sticky failure flag and emits the failure signal once; the author's thread reply names this sha.",
+      "description": "The summary is loop-invariant, but serialization was moved from a hoisted once-per-summary call into the per-beneficiary loop, so a multi-beneficiary meeting re-parses identical markdown through a fresh headless editor N times. Worse, a deterministic serialization throw fires the alertable note-creation-failed signal once per beneficiary, inflating the alert count and obscuring the number of distinct broken summaries. Memoize the serialized output (value plus sticky failure flag) once per fan-out and reuse it across beneficiaries."
+    }
+  ]
+}

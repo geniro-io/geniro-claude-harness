@@ -9,7 +9,7 @@ Each `workflow_refs[]` entry:
 | Field | Required? | Purpose |
 |---|---|---|
 | `kind` | yes | Workflow-file slug — `linear` / `jira` / `github-issues` / `asana`. Selects the matching `.geniro/workflow/<kind>.md` contract. |
-| `issue_id` | yes | Tracker-native identifier (e.g., `CI-303`, `PROJ-42`). |
+| `issue_id` | yes | Tracker-native identifier (e.g., `ENG-303`, `PROJ-42`). |
 | `url` | yes | Full canonical URL. Downstream consumers may open without re-derivation. |
 | `fetched_at` | yes | ISO-8601 UTC. Staleness check — downstream skills re-fetch if > 1 hour old. |
 | `title`, `suggested_branch`, `status` | no | Cache of last-fetched payload. /geniro:implement Step 0 uses these to pre-fill AUQ defaults without re-fetching. |

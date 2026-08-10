@@ -108,8 +108,8 @@ Examples (verbatim):
 
 ```
 Checked the related tickets against your production database — statuses match.
-Your production database and the deploy state disagree on whether CI-302 shipped — flagging this before I rely on it.
-Couldn't confirm CI-302's status from any declared source — treating it as unconfirmed.
+Your production database and the deploy state disagree on whether ENG-302 shipped — flagging this before I rely on it.
+Couldn't confirm ENG-302's status from any declared source — treating it as unconfirmed.
 Skipped one declared source because its command would modify data, not just read it — only read-only sources are run.
 ```
 

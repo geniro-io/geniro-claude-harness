@@ -1,0 +1,17 @@
+diff --git a/src/notify.ts b/src/notify.ts
+index d492941..9fdfe68 100644
+--- a/src/notify.ts
++++ b/src/notify.ts
+@@ -1,7 +1,11 @@
+ type Channel = "email" | "sms";
+ 
++function hasContent(to: string, body: string): boolean {
++  return Boolean(to) && Boolean(body);
++}
++
+ export function sendNotification(channel: Channel, to: string, body: string): boolean {
+-  if (!to || !body) {
++  if (!hasContent(to, body)) {
+     return false;
+   }
+   if (channel === "email") {

@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.sentiment-event.integration.test.ts",
+      "lines": [85, 86],
+      "class": "test-gap",
+      "severity": "HIGH",
+      "must_find": true,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit e919c14c9e (2026-05-19) replaces the stub with the three real method names; the author's thread reply confirms the corrected stub shape.",
+      "description": "The test module stubs the lawyer-assignment-history service with a single mocked method that does not exist on that service — the method belongs to a different service entirely. The real service exposes three other methods. The current nine tests pass only because none of them reach those methods, but any future test exercising the service's lawyer-derivation paths will throw a TypeError on the missing function. The stub must expose the real method names."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/api/src/case-management/case/services/case.service.ts",
+      "lines": [104, 106],
+      "class": "bug",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit e919c14c9e (2026-05-19) rewrites the class-level docstring and two method comment blocks to the savepoint-of-root semantics; the author's thread reply lists the three rewritten blocks.",
+      "description": "Class-level and method-level comments describe event publishing as running post-commit, such that in-process subscribers and queue workers see committed state via a fresh entity-manager fork. Under the production HTTP path, a row-level-security interceptor wraps every request in a transaction, so the inner transactional decorator opens a nested savepoint, not a real root commit — a fresh fork would not see the row until the outer root transaction commits. The code's behavior is correct (dispatch fires after root commit), but the comments overstate the isolation guarantee and would mislead a maintainer relying on them."
+    },
+    {
+      "id": "gt-3",
+      "file": "apps/api/src/case-management/case/case.integration.test.ts",
+      "lines": [1255, 1262],
+      "class": "test-gap",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit f2c464d946 (2026-05-19) adds the wrapped-transaction test with a scoped DB trigger rejecting the event insert, asserting both writes roll back together; the author's thread reply describes the added test.",
+      "description": "The lawyer-assignment publish-failure test calls the service without an outer transaction, so the inner transactional decorator opens and commits its own root transaction before publish — making the test's committed-before-publish claim true only for that path. Under the production request path (outer transaction via the row-level-security interceptor), a publish failure aborts the outer root transaction and rolls back both the assignment and its permission grants — the opposite of the tested behavior. A parallel test wrapping the call in a transaction with an injected DB trigger should pin the rollback-together behavior."
+    },
+    {
+      "id": "gt-4",
+      "file": "apps/api/src/case-management/case/case.integration.test.ts",
+      "lines": [429, 435],
+      "class": "bug",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 5658fc2abc (2026-05-19) adds defensive drop-if-exists statements before the create statements in both trigger-based tests; the author's thread reply notes the change also healed an existing stale-trigger failure on the branch.",
+      "description": "A test creates a DB trigger and function with plain CREATE statements and cleans them up only in a finally block. If the test process dies between creation and cleanup (kill signal, OOM, bail), the trigger persists in the shared test database — the table-truncation helper does not drop triggers — and every subsequent run fails at creation with an already-exists error while unrelated tests writing to the events table are rejected by the leftover trigger. Defensive DROP IF EXISTS before each CREATE makes the test self-healing."
+    },
+    {
+      "id": "gt-5",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.ts",
+      "lines": [94, 99],
+      "class": "convention",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 6f544d3f43 (2026-05-19) adds the explicit module import with a rationale comment; the author's thread reply confirms the convention alignment.",
+      "description": "The service's constructor gains the domain-event bus as a dependency, but the owning module's imports array does not list the events module — resolution works only because that module is globally registered. The two sibling consumer modules import it explicitly. If the events module is ever de-globalized for a scoped bus, this module alone would fail at bootstrap. Add the explicit import to match the sibling convention."
+    },
+    {
+      "id": "gt-6",
+      "file": "apps/api/src/case-management/case/case.integration.test.ts",
+      "lines": [412],
+      "class": "convention",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit fe7fd644ba (2026-05-19) drops the prefix and reworks the comment block into ongoing documentation; the author's thread reply confirms.",
+      "description": "A test name carries a conversation-process artifact prefix referencing the assistant round that produced it — meaningless to future maintainers and used by a fraction of a percent of the suite's test names, which are otherwise behavior-describing English. The rationale the prefix encodes is already preserved in the comment block above the test. Drop the prefix and keep a plain behavioral name."
+    },
+    {
+      "id": "gt-7",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.sentiment-event.integration.test.ts",
+      "lines": [237],
+      "class": "convention",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit d4c75546fc (2026-05-19) removes the wait wrapper and adds a shared comment explaining why no wait is needed; the author's thread reply confirms both tests now share the direct pattern.",
+      "description": "One test in the suite wraps its assertions in a polling wait helper while its sibling test asserts directly, despite identical async semantics — the emit is awaited transitively through the dispatch chain, so the spy is synchronously called by the time the service call returns. The inconsistency (one test even carries a no-wait-needed comment) signals to maintainers that the timing is uncertain when it is not. Remove the wait wrapper to match the direct pattern."
+    },
+    {
+      "id": "gt-8",
+      "file": "apps/api/src/case-management/case/services/case.service.ts",
+      "lines": [549, 551],
+      "class": "convention",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit e2d33de1a9 (2026-05-19) aligns all three sites to the err key; the author's thread reply lists them.",
+      "description": "New error logs key the exception as `{ error }` while the same file and roughly four-fifths of the repo's logger calls use `{ err }`. The logging library serializes stack traces under both keys, so nothing breaks, but log-scrubbing or alerting rules keyed on the dominant key would miss the new entries. Align the new sites to the established key."
+    },
+    {
+      "id": "gt-9",
+      "file": "apps/api/src/case-radar/beneficiary-views/services/beneficiary-view.service.sentiment-event.integration.test.ts",
+      "lines": [419],
+      "class": "test-gap",
+      "severity": "LOW",
+      "must_find": false,
+      "accepted": true,
+      "acceptance_evidence": "Fix commit 2d7e5f03d0 (2026-05-19) adds a docstring above the suite documenting the bus-level test as the owner of the ordering property; the author's thread reply explains why the in-spy pin no longer applies under the outbox model.",
+      "description": "A deleted test used a spy on the bus publish to fork the entity manager mid-publish and prove the projection row was visible at publish time; its replacement only reads state after the service call returns. The generic bus-level suite owns the equivalent ordering invariant, but the service-specific pin was silently lost. Either restore the in-spy assertion or explicitly document the bus-level test as the owner of this property so a maintainer does not reintroduce it."
+    }
+  ]
+}

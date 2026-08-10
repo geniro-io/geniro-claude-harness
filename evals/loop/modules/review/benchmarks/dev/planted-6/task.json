@@ -1,0 +1,8 @@
+{
+  "id": "planted-6",
+  "mode": "patch",
+  "tree_dir": "tree",
+  "patch": "change.patch",
+  "lang": "typescript",
+  "project_context": "TypeScript reporting service. Customers can have tens of thousands of orders; report endpoints are hot paths."
+}
