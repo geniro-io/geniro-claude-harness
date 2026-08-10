@@ -41,7 +41,12 @@ report_fail() { FAILS=$((FAILS + 1)); echo "FAIL: $1" >&2; }
 # (no space before its closing backtick/quote) never reaches the sed pass
 # below and correctly yields no row.
 _auq_headers() {
-  grep -rnoE 'header:[[:space:]]+.{0,60}' "$@" 2>/dev/null | while IFS=: read -r f l rest; do
+  # -H is load-bearing, not redundant with -r: given a SINGLE FILE argument, GNU
+  # grep omits the filename prefix while BSD grep emits it. Without -H the
+  # `IFS=: read -r f l rest` below binds the line number as the filename on Linux
+  # and the extraction silently yields nothing — green on macOS, blind on CI.
+  # The self-tests pass one file at a time, so they are exactly that path.
+  grep -rHnoE 'header:[[:space:]]+.{0,60}' "$@" 2>/dev/null | while IFS=: read -r f l rest; do
     val=$(printf '%s\n' "$rest" | sed -E '
       s/^header:[[:space:]]+`?"([^"]*)".*/\1/
       t end

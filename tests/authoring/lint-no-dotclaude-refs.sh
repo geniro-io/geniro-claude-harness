@@ -89,7 +89,11 @@ fi
 
 n_clean=$(cd "$SELFTEST_DIR" && _dotclaude_refs skills | while IFS=: read -r f l tok; do
   [ -n "${tok:-}" ] || continue
-  case "$f" in *clean.md) [ -f "$tok" ] && echo hit ;; esac
+  # Leading `(` on the pattern is required, not style: bash 3.2 cannot parse a
+  # one-line `case ... ;; esac` inside a `$( )` — the unbalanced `)` terminates
+  # the substitution for its parser. macOS ships 3.2, so CI fails there and
+  # nowhere else. `tests/authoring/bash32-parse.sh` now covers tests/ for this.
+  case "$f" in (*clean.md) [ -f "$tok" ] && echo hit ;; esac
 done | grep -c . || true)
 if [ "$n_clean" -eq 0 ]; then
   echo "OK: self-test — an illustrative example path and a glob do not false-positive"
