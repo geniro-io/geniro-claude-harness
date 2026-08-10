@@ -8,9 +8,13 @@
 #   mode "patch": { "fixture_cmd" | "tree_dir", "patch" }  -> copy tree, apply patch
 #   mode "spec":  { "tree_dir" | "repo_alias"+"base_sha", "spec" }
 #                                                          -> tree at base, no diff
+#   mode "audit": { "tree_dir" | "repo_alias"+"base_sha" }  -> tree at base, no diff,
+#                                                             no artifact: the tree
+#                                                             audits itself
 # Writes: <stage-dir>/tree/ (the code under review), <stage-dir>/diff.patch,
 #         <stage-dir>/changed-files.txt; in "spec" mode also <stage-dir>/spec.md
-#         and no diff.patch (nothing changed — the spec is the artifact under test)
+#         and no diff.patch (nothing changed — the spec is the artifact under test);
+#         in "audit" mode <stage-dir>/surfaces.txt and neither diff nor artifact
 #
 # Committed task files never carry a repo location or name — "repo_alias" is an
 # opaque label resolved through the machine-local, gitignored repos.local.json
@@ -31,15 +35,21 @@ TASK_JSON="$TASK_DIR/task.json"
 jqr() { jq -r "$1" "$TASK_JSON"; }
 MODE="$(jqr '.mode')"
 
-if [ "$MODE" = "git" ]; then
-  REPO="$(jqr '.repo_path // empty')"
-  if [ -z "$REPO" ]; then
-    ALIAS="$(jqr '.repo_alias // empty')"
-    [ -n "$ALIAS" ] || { echo "task.json needs repo_alias (or local-only repo_path)" >&2; exit 64; }
-    [ -f "$HERE/repos.local.json" ] || { echo "missing $HERE/repos.local.json — copy repos.local.example.json and map alias '$ALIAS' to a local clone" >&2; exit 66; }
-    REPO="$(jq -r --arg a "$ALIAS" '.[$a] // empty' "$HERE/repos.local.json")"
-    [ -n "$REPO" ] || { echo "alias '$ALIAS' not mapped in $HERE/repos.local.json" >&2; exit 66; }
+resolve_repo() { # <what-the-mode-accepts> -> local clone path on stdout
+  local repo alias
+  repo="$(jqr '.repo_path // empty')"
+  if [ -z "$repo" ]; then
+    alias="$(jqr '.repo_alias // empty')"
+    [ -n "$alias" ] || { echo "task.json needs $1" >&2; exit 64; }
+    [ -f "$HERE/repos.local.json" ] || { echo "missing $HERE/repos.local.json — copy repos.local.example.json and map alias '$alias' to a local clone" >&2; exit 66; }
+    repo="$(jq -r --arg a "$alias" '.[$a] // empty' "$HERE/repos.local.json")"
+    [ -n "$repo" ] || { echo "alias '$alias' not mapped in $HERE/repos.local.json" >&2; exit 66; }
   fi
+  echo "$repo"
+}
+
+if [ "$MODE" = "git" ]; then
+  REPO="$(resolve_repo 'repo_alias (or local-only repo_path)')"
   BASE="$(jqr '.base_sha')"
   HEAD="$(jqr '.head_sha')"
   git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
@@ -119,19 +129,33 @@ elif [ "$MODE" = "spec" ]; then
   if [ -n "$TREE_DIR" ]; then
     cp -R "$TASK_DIR/$TREE_DIR/." "$STAGE_DIR/tree/"
   else
-    REPO="$(jqr '.repo_path // empty')"
-    if [ -z "$REPO" ]; then
-      ALIAS="$(jqr '.repo_alias // empty')"
-      [ -n "$ALIAS" ] || { echo "spec mode needs tree_dir, repo_alias, or local-only repo_path" >&2; exit 64; }
-      [ -f "$HERE/repos.local.json" ] || { echo "missing $HERE/repos.local.json — map alias '$ALIAS' to a local clone" >&2; exit 66; }
-      REPO="$(jq -r --arg a "$ALIAS" '.[$a] // empty' "$HERE/repos.local.json")"
-      [ -n "$REPO" ] || { echo "alias '$ALIAS' not mapped in $HERE/repos.local.json" >&2; exit 66; }
-    fi
+    REPO="$(resolve_repo 'tree_dir, repo_alias, or local-only repo_path')"
     BASE="$(jqr '.base_sha')"
     git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
     git -C "$REPO" archive "$BASE" | tar -x -C "$STAGE_DIR/tree"
   fi
   cp "$SPEC_SRC" "$STAGE_DIR/spec.md"
+  : > "$STAGE_DIR/changed-files.txt"
+elif [ "$MODE" = "audit" ]; then
+  # A repo-under-test task: no diff and no separate artifact — the tree's own
+  # instruction, rule, and skill files are what the run audits, and the ground
+  # truth is planted in them. surfaces.txt is the staged stand-in for the
+  # skill's mechanical pre-pass: the file list a reviewer is handed instead of
+  # rediscovering, so what the run measures is adjudication, not globbing.
+  TREE_DIR="$(jqr '.tree_dir // empty')"
+  mkdir -p "$STAGE_DIR/tree"
+  if [ -n "$TREE_DIR" ]; then
+    [ -d "$TASK_DIR/$TREE_DIR" ] || { echo "task.json .tree_dir does not resolve: $TASK_DIR/$TREE_DIR" >&2; exit 66; }
+    cp -R "$TASK_DIR/$TREE_DIR/." "$STAGE_DIR/tree/"
+  else
+    REPO="$(resolve_repo 'tree_dir, repo_alias, or local-only repo_path')"
+    BASE="$(jqr '.base_sha')"
+    git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
+    git -C "$REPO" archive "$BASE" | tar -x -C "$STAGE_DIR/tree"
+  fi
+  ( cd "$STAGE_DIR/tree" && find . -type f | sed 's|^\./||' | LC_ALL=C sort ) | while IFS= read -r f; do
+    printf '%s\t%s words\n' "$f" "$(awk '{w+=NF} END {print w+0}' "$STAGE_DIR/tree/$f")"
+  done > "$STAGE_DIR/surfaces.txt"
   : > "$STAGE_DIR/changed-files.txt"
 else
   echo "unknown mode: $MODE" >&2; exit 64

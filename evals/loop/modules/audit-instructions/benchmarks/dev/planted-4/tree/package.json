@@ -1,0 +1,8 @@
+{
+  "name": "scheduling-service",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint src"
+  }
+}

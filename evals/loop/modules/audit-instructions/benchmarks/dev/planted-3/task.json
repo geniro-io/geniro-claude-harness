@@ -1,0 +1,6 @@
+{
+  "id": "planted-3",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "TypeScript data-ingestion service. Two instruction surfaces in use: CLAUDE.md and .github/copilot-instructions.md. Build and test entry points exist as Makefile targets and package.json scripts."
+}

@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "hooks/block-branch-delete.sh",
+      "lines": [14, 14],
+      "class": "wrong-branch",
+      "dimension_hint": "logic",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The match is a bare unanchored substring: `grep -q 'delete'` fires on any command containing the word, so `git push origin feat/delete-user` and `rm delete-me.txt` are both blocked. It also misses the actual delete forms — `git push origin --delete br` matches by luck, `git push origin :br` does not match at all. The guard blocks the wrong commands and lets the colon-refspec delete through."
+    },
+    {
+      "id": "gt-2",
+      "file": "lib/retry.sh",
+      "lines": [6, 10],
+      "class": "unbound-variable",
+      "dimension_hint": "logic",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The comment documents calling with_retry with no arguments to retry the default allowlist read. Under `set -u` the body dereferences \"$1\" immediately, so a no-argument call aborts the shell with an unbound-variable error rather than running the default. A helper whose documented calling convention crashes reads `${1:-<default>}` instead."
+    },
+    {
+      "id": "gt-3",
+      "file": "docs/GUARDS.md",
+      "lines": [5, 7],
+      "class": "claimed-enforcement-no-mechanism",
+      "dimension_hint": "safety",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "GUARDS.md states block-secret-write covers shell redirection as well as Write and Edit, naming `cat > config.yml` as stopped. hooks.json registers that hook on the `Write|Edit` matcher only, and the script reads .tool_input.content, which a Bash call does not carry. Redirection never reaches the guard, so the documented half of its coverage does not exist."
+    },
+    {
+      "id": "gt-4",
+      "file": "hooks/block-branch-delete.sh",
+      "lines": [12, 12],
+      "class": "fails-open",
+      "dimension_hint": "safety",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "When read_allow_patterns fails, `set -e` aborts the hook at this assignment, so it exits 1 — a hook error, after which the call proceeds. GUARDS.md:14 says a guard that cannot reach its allowlist fails closed. Failing closed means exiting 2 on that path, not letting the shell exit on the author's behalf."
+    },
+    {
+      "id": "gt-5",
+      "file": "tests/hooks/block-secret-write.sh",
+      "lines": [1, 12],
+      "class": "untested-guard",
+      "dimension_hint": "safety",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "block-branch-delete.sh has no suite at all — tests/hooks/ covers only block-secret-write.sh. It is the guard whose match logic is wrong in both directions, and no test would have to be clever to catch it."
+    },
+    {
+      "id": "gt-6",
+      "file": "docs/GUARDS.md",
+      "lines": [14, 16],
+      "class": "multi-homed-constant",
+      "dimension_hint": "numbers",
+      "severity": "LOW",
+      "must_find": false,
+      "description": "The retry count lives in lib/retry.sh:9 as the loop bound and again in GUARDS.md prose as \"retries twice\". One value, two homes, no single source."
+    }
+  ]
+}

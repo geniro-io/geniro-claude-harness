@@ -1,7 +1,8 @@
 # evals/ — the geniro eval pipeline
 
 One mechanism lives here: **[`loop/`](loop/)** — the module-agnostic improvement
-loop for plugin content (review criteria today; plan/implement/debug next).
+loop for plugin content (review criteria, the spec-claim check, and the
+instruction- and plugin-audit rubrics today; plan/implement/debug next).
 Design and rationale: [`loop/DESIGN.md`](loop/DESIGN.md); quickstart:
 [`loop/README.md`](loop/README.md); driven interactively by the repo-local
 `/eval-loop` skill.

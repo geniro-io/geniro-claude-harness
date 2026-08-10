@@ -1,0 +1,118 @@
+{
+  "module": "audit-instructions",
+  "version": 1,
+  "parser": "audit-findings",
+  "facets": [
+    {
+      "name": "accuracy",
+      "criteria": [
+        "D2-accuracy.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
+    },
+    {
+      "name": "consistency",
+      "criteria": [
+        "D3-consistency.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
+    },
+    {
+      "name": "bloat",
+      "criteria": [
+        "D4-bloat.md",
+        "surface-inventory.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
+    },
+    {
+      "name": "structure",
+      "criteria": [
+        "D5-structure.md",
+        "surface-inventory.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
+    },
+    {
+      "name": "coverage",
+      "criteria": [
+        "D6-coverage.md",
+        "surface-inventory.md",
+        "severity-tiers.md",
+        "output-contract.md",
+        "do-not-flag.md"
+      ]
+    }
+  ],
+  "assembly": {
+    "max_prompt_bytes": 614400,
+    "repo_rules_slot": false
+  },
+  "output_contract": {
+    "retry_regex": "\\| *\\[?T[0-5]\\]? *\\|",
+    "clean_regex": "## Dimension verdict"
+  },
+  "pass_expr": ".recall_must == 1",
+  "negative_pass_expr": "(.noise_strict // 0) == 0 and (.plausible_real // 0) == 0",
+  "champion_sync": [
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "D2 — Accuracy vs repo reality",
+      "to": "criteria/D2-accuracy.md"
+    },
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "D3 — Cross-tool consistency",
+      "to": "criteria/D3-consistency.md"
+    },
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "D4 — Bloat & over-constraint",
+      "to": "criteria/D4-bloat.md"
+    },
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "D5 — Structure & scoping",
+      "to": "criteria/D5-structure.md"
+    },
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "D6 — Coverage & safety",
+      "to": "criteria/D6-coverage.md"
+    },
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "Surface inventory (canonical)",
+      "to": "criteria/surface-inventory.md"
+    },
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "Severity tiers (shared output classification)",
+      "to": "criteria/severity-tiers.md"
+    },
+    {
+      "from": "skills/audit-instructions/dimensions-reference.md",
+      "section": "Do-not-flag list (endorsed patterns)",
+      "to": "criteria/do-not-flag.md"
+    },
+    {
+      "from": "skills/_shared/audit-pipeline.md",
+      "section": "Finding output contract",
+      "to": "criteria/output-contract.md"
+    }
+  ],
+  "screen_facets": [
+    "accuracy",
+    "consistency",
+    "structure",
+    "coverage"
+  ]
+}

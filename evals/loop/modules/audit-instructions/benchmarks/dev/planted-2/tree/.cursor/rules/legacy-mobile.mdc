@@ -1,0 +1,8 @@
+---
+description: React Native screen conventions
+globs: mobile/**/*.tsx
+alwaysApply: false
+---
+
+Screens live in `mobile/screens/`. Navigation params are typed through the
+`RootStackParamList` union. Never call a REST endpoint directly from a screen.

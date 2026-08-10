@@ -1,0 +1,6 @@
+{
+  "id": "ph-1",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "A review plugin: one skill, two shared helper docs, one agent definition, one registered hook. ${CLAUDE_PLUGIN_ROOT} resolves to the repo root. An agent spawn resolves by matching its name against a file in agents/."
+}

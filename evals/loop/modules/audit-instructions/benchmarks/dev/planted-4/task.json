@@ -1,0 +1,6 @@
+{
+  "id": "planted-4",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "TypeScript scheduling service. Four instruction surfaces are live at once: CLAUDE.md, AGENTS.md, an alwaysApply Cursor rule, and Copilot instructions. Which one an agent sees depends on the tool it runs under."
+}

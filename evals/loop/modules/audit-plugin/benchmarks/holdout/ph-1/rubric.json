@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "skills/_shared/instruction-loader.md",
+      "lines": [16, 19],
+      "class": "unwired-declaration",
+      "dimension_hint": "wiring",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The loader declares a `## Review Extras` block with an explicit consumption contract — the invoking skill spawns one reviewer per entry, passing its criteria verbatim. No skill does: review Phase 1 spawns a fixed bugs/security/tests set and never reads the block, and review is the only skill here. `## Data Sources` on line 15 is the same defect — declared with a stated purpose and no execution site anywhere in the plugin. A project authoring either block gets silence."
+    },
+    {
+      "id": "gt-2",
+      "file": "skills/review/SKILL.md",
+      "lines": [27, 27],
+      "class": "unknown-spawn",
+      "dimension_hint": "wiring",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Phase 1 spawns `geniro:coverage-agent`. agents/ holds one file, reviewer-agent.md, and nothing defines a coverage agent. The spawn cannot resolve, so the coverage map Phase 1 promises never exists."
+    },
+    {
+      "id": "gt-3",
+      "file": "skills/review/SKILL.md",
+      "lines": [35, 35],
+      "class": "unwired-declaration",
+      "dimension_hint": "wiring",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "Phase 3 offers a `--legacy` flag and MIGRATION.md:5 tells users to pass it, but the frontmatter argument-hint declares only `[branch | PR number | empty for the working diff]` and no phase parses `$ARGUMENTS` for a flag at all. The flag is promised in two places and wired in none."
+    },
+    {
+      "id": "gt-4",
+      "file": "agents/reviewer-agent.md",
+      "lines": [3, 3],
+      "class": "description-body-drift",
+      "dimension_hint": "consistency",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The agent description promises confidence-scored findings. Its body asks for the table plus a two-sentence verdict and never mentions confidence, and skills/_shared/finding-schema.md defines no confidence column. The description advertises an output the contract cannot produce."
+    }
+  ]
+}

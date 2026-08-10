@@ -1,0 +1,1 @@
+CREATE TABLE flags (key TEXT PRIMARY KEY, enabled BOOLEAN NOT NULL);

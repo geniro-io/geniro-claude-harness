@@ -1,0 +1,6 @@
+{
+  "id": "plugin-2",
+  "mode": "audit",
+  "tree_dir": "tree",
+  "project_context": "A small agent plugin whose README states it runs on macOS and Linux. lib/ holds shell helpers sourced by hooks and skills; tests/ covers one of them."
+}

@@ -13,9 +13,10 @@ array is accepted and treated as version 0. Items use the ground-truth schema
 (id/file/lines/class/severity/must_find/description).
 
 Two parsers ship: `review-findings` (the /geniro:review §Output Format shape)
-and `spec-claims` (the spec-challenge per-claim verdict shape). A module names
-the one it needs in its target.json `parser` field; a new output shape adds a
-function here and a PARSERS entry.
+`spec-claims` (the spec-challenge per-claim verdict shape), and `audit-findings`
+(the audit-pipeline reviewer table). A module names the one it needs in its
+target.json `parser` field; a new output shape adds a function here and a
+cmd_parse branch.
 
 `spec-claims` emits one finding per claim the run judged WRONG — refuted or
 clarified — and none for a confirmed claim. That keeps the rubric on the same
@@ -96,6 +97,52 @@ def parse_spec_claims(text, facet):
             cur["has_evidence"] = True
     return blocks
 
+# The audit skills' reviewers return a Markdown table, not verdict blocks:
+# id | tier | file:line | issue | evidence | fix | effort. Tiers order the report
+# rather than rating a defect's blast radius, so they map onto the shared
+# severity scale here — the scale only feeds judge context, never a score.
+AUDIT_TIER_SEV = {"T0": "CRITICAL", "T1": "HIGH", "T2": "MEDIUM",
+                  "T3": "MEDIUM", "T4": "LOW", "T5": "LOW"}
+TIER_CELL_RE = re.compile(r"^\[?(T[0-5])\]?$")
+SEP_CELL_RE = re.compile(r"^:?-{2,}:?$")
+
+def split_row(line):
+    cells = line.strip().strip("|").split("|")
+    return [c.strip().strip("`") for c in cells]
+
+def parse_audit_findings(text, facet):
+    blocks = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = split_row(s)
+        if len(cells) < 5:
+            continue
+        if all(SEP_CELL_RE.match(c) for c in cells if c):
+            continue                      # |---|---| separator
+        # The tier cell anchors the row. The contract puts an id before it, but a
+        # reviewer that drops the id column still emits gradeable findings —
+        # locating the tier instead of counting columns keeps those.
+        ti = next((i for i in (1, 0) if TIER_CELL_RE.match(cells[i])), None)
+        if ti is None:
+            continue                      # header row, or a table that is not this one
+        tier = TIER_CELL_RE.match(cells[ti]).group(1)
+        rest = cells[ti + 1:]
+        if len(rest) < 3:
+            continue
+        f, a, b = parse_file_field(rest[0])
+        evidence, fix = rest[2], (rest[3] if len(rest) > 3 else "")
+        blocks.append({
+            "severity": AUDIT_TIER_SEV.get(tier, "LOW"), "tier": tier,
+            "title": rest[1], "facet": facet,
+            "file": f or None, "line_start": a, "line_end": b,
+            "confidence": None, "decision_type": None, "origin": None,
+            "has_evidence": bool(evidence),
+            "body": ["**Evidence:** " + evidence, "**Fix:** " + fix],
+        })
+    return blocks
+
 def cmd_parse(paths, parser="review-findings"):
     findings = []
     for path in paths:
@@ -103,8 +150,9 @@ def cmd_parse(paths, parser="review-findings"):
         text, usage, is_err = load_result_text(path)
         if is_err:
             continue
-        if parser == "spec-claims":
-            blocks = parse_spec_claims(text, facet)
+        if parser in ("spec-claims", "audit-findings"):
+            blocks = (parse_spec_claims if parser == "spec-claims"
+                      else parse_audit_findings)(text, facet)
             for b in blocks:
                 b["body"] = "\n".join(b["body"])[:2000]
             findings.extend(blocks)

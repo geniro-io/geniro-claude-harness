@@ -1,8 +1,8 @@
 # evals/loop — the module-agnostic improvement loop
 
-The eval stand: measure any plugin module (review content and the spec-claim
-check today; plan/implement/debug criteria next) against a versioned benchmark,
-cheap enough to iterate, disciplined enough to trust. Its predecessors — the
+The eval stand: measure any plugin module (review content, the spec-claim check,
+and the two audit rubrics today; plan/implement/debug criteria next) against a
+versioned benchmark, cheap enough to iterate, disciplined enough to trust. Its predecessors — the
 `evals/cursor-review/` v1 content stand and the Agent-SDK full-skill
 run-harness — were deleted in its favor (git history holds them, including the
 H1–H6 experiment ledger that produced the criteria charter trim).
@@ -22,7 +22,12 @@ digest lives in the session report; each mechanism below names its source.
 - **Variant** — a directory overriding any champion file (`preamble.md`,
   `criteria/*`, `facets.json`). The champion is a faithful snapshot of shipped
   files (`sync-champion.sh --module <m>`), so a win translates 1:1 into a
-  skill edit.
+  skill edit. A `champion_sync` entry naming a `section` copies just that `## `
+  section — for skills whose per-dimension rubrics live as sections of one
+  reference file and whose orchestrator pastes exactly one per reviewer.
+  Extraction is fence-aware and hard-fails on a heading renamed upstream: a
+  silently empty criteria file would read downstream as a dimension that found
+  nothing.
 - **Benchmark task** (`modules/<m>/benchmarks/{dev,holdout}/<task>/`) —
   `task.json` (staging inputs) + `rubric.json`:
 
@@ -79,7 +84,12 @@ baselines and the EXP-001 noise floor are indicative, not comparable):
 - **Screen facet subset** — screens run `target.json.screen_facets` (for
   review: bugs/security/tests/regressions — every must item's class lives
   there, and the legacy H1 result showed recall parity on 4 dimensions);
-  confirm always runs the FULL facet set.
+  confirm always runs the FULL facet set. The rule binding the subset is that
+  every `must_find` item's class sits inside it, which is why the audit modules
+  leave their subtraction dimensions out: a deletion proposal is a judgment the
+  user rules on, not a defect a run either caught or missed, so those items are
+  scored but never `must_find`. Screen a subtraction-targeted variant with an
+  explicit `--facets`.
 - **Sequential trials** (pre-registered escalation rule): screen both arms at
   1 trial first; if the paired Δrecall_must is an exact tie AND |Δnoise| <
   1.1/task (the A-vs-A noise-of-noise), record the tie and stop. Otherwise

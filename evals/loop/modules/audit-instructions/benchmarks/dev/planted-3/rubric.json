@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": ".github/copilot-instructions.md",
+      "lines": [14, 16],
+      "class": "secret-in-instructions",
+      "dimension_hint": "coverage",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "description": "A Postgres connection string with an inline password sits in an instruction file that attaches to every Copilot request. The credential is live-shaped, not a marked placeholder. The finding must cite location and credential shape only — a report reproducing the value re-leaks it onto a surface that outlives the fix."
+    },
+    {
+      "id": "gt-2",
+      "file": "CLAUDE.md",
+      "lines": [9, 10],
+      "class": "unsafe-directive",
+      "dimension_hint": "coverage",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md instructs agents to commit with `git commit --no-verify` whenever pre-commit checks are slow. This is an instruction to use the bypass, not a warning against it, and it defeats every check the hook enforces."
+    },
+    {
+      "id": "gt-3",
+      "file": "CLAUDE.md",
+      "lines": [20, 21],
+      "class": "unsafe-directive",
+      "dimension_hint": "coverage",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md tells agents to add `-k` to curl to skip TLS certificate verification when a proxy interferes. Disabling certificate verification as a documented workaround is a standing instruction to accept any certificate."
+    },
+    {
+      "id": "gt-4",
+      "file": "CLAUDE.md",
+      "lines": [25, 26],
+      "class": "claimed-enforcement-no-mechanism",
+      "dimension_hint": "coverage",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "CLAUDE.md asserts a pre-commit hook blocks any commit containing a credential, and tells readers they need not check by hand. No hook exists anywhere in the repo — no .husky/, no .githooks/, no hook config in package.json. The claim is worse than silence: it stops readers verifying what they believe a mechanism guarantees, and the same file's Copilot sibling already carries a leaked credential."
+    },
+    {
+      "id": "gt-5",
+      "file": "CLAUDE.md",
+      "lines": [14, 16],
+      "class": "unsafe-directive",
+      "dimension_hint": "coverage",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The bootstrap step pipes a downloaded script straight into a shell (`curl -sL ... | sh`) as a required provisioning step, with no checksum or review between fetch and execution."
+    },
+    {
+      "id": "gt-6",
+      "file": "CLAUDE.md",
+      "lines": [1, 38],
+      "class": "missing-essentials",
+      "dimension_hint": "coverage",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "No surface documents how to build, test, or lint, while the repo plainly has all three: Makefile targets build/test/lint/fmt and package.json scripts build/test/lint. The evidence must name where the commands exist and that a search of both surfaces found no mention."
+    },
+    {
+      "id": "gt-7",
+      "file": "CLAUDE.md",
+      "lines": [28, 29],
+      "class": "enforceability-misplacement",
+      "dimension_hint": "coverage",
+      "severity": "LOW",
+      "must_find": false,
+      "description": "\"Formatting is enforced automatically on save\" names no mechanism the repo carries — prettier is a devDependency and a Makefile fmt target, neither of which runs on save. Either the rule belongs in a formatter config the tooling actually runs, or the enforcement claim goes."
+    }
+  ]
+}

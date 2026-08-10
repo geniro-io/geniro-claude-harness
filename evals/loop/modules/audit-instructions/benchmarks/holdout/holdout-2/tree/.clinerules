@@ -1,0 +1,8 @@
+# Telemetry pipeline — Cline rules
+
+Rust 1.82 gRPC ingest service.
+
+- Use `expect("reason")` over `?` in startup paths: a misconfigured collector
+  should fail loudly at boot rather than degrade silently at runtime.
+- Span attributes are snake_case.
+- A batch never exceeds 10,000 spans.

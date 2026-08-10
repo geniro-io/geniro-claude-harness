@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "lib/config.sh",
+      "lines": [8, 8],
+      "class": "wrong-branch",
+      "dimension_hint": "logic",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "description": "jq's // operator treats false as empty, so `.telemetry // true` returns true for an explicit {\"telemetry\": false} — the one value the setting exists to express. README:11 documents false as the way to disable the telemetry guard, and hooks/guard.sh only blocks when telemetry_enabled prints false, so the opt-out silently never takes effect. The correct test is `.telemetry == false`."
+    },
+    {
+      "id": "gt-2",
+      "file": "lib/checksum.sh",
+      "lines": [6, 11],
+      "class": "portability",
+      "dimension_hint": "logic",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Both helpers call sha256sum with no fallback. sha256sum is not present on a stock macOS, where the equivalent is `shasum -a 256`, and README:3 states the plugin runs on macOS. Every cache key computation fails there with command not found."
+    },
+    {
+      "id": "gt-3",
+      "file": "lib/learnings.sh",
+      "lines": [11, 11],
+      "class": "wrong-branch",
+      "dimension_hint": "logic",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The log is append-only JSONL, and `jq -c` over it aborts the whole query on the first malformed line — one truncated append makes every prior learning unreadable rather than skipping the bad record. A scan of an append-only log reads it as raw lines and parses defensively (`jq -Rc 'fromjson?'`)."
+    },
+    {
+      "id": "gt-4",
+      "file": "lib/learnings.sh",
+      "lines": [11, 11],
+      "class": "portability",
+      "dimension_hint": "logic",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "`tail -r` reverses only on BSD/macOS; on the Linux the README also claims support for, tail has no -r and the call fails. The portable pair is `tail -r` on BSD and `tac` on GNU, chosen at runtime."
+    },
+    {
+      "id": "gt-5",
+      "file": "lib/rename-sweep.sh",
+      "lines": [9, 9],
+      "class": "wrong-branch",
+      "dimension_hint": "logic",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The substitution rewrites every occurrence of the bare basename anywhere in a line, so a rename of plan.md also rewrites the tail of `archive/plan.md` and any prose mention of the word. A path-rename sweep has to exclude a preceding path separator, or anchor on the full path."
+    },
+    {
+      "id": "gt-6",
+      "file": "README.md",
+      "lines": [12, 14],
+      "class": "multi-homed-constant",
+      "dimension_hint": "numbers",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "The retry limit 3 is stated in four places: lib/config.sh:15 as the code default, skills/audit/SKILL.md:20, README.md:12 in the settings table, and README.md:14 again in prose. One value, four homes, no single source — they agree today and drift on the first change."
+    }
+  ]
+}

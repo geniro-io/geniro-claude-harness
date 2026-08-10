@@ -1,0 +1,5 @@
+Python 3.12 inventory API.
+
+- Type-annotate every function signature.
+- Endpoints declare their response schema explicitly.
+- Never call the ORM from a view; go through app/repo.py.
