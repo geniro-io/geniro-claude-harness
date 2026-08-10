@@ -10,6 +10,30 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### `/geniro:plan --prd` and its problem-discovery phase are removed
+
+The `--prd` flag, the Phase 0.5 problem-first interview, the state.md `## Problem Framing` block, and the spec's optional `## Problem & Evidence` section are gone. The phase file `skills/plan/loop-phase-0.5-problem-discovery.md` no longer ships, `problem-discovery` is no longer a `phase:` value, and `## Problem & Evidence` is no longer an allowed body section — the Phase 7 `schema_completeness` check now fails a spec carrying it.
+
+**Action required:** Delete or fold in a `## Problem & Evidence` section on any spec you still re-validate, and re-anchor any `## Additional Steps` block in your plan instructions file that targets the `problem-discovery` phase.
+
+**Auto-detect:** `grep -rl "## Problem & Evidence" .geniro/planning 2>/dev/null; grep -rl "problem-discovery" .geniro/instructions 2>/dev/null`
+
+**Auto-fix:** Manual-only — the section's content is the user's, so folding it into sections 1-3 is a judgment call.
+
+---
+
+### `spec.md` frontmatter `effort_tier` is now validated
+
+Phase 7 gained check 14: `effort_tier` must be present and one of `trivial` / `small` / `medium` / `big`, lowercase. A spec missing the field, or carrying `Trivial`, now fails the validator. The field gates Phase 5 milestone-mode and check 3's research threshold, both of which read the lowercase enum, so an absent or miscased value silently relaxed them.
+
+**Action required:** Add or lowercase `effort_tier` on any spec you re-validate.
+
+**Auto-detect:** `find .geniro/planning -name spec.md -exec sh -c 'grep -qE "^effort_tier: (trivial|small|medium|big)$" "$1" || echo "$1"' _ {} \; 2>/dev/null`
+
+**Auto-fix:** Manual-only — the correct tier is a judgment about the task.
+
+---
+
 ### Rule proposals are `/geniro:reflect` only — every other skill's rule offer removed
 
 Five skills used to end a run by offering to write a project rule. All five offers are gone:
@@ -120,11 +144,11 @@ The "Update Docs" Ship sub-step is removed from `/geniro:implement` — a run no
 
 ---
 
-### `/geniro:plan` Phase 7.5 spec-challenge now fires only on big-tier or `--deep` plans
+### `/geniro:plan` Phase 7.5 spec-challenge fires on every plan
 
-The pre-approval spec-challenge — which re-verifies the spec's cited claims against live code, generates competing alternatives, and red-teams the approach before the human approval gate — now runs only when the plan's effort tier is Big or the run passed `--deep`. Smaller plans skip the plan-time pass; `/geniro:implement` still fact-checks every spec's cited claims before the first edit on every spec-driven run, so claim verification before any code change is preserved.
+The pre-approval spec-challenge — which re-verifies the spec's cited claims against live code and red-teams the approach before the human approval gate — runs on every plan, at every effort tier. It previously ran only on Big-tier or `--deep` runs, which left the fact-check off for most plans and pushed the first real claim verification into `/geniro:implement`, after the plan was already approved. `--deep` still raises verification from one verifier per claim to three with a majority vote. The pass no longer generates competing alternative approaches in either mode — approach search belongs to Phase 4, which runs earlier with the user in the loop.
 
-**Action required:** None — pass `--deep` (or pick Deep at the depth chooser) to get the plan-time challenge on smaller plans.
+**Action required:** None. Expect one extra verification pass per plan, its cost scaled to the spec's own claim count.
 
 **Auto-detect:** N/A — behavior change in the shipped skill with no project-state impact.
 

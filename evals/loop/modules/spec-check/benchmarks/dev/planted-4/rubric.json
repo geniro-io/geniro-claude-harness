@@ -1,0 +1,9 @@
+{ "version": 1, "negative": false, "items": [
+  { "id": "gt-1", "file": "docs/conventions.md", "lines": [5, 7],
+    "class": "rule-hardened-past-source", "dimension_hint": "claims",
+    "severity": "HIGH", "must_find": true,
+    "description": "Assumption 1 and the forbidden_actions entry both state the conventions doc bans inline network I/O outright and attribute the word 'forbidden' to it. The doc says 'Queue anything that performs network I/O, UNLESS the call is to a service inside the same cluster and the caller already holds a deadline' — a conditional rule with an explicit escape hatch, and the word forbidden appears nowhere." },
+  { "id": "gt-2", "file": "src/report.ts", "lines": [4, 7],
+    "class": "premise-depends-on-refuted-rule", "dimension_hint": "claims",
+    "severity": "HIGH", "must_find": true,
+    "description": "Assumption 2 says buildReport violates the ban. It is a same-cluster call taking a caller-held deadline, which is exactly the documented exception, so it complies today and step 1's whole rationale collapses." } ] }

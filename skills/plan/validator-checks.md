@@ -2,7 +2,7 @@
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules, near-zero token usage.
 
-**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, is the enumeration of which checks are scripted, so adding one only means editing the script's own call list. Each check's *Scripted*/*Judgment* tag below is the single record of which kind it is. The judgment checks turn on reasoning no command can make — whether a citation is load-bearing, whether an area is sensitive, whether a verification method is real, whether a done-condition names an observable signal — so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports all thirteen in number order.
+**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, is the enumeration of which checks are scripted, so adding one only means editing the script's own call list. Each check's *Scripted*/*Judgment* tag below is the single record of which kind it is. The judgment checks turn on reasoning no command can make — whether a citation is load-bearing, whether an area is sensitive, whether a verification method is real, whether a done-condition names an observable signal — so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports all fourteen in number order.
 
 **Status:** Authoritative. Each check returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
@@ -11,7 +11,7 @@ Canonical definitions of the mechanical validator checks fired in `/geniro:plan`
 ## Contents
 
 - Running the checks
-- The checks: 1 `single_objective` / 2 `bounded_scope` / 3 `source_materials` / 4 `allowed_tools` / 5 `forbidden_actions` / 6 `budget` / 7 `checkpoints` / 8 `validation_method` / 9 `stopping_condition` / 10 `placeholder_scan` / 11 `schema_completeness` / 12 `workflow_refs_consistency` / 13 `launch_config_consistency`
+- The checks: 1 `single_objective` / 2 `bounded_scope` / 3 `source_materials` / 4 `allowed_tools` / 5 `forbidden_actions` / 6 `budget` / 7 `checkpoints` / 8 `validation_method` / 9 `stopping_condition` / 10 `placeholder_scan` / 11 `schema_completeness` / 12 `workflow_refs_consistency` / 13 `launch_config_consistency` / 14 `effort_tier`
 - Check API contract
 
 ---
@@ -118,7 +118,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 11. `schema_completeness`
 
-*Scripted.* All 11 required section headers are present with their exact canonical text (case-sensitive, from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), and no top-level `## ` section exists outside them plus the four allowed-optional ones (`## Considered Alternatives`, `## Milestones`, `## Problem & Evidence`, `## Comment Resolution Map`). The optional four are allowed-optional: present or absent both pass, so a normal spec that omits the PRD-only and resolve-only sections is complete.
+*Scripted.* All 11 required section headers are present with their exact canonical text (case-sensitive, from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), and no top-level `## ` section exists outside them plus the three allowed-optional ones (`## Considered Alternatives`, `## Milestones`, `## Comment Resolution Map`). Those three are allowed-optional: present or absent both pass, so a normal spec that omits the milestone-only and resolve-only sections is complete.
 
 ### 12. `workflow_refs_consistency`
 
@@ -132,10 +132,16 @@ Then, per matched citation, decide two things a presence match cannot:
 
 **Ordering note:** the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so this check's present-branch fires on RE-validation of an existing spec — a later /geniro:plan run over the same task-dir. The write-time enum assertion lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md`, §8.4's launch-config enum assertion.
 
+### 14. `effort_tier`
+
+*Scripted.* Frontmatter carries `effort_tier`, set to one of `trivial` / `small` / `medium` / `big`, lowercase. Fails on an absent field and on any other value, `Trivial` included.
+
+The field is not a label: Phase 5 milestone-mode fires off the Big tier, and check 3's research-agent threshold is read per tier. Both read it by comparing against the lowercase enum, so an absent or miscased value relaxes both without saying so — the shape of failure a shipped spec cannot show you.
+
 ---
 
 ## Check API contract
 
 The `(check_id, status, finding_text, fix_hint)` tuple is fixed regardless of which surface produced it — the script for its own emitted rows, orchestrator-side reasoning for everything tagged *Judgment*.
 
-`status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in table order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally ("13/13 clean") is not a validator result: it reads the same whether all thirteen ran or five did, which is exactly how a partial pass reaches the user looking like a complete one.
+`status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in table order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally ("14/14 clean") is not a validator result: it reads the same whether all fourteen ran or five did, which is exactly how a partial pass reaches the user looking like a complete one.

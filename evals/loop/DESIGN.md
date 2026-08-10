@@ -1,8 +1,8 @@
 # evals/loop — the module-agnostic improvement loop
 
-The eval stand: measure any plugin module (review content today;
-plan/implement/debug criteria next) against a versioned benchmark, cheap enough
-to iterate, disciplined enough to trust. Its predecessors — the
+The eval stand: measure any plugin module (review content and the spec-claim
+check today; plan/implement/debug criteria next) against a versioned benchmark,
+cheap enough to iterate, disciplined enough to trust. Its predecessors — the
 `evals/cursor-review/` v1 content stand and the Agent-SDK full-skill
 run-harness — were deleted in its favor (git history holds them, including the
 H1–H6 experiment ledger that produced the criteria charter trim).

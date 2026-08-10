@@ -1,0 +1,2 @@
+{ "id": "planted-5", "mode": "spec", "tree_dir": "tree", "spec": "spec.md",
+  "lang": "typescript", "project_context": "Ledger service behind a percentage rollout flag." }

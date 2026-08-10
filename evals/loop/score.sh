@@ -28,6 +28,7 @@ done
 [ -n "$TASKS" ] || TASKS="$(jq -r '.tasks' "$RUN/spec.json")"
 MODULE="$(jq -r '.module' "$RUN/spec.json")"
 TARGET="$HERE/modules/$MODULE/target.json"
+PARSER="$(jq -r '.parser // "review-findings"' "$TARGET")"
 PASS_EXPR="$(jq -r '.pass_expr // "false"' "$TARGET")"
 NEG_EXPR="$(jq -r '.negative_pass_expr // "false"' "$TARGET")"
 
@@ -39,7 +40,7 @@ do_prep() {
     task_id="$(task_of "$trdir")"
     rubric="$TASKS/$task_id/rubric.json"
     [ -f "$rubric" ] || { echo "no rubric for $task_id — skipping" >&2; continue; }
-    python3 "$HERE/loop_lib.py" parse "$trdir"raw-*.json > "$trdir/findings.json"
+    python3 "$HERE/loop_lib.py" parse --parser "$PARSER" "$trdir"raw-*.json > "$trdir/findings.json"
     python3 "$HERE/loop_lib.py" judgeprompt "$rubric" "$trdir/findings.json" > "$trdir/judge-prompt.txt"
     echo "[prep] $task_id $(basename "$trdir"): $(jq 'length' "$trdir/findings.json") findings"
   done
@@ -87,6 +88,8 @@ do_finish() {
     def mean_of(f): map(f // empty) | if length>0 then (add/length) else null end;
     {
       rows: .,
+      contested: [ .[] | . as $r | ($r.contested_must // [])[]
+                   | {task: $r.task, trial: $r.trial, gt_id, finding_ids} ],
       mean: {
         recall_must: mean_of(.recall_must),
         recall_weighted: mean_of(.recall_weighted),
@@ -112,7 +115,13 @@ do_finish() {
             pass_hat_k: ($per_task | map(select(.pass_hat_k)) | length / ($per_task|length))
           })
     }' "$rows" > "$RUN/metrics.json"
-  jq '{mean, reducers: (.reducers | del(.per_task))}' "$RUN/metrics.json"
+  jq '{mean, reducers: (.reducers | del(.per_task)), contested}' "$RUN/metrics.json"
+  if [ "$(jq '.contested | length' "$RUN/metrics.json")" -gt 0 ]; then
+    # Loud on purpose: a must-find missed while a discarded finding sits on its
+    # own lines usually means the rubric, not the run, is wrong. Read that
+    # trial before quoting the recall number.
+    echo "[finish] contested must-finds above — open those trials before trusting recall" >&2
+  fi
 }
 
 case "$PHASE" in

@@ -1,0 +1,2 @@
+{ "id": "holdout-1", "mode": "spec", "tree_dir": "tree", "spec": "spec.md",
+  "lang": "typescript", "project_context": "HTTP client with an opt-in retry wrapper." }

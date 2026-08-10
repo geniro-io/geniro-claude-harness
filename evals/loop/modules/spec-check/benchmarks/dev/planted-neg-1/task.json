@@ -1,0 +1,2 @@
+{ "id": "planted-neg-1", "mode": "spec", "tree_dir": "tree", "spec": "spec.md",
+  "lang": "typescript", "project_context": "In-memory TTL cache." }

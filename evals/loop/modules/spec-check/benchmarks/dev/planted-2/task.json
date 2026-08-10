@@ -1,0 +1,2 @@
+{ "id": "planted-2", "mode": "spec", "tree_dir": "tree", "spec": "spec.md",
+  "lang": "typescript", "project_context": "Node service with layered config resolution." }

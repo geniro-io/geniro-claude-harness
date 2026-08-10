@@ -18,7 +18,7 @@ skills/implement/SKILL.md 4453
 skills/instructions/SKILL.md 2549
 skills/investigate/SKILL.md 3158
 skills/onboard/SKILL.md 2972
-skills/plan/SKILL.md 3045
+skills/plan/SKILL.md 2990
 skills/refactor/SKILL.md 3253
 skills/reflect/SKILL.md 3135
 skills/resolve/SKILL.md 3590

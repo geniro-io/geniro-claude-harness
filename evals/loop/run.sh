@@ -102,6 +102,16 @@ assemble_prompt() { # task_stage_dir facet_name criteria_files... -> prompt on s
     cat "$(criteria_path "$c")"
   done
   printf '\n\n## Project context\n\n%s\n' "$(jq -r '.project_context // "No additional context."' "$stage/task.json" 2>/dev/null || echo "No additional context.")"
+  # Two artifact shapes. A diff task asks "is this change sound"; a spec task asks
+  # "do this document's claims hold against the tree". The tree is the evidence in
+  # both, so only the artifact block and the file list differ.
+  if [ -f "$stage/spec.md" ]; then
+    printf '\n## Spec under test\n\n```markdown\n'
+    cat "$stage/spec.md"
+    printf '```\n'
+    printf '\nThe tree around you is the code this spec makes claims about, pinned at the\ncommit the spec was written against. Nothing in it has been implemented yet.\nRead and grep it freely — the claims are settled against the tree, not against\nthe spec.\n\nBegin now. Output ONLY the verdicts in the exact format specified.\n'
+    return 0
+  fi
   printf '\n## Diff under review (unified)\n\n```diff\n'
   cat "$stage/diff.patch"
   printf '```\n\n## Changed files (full current content)\n'

@@ -27,10 +27,15 @@ bash loop.sh confirm --module review --variant modules/review/variants/<exp> \
 ```
 
 Task anatomy (`modules/<m>/benchmarks/{dev,holdout}/<id>/`): `task.json`
-(staging: mode git|patch; git mode names a `repo_alias` resolved through the
-gitignored `repos.local.json` — copy `repos.local.example.json`) +
+(staging: mode git|patch|spec; `git` names a `repo_alias` resolved through the
+gitignored `repos.local.json` — copy `repos.local.example.json`; `spec` takes
+that, or a public `repo_url` shallow-fetched into `cache/repos/`) +
 `rubric.json` (`{version, negative, items}` — bump `version` on ANY edit) +
-`tree/`+`change.patch` for planted tasks. Committed task content is
+`tree/`+`change.patch` for planted tasks. `spec` mode is for an artifact-under-test
+module: it stages the tree at `base_sha` with no diff and materializes the
+`spec.md` beside it. Pinning the tree is what separates "the claim was wrong"
+from "the tree moved on" — an unpinned run over a historical spec measures
+whether it shipped, not whether it was right. Committed task content is
 anonymized: no source-repo names, PR/ticket numbers, usernames, or local
 paths (the /eval-loop skill's iron rule carries the full list).
 

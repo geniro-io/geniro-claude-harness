@@ -1,0 +1,9 @@
+{ "version": 1, "negative": false, "items": [
+  { "id": "gt-1", "file": "src/loader.ts", "lines": [6, 10],
+    "class": "unstated-premise-false", "dimension_hint": "claims",
+    "severity": "HIGH", "must_find": true,
+    "description": "Assumption 1 states default.json is the file actually read. configPath prefers APP_CONFIG, then config/local.json when it exists, and local.json IS present in the tree — so editing default.json changes nothing at runtime. The plan's whole effect rests on a premise the loader contradicts." },
+  { "id": "gt-2", "file": "src/loader.ts", "lines": [42, 42],
+    "class": "citation-dangling", "dimension_hint": "claims",
+    "severity": "MEDIUM", "must_find": true,
+    "description": "Step 2 cites src/loader.ts:42; the file is 15 lines long, so the citation resolves to nothing." } ] }

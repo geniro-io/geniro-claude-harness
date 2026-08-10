@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/auth/session.ts",
+      "lines": [13, 18],
+      "class": "citation-contradicted",
+      "dimension_hint": "claims",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Step 1 asserts touchSession re-issues the session and writes Redis on EVERY request. The cited code returns the session unchanged when its age is under half the TTL, so the write happens only past the halfway point. The step's premise that the sliding window is half-built is false."
+    },
+    {
+      "id": "gt-2",
+      "file": "src/api/routes.ts",
+      "lines": [4, 6],
+      "class": "quantity-unreproducible",
+      "dimension_hint": "claims",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "Step 2 states four routes are registered. registerRoutes registers three (/login, /session, /logout). The bound derived from the count is therefore wrong."
+    },
+    {
+      "id": "gt-3",
+      "file": "src/api/routes.ts",
+      "lines": [4, 4],
+      "class": "current-state-overbroad",
+      "dimension_hint": "claims",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "Assumption 3 states no rate limiting exists anywhere on the API surface. rateLimit is imported and applied to /login, so the blanket claim is wrong; the defensible version is that the session route is unthrottled."
+    }
+  ]
+}

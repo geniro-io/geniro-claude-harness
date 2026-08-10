@@ -8,7 +8,7 @@ Every item below is an exit gate — a condition checkable as done or not-done o
 
 - [ ] A pre-existing state.md was pre-flighted with `validate_state_file` before its `phase:` was resumed from, and a failed validation opened the recovery question instead of resuming.
 - [ ] state.md lives at `.geniro/planning/<slug>/state.md` and every write to it went through `atomic_state_write`.
-- [ ] Every phase whose Fires condition held ran, and every conditional phase whose trigger did not fire was skipped whole — Phase 0.5 (`--prd`), Phase 2 (UI trigger), Phase 7.5 (Big effort tier or `deep-mode: true`), plus the Phase 1 §1.5 Trivial skip of Phases 2 and 3.
+- [ ] Every phase ran, with two exceptions that are decisions rather than omissions: Phase 2 when its UI trigger did not match, and the Phase 1 §1.5 Trivial skip of Phases 2 and 3.
 - [ ] Every gate carrying rich content rendered it to chat as a separate, already-emitted message BEFORE its lean AUQ fired (Phases 0.5, 3, 4, 5, 8). No question pointed at a render that does not exist.
 - [ ] Every decision the user made is in `approvals[]` — grill answers and checkpoint picks, the approach pick, one entry per approved section, the final approval, and the launch-config choice. A compaction resume can rebuild the run from those entries alone.
 - [ ] Phase 1 loaded the memory layers for the effort tier, and every research spawn left its Echo-contract entry in state.md `## Tool log`.

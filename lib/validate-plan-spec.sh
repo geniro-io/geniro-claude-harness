@@ -4,7 +4,7 @@
 # Spec: skills/plan/validator-checks.md
 # Template being validated: skills/_shared/spec-template.md
 #
-# Runs every check in the thirteen-check set (skills/plan/validator-checks.md)
+# Runs every check in the fourteen-check set (skills/plan/validator-checks.md)
 # whose predicate a command can fully decide. This file's own emitted rows are
 # that enumeration — the check_id column of validate_plan_spec's output IS the
 # scripted set, so adding or removing one only ever means editing the call
@@ -413,7 +413,6 @@ _vps_check_schema_completeness() {
 11. Done Condition'
   optional='Considered Alternatives
 Milestones
-Problem & Evidence
 Comment Resolution Map'
 
   while IFS= read -r h; do
@@ -446,7 +445,7 @@ $headers
 VPS_HEADERS
   if [ "$found" -eq 1 ]; then
     _vps_emit schema_completeness fail "Top-level section outside the schema: $extra." \
-      "Remove it, or fold its content into one of the 11 required sections — only Considered Alternatives / Milestones / Problem & Evidence / Comment Resolution Map are allowed beyond them."
+      "Remove it, or fold its content into one of the 11 required sections — only Considered Alternatives / Milestones / Comment Resolution Map are allowed beyond them."
     return
   fi
   _vps_emit schema_completeness pass "" ""
@@ -601,6 +600,23 @@ _vps_check_launch_config() {
   _vps_emit launch_config_consistency pass "" ""
 }
 
+# 14. effort_tier
+_vps_check_effort_tier() {
+  local fm="$1" tier
+  local fix="Set frontmatter effort_tier to one of trivial / small / medium / big, lowercase — Phase 5 milestone-mode and check 3's research threshold both read it, and an absent or miscased value relaxes both silently."
+  if ! _vps_fm_has "$fm" effort_tier; then
+    _vps_emit effort_tier fail "Frontmatter has no effort_tier." "$fix"
+    return
+  fi
+  tier="$(_vps_fm_value "$fm" effort_tier)"
+  case "$tier" in
+    trivial|small|medium|big)
+      _vps_emit effort_tier pass "" "" ;;
+    *)
+      _vps_emit effort_tier fail "Frontmatter effort_tier is '${tier:-empty}', not one of trivial / small / medium / big." "$fix" ;;
+  esac
+}
+
 # --- entry point ------------------------------------------------------------
 
 validate_plan_spec() {
@@ -629,6 +645,7 @@ validate_plan_spec() {
   _vps_check_schema_completeness "$body" "$offset"
   _vps_check_workflow_refs "$fm"
   _vps_check_launch_config "$fm"
+  _vps_check_effort_tier "$fm"
 
   if [ "$_VPS_FAILED" -ne 0 ]; then
     return "$_VPS_CHECK_FAILED"

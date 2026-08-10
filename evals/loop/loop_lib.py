@@ -12,9 +12,16 @@ A rubric is {"version": int, "negative": bool, "items": [...]}; a bare legacy
 array is accepted and treated as version 0. Items use the ground-truth schema
 (id/file/lines/class/severity/must_find/description).
 
-The only parser today is the /geniro:review §Output Format one; a new module
-that emits a different shape adds a parser here and names it in its
-target.json `parser` field.
+Two parsers ship: `review-findings` (the /geniro:review §Output Format shape)
+and `spec-claims` (the spec-challenge per-claim verdict shape). A module names
+the one it needs in its target.json `parser` field; a new output shape adds a
+function here and a PARSERS entry.
+
+`spec-claims` emits one finding per claim the run judged WRONG — refuted or
+clarified — and none for a confirmed claim. That keeps the rubric on the same
+footing as every other module's: its items are the claims that are genuinely
+wrong, so recall_must reads "did the pass catch the bad claims" and noise reads
+"did it flag good ones", with cmd_metrics unchanged.
 """
 import json, re, sys, glob, os, random
 
@@ -53,12 +60,54 @@ def parse_file_field(s):
     a = int(m.group(2)); b = int(m.group(3)) if m.group(3) else a
     return m.group(1), a, b
 
-def cmd_parse(paths):
+SPEC_CLAIM_RE = re.compile(r"^###\s+\[?(REFUTED|CLARIFIED)\]?[:\s]+(.+)$", re.I)
+CITED_RE = re.compile(r"\*\*Cited:?\*\*:?\s*`?([^\s`]+?)`?\s*$")
+# A refuted claim is a fact the spec asserts and the code contradicts; a
+# clarified one is true-but-mis-framed. Weighted recall needs them ordered, so
+# they borrow the severity scale rather than inventing a second one.
+CLAIM_SEV = {"REFUTED": "HIGH", "CLARIFIED": "MEDIUM"}
+
+def parse_spec_claims(text, facet):
+    blocks = []
+    cur = None
+    for line in text.splitlines():
+        m = SPEC_CLAIM_RE.match(line.strip())
+        if m:
+            kind = m.group(1).upper()
+            cur = {"severity": CLAIM_SEV[kind], "verdict": kind,
+                   "title": m.group(2).strip(), "facet": facet,
+                   "file": None, "line_start": None, "line_end": None,
+                   "confidence": None, "decision_type": None, "origin": None,
+                   "has_evidence": False, "body": []}
+            blocks.append(cur)
+            continue
+        if line.startswith("## ") and cur is not None:
+            cur = None  # left the verdict region (e.g. Claim Summary)
+        if cur is None:
+            continue
+        cur["body"].append(line)
+        cm = CITED_RE.search(line)
+        if cm and cur["file"] is None:
+            f, a, b = parse_file_field(cm.group(1).strip())
+            cur["file"], cur["line_start"], cur["line_end"] = f, a, b
+        conf = CONF_RE.search(line)
+        if conf: cur["confidence"] = int(conf.group(1))
+        if "**Evidence" in line:
+            cur["has_evidence"] = True
+    return blocks
+
+def cmd_parse(paths, parser="review-findings"):
     findings = []
     for path in paths:
         facet = re.sub(r"^raw-|\.json$", "", os.path.basename(path))
         text, usage, is_err = load_result_text(path)
         if is_err:
+            continue
+        if parser == "spec-claims":
+            blocks = parse_spec_claims(text, facet)
+            for b in blocks:
+                b["body"] = "\n".join(b["body"])[:2000]
+            findings.extend(blocks)
             continue
         blocks = []
         cur = None
@@ -159,6 +208,38 @@ def cmd_extract(judge_raw_path):
         sys.exit(65)
     json.dump(obj, sys.stdout)
 
+def contested_must(must, by_gt, residue, findings):
+    """Missed must-finds whose own lines a discarded finding already cites.
+
+    A run that looked exactly where the rubric points and drew the opposite
+    conclusion is a different animal from a run that never looked. The first is
+    usually a defective fixture — the ground truth asserts something the tree
+    does not support — and it costs twice, once in recall and again in noise.
+    Scoring is untouched: this only tells the transcript read which trial to
+    open first.
+    """
+    by_id = {f.get("id"): f for f in findings}
+    out = []
+    for g in must:
+        if by_gt.get(g["id"]):
+            continue
+        lines = g.get("lines") or []
+        lo = lines[0] if lines else None
+        hi = lines[1] if len(lines) > 1 else lo
+        hits = []
+        for fid, bucket in residue.items():
+            if bucket not in ("noise", "nitpick"):
+                continue
+            f = by_id.get(fid)
+            if not f or not f.get("file") or f["file"] != g.get("file"):
+                continue
+            fs, fe = f.get("line_start"), f.get("line_end")
+            if lo is None or fs is None or (fs <= hi and (fe or fs) >= lo):
+                hits.append(fid)
+        if hits:
+            out.append({"gt_id": g["id"], "finding_ids": sorted(hits)})
+    return out
+
 def cmd_metrics(task_path, rubric_path, findings_path, match_path, raw_dir):
     task = json.load(open(task_path))
     rubric = load_rubric(rubric_path)
@@ -176,6 +257,7 @@ def cmd_metrics(task_path, rubric_path, findings_path, match_path, raw_dir):
     n_nitpick = sum(1 for b in residue.values() if b == "nitpick")
     n_plausible = sum(1 for b in residue.values() if b == "plausible-real")
     matched_ids = set(fid for ids in by_gt.values() for fid in ids)
+    contested = contested_must(must, by_gt, residue, findings)
     tok_in = tok_out = 0
     wall = 0
     for p in glob.glob(os.path.join(raw_dir, "raw-*.json")):
@@ -204,12 +286,18 @@ def cmd_metrics(task_path, rubric_path, findings_path, match_path, raw_dir):
         "precision_proxy": round((len(matched_ids) + n_plausible) / len(findings), 4) if findings else None,
         "tokens_in": tok_in, "tokens_out": tok_out, "wall_ms": wall,
         "missed_must": [g["id"] for g in must if not by_gt.get(g["id"])],
+        "contested_must": contested,
     }
     json.dump(out, sys.stdout, indent=1)
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    if cmd == "parse": cmd_parse(sys.argv[2:])
+    if cmd == "parse":
+        args = sys.argv[2:]
+        parser = "review-findings"
+        if args and args[0] == "--parser":
+            parser = args[1]; args = args[2:]
+        cmd_parse(args, parser)
     elif cmd == "judgeprompt": cmd_judgeprompt(sys.argv[2], sys.argv[3])
     elif cmd == "extract": cmd_extract(sys.argv[2])
     elif cmd == "metrics": cmd_metrics(*sys.argv[2:7])

@@ -1,0 +1,5 @@
+{ "version": 1, "negative": false, "items": [
+  { "id": "gt-1", "file": "xarray/tests/test_dataset.py", "lines": [6583, 6597],
+    "class": "enumeration-incomplete", "dimension_hint": "claims",
+    "severity": "MEDIUM", "must_find": true,
+    "description": "Section 4 claims every in-repo call site of DataArray.integrate except one passes the coordinate positionally, and enumerates them. The enumeration omits ds[\"var\"].integrate(\"y\") at xarray/tests/test_dataset.py:6597, structurally identical to the listed :6583. The universal it supports still holds - the omitted call is positional too - so this is a defective evidence list, not a false premise." } ] }

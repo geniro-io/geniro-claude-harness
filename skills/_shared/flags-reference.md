@@ -1,6 +1,6 @@
 # Flags & presets — cross-skill catalog
 
-The single catalog of every flag and modifier `/geniro:plan`, `/geniro:implement`, and `/geniro:review` accept. Three kinds: most remove routine setup friction by answering a question in advance; a few deliberately add an interactive step the default run does not have; the rest change what the run does — its context, or how many agents it spawns — and ask nothing either way. None of the three reaches a safety gate: a flag never pre-authorizes one, and one that adds a gate never substitutes for one.
+The single catalog of every flag and modifier `/geniro:plan`, `/geniro:implement`, and `/geniro:review` accept. Two kinds: most remove routine setup friction by answering a question in advance; the rest change what the run does — its context, or how many agents it spawns — and ask nothing either way. Neither reaches a safety gate: a flag never pre-authorizes one.
 
 ## Contents
 
@@ -12,15 +12,14 @@ The single catalog of every flag and modifier `/geniro:plan`, `/geniro:implement
 
 ## How to read these tables
 
-Each row names a flag or modifier, the values it accepts, what it sets, and how that changes the run's questions — one of the three kinds above: the question a pre-set answers, the step a gate-adding row (`--prd`) adds, or "No question" for a row that changes neither. Modifiers are matched semantically from `$ARGUMENTS` (no strict CLI grammar). When two conflicting modifiers appear (e.g. `new-branch` and `current-branch`), last-occurrence wins and a soft notice names both detected variants.
+Each row names a flag or modifier, the values it accepts, what it sets, and how that changes the run's questions — either the question a pre-set answers, or "No question" for a row that answers none. Modifiers are matched semantically from `$ARGUMENTS` (no strict CLI grammar). When two conflicting modifiers appear (e.g. `new-branch` and `current-branch`), last-occurrence wins and a soft notice names both detected variants.
 
 ## /geniro:plan
 
-`argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"`
+`argument-hint: "<topic-string-or-design-doc-path> [--deep] [--artifact]"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
-| `--prd` | present / absent | Turns on the problem-discovery interview (problem / evidence / target user / hypothesis / success metrics / MoSCoW) and the spec's optional `## Problem & Evidence` section. | Adds the Phase 0.5 interview; absent = no problem-first pre-phase. |
 | `--deep` | present / absent | Deepens the approach search (wider candidate set) and adds majority-vote verification of the spec's cited claims. Higher quality, higher cost. | The Standard/Deep depth question (asked at the Phase 3 clarify wrap-up). |
 | `--artifact` | present / absent | Turns on the live, auto-updating visual plan artifact published to a private page as the plan develops. | The artifact opt-in question. |
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Pre-fills the spec's `launch_config` workspace setting so `/geniro:implement` runs hands-free without asking where to land its edits (`no-worktree` and `here` both map to the `here` enum value). | `/implement`'s workspace setup question (deferred — applied when `/implement` consumes the spec). |

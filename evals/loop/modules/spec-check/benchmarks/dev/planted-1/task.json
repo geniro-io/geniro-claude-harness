@@ -1,0 +1,8 @@
+{
+  "id": "planted-1",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "typescript",
+  "project_context": "TypeScript service. Sessions in Redis, Express-style route registration."
+}

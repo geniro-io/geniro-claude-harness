@@ -1,0 +1,9 @@
+{ "version": 2, "negative": false, "items": [
+  { "id": "gt-1", "file": "deploy/rollout.yaml", "lines": [2, 5],
+    "class": "precondition-refuted", "dimension_hint": "claims",
+    "severity": "HIGH", "must_find": true,
+    "description": "Assumption 1 states unified-ledger is at 100% for all cohorts. The rollout config it cites shows percentage 5 and cohort internal-only, so the legacy branch still serves nearly all traffic and step 1 would delete a live path." },
+  { "id": "gt-2", "file": "deploy/rollout.yaml", "lines": [6, 8],
+    "class": "step-precondition-unmet", "dimension_hint": "claims",
+    "severity": "MEDIUM", "must_find": true,
+    "description": "Step 2 calls the legacy-ledger-read flag now-unused. src/ledger.ts:5 gates the legacy read on that flag and the cited config has it enabled at percentage 100, so with unified at 5% it is the flag routing nearly every read today. Dropping the entry switches the live path off rather than deleting dead config." } ] }
