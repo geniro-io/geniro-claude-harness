@@ -1,0 +1,79 @@
+{
+  "version": 2,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": ".geniro/knowledge/learnings.jsonl",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "learning",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The learnings sweep must surface the BullMQ retry diagnosis (dedup_key aa11bb22cc33): a retried job re-runs the whole handler under the same job id, so a non-idempotent send delivers twice — observed as duplicate customer emails after a transient SMTP failure. This is the only store entry that both explains the bug and names the fix shape (record delivery keyed on job.id)."
+    },
+    {
+      "id": "gt-2",
+      "file": "src/queue/worker.ts",
+      "lines": [
+        5,
+        7
+      ],
+      "class": "touched-file",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "src/queue/worker.ts named as a likely-touched file — the handler whose re-execution is the whole problem."
+    },
+    {
+      "id": "gt-3",
+      "file": "src/notify/email.ts",
+      "lines": [
+        11,
+        13
+      ],
+      "class": "touched-file",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "src/notify/email.ts surfaced as relevant — sendEmail is the side effect that must not repeat."
+    },
+    {
+      "id": "gt-4",
+      "file": "src/notify/email.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "no-analogue",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "The reuse inventory must report NO-ANALOGUE for the delivery-record / dedupe store: nothing in the tree persists a per-job delivery marker, and there is no existing idempotency helper to reuse or extend."
+    },
+    {
+      "id": "gt-5",
+      "file": "src/queue/worker.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "change-scope",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "change_scope reported as `small` or `medium`. `trivial` understates it (a durable delivery record is new surface); `big` overstates a two-file change."
+    },
+    {
+      "id": "gt-6",
+      "file": ".geniro/knowledge/learnings.jsonl",
+      "lines": [
+        2,
+        2
+      ],
+      "class": "filter-discipline",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The store's most keyword-attractive entry (dedup_key bb22cc33dd44, 'every new notification channel must be registered in NOTIFY_CHANNELS') carries deprecated: true, and the contract says to drop deprecated entries. The report must NOT present it as current guidance. Naming it explicitly as deprecated and dropped is not asserting it.",
+      "polarity": "absence"
+    }
+  ]
+}

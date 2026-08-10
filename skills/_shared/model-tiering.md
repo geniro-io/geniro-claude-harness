@@ -5,6 +5,7 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 ## Contents
 
 - The rule — inherit by default; OMIT `model=`; the four hardcoded-tier categories
+- Runtime resolution — how each host spells these tiers
 - Tier table — fallback for runtimes without an orchestrator
 - Escalation signals (orchestrator-side advisory)
 - Runtime escalation (Sonnet → Opus on failure)
@@ -48,9 +49,25 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
 
    **What this category does NOT cover.** The boundary is decide-vs-apply, not writes-files. An agent that writes files while still deciding their content stays `inherit`: the `adversarial-tester-agent` authors tests but its deliverable is 5-12 *hypotheses*; the create-skill author agent in `.claude/skills/improve-template/SKILL.md` Phase B composes a skill from an interview rather than transcribing one. Nor does it cover a spawn whose file set the subagent must still discover — a delegate that has to work out *which* files to touch is deciding, and the delegation rule already refuses that shape.
 
+## Runtime resolution — how each host spells these tiers
+
+`haiku` / `sonnet` / `opus` are Claude Code model ids, and `skills/` is shared by both runtimes (`ARCHITECTURE.md` §Dual-runtime port (Cursor)) — so a spawn site written above is read verbatim under Cursor, whose roster carries no `sonnet`. The tiers name INTENTS; each host spells them its own way:
+
+| Intent | Claude Code | Cursor |
+|---|---|---|
+| Judgment-grade — the tier the user chose | OMIT `model=` | omit the model argument |
+| Mechanical / execution (categories 2-4) | `model="sonnet"` | `model="auto"` |
+| One-shot escalation after a failure (§Runtime escalation) | `model="opus"` | omit the model argument — inheriting the session tier IS the step up from `auto` |
+
+`auto` is Cursor's own selector (first entry in `cursor-agent --list-models`, and its default): a server-side classifier picks per task. **Never substitute a pinned Cursor model id instead.** The roster turns over constantly, and an id that is unavailable or blocked by team policy falls back silently to something else — `auto` is the only stable way to say "this workload is mechanical, spend accordingly". It means "the host decides", not "always cheaper": a session already on a cheap model can see `auto` pick something dearer. That is still the right semantic, because the point is that the tier stops being the user's reasoning-grade choice.
+
+Agent frontmatter needs no per-site handling — `scripts/build-cursor-agents.sh` applies this same table when it generates `cursor/agents/` from `agents/*.md`, and rejects a tier the table cannot express.
+
+**Measured caveat — `cursor-agent` 2026.08.04, probed 2026-08-10.** `auto` is a real, accepted selector and does route down (a trivial ask on `--model auto` answered `> Auto routed to Cursor Grok 4.5`). But that CLI **ignored a subagent's declared model** and derived it from the parent: a `composer-2.5` parent spawned a subagent declaring `model: auto` as `composer-2.5-fast`. Under it this mapping is a no-op. Keep it — it is the documented field, it becomes correct the moment the field is honored, and it costs nothing — but credit it with no saving until a probe shows a subagent running off its own declaration. What DOES work there today, and is worth telling a Cursor user: subagents follow the parent, so setting the SESSION model to `auto` gets auto-routing everywhere, mechanical spawns included. The probe was the CLI only; the IDE was not tested.
+
 ## Tier table — fallback for runtimes without an orchestrator
 
-When a plugin subagent is invoked in a context without an interactive orchestrator parent (cloud-runner harness, batch evaluation, headless CI), the calling layer SHOULD pick a tier per the table below. This is **fallback**, not preference — interactive runs always inherit.
+When a plugin subagent is invoked in a context without an interactive orchestrator parent (cloud-runner harness, batch evaluation, headless CI), the calling layer SHOULD pick a tier per the table below, resolved for its host per §Runtime resolution. This is **fallback**, not preference — interactive runs always inherit.
 
 | Task nature | Fallback model |
 |---|---|

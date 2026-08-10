@@ -1,0 +1,8 @@
+{
+  "id": "planted-5",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "typescript",
+  "project_context": "Integration hub with an inbound feed importer and an outbound webhook sender. The task is being scoped by /geniro:implement Phase 1 before any code is written: what does the orchestrator need to know, and what already exists that this change should reuse?"
+}

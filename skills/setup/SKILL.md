@@ -60,7 +60,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 - **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
 - **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement carrying its own §3.6 confirm when an entry already points elsewhere.
 - **Invariant #4 (bounded structured tool results)** — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
-- **Invariant #5 (escalation gates, not silent abort)** — the validation retry loop escalates via AUQ (`accept-with-warnings | abort | start-over`) rather than aborting silently; retry cap and round count owned by `phase-4-validate.md` §4.2.
+- **Invariant #5 (escalation gates, not silent abort)** — the validation retry loop escalates via AUQ (`accept-with-warnings | abort | start-over`) rather than aborting silently; retry cap and round count owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2.
 - **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
 
 `## Tool log` selective logging: record verification subagent spawns + every Write to project root or `.geniro/`. Skip routine Read/Bash inside Detect.
@@ -83,7 +83,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 These are the load-bearing exit gates — the invariants that, if skipped, make the setup incomplete or unsafe. Per-phase mechanics live in their phase files; this list is the final correctness/contract check, not a re-listing of every step.
 
 - [ ] Generated CLAUDE.md contains no Geniro-plugin content — every entry on `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content checked and absent
-- [ ] Verification subagent passed within the retry cap, or resolved via the final-round AUQ escalation (cap owned by `phase-4-validate.md` §4.2)
+- [ ] Verification subagent passed within the retry cap, or resolved via the final-round AUQ escalation (cap owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2)
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
 - [ ] All user interactions used `AskUserQuestion`
@@ -95,7 +95,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Layer | Lever | Why |
 |---|---|---|
-| **Class-B escalation gates** | Validation retry loop → AUQ (cap owned by `phase-4-validate.md` §4.2) | Drift past the cap means structural disagreement; surface to user |
+| **Class-B escalation gates** | Validation retry loop → AUQ (cap owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2) | Drift past the cap means structural disagreement; surface to user |
 | | Verification report truncation per the §4.1 subagent-prompt cap | Long reports inflate context without commensurate signal |
 | **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
 

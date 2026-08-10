@@ -7,7 +7,7 @@
 # frontmatter (name, description, model, readonly), so each agent gets a
 # derived copy under cursor/agents/ with:
 #   - tools/maxTurns dropped (not enforceable in Cursor)
-#   - model forced to `inherit` ("sonnet" is not a Cursor model id)
+#   - model mapped from the source tier by cursor_model_for() below
 #   - readonly set from the agent's documented write contract below
 #   - the body copied verbatim, prefixed with a generated-file marker and a
 #     plugin-root resolution note (the bodies cite ${CLAUDE_PLUGIN_ROOT})
@@ -21,6 +21,29 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${1:-$REPO_ROOT/cursor/agents}"
 mkdir -p "$OUT_DIR"
+
+# Tier mapping, Claude Code -> Cursor. This is the mechanical half of the table
+# in skills/_shared/model-tiering.md §Runtime resolution — read it there for the
+# rationale and for the measured caveat about whether Cursor honors a subagent's
+# declared model at all. Nothing here names a model id: the mapping is between
+# INTENTS, and a pinned id rots with Cursor's roster.
+#
+#   inherit (or unset) -> inherit   judgment-grade; the tier the USER chose
+#   sonnet | haiku     -> auto      mechanical carve-outs (model-tiering.md cat 3)
+#   anything else      -> build error
+#
+# The error branch matters: "stronger than the session tier" has no Cursor
+# selector, so mapping an `opus` declaration to `auto` would silently invert it.
+# Category 3 pins nothing above sonnet, so this fires only on a doctrine breach.
+cursor_model_for() {
+  case "${1:-}" in
+    ""|inherit)   echo "inherit" ;;
+    sonnet|haiku) echo "auto" ;;
+    *)
+      echo "ERROR: agent declares model: $1 — no Cursor selector expresses a tier above the session's without pinning a model id (skills/_shared/model-tiering.md §Runtime resolution). Fix the declaration." >&2
+      exit 1 ;;
+  esac
+}
 
 # Write contract per agent: readonly=true for agents that never modify files.
 readonly_for() {
@@ -52,6 +75,12 @@ for src in "$REPO_ROOT"/agents/*.md; do
     exit 1
   fi
   body="$(awk 'c<2 && /^---$/{c++; next} c>=2' "$src")"
+  declared_model="$(awk 'c<2 && /^---$/{c++; next} c==1 && /^model:[[:space:]]*/ {sub(/^model:[[:space:]]*/,""); gsub(/[[:space:]"'"'"']/,""); print; exit}' "$src")"
+  # Resolved outside the redirected block below: a failure inside `{ … } > file`
+  # is swallowed by the enclosing command's status, which would emit an empty
+  # `model:` instead of stopping the build.
+  cursor_model="$(cursor_model_for "$declared_model")" || {
+    echo "  (declared in $src)" >&2; exit 1; }
 
   # Content-integrity guard: a regression in the fence-consumption awk above
   # would corrupt every body-level "---" identically on both sides of the
@@ -70,7 +99,7 @@ for src in "$REPO_ROOT"/agents/*.md; do
     printf -- '---\n'
     printf 'name: %s\n' "$name"
     printf '%s\n' "$description_line"
-    printf 'model: inherit\n'
+    printf 'model: %s\n' "$cursor_model"
     printf 'readonly: %s\n' "$(readonly_for "$name")"
     printf -- '---\n'
     printf '<!-- Generated from agents/%s by scripts/build-cursor-agents.sh. Edit the source and re-run; do not edit this copy. -->\n\n' "$base"

@@ -422,8 +422,8 @@ The pattern generalizes to any guard + race-condition combination where the same
 
 | Test name | Outcome | Cause path being pinned |
 |---|---|---|
-| "should return null when beneficiary has 2+ open cases (multi-case fail-closed)" | `expect(result).toBeNull` | The helper's `openCaseIds.length !== 1` guard fires; SCD2 is never consulted |
-| "should return null when excludeCaseId equals the only open case (single-case unassign defense-in-depth)" | `expect(result).toBeNull` | The helper's `caseId === excludeCaseId` carve-out fires; SCD2 is never consulted; protects against DLQ replay / stale event.occurredAt |
+| "should return null when the account has 2+ open orders (multi-order fail-closed)" | `expect(result).toBeNull` | The helper's `openOrderIds.length !== 1` guard fires; the history table is never consulted |
+| "should return null when excludeOrderId equals the only open order (single-order unassign defense-in-depth)" | `expect(result).toBeNull` | The helper's `orderId === excludeOrderId` carve-out fires; the history table is never consulted; protects against DLQ replay / stale event.occurredAt |
 
 Same outcome (`null`). Two different cause paths. Deleting either test as "duplicate of the other" silently loses coverage on the corresponding race condition.
 
@@ -432,7 +432,7 @@ Same outcome (`null`). Two different cause paths. Deleting either test as "dupli
 1. **List every removed test** — from `git diff` output, identify each `-` line that opens an `it` / `test` / `describe` block OR every deleted test file.
 2. **Read each removed test's body verbatim** — the deleted code is still in `git diff` output even after the diff applies; pull the test's setup (Arrange), invocation (Act), and assertions (Assert) into your review.
 3. **Identify the cause path** — what specific code branch / guard / parameter value / state combination did the deleted test exercise? The cause path is rarely the assertion line; it's the Arrange phase + which guard/branch the Act phase activated.
-4. **Search surviving tests for the same cause path** — grep the test directory for tests whose Arrange phase matches (same setup shape: same number of open cases, same SCD2 state, same parameter set). If you find an outcome-matching test, verify it's also cause-path-matching by reading its Arrange phase.
+4. **Search surviving tests for the same cause path** — grep the test directory for tests whose Arrange phase matches (same setup shape: same number of open records, same history-table state, same parameter set). If you find an outcome-matching test, verify it's also cause-path-matching by reading its Arrange phase.
 5. **Flag as a finding if any deleted test's cause path is not pinned by a surviving test**:
 - **HIGH** when the cause path protects a critical-path behavior (auth, payments, data writes, defense-in-depth guards against operational anomalies like DLQ replay / stale timestamps / partial-commit retries).
 - **MEDIUM** when the cause path covers a non-critical-path branch the surviving tests miss.

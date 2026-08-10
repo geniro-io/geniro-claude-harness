@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": ".geniro/planning/ndjson-export/plan-v1.md",
+      "lines": [12, 18],
+      "class": "prior-plan",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The prior-plans sweep must surface plan-v1.md for this task slug AND carry its rejected decision: routing a streaming format through reporting/table.py:render is rejected, because render materializes the whole row iterator to size fixed-width columns and so reintroduces the memory ceiling NDJSON exists to avoid. Surfacing the plan's existence without the rejection does not satisfy this item — the rejection is the only thing that stops the run from repeating it, and nothing in the tree states it."
+    },
+    {
+      "id": "gt-2",
+      "file": "reporting/formats/csv_format.py",
+      "lines": [1, 10],
+      "class": "exemplar",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "reporting/formats/csv_format.py offered as the exemplar to mirror: it is the streaming-shaped format module (writes per row, no materialization), which is the pattern the new module copies. Accepting table_format.py instead is not a match — it is the counter-example the prior plan rejects."
+    },
+    {
+      "id": "gt-3",
+      "file": "reporting/cli.py",
+      "lines": [12, 14],
+      "class": "no-registry",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The report must state that adding a format needs NO registry edit — cli.available_formats discovers modules by scanning reporting/formats/ with pkgutil.iter_modules, so the new module file is the whole registration. Either the codebase-map row, the package docstring, or the matching learning (dedup_key f1a2b3c4d5e6) establishes it. A report that lists cli.py as a file needing a new Choice entry contradicts this item and does not match it."
+    },
+    {
+      "id": "gt-4",
+      "file": ".geniro/knowledge/learnings.jsonl",
+      "lines": [2, 2],
+      "class": "learning",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "The learnings sweep must surface the render() memory diagnosis (dedup_key a2b3c4d5e6f1) — render holds the entire row set to compute column widths, observed as an OOM on the 1M-row nightly report. It is the store-side evidence for the same constraint the prior plan rejected on."
+    },
+    {
+      "id": "gt-5",
+      "file": "reporting/source.py",
+      "lines": [4, 14],
+      "class": "touched-file",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "description": "reporting/source.py surfaced as relevant context — fetch_rows returns a lazy generator, which is what makes flat memory achievable at all. Optional: the new format consumes it without editing it."
+    },
+    {
+      "id": "gt-6",
+      "file": "reporting/formats/ndjson_format.py",
+      "lines": [1, 1],
+      "class": "no-analogue",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "The reuse inventory must classify the NDJSON writer itself as NO-ANALOGUE — neither existing format serializes per-row JSON, and json.dumps is stdlib, not an in-repo helper. A report that claims an existing format can be reused as-is for NDJSON is wrong, not a match."
+    },
+    {
+      "id": "gt-7",
+      "file": "tests/test_formats.py",
+      "lines": [1, 16],
+      "class": "touched-file",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "tests/test_formats.py named as likely-touched — it holds one test per format and the new format needs its own; it is also the only test file in the tree."
+    },
+    {
+      "id": "gt-8",
+      "file": "reporting/formats/ndjson_format.py",
+      "lines": [1, 1],
+      "class": "change-scope",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "change_scope reported as `trivial` or `small`: one new module file plus one test, no registry, no cross-module coordination."
+    }
+  ]
+}

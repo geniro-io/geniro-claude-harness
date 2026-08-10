@@ -1,0 +1,8 @@
+{
+  "facets": [
+    {
+      "name": "recon",
+      "criteria": ["knowledge-agent.md", "explorer-agent.md"]
+    }
+  ]
+}

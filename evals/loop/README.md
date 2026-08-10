@@ -44,6 +44,23 @@ adjudication rather than globbing. Committed task content is
 anonymized: no source-repo names, PR/ticket numbers, usernames, or local
 paths (the /eval-loop skill's iron rule carries the full list).
 
+**Tasks mined from a private repo are NOT committed.** Their ground truth is that
+repo's real file paths, and a rubric matches by path against a tree staged from
+it — so anonymizing the paths breaks the task rather than protecting it. This
+repository is public, so those tasks live in a gitignored
+`modules/<m>/benchmarks.local/{dev,holdout}/` beside `repos.local.json`, and the
+committed `benchmarks/` holds only fully synthetic tasks. Point a sweep at them
+the usual way:
+
+```bash
+bash run.sh --module review --tasks modules/review/benchmarks.local/dev --dry-run
+```
+
+A clone therefore reproduces the synthetic suite only; the private half travels
+with the machine that has the source repo. Scores from the two sets are not
+comparable and must not be pooled — `compare.sh` pairs by task id, so run one
+set at a time.
+
 Ledger: promotion decisions append one line to `runs.jsonl`; hypotheses and
 verdicts live in `experiments/EXP-NNN.md` (template provided). `runs/` and
 `cache/` are gitignored.

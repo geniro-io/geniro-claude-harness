@@ -1,9 +1,0 @@
-{
-  "id": "real-20",
-  "mode": "git",
-  "repo_alias": "monorepo-a",
-  "base_sha": "be8cfe822d11d16c071ebeb693e8cd08694293d3",
-  "head_sha": "64ebfa07fc90539f392cd801ea1007812b43c1ba",
-  "lang": "ts",
-  "project_context": "Production TypeScript monorepo (NestJS API + Next.js web, BullMQ, Postgres/TypeORM, OpenFGA authz). Stack of this change: web feature components. Change: surface a humanized role label badge on communication timeline rows and the detail dialog, with regression tests and seed-data support"
-}

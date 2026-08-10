@@ -1,0 +1,102 @@
+{
+  "version": 2,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/lib/schedule.ts",
+      "lines": [
+        20,
+        20
+      ],
+      "class": "reuse-as-is",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The reuse inventory must reach `attemptSeries` in src/lib/schedule.ts and classify it REUSE-AS-IS or EXTEND — it already implements bounded retry with `spacing: doubling`, which is the exponential-backoff half of the task. It shares no vocabulary with the spec ('retry', 'backoff' appear nowhere in the file or its name), so it is reachable only through src/import/runner.ts, which calls it, or the codebase-map row naming it the project's retry driver. Declaring retry NO-ANALOGUE, or proposing a new retry loop, fails this item."
+    },
+    {
+      "id": "gt-2",
+      "file": "src/lib/schedule.ts",
+      "lines": [
+        13,
+        13
+      ],
+      "class": "extend",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The report must reach the `shape?` hook on AttemptOptions (src/lib/schedule.ts:13) as the seam where jitter attaches — a per-wait transform on the computed delay. Matching requires naming that hook or the jitter-via-shape route specifically, not merely saying attemptSeries exists."
+    },
+    {
+      "id": "gt-3",
+      "file": "src/lib/spread.ts",
+      "lines": [
+        12,
+        15
+      ],
+      "class": "extend",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "src/lib/spread.ts surfaced as the closest existing randomizer, classified EXTEND (or explicitly rejected with a reason). `spread` takes an options object ({cadenceMs, floorMs}) while `attemptSeries` calls `shape` with two plain numbers, so it cannot be passed as `shape` unmodified — the codebase-map row states exactly this and the signatures confirm it. A report that classifies it REUSE-AS-IS, or claims `shape: spread` type-checks, is wrong and is not a match."
+    },
+    {
+      "id": "gt-4",
+      "file": "src/outbound/webhook.ts",
+      "lines": [
+        10,
+        17
+      ],
+      "class": "touched-file",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "src/outbound/webhook.ts named as a likely-touched file — `deliver` is the function being wrapped."
+    },
+    {
+      "id": "gt-5",
+      "file": ".geniro/state/handoff/from-debug-feat-webhook-retry.md",
+      "lines": [
+        1,
+        22
+      ],
+      "class": "handoff",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The debug handoff from-debug-feat-webhook-retry.md must be surfaced: its branch suffix matches the spec's branch, and it carries an already-authored failing test (src/outbound/webhook.retry.test.ts) that is the acceptance gate for this work."
+    },
+    {
+      "id": "gt-6",
+      "file": ".geniro/knowledge/learnings.jsonl",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "learning",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "The learnings sweep must surface the synchronized-retry diagnosis (dedup_key 77aa88bb99cc): unjittered doubling backoff made all 40 workers retry on the same tick and re-DDoSed the partner, with the fix being a randomizing shape() passed into attemptSeries. It is the store's justification for the spec's third acceptance criterion."
+    },
+    {
+      "id": "gt-7",
+      "file": "src/import/runner.ts",
+      "lines": [
+        7,
+        12
+      ],
+      "class": "exemplar",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "src/import/runner.ts offered as the exemplar to mirror — the one existing call site configuring attemptSeries (attempts / baseMs / spacing at the call site, per the matching convention learning)."
+    },
+    {
+      "id": "gt-8",
+      "file": "src/outbound/webhook.ts",
+      "lines": [
+        1,
+        1
+      ],
+      "class": "change-scope",
+      "severity": "MEDIUM",
+      "must_find": true,
+      "description": "change_scope reported as `trivial` or `small` — composing an existing retry driver into one existing function with a jitter transform."
+    }
+  ]
+}
