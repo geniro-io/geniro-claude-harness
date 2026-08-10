@@ -38,3 +38,20 @@ These apply to services under `api/`:
 ## Commits
 
 Conventional commits. Subject under 72 characters.
+
+## Why the component size limit exists
+
+The 200-line component limit above rests on measurement, not taste. Sources: the
+React team's composition guidance, our Q3 refactor retro, and
+[Large Component Smell](https://example.com/large-component-smell).
+
+Of the rules in this file, the size limit and the Tailwind-only rule are the two
+grounded in measured review-time data; the naming rules are convention and are
+graded accordingly.
+
+We are not applying the "one component per file" theory here. That was
+considered and rejected: our page shells legitimately hold several small
+presentational components, and the theory would split them for no benefit.
+
+The limit was 400 lines until the Q3 retro, when three of the four longest
+review threads that quarter landed on files over 250 lines.

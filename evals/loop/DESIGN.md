@@ -85,11 +85,14 @@ baselines and the EXP-001 noise floor are indicative, not comparable):
   review: bugs/security/tests/regressions — every must item's class lives
   there, and the legacy H1 result showed recall parity on 4 dimensions);
   confirm always runs the FULL facet set. The rule binding the subset is that
-  every `must_find` item's class sits inside it, which is why the audit modules
-  leave their subtraction dimensions out: a deletion proposal is a judgment the
-  user rules on, not a defect a run either caught or missed, so those items are
-  scored but never `must_find`. Screen a subtraction-targeted variant with an
-  explicit `--facets`.
+  every `must_find` item's class sits inside it. The line the audit modules draw
+  inside their subtraction dimensions: a check asking whether a *line* earns its
+  place decides a defect — a menu of three test commands where the manifest
+  declares one is wrong, not debatable — so those items are `must_find` and the
+  dimension is screened. A check asking whether a whole *surface* earns its place
+  produces a proposal the user rules on at its own gate, so those items are
+  scored but never `must_find`. Reading the second rule onto the first is what
+  makes a subtraction experiment unable to detect the recall it costs.
 - **Sequential trials** (pre-registered escalation rule): screen both arms at
   1 trial first; if the paired Δrecall_must is an exact tie AND |Δnoise| <
   1.1/task (the A-vs-A noise-of-noise), record the tie and stop. Otherwise
