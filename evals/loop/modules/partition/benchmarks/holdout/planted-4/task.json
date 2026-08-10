@@ -1,0 +1,8 @@
+{
+  "id": "planted-4",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "typescript",
+  "project_context": "TypeScript service with a single quota object consumed by the scheduler. Three approved todos are being partitioned for parallel implementation before any code is written."
+}

@@ -1,0 +1,8 @@
+{
+  "id": "planted-neg-1",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "typescript",
+  "project_context": "TypeScript app with three self-contained features, all already wired. Three approved todos are being partitioned for parallel implementation before any code is written."
+}

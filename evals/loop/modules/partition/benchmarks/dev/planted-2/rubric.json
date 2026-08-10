@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "app/handlers/__init__.py",
+      "lines": [9, 12],
+      "class": "shared-registry",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled through app/handlers/__init__.py. Its docstring states a handler missing from HANDLERS is unreachable, and both todos require their handler to be 'reachable through the normal dispatch path' — so each must add an import and a HANDLERS entry to the same file. Two concurrent delegates would both rewrite it and one registration would be lost."
+    },
+    {
+      "id": "gt-2",
+      "file": "app/db/migrations.py",
+      "lines": [6, 10],
+      "class": "ordered-shared-list",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-3 and todo-4 are coupled through app/db/migrations.py. Both need a schema change that applies to an already-deployed database, which means appending to MIGRATIONS. The file states migrations run in list order and record their index, so two delegates appending concurrently either lose one entry or produce conflicting indices."
+    }
+  ]
+}

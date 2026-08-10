@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/format/money.ts",
+      "lines": [4, 11],
+      "class": "forward-inference-contract",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled through the formatMoney signature even though no file is written by both — todo-2's module does not exist yet. money.ts states 'Every user-visible amount goes through here ... formatting an amount inline anywhere else is a review blocker', and all three existing amount renderers import it, so the receipt todo-2 writes must call formatMoney too. todo-1 is changing that call signature to take a currency code, so a receipt authored concurrently is written against a signature that stops existing. Establishing this requires deriving the file set of a module that has not been written."
+    },
+    {
+      "id": "gt-2",
+      "file": "src/notify/email.ts",
+      "lines": [1, 17],
+      "class": "hub-sweep-vs-local-edit",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-3 are coupled through src/notify/email.ts. todo-1 says to update 'every place that calls it today', and sendDueNotice is one of the three call sites (formatMoney imported at :1, called at :17) — so todo-1's sweep writes email.ts. todo-3 rewrites sendDueNotice in that same file to add the retry. A mechanical sweep across a hub's call sites is not coupled to anything by itself, but it is coupled to any todo that edits one of those call sites."
+    }
+  ]
+}
