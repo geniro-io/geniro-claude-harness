@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "negative": false,
   "items": [
     {
@@ -21,6 +21,16 @@
       "severity": "HIGH",
       "must_find": true,
       "description": "todo-1 and todo-2 are coupled through the User interface even though their file sets are disjoint. todo-1 replaces the flat createdAt with a nested timestamps object; todo-2's PDF must print 'when the account was opened', which is that same field, and src/billing/invoice.ts already imports User. todo-2 written against the old shape stops compiling the moment todo-1 lands."
+    },
+    {
+      "id": "gt-3",
+      "file": "src/billing/invoice.ts",
+      "lines": [10, 10],
+      "class": "module-private-state",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-2 and todo-4 are additionally coupled through src/billing/invoice.ts itself. The ledger todo-4's summarizeAccount must walk is module-private — `const ledger: Invoice[] = [];` at :10, never exported — so the helper has to be written into that same file, which is also where todo-2 adds the PDF renderer 'alongside the existing invoice code'. Two delegates therefore write invoice.ts as well as the barrel."
     }
   ]
 }

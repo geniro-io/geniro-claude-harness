@@ -24,6 +24,6 @@ inside the shared adapter base so individual adapters need no change.
 
 ### todo-4 — UI empty-state copy
 
-The runs list shows a bare "No runs" string when a project has no history.
-Replace it with the designed empty state: illustration, headline, and a primary
-action that starts a run.
+The chats list shows a bare "No chats yet" string once the first fetch has
+settled on an empty list. Replace it with the designed empty state:
+illustration, headline, and a primary action that starts a chat.

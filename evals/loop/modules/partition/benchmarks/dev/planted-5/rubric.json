@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "tests/golden/report.txt",
+      "lines": [1, 5],
+      "class": "shared-golden-output",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1, todo-2 and todo-3 are mutually coupled through tests/golden/report.txt. The suite's only assertion is a byte-for-byte comparison against that one committed file (tests/test_report.py: 'assert render(accounts) == GOLDEN.read_text()', with the module docstring stating the golden file IS the specification of the output). Each of the three changes the rendered table — two add a column, one changes every cell in the TOTAL column — and the table is fixed-width, so any of them re-pads the whole file rather than appending to it. Three delegates each regenerate that same file and the last write wins. The coupling is invisible from the todos, which mention no tests, and there is no column registry to give it away: columns are discovered by scanning report/columns/."
+    },
+    {
+      "id": "gt-2",
+      "file": "tests/fixtures/accounts.json",
+      "lines": [1, 17],
+      "class": "shared-test-input",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are additionally coupled through tests/fixtures/accounts.json. The fixture rows carry only id, name and total_cents, so the new last_active and status columns render nothing until each todo adds its field to all three rows of that one file. todo-3 needs no new field and is not part of this pair."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "id": "a-1001",
+    "name": "Northwind Trading",
+    "total_cents": 128400
+  },
+  {
+    "id": "a-1002",
+    "name": "Acme Corp",
+    "total_cents": 9900
+  },
+  {
+    "id": "a-1003",
+    "name": "Globex",
+    "total_cents": 4512300
+  }
+]
