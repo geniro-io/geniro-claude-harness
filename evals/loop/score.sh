@@ -76,6 +76,27 @@ do_judge() {
       python3 "$HERE/loop_lib.py" vote $votes > "$trdir/match.json" || rm -f "$trdir/match.json"
     fi
   done
+  judge_spend
+}
+
+# Judge calls bill like any other call, and nothing was counting them: run.sh
+# prices the executor, and a panel multiplies the judge side by JUDGE_VOTES.
+# Reporting a sweep's cost without this line understates it by the whole judge
+# column. Tokens, not dollars — cursor-prices.json carries no rate for the
+# judge models, and inventing one would be worse than showing the volume.
+judge_spend() {
+  local n
+  n="$(find "$RUN/results" -name 'judge-raw*.json' 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$n" -gt 0 ] || return 0
+  # cat into one slurp rather than passing paths to jq: a long file list would
+  # split across xargs batches and print a partial sum per batch.
+  find "$RUN/results" -name 'judge-raw*.json' -exec cat {} + 2>/dev/null \
+    | jq -rs --arg n "$n" --arg m "$JUDGE_MODEL" '
+        [ .[].usage // {} ]
+        | map((.inputTokens // 0) + (.outputTokens // 0)
+              + (.cacheReadTokens // 0) + (.cacheWriteTokens // 0))
+        | add // 0
+        | "[judge] \($n) calls on \($m), \(.) tokens (\((. / 10000 | floor) / 100) Mtok) — unpriced, see adapters/cursor-prices.json"'
 }
 
 do_finish() {
