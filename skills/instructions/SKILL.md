@@ -133,7 +133,8 @@ The stable scope set:
 
 Three shapes across the scope set. The schema itself is owned by the loader that parses these files at runtime — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract; the shapes below and the annotated templates are authoring scaffolds written against it, so a schema change lands there first. The templates for all three, plus the per-scope create scaffolds, live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — read that section before rendering a scaffold or judging a body's structure.
 
-- **Singleton scopes** (`global`, `code-style`, every per-skill scope) — `## Rules`, `## Additional Steps` → `### After <phase>` (the scope's legal anchor, `instructions-authoring-reference.md` §5), `## Constraints`, and the optional `## Data Sources` and `## Verification Surface`.
+- **`code-style`** — `## Rules`, `## Constraints` only. No `## Additional Steps` (rules-only scope, `mode-edit.md` §Body section invariants) and no `## Data Sources` / `## Verification Surface` (`code-style` is rules-only, `instructions-authoring-reference.md` §1).
+- **`global` and every per-skill scope** (`implement`, `plan`, `review`, `resolve`, `debug`, `refactor`, `onboard`, `investigate`, `reflect`) — `## Rules`, `## Constraints`, and the optional `## Data Sources` and `## Verification Surface`; `## Additional Steps` → `### After <phase>` only where the §Valid scope set table above grants that scope a legal anchor (`global`'s cross-skill anchor; `implement`/`plan`/`refactor`'s one anchor each — `instructions-authoring-reference.md` §5).
 - **`memory`** — its own `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only; no Rules / Constraints / Additional Steps.
 - **`review-extra/<slug>`** — directory-style, one file per custom reviewer, with YAML frontmatter (fields below) plus a `# Criteria` body.
 

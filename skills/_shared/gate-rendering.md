@@ -105,7 +105,7 @@ A gate's option set may include an **"Explain further"** option — a reading ai
 
 - Picking it renders a deeper walkthrough of the unit — the full evidence chain (additional `file:line` cites), an expanded or alternative diagram, edge-case behavior — as a NEW chat message, then re-fires the same question.
 - It writes NO approvals or decisions, never changes the unit's content, and does NOT count toward any revision/round cap in the calling skill. Counting a reading aid against a revision budget punishes the user for wanting to understand before deciding.
-- When the gate's option set already holds 4 decision options, surface Explain-further via the chained follow-up question per per-finding-question.md §Cap-extension — never drop a decision option to make room.
+- When the gate's decision options already fill the per-call cap (`per-finding-question.md` §Cap-extension), surface Explain-further via the chained follow-up question — never drop a decision option to make room.
 
 ## Lean-question conventions
 
@@ -114,7 +114,7 @@ The lean `AskUserQuestion` that follows the render obeys these conventions at ev
 - **Every user-facing choice goes through the tool.** A plain-text `(A)/(B)` in chat bypasses the approvals persistence the structured tool records, so a resumed session has nothing to restore and re-asks a question the user already answered. The gates a skill enumerates are examples, not the complete set — a choice that arises mid-phase is still a choice. This is the canonical statement of the rule; consuming skills cite this bullet and list only their own gates.
 - **Single-select** unless the gate is explicitly multi-select (e.g. a pick loop).
 - **Never auto-default on an empty answer.** An empty answer indicates an upstream tool bug, not a user choice — re-ask. Only a repeated *empty-answer* loop (the tool keeps returning nothing) justifies falling back to a plain-text question in chat. A `gate-render` block (`exit 2`) is neither an empty answer nor a tool failure — recover it per §Turn-completion guard (render, then re-fire the same `AskUserQuestion`), never with the plain-text fallback.
-- **≤4 options per call**, chaining a follow-up question per per-finding-question.md §Cap-extension when more exist; never drop or merge options to fit one call.
+- **The option-count cap per call** (`per-finding-question.md` §Cap-extension is canonical for the number), chaining a follow-up question when more exist; never drop or merge options to fit one call.
 - **`header` ≤12 characters.** The option chip hard-truncates past that, and a chip cut off mid-word reads as a rendering glitch rather than a label the user can scan across gates.
 - **`preview` stays empty or a one-line recap.** The chat message is the rendering surface: `AskUserQuestion` renders `preview` as a narrow monospace side-box that hard-truncates long content with no scroll, and it is often absent entirely in an interactive session — a body placed there is unreadable or invisible, so the body stays in the chat message, which has full width, and the lean question captures only the decision.
 

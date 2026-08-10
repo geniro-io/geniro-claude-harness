@@ -178,6 +178,7 @@ The safety hooks apply across every phase; the complete list and what each block
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
 | Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes hypotheses, and on `m5-v3` the cached parent-epic and sibling statuses do too |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
+| Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
 | Phase 1 (per rejection) | `emit-learning` | write L2 | n/a (type `discarded_hypothesis` — §1.5) |
 | Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence` — §2.5) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis` — §3.3) |

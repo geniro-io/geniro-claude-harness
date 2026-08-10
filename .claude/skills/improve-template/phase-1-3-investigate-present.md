@@ -37,11 +37,6 @@ Agent(prompt="""
 Search for patterns, best practices, and known solutions related to:
 {{issue description from Step 1}}
 
-Search for:
-- Claude Code documentation and GitHub issues related to this
-- Community patterns from claude-code plugins/frameworks
-- General best practices for {{relevant domain from Step 1}}
-
 For each finding, provide:
 - Source (URL or reference)
 - Key pattern or technique

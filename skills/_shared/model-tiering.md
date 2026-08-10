@@ -41,13 +41,13 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku`; passing `model="
    |---|---|
    | `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Steps, the delegation rule | one already-decomposed todo slice, against a named disjoint file set |
    | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1: Spawn the UI description agent | a read-only spec→description transform, no file writes at all |
-   | `.claude/skills/improve-template/SKILL.md` Phase 4 implementers and every fix agent *(plugin-repo maintenance skill — does not ship to consumer installs)* | user-approved findings into named template files |
-   | `.claude/skills/audit-plugin/SKILL.md` Phase 5 fix agents *(plugin-repo maintenance skill — does not ship to consumer installs)* | user-approved findings into their assigned file allowlist |
    | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/SKILL.md` §Phase 5 fix path | user-approved instruction-file findings into their assigned file allowlist |
+
+   This table lists only sites under `${CLAUDE_PLUGIN_ROOT}` — the shipped tree every consumer install carries. The plugin repo's own maintenance skills (`.claude/skills/`) apply the same category-4 logic at their own fix-agent spawns, but that tree never ships, so a shipped file names no path under it.
 
    **Hard pin, not a cap.** The tier is `sonnet` whatever the orchestrator runs — a Haiku session gets execution upgraded, which is the safe direction, and no spawn site evaluates a conditional. `haiku` is never the pin, for the 1M-context reason in category 3.
 
-   **What this category does NOT cover.** The boundary is decide-vs-apply, not writes-files. An agent that writes files while still deciding their content stays `inherit`: the `adversarial-tester-agent` authors tests but its deliverable is 5-12 *hypotheses*; the create-skill author agent in `.claude/skills/improve-template/SKILL.md` Phase B composes a skill from an interview rather than transcribing one. Nor does it cover a spawn whose file set the subagent must still discover — a delegate that has to work out *which* files to touch is deciding, and the delegation rule already refuses that shape.
+   **What this category does NOT cover.** The boundary is decide-vs-apply, not writes-files. An agent that writes files while still deciding their content stays `inherit`: the `adversarial-tester-agent` authors tests but its deliverable is 5-12 *hypotheses*. Nor does it cover a spawn whose file set the subagent must still discover — a delegate that has to work out *which* files to touch is deciding, and the delegation rule already refuses that shape.
 
 ## Runtime resolution — how each host spells these tiers
 

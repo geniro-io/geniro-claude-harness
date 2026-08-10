@@ -87,7 +87,7 @@ Decision tree (first match wins; evaluate top-down):
    AND no continuing-work signals match
    ⇒ User is in a worktree with no clear reason to treat it as home for this run —
      either an unrelated PR's worktree, or a bare invocation with no target PR and no
-     continuing signal. Fire 3-option AUQ (header: "Worktree mismatch"):
+     continuing signal. Fire 3-option AUQ (header: "Wrong tree"):
         A) "Continue here in '<dir>'" — recommended if user explicitly cd'd here
         B) "Exit to repo root" — when `TARGET_WORKTREE_NAME` is set (PR-ref input):
            create new worktree '<TARGET_WORKTREE_NAME>', call ExitWorktree then standard
@@ -106,7 +106,7 @@ Decision tree (first match wins; evaluate top-down):
    5a) If `git worktree list --porcelain` already lists `.claude/worktrees/<TARGET_WORKTREE_NAME>`:
        skip create. `EnterWorktree(path: ".claude/worktrees/<TARGET_WORKTREE_NAME>")`.
        NO AUQ.
-   5b) Otherwise: fire 2-option AUQ (header: "Git workspace"):
+   5b) Otherwise: fire 2-option AUQ (header: "Workspace"):
         A) "Create review worktree" — runs:
              git fetch origin pull/<N>/head:<TARGET_WORKTREE_NAME>
              git worktree add .claude/worktrees/<TARGET_WORKTREE_NAME> <TARGET_WORKTREE_NAME>
@@ -116,7 +116,7 @@ Decision tree (first match wins; evaluate top-down):
 6. INPUT_SHAPE ∈ {branch, diff-range, files, empty}
    AND IN_WORKTREE == false
    AND PROTECTED_BRANCH == true
-   ⇒ Fire 2-option AUQ (header: "Git workspace") — fires even when a continuing-work signal
+   ⇒ Fire 2-option AUQ (header: "Workspace") — fires even when a continuing-work signal
      matches (REVIEW_HANDOFF / DEBUG_HANDOFF / IMPLEMENT_TASK_STATE / branch match): a protected
      branch is never auto-continued silently, signal or not.
         A) "Create review worktree" — runs:
@@ -422,4 +422,4 @@ After context settled, classify files once the diff crosses it:
 
 Done inline by orchestrator (read each diff hunk, classify) — no subagent.
 
-The same threshold controls how each reviewer reads the diff — Standard vs Batched **payload** (under it → Standard; over it → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.
+The same threshold controls how each reviewer reads the diff — Standard vs Batched **payload** (under it → Standard; over it → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (canonical home for the group size, cited from every other site — grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.

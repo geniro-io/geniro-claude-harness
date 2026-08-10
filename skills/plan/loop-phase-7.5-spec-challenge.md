@@ -8,7 +8,7 @@ The user approves this spec at Phase 8, and an approval is only as good as the f
 
 Surface a one-line plain-English note before invoking: "Challenging the spec before you approve it...".
 
-**Re-derive the effort tier first, against the spec as it now stands.** The tier was set in Phase 1.2 from the task as understood then, and the spec has since been through the grill, approach selection, and section approval — scope routinely grows across those phases, and nothing recomputes the tier when it does. It is not a label: it gates milestone-mode splitting and the research-agent threshold in validator check 3, so a stale tier silently relaxes both. Where the re-derived tier differs from the recorded one, write the new value to spec frontmatter `effort_tier` and state the change in one line. A tier that grew to Big here re-opens milestone-mode at §7.5.2 rather than leaving the earlier skip settled.
+**Re-derive the effort tier first, against the spec as it now stands.** The tier was set in Phase 1.2 from the task as understood then, and the spec has since been through the grill, approach selection, and section approval — scope routinely grows across those phases, and nothing recomputes the tier when it does. It is not a label: it gates milestone-mode splitting and the research-agent threshold in validator check `source_materials`, so a stale tier silently relaxes both. Where the re-derived tier differs from the recorded one, write the new value to spec frontmatter `effort_tier` and state the change in one line. A tier that grew to Big here re-opens milestone-mode at §7.5.2 rather than leaving the earlier skip settled.
 
 ### 7.5.1 Invoke the challenge helper
 

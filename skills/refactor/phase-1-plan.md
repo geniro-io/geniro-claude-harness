@@ -48,7 +48,7 @@ On Phase 1 entry, in order:
 
 #### 1.3.1 Apply canonical effort-scaling
 
-1. **Steps 1-2 (canonical):** run the hard-escalation-signal check (Step 1) and the 5-dimension 0-10 score → tier band (Step 2) exactly as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`. Any hard signal forces Big; otherwise the score band sets the tier (Trivial / Small / Medium / Big). effort-scaling.md is the single source — do not restate the signals or bands here.
+1. **Steps 1-2 (canonical):** run the hard-escalation-signal check (Step 1) and the dimension score → tier band (Step 2) exactly as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`. Any hard signal forces Big; otherwise the score band sets the tier (Trivial / Small / Medium / Big). effort-scaling.md is the single source — do not restate the signals, the dimension count, the score range, or the bands here.
 2. **Step 3 (refactor-specific tier behavior):**
 
 | Tier | Refactor behavior |

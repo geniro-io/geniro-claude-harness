@@ -75,7 +75,7 @@ Run this only when the caller passed `MOCKUP: true`. Spawn the same agent with t
 - **Deliverable.** It returns a working HTML mockup of the UI *and* the digest. The mockup is one self-contained block — inline CSS, inline SVG, no external requests, no scripts — with every rule scoped under a single container id, so its styles and the host page's cannot bleed into each other.
 - **The six sections become coverage, not format.** The mockup shows what they describe: every component rendered once per visible state (default, hover, focus, disabled, loading, error, empty) as labelled variants, every breakpoint as its own labelled frame, and the focus order marked on the elements it runs through. The digest then restates the same six headings compactly.
 - **What the mockup claims.** It encodes structure, hierarchy, and states — not the final visual design. Put that in a caption on the mockup itself, so an implementer reading it later builds the structure the plan approved instead of treating its spacing, color, and type as decisions the plan made.
-- **Constraint swap.** "Do NOT write code" still bars production source — no framework components, no imports, no file writes anywhere in the project; the mockup is markup returned in the response. The ≤200-line cap applies to the digest, not to the markup.
+- **Constraint swap.** "Do NOT write code" still bars production source — no framework components, no imports, no file writes anywhere in the project; the mockup is markup returned in the response. Step 1's line cap applies to the digest, not to the markup.
 
 ### Step 2: Present to user
 

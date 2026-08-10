@@ -34,6 +34,8 @@ The orchestrating skill passes you these pre-resolved slots:
 | `HANDOFF_DIR` | Absolute path to `<PRIMARY_ROOT>/.geniro/state/handoff/` (T2 inter-skill handoffs) |
 | `TASK_DESCRIPTION` | First 200 chars of the task description or spec title |
 | `INFERRED_TAGS` | Comma-separated tag list inferred by the orchestrator from the task description (e.g., `react,auth,bug`) |
+| `TASK_CHAIN_CONTEXT` | *(optional, omitted when empty)* The related-task chain block — done-before / where-we-are / what's-next context for this task — from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` |
+| `PROJECT SEARCH POLICY` | *(optional)* The project's rules for how to search this codebase, verbatim, or `none declared` — governs the raw-shell search allowed under §Critical constraints; Step 0's `global.md` load carries the same policy when this slot is absent |
 | `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.kr-out.md`) |
 | `SCOPE` | *(optional)* `learnings-backend` ⇒ run only Step 0 + Step 1 (the backend-routed L2 learnings read) and RETURN the report as your final message instead of writing OUTPUT_PATH. Absent ⇒ the full four-step sweep written to OUTPUT_PATH (the /geniro:implement default). |
 

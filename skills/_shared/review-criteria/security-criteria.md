@@ -30,9 +30,9 @@ Find every real defect this dimension owns by reading the changed code and its c
 - Check if using framework-provided security mechanisms
 - Don't flag if using framework's recommended patterns
 
-7. **Composition routing** — Not every composed-looking failure belongs in §10
+7. **Composition routing** — Not every composed-looking failure belongs in the cross-boundary composition / abuse-case class
 - Deterministically test-reproducible edge case (null/boundary/coercion) → route to the bugs/tests dimensions
-- Classic single-hunk vulnerability-class hit → the matching section in §1-§9
+- Classic single-hunk vulnerability-class hit (injection, auth/authz, secrets, crypto, input validation, data exposure) → score it under that class directly, not as composition
 - Chain with any unverified link → not emitted at all; an uncited link is speculation, not evidence
 
 ## Severity guidelines

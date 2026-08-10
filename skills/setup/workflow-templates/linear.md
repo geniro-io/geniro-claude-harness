@@ -42,15 +42,15 @@ The status prompt is conditional on `state.name` — asking "Move to In Progress
 | Current `state.name` | Status prompt behavior |
 |---|---|
 | `In Progress` | **Skip prompt.** Echo "[ISSUE-ID] already In Progress — no transition needed." |
-| Any started, non-terminal state other than `In Progress` (e.g., `In Review`) | Fire — Header: "Linear Status", Question: "[ISSUE-ID] is currently [current-state]. Move back to In Progress?", Options: "Yes — move back to In Progress" / "No — leave as [current-state]" |
-| Any non-started, non-terminal state (e.g., `Todo`, `Backlog`, `Triage`) | Fire — Header: "Linear Status", Question: "Move [ISSUE-ID] to In Progress?", Options: "Yes — move to In Progress" / "No — leave as [current-state]" |
-| Any terminal state (e.g., `Done`, `Cancelled`, `Duplicate`) | Fire — Header: "Linear Status", Question: "[ISSUE-ID] is currently [current-state]. Reopen and move to In Progress?", Options: "Yes — reopen and move to In Progress" / "No — leave as [current-state]" |
-| Unknown / unresolved (Linear MCP unavailable AND no cached status) | Fire — Header: "Linear Status", Question: "Move [ISSUE-ID] to In Progress? (current status unknown — Linear MCP unavailable)", Options: "Yes — move to In Progress" / "No — leave as is" |
+| Any started, non-terminal state other than `In Progress` (e.g., `In Review`) | Fire — Header: "Status", Question: "[ISSUE-ID] is currently [current-state]. Move back to In Progress?", Options: "Yes — move back to In Progress" / "No — leave as [current-state]" |
+| Any non-started, non-terminal state (e.g., `Todo`, `Backlog`, `Triage`) | Fire — Header: "Status", Question: "Move [ISSUE-ID] to In Progress?", Options: "Yes — move to In Progress" / "No — leave as [current-state]" |
+| Any terminal state (e.g., `Done`, `Cancelled`, `Duplicate`) | Fire — Header: "Status", Question: "[ISSUE-ID] is currently [current-state]. Reopen and move to In Progress?", Options: "Yes — reopen and move to In Progress" / "No — leave as [current-state]" |
+| Unknown / unresolved (Linear MCP unavailable AND no cached status) | Fire — Header: "Status", Question: "Move [ISSUE-ID] to In Progress? (current status unknown — Linear MCP unavailable)", Options: "Yes — move to In Progress" / "No — leave as is" |
 
 `[current-state]` is substituted verbatim with `state.name` — Linear team configurations vary (custom labels like "Blocked", "Waiting on customer"), preserve the user's terminology.
 
 Assignment prompt (only if `assignee` is null):
-- Header: "Linear Assignee"
+- Header: "Assignee"
 - Question: "Assign [ISSUE-ID] to you?"
 - Options: "Yes — assign to me" / "No — leave unassigned"
 

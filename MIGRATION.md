@@ -501,6 +501,8 @@ fi
 
 ### `/review` handoff per-finding body gains verification fields (schema m6-v1 → m6-v2)
 
+> **Always-fire count since changed — the schema bump above is current; the dimension count below is not.** The always-fire set has since been reduced: it reads `bugs / security / architecture / tests / conventions / regressions` (6 dims) today, with `optimizations` demoted to a broad-trigger conditional (skipped only when every changed file is documentation or a generated lockfile) — see the `/review` MANDATORY spawn list entry below. `regressions` did join the always-fire set as this entry records; the "8th always-fire dim" framing and the "bump to 8" guidance in Severity below no longer match the current split.
+
 `/geniro:review` Phase 4.2 was rewritten to spawn one fresh `reviewer-agent` per HIGH-severity finding (no tier-scaling — ALL HIGHs verified). Each verifier emits `Validation: confirmed | refuted | clarified`, `Recommended-action`, `Verification-confidence` (1-5 coarse scale), and `Verification-evidence` (literal file:line quote). (A fourth `Validation:` value, `unverified`, was added later — orchestrator-assigned when the verifier failed to spawn, never agent-emitted; see the dedicated entry above.) These 4 fields persist into the T2 handoff per-finding body schema. The `geniro_schema_version` field in `.geniro/state/handoff/from-review-<branch>.md` bumps from `m6-v1` to `m6-v2`; downstream consumers (Phase 6 §7.0 fail-closed guard, /implement Phase 1 Step 12) accept both. Legacy `m6-v1` handoffs read by an `m6-v2` consumer treat the 4 missing fields on HIGH findings as `Validation: confirmed + warn` (mirrors the `step0_status: pending` back-compat pattern).
 
 A new `regressions` reviewer dimension is added as the 8th always-fire dim (between `conventions` and the conditional dims). Catches unintended deletes + behavior changes outside stated intent. Spec.md / PR body / commit messages serve as intent source; when absent, behavior-mutating hunks emit INTENT-CHECK findings for the user to confirm at the §3 Step 0 gate.
@@ -798,6 +800,8 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 
 ### New safety hooks may block unfamiliar operations
 
+> **Superseded — behavior changed in v3.0.0.** `enforce-state-helper.sh` no longer warns; it hard-blocks (exit 2) direct `Edit`/`Write`/`MultiEdit` and Bash-side writes to `.geniro/` state paths — see "State-helper enforcement now hard-blocks direct writes to `.geniro/` state paths" above. `CLAUDE.md` documents the hard-block behavior as current.
+
 New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
 
 **Action required:** If a workflow legitimately needs to bypass a guard, add the pattern ID to `.geniro/safety.json` `allow_patterns` (full ID list in HOOKS.md "Per-project allowlist"). The hook output prints the exact ID to add.
@@ -824,7 +828,7 @@ New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write
 
 ---
 
-### 4 deleted agent files (informational)
+### 3 deleted agent files (informational)
 
 Older vendored installs may have `.claude/agents/geniro-{backend,frontend,skeptic}-agent.md` copied at install time. The `backend`, `frontend`, and `skeptic` agents were removed in a prior consolidation. *[Updated: this entry originally also listed `knowledge-retrieval` among the removed agents — that was wrong; `knowledge-retrieval-agent.md` is a live current agent (`agents/knowledge-retrieval-agent.md`), and the auto-detect/auto-fix below no longer touch it.]* The plugin update overwrites the agent directory, but vendored copies under `.claude/agents/` are user-owned and untouched.
 

@@ -44,7 +44,7 @@ Every fact the plugin itself persists lives in exactly one of four layers. Write
 | **L3** | Semantic | Current-state snapshot | "In this project, fact X is currently true." | `.geniro/planning/_*.md` |
 | **L4** | Procedural | Stable rules | "When doing X, always do Y." | `.geniro/instructions/*.md` |
 
-**Not a layer — Claude Code's native auto-memory.** A fifth store exists, and `/geniro:investigate` and `/geniro:reflect` deliberately route collaboration preferences to it. It is not a substitute for any layer above and does not subsume them: it is per-user and orchestrator-only — never committed, never shared with teammates, and unreadable by any spawned subagent. L4 is the committed team-shared rules layer; L2/L3 are shell-queryable, so a subagent can read them.
+**Not a layer — Claude Code's native auto-memory.** A fifth store exists, and `/geniro:reflect` deliberately routes collaboration preferences to it. It is not a substitute for any layer above and does not subsume them: it is per-user and orchestrator-only — never committed, never shared with teammates, and unreadable by any spawned subagent. L4 is the committed team-shared rules layer; L2/L3 are shell-queryable, so a subagent can read them.
 
 **Cross-layer precedence (when layers disagree): L4 > L3 > L2.** L1 is task-scoped and never conflicts cross-layer.
 

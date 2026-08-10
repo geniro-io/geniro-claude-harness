@@ -2,6 +2,17 @@
 
 Applies when a skill runs under another Agent-Skills runtime (Cursor, Codex, Copilot, or any host that reads `SKILL.md` but is not Claude Code). Detection signal: `${CLAUDE_PLUGIN_ROOT}` is unset in the shell, or the tool surface lacks Claude Code tools named below. Under Claude Code, nothing here applies — skip this file.
 
+## Contents
+
+- Plugin-root resolution
+- Hooks do not fire — self-enforce the conventions
+- Subagents do not inherit the orchestrator's cwd
+- Tool substitutions
+- Arguments
+- Session restore without the SessionStart hook
+- What requires Claude Code
+- Skill and agent naming
+
 **The host changes how a step runs, never which steps run.** Everything below substitutes a mechanism; nothing below removes a gate, a question, a phase-body Read, or a state write. Read this file before deciding a step cannot run here, because the guess it replaces is usually wrong in a specific way: a tool you have not searched for is not a tool you lack (several hosts defer tool schemas), and several hosts register this plugin's own agents under their bare names. Two rationalizations recur and both look responsible from the inside — that the skill is heavier than this host warrants, so its "ceremony" can be trimmed to the engineering essentials, and that the project's own rules already cover the practices, so they can stand in for the skill. The gates ARE the essentials, and the project's rules govern how code is written while the skill governs which decisions are the user's; a run that trims either edits the user's code without ever asking them anything, and leaves no trace of the questions it skipped.
 
 ## Plugin-root resolution

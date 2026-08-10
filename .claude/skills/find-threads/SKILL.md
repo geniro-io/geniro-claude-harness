@@ -124,7 +124,7 @@ mtime · date · oversize · kind · turns · relevance · hits · project_label
 - **`kind`**: `edited` (calls a code-edit tool) or `read-only` (spawns a subagent / invokes a Skill but never edits code). `--code-only` keeps only `edited`.
 - **`turns`**: a trailing `+` (`412+`) means the thread outran the engine's read cap, so the count is a floor — render the `+`.
 - **List mode** (`relevance`=`hits`=0, `snippet` empty): sorted by project, then newest-first.
-- **Search mode**: kept only when the query matches the body, title, or label; `relevance` = how many query terms co-occur within one ~160-char window (proximity), `hits` = total term occurrences, `snippet` = cleaned text around the densest match. Sorted relevance-desc, hits-desc, newest.
+- **Search mode**: kept only when the query matches the body, title, or label; `relevance` = how many query terms co-occur within `scan.py`'s proximity window, `hits` = total term occurrences, `snippet` = cleaned text around the densest match. Sorted relevance-desc, hits-desc, newest.
 
 It also prints a `#SUMMARY threads=… projects=… edited=… read-only=…` line on stderr — the aggregate counts Phase 2's header quotes.
 
@@ -142,12 +142,6 @@ Type the most **distinctive** token you remember from the thread. Distinctive be
 |---|---|---|
 | the tracker ticket | `ENG-317` or `ENG317` | An issue key matches separator-insensitively — `ENG-317`, `ENG317`, `ENG 317` all find the canonical hyphenated spelling threads use. Type it however you remember it; the hyphen is optional |
 | the PR it reviewed | `2649` | A bare 3–6 digit query is read as a PR reference (`pull/2649`, `#2649`, `pr-2649`), so it ignores the same digits buried in UUIDs, token counts, and timestamps |
-| an error or log string | `ECONNREFUSED` or `null pointer` | Rare strings match few threads — high precision |
-| a file it edited | `case-radar.ts` | Filenames appear verbatim in edit-tool calls |
-| only the topic | `bright data` / `rls roles` | Multi-word queries rank by proximity — threads where the words cluster outrank threads where a common word merely appears scattered |
-
-Tips:
-- A vague paraphrase (`didnt post low`) matches loosely — every thread containing "post" or "low" is kept, and ranking does the work. Prefer a PR number or a unique token when you have one.
 
 **Finding a whole feature, not one thread.** A single ticket key only finds threads that *name that ticket*. But a feature's real work-in-progress is spread across sibling tickets, follow-up PRs, and threads titled after the feature (not the key) — so one key shows fragments, never the whole epic. To assemble the complete chain, pass several terms at once: the feature noun plus the sibling keys — `ENG-315 ENG-316 ENG-317 case_table`. The terms are OR-matched into one ranked list, with threads touching several of them floated to the top by proximity. When a user asks for "all the work on X" and a single key returns a thin set, widen to a multi-term query before concluding the work isn't there.
 

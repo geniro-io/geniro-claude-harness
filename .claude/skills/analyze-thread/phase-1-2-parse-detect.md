@@ -24,7 +24,7 @@ Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phas
 | a bare integer N, or `--last=N` | batch | the last N work-bearing threads |
 | empty | batch | the last 3 work-bearing threads |
 
-**Single mode.** Resolve the path; for a bare filename search the current working tree first, then the config-dir `projects/` trees. Check the file exists, is readable, and is under the 5 MB hard cap. Between 1 MB and 5 MB, warn before continuing — large threads slow the judge pass.
+**Single mode.** Resolve the path; for a bare filename search the current working tree first, then the config-dir `projects/` trees. Check the file exists, is readable, and is under the hard cap (SKILL.md §Budgets & quality gates — Thread file size row). Between the warn threshold and the hard cap, warn before continuing — large threads slow the judge pass.
 
 **Explicit paths.** Two or more paths skip discovery and run as a batch over exactly those threads — this is how `/find-threads` hands over a multi-thread pick, and running them as one batch instead of N single runs is what earns the Phase 3 recurrence merge. Apply the single-mode existence and size checks to each; skip and name an oversize one rather than aborting; exclude this session's own log even when it is named (invariant #5); clamp to the 5-thread cap and say so.
 
@@ -119,10 +119,10 @@ The I- and K-class coverage checks are the exception on both counts, because the
 ### Step 2: Spawn the LLM-judge
 
 ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve a `CLAUDE_PLUGIN_ROOT`-rooted path inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
-- The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the 8 K seed budget.
+- The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the seed budget (SKILL.md §Budgets & quality gates — LLM-judge token budget row).
 - **This thread's expectation set** from Phase 1 Step 4b, with the degradation level it was built at. The judged coverage checks (the judged I/K-class rows in `checks-reference.md` §4) have no declared side without it and silently return nothing; the judge cannot re-derive it, because the turns it came from may not survive the excerpt slice. Send the set itself, never a pointer.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
-- The most-suspicious thread excerpts, ranked and sliced per `checks-reference.md` §7, which carries the weighted signal set and the always-include opening and closing turns. Keep the total ≤ 60 K tokens.
+- The most-suspicious thread excerpts, ranked and sliced per `checks-reference.md` §7, which carries the weighted signal set and the always-include opening and closing turns. Keep the total within the excerpt budget (same Budgets row).
 
 ```
 Agent(subagent_type="general-purpose", prompt="""

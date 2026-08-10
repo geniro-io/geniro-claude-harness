@@ -12,11 +12,13 @@
 # recorded as data precisely so it can be argued with one line at a time. The
 # script contributes only the arithmetic; it holds no numbers of its own.
 #
-# R1 — the floor. Seven always-fire dimensions, no spec, no PR, no deep mode, no
-#      verifiers, no custom reviewers. Nothing conditional is triggered.
-# R2 — the ceiling for built-in dimensions. All ten fire (the seven always plus
-#      design, pr-metadata and spec-compliance), a spec and a PR are present, and
-#      the survivor set draws five verifier spawns.
+# R1 — the floor. Six always-fire dimensions plus the broad-trigger `optimizations`
+#      conditional, no spec, no PR, no deep mode, no verifiers, no custom
+#      reviewers. No other conditional is triggered.
+# R2 — the ceiling for built-in dimensions. All ten fire (six always-fire
+#      dimensions plus the broad-trigger `optimizations` conditional, and design,
+#      pr-metadata and spec-compliance), a spec and a PR are present, and the
+#      survivor set draws five verifier spawns.
 #
 # On the spec's "11 dimensions" for R2: the built-in grid at
 # skills/review/phase-2-spawns.md §2.1 holds ten rows, so eleven counts one
@@ -62,7 +64,7 @@ R1	orchestrator	1	skills/_shared/emit-learning.md
 R1	orchestrator	1	skills/_shared/runtime-portability.md
 R1	orchestrator	1	skills/_shared/flags-reference.md
 
-# ---- R1: per-dimension criteria (seven always-fire dims; conventions owns three files) ----
+# ---- R1: per-dimension criteria (six always-fire dims plus the broad-trigger `optimizations` conditional; conventions owns three files) ----
 R1	criteria	1	skills/_shared/review-criteria/bugs-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/security-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/architecture-criteria.md
@@ -75,7 +77,7 @@ R1	criteria	1	skills/_shared/review-criteria/regressions-criteria.md
 
 # ---- R1: agent bodies (7 dimension spawns, no verifiers) ----
 R1	agent-body	7	agents/reviewer-agent.md
-R1	agent-body	7	agents/reviewer-agent-reference.md
+R1	agent-body	7	skills/_shared/reviewer-agent-reference.md
 
 # ---- R2: orchestrator (R1's set plus what a spec, a PR and a verify pass add) ----
 R2	orchestrator	1	skills/review/SKILL.md
@@ -128,5 +130,5 @@ R2	criteria	1	skills/_shared/review-criteria/spec-compliance-criteria.md
 
 # ---- R2: agent bodies (10 dimension spawns + 5 verifier spawns) ----
 R2	agent-body	10	agents/reviewer-agent.md
-R2	agent-body	10	agents/reviewer-agent-reference.md
+R2	agent-body	10	skills/_shared/reviewer-agent-reference.md
 R2	agent-body	5	agents/finding-verifier-agent.md

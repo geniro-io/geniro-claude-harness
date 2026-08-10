@@ -2,6 +2,8 @@
 
 Phase file for `/geniro:update`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/update/SKILL.md`.
 
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: update`, `LOAD_TIER: rules-only`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Phase 1's initial load is the only prior load; two phases of downloads, integrity checks, and snapshot diffs sit between it and this walk through every `MIGRATION.md` entry.
+
 ```bash
 PLUGIN_PATH="<the path echoed by phase-2-update.md §Discover new plugin path>"
 NEW_VERSION="<the version echoed by phase-2-update.md §Discover new plugin path>"

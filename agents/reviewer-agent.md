@@ -45,7 +45,7 @@ The orchestrating skill passes you:
 5. **Diff context**: Git diff summary showing which lines were changed — use this to tag findings as [NEW] (in changed lines) or [PRE-EXISTING] (in unchanged code discovered during context reading)
 6. **PLAN CONTEXT** (optional): plan/spec/decision-log content pre-inlined by the orchestrator, carrying design decisions like "D-09: existing X are NOT backfilled." How to absorb it — decision markers govern intent, plus the stale-premise escape hatch — is Step 1.5.
 7. **PRIOR-ROUND FINDINGS** (optional): compact summary of prior-round CRITICAL+HIGH findings on the same PR/diff (each entry: path:lines + one-line description), pre-inlined by the orchestrator on a round 2+ re-review. How to use it — attention bias, no re-reporting, the `none — first review` sentinel — is Step 1.7.
-8. **AUTHORED RULE FILES** (conventions dim only): the repo's own rule files, or the sentinel `none found`. Your criteria file §1 owns its contract.
+8. **AUTHORED RULE FILES** (the dimension that owns authored-rule citations — `conventions` under /geniro:review, `code-quality` under /geniro:implement Phase 3): the repo's own rule files, or the sentinel `none found`. Your criteria file §1 owns its contract.
 
 ## Review process
 
@@ -87,7 +87,7 @@ When a finding's behavior is explicitly addressed by a plan decision absorbed in
 
 Emit `Confidence: XX%` (0-100) on every finding — Step 4 carries the emit contract and what the number is used for. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, self-reported confidence is a weak predictor of correctness, not a useless one — strong enough to report alongside a finding, too weak to carry an admission decision alone.
 
-Read `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent-reference.md` §Confidence rubric before you score your first finding — it carries the score bands and the scoring adjustments that map evidence, systemic-ness, and nearby mitigations onto the number.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reviewer-agent-reference.md` §Confidence rubric before you score your first finding — it carries the score bands and the scoring adjustments that map evidence, systemic-ness, and nearby mitigations onto the number.
 
 ## Output Format
 

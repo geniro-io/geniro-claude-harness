@@ -5,8 +5,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/onboard/SKILL.md` t
 ## Contents
 
 1. _CODEBASE_MAP.md format example — full 8-section worked example
-2. Invocation examples — three worked `/geniro:onboard` invocations
-3. Discovery-learning emit payload — the `emit_learning` call SKILL.md §2.3 fires
+2. Discovery-learning emit payload — the `emit_learning` call SKILL.md §2.3 fires
 
 ---
 
@@ -20,7 +19,6 @@ The 8-section template in SKILL.md §Outputs is the operative spec; this worked 
 **Generated:** [date]
 **Language:** TypeScript/Node.js
 **Framework:** Express, PostgreSQL
-**Team Size:** 1–3 devs (estimated)
 
 ## Project Overview
 
@@ -132,38 +130,7 @@ Express App (index.ts)
 
 ---
 
-## 2. Invocation examples
-
-### Example 1: New to a monorepo
-```
-/geniro:onboard --depth 2 --focus auth,api
-```
-→ Scan monorepo structure at depth 2
-→ Focus on auth and api services
-→ Generate `_CODEBASE_MAP.md` highlighting those modules
-→ Output: directory tree, module relationships, auth/api critical paths
-
-### Example 2: Returning after 6 months
-```
-/geniro:onboard
-```
-→ Scan entire codebase structure
-→ Generate quick refresh of architecture
-→ Note what's changed since last visit (diff against the prior project snapshot `_CODEBASE_MAP.md`)
-→ Map is ready as reference for the session
-
-### Example 3: Planning a feature
-```
-/geniro:onboard --focus database,models
-```
-→ Focus on data layer and models
-→ Understand current schema and relationships
-→ Use map to plan where new feature fits
-→ Trace existing data flow patterns
-
----
-
-## 3. Discovery-learning emit payload
+## 2. Discovery-learning emit payload
 
 The exact `emit_learning` call SKILL.md §2.3 fires after `_CODEBASE_MAP.md` write, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract:
 

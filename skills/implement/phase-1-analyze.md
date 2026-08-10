@@ -79,7 +79,7 @@ Decision tree (first match wins; evaluate top-down). Only rules 1-3 skip the que
 
 4. IN_WORKTREE == true
    AND CURRENT_BRANCH ∉ continuing-work set
-   ⇒ Fire 3-option AUQ (header: "Worktree mismatch"):
+   ⇒ Fire 3-option AUQ (header: "Wrong tree"):
         A) "Continue here in '<dir>'" — recommended if user explicitly cd'd here
         B) "Exit to repo root and create new worktree '<new-slug>'" — call ExitWorktree, then standard new-worktree flow
         C) "Abort — I'm in the wrong place" — terminal, no-op
@@ -115,7 +115,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1:
 
 Single `AskUserQuestion` call carrying up to 4 questions (always-WAIT, never auto-resolve). When a spec `launch_config` pre-answered a question (Step 0g), drop that question from the batch — the pre-set is its answer; if `launch_config` pre-answers every question that would otherwise fire, the AUQ does not fire at all.
 
-**Question 1 — always asked when rules 3, 5, or 6 fire** (header: `"Git workspace"`) — offers "New feature branch" / "Current branch" / "Git worktree". The three labels are un-suffixed in the template; append ` (Recommended)` to the one the fired 0b rule names, and fire with exactly one so the set is never rudderless. Literal template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Step 0c setup-question templates".
+**Question 1 — always asked when rules 3, 5, or 6 fire** (header: `"Workspace"`) — offers "New feature branch" / "Current branch" / "Git worktree". The three labels are un-suffixed in the template; append ` (Recommended)` to the one the fired 0b rule names, and fire with exactly one so the set is never rudderless. Literal template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Step 0c setup-question templates".
 
 **No-ticket-ID sub-flow.** When BRANCH_FORMAT_RULE requires a ticket prefix AND `TICKET_ID_IN_SCOPE` is empty, the agent cannot derive a conformant slug. Chain a sub-AUQ BEFORE Question 1 fires (or BEFORE the worktree command runs if Question 1 has already resolved to "New feature branch" / "Git worktree") — options: provide the ticket ID inline / use a placeholder slug (`<type>/no-ticket-<desc>`, renameable later) / cancel (terminal, no git mutation); literal template in the same reference section. This AUQ does NOT include a "create the ticket for me" option — /geniro:implement never creates tracker artifacts (`SKILL.md` §Anti-rationalization, the tracker-mutation-authority row).
 
@@ -131,7 +131,7 @@ When the spec's `launch_config.tracker_status` is set (applied at Step 0g), it p
 
 If the batch exceeds 4 questions — `1` (workspace, when rules 3, 5, or 6 fire) + `N` (workflow) + `1` (depth, when `--deep` is absent) > 4 — chain into a second AUQ.
 
-**Question 3 — implement depth (fired when `$ARGUMENTS` lacks `--deep`)** (header: `"Implement depth"`) — "Standard" (one fact-check pass, one self-review pass) vs "Deep — 3× fact-check + multi-angle self-review"; literal template in §"Phase 1: Step 0c setup-question templates". Question 3 joins the Step 0c question batch whenever that AUQ fires and `--deep` is absent, and counts toward the batch-exceeds-4 chain rule above. Neither option carries `(Recommended)` — Deep is costlier, not safer. An empty answer is an upstream tool bug, not a Standard pick: re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions rather than defaulting. Only the path where this question never fires at all — an auto-continue or resume, where Step 0c is skipped — falls back to flag-only Standard (`deep-mode: false`). Activation and that flag-only fallback: `SKILL.md` §State persistence.
+**Question 3 — implement depth (fired when `$ARGUMENTS` lacks `--deep`)** (header: `"Run depth"`) — "Standard" (one fact-check pass, one self-review pass) vs "Deep — 3× fact-check + multi-angle self-review"; literal template in §"Phase 1: Step 0c setup-question templates". Question 3 joins the Step 0c question batch whenever that AUQ fires and `--deep` is absent, and counts toward the batch-exceeds-4 chain rule above. Neither option carries `(Recommended)` — Deep is costlier, not safer. An empty answer is an upstream tool bug, not a Standard pick: re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions rather than defaulting. Only the path where this question never fires at all — an auto-continue or resume, where Step 0c is skipped — falls back to flag-only Standard (`deep-mode: false`). Activation and that flag-only fallback: `SKILL.md` §State persistence.
 
 #### 0d — Approvals-persistence
 

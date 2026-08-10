@@ -2,6 +2,13 @@
 
 The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
+## Contents
+
+- 3.1 Build the decision tree
+- 3.2 AUQ shape — message-first, one question at a time
+- 3.3 Persistence
+- 3.4 Checkpoint gate and termination
+
 State.md `phase: clarify` during this phase.
 
 This phase is a decision-tree grill: walk the design's open decisions depth-first, one question at a time, until the branches that shape the spec resolve. A real plan is a tree of dependent decisions — resolving a parent reshapes (or removes) its children, so the question set cannot be enumerated up front.

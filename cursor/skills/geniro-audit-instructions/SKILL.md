@@ -65,7 +65,7 @@ S1. **Secrets are cited, never quoted.** A credential found inside an instructio
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed edits on files every future agent session reads. Surface what failed and let the user decide. |
 | "This `.geniro/instructions/` file has a malformed section header — flag it." | Per-file structural lint of that layer is owned by `/geniro:instructions validate` — route the finding there. Every other dimension's findings in those files stay in scope here. |
 | "This rule reads fine — leave it." | Reading fine is not the bar. A rule can be live and correct and still cost more than it buys — a guardrail written for a weaker model, a fixed prohibition where a criterion would serve. The bloat dimension hunts those, not only redundancy. |
-| "This paragraph explains why the rule exists — that's useful context." | Useful to a human deciding whether to keep the rule; inert to the agent following it. `dimensions-reference.md` §D4 check 9 splits the two: the reason inside a rule an agent would rationalize around stays, the case built for a reviewer — sources, evidence grading, refutations, how the rule arrived — goes. |
+| "This paragraph explains why the rule exists — that's useful context." | Useful to a human deciding whether to keep the rule; inert to the agent following it. `dimensions-reference.md` §D4's case-for-the-rule check splits the two: the reason inside a rule an agent would rationalize around stays, the case built for a reviewer — sources, evidence grading, refutations, how the rule arrived — goes. |
 
 ## Budgets
 
@@ -73,7 +73,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns; shards count against the cap. The cap exists because Phase 3 re-reads every spawn's table by hand — the five-dimension full-audit list already leaves headroom for at most a few shards, so when sharding every dimension would exceed it, shard the dimensions with the largest candidate lists first rather than breaching the cap; scoped runs spawn only the relevant subset |
+| Reviewer spawns per batch | dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns; shards count against the cap. The cap exists because Phase 3 re-reads every spawn's table by hand — the full-audit dimension list already leaves headroom for at most a few shards, so when sharding every dimension would exceed it, shard the dimensions with the largest candidate lists first rather than breaching the cap; scoped runs spawn only the relevant subset |
 | Shards per dimension | ≤2, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |

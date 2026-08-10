@@ -29,7 +29,6 @@ argument-hint: "[what to refactor and why]"
 - Definition of done
 - Phase 1 (plan) · Phase 2 (apply) · Phase 3 (verify)
 - State file schema
-- Task tracking
 
 ---
 
@@ -91,7 +90,7 @@ This skill adds two invariants:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-S2. **One todo in_progress at a time.** Use `TodoWrite` to expose per-phase progress: at skill start, create phase-level todos (Plan, Apply, Verify); during Phase 2, add dynamic per-step todos derived from the approved plan; mark `in_progress` → `completed` as phases run. These phase-level and per-step todos enforce sequential focus — marking a second todo `in_progress` while another is open is the documented anti-pattern (Claude Code Tasks API enforces single in_progress by design; parallel sequential reasoning shows measured performance drop). §Task tracking.
+S2. **One todo in_progress at a time.** Use `TodoWrite` to expose per-phase progress: at skill start, create phase-level todos (Plan, Apply, Verify); during Phase 2, add dynamic per-step todos derived from the approved plan; mark `in_progress` → `completed` as phases run.
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
@@ -211,6 +210,7 @@ Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
 | Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes scope decisions |
 | Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
+| Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
 | Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence` — fires when `blocked_count ≥ 2`, per Phase 2 §2.4) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (emit types: `discovery` with `ext.{area, insight}` OR `pitfall` with `ext.{trap, mitigation}`) |
 
@@ -254,11 +254,5 @@ state.md `phase: verify`. Diff sanity + independent review + completion summary 
 ## State file schema
 
 T1.5 state.md at `.geniro/state/refactor/<slug>/state.md`; `approvals[]` categories `refactor_high_step`, `refactor_product_decision`; `effort_tier` ∈ {Trivial, Small, Medium, Big}. `## Plan steps` holds the per-step execution rows (schema at Phase 2 §2.2), distinct from `## Plan` which holds the ordered plan summary. No T2 handoff — diff IS the deliverable. Full frontmatter + body-section schema in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §2.
-
----
-
-## Task tracking
-
-Canonical at §Loop invariants invariant S2 (front-loaded, so it survives compaction).
 
 ---

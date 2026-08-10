@@ -24,7 +24,6 @@ argument-hint: "[optional: --focus area1,area2 --depth N --cap N]"
 - Phase 1 — Discover
 - Phase 2 — Map
 - State file schema
-- Examples
 
 ---
 
@@ -211,7 +210,7 @@ After the map persists, refresh the project-snapshot fingerprint — `update_fin
 
 After `_CODEBASE_MAP.md` write:
 
-- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded). After a successful emit, echo `Recorded learning: <summary>` to the user, per that file's §"Caller contract". Exact payload: `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §3.
+- `emit-learning` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — emit a `discovery` type entry. Required `ext.{area, insight}`. Default trust `verified` (code-grounded). After a successful emit, echo `Recorded learning: <summary>` to the user, per that file's §"Caller contract". Exact payload: `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §2.
 
 **Trigger:** emit on **first successful onboarding of a new codebase** OR **major architectural shift detected** (existing `_CODEBASE_MAP.md` content significantly diverges from previous version — heuristic: compare section counts / module-count delta / new top-level entries). Skip when re-running onboard against a stable codebase (no architectural change).
 
@@ -300,9 +299,3 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 ## _CODEBASE_MAP.md format example
 
 Full 8-section worked example (sample TypeScript/Express project) in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §1. The 8-section template in §Outputs is the operative spec; the example illustrates the rendering.
-
----
-
-## Examples
-
-Three worked invocation examples (monorepo focus scan / returning-after-months refresh / feature-planning focus) in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §2.

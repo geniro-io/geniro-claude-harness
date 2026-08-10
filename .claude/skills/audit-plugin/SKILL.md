@@ -33,9 +33,9 @@ You are the audit orchestrator. You run deterministic checks yourself, delegate 
 
 The shared audit-pipeline invariants apply in full — `skills/_shared/audit-pipeline.md` §Shared invariants. This skill binds their three parameterized ones and adds one of its own:
 
-- **Do-not-flag list** (shared invariant 4) = `dimensions-reference.md` §Do-not-flag list.
-- **Subtraction sweep** (shared invariant 5) = D6, which spawns on every run — full, path-scoped, single-dimension, and `--quick`.
-- **Whole mechanism** (shared invariant 7) = a phase, gate, step, spawn, dimension, or helper; walk these per `dimensions-reference.md` §Deletion gate.
+- **Do-not-flag list** (the do-not-flag-list invariant) = `dimensions-reference.md` §Do-not-flag list.
+- **Subtraction sweep** (the subtraction-sweep invariant) = D6, which spawns on every run — full, path-scoped, single-dimension, and `--quick`.
+- **Whole mechanism** (the no-blanket-deletion invariant) = a phase, gate, step, spawn, dimension, or helper; walk these per `dimensions-reference.md` §Deletion gate.
 
 S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 
@@ -45,8 +45,8 @@ S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "The reviewer quoted the line — no need to re-read it." | Shared invariant 1: admission requires YOUR Read of the cited location. |
-| "I'll fix this obvious typo while scanning." | Shared invariant 2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
+| "The reviewer quoted the line — no need to re-read it." | The no-unverified-finding invariant: admission requires YOUR Read of the cited location. |
+| "I'll fix this obvious typo while scanning." | The report-before-fix invariant: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
 | "This caps-MUST is a violation." | Caps inside anti-rationalization right-hand cells with reasoning are explicitly endorsed. Check the do-not-flag list before flagging. |
 | "This SKILL.md is 5,200 words — finding: trim 200 words." | S1: size guidance is advisory, so the valid finding is the advisory itself plus a MOVE proposal, never a cut. |
 | "Two files state the same threshold and agree, so it's fine." | Agreement today is drift tomorrow — multi-homed constants are the D7 finding even when values match. Fix: one home, others cite it. |
@@ -84,7 +84,7 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
    - A path (`skills/review`, `hooks/`, `lib/`) → restrict every dimension's scope to files under it; spawn only dimensions whose scope intersects, plus D6 scoped to the same path.
    - A dimension name (`consistency`, `staleness`, `rules`, `logic`, `shell`, `simplicity`, `numbers`, `safety`, `wiring`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and D6, unless `simplicity` already names it.
 
-   D6 spawns on every one of these — full, scoped, or `--quick` — per shared invariant 5.
+   D6's sweep runs on every one of these — spawned as a reviewer on full and scoped runs, orchestrator-inline on `--quick` — per the subtraction-sweep invariant.
 2. **Load the rubric:** Glob `.claude/rules/*.md` and Read every match, plus `.claude/skills/audit-plugin/dimensions-reference.md`, in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Glob rather than a fixed list, so a rule file added later is still applied. Also read `skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
 3. **Build the inventory and write the state checkpoint**
 per `dimensions-reference.md` §Run setup — the scope enumeration and the checkpoint's frontmatter contract live there. Checkpoint after every phase.
@@ -127,7 +127,7 @@ Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/`
 3. **Tier tables T0→T4** — columns: `# | file:line | issue | fix | effort`; convergence noted inline. Where a finding's `fix` names a new check, say so in the column — those are what the next round will not have to re-find.
 4. **Per-dimension verdicts** — the reviewers' 2-3-sentence verdicts, edited for consistency.
 5. **Filtered** — dropped findings with one-line reasons (transparency; keeps future runs from re-litigating).
-6. **Subtraction sweep** (shared invariant 5) — always present, even when empty: what D6 examined, and every candidate it considered and rejected with the reason. Mechanism-level proposals list separately from text ones and carry inline the evidence §Deletion gate renders, so the user reads it before the gate rather than for the first time inside it.
+6. **Subtraction sweep** (the subtraction-sweep invariant) — always present, even when empty: what D6 examined, and every candidate it considered and rejected with the reason. Mechanism-level proposals list separately from text ones and carry inline the evidence §Deletion gate renders, so the user reads it before the gate rather than for the first time inside it.
 7. **Single highest-value fix** — one paragraph naming it and why.
 
 On `--quick` runs, omit section 4 and the convergence notes — no reviewers ran, so neither exists; state "mechanical pre-pass only" in the header instead. Section 6 still appears, carrying the orchestrator-inline sweep.
@@ -136,23 +136,7 @@ In chat, render **every** finding before the action gate — the user approves i
 
 ## PHASE 5 — Action gate
 
-Use AskUserQuestion: "The audit found N findings (N₀ safety, N₁ correctness, ...). How should I proceed?" with options: "Fix safety + correctness now (T0-T1) (Recommended)" / "Fix everything — every tier" / "Let me pick findings" / "Report only — I'll handle fixes separately".
-
-T0-T1 carries the `(Recommended)` marker: the smallest change set that closes every bypass and behavior defect, and the one a reviewer can still read end-to-end. "Fix everything" is a first-class option, not a fallback — name its cost (more agents, far more files, all landing in one fix round) and let the user choose. When the run carries mechanism-deletion proposals, say in the question that those are asked one by one afterwards whichever option is picked, or "Fix everything" reads as having authorized them.
-
-- **Deletion path (mechanism-level D6 findings):** these split off from whatever the user chose above and are walked one at a time (shared invariant 7) — including under "Fix everything", which approves fixes, not removals. Run the walk per `dimensions-reference.md` §Deletion gate, which carries the render slots and the option set; approved deletions then join the fix path as their own scope.
-- **Fix path:** group approved findings into **strictly disjoint file scopes** — two agents editing one file overwrite each other, and a shared file is the one place a fix round loses work silently. Name each agent's scope as an allowlist and name the files other agents hold, so a finding that spans a boundary gets reported back rather than reached for. **Then run shared invariant 6's ownership check before spawning:** every approved finding appears in exactly one agent's list, every file the findings touch falls inside exactly one allowlist, and any finding or file with no owner is echoed and assigned. Paths that belong to no skill directory — `CLAUDE.md`, `cursor/agents/`, `tests/authoring/skill-size-baseline.txt` — fall through allowlists built per-skill, so name them explicitly or keep them for yourself.
-  Spawn one agent per group in ONE response, with the finding rows and the constraint set from the repo rules (edit-in-place, no scope creep, caps are guidelines); the report file is the finding source of truth, so pass its path rather than re-inlining rows. Max 1 fix round — surviving failures go back to the user. Then run the round out per `dimensions-reference.md` §Fix-round execution, which carries what reliably goes wrong and the integration order.
-
-  **A finding in executable code closes with a test, not with the fix.** Any finding whose subject is a hook, a `lib/` helper, or a test is not done until a test reproduces the defect and fails without the fix. Put it in the fix agent's brief and check it when the round returns. A fix alone is re-found next round because nothing prevents its return; a fix with a test cannot come back at all. The measurement behind that: `dimensions-reference.md` §Mechanize what recurs.
-
-  **A finding whose fix is instruction prose aimed at what a run finds or decides closes with a measurement, or ships named as unmeasured.** Wording changes of that kind are hypotheses — `.claude/rules/skill-prose.md` §"What adding instructions buys" carries what they reliably do and do not buy. Offer `/eval-loop` against the module the prose belongs to; when the user declines or no benchmark covers it, the report says the change is unmeasured rather than resolved. This is the prose half of the rule above: executable findings close with a test, behavioral ones with a number, and neither closes on the edit alone.
-- **Pick path:** present findings per tier with multi-select AUQs (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
-- **Report only:** proceed to cleanup.
-
-**Build the checks the round earned.** Every approved finding whose `fix` column named a check (Phase 3 step 4b) ships that check in the same round, hard-failing under `tests/authoring/` and wired into `tests/run-all.sh`, with the fixed sites proving it green and one seeded violation proving it red. Nothing else carries a decision to the next round — a check does, and only if it is hard (§Mechanize what recurs).
-
-**Cleanup & commit:** delete the current slug's directory contents — `.geniro/state/audit-plugin/<slug>/state.md` and `findings-*.md` — per the helper §Cleanup contract (never glob sibling slug directories; they belong to parallel pipelines on other branches). Offer via AskUserQuestion: "Commit the audit report (and fixes, if any)?" — "Commit and push (Recommended)" / "Commit only" / "Skip". Stage only the report + files changed by approved fixes (never `git add -A`); follow the repo's commit style; never `--no-verify` / `--amend`.
+`Steps: phase-5-action-gate.md` (read on entry to Phase 5). AskUserQuestion on the tiered fix decision, the mechanism-deletion gate, the disjoint-scope fix path, and cleanup + commit. Exit when the chosen path (fix / pick / deletion / report-only) has run to completion and the state directory is cleaned up.
 
 ## State recovery
 
@@ -160,23 +144,13 @@ On skill start: compute `<slug>`, Glob `.geniro/state/audit-plugin/<slug>/state.
 
 ## Definition of done
 
-- [ ] Phase 1 battery ran; output captured in checkpoint
-- [ ] Selected reviewers spawned in one response; outputs collected
-- [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt); every kept T0/T1 carries a cold verifier verdict
-- [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded findings (shared invariant 5)
-- [ ] Report written to `design/scratch/plugin-audit-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
-- [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
-- [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (shared invariant 6)
-- [ ] Every mechanism-deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval, and the ones kept recorded as considered-and-kept (shared invariant 7)
-- [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked, and every `§` citation into a changed file re-resolved
-- [ ] Every fix to a hook, a `lib/` helper, or a test carries a test that fails without it
-- [ ] Every behavioral instruction fix carries a measurement, or is reported as an unmeasured change
-- [ ] Every finding survived the oracle test; every decidable class the round found either ships a hard check or is named in the report as one nobody built
-- [ ] State cleaned up; commit offered
+The run-completion checklist is `.claude/skills/audit-plugin/audit-plugin-definition-of-done.md`. Read it at Phase 5 entry, and walk it before the cleanup-and-commit step closes the run.
 
 ## REFERENCE
 
 - `.claude/skills/audit-plugin/dimensions-reference.md` — dimension checklists, severity tiers, output contract, do-not-flag list
+- `.claude/skills/audit-plugin/phase-5-action-gate.md` — Phase 5 Steps (Read on entry to Phase 5)
+- `.claude/skills/audit-plugin/audit-plugin-definition-of-done.md` — the run-completion checklist (Read on entry to Phase 5)
 - `.claude/rules/*.md` — the D4 rubric source, read by glob; `rule-writing.md` among them binds `.claude/rules/` and `CLAUDE.md` themselves
 - `skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline

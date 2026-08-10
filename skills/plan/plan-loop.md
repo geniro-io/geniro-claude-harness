@@ -63,7 +63,7 @@ Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` 
  - src/middleware/session.ts:88-101
 ```
 
-Phase 7 validator (check #3) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Small ≥1; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
+Phase 7 validator (check `source_materials`) requires ≥1 Agent entry with `status: ok` per effort tier (Trivial ≥1 OR explicit "scope-bound, no exploration needed"; Small ≥1; Medium ≥2; Big ≥3). The Echo contract makes "no related code found" auditable via SessionStart re-injection.
 
 ---
 
@@ -140,7 +140,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 8 — User approval
 
-`phase: user-approve`. Steps in `loop-phase-8-user-approval.md`: §8.1 approval gate · §8.2 shape (message-first) · §8.3 revision-round escalation · §8.3.5 launch config · §8.4 approve → git commit (step 2 carries the write-time `launch_config` enum assertion) · §8.5 record a learning · §8.6 custom post-approval steps.
+`phase: user-approve`. Steps in `loop-phase-8-user-approval.md`: §8.0 refresh custom instructions · §8.1 approval gate · §8.2 shape (message-first) · §8.3 revision-round escalation · §8.3.5 launch config · §8.4 approve → git commit (step 2 carries the write-time `launch_config` enum assertion) · §8.5 record a learning · §8.6 custom post-approval steps.
 
 ## Phase 9 — Handoff
 
@@ -172,8 +172,4 @@ The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-definiti
 | "Auto-commit at Phase 6 is convenient — drop a commit if Phase 8 rejects" | Rejection-induced commit-drop = forced `git reset` / `git revert`, polluting git history (every revision round would leave a commit). Phase 8 post-approve commit is a single commit per approved spec. |
 | "I'll skip persisting Phase 3 clarifying answers — they're trivial" | Compaction mid-Phase-5 loses 5 AUQs of user input — that data-loss is exactly what `approvals[]` persistence prevents, so it is non-negotiable. |
 | "I'll write a file outside `.geniro/planning/**` to save a step — /geniro:plan can touch source directly" | /geniro:plan never writes source. `allowed-tools` grants `Write` (needed for `--artifact` mode's HTML output), so this is not a tool-level boundary — the `enforce-state-helper` hook only hard-blocks direct writes to `.geniro/planning/**` / `.geniro/state/**`. The only intended write target is the planning task-dir (spec.md / state.md via `atomic_state_write`); writing source files turns planning into implementation and skips the HARD-GATE that exists to keep code changes behind the Phase 8 approval. |
-| "Add a refine/edit mode that re-derives spec sections from an existing design doc — saves three phases of re-work" | Re-deriving sections from prose is structurally-lossy: downstream consumers parse a malformed spec.md. DESIGN_DOC mode offers Start-fresh-with-doc-as-context (or Cancel) precisely because starting fresh produces a schema-clean spec.md. |
-| "Handoff should add a separate backlog-capture step for backlog discipline" | The committed spec.md on disk IS the backlog entry — no extra capture step or menu pick needed. Not running the printed `/geniro:implement` command is how a spec stays parked. |
-| "Auto-default empty AUQ answer to the Recommended option" | Forbidden. An empty answer is an upstream Claude Code bug, not a pick — re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. Auto-defaulting silently mutates user intent. |
-| "Add a wall-time / token kill cap so runaway /geniro:plan sessions abort cleanly" | Hard kill-caps conflict with quality-first framing. /geniro:plan has bounded gates (Phase 3 grill checkpoint, Phase 5 per-cluster 3-round, Phase 7 3-round, Phase 8 3-round) that escalate to the user; do not abort. |
 | "Bypass git pre-commit hooks with --no-verify when committing spec.md in Phase 8.4" | A failing hook caught a real defect in spec.md; `--no-verify` ships that defect instead of fixing it. Fix the root cause the hook flagged, then commit clean. |

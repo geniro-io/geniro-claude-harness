@@ -101,7 +101,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 Dimension-specific paste notes:
 - **D2 (accuracy):** paste the Phase 1 command and path candidate lists into the pre-pass context slot.
 - **D3 (consistency):** paste the same-rule candidate list.
-- **D4 (bloat), D5 (structure), and D6 (coverage & safety):** additionally paste §Surface inventory — the loading notes and activity signals are their rubric inputs; keep the facts single-sourced there rather than restated per dimension. D4's check 10 costs a proposal as words times load frequency and cannot run without it. D5 also gets the D1 reachability candidates.
+- **D4 (bloat), D5 (structure), and D6 (coverage & safety):** additionally paste §Surface inventory — the loading notes and activity signals are their rubric inputs; keep the facts single-sourced there rather than restated per dimension. D4's surface-level-subtraction check costs a proposal as words times load frequency and cannot run without it. D5 also gets the D1 reachability candidates.
 - **D6:** paste the secret-scan and unsafe-directive candidate locations (file:line + pattern name only for secrets — those values were never captured).
 - **Sharding:** if a dimension's scope exceeds ~10K words, split the file list into two halves covering every file between them, same prompt, both spawns in the batch.
 
@@ -265,5 +265,5 @@ Re-flagging these is the audit's own false-positive failure mode:
 - **Personal-overlay divergence.** `CLAUDE.local.md` (and equivalents) differing in preference from team files is the overlay working as designed; only factual wrongness or safety issues in them are findings.
 - **Tool-specific phrasing of the same rule.** A Cursor rule worded for Cursor's loading model is not a contradiction of the CLAUDE.md wording when both carry the same rule.
 - **Structural shape of `.geniro/instructions/*.md`** — owned by `/geniro:instructions validate`; route rather than flag.
-- **A reason attached to a rule an agent would otherwise rationalize around.** An anti-pattern, an escape hatch, or error semantics carries its why so the constraint survives contact with an edge case the wording never anticipated. That is payload, not provenance — D4 check 9 hunts the case *for* a rule, never the reason *inside* one.
-- **A link the rule requires following.** A URL an agent must fetch to do the work — a schema, an API reference, a runbook — is a data source, not a citation. Only a link supporting an argument is in check 9's range.
+- **A reason attached to a rule an agent would otherwise rationalize around.** An anti-pattern, an escape hatch, or error semantics carries its why so the constraint survives contact with an edge case the wording never anticipated. That is payload, not provenance — D4's case-for-the-rule check hunts the case *for* a rule, never the reason *inside* one.
+- **A link the rule requires following.** A URL an agent must fetch to do the work — a schema, an API reference, a runbook — is a data source, not a citation. Only a link supporting an argument is in that check's range.
