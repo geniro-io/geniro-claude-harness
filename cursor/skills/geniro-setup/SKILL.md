@@ -1,11 +1,13 @@
 ---
-name: setup
+name: geniro-setup
 description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, generates a project-specific CLAUDE.md (stack, commands, conventions, domain), and validates it. Re-run mode runs a migration sweep. Singleton bootstrap."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
 argument-hint: "[optional: path to template directory]"
 ---
+<!-- Generated from skills/setup/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
+
 
 # Setup: AI-driven plugin setup
 

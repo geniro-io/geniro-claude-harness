@@ -4,9 +4,13 @@
 # the current turn contains no visible assistant text — the user would be
 # answering blind. Catches BOTH a question that references content "above" AND
 # one that carries finding-gate evidence shorthand without the "above" reference:
-# a PRODUCT-DECISION tag, convergence wording, or a finding-ID (F5/M1b) when it
-# is paired with finding-gate co-text (a parenthesized severity, or the words
+# a PRODUCT-DECISION tag, convergence wording, or a finding-ID (F5/M1b/D2) when
+# it is paired with finding-gate co-text (a parenthesized severity, or the words
 # finding/reviewer/severity) — a bare finding-ID alone is too collision-prone.
+# Also scans the include-deferred / minor-findings gate template's own wording
+# ("below the fix threshold") and, language-invariantly, a severity word within
+# reach of a digit count — so a translated render that leaks the scrub's
+# forbidden severity shorthand still gets caught even with no English present.
 # Prompt-level render guards leak under drift; this is the mechanical backstop.
 # Also blocks a single call that batches >=2 product-decision findings as separate
 # questions (the tabbed F3/F4/F5 prompt) — those resolve one finding per call.
@@ -63,8 +67,8 @@ QTEXT=$(printf '%s' "$INPUT" | jq -r '
     | (.question // ""), (.options[]?.label // ""), (.options[]?.description // "")]
   | join(" ")' 2>/dev/null || echo "")
 
-# Proceed to the transcript scan when EITHER trigger matches; only when NEITHER
-# does, exit 0 (unscanned). Two branches catch two ways a gate fires blind:
+# Proceed to the transcript scan when ANY trigger matches; only when NONE
+# does, exit 0 (unscanned). Four branches catch four ways a gate fires blind:
 #   (a) the question points at content "above" — templated gate questions do
 #       ("Full explanation above." / "Approve the spec summarized above?").
 #   (b) the question carries finding-gate evidence shorthand without "above" —
@@ -73,26 +77,65 @@ QTEXT=$(printf '%s' "$INPUT" | jq -r '
 #       (the recorded forbidden evasion: "strip the 'above' reference").
 # Shorthand tokens are chosen for low false positives on benign lean questions:
 # a PRODUCT-DECISION tag and convergence wording (converge/converged/
-# convergence) fire on their own. A finding-ID token (uppercase F/M + digits +
-# optional trailing lowercase letter, e.g. F5/F12/M1b — matched case-SENSITIVELY
+# convergence) fire on their own. A finding-ID token (uppercase F/M/D + digits +
+# optional trailing lowercase letter, e.g. F5/F12/M1b/D2 — matched case-SENSITIVELY
 # so stray lowercase words don't trip it) does NOT fire alone: a bare F/M-digit
 # token collides with load-balancer models ("F5 load balancer"), function keys
 # ("Press F5"), racing series ("F1 racing API"), version tags ("version M2"),
 # branch names ("feature/F12-login"), and form fields ("form field F3"), so the
-# token alone is not high-precision. It scans only with finding-gate co-text:
-# a severity word immediately after an open paren (the way findings render
-# severity, e.g. "(MEDIUM, security)"), OR the words finding/findings, reviewer,
-# severity/severities. The co-text requirement is what keeps this branch's
-# false-positive rate near zero while still catching a real open-decision gate
-# like "F5 (MEDIUM, security): …". Bare severity words (HIGH / MEDIUM / LOW) are
-# deliberately NOT a standalone trigger — they appear in too many benign
-# questions (workspace-setup / review-depth choosers); they count only as
-# co-text adjacent to a finding-ID + open paren. Legitimately-bare lean
-# questions match no branch.
+# token alone is not high-precision (D-ids — the deferred-entry schema's D1/D2 —
+# carry the same requirement for uniform precision even though they collide
+# less). It scans only with finding-gate co-text: a severity word immediately
+# after an open paren AND word-bounded on its far side (the way findings render
+# severity, e.g. "(MEDIUM, security)") — matched case-SENSITIVELY like branch
+# (d)'s SEVERITY_COUNT_RE, so an ordinary lowercase word that merely starts
+# with a severity token ("(low priority)", "(lower bound)") is not co-text —
+# OR the words finding/findings, reviewer, severity/severities, matched
+# case-insensitively since real renders capitalize them mid-sentence
+# ("Finding F5…").
+# The co-text requirement is what keeps this branch's false-positive rate near
+# zero while still catching a real open-decision gate like "F5 (MEDIUM,
+# security): …". Bare severity words (HIGH / MEDIUM / LOW) are deliberately NOT
+# a standalone trigger — they appear in too many benign questions (workspace-
+# setup / review-depth choosers, and the §7.2 post-granularity gate's own
+# "including LOW / deferred awareness items" wording); they count only as
+# co-text adjacent to a finding-ID + open paren, or paired with a digit count
+# per branch (d) below.
+#   (c) the literal phrase "below the fix threshold" — the wording both the
+#       review-handoff.md §4.6 include-deferred gate and the implement
+#       Phase 3 minor-findings gate emit in their question. English-only by
+#       construction: a fully-translated, correctly-scrubbed render of either
+#       gate carries neither this phrase nor a severity word, so it slips every
+#       branch here — no literal string generalises across languages without
+#       enumerating every translation.
+#   (d) a severity word within reach of a digit count (e.g. "10 ... LOW"),
+#       independent of any finding-ID. Severity shorthand is literal ASCII
+#       regardless of the surrounding script, so a translated include-deferred
+#       gate that leaks the scrub's forbidden severity shorthand into a
+#       findings-count phrasing still trips this branch even with no English
+#       anywhere else in the question. The digit-count pairing is what keeps a
+#       bare severity word from becoming the standalone, collision-prone
+#       trigger rejected above.
+# Legitimately-bare lean questions match no branch.
 ABOVE_RE='(^|[^[:alnum:]_])above([^[:alnum:]_]|$)'
 SHORTHAND_RE='(PRODUCT-DECISION|[Cc]onverg)'
-FINDING_ID_RE='(^|[^[:alnum:]_])[FM][0-9]+[a-z]?([^[:alnum:]_]|$)'
-FINDING_CTX_RE='\((CRITICAL|HIGH|MEDIUM|LOW)|finding|reviewer|severit'
+FINDING_ID_RE='(^|[^[:alnum:]_])[FMD][0-9]+[a-z]?([^[:alnum:]_]|$)'
+# Split in two because the two halves need different case handling (see the
+# branch-(b) comment above): the paren-severity half is boundary-safe and
+# case-sensitive; the word half stays case-insensitive. finding_ctx_match()
+# below combines them with the right grep flags on each.
+FINDING_CTX_SEV_RE='\((CRITICAL|HIGH|MEDIUM|LOW)([^[:alnum:]_]|$)'
+FINDING_CTX_WORD_RE='finding|reviewer|severit'
+FIX_THRESHOLD_RE='below the fix threshold'
+SEVERITY_COUNT_RE='[0-9]+[^0-9]{0,60}[^[:alnum:]_](CRITICAL|HIGH|MEDIUM|LOW)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(CRITICAL|HIGH|MEDIUM|LOW)[^[:alnum:]_][^0-9]{0,60}[0-9]+'
+
+# finding-gate co-text test used by both the batching guard (per-question) and
+# the main branch-(b) check (whole QTEXT): true when $1 carries a word-bounded,
+# case-sensitive parenthesized severity OR a case-insensitive co-text word.
+finding_ctx_match() {
+  printf '%s' "$1" | grep -qE "$FINDING_CTX_SEV_RE" && return 0
+  printf '%s' "$1" | grep -qiE "$FINDING_CTX_WORD_RE"
+}
 
 # ===== Finding-batching guard (shape-based, render-independent) =====
 # Product-decision gates resolve ONE finding per call (per review-handoff.md §3
@@ -117,7 +160,7 @@ if [ "${QCOUNT:-0}" -ge 2 ]; then
     if printf '%s' "$q_line" | grep -qiE "$SHORTHAND_RE"; then
       DECISION_Q=$((DECISION_Q + 1))
     elif printf '%s' "$q_line" | grep -qE "$FINDING_ID_RE" \
-      && printf '%s' "$q_line" | grep -qiE "$FINDING_CTX_RE"; then
+      && finding_ctx_match "$q_line"; then
       DECISION_Q=$((DECISION_Q + 1))
     fi
   done <<EOF_PERQ
@@ -139,10 +182,16 @@ if   printf '%s' "$QTEXT" | grep -qiE "$ABOVE_RE"; then
 elif printf '%s' "$QTEXT" | grep -qiE "$SHORTHAND_RE"; then
   : # branch (b): PRODUCT-DECISION / convergence shorthand → scan
 elif printf '%s' "$QTEXT" | grep -qE "$FINDING_ID_RE" \
-  && printf '%s' "$QTEXT" | grep -qiE "$FINDING_CTX_RE"; then
-  : # branch (b): finding-ID token (case-sensitive F/M) + finding-gate co-text → scan
+  && finding_ctx_match "$QTEXT"; then
+  : # branch (b): finding-ID token (case-sensitive F/M/D) + finding-gate co-text → scan
+elif printf '%s' "$QTEXT" | grep -qiE "$FIX_THRESHOLD_RE"; then
+  : # branch (c): include-deferred / minor-findings gate template wording → scan
+elif printf '%s' "$QTEXT" | grep -qE "$SEVERITY_COUNT_RE"; then
+  : # branch (d): severity shorthand within reach of a digit count → scan (case-
+    # sensitive: the word-bounded uppercase token is the signal; -i would let it
+    # match inside ordinary words like "follow"/"below"/"highlight"/"allow")
 else
-  exit 0  # neither trigger → unscanned
+  exit 0  # no trigger → unscanned
 fi
 
 TRANSCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.transcript_path // ""' 2>/dev/null || echo "")

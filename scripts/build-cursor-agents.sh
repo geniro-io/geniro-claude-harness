@@ -65,18 +65,35 @@ for src in "$REPO_ROOT"/agents/*.md; do
   case "$name" in *-reference) continue ;; esac
 
   # Frontmatter = lines between the first two --- fences; body = the rest.
-  description_line="$(awk '/^---$/{c++; next} c==1 && /^description:/' "$src")"
+  # `c<2 &&` bounds the fence match to those first two lines only — without it,
+  # `next` fires on EVERY line equal to `---` (a body-level horizontal rule, or
+  # a `---` inside a fenced code block/heredoc), silently deleting each one
+  # from the extracted text.
+  description_line="$(awk 'c<2 && /^---$/{c++; next} c==1 && /^description:/' "$src")"
   if [ -z "$description_line" ]; then
     echo "ERROR: no description in $src frontmatter" >&2
     exit 1
   fi
-  body="$(awk '/^---$/{c++; next} c>=2' "$src")"
-  declared_model="$(awk '/^---$/{c++; next} c==1 && /^model:[[:space:]]*/ {sub(/^model:[[:space:]]*/,""); gsub(/[[:space:]"'"'"']/,""); print; exit}' "$src")"
+  body="$(awk 'c<2 && /^---$/{c++; next} c>=2' "$src")"
+  declared_model="$(awk 'c<2 && /^---$/{c++; next} c==1 && /^model:[[:space:]]*/ {sub(/^model:[[:space:]]*/,""); gsub(/[[:space:]"'"'"']/,""); print; exit}' "$src")"
   # Resolved outside the redirected block below: a failure inside `{ … } > file`
   # is swallowed by the enclosing command's status, which would emit an empty
   # `model:` instead of stopping the build.
   cursor_model="$(cursor_model_for "$declared_model")" || {
     echo "  (declared in $src)" >&2; exit 1; }
+
+  # Content-integrity guard: a regression in the fence-consumption awk above
+  # would corrupt every body-level "---" identically on both sides of the
+  # freshness diff — the freshly regenerated copy and an already-corrupted
+  # committed copy would match each other, so tests/cursor/build-agents-fresh.sh
+  # alone cannot catch it. Assert directly against the source instead: every
+  # "---" beyond the frontmatter's own two fences must survive into the body.
+  src_fences=$(awk '/^---$/{n++} END{print n+0}' "$src")
+  body_fences=$(printf '%s\n' "$body" | awk '/^---$/{n++} END{print n+0}')
+  if [ "$body_fences" -ne "$((src_fences - 2))" ]; then
+    echo "ERROR: $src has $src_fences '---' line(s); expected $((src_fences - 2)) to survive into the body (2 consumed as frontmatter fences), but found $body_fences. The fence-extraction awk ate one — refusing to write a corrupted $base." >&2
+    exit 1
+  fi
 
   {
     printf -- '---\n'

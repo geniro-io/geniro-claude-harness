@@ -7,7 +7,7 @@ Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:inves
 ## Contents
 
 - The four invariants that bind identically inside a Workflow run
-  - 1. Reporter boundary — findings, not changes (incl. the authored-test push carve-out)
+  - 1. Reporter boundary — findings, not changes (incl. the authored-test push carve-out; tool-enforced vs prose by runtime)
   - 2. Canonical action gate — the documented options are an allowlist
   - 3. State writes via `atomic_state_write`
   - 4. Verify what's verifiable; surface only genuine decisions
@@ -24,6 +24,8 @@ A Reporter-class skill produces findings, not changes. Inside every workflow ste
 - No `gh pr create` / `gh pr merge`.
 
 `/geniro:review`, `/geniro:debug`, `/geniro:investigate`, and `/geniro:resolve` are read-only producers on top of that: no `Edit` / `Write` to production source, full stop. `/geniro:refactor` is the one consumer that does edit production source — its deliverable IS the working-tree diff, per `CLAUDE.md` §Skill routing — so its binding here is no-ship only, the two bullets above; it is never held to the no-edit rule.
+
+In Claude Code, half of this is tool-enforced: `/geniro:review`, `/geniro:investigate`, and `/geniro:resolve` omit `Write`/`Edit` from `allowed-tools`, so their no-edit rule is structural — the tool surface cannot attempt the edit. `/geniro:debug` declares `Write`/`Edit` for experiments and the reproduction test, so its no-edit-production-source rule is prose only, same as the rest of this contract. That tool-enforced half does not exist outside Claude Code: Cursor's subagent frontmatter has no `tools` / `disallowedTools` / `allowed-tools` field, and Cursor's own FAQ states subagents inherit every tool, including MCP tools, from the parent regardless of what a Claude-side `allowed-tools` list says ([cursor.com/docs/subagents](https://cursor.com/docs/subagents)) — though Cursor's subagents page and its 2.4 changelog also describe configurable "tool access" for subagents, a claim the field reference and FAQ on the same site do not support. The only Cursor-side lever is the coarse `readonly: true` boolean (no file edits, no state-changing shell commands). Under Cursor, the boundary for every Reporter skill — including the three that are tool-enforced under Claude Code — is prose the model holds on its own.
 
 The skill's documented on-disk deliverable (handoff file, reproduction test, or working-tree diff) and its sanctioned side-effects (for example, `/geniro:review` posting a PENDING PR review) are the ONLY outputs. That review side-effect is bounded: `/geniro:review` posts a PENDING draft only, after the explicit action-gate pick, and never publishes/submits the review it creates (never the `reviews/<id>/events` endpoint) — submitting fires notifications to the PR author and is the user's own github.com action, across all rounds. The action gate always fires before posting, and chat text ("submit it yourself") never substitutes for it. Route fixes to `/geniro:implement` — never apply them in-skill.
 

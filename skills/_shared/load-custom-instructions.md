@@ -67,7 +67,7 @@ For each file in the load set, in order:
 3a. **If any Read errors with any other error** (permission denied, path-is-a-directory, encoding error): echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
 4. After the Read attempt(s) (success OR file-not-found), print one echo line per §Echo contract.
 5. Apply the loaded content:
- - `## Rules` → standing rules active in every phase of the consumer skill
+ - `## Rules` → standing rules active in every phase of the consumer skill, binding the orchestrator's own actions there too, not only the subagent prompts it builds — a declared search policy governs every lookup for the rest of the run, not just the first
  - `## Constraints` → a flat bullet list of hard gates, evaluated globally (or at a phase boundary when a bullet's text names one) — not organized into per-phase subsections; only `## Additional Steps` uses named-phase subsections
  - `## Additional Steps` → extra steps inserted at the named phase boundary, via the `### After <phase name>` form (if the skill has that phase; otherwise apply where they fit and skip the rest)
  - `## Data Sources` → read-only sources to cross-check load-bearing facts against, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`; absent = no declared sources
@@ -148,7 +148,7 @@ The four files this helper loads (`global.md`, `memory.md`, `<SKILL_SLUG>.md`, `
 
 The loader applies these as:
 
-- **Rules → standing rules.** Active in every phase of the consumer skill until the run ends.
+- **Rules → standing rules.** Active in every phase of the consumer skill until the run ends, binding the orchestrator's own actions there too, not only the subagent prompts it builds — a declared search policy governs every lookup for the rest of the run, not just the first.
 - **Constraints → hard gates.** A flat bullet list, evaluated globally (or at a phase boundary when a bullet names one). Only `## Additional Steps` uses named-phase subsections.
 - **Additional Steps → extra steps inserted at the named phase boundary.** The `### After <phase name>` form is the only one a consumer reads — a `### Before <phase name>` subsection has no read site in any skill, which is why `/geniro:instructions` rejects it at authoring time rather than letting it parse as legal and never run. If the per-skill file declares an Additional Step for a phase that doesn't exist in the consumer (e.g. `debug` has no PHASE 1 — it has step 1 / Observe), apply where it fits and skip the rest. The one event (non-phase) anchor is `### After worktree-setup` in `global.md` — a cross-skill step run right after a new worktree is created and before subagent fan-out (execution sites: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §3 and `/geniro:review` triage). Resolve `global.md` through the primary-worktree fallback above — a fresh linked worktree does not carry the gitignored authored file, so a cwd-only Read would miss it.
 - **Data Sources → read-only fact-verification sources** consulted by `/geniro:plan` and `/geniro:implement` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`.

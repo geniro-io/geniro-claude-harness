@@ -12,8 +12,25 @@
 #   - Finding-ID + finding co-text (no "above") on a render-less turn → block.
 #   - Benign F5/M2 tokens with no co-text on a render-less turn → allow unscanned.
 #   - Finding-ID + parenthesized-severity co-text (only trigger) → block.
+#   - Finding-ID + a lowercase word merely starting with a severity token in
+#     parens ("(lower bound)", "(low priority)") is NOT co-text → allow
+#     unscanned; a real uppercase parenthesized severity (D1 (LOW), F3 (HIGH))
+#     still blocks, and a bare finding-ID with no co-text still does not.
 #   - PRODUCT-DECISION shorthand (no "above") on a render-less turn → block.
 #   - Same finding-bearing question WITH an assistant render → allow.
+#   - D-id (deferred-entry schema) + parenthesized severity, render-less → block;
+#     same question WITH a render → allow.
+#   - Include-deferred/minor-findings gate template wording ("below the fix
+#     threshold"), render-less → block; same question WITH a render → allow.
+#   - Non-English question carrying severity shorthand + a digit count (the
+#     scrub-leak shape), render-less → block; same question WITH a render →
+#     allow.
+#   - review-handoff-post.md §7.2 granularity-gate wording ("including LOW /
+#     deferred awareness items") stays unscanned on a render-less turn — the
+#     bare-severity-word false-positive branch (d) is guarded against.
+#   - Branch (d) is word-bounded and case-sensitive: a digit near an ordinary
+#     word that merely CONTAINS a severity substring ("follow", "Allow",
+#     "below", "highlight"/"slowest") does not trigger it → allow unscanned.
 #   - Lean workspace/depth question (no shorthand, no "above") → allow unscanned.
 #   - Assistant string-shaped content with text counts as a render → allow.
 #   - "above" question + tool_use-only assistant record → block.
@@ -360,6 +377,124 @@ run_plan_clarify() {
   echo $?
 }
 expect_allow "plan-style clarifying batch (no finding shorthand) → allow unscanned" "$(run_plan_clarify "$TR")"
+
+# ===== Include-deferred / minor-findings gate template wording (branch c) =====
+# review-handoff.md §4.6 and implement-reference.md's Phase 3 minor-findings
+# gate both emit "below the fix threshold" in their question. Neither "above"
+# nor PRODUCT-DECISION/convergence nor a finding-ID appears, so pre-fix this
+# question matched no branch and exited 0 unscanned regardless of render state.
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "include-deferred gate template wording, render-less → block" \
+  "$(run_q 'The review also set aside 10 minor findings below the fix threshold. Include them in the fix list for /geniro:implement?' "$TR")"
+
+{ user_text; asst_text 'Minor findings set aside: short titles, file:lines, and why each was left out.'; } > "$TR"
+expect_allow "include-deferred gate template wording WITH render → allow" \
+  "$(run_q 'The review also set aside 10 minor findings below the fix threshold. Include them in the fix list for /geniro:implement?' "$TR")"
+
+# ===== D-id (deferred-entry schema) + parenthesized severity (branch b, extended) =====
+# FINDING_ID_RE now accepts D alongside F/M — the deferred-entry schema's D1/D2
+# ids. Paired with the existing parenthesized-severity co-text, this is the
+# scrub's own named-forbidden example ("D1 (LOW)") and is language-invariant:
+# neither the id nor the parenthesized severity requires an English word.
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "D-id + parenthesized severity (scrub's 'D1 (LOW)' shape), render-less → block" \
+  "$(run_q 'D1 (LOW): a minor improvement below the fix bar — include it?' "$TR")"
+
+{ user_text; asst_text 'Deferred entry: D1 is a minor improvement, left out because it is below the fix bar.'; } > "$TR"
+expect_allow "D-id + parenthesized severity WITH render → allow" \
+  "$(run_q 'D1 (LOW): a minor improvement below the fix bar — include it?' "$TR")"
+
+# ===== Non-English question carrying severity shorthand + digit count (branch d) =====
+# The observed real failure: the whole gate ran in Russian, so every English
+# trigger (above / PRODUCT-DECISION / converg / finding / reviewer / severit)
+# is absent, and the question paraphrased the template rather than using its
+# literal wording, so branch (c) does not match either. Only the severity
+# shorthand ("LOW") paired with the deferred-count digit is language-invariant.
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "non-English question with severity shorthand + digit count, render-less → block" \
+  "$(run_q 'Включить в список фиксов 10 отложенных LOW-находок?' "$TR")"
+
+{ user_text; asst_text 'Findings set aside: 10 entries below the fix threshold, with short titles and locations.'; } > "$TR"
+expect_allow "non-English question with severity shorthand + digit count WITH render → allow" \
+  "$(run_q 'Включить в список фиксов 10 отложенных LOW-находок?' "$TR")"
+
+# ===== False-positive guard: the §7.2 post-granularity gate must stay unscanned =====
+# review-handoff-post.md §7.2's actual question carries a bare "LOW" with no
+# digit nearby and no finding-ID — branch (d)'s digit-count pairing is what
+# keeps this legitimate, render-independent lean question from being scanned
+# (and thus falsely blocked) on a render-less turn.
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "§7.2 granularity-gate wording ('including LOW / deferred awareness items') → allow unscanned" \
+  "$(run_q 'Send all unposted findings (including LOW / deferred awareness items) in a single batched review, or pick which ones to post?' "$TR")"
+
+# ===== False-positive guard: branch (d) must not fire on a severity SUBSTRING
+# inside an ordinary word. Regression for the unbounded/case-insensitive
+# SEVERITY_COUNT_RE that matched "LOW" inside "follow"/"below"/"slowest" and
+# "HIGH" inside "highlight" whenever any digit appeared nearby — which blocked
+# ordinary AskUserQuestion calls carrying no severity content at all. All
+# render-less (would block if branch (d) mis-fired). =====
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'follow' (LOW substring, not a word) → allow" \
+  "$(run_q 'I found 3 candidate configs. Should I follow the existing pattern?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'Allow' (LOW substring, mixed case) → allow" \
+  "$(run_q 'There are 2 migrations pending. Allow me to run them?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'below' (LOW substring, lowercase) → allow" \
+  "$(run_q 'Which of the 4 options below do you prefer?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'highlight'/'slowest' (HIGH/LOW substrings) → allow" \
+  "$(run_q 'Should I highlight the 5 slowest queries?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit with no severity word anywhere → allow" \
+  "$(run_q 'Ready to commit 7 files. Proceed?' "$TR")"
+
+# ===== False-positive guard: branch (d) must not fire on an ALL-CAPS identifier
+# that merely BEGINS with a severity token. Case-sensitivity alone does not
+# reject these — SCREAMING_SNAKE_CASE constants are the realistic blast radius,
+# and the earlier lowercase-only cases above passed while these still blocked.
+# Regression for the alternative that carried a leading word boundary but no
+# trailing one. All render-less (would block if branch (d) mis-fired). =====
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'LOW_WATERMARK' (severity-prefixed constant) → allow" \
+  "$(run_q 'Set LOW_WATERMARK to 5 or keep the current value?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'HIGH_PRIORITY_QUEUE' (severity-prefixed constant) → allow" \
+  "$(run_q 'Should I bump HIGH_PRIORITY_QUEUE workers from 2 to 8?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'CRITICAL_PATH' (severity-prefixed constant) → allow" \
+  "$(run_q 'The CRITICAL_PATH constant is used in 4 modules — inline it?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "digit + 'CRITICALLY'/'HIGHLIGHT' (all-caps, severity-prefixed word) → allow" \
+  "$(run_q 'CRITICALLY, 3 tests are skipped. Unskip them?' "$TR")"
+
+# ===== False-positive guard: branch (b)'s parenthesized-severity co-text must
+# not fire on an ordinary lowercase word that merely STARTS with a severity
+# token in parens ("(lower bound)", "(low priority)") — even alongside a
+# finding-ID-shaped token elsewhere in the text. Case-sensitivity + a trailing
+# boundary (mirroring branch (d)'s SEVERITY_COUNT_RE) is what keeps this from
+# being finding-gate co-text. Render-less (would block if branch (b) mis-fired). =====
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "F5 token + '(lower bound)' (LOW-prefixed word, not co-text) → allow unscanned" \
+  "$(run_q 'The F5 config caps requests at a (lower bound) of 10 per second — increase it?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "F5 token + '(low priority)' (lowercase severity word, not co-text) → allow unscanned" \
+  "$(run_q 'F5 queue jobs are (low priority) by default — change to high?' "$TR")"
+
+# Same finding-ID + a REAL parenthesized severity still blocks (regression
+# guard: the boundary/case fix must not regress genuine co-text).
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "D1 (LOW) real finding co-text still blocks render-less" \
+  "$(run_q 'D1 (LOW): a minor improvement — include it?' "$TR")"
+{ user_text; asst_tooluse; } > "$TR"
+expect_block "F3 (HIGH) real finding co-text still blocks render-less" \
+  "$(run_q 'F3 (HIGH): the accept-any-UUID check — fix now or defer?' "$TR")"
+
+# A bare finding-ID with no co-text at all still does not block (unchanged
+# baseline — re-asserted here alongside the new lower/low-word cases above).
+{ user_text; asst_tooluse; } > "$TR"
+expect_allow "bare F7 token, no co-text at all → allow unscanned" \
+  "$(run_q 'Ship to F7 or hold?' "$TR")"
 
 # ===== Portable `sleep`: a fractional-second rejection must not fail the gate open =====
 # `sleep 0.4` is a GNU/BSD extension, not POSIX. Under `set -e`, a `sleep` that
