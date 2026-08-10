@@ -6,8 +6,11 @@
 # Reads <task-dir>/task.json:
 #   mode "git":   { "repo_alias", "base_sha", "head_sha" } -> worktree at head, diff base..head
 #   mode "patch": { "fixture_cmd" | "tree_dir", "patch" }  -> copy tree, apply patch
+#   mode "spec":  { "tree_dir" | "repo_alias"+"base_sha", "spec" }
+#                                                          -> tree at base, no diff
 # Writes: <stage-dir>/tree/ (the code under review), <stage-dir>/diff.patch,
-#         <stage-dir>/changed-files.txt
+#         <stage-dir>/changed-files.txt; in "spec" mode also <stage-dir>/spec.md
+#         and no diff.patch (nothing changed — the spec is the artifact under test)
 #
 # Committed task files never carry a repo location or name — "repo_alias" is an
 # opaque label resolved through the machine-local, gitignored repos.local.json
@@ -103,6 +106,33 @@ elif [ "$MODE" = "patch" ]; then
     && git apply --index "$PATCH" )
   cp "$PATCH" "$STAGE_DIR/diff.patch"
   ( cd "$STAGE_DIR/tree" && git diff --cached --name-only ) > "$STAGE_DIR/changed-files.txt"
+elif [ "$MODE" = "spec" ]; then
+  # An artifact-under-test task: the tree is the code a spec makes claims ABOUT,
+  # pinned at the commit the spec was written against, and the artifact is the
+  # spec itself. There is no diff — nothing changed; the question is whether the
+  # spec's claims hold against this tree. Pinning is what separates "the claim
+  # was wrong" from "the tree moved on", which an unpinned run cannot tell apart.
+  TREE_DIR="$(jqr '.tree_dir // empty')"
+  SPEC_SRC="$TASK_DIR/$(jqr '.spec')"
+  [ -f "$SPEC_SRC" ] || { echo "task.json .spec does not resolve: $SPEC_SRC" >&2; exit 66; }
+  mkdir -p "$STAGE_DIR/tree"
+  if [ -n "$TREE_DIR" ]; then
+    cp -R "$TASK_DIR/$TREE_DIR/." "$STAGE_DIR/tree/"
+  else
+    REPO="$(jqr '.repo_path // empty')"
+    if [ -z "$REPO" ]; then
+      ALIAS="$(jqr '.repo_alias // empty')"
+      [ -n "$ALIAS" ] || { echo "spec mode needs tree_dir, repo_alias, or local-only repo_path" >&2; exit 64; }
+      [ -f "$HERE/repos.local.json" ] || { echo "missing $HERE/repos.local.json — map alias '$ALIAS' to a local clone" >&2; exit 66; }
+      REPO="$(jq -r --arg a "$ALIAS" '.[$a] // empty' "$HERE/repos.local.json")"
+      [ -n "$REPO" ] || { echo "alias '$ALIAS' not mapped in $HERE/repos.local.json" >&2; exit 66; }
+    fi
+    BASE="$(jqr '.base_sha')"
+    git -C "$REPO" cat-file -e "${BASE}^{commit}" || { echo "base_sha absent in $REPO" >&2; exit 66; }
+    git -C "$REPO" archive "$BASE" | tar -x -C "$STAGE_DIR/tree"
+  fi
+  cp "$SPEC_SRC" "$STAGE_DIR/spec.md"
+  : > "$STAGE_DIR/changed-files.txt"
 else
   echo "unknown mode: $MODE" >&2; exit 64
 fi

@@ -28,6 +28,7 @@ done
 [ -n "$TASKS" ] || TASKS="$(jq -r '.tasks' "$RUN/spec.json")"
 MODULE="$(jq -r '.module' "$RUN/spec.json")"
 TARGET="$HERE/modules/$MODULE/target.json"
+PARSER="$(jq -r '.parser // "review-findings"' "$TARGET")"
 PASS_EXPR="$(jq -r '.pass_expr // "false"' "$TARGET")"
 NEG_EXPR="$(jq -r '.negative_pass_expr // "false"' "$TARGET")"
 
@@ -39,7 +40,7 @@ do_prep() {
     task_id="$(task_of "$trdir")"
     rubric="$TASKS/$task_id/rubric.json"
     [ -f "$rubric" ] || { echo "no rubric for $task_id — skipping" >&2; continue; }
-    python3 "$HERE/loop_lib.py" parse "$trdir"raw-*.json > "$trdir/findings.json"
+    python3 "$HERE/loop_lib.py" parse --parser "$PARSER" "$trdir"raw-*.json > "$trdir/findings.json"
     python3 "$HERE/loop_lib.py" judgeprompt "$rubric" "$trdir/findings.json" > "$trdir/judge-prompt.txt"
     echo "[prep] $task_id $(basename "$trdir"): $(jq 'length' "$trdir/findings.json") findings"
   done

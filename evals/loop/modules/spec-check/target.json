@@ -1,0 +1,22 @@
+{
+  "module": "spec-check",
+  "version": 1,
+  "parser": "spec-claims",
+  "facets": [
+    { "name": "claims", "criteria": [] }
+  ],
+  "assembly": {
+    "max_prompt_bytes": 614400,
+    "repo_rules_slot": false
+  },
+  "output_contract": {
+    "retry_regex": "### ",
+    "clean_regex": "## Claim Summary"
+  },
+  "pass_expr": ".recall_must == 1",
+  "negative_pass_expr": "(.noise_strict // 0) == 0 and (.plausible_real // 0) == 0",
+  "champion_sync": [
+    { "from": "skills/_shared/spec-challenge.md", "to": "reference/spec-challenge.md" }
+  ],
+  "screen_facets": ["claims"]
+}

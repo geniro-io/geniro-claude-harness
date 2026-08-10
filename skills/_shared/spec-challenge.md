@@ -56,7 +56,7 @@ The caller receives back:
 | ALTERNATIVES (§5) | no — the approach is not re-opened here | no — same |
 | RED-TEAM (§6) | yes | yes |
 | SYNTHESIZE (§7) | one judge: keep / keep-with-modifications / re-plan | one judge: clean / defects-found |
-| Verdict handling (§8) | fold keep-with-modifications fixes INTO the spec; verdict feeds the human approval gate | do NOT rewrite the spec; fire an AskUserQuestion only when a claim is refuted or a blocking red-team risk exists |
+| Verdict handling (§8) | fold keep-with-modifications fixes INTO the spec; verdict feeds the human approval gate | no rewrite except a user-elected fact correction (§8); fire an AskUserQuestion only when a claim is refuted or a blocking red-team risk exists |
 
 The asymmetry has one root cause: in plan mode the spec is a draft the calling skill owns and is about to harden before asking the human to approve it, so folding fixes in is correct. In implement mode the spec is the user's already-approved artifact and the durable file of an upstream producer — rewriting it would force a cross-producer schema lockstep and silently re-open a design decision the user already signed off on. Implement mode verifies FACTS and never re-opens the DESIGN.
 
@@ -173,7 +173,9 @@ One judge reads the §4 verification results and the §6 red-team findings, and 
 
 **plan mode.** The helper hardens the spec but does NOT approve it. On `keep-with-modifications`, the calling skill re-authors the affected spec sections to fold the fixes in and re-runs its own validator. On `re-plan`, the calling skill re-enters its approach-generation phase. The verdict then feeds the human approval gate — the human approves the hardened spec, not this helper.
 
-**implement mode.** Do NOT rewrite the spec — it is the user's approved artifact and rewriting an upstream producer's durable file would force a cross-producer schema lockstep. Verify FACTS; never re-open the approved DESIGN DECISION.
+**implement mode.** Do NOT rewrite the spec on your own initiative — it is the user's approved artifact, and an unasked rewrite re-opens a signed-off design and forces a cross-producer schema lockstep. Verify FACTS; never re-open the approved DESIGN DECISION.
+
+One carve-out, and only one: the user elects a fact correction at the `defects-found` question below. It is bounded to the refuted and clarified claims this pass produced — a citation that no longer resolves, a quantity that does not re-derive, a current-state assertion the code contradicts — and touches neither the approach, the scope, nor the step set. Apply it in place via `atomic_state_write`, then re-enter this helper with `SCOPE: changed-only` per §8.5: a corrected claim is new spec content, and content written after a pass is content no verifier has read. What stays forbidden is the silent rewrite — a correction nobody asked for, or one that changes what the spec DECIDED rather than what it ASSERTED.
 
 **Record every refuted claim in state.md, and keep recording them after this pass ends.** Not rewriting the spec is correct; leaving the refutation only in chat is not. Append one entry per refuted or clarified claim to the calling skill's state.md `## Spec Divergences` body section via `atomic_state_write`: the claim as the spec states it, what the code actually shows, and the evidence quote.
 
@@ -187,7 +189,8 @@ header: "Spec check"
 question: "Re-checking the approved spec against the current code turned up <N> issue(s): <one-line summary>. How do you want to proceed?"
 options:
   - "Proceed anyway"            -> ignore the findings, continue implementing as specified
-  - "Fix the spec, then proceed"-> hand back to /geniro:plan to repair the refuted claim(s), then resume
+  - "Correct the spec here, then proceed" -> apply the fact corrections to the spec in place, re-check
+                                   them per §8.5, and continue; facts only, never the approach
   - "Abort — re-plan via /geniro:plan" -> stop; the approach needs rethinking before any code is written
 ```
 
@@ -195,7 +198,7 @@ Persist the pick to the calling skill's state.md `approvals[]` so a compaction-r
 
 ## 8.5 Re-entry — a spec that changed after a pass owes another one
 
-**Every edit to spec content re-enters this helper with `SCOPE: changed-only` before the spec reaches an approval gate.** That covers all three edit paths: the keep-with-modifications fixes this helper's own verdict folds in, the calling skill's validator auto-revision rounds, and each round of user-requested changes at the approval gate.
+**Every edit to spec content re-enters this helper with `SCOPE: changed-only`.** That covers all four edit paths: the keep-with-modifications fixes this helper's own verdict folds in, the calling skill's validator auto-revision rounds, each round of user-requested changes at the approval gate, and the user-elected fact correction in implement mode (§8). The first three run before an approval gate; the fourth runs before the first Edit/Write, which is the same bar — content the user is about to act on that no verifier has read.
 
 The rule exists because the two checks are not interchangeable and only one of them was re-running. A structural validator re-reads shape — sections present, citations formatted, schema keys complete — and a re-authored spec passes it trivially, because re-authoring preserves shape by construction. Nothing in that pass reads code. So a spec could be fact-checked once, then legitimately rewritten (by this helper's own fixes, or by up to three rounds of user revisions), and reach approval with every added sentence unverified while reporting a clean validator. Observed outcome: a red-team verdict forces a spec rewrite, and the **newly authored** step — the one written in response to the strongest objection, and therefore the least examined — is the step the implementation later refutes.
 
@@ -222,7 +225,7 @@ On a clean implement-mode pass, the final line is the only user-visible output: 
 | "The spec was just written/approved, so its claims are probably correct — confirm them." | "Probably correct" is the exact posture the pass refutes. The three defects that motivated this pass all lived in an approved spec that read as plausible. Re-read the cited code; a claim survives only when the code bears it out. |
 | "Verifying every cited claim is too many spawns — sample the load-bearing ones." | The claim set is already pre-bounded to file:line citations + assumptions + estimates, and same-file claims already share spawns (§4 Spawn batch), so spawn count is sub-linear in claim count. Wall-time is ~max(spawn-time) because the batch is parallel. Sampling reintroduces the miss the pass eliminates. |
 | "A verifier said the claim looks consistent — that's a confirm." | "Looks consistent" is a paraphrase, not evidence. The output contract requires a literal quote from the cited file. Refuse the paraphrase-only verdict and re-prompt — the evidence standard forbids reasoning-as-evidence. |
-| "In implement mode a claim is refuted, so I'll just fix the spec and keep going." | Implement mode does not rewrite the user's approved spec — that re-opens a signed-off design and forces a producer-schema lockstep. Fire the AskUserQuestion and let the user choose proceed / fix-via-plan / abort. The helper verifies facts; the user owns the design. |
+| "In implement mode a claim is refuted, so I'll just fix the spec and keep going." | Fixing it is the user's call, not yours: fire the AskUserQuestion and let them choose proceed / correct / abort. A correction made unasked is the silent rewrite the mode forbids — it re-opens a signed-off artifact with nobody seeing the change. When the user DOES elect one, it is bounded to the refuted and clarified facts and re-enters this helper per §8.5. The helper verifies facts; the user owns the design either way. |
 | "The implement-mode pass came back clean — I'll surface a confirmation question anyway." | A question with nothing to decide is noise and breaks the always-WAIT-restraint norm. On a clean pass, emit the silent advisory line and proceed. Reserve the AUQ for a real refuted-claim-or-blocking-risk decision. |
 | "I'll fold the keep-with-modifications fixes in plan mode but skip re-running the validator." | The calling skill's validator is what guarantees the folded edits did not break the spec's schema. Skipping it ships an unvalidated spec into the human approval gate, defeating the harden-before-approve purpose. Re-run it after folding. |
 | "The chosen approach may not be the best one — generate two competitors here and score them head-to-head." | Not this pass's job (§5). The caller's approach phase already searched the field with the user present and a codebase-grounded critic weighing feasibility; by here the user has picked an approach and approved the sections resting on it. Competitors invented at the last gate re-open a settled decision on a rubric rather than on evidence, and cost the most on exactly the runs that need this pass least. A `re-plan` still fires — off a refuted load-bearing claim or a blocking red-team finding. |
@@ -238,5 +241,5 @@ The stages above define the procedure; these are the exit gates that stay checka
 - [ ] Every extracted claim got its own verdict from the parallel verifier batch (claims clustered per §4 Spawn batch, all spawns in ONE assistant response), each verifier seeing only its cluster's isolated slices — and every returned verdict carries a literal quote from the cited file, never a paraphrase.
 - [ ] Every red-team finding is anchored to a file:line or a §4 result; an unanchorable one was dropped rather than reported.
 - [ ] plan mode: keep-with-modifications fixes are folded into the spec, the calling skill re-ran its validator afterwards, and this helper issued no approval.
-- [ ] implement mode: the spec is byte-identical to what it was on entry; the proceed / fix / abort AUQ fired only on `defects-found`, and its pick is in `approvals[]`.
+- [ ] implement mode: the spec is byte-identical to what it was on entry, except where the user elected a fact correction — each such edit stayed inside the refuted-and-clarified set and re-entered this helper with `SCOPE: changed-only`. The proceed / correct / abort AUQ fired only on `defects-found`, and its pick is in `approvals[]`.
 - [ ] One plain-English echo line per stage that ran.
