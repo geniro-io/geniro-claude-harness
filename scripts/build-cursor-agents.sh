@@ -22,51 +22,26 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${1:-$REPO_ROOT/cursor/agents}"
 mkdir -p "$OUT_DIR"
 
-# Tier mapping, Claude Code -> Cursor. The two runtimes name models differently
-# and Cursor's roster changes constantly (193 ids as of 2026-08), so nothing here
-# names a model: the mapping is between INTENTS.
+# Tier mapping, Claude Code -> Cursor. This is the mechanical half of the table
+# in skills/_shared/model-tiering.md §Runtime resolution — read it there for the
+# rationale and for the measured caveat about whether Cursor honors a subagent's
+# declared model at all. Nothing here names a model id: the mapping is between
+# INTENTS, and a pinned id rots with Cursor's roster.
 #
-#   inherit (or unset) -> inherit
-#       Judgment-grade spawns. `model-tiering.md` §The rule keeps these on the
-#       tier the USER chose; Cursor's `inherit` means exactly that.
+#   inherit (or unset) -> inherit   judgment-grade; the tier the USER chose
+#   sonnet | haiku     -> auto      mechanical carve-outs (model-tiering.md cat 3)
+#   anything else      -> build error
 #
-#   any concrete tier  -> auto
-#       The mechanical carve-outs (`model-tiering.md` category 3 — currently
-#       knowledge-retrieval-agent and test-runner-agent, which declare a cheaper
-#       tier in their own frontmatter). `auto` is Cursor's built-in selector,
-#       the first entry in `cursor-agent --list-models` and its documented
-#       default: a server-side classifier picks the model per task. That is the
-#       closest honest expression of "this workload is mechanical, spend
-#       accordingly" WITHOUT pinning a model id — which is what we want, since a
-#       pinned id rots with Cursor's roster and, when it is unavailable or
-#       blocked by a team policy, Cursor silently falls back to something else.
-#
-# Note `auto` is "Cursor decides", not "always cheaper": a session already
-# running a cheap model could see `auto` pick something dearer. It is the right
-# semantic for a mechanical agent regardless — the point is that the tier stops
-# being the user's reasoning-grade choice.
-#
-# MEASURED 2026-08-10, and the result is a caveat, not a confirmation. Probing
-# `cursor-agent` 2026.08.04 directly:
-#   - `auto` is a real, accepted selector and does route DOWN. A trivial ask on
-#     `--model auto` answered `> Auto routed to Cursor Grok 4.5`.
-#   - But a subagent's frontmatter `model:` was IGNORED. With the parent pinned
-#     to `composer-2.5` and a probe subagent declaring `model: auto`, the CLI
-#     spawned it with `model="composer-2.5-fast"` — derived from the parent, not
-#     from the declaration.
-# So in that CLI this mapping is currently a NO-OP. It is kept because it is the
-# documented field and becomes correct the moment the field is honored, and
-# because it costs nothing — but do NOT credit it with any saving until a probe
-# shows a subagent actually running off its declaration. The probe was the CLI
-# only; the Cursor IDE was not tested and may well differ.
-#
-# What DOES work today, and is worth telling a Cursor user: subagents follow the
-# parent, so setting the SESSION model to `auto` gets auto-routing everywhere,
-# mechanical spawns included.
+# The error branch matters: "stronger than the session tier" has no Cursor
+# selector, so mapping an `opus` declaration to `auto` would silently invert it.
+# Category 3 pins nothing above sonnet, so this fires only on a doctrine breach.
 cursor_model_for() {
   case "${1:-}" in
-    ""|inherit) echo "inherit" ;;
-    *)          echo "auto" ;;
+    ""|inherit)   echo "inherit" ;;
+    sonnet|haiku) echo "auto" ;;
+    *)
+      echo "ERROR: agent declares model: $1 — no Cursor selector expresses a tier above the session's without pinning a model id (skills/_shared/model-tiering.md §Runtime resolution). Fix the declaration." >&2
+      exit 1 ;;
   esac
 }
 
@@ -97,12 +72,17 @@ for src in "$REPO_ROOT"/agents/*.md; do
   fi
   body="$(awk '/^---$/{c++; next} c>=2' "$src")"
   declared_model="$(awk '/^---$/{c++; next} c==1 && /^model:[[:space:]]*/ {sub(/^model:[[:space:]]*/,""); gsub(/[[:space:]"'"'"']/,""); print; exit}' "$src")"
+  # Resolved outside the redirected block below: a failure inside `{ … } > file`
+  # is swallowed by the enclosing command's status, which would emit an empty
+  # `model:` instead of stopping the build.
+  cursor_model="$(cursor_model_for "$declared_model")" || {
+    echo "  (declared in $src)" >&2; exit 1; }
 
   {
     printf -- '---\n'
     printf 'name: %s\n' "$name"
     printf '%s\n' "$description_line"
-    printf 'model: %s\n' "$(cursor_model_for "$declared_model")"
+    printf 'model: %s\n' "$cursor_model"
     printf 'readonly: %s\n' "$(readonly_for "$name")"
     printf -- '---\n'
     printf '<!-- Generated from agents/%s by scripts/build-cursor-agents.sh. Edit the source and re-run; do not edit this copy. -->\n\n' "$base"

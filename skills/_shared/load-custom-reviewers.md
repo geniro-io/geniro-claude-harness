@@ -32,7 +32,7 @@ A list of **spawn-specs** — one dict per surviving custom reviewer — with th
 
 - `slug` (string) — the reviewer's slug from frontmatter
 - `dimension-label` (string) — `custom:<slug>` — used as the DIMENSION value in the spawn prompt
-- `model` (string) — one of `haiku`, `sonnet`, `opus`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; user-explicit values are honored as-is per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` user-authored carve-out)
+- `model` (string) — one of `haiku`, `sonnet`, `opus`, `auto`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; user-explicit values are honored as-is per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` user-authored carve-out. `auto` is the non-Claude-host selector from that file's §Runtime resolution — accepted here so a Cursor user can declare a tier at all)
 - `criteria-content` (string) — the body of the .md file (everything after the closing `---` of the frontmatter)
 - `severity-default` (string or null) — one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, or null when unset
 - `requires-context` (string or null) — the verbatim `requires-context:` frontmatter directive (natural-language description of the live external data the reviewer needs the orchestrator to fetch), or null when unset
@@ -72,7 +72,7 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 3. The `slug:` value matches a reserved dimension name (case-insensitive): the built-ins `bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, plus the reserved names `guidelines` and `rules-compliance`.
 4. The `slug:` value does not match the regex `^[a-z][a-z0-9-]*$`.
 5. The `description:` field is missing OR empty.
-6. The `model:` field is present and is not in `{haiku, sonnet, opus, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)
+6. The `model:` field is present and is not in `{haiku, sonnet, opus, auto, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)
 7. The `severity-default:` field is present and is not in `{CRITICAL, HIGH, MEDIUM, LOW}`.
 8. The `paths:` field is present and is not a non-empty list of non-empty strings.
 9. The body section (after the frontmatter) is empty OR contains fewer than 5 non-blank lines.
@@ -119,6 +119,7 @@ For each spec the helper returns, the consumer skill appends one `Agent()` call 
 
 - When `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument entirely. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit` directive.
 - When `spec.model ∈ {haiku, sonnet, opus}` (the user explicitly declared a tier in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. User-explicit override beats inherit.
+- When `spec.model == "auto"` → PASS `model="auto"` under a host whose spawn facility takes it (Cursor); under Claude Code there is no such selector, so OMIT the argument and treat it as `inherit`. Either way the user's intent — "let the host pick" — is honored rather than silently replaced by a tier of ours.
 
 Inherit form (default — user did not declare `model:`):
 
@@ -140,7 +141,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """)
 ```
 
-User-explicit form (user declared `model: haiku|sonnet|opus` in custom-reviewer frontmatter): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=`.
+User-explicit form (user declared `model: haiku|sonnet|opus`, or `auto` on a host that takes it): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=`.
 
 The DIMENSION value uses the literal form `custom:<slug>` so that the reviewer-agent's output naturally carries the source — the agent emits findings under `## custom:<slug> Review — N findings` and the orchestrator's Phase 4 judge pass picks the source up directly from that header. No new finding-output fields are required.
 

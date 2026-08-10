@@ -15,6 +15,9 @@
 #   2. Every agent declaring `model: inherit` still emits `inherit`. Mapping a
 #      judgment-grade spawn to `auto` would override the user's `/model` choice
 #      — the paternalism anti-pattern in model-tiering.md §Anti-rationalization.
+#   3. A tier the mapping cannot express (anything above the session's, i.e.
+#      `opus`) aborts the build. Silently sending it to `auto` would invert the
+#      declaration — a downgrade where the author asked for an upgrade.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -85,11 +88,35 @@ done
 sed -n '/^cursor_model_for()/,/^}/p' "$REPO_ROOT/scripts/build-cursor-agents.sh" > "$TMP/mapfn.sh"
 # shellcheck disable=SC1091
 . "$TMP/mapfn.sh"
-DERIVED="$(cursor_model_for haiku),$(cursor_model_for sonnet),$(cursor_model_for opus),$(cursor_model_for inherit),$(cursor_model_for)"
-if [ "$DERIVED" = "auto,auto,auto,inherit,inherit" ]; then
+DERIVED="$(cursor_model_for haiku),$(cursor_model_for sonnet),$(cursor_model_for inherit),$(cursor_model_for)"
+if [ "$DERIVED" = "auto,auto,inherit,inherit" ]; then
   pass "mapping is computed from the declared tier, so a new carve-out needs no script edit"
 else
-  fail "cursor_model_for produced: $DERIVED (expected auto,auto,auto,inherit,inherit)"
+  fail "cursor_model_for produced: $DERIVED (expected auto,auto,inherit,inherit)"
+fi
+
+# --- a tier Cursor cannot express must stop the build, not map silently.
+#     `opus` means "stronger than the session"; mapping it to `auto` would
+#     invert the declaration, which is worse than refusing to build. ---
+if (cursor_model_for opus) >/dev/null 2>&1; then
+  fail "cursor_model_for accepted 'opus' — a stronger-than-session tier mapped to a selector silently"
+else
+  pass "an inexpressible tier (opus) fails the build instead of mapping silently"
+fi
+
+# --- and the whole build fails, not just the helper: the mapping is resolved
+#     outside the redirected block that writes the agent file, so the failure
+#     cannot be swallowed into an empty `model:` field ---
+FAKE="$TMP/fakerepo"
+mkdir -p "$FAKE/agents" "$FAKE/scripts"
+cp "$REPO_ROOT/scripts/build-cursor-agents.sh" "$FAKE/scripts/"
+printf -- '---\nname: probe-agent\ndescription: probe\nmodel: opus\n---\n\nbody\n' > "$FAKE/agents/probe-agent.md"
+if bash "$FAKE/scripts/build-cursor-agents.sh" "$TMP/fakeout" >/dev/null 2>&1; then
+  fail "build succeeded with an opus-declaring agent"
+elif [ -s "$TMP/fakeout/probe-agent.md" ]; then
+  fail "build failed but still wrote $(grep -m1 '^model:' "$TMP/fakeout/probe-agent.md")"
+else
+  pass "an opus-declaring agent aborts the build without writing a partial file"
 fi
 
 echo
