@@ -84,7 +84,7 @@ Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHu
 
 Shared rules consumed by this skill:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — the loop's spine: the HARD-GATE, the gate presentation contract, the echo contract, terminal states, and the §Phase files table naming the `loop-phase-<N>-<name>.md` file that holds each phase's steps (Phases 0–9, plus the conditional Phase 0.5 problem-discovery, Phase 2 Visual Companion on UI trigger, and Phase 7.5 spec-challenge on Big effort tier or `--deep`). The Phase 0 mode / empty-argument AUQs live in `loop-phase-0-mode-detect.md` §0.1–§0.2.
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — the loop's spine: the HARD-GATE, the gate presentation contract, the echo contract, terminal states, and the §Phase files table naming the `loop-phase-<N>-<name>.md` file that holds each phase's steps (Phases 0–9, with Phase 2 Visual Companion the one conditional phase — it fires on the UI trigger). The Phase 0 mode / empty-argument AUQs live in `loop-phase-0-mode-detect.md` §0.1–§0.2.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — Recommended-label policy for the Phase 4 approach AUQ + multi-select picker schema for Phase 5 milestone-name approval.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.

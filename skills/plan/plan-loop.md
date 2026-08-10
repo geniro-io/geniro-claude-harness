@@ -2,7 +2,7 @@
 
 Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase order, the gates that bind every phase, and a pointer to the file holding each phase's steps. This file plus the phase files it names are the single source of truth for the loop. Skills cite them; do NOT inline-paste the loop logic.
 
-**How to run the loop.** Read this spine at entry; Read a phase's steps file on entry to that phase, not up front. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this loop's gates and its helper call sites, so work started before the Read runs outside them. Pre-loading every phase file pays the whole loop to run one phase, and Claude Code re-attaches only a skill's front-loaded prefix after a summary — so what a pre-load spends its budget losing is the gates below. Read a conditional phase's file (0.5, 2, 7.5) only once its trigger fires. Each phase file ends by naming the next `phase:` value; look it up in §Phase files and Read that one. On a compaction resume, re-Read this spine plus the current phase's file.
+**How to run the loop.** Read this spine at entry; Read a phase's steps file on entry to that phase, not up front. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this loop's gates and its helper call sites, so work started before the Read runs outside them. Pre-loading every phase file pays the whole loop to run one phase, and Claude Code re-attaches only a skill's front-loaded prefix after a summary — so what a pre-load spends its budget losing is the gates below. Read Phase 2's file only once its UI trigger fires. Each phase file ends by naming the next `phase:` value; look it up in §Phase files and Read that one. On a compaction resume, re-Read this spine plus the current phase's file.
 
 ## Contents
 
@@ -26,7 +26,7 @@ Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase
 
 ## Gate presentation contract
 
-Every gate that presents rich, multi-part content — Phase 0.5 problem-discovery, Phase 3 grill questions, Phase 4 approaches, Phase 5 section approval, Phase 8 final approval — follows a two-step shape: **render to chat first, then fire a lean question.**
+Every gate that presents rich, multi-part content — Phase 3 grill questions, Phase 4 approaches, Phase 5 section approval, Phase 8 final approval — follows a two-step shape: **render to chat first, then fire a lean question.**
 
 1. **Render the content as a SEPARATE chat message FIRST.** Write the full detail to chat as its own already-emitted assistant message, in the Visual rendering language below — full width, persists in scrollback, and it is where the user reads and understands the plan. It must exist before the question fires, and the render and the AUQ tool call must never share one assistant turn; the separate-message rule and its rationale are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering.
 
@@ -82,7 +82,6 @@ Each phase's steps live in its own file under `${CLAUDE_PLUGIN_ROOT}/skills/plan
 | Phase | state.md `phase:` | Fires | Steps file |
 |---|---|---|---|
 | 0 Mode detect | `mode-detect` | always | `loop-phase-0-mode-detect.md` |
-| 0.5 Problem discovery | `problem-discovery` | only when `prd_mode: true` (the `--prd` flag) | `loop-phase-0.5-problem-discovery.md` |
 | 1 Explore | `explore` | always | `loop-phase-1-explore.md` |
 | 2 Visual Companion | `visual-companion` | only when the §2.1 UI trigger matches | `loop-phase-2-visual-companion.md` |
 | 3 Grill | `clarify` | always, except the §1.5 Trivial skip (which drops Phases 2 + 3) | `loop-phase-3-grill.md` |
@@ -90,7 +89,7 @@ Each phase's steps live in its own file under `${CLAUDE_PLUGIN_ROOT}/skills/plan
 | 5 Section approval | `section-approve` | always | `loop-phase-5-section-approval.md` |
 | 6 Write spec.md | `write-spec` | always | `loop-phase-6-write-spec.md` |
 | 7 Mechanical validator | `validate` | always | `loop-phase-7-validator.md` |
-| 7.5 Spec challenge | `spec-challenge` | only when the Phase 1.2 effort tier is Big OR state.md has `deep-mode: true` | `loop-phase-7.5-spec-challenge.md` |
+| 7.5 Spec challenge | `spec-challenge` | always | `loop-phase-7.5-spec-challenge.md` |
 | 8 User approval | `user-approve` | always | `loop-phase-8-user-approval.md` |
 | 9 Handoff | `handoff` | always | `loop-phase-9-handoff.md` |
 
@@ -106,10 +105,6 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 ## Phase 0 — Mode detect
 
 `phase: mode-detect`. Steps in `loop-phase-0-mode-detect.md`: §0.1 $ARGUMENTS + opt-in-flag + launch-modifier resolution · §0.2 DESIGN_DOC mode AUQ · §0.2.5 visual-artifact opt-in · §0.3 task-dir + state.md creation · §0.4 cancel handling.
-
-## Phase 0.5 — Problem discovery (opt-in, fires only on `--prd`)
-
-`phase: problem-discovery`. Steps in `loop-phase-0.5-problem-discovery.md`: §0.5.1 interview dimensions · §0.5.2 persistence · §0.5.3 feed-forward · §0.5.4 transition.
 
 ## Phase 1 — Explore
 
@@ -141,7 +136,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 7.5 — Spec challenge
 
-`phase: spec-challenge`. Steps in `loop-phase-7.5-spec-challenge.md`: §7.5.1 invoke the challenge helper · §7.5.2 verdict handling · §7.5.3 advisory + fail-open. §7.4 owns the gate that decides whether this phase is entered at all.
+`phase: spec-challenge`. Steps in `loop-phase-7.5-spec-challenge.md`: §7.5.1 invoke the challenge helper · §7.5.2 verdict handling · §7.5.3 advisory + fail-open.
 
 ## Phase 8 — User approval
 

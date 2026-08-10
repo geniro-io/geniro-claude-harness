@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Suite for lib/validate-plan-spec.sh — the mechanical half of the
-# /geniro:plan Phase 7 validator (checks 1, 2, 4, 6, 7, 10, 11, 12, 13).
+# /geniro:plan Phase 7 validator (checks 1, 2, 4, 6, 7, 10, 11, 12, 13, 14).
 #
 # Run: bash tests/plan/validate-plan-spec.sh
 # Exits non-zero on any failure.
@@ -73,6 +73,7 @@ reset_spec() {
 - [ ] 5. Add telemetry counters in `src/telemetry/aggregate.ts:120`. <!-- step-5 -->'
   SEC7='- `pnpm`
 - `gh`'
+  TIER='medium'
   EXTRA_SECTION='## Considered Alternatives
 
 - In-process Promise.all — memory spike on large datasets.'
@@ -91,7 +92,7 @@ geniro_kind: design-doc
 geniro_schema_version: $SCHEMA_VER
 task_slug: backfill
 mode: IDEA
-effort_tier: medium
+effort_tier: $TIER
 lifecycle: draft
 $WFREFS
 $BUDGET_BLOCK
@@ -188,10 +189,10 @@ mkdir -p "$WF_DIR"
 reset_spec
 mk_spec base.md
 rows="$(bash "$HELPER" base.md 2>/dev/null)"
-if [ "$(printf '%s\n' "$rows" | grep -c .)" -eq 9 ]; then
-  pass "clean spec emits one row per mechanical check (9 rows)"
+if [ "$(printf '%s\n' "$rows" | grep -c .)" -eq 10 ]; then
+  pass "clean spec emits one row per mechanical check (10 rows)"
 else
-  fail "clean spec emitted $(printf '%s\n' "$rows" | grep -c .) rows, expected 9"
+  fail "clean spec emitted $(printf '%s\n' "$rows" | grep -c .) rows, expected 10"
 fi
 if [ "$(printf '%s\n' "$rows" | awk -F'\t' '$2 != "pass"' | grep -c .)" -eq 0 ]; then
   pass "clean spec: every mechanical check passes"
@@ -202,7 +203,7 @@ expect_rc base.md 0 "clean spec exits 0"
 
 # Row shape: four TAB-separated fields, in check-number order.
 order="$(printf '%s\n' "$rows" | cut -f1 | tr '\n' ' ')"
-if [ "$order" = "single_objective bounded_scope allowed_tools budget checkpoints placeholder_scan schema_completeness workflow_refs_consistency launch_config_consistency " ]; then
+if [ "$order" = "single_objective bounded_scope allowed_tools budget checkpoints placeholder_scan schema_completeness workflow_refs_consistency launch_config_consistency effort_tier " ]; then
   pass "rows are emitted in check-number order"
 else
   fail "row order drifted: $order"
@@ -350,7 +351,12 @@ expect_status schema-extra.md schema_completeness fail "a top-level section outs
 reset_spec; EXTRA_SECTION='## Problem & Evidence
 
 **Problem:** counts drift after retroactive edits.'; mk_spec schema-prd.md
-expect_status schema-prd.md schema_completeness pass "the PRD-only optional section is allowed"
+expect_status schema-prd.md schema_completeness fail "a retired optional section is no longer allowed"
+
+reset_spec; EXTRA_SECTION='## Comment Resolution Map
+
+- comment 1 -> step 2'; mk_spec schema-crm.md
+expect_status schema-crm.md schema_completeness pass "the resolve-only optional section is allowed"
 
 reset_spec; EXTRA_SECTION=''; mk_spec schema-min.md
 expect_status schema-min.md schema_completeness pass "no optional sections at all is still complete"
@@ -453,6 +459,26 @@ reset_spec; LAUNCH='launch_config:
   branch_freshness: rebase
   ship_mode: draft-pr'; mk_spec lc-case.md
 expect_status lc-case.md launch_config_consistency fail "enum membership is case-sensitive"
+
+# ---------------------------------------------------------------------------
+# 14. effort_tier
+# ---------------------------------------------------------------------------
+
+for t in trivial small medium big; do
+  reset_spec; TIER="$t"; mk_spec "tier-$t.md"
+  expect_status "tier-$t.md" effort_tier pass "$t is a legal tier"
+done
+
+reset_spec; TIER='Trivial'; mk_spec tier-case.md
+expect_status tier-case.md effort_tier fail "tier enum membership is case-sensitive"
+
+reset_spec; TIER='huge'; mk_spec tier-unknown.md
+expect_status tier-unknown.md effort_tier fail "a tier outside the enum"
+
+reset_spec; mk_spec tier-absent.md
+sed '/^effort_tier:/d' tier-absent.md > tier-absent.tmp && mv tier-absent.tmp tier-absent.md
+expect_status tier-absent.md effort_tier fail "an absent effort_tier"
+expect_rc tier-absent.md 1 "an absent effort_tier fails the run"
 
 # ---------------------------------------------------------------------------
 # API surface: exit codes, sourcing, direct execution

@@ -8,7 +8,6 @@ State.md `phase: mode-detect` during this phase. Light cost — a single design-
 
 **Opt-in flag detection.** Strip every recognized flag token from `$ARGUMENTS` before passing the remaining text to mode detection. state.md does not exist yet — it is created in §0.3 — so write no frontmatter here; carry each detected flag forward and write its field into the INITIAL frontmatter at the §0.3 creation step. The flags are orthogonal; any combination may be passed.
 
-- **`--prd`** → `prd_mode: true`. Turns on the Phase 0.5 problem-discovery interview and the spec's optional `## Problem & Evidence` body section. Absent: `prd_mode` stays unset and Phase 0.5 is skipped.
 - **`--deep`** (semantic-parse `--deep` / `deep` / `deep mode`) → `deep-mode: true` (false/omitted when absent), plus an `approvals[]` entry with category `deep_mode_choice`. Deepens Phase 4 (judge-panel approach search + 3× feasibility critics) and Phase 7.5 (3× claim verification) per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`. Absent: those phases run their standard single-pass paths unless the user picks Deep at the Phase 3 wrap-up depth question (rules + AUQ shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2a).
 - **`--artifact`** → `artifact_mode: true` + `artifact_status: pending`. Turns on the live visual plan artifact (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) and IS the opt-in, so §0.2.5 skips its question. Absent: the §0.2.5 question decides whether artifact mode turns on.
 
@@ -32,7 +31,7 @@ Fire `AskUserQuestion` with:
 - `header`: "Existing design doc"
 - `question`: "Design doc already exists at `<path>`. What now?"
 - `options[]` (single-select, 2 options):
- - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run the full planning loop (Phases 0–9 plus the Phase 7.5 spec-challenge when its tier/deep gate fires; Phase 2 fires only when the UI trigger matches per §"Phase 2 — Visual Companion"); emit a new spec.md at a fresh task-dir.
+ - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run the full planning loop (Phases 0–9; Phase 2 fires only when the UI trigger matches per §"Phase 2 — Visual Companion"); emit a new spec.md at a fresh task-dir.
  - **Cancel** — exit without writing state.md.
 
 **On "Start fresh"** → flow to Phase 1 with the doc body inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. The doc is NOT used as section template; Phase 5 uses the fixed section schema unconditionally.
@@ -53,8 +52,8 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `prd_mode: true` when the `--prd` flag was present in §0.1, omitted otherwise; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); plus `artifact_mode: true` and `artifact_status: pending` written together when artifact mode is on (the `--artifact` flag was present OR the §0.2.5 opt-in answered Yes), both omitted otherwise; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
-4. **Transition.** Branch on the `--prd` flag from §0.1: when it was present, set `phase: problem-discovery` via `atomic_state_write` and proceed to Phase 0.5; otherwise set `phase: explore` and proceed to Phase 1. Phase 0.5 itself sets `phase: explore` on completion (§0.5.4), so a `--prd` run flows through problem-discovery then rejoins the normal loop at Phase 1.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); plus `artifact_mode: true` and `artifact_status: pending` written together when artifact mode is on (the `--artifact` flag was present OR the §0.2.5 opt-in answered Yes), both omitted otherwise; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+4. **Transition.** Set `phase: explore` via `atomic_state_write` and proceed to Phase 1.
 
 ### 0.4 Cancel handling
 

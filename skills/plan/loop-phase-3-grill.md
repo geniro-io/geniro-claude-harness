@@ -12,7 +12,6 @@ Build the tree from:
 - Phase 1 research findings ("found 3 auth flows — which one is the integration surface?")
 - L2 query-learnings ("a prior decision favored Approach X — does it apply here?")
 - L4 code-style rules
-- the Phase 0.5 problem framing when `--prd` was passed
 
 Root = the feature. Branches = its major design axes (data model, integration surface, failure handling, UX, scope edges). A child decision that only matters under a particular parent answer hangs off that parent.
 
@@ -20,7 +19,7 @@ Root = the feature. Branches = its major design axes (data model, integration su
 
 **Terminology check.** When CLAUDE.md carries a Domain Context glossary, check the topic's and each answer's domain terms against it — a plan authored with mismatched vocabulary produces a spec /geniro:implement builds wrong. On a conflict ("the glossary defines *cancellation* as void-before-capture; this answer uses it as refund-after-capture"), surface it as the next grill question rather than silently picking a meaning. When a term is fuzzy or overloaded ("account" — the Customer or the User?), propose one canonical term and use it for the rest of the run.
 
-**Grill early during the explore wait.** When the §1.2 explore agents were backgrounded, the orchestrator MAY fire the code-independent grill branches early — during that wait — per Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`. Eligible early: branches sourced from L2 learnings, L4 rules, the `--prd` problem framing, and task-generic scope edges (feature-flag / rollout / in-scope-surface) — questions the code cannot answer. HELD until the §1.5 drain: the Phase-1-findings-derived branch and anything L3 `_project.md` could answer — exactly the "Codebase-first" forbidden set, whose complement is the safe overlap set. Ask each early question one at a time per §3.2 and persist to `approvals[]`; Phase 3 regenerates its tree skipping the already-answered branches (never re-ask). If no code-independent question exists, wait for the drain.
+**Grill early during the explore wait.** When the §1.2 explore agents were backgrounded, the orchestrator MAY fire the code-independent grill branches early — during that wait — per Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`. Eligible early: branches sourced from L2 learnings, L4 rules, and task-generic scope edges (feature-flag / rollout / in-scope-surface) — questions the code cannot answer. HELD until the §1.5 drain: the Phase-1-findings-derived branch and anything L3 `_project.md` could answer — exactly the "Codebase-first" forbidden set, whose complement is the safe overlap set. Ask each early question one at a time per §3.2 and persist to `approvals[]`; Phase 3 regenerates its tree skipping the already-answered branches (never re-ask). If no code-independent question exists, wait for the drain.
 
 **Walk depth-first.** Pick the highest-leverage unresolved branch, drill it to its leaves in parent→child order, then backtrack to the next branch. Depth-first keeps each line of questioning coherent instead of scattering across unrelated axes.
 
@@ -51,6 +50,8 @@ At a checkpoint, render a running summary to a chat message — resolved decisio
 
 Persist each checkpoint decision to `approvals[]` category `grill_checkpoint` via `atomic_state_write` before continuing.
 
-**Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. On termination, render a closing summary — resolved decisions, deferred work, and any unaddressed risks — and hold it in context: it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition). Then ask the planning-depth question (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2a) when `--deep` is absent, and transition to Phase 4. The checkpoint and termination summary templates are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
+**Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. On termination, render a closing summary — resolved decisions, deferred work, and any unaddressed risks — and hold it in context: it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition).
+
+**Every branch that closes without an answer becomes a written assumption.** Carry each one into the closing summary as a checkable predicate about the code or the environment — "the `users` table has a `deleted_at` column", not "auth is handled elsewhere" — and hold that list for Phase 5 to author into spec section 4. A branch left open is a decision the plan makes silently, and an unwritten one is invisible to every gate that follows: the Phase 7.5 challenge verifies section 4 assumptions claim by claim against the code, so a predicate written down gets checked and one kept in context does not. Then ask the planning-depth question (`${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2a) when `--deep` is absent, and transition to Phase 4. The checkpoint and termination summary templates are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §2.
 
 **Artifact** — on termination, fire the update for this site (call-site table in `loop-artifact-call-sites.md`).

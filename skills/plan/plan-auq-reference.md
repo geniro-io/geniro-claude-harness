@@ -33,7 +33,7 @@ The frontmatter field set is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKI
 ## Open Questions
 ```
 
-Four further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections approved in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered), `## Problem Framing` (Phase 0.5, when `--prd` was passed), `## Considered Alternatives` (Phase 4.4).
+Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections approved in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered), `## Considered Alternatives` (Phase 4.4).
 
 ### `approvals[]` entry shape — every gate below writes this
 

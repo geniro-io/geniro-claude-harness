@@ -4,7 +4,7 @@ description: "Use when turning a vague idea or feature request into an approved 
 context: main
 model: inherit
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite, Workflow]
-argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
+argument-hint: "<topic-string-or-design-doc-path> [--deep] [--artifact]"
 ---
 
 # /geniro:plan — spec-first planning
@@ -23,7 +23,7 @@ argument-hint: "<topic-string-or-design-doc-path> [--prd] [--deep] [--artifact]"
 
 ---
 
-Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical planning loop (Phases 0–9 plus the conditional Phase 0.5 problem-discovery and the Phase 7.5 spec-challenge, which fires on Big effort tier or `--deep`; Phase 2 Visual Companion is UI-conditional — fires only when the UI trigger matches). The loop is a tree of files: its spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`, and each phase's steps live in a sibling `loop-phase-<N>-<name>.md` read on entry to that phase.
+Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consume directly. This skill is a thin wrapper around the canonical planning loop (Phases 0–9, including the Phase 7.5 spec-challenge on every run; Phase 2 Visual Companion is the one conditional phase — it fires only when the UI trigger matches). The loop is a tree of files: its spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`, and each phase's steps live in a sibling `loop-phase-<N>-<name>.md` read on entry to that phase.
 
 **Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve it before following any reference: the plugin root is the ancestor directory of this file containing `.claude-plugin/plugin.json` — substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here — it substitutes mechanisms, not steps.
 
@@ -37,7 +37,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
-**Flags & presets:** `--prd`, `--deep`, `--artifact`, and the launch modifiers (workspace / ship / `freshness:`) that pre-fill the spec's `launch_config` are cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+**Flags & presets:** `--deep`, `--artifact`, and the launch modifiers (workspace / ship / `freshness:`) that pre-fill the spec's `launch_config` are cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
 
 ---
 
@@ -59,7 +59,7 @@ The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Pha
 ## Phase structure
 
 ```
-mode-detect → [problem-discovery: --prd only] → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → [spec-challenge: Big tier or --deep] → user-approve → handoff → done
+mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → spec-challenge → user-approve → handoff → done
 ```
 
 Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve; visual-companion "Adjust the plan instead" re-enters explore; a Phase 7.5 `re-plan` verdict re-enters approaches.
@@ -69,7 +69,6 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | Phase | Purpose |
 |---|---|
 | 0 | Mode detect — $ARGUMENTS, opt-in flags, task-dir, initial state.md |
-| 0.5 | Problem discovery (`--prd` only) — problem-first interview |
 | 1 | Explore — tier-scaled research spawns, memory refresh, `workflow_refs` fetch |
 | 2 | Visual Companion (UI-conditional) — UI preview: a rendered mockup on the plan page in artifact mode, a text description otherwise |
 | 3 | Grill — uncapped, checkpoint-bounded decision-tree clarification |
@@ -77,7 +76,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 5 | Section approval — the fixed section schema in 3 cluster gates; milestone-mode |
 | 6 | Write spec.md — NO auto-commit |
 | 7 | Mechanical validator — the full check set in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` |
-| 7.5 | Spec challenge (Big tier or `--deep`) — advisory, fail-open |
+| 7.5 | Spec challenge — the spec's claims re-read against the code; advisory, fail-open |
 | 8 | User approve — visual summary, lean AUQ, launch config, git commit |
 | 9 | Handoff — prints the `/geniro:implement <path>` command, terminal `phase: done` |
 
@@ -161,7 +160,6 @@ non-resumable-actions: []
 approvals: []
 task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
-prd_mode: true                   # optional, present only when --prd was passed (Phase 0)
 deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); missing reads as false
 artifact_mode: true              # optional, present only when the user opted into the visual artifact (Phase 0 question or --artifact)
 artifact_status: pending|live|unavailable  # optional, present only in artifact mode — publish lifecycle state
@@ -192,13 +190,12 @@ fi
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskUserQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
-| Phase 0.5 (Problem discovery, `--prd` only) | AskUserQuestion / atomic_state_write (state.md `approvals[]` + `## Problem Framing`) | Edit / Write outside state.md / mutating Bash |
 | Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from the frontmatter `allowed-tools`, so the first publish raises the one-time `claude.ai` consent prompt — let it fire rather than pre-allowing the tool) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) | Edit / Write outside state.md |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only) | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) | Edit / direct Write / mutating Bash |
 | Phase 7 (Validate) | Read / AskUserQuestion / atomic_state_write (state.md `## Open Questions`; spec.md re-author of failing sections only, §7.3 step 2) | All other mutations |
-| Phase 7.5 (Spec challenge — Big tier or `--deep`) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
+| Phase 7.5 (Spec challenge) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write | Edit / general-purpose Bash |
 | Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
 
@@ -227,7 +224,7 @@ Call signatures live in each site's phase file (spine §Phase files).
 
 1. **Validate state.md if found** (`validate_state_file`). On fail, open recovery AUQ.
 
-2. **TodoWrite checklist.** Add: Detect mode / Problem discovery (--prd only) / Offer the plan artifact / Explore codebase / Visual companion / Grill the design decisions / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The conditional items — problem discovery, plan artifact, visual companion, challenge spec — are marked completed-skipped when their trigger (spine §Phase files) does not fire, so a skipped phase reads as a decision rather than an omission.
+2. **TodoWrite checklist.** Add: Detect mode / Offer the plan artifact / Explore codebase / Visual companion / Grill the design decisions / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The conditional items — plan artifact, visual companion — are marked completed-skipped when their trigger (spine §Phase files) does not fire, so a skipped phase reads as a decision rather than an omission.
 
 3. **Begin Phase 0.** Read the spine `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`, then `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-0-mode-detect.md`, and run Phase 0. Each phase file ends by naming the next `phase:` value — look it up in the spine's §Phase files table and Read that file on entry.
 

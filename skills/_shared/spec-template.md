@@ -5,7 +5,6 @@
 - Frontmatter
 - Body — 11 sections
 - Per-section content guidance
-- Problem & Evidence (optional — PRD-mode only)
 - Milestone-mode
 
 ---
@@ -110,7 +109,7 @@ launch_config: # optional, SEPARATE block (NOT goal-state) — present only when
 
 ## 4. Assumptions
 
-<Bullet list of assumptions the plan rests on (e.g., "OAuth library version ≥2.5", "test DB is available"). Use "none" if scope precludes assumptions.>
+<Bullet list of the premises the plan rests on, each written as a predicate a reader can check against the code or the environment — "the `users` table has a `deleted_at` column", "OAuth library version ≥2.5", "the test DB is available" — never a gesture at an area ("auth is handled elsewhere"). Every design branch the planning grill closed without an answer belongs here; a premise stated this way is verified claim by claim before approval, and one left in prose is not. Use "none" if scope precludes assumptions.>
 
 ## 5. Risks
 
@@ -151,45 +150,16 @@ The schema has exactly 11 numbered headers (`## 1` … `## 11`); downstream cons
 Body sections beyond the 11 (allowed):
 - `## Considered Alternatives` — captured from Phase 4. Always present if Phase 4 ran with ≥2 approaches.
 - `## Milestones` — captured from Phase 5 milestone-mode. Present only if milestone-mode was picked.
-- `## Problem & Evidence` — captured from the Phase 0.5 problem-discovery interview. **Optional** — present only when `/geniro:plan --prd` ran (`prd_mode: true`); absent on every normal spec. The Phase 7 validator treats it as allowed-optional, so a normal spec without it still passes the schema check.
 - `## Comment Resolution Map` — captured by `/geniro:resolve` (`producer: resolve`). **Optional** — present only on a resolve-produced spec, mapping each PR review comment to its verdict + fix Step; absent on every `/geniro:plan` spec. Allowed-optional, so a plan spec without it still passes.
 
 ## Per-section content guidance
 
 **Code snippets (any section):** a snippet belongs in a section only when it encodes a decision more precisely than prose can — a schema, type shape, state machine, or API contract — trimmed to the decision-rich parts. Keep working-demo code out of the spec: it goes stale fast, and /geniro:implement re-derives it from the cited files anyway.
 
-**Section 1 (Objective):** ONE sentence. NOT a problem statement, NOT a user story, NOT a title — a declarative goal. The problem framing belongs in the optional `## Problem & Evidence` section (PRD-mode), never in section 1. Examples:
+**Section 1 (Objective):** ONE sentence. NOT a problem statement, NOT a user story, NOT a title — a declarative goal. Examples:
 - ✅ "Add OAuth login to the customer portal."
-- ❌ "We need OAuth because users keep complaining about password resets." (problem statement, not objective — belongs in `## Problem & Evidence`)
+- ❌ "We need OAuth because users keep complaining about password resets." (problem statement, not objective)
 - ❌ "As a customer, I want to login with OAuth." (user story, not objective)
-
-## Problem & Evidence (optional — PRD-mode only)
-
-Present only when `/geniro:plan --prd` ran. Carries the problem framing from the Phase 0.5 problem-discovery interview — kept separate from section 1 (Objective) so the Objective stays a clean declarative goal while the problem, evidence, and prioritization live here. Omit the whole section on a normal (non-PRD) spec; the Phase 7 validator's `schema_completeness` check allows its absence and allows its presence.
-
-Layout:
-
-```markdown
-## Problem & Evidence
-
-**Problem:** <one-sentence pain statement — the problem, not the feature>
-
-**Evidence:** <what proves the problem is real — a metric, support-ticket count, recorded session, or quote. Use "none yet — unvalidated" honestly if no evidence exists; do not invent it.>
-
-**Target user & job-to-be-done:** <who has the problem> — <the job they are trying to get done>
-
-**Hypothesis:** If <X>, then <metric Y> moves by <Z>.
-
-**Success metrics:** <1-3 metrics that confirm the problem is solved — these also seed section 9 Validation and section 11 Done Condition>
-
-**Prioritization (MoSCoW):**
-- Must: <...>
-- Should: <...>
-- Could: <...>
-- Won't (this round): <... — seeds section 3 Scope — Excluded>
-```
-
-The Must set seeds section 2 (Scope — Included); the Won't set seeds section 3 (Scope — Excluded); the success metrics seed section 9 (Validation) and section 11 (Done Condition).
 
 **Section 6 (Steps):** Each step is written as an unchecked markdown checkbox — `- [ ] N. <description> <!-- step-N -->` — so the person building can tick `- [ ]` → `- [x]` by hand as each step lands (a workflow that suits building one step at a time). The checkbox is a tracking aid only — like /geniro:review's finding checkbox, no validator or downstream consumer reads its checked state, and /geniro:implement never edits spec.md to tick it (the spec is the user's upstream artifact). Keep the literal `N.` step number and the `<!-- step-N -->` anchor — checkpoints and the Phase 7 step-count check (check #7) resolve steps by them, not by a bare leading digit. Each step cites ≥1 file:line reference unless it's a meta-step (e.g., "Create new branch"); Phase 7 validator check #3 enforces this and matches the citation anywhere on the line, so the `- [ ] N.` prefix does not affect it. Example:
 

@@ -2,19 +2,21 @@
 
 The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
-State.md `phase: spec-challenge` during this phase. **Fires only when the Phase 1.2 effort tier is Big OR state.md has `deep-mode: true`** (the §7.4 branch); on a standard Trivial/Small/Medium run the loop transitions validator → `phase: user-approve` directly. Entered after the Phase 7 validator passes (or its hard-fails were user-accepted) and before the Phase 8 approval AUQ. At entry the spec is: full text on disk, validator-clean, uncommitted, `lifecycle: draft`.
+State.md `phase: spec-challenge` during this phase. **Fires on every run**, at every effort tier. Entered after the Phase 7 validator passes (or its hard-fails were user-accepted) and before the Phase 8 approval AUQ. At entry the spec is: full text on disk, validator-clean, uncommitted, `lifecycle: draft`.
+
+The user approves this spec at Phase 8, and an approval is only as good as the facts under it. Every gate before this one keys on structure or on the author's own reasoning — the validator reads shape, and the model that wrote the spec is the same one that ranked it. This is the single point in the loop where the spec's claims are read back against the code by a context that did not write them.
 
 Surface a one-line plain-English note before invoking: "Challenging the spec before you approve it...".
 
-**Re-derive the effort tier first, against the spec as it now stands.** The tier was set in Phase 1.2 from the task as understood then, and the spec has since been through the grill, approach selection, and section approval — scope routinely grows across those phases, and nothing recomputes the tier when it does. It is not a label: it gates milestone-mode splitting, the research-agent threshold in validator check 3, and this phase's own entry condition, so a stale tier silently relaxes three gates at once. Where the re-derived tier differs from the recorded one, write the new value to spec frontmatter `effort_tier` and state the change in one line. A tier that grew to Big here entered this phase on the deep-mode branch or not at all — run the challenge regardless, and re-evaluate milestone-mode at §7.5.2 rather than treating the earlier skip as settled.
+**Re-derive the effort tier first, against the spec as it now stands.** The tier was set in Phase 1.2 from the task as understood then, and the spec has since been through the grill, approach selection, and section approval — scope routinely grows across those phases, and nothing recomputes the tier when it does. It is not a label: it gates milestone-mode splitting and the research-agent threshold in validator check 3, so a stale tier silently relaxes both. Where the re-derived tier differs from the recorded one, write the new value to spec frontmatter `effort_tier` and state the change in one line. A tier that grew to Big here re-opens milestone-mode at §7.5.2 rather than leaving the earlier skip settled.
 
 ### 7.5.1 Invoke the challenge helper
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the tier detected in Phase 1.2>`, DEEP: `<true when state.md deep-mode: true, else false>`.
 
-The helper runs VERIFY (every `file:line`-cited claim, same-file claims clustered into shared verifier spawns per the helper's spawn-batch shape) + generate-ALTERNATIVES + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
+The helper runs VERIFY (every claim in its §3 set, same-file claims clustered into shared verifier spawns per its spawn-batch shape) + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
 
-On standard Trivial/Small/Medium runs this pass is skipped — `/geniro:implement` runs the same fact-check helper pre-edit on every spec-driven run, so cited-claim verification still happens before any code is written; the plan-side pass adds value where approval-time stakes are highest (Big tier) or the user asked for depth (`--deep`). Once it fires, cost stays bounded because the helper verifies only `file:line`-cited claims.
+Cost scales with the spec, not with the tier: the claim set is what the spec itself asserts, and same-file claims share a spawn, so a small spec is a small batch and the whole batch runs in parallel. `/geniro:implement` re-runs the same helper pre-edit, and that stays the backstop for a spec that went stale between planning and building — but it is a backstop, not the first check. A defect found there is found after the user approved the plan and switched context to building it.
 
 ### 7.5.2 Verdict handling
 
