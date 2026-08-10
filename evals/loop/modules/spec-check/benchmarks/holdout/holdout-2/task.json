@@ -1,0 +1,2 @@
+{ "id": "holdout-2", "mode": "spec", "tree_dir": "tree", "spec": "spec.md",
+  "lang": "typescript", "project_context": "Small string utility module." }

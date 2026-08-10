@@ -1,0 +1,9 @@
+{ "version": 1, "negative": false, "items": [
+  { "id": "gt-1", "file": "src/throttle.ts", "lines": [1, 5],
+    "class": "current-state-wrong-name", "dimension_hint": "claims",
+    "severity": "HIGH", "must_find": true,
+    "description": "Assumption 1 claims no rate limiting or pacing exists on the outbound path. DispatchGovernor in src/throttle.ts is a token-bucket pacer for the outbound webhook queue — the concept exists under another name, which a keyword search for 'rate limit' would miss." },
+  { "id": "gt-2", "file": "src/events.ts", "lines": [2, 8],
+    "class": "quantity-contradicted", "dimension_hint": "claims",
+    "severity": "MEDIUM", "must_find": true,
+    "description": "Assumption 2 says three event names are in scope; EVENT_NAMES lists eight, and step 2 then budgets using eight. The spec contradicts itself and one of the two numbers drives the scope." } ] }

@@ -1,0 +1,9 @@
+{ "version": 1, "negative": false, "items": [
+  { "id": "gt-1", "file": "src/client.ts", "lines": [2, 3],
+    "class": "coverage-overstated", "dimension_hint": "claims",
+    "severity": "HIGH", "must_find": true,
+    "description": "Assumption 1 says every client call goes through withRetry. deleteUser calls http directly, so backoff added inside withRetry would not cover it." },
+  { "id": "gt-2", "file": "src/retry.ts", "lines": [3, 5],
+    "class": "mechanism-absent", "dimension_hint": "claims",
+    "severity": "HIGH", "must_find": true,
+    "description": "Assumption 2 says withRetry already waits between attempts and only the curve changes. The loop retries immediately with no delay of any kind, so step 1 is adding waiting, not reshaping it." } ] }

@@ -1,0 +1,2 @@
+{ "id": "planted-4", "mode": "spec", "tree_dir": "tree", "spec": "spec.md",
+  "lang": "typescript", "project_context": "Service with a documented inline-vs-queued job convention." }
