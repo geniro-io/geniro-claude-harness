@@ -1,0 +1,25 @@
+{
+  "module": "partition",
+  "version": 1,
+  "parser": "partition-couplings",
+  "facets": [
+    { "name": "partition", "criteria": [] }
+  ],
+  "assembly": {
+    "max_prompt_bytes": 614400,
+    "repo_rules_slot": false
+  },
+  "output_contract": {
+    "retry_regex": "### ",
+    "clean_regex": "## Partition Summary"
+  },
+  "pass_expr": ".recall_must == 1",
+  "negative_pass_expr": "(.noise_strict // 0) == 0 and (.plausible_real // 0) == 0",
+  "champion_sync": [
+    {
+      "from": "skills/implement/phase-2-implement.md",
+      "to": "reference/phase-2-implement.md"
+    }
+  ],
+  "screen_facets": ["partition"]
+}

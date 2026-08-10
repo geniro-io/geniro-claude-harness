@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "internal/store/store.go",
+      "lines": [2, 3],
+      "class": "duplicate-helper",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled even though their file sets are disjoint. store.go states there is no shared retry/backoff utility today, and both todos need exponential backoff with jitter and three attempts. Two delegates working blind each write their own backoff helper, leaving two implementations of the same thing that no compiler or linter flags."
+    },
+    {
+      "id": "gt-2",
+      "file": "internal/store/user.go",
+      "lines": [10, 12],
+      "class": "file-overlap",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-4 renames the Fetch method wherever it is defined and called, which is internal/store/user.go and internal/store/order.go — the same two files todo-1 and todo-2 are rewriting to add retries. todo-4 is therefore coupled to both; a rename landing concurrently with a retry rewrite silently drops one of the two edits."
+    }
+  ]
+}

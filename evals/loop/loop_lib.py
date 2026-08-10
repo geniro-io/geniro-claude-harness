@@ -12,16 +12,25 @@ A rubric is {"version": int, "negative": bool, "items": [...]}; a bare legacy
 array is accepted and treated as version 0. Items use the ground-truth schema
 (id/file/lines/class/severity/must_find/description).
 
-Two parsers ship: `review-findings` (the /geniro:review §Output Format shape)
-and `spec-claims` (the spec-challenge per-claim verdict shape). A module names
-the one it needs in its target.json `parser` field; a new output shape adds a
-function here and a PARSERS entry.
+Three parsers ship: `review-findings` (the /geniro:review §Output Format shape),
+`spec-claims` (the spec-challenge per-claim verdict shape), and
+`partition-couplings` (the /geniro:implement Phase 2 file-set partition shape).
+A module names the one it needs in its target.json `parser` field; a new output
+shape adds a function here and a cmd_parse branch.
 
 `spec-claims` emits one finding per claim the run judged WRONG — refuted or
 clarified — and none for a confirmed claim. That keeps the rubric on the same
 footing as every other module's: its items are the claims that are genuinely
 wrong, so recall_must reads "did the pass catch the bad claims" and noise reads
 "did it flag good ones", with cmd_metrics unchanged.
+
+`partition-couplings` emits one finding per pair of todos the run declared
+COUPLED, and none for the pairs it split into separate delegate groups. The
+rubric's items are the couplings that are genuinely there but do not look it, so
+recall_must reads "did the partition catch the hidden dependency" and noise
+reads "did it call independent work coupled". Both directions cost something
+real: a missed coupling puts two delegates in one file, while a phantom one
+collapses the partition to a single group and delegation never fires.
 """
 import json, re, sys, glob, os, random
 
@@ -96,6 +105,42 @@ def parse_spec_claims(text, facet):
             cur["has_evidence"] = True
     return blocks
 
+COUPLING_RE = re.compile(r"^###\s+\[?COUPLED\]?[:\s]+(.+)$", re.I)
+SHARED_RE = re.compile(r"\*\*Shared:?\*\*:?\s*`?([^\s`]+?)`?\s*$")
+# Every coupling costs the same thing — two delegates landing in one file — so
+# there is no severity ladder to borrow here. Fixing the weight at HIGH keeps
+# recall_weighted equal to recall_must for this module rather than inventing a
+# gradient the ground truth cannot justify.
+COUPLING_SEV = "HIGH"
+
+def parse_partition_couplings(text, facet):
+    blocks = []
+    cur = None
+    for line in text.splitlines():
+        m = COUPLING_RE.match(line.strip())
+        if m:
+            cur = {"severity": COUPLING_SEV, "verdict": "COUPLED",
+                   "title": m.group(1).strip(), "facet": facet,
+                   "file": None, "line_start": None, "line_end": None,
+                   "confidence": None, "decision_type": None, "origin": None,
+                   "has_evidence": False, "body": []}
+            blocks.append(cur)
+            continue
+        if line.startswith("## ") and cur is not None:
+            cur = None  # left the coupling region (e.g. Partition Summary)
+        if cur is None:
+            continue
+        cur["body"].append(line)
+        sm = SHARED_RE.search(line)
+        if sm and cur["file"] is None:
+            f, a, b = parse_file_field(sm.group(1).strip())
+            cur["file"], cur["line_start"], cur["line_end"] = f, a, b
+        conf = CONF_RE.search(line)
+        if conf: cur["confidence"] = int(conf.group(1))
+        if "**Evidence" in line:
+            cur["has_evidence"] = True
+    return blocks
+
 def cmd_parse(paths, parser="review-findings"):
     findings = []
     for path in paths:
@@ -103,8 +148,9 @@ def cmd_parse(paths, parser="review-findings"):
         text, usage, is_err = load_result_text(path)
         if is_err:
             continue
-        if parser == "spec-claims":
-            blocks = parse_spec_claims(text, facet)
+        if parser in ("spec-claims", "partition-couplings"):
+            blocks = (parse_spec_claims(text, facet) if parser == "spec-claims"
+                      else parse_partition_couplings(text, facet))
             for b in blocks:
                 b["body"] = "\n".join(b["body"])[:2000]
             findings.extend(blocks)

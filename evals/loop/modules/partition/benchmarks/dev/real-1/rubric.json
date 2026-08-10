@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/daemon/src/v1/agents/services/agent-adapter.registry.ts",
+      "lines": [26, 40],
+      "class": "shared-registry",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled through AgentAdapterRegistry. Its own docstring calls itself 'the ONE kind-to-adapter dispatch in the daemon' and exists so a new CLI cannot be silently omitted. Each new adapter must be added to the constructor signature and to the array the byKind map is built from, so two concurrent delegates both rewrite that constructor and one adapter is lost."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/daemon/src/v1/agents/agents.module.ts",
+      "lines": [130, 155],
+      "class": "shared-registry",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are additionally coupled through agents.module.ts, where each adapter is wired as a Nest provider with its own factory block. Both todos must add a provider entry to the same providers array; concurrent edits to that array drop one registration, and a missing provider fails at injection time rather than at compile time."
+    }
+  ]
+}

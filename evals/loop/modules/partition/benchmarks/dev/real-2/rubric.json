@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "apps/ui/src/shared/contracts.ts",
+      "lines": [332, 340],
+      "class": "shared-contract-surface",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are coupled through apps/ui/src/shared/contracts.ts. Both add a renderer-to-main capability, and every such capability needs an entry in the IPC channel map and a method on the GeniroApi type, both declared in that one file. Two delegates editing it concurrently drop one channel or one method signature."
+    },
+    {
+      "id": "gt-2",
+      "file": "apps/ui/src/preload/index.ts",
+      "lines": [11, 20],
+      "class": "shared-contract-surface",
+      "dimension_hint": "partition",
+      "severity": "HIGH",
+      "must_find": true,
+      "description": "todo-1 and todo-2 are additionally coupled through the preload bridge and its main-process counterpart. preload/index.ts documents itself as the ONLY bridge between the sandboxed renderer and the privileged main process, so each capability must be added to the single api object there and to the ipcMain.handle table in apps/ui/src/main/ipc.ts. Both todos rewrite both files."
+    }
+  ]
+}

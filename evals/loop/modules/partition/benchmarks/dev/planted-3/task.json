@@ -1,0 +1,8 @@
+{
+  "id": "planted-3",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "spec.md",
+  "lang": "go",
+  "project_context": "Go service. Two store types wrap the same upstream client; no shared retry utility exists. Four approved todos are being partitioned for parallel implementation before any code is written."
+}
