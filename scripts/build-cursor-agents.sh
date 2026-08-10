@@ -45,6 +45,24 @@ mkdir -p "$OUT_DIR"
 # running a cheap model could see `auto` pick something dearer. It is the right
 # semantic for a mechanical agent regardless — the point is that the tier stops
 # being the user's reasoning-grade choice.
+#
+# MEASURED 2026-08-10, and the result is a caveat, not a confirmation. Probing
+# `cursor-agent` 2026.08.04 directly:
+#   - `auto` is a real, accepted selector and does route DOWN. A trivial ask on
+#     `--model auto` answered `> Auto routed to Cursor Grok 4.5`.
+#   - But a subagent's frontmatter `model:` was IGNORED. With the parent pinned
+#     to `composer-2.5` and a probe subagent declaring `model: auto`, the CLI
+#     spawned it with `model="composer-2.5-fast"` — derived from the parent, not
+#     from the declaration.
+# So in that CLI this mapping is currently a NO-OP. It is kept because it is the
+# documented field and becomes correct the moment the field is honored, and
+# because it costs nothing — but do NOT credit it with any saving until a probe
+# shows a subagent actually running off its declaration. The probe was the CLI
+# only; the Cursor IDE was not tested and may well differ.
+#
+# What DOES work today, and is worth telling a Cursor user: subagents follow the
+# parent, so setting the SESSION model to `auto` gets auto-routing everywhere,
+# mechanical spawns included.
 cursor_model_for() {
   case "${1:-}" in
     ""|inherit) echo "inherit" ;;
