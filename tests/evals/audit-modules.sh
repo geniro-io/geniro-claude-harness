@@ -75,6 +75,37 @@ for m in audit-instructions audit-plugin; do
   else
     fail "$m champion_sync is stale:"$'\n'"$UNRESOLVED"
   fi
+
+  # Resolving is not the same as matching. sync-champion.sh runs when someone
+  # remembers to run it, and a landed skill edit without one leaves the champion
+  # a snapshot of text that no longer ships — every later sweep then measures
+  # the old skill and reports it as the current one. That failure is invisible:
+  # the run succeeds, the numbers look normal, and nothing in them says which
+  # revision produced them.
+  DRIFTED="$(jq -r '.champion_sync[] | [.from, (.section // ""), .to] | @tsv' "$T" | while IFS=$'\t' read -r from section to; do
+    have="$LOOP/modules/$m/variants/champion/$to"
+    [ -f "$REPO_ROOT/$from" ] && [ -f "$have" ] || continue
+    want="$SANDBOX/want-$m-$(basename "$to")"
+    if [ -n "$section" ]; then
+      awk -v want="$section" '
+        /^```/ { fence = !fence }
+        !fence && /^## / {
+          hdr = $0; sub(/^## /, "", hdr); sub(/[ \t]+$/, "", hdr)
+          if (found) exit
+          if (hdr == want) { found = 1; print; next }
+        }
+        found { print }
+      ' "$REPO_ROOT/$from" > "$want"
+    else
+      cp "$REPO_ROOT/$from" "$want"
+    fi
+    cmp -s "$want" "$have" || echo "$to no longer matches $from${section:+ § $section}"
+  done)"
+  if [ -z "$DRIFTED" ]; then
+    pass "$m champion criteria still match the shipped skill byte for byte"
+  else
+    fail "$m champion is a stale snapshot — run sync-champion.sh --module $m:"$'\n'"$DRIFTED"
+  fi
 done
 
 # --- stage-task.sh "audit" mode ---------------------------------------------
