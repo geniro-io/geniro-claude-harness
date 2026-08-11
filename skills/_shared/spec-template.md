@@ -149,7 +149,7 @@ The schema has exactly 11 numbered headers (`## 1` … `## 11`); downstream cons
 
 Body sections beyond the 11 (allowed):
 - `## Considered Alternatives` — captured from Phase 4. Always present if Phase 4 ran with ≥2 approaches.
-- `## Milestones` — captured from Phase 5 milestone-mode. Present only if milestone-mode was picked.
+- `## Milestones` — captured when `approvals[]` carries a `milestone_slice` entry picked "Slice into milestones" (Phase 5, or a Phase 7.5 milestone re-open). Present only then.
 - `## Comment Resolution Map` — captured by `/geniro:resolve` (`producer: resolve`). **Optional** — present only on a resolve-produced spec, mapping each PR review comment to its verdict + fix Step; absent on every `/geniro:plan` spec. Allowed-optional, so a plan spec without it still passes.
 
 ## Per-section content guidance

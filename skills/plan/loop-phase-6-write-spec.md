@@ -56,7 +56,7 @@ After writing spec.md, append a `## Tool log` entry to state.md via `atomic_stat
 
 ### 6.3 Milestone-mode write fan-out
 
-If milestone-mode was picked in Phase 5, Phase 6 writes the top-level spec.md AND every `milestone-N.md` in a single phase pass. Each `milestone-N.md` follows the same schema scoped to its slice.
+If `approvals[]` carries a `milestone_slice` entry picked "Slice into milestones" (written at Phase 5, or at a Phase 7.5 milestone re-open), Phase 6 writes the top-level spec.md AND every `milestone-N.md` in a single phase pass. Each `milestone-N.md` follows the same schema scoped to its slice.
 
 ### 6.4 Idempotent re-entry (compaction-safe)
 

@@ -72,7 +72,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ## Terminal states
 
-`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Every transition into any of the five first writes the terminal `phase:` via `atomic_state_write`, and only then runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) — reversing the order lets cleanup's `rm -rf` run against a directory the write's own `mkdir -p` then silently recreates, leaving the slug dir behind despite cleanup having "run". `done`, `verify-summary-only`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.3 already writes the terminal phase and §3.7 is a later step in the same phase file. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe both calls explicitly, in this order — terminal write then cleanup: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
+`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Every transition into any of the five first writes the terminal `phase:` via `atomic_state_write`, and only then runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) — reversing the order lets cleanup's `rm -rf` run against a directory the write's own `mkdir -p` then silently recreates, leaving the slug dir behind despite cleanup having "run". `done`, `verify-summary-only`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.3 already writes the terminal phase and §3.7 is a later step in the same phase file. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe both calls explicitly, in this order — terminal write then cleanup: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.2 / §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
 
 ---
 
@@ -171,17 +171,17 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 ## ACI per-phase tool surface
 
 **Phase 1 (Plan):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline).
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / AskUserQuestion.
 - Allowed Agent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
 - Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**
 - Allowed Agent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
-- Orchestrator uses Edit / Write / Bash (test cmd) directly. Per-step regression runs via backpressure helper.
+- Orchestrator uses Edit / Write / Bash (test cmd) / AskUserQuestion directly. Per-step regression runs via backpressure helper.
 - Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
 
 **Phase 3 (Verify):**
-- Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
+- Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / AskUserQuestion / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
 - Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only).
 - Allowed: targeted per-file revert per § Git constraint — the one orchestration-level exception to the git-write constraint.
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.
@@ -194,7 +194,7 @@ The safety hooks apply across every phase; the complete list and what each block
 
 ## Git constraint
 
-Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert a failed transformation in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <each changed path>`, listing only the specific paths the step touched — this is an orchestration-level revert, not a version-control operation. Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside the current step.
+Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert applied work in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <paths>`, where `<paths>` is the aggregated `files_affected` from state.md's executed `## Plan steps` rows (plus, in Phase 3, any path a fix-loop finding touched) — never `git diff --name-only`, which would also sweep up any unrelated uncommitted work already in the tree (Phase 1 §1.2 does not require a clean working tree before scope discovery starts). Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside this refactor entirely.
 
 ---
 

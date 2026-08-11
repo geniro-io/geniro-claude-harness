@@ -60,7 +60,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 0. **Reconcile the diff against the spec's requirements.** Spec-driven runs only; skip with a one-line note in inline-task mode. Walk section 6 (Steps) and every clause the spec states in mandatory language — "must", "regardless of", named symbols a step says to contain or change — and for each, point at the hunk in `git diff` that satisfies it. A requirement with no hunk is unbuilt, whatever the task list says.
 
-   Report the result as three lists: built, deliberately dropped (with the reason and the gate where the user agreed), and **unbuilt**. Any entry in the third list blocks the Ship-mode AUQ until it is either implemented or raised to the user as its own decision.
+   Report the result as three lists: built, deliberately dropped (with the reason and the gate where the user agreed), and **unbuilt**. Any entry in the third list blocks the Ship-mode AUQ until it is either implemented or raised as its own `AskUserQuestion` (header: `"Unbuilt item"`) — implement it now, or ship without it and record the gap under `## Accepted Findings`.
 
    This exists because the completion claim and the requirement list are never otherwise compared. A run tracks its own task list, that list is derived from the spec once at Phase 1, and a requirement stated inside a step's prose — rather than as its own numbered step — never enters it.
 

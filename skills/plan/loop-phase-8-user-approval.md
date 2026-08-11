@@ -78,7 +78,12 @@ On user picks "Approve":
 5. **Finalize the visual plan artifact** — fire the update for this site (call-site table in `loop-artifact-call-sites.md`).
 6. **Transition to Phase 9** (`phase: handoff`).
 
-If the commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), surface a structured error to user — do NOT proceed to Phase 9 with a stale state. Fall back to escalation with the error inlined. An ignored task-dir is not a failure: it takes the step 3 Ignored branch and continues to Phase 9 normally.
+If the commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), render the failure to chat first, then fire the lean AUQ header "Commit" — do NOT proceed to Phase 9 with a stale state:
+- **Retry the commit** (Recommended) — re-run step 3's `git commit`. state.md stays `phase: user-approve`.
+- **Save on disk, skip the commit** — leave spec.md uncommitted, same as the step 3 Ignored branch; record the failure as an `## Errors` entry. state.md → `phase: handoff`.
+- **Abort** — terminal `aborted` + `## Termination reason: commit-failed-at-phase-8`.
+
+An ignored task-dir is not a failure: it takes the step 3 Ignored branch and continues to Phase 9 normally.
 
 ### 8.5 Record a learning (conditional)
 

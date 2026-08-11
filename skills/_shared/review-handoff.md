@@ -358,7 +358,7 @@ Read the `## Findings` body section, scanning each finding's `Decision Type:` an
 
 Fire one `AskUserQuestion` call per PRODUCT-DECISION finding, in sequence — render the finding, ask, collect the answer, then move to the next. Many findings means many sequential calls, never several findings batched into one call's `questions[]` array (the tabbed multi-question prompt the user submits all at once; the `gate-render` hook hard-blocks it). Cap-extension per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension applies when ONE finding's option set overflows 4 slots (its own `Options:` plus the appended "Keep off the PR", "Explain further", and "Challenge this finding" options) — chain follow-up calls for that single finding, never batch multiple findings.
 
-Always-WAIT. If empty answer returns, re-ask through the tool — never default to the reviewer's synthesis. Only a repeated empty-answer loop (the tool keeps returning nothing) justifies falling back to plain text, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions — the plain-text path captures no `approvals[]` pick, so it is the last resort, not the first response to one empty answer.
+Always-WAIT — never default to the reviewer's synthesis on an empty answer. Empty-answer handling follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 
 Skip entirely when zero PRODUCT-DECISION findings remain after the Phase 3 §3.3 KEEP/FILTER judgment.
 
@@ -512,7 +512,7 @@ Nothing lands on a public PR without passing §7.0. Skip this section entirely o
 
 ## 8. Empty-answer handling (universal)
 
-Every gate in this phase follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions: never auto-default on an empty answer — re-ask through the tool. Only a repeated empty-answer loop (the tool keeps returning nothing) justifies falling back to a plain-text question in chat, and that fallback still captures a real pick — it is never a silent default to any option, on the posting gate or any other.
+Every gate in this phase follows the empty-answer rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions: its plain-text fallback still captures a real pick — never a silent default to any option, on the posting gate or any other.
 
 ---
 

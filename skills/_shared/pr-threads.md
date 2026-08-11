@@ -12,7 +12,7 @@ The caller passes a PR ref (`#N` / URL) or asks this helper to detect it from th
 gh pr view --json number,url,headRefOid,headRefName,baseRefName,title,body 2>/dev/null
 ```
 
-A non-zero exit (no PR for the branch, `gh` unavailable, no GitHub remote) is **fail-open**: the caller surfaces a plain-English caveat and asks the user for a PR ref rather than aborting. Capture `number` (N), the `owner/repo` (from the URL or `gh repo view --json owner,name`), and `headRefOid` (the head SHA — pin it so a later push can be diffed against the state read here).
+A non-zero exit (no PR for the branch, `gh` unavailable, no GitHub remote) is **fail-open**: the caller surfaces a plain-English caveat and fires an `AskUserQuestion` (header: `"No PR ref"`) — "Provide a PR ref inline" / "Stop here" — rather than aborting silently. Capture `number` (N), the `owner/repo` (from the URL or `gh repo view --json owner,name`), and `headRefOid` (the head SHA — pin it so a later push can be diffed against the state read here).
 
 ## 2. Read side: unresolved review threads
 

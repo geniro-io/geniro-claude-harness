@@ -35,6 +35,7 @@ judgment the scripts deliberately do not encode.
 - **Read transcripts before trusting numbers.** No verdict is reported to the
   user until you have opened at least the failing trials' findings and one
   judge verdict and confirmed the failures look fair.
+- **Every choice goes through `AskUserQuestion`.** The spend approval above, the §1 run/edit/drop call, the §4 confirm/iterate/stop call, the §6 promote call, and the `calibrate` / `add-task` row walks are this cycle's gates, not the complete set — a pick that arises anywhere else still routes through the tool (`skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule).
 - **Committed benchmark content is anonymized.** Tasks mined from a real
   repository never carry, in any committed file: the repo/company/product
   name, tracker ticket IDs, PR/issue numbers (including in task ids —
@@ -105,7 +106,8 @@ green → §6; holdout regression → record REJECTED with the numbers.
 
 ### 6. Promote
 
-Only on explicit user approval, in this order: apply the variant delta to the
+One AUQ: promote to champion / iterate again / record and stop. On promote,
+in this order: apply the variant delta to the
 shipped skill files; `bash tests/run-all.sh` + authoring lint; append the
 promotion line to `runs.jsonl` (jq-built JSON: exp id, run dirs, deltas, CIs,
 model, date); `bash sync-champion.sh --module <m>`; mark the EXP file landed. The champion
@@ -119,8 +121,9 @@ baseline cache is now stale by definition — next screen re-sweeps it.
   TPR / TNR; κ < 0.6 → propose judge-prompt fixes as a normal EXP against
   `loop_lib.py judgeprompt`.
 - **`add-task`** — from a real failure (production review miss, PR regression):
-  stage inputs per `README.md` task anatomy, write the rubric with the user
-  confirming each item's `must_find` + severity, `version: 1`, anonymized per
+  stage inputs per `README.md` task anatomy, write the rubric walking the user
+  through each item via chained AUQs (`must_find` yes/no, then severity —
+  same batch shape as `calibrate`'s row walk), `version: 1`, anonymized per
   §Iron rules (grep before commit). Prefer negative tasks when the failure was
   overtriggering. New task → champion baseline for that set is stale.
 - **New module** — copy `modules/review/target.json` as the template: facets +

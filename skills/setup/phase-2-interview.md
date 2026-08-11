@@ -9,7 +9,7 @@ Before opening any AUQ, read state frontmatter `approvals[]`. For each AUQ slot,
 - If present and `picked != null` → reuse the prior answer; emit `## Phase log` line: "Reused prior answer for `<slot>`: `<picked>` (asked_in_phase: `<phase>`)". **No re-ask.**
 - If absent → ask via `AskUserQuestion`; on answer, append to `approvals[]`.
 
-`/geniro:setup` has no persistent preference categories. All AUQs are one-shot (detection confirmation, tracker selection, onboard prompt).
+`/geniro:setup` has no persistent preference categories. These are this skill's AUQ slots today — detection confirmation, the §2.3 ambiguity disambiguation, tracker selection, the §3.6 statusline confirm, and the onboard prompt — one-shot each, not a ceiling on future ones.
 
 ### 2.2 Confirm detection
 

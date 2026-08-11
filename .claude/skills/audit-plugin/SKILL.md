@@ -59,6 +59,7 @@ S1. **Caps are guidelines** per `dimensions-reference.md` §Do-not-flag list.
 | "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed changes on unreviewed changes. Surface what failed and let the user decide. |
 | "There are 80 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
 | "This instruction reads fine — leave it." | Reading fine is not the bar. A rule can be live and still cost more than it buys: a fixed threshold where a criterion would let the model read the situation, an example that narrows the solution space, a guardrail written for a weaker model. D6 hunts those, not only redundancy. |
+| "This mid-run pick isn't one of Phase 5's four options — I'll settle it in chat" | The tiered action pick, the per-item deletion walk, and the commit-and-push offer are this skill's gates, not the complete set — route every user-facing choice through `AskUserQuestion` (`skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule). |
 
 ## Budgets
 

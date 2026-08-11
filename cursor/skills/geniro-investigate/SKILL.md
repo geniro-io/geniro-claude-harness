@@ -109,11 +109,12 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 ## ACI per-phase tool surface
 
 **Phase 1 (Classify+Scope):**
-- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; `atomic_state_write` for the state checkpoint and the Step 2.5 escalation write; the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare for Phase 1 prelim).
+- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; `atomic_state_write` for the state checkpoint and the Step 2.5 escalation write; the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare for Phase 1 prelim) / AskUserQuestion.
 - Allowed Agent spawns: none yet.
 - Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
 
 **Phase 2 (Investigate+Verify):**
+- Allowed: AskUserQuestion (Step 3 missing-data gate).
 - Allowed Agent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
 - Each spawned agent runs with its own tool whitelist (per the Phase 2 Step 1 spawn templates):
 - Codebase (`codebase-research-agent`): exactly its own `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one.

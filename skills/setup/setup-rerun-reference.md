@@ -33,7 +33,7 @@ After the sweep, verify per the shared walk §6: re-run the `Auto-detect:` for e
 2. Identify project-specific sections (Tech Stack, Commands, Conventions, Domain Context).
 3. For each: merge detected updates into existing content via orchestrator-inline merge (preserve user edits + update facts).
 4. If existing CLAUDE.md carries anything on the exclusion list in `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content from a prior `/geniro:setup` version — **remove it silently**. It is plugin noise the plugin already loads on its own.
-5. Display merged diff to user; AUQ if diff is non-trivial.
+5. Display merged diff to user, then `AskUserQuestion` (header: "Merge diff") — options "Apply the merge" / "Show me the full diff" / "Keep my CLAUDE.md unchanged".
 
 ## 3.4 Conflict-resolution merge rules
 

@@ -67,6 +67,7 @@ Used by:
 - `/geniro:review` Phase 6 include-deferred gate, "Let me pick" branch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4.6)
 - `/geniro:implement` Phase 3 minor-findings gate, "Let me pick" branch
 - `/geniro:refactor` Phase 1 HIGH-risk step approval, the reject-specific-steps branch (the picked units are plan steps, not findings)
+- `/geniro:refactor` Phase 1 §1.5 smell synthesis, the ASK USER row (the picked units are smells the matrix cannot resolve — widespread and appropriate reads equally as house pattern or as debt)
 
 The multi-select shape is canonical wherever a gate selects a SUBSET of an already-rendered set — findings to feed a downstream agent, findings to carry into a handoff, steps to skip — rather than taking a discrete approval decision per item. The PR-comment per-finding gate uses the single-finding gate with a calling-skill-set fixed menu (Post / Skip / Stop posting) — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate.
 

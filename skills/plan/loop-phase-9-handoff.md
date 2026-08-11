@@ -6,7 +6,7 @@ State.md `phase: handoff` during this phase. Non-interactive — no AskUserQuest
 
 ### 9.1 Print next-step command
 
-1. **Determine the target path.** For milestone-sliced specs (Phase 5 milestone-mode fired): `.geniro/planning/<slug>/milestone-1.md`. Otherwise: `.geniro/planning/<slug>/spec.md`.
+1. **Determine the target path.** For milestone-sliced specs (`approvals[]` carries a `milestone_slice` entry picked "Slice into milestones"): `.geniro/planning/<slug>/milestone-1.md`. Otherwise: `.geniro/planning/<slug>/spec.md`.
 2. **Print a short closing message** stating where the plan is saved — and that it is committed, when §8.4's tracked-vs-ignored check took the tracked branch — plus the next-step command. E.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md`. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
 
 ### 9.2 Clean up transient working files

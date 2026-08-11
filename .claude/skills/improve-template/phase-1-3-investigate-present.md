@@ -157,11 +157,11 @@ For each finding: which files change, what changes, estimated line impact.
 
 ### Step 2: Ask for approval
 
-Use the `AskUserQuestion` tool (do NOT output options as plain text — the tool provides a structured UI). Call it with:
+Use the `AskUserQuestion` tool — a plain-text option list bypasses the approvals persistence the tool records (`skills/_shared/gate-rendering.md` §Lean-question conventions). Call it with:
 - **Question:** "How should I proceed with these findings?"
 - **Options (use these exactly):**
   - "Implement all findings" — every KEEP finding becomes the Phase 4 approved set
-  - "Let me pick which ones to implement" — present the findings by number; the subset the user selects becomes the Phase 4 approved set
+  - "Let me pick which ones to implement" — walk the findings as multi-select `AskUserQuestion` calls (≤4 options per call, chaining past the cap), mirroring `.claude/skills/audit-plugin/phase-5-action-gate.md`'s pick path; the findings picked become the Phase 4 approved set
   - "I disagree with some findings — let me challenge them" — go to Phase 3b
   - "Research deeper on specific items" — go to Phase 3b
 

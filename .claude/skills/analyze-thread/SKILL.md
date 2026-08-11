@@ -117,6 +117,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 | "The trace shows no instruction load, so every declared file is a missing-load finding" | Check first whether the trace covers the turns where the load would have been. A compacted or mid-run thread cannot evidence a Step 0 that happened before its first recorded turn — that is `checks-reference.md` §8 degradation 1: keep the check, cap confidence at medium, and say the trace is partial. |
 | "Every phase in the skill body owes a finding when I can't see it run" | A conditional phase whose trigger never fired, and a run the user stopped early, both leave phases unentered without anything being skipped. K1 fires only on a phase stepped over while its successors ran. |
 | "That's 4 unloaded files and 6 unrun steps — 10 findings" | Coverage findings roll up per declaration site: one finding for the load site listing its four files, one for the phase listing its six steps. Per-item findings inflate a single systematic defect into a wall that trips the raw-findings cap §Budgets sets and buries every other check under it. |
+| "This pick comes up mid-run and isn't one of Phase 4's two named gates — I'll ask in prose" | The per-finding UNCERTAIN gate and the final handoff-destination gate are this skill's gates, not the complete set — route every user-facing choice through `AskUserQuestion` (`skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule). |
 
 ---
 
