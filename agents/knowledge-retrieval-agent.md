@@ -1,6 +1,6 @@
 ---
 name: knowledge-retrieval-agent
-description: "Read-only past-knowledge search across the memory layers. Use at /geniro:implement Phase 1 for a full multi-layer sweep — past learnings + project snapshots + prior review/debug handoffs + prior plans. /geniro:review, /geniro:debug, /geniro:refactor spawn it scoped to just the backend learnings read (SCOPE: learnings-backend) when memory.md routes learnings to an MCP backend their own tools can't reach. Returns a condensed bullet report (≤3K chars) with file:line citations."
+description: "Read-only past-knowledge search across the memory layers. Use at /geniro:implement Phase 1 for a full multi-layer sweep — past learnings + project snapshots + prior review/debug handoffs + prior plans. /geniro:review, /geniro:debug, /geniro:refactor spawn it scoped to just the backend learnings read (SCOPE: learnings-backend) when memory.md routes learnings to an MCP backend, for context isolation. Returns a condensed bullet report (≤3K chars) with file:line citations."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: sonnet
 maxTurns: 40

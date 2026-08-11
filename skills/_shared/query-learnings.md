@@ -102,7 +102,7 @@ record_access "<dedup_key>"
 
 ## Memory backend override
 
-When `memory.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3-§5 around this query — mirror-merge vs replace, the read-only screen, the scoped `knowledge-retrieval-agent` delegation (`SCOPE: learnings-backend`) for orchestrators without `mcp__*`, and fail-open to the file query all live there. No block → this is a no-op and the file query runs exactly as above.
+When `memory.md` carries a `## Memory Backend` block routing the `learnings` layer (surfaced by the L4 loader), apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3-§5 around this query — mirror-merge vs replace, the read-only screen, the scoped `knowledge-retrieval-agent` delegation (`SCOPE: learnings-backend`; §3 has the rationale), and fail-open to the file query all live there. No block → this is a no-op and the file query runs exactly as above.
 
 ## Trust level ordering
 

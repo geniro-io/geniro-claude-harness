@@ -61,7 +61,7 @@ paths: # OPTIONAL; list of globs; absent = always fires
 - "**/*.sql"
 - "**/dao/*.{ts,py}"
 severity-default: HIGH # OPTIONAL; default MEDIUM
-# requires-context: "Fetch the live Notion incident report (latest entry) and list its patterns." # OPTIONAL; live external data the orchestrator fetches + injects (subagents can't call MCP)
+# requires-context: "Fetch the live Notion incident report (latest entry) and list its patterns." # OPTIONAL; live external data the orchestrator fetches + injects (fetched once, before spawn)
 ---
 
 # Criteria
