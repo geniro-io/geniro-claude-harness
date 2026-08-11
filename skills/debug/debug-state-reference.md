@@ -12,7 +12,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` to 
 6. Adversarial Mode templates — A5 spawn prompt + A6 findings template
 7. Extended examples — intermittent timeout + verify recent changes
 8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
-9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5)
+9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5, `pitfall` Adversarial Mode A4 step 6)
 
 ---
 
@@ -33,17 +33,21 @@ state.md `phase:` enum transitions:
                                                                │         writes the terminal ship-summary-only)
                                                                └── aborted (terminal)
 
+investigate ── (§1.6 second refuted/clarified verifier round) ── phase-1-verification-stalled ──┬── investigate (try-different-hypothesis loop-back)
+                                                                                                  ├── propose (proceed-with-unverified; no phase write)
+                                                                                                  └── aborted (terminal)
+
 [entry] → adversarial-mode-detect ── adversarial-investigate ── adversarial-ship ──┬── done
                                                                                    └── adversarial-aborted (terminal — zero red tests)
 ```
 
-Each escalation edge leaves the phase whose gate writes it: `phase-1-escalated` from `investigate` (the stall gate), `phase-2-escalated` from `propose` (the fix-loop gate).
+Each escalation edge leaves the phase whose gate writes it: `phase-1-escalated` from `investigate` (the stall gate), `phase-1-verification-stalled` from `investigate` (the §1.6 verification-stalled gate, on a second consecutive refuted/clarified verifier round), `phase-2-escalated` from `propose` (the fix-loop gate).
 
 **Terminal states:** `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`. The SessionStart recovery treats all four as "task complete — no resume needed".
 
 **Non-terminal states:** `mode-detect`, `investigate`, `propose`, `ship`, `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures gates skip already-answered).
 
-**Escalation states:** `phase-1-escalated`, `phase-2-escalated`. The recovery surfaces these to the user as "task was paused — your previous options:" so the user re-picks without losing context.
+**Escalation states:** `phase-1-escalated`, `phase-1-verification-stalled`, `phase-2-escalated`. The recovery surfaces these to the user as "task was paused — your previous options:" so the user re-picks without losing context.
 
 The `## Termination reason` body section is written on `aborted` / `adversarial-aborted` terminals.
 
@@ -65,8 +69,9 @@ timestamp: <ISO-8601 UTC>
 phase: <enum per State Machine above>
 status: <in-progress|done|failed>
 non-resumable-actions: []
-approvals: []                         # categories: disambiguate_mode, multi_path_fix, deep_mode_choice, existing_fix_pr
+approvals: []                         # categories: branch_freshness, disambiguate_mode, multi_path_fix, verification_stalled, deep_mode_choice, existing_fix_pr
 deep-mode: <true|false>               # optional, set by the --deep flag or the Phase 0 Debug-depth chooser; missing reads as false
+baseline-dirty-paths: []              # git status --porcelain changed-path list captured at Phase 0 entry (Step 0.3, Scientific Mode only), before this run touches anything; Phase 3 §3.1's working-tree check subtracts it
 geniro_kind: debug-state
 geniro_schema_version: m7-v1
 mode: <scientific|adversarial>
@@ -77,12 +82,11 @@ worktree: <abs-path>
 
 Body sections (Scientific Mode):
 
-- `## Inputs from <producer>` (optional, T2 input consumed at Phase 1)
 - `## Symptom`
 - `## Reproduction Steps`
 - `## Feedback Loop` (Command — the minimised form / Expected output / Actual output / Re-run cost / Determinism — includes any rate-raising attempt + outcome for intermittent bugs)
 - `## Hypotheses` (Hypothesis / Evidence For / Evidence Against / Status / Test Plan / Result per hypothesis)
-- `## Root Cause`
+- `## Root Cause` (Validation: confirmed | unverified / Verification-evidence — written by §1.6's independent verification)
 - `## Proposed Fix`
 - `## Reproduction Test`
 - `## Accepted Limitations` (optional, path B)
@@ -96,9 +100,8 @@ Body sections (Scientific Mode):
 Body sections (Adversarial Mode):
 
 - `## Diff Scope` (range + file count + LOC)
-- `## Hypothesis Seeds`
 - `## Authored Tests` (table: # / Path / Targeted source / Category / Confidence / F→P status)
-- `## Re-verification Results`
+- `## Re-verification Results` (per authored test, written by A4 step 4: path / pre-rerun F→P status / kept or discarded / discard reason if discarded)
 - `## Tool log`, `## Errors`, `## Termination reason`
 
 ### from-debug-<branch>.md (T2 — handoff, Scientific Mode)
@@ -124,8 +127,7 @@ approvals: []
 non-resumable-actions: []
 authored_tests: []                    # entry fields: id, path, intent, mode, f_to_p_status,
                                       #   related_hypotheses, targeted_source, confidence
-open_questions: []                    # entry fields: id, source, question, related_hypotheses,
-                                      #   status, resolution{picked, at, asked_in_phase, resolved_by}
+open_questions: []                    # entry-field schema: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md §T2
 ---
 ```
 
@@ -133,7 +135,7 @@ Body: full content of findings template + body sections (`## Tool log` / `## Err
 
 Both arrays are present on every handoff and may be empty `[]`; the per-field schema, enums, and producer/consumer responsibilities live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — `open_questions[]` under §T2, `authored_tests[]` under §Producer-specific extensions. Restating the fields here is what lets them drift out of step with /geniro:implement's consumer, so read the schema there rather than from a copy.
 
-Debug-specific values within those schemas: `mode:` matches the handoff's top-level `mode:` discriminator (`scientific` here, `adversarial` for the adversarial handoff); `source:` names the gate that raised the question (`phase-1-stall-gate`, `phase-1-missing-data-gate`, `phase-2-multi-path-fix`, `phase-3-cannot-verify`); `resolution.resolved_by:` is `debug`, `implement`, or `manual`.
+Debug-specific values within those schemas: `mode:` matches the handoff's top-level `mode:` discriminator (`scientific` here, `adversarial` for the adversarial handoff); `source:` names the gate that raised the question (`phase-1-stall-gate`, `phase-1-missing-data-gate`, `phase-3-cannot-verify`); `resolution.resolved_by:` is `debug`, `implement`, or `manual`.
 
 The `open_questions[]` frontmatter array is the machine-readable source of truth. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /geniro:implement's Phase 1 handoff-resolution step gate.
 
@@ -202,6 +204,7 @@ Agent(subagent_type="adversarial-tester-agent", prompt="""
 
 WORKTREE: [from `git rev-parse --show-toplevel`]
 BRANCH: [from `git branch --show-current`]
+DEEP-MODE: [state.md frontmatter `deep-mode:`; missing reads as false]
 PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 
 ### Diff (changed files + contents)
@@ -221,7 +224,9 @@ none — adversarial mode runs a fresh pass (no prior reviewer findings availabl
 ### Output
 Write your report to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) via the atomic-write helper — a direct Edit/Write to any `.geniro/state/` path is hard-blocked by the state-helper enforcement hook, so write it with `source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"` then `atomic_state_write "<path>" <<'EOF' … EOF`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
 
-The handoff's frontmatter must include `authored_tests: [...]` carrying one entry per RED test kept after your 3× flake check — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree. Read the entry schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § Producer-specific extensions and fill every field from your run; the values this mode fixes are `mode: adversarial` (matching the top-level `mode:` discriminator), `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring your A6 Confidence column, and `path` resolved against your own `git rev-parse --show-toplevel`.
+Emit the complete T2 frontmatter, not only the test array — an omitted `branch`/`worktree` routes every consumer into the degraded fallback (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C), which drops the relocation suggestion your tests need to be found by. (`/geniro:review` sidesteps this by writing its handoff orchestrator-side; fixing what you emit here is the smaller change for this producer.) Field semantics for `from-debug-adversarial-<branch>.md` are canonical at this file's §2 above — read it rather than guessing a field's shape. Required keys: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `worktree`, `timestamp`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `deep-mode`, `approvals`, `non-resumable-actions`, `authored_tests`, `open_questions`. The values this mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `schema-version: 1`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `non-resumable-actions: []` (you make no persisted-AUQ pick and complete no non-resumable action), `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `branch` = BRANCH, `worktree` = WORKTREE, `deep-mode` = DEEP-MODE (the slots above); `timestamp` = a live clock read at write time.
+
+`authored_tests: [...]` carries one entry per RED test kept after your 3× flake check — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree. Read the entry schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § Producer-specific extensions and fill every field from your run; the values this mode fixes are `mode: adversarial` (matching the top-level `mode:` discriminator), `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring your A6 Confidence column, and `path` resolved against your own `git rev-parse --show-toplevel`.
 
 `authored_tests: []` (empty array) is the correct form for the zero-red-tests terminal outcome. Body `**Test file:**` lines remain the human-readable mirror; the frontmatter is the contract.
 
@@ -307,44 +312,19 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 ## 8. Open-PR scan — already fixed elsewhere?
 
-Phase 1 (Scientific Mode) sub-step referenced from `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.2. Checks whether an open PR already fixes the bug under investigation — so a debug session does not re-investigate something a teammate is already patching, and so a strong match can prime or short-circuit the hypothesis loop. Read-only; never opens, edits, or comments on a PR (debug's no-ship boundary holds).
+Phase 1 (Scientific Mode) sub-step referenced from `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.2. Checks whether an open PR already fixes the bug under investigation, so a debug session does not re-investigate something a teammate is already patching. The probe itself — the query, relevance scoring, the top-5 cap, and unreachable-source handling — is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` §2 (Open pull requests) / §3 (Bounds) / §4 (On a hit) / §5 (Unreachable handling); this section covers only the inputs debug feeds it and what debug does with a hit. Read-only; never opens, edits, or comments on a PR (debug's no-ship boundary holds).
 
-**When it runs.** After §1.2 Observe & repro, once the symptom and the suspect / recently-changed files are known, before §1.4 Hypothesize. Scientific Mode only — Adversarial Mode tests a specific diff, where "already fixed elsewhere" does not apply.
+**When it runs.** After §1.2 Observe & repro, once the symptom and suspect files are known, before §1.4 Hypothesize — those are exactly the inputs the scan needs, and Adversarial Mode's diff-only flow (no symptom, no Observe & repro) never produces them. Scientific Mode only, for that reason.
 
-**Skip (fail-open) when:**
+**Inputs debug supplies.** `suspect_files` — the suspect / recently-changed files §1.2 identified. `keywords` — distinctive tokens from the symptom or error string (function names, error codes, unique phrases), stop-words dropped.
 
-- The repo has no GitHub remote, or `gh` is unavailable / unauthenticated (`gh auth status` non-zero). Render a one-line note (`open-PR scan skipped — gh unavailable`) and continue the investigation.
-- No usable signal — no suspect files identified AND the symptom is too generic to produce distinctive keyword tokens. Continue without a note.
+**On a strong hit**, `AskUserQuestion` (header `"Existing fix"`; question names the matched PR and why it matched):
 
-**Signal inputs:**
+- **Review that PR's diff first** — if it resolves the bug, skip the hypothesis loop and go to Phase 3, naming the existing PR in the findings **Proposed fix** line (`already fixed in open PR #N <url> — no new patch needed`) so it reaches the downstream consumer through the persisted handoff body (§3.1), not just chat. If it does not resolve the bug, record why in `## Hypotheses` and keep investigating.
+- **Test it as a hypothesis** — form a hypothesis that the PR's change fixes the bug and test it against the feedback loop like any other hypothesis (§1.5).
+- **Ignore — keep investigating** — discard the match and proceed to §1.4.
 
-- `suspect_files` — the suspect / recently-changed files from §1.2 (the `git log` / "what changed" identification).
-- `keywords` — distinctive tokens from the symptom or error string (function names, error codes, unique phrases). Drop stop-words and generic terms so the title/body match stays high-signal.
-
-**Mechanism:**
-
-1. `gh pr list --state open --json number,title,headRefName,author,updatedAt,url,files --limit 30`. The `files` field carries each PR's changed paths, so the whole candidate scan is one call — no per-candidate round-trip (mirrors the /review peer-PR scout). Optionally pre-narrow with `--search "<top keywords>"` when the keyword set is distinctive — GitHub matches the search server-side across PR title + body.
-2. Score each candidate from that single result:
-   - `file_overlap` — count of `suspect_files` the PR's `files` field also lists.
-   - `keyword_match` — +1 if the PR title contains a `keywords` token or the error string, or the PR surfaced via the `--search` pre-narrow (a server-side title + body match); cap +2.
-   - `total_score = file_overlap + keyword_match`.
-3. Keep the **top-5** by `total_score` (ties broken by `updatedAt` descending). Drop any candidate with `total_score == 0` (no overlap and no keyword — irrelevant).
-
-**Surfacing + gate:**
-
-- **Strong hit** — the top candidate has `file_overlap >= 1` AND `keyword_match >= 1`: the bug may already be fixed. Fire `AskUserQuestion` (header `"Existing fix"`; question names the PR `#N "title"` and why it matched):
-  - **Review that PR's diff first** — read `gh pr diff <N>` (cap ~150 lines). If it resolves the bug, skip the hypothesis loop and go to Phase 3; name the existing PR in the findings **Proposed fix** line (`already fixed in open PR #N <url> — no new patch needed`) so it reaches the downstream consumer through the persisted handoff body (§3.1), not just chat. The user typically routes that to "Leave it to me" and merges the PR. If it does not resolve the bug, record why in `## Hypotheses` and keep investigating.
-  - **Test it as a hypothesis** — form a hypothesis that the PR's change fixes the bug and test it against the feedback loop (§1.5) like any other.
-  - **Ignore — keep investigating** — discard the match and proceed to §1.4.
-  - Persist the pick to state.md frontmatter `approvals[]` category `existing_fix_pr` via `atomic_state_write`, so the session-start restore re-applies it across a compaction or resume. The matched PR itself rides to the consumer in the findings body (above), so no new handoff frontmatter field is needed — `approvals[]` holds only the user's decision.
-- **Weak matches only** — overlap without a keyword, or a keyword without overlap: surface them as hypothesis-priming context (no AUQ), mirroring the §1.1 ruled-out surfacing:
-  ```
-  Open PRs touching this area (consider before forming hypotheses):
-  - #N "title" (url) — touches <overlapping files>
-  ```
-- **Zero kept candidates:** continue silently.
-
-**Bounds.** Top-5 cap; the candidate scan is a single `gh pr list` call (the `files` field avoids per-PR round-trips); a full `gh pr diff` (~150 lines) only on the "Review that PR's diff first" path. The scan never writes files or mutates git state — it is a read-only priming check, consistent with the Phase 1 ACI surface.
+Persist the pick to state.md frontmatter `approvals[]` category `existing_fix_pr` via `atomic_state_write`, so the session-start restore re-applies it across a compaction or resume. The matched PR itself rides to the consumer in the findings body above, not a new handoff field.
 
 ---
 
@@ -398,3 +378,20 @@ Same invocation form (`source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"` + he
 ```
 
 Substitute the run's real values: `scope` = the file/module the hypothesis targeted; `ext.evidence_against` = the captured artifact that eliminated it (per the Evidence Standard, not narrative).
+
+### `pitfall` (Adversarial Mode A4 step 6)
+
+Same invocation form. One entry per RED test kept after the A4 step 4 re-verification — no `ext` block:
+
+```json
+{
+  "producer": "/geniro:debug",
+  "scope": "src/api/handler.ts",
+  "summary": "Empty payload reaches the handler with no null check and throws",
+  "tags": ["bug", "null-check", "api"],
+  "type": "pitfall",
+  "trust": "verified"
+}
+```
+
+Substitute the run's real values: `scope` = the production source path the kept test targets (its `targeted_source`); `summary` = the defect in one line (mirrors the A6 **Hypothesis** line); `tags` inferred from the A6 **Category** column plus the changed files. `trust: verified` — the re-verified F→P run (A4 step 4) is the captured artifact. `pitfall` is a user-facing type per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract rule 1: echo `Recorded learning: <summary>` after a `rc=0` return, and surface a non-zero return per that section's rule 3 rather than swallowing it.

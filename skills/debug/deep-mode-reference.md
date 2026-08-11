@@ -16,7 +16,7 @@ Debug-specific layers of the opt-in `--deep` quality mode. The cross-skill contr
 
 ## 1. Activation
 
-`/geniro:debug --deep <bug>` sets `deep-mode: true`. Semantic parse at Phase 0 Step 0.2 — matches `--deep` / `deep` / `deep mode` — strip the token before mode-detect routing so it never enters the Scientific-vs-Adversarial decision. Deep mode composes with the mode switch: Scientific+Deep and Adversarial+Deep are both valid.
+`/geniro:debug --deep <bug>` sets `deep-mode: true`. Semantic parse at Phase 0 Step 0.2 — matches `--deep` / `deep` / `deep mode` — strip the token before mode-detect routing so it never enters the Scientific-vs-Adversarial decision. `--deep` deepens Scientific Mode's hypothesis generation (§2) and fix verification (§3) only; in Adversarial Mode it is accepted and recorded but currently deepens no stage, per §3's single-spawn ruling.
 
 **The HYBRID chooser** fires only when `--deep` is absent:
 
@@ -25,7 +25,7 @@ Debug-specific layers of the opt-in `--deep` quality mode. The cross-skill contr
 - **Empty `$ARGUMENTS`** (the Phase 0 mode AskUserQuestion fires) → add the "Debug depth" question as a SECOND question in that same AskUserQuestion call, answered together with the mode pick.
 - **Otherwise** (the common path — non-empty input, no `--deep`) → fire a STANDALONE "Debug depth" chooser at Phase 0, before the Phase 1.1 memory load.
 
-**The "Debug depth" question** (mirrors `/geniro:review` §11 — no `(Recommended)` marker; depth is a per-run cost-vs-thoroughness pick where the alternative is only costlier, never safer):
+**The "Debug depth" question** (mirrors `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §"Mode AUQ — review depth" — no `(Recommended)` marker; depth is a per-run cost-vs-thoroughness pick where the alternative is only costlier, never safer):
 
 - **Header:** "Debug depth"
 - **Question:** "How deep should the investigation go?"

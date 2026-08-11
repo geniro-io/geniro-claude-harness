@@ -15,12 +15,13 @@ array is accepted and treated as version 0. Items use the ground-truth schema
 `polarity: "absence"` for an item asserting what the output must NOT claim —
 scored by the inverted test, satisfied when nothing matched it.
 
-Five parsers ship: `review-findings` (the /geniro:review §Output Format shape),
+Six parsers ship: `review-findings` (the /geniro:review §Output Format shape),
 `spec-claims` (the spec-challenge per-claim verdict shape), `audit-findings`
 (the audit-pipeline reviewer table), `partition-couplings` (the
-/geniro:implement Phase 2 file-set partition shape), and `recon-items` (the
+/geniro:implement Phase 2 file-set partition shape), `recon-items` (the
 /geniro:implement Phase 1 knowledge-retrieval and codebase-explorer report
-shapes). A module names the one it needs in its target.json `parser` field; a
+shapes), and `debug-hypotheses` (the /geniro:debug `## Hypotheses` body-section
+shape). A module names the one it needs in its target.json `parser` field; a
 new output shape adds a function here and a PARSERS entry.
 
 `recon-items` emits one finding per bullet the Phase 1 recon reports carry, with
@@ -46,6 +47,16 @@ recall_must reads "did the partition catch the hidden dependency" and noise
 reads "did it call independent work coupled". Both directions cost something
 real: a missed coupling puts two delegates in one file, while a phantom one
 collapses the partition to a single group and delegation never fires.
+
+`debug-hypotheses` emits one finding per candidate cause in a Phase 1.4
+hypothesis set. The rubric's items are the true causal mechanisms, so
+recall_must reads "was the real cause in the candidate set the test loop would
+have consumed" and noise_strict reads "did it propose a mechanism that could not
+produce this symptom". The stand's executors are read-only, so this measures
+generation only — never whether a hypothesis would survive testing, which is the
+half debug does inline and the half CogniGent's ablation puts a larger number
+on. Read a result here as recall of the hypothesis space, not as debug's
+end-to-end accuracy.
 """
 import json, re, sys, glob, os, random
 
@@ -217,6 +228,55 @@ RECON_SEV = "HIGH"
 SUMMARY_SCORED_RE = re.compile(r"^(change_scope|Risk flags)\s*:", re.I)
 
 
+HYP_RE = re.compile(r"^###\s+H\d+\s*[:.]\s*(.+?)\s*$")
+TARGETED_RE = re.compile(r"\*\*Targeted:?\*\*:?\s*`?([^\s`]+?)`?\s*$")
+# A hypothesis carries no severity: it is a candidate cause, not a defect report,
+# and its cost is decided by whether it is RIGHT, not by how bad it would be.
+# Fixing it keeps recall_weighted driven by the rubric's own severities, matching
+# the reasoning behind RECON_SEV.
+HYP_SEV = "HIGH"
+
+
+def parse_debug_hypotheses(text, facet):
+    """One finding per hypothesis block in a /geniro:debug Phase 1.4 candidate set.
+
+    Reads the shipped `## Hypotheses` body-section shape rather than a block
+    format the stand imposes — measuring the contract debug actually persists.
+
+    The `Targeted:` line, not the heading, carries the location: two hypotheses
+    naming one module for different mechanisms are different hypotheses, so the
+    heading text (the mechanism) rides in the title and the path is parsed
+    separately. A block whose `Status:` is not `pending` is still emitted — the
+    preamble forbids testing, and silently dropping a violation would hide it
+    from the noise axis instead of scoring it.
+    """
+    blocks = []
+    cur = None
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip()
+        m = HYP_RE.match(line)
+        if m:
+            cur = {"severity": HYP_SEV, "verdict": "HYPOTHESIS",
+                   "title": m.group(1)[:200], "facet": facet,
+                   "file": None, "line_start": None, "line_end": None,
+                   "confidence": None, "decision_type": None, "origin": None,
+                   "has_evidence": False, "body": [m.group(1)]}
+            blocks.append(cur)
+            continue
+        if cur is None:
+            continue
+        if not line.strip():
+            continue
+        tm = TARGETED_RE.search(line)
+        if tm and cur["file"] is None:
+            f, a, b = parse_file_field(tm.group(1))
+            cur["file"], cur["line_start"], cur["line_end"] = f, a, b
+        if re.match(r"^\s*[-*]?\s*\*\*Evidence For:?\*\*", line):
+            cur["has_evidence"] = True
+        cur["body"].append(line.strip())
+    return blocks
+
+
 def parse_recon_items(text, facet):
     """One finding per bullet in a Phase 1 recon report.
 
@@ -282,6 +342,7 @@ PARSERS = {
     "audit-findings": parse_audit_findings,
     "partition-couplings": parse_partition_couplings,
     "recon-items": parse_recon_items,
+    "debug-hypotheses": parse_debug_hypotheses,
 }
 
 def cmd_parse(paths, parser="review-findings"):

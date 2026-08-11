@@ -24,6 +24,7 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes] [-
 - Memory I/O schedule
 - State file schema
 - Phase 0 (mode detection) · Phase 1 (investigate) · Phase 2 (propose) · Phase 3 (ship) · Adversarial Mode
+- Task execution entry / state recovery
 - REFERENCE
 
 ---
@@ -44,7 +45,7 @@ You investigate. You isolate. You propose. You do not apply the fix. Phase 3 han
 
 ## State machine
 
-state.md `phase:` enum: `mode-detect` → `investigate` → `propose` → `ship` → `done` (Scientific Mode happy path). Terminal states: `done`, `ship-summary-only`, `aborted`, `adversarial-aborted` (SessionStart recovery treats these as complete). Escalation states: `phase-1-escalated`, `phase-2-escalated` (recovery surfaces "task was paused — your previous options:" so user re-picks without losing context). Adversarial Mode runs a parallel chain (`adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship` → `done`).
+state.md `phase:` enum: `mode-detect` → `investigate` → `propose` → `ship` → `done` (Scientific Mode happy path). Terminal states: `done`, `ship-summary-only`, `aborted`, `adversarial-aborted` (SessionStart recovery treats these as complete). Escalation states: `phase-1-escalated`, `phase-1-verification-stalled`, `phase-2-escalated` (recovery surfaces "task was paused — your previous options:" so user re-picks without losing context). Adversarial Mode runs a parallel chain (`adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship` → `done`).
 
 Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §1.
 
@@ -108,7 +109,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 | Constraint | Value |
 |---|---|
-| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `adversarial-tester-agent` (adversarial mode only) |
+| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `finding-verifier-agent` (Phase 1 root-cause verification, always-on) + `adversarial-tester-agent` (adversarial mode only) |
 | Reproduction-test framework | Project's native (detected from CLAUDE.md Essential Commands) |
 
 ---
@@ -122,13 +123,14 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 | Spawn | When |
 |---|---|
 | `codebase-research-agent` | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant S1). Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
+| `finding-verifier-agent` | Phase 1 §1.6, always-on — re-verifies the confirmed root cause cold before Phase 2 opens; single spawn, never a fan-out. |
 | `adversarial-tester-agent` | Adversarial mode test authoring. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 ---
 
 ## Definition of done
 
-The full per-mode checklists live with their mode — Scientific Mode in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`, Adversarial Mode in `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`. Read the matching one before declaring the run complete.
+The full per-mode checklists live with their mode — Scientific Mode in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`, Adversarial Mode in `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`. Read the matching one before declaring completion.
 
 Four gates are cross-cutting — they bind from Phase 1 onward, not only at the exit, so they are stated here rather than only in the phase file that checks them:
 
@@ -140,13 +142,13 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 ## ACI per-phase tool surface
 
 **Phase 0 (Mode Detect):**
-- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; plus `atomic_state_write` to persist the mode/depth pick) / AskUserQuestion (the mode + depth gate).
+- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.1 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; plus `atomic_state_write` to persist the mode/depth/freshness pick) / AskUserQuestion (the mode/depth/freshness gates).
 - Explicitly blocked: any Edit/Write to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
 
 **Phase 1 (Investigate):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, read-only `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured).
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
-- Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
+- Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
 - Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching without user confirmation.
 
 **Phase 2 (Propose):**
@@ -156,7 +158,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - Explicitly blocked: production-source Edit/Write outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
-- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup) / AskUserQuestion.
+- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup; the §3.1 working-tree check's read-only `git status --porcelain`, plus its blocker-path revert) / AskUserQuestion.
 - Explicitly blocked: Edit/Write, `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
 **Adversarial Mode (A4 spawn):**
@@ -169,6 +171,8 @@ The safety hooks apply across every phase; the complete list and what each block
 ---
 
 ## Memory I/O schedule
+
+**Scientific Mode:**
 
 | Phase | Helper | Direction | MODE |
 |---|---|---|---|
@@ -183,13 +187,22 @@ The safety hooks apply across every phase; the complete list and what each block
 | Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence` — §2.5) |
 | Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis` — §3.3) |
 
+**Adversarial Mode:**
+
+| Phase | Helper | Direction | MODE |
+|---|---|---|---|
+| `adversarial-investigate` entry | `load-custom-instructions` | read L4 | `refresh` |
+| `adversarial-ship` exit | `emit-learning` | write L2 | n/a (type `pitfall` — A4 step 6) |
+
+No L3/L2-read rows fire — diff-scoped work receives its diff pre-inlined, so a snapshot load is scope creep.
+
 `update-semantic` is not called. Debug investigates existing code; it does not add modules, move files, or rename — those are /geniro:implement and /geniro:refactor concerns.
 
 ---
 
 ## State file schema
 
-T1.5 state.md frontmatter (categories `disambiguate_mode`, `multi_path_fix`, `deep_mode_choice`, `existing_fix_pr` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `deep_mode_choice`, `existing_fix_pr` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 `open_questions[]` entries carry `status: unresolved | resolved | wontfix`; an `unresolved` entry blocks the Phase 3 escalation until the §3.0 pre-gate clears it.
 
@@ -205,7 +218,7 @@ state.md `phase: mode-detect`. Loads custom instructions, checks branch freshnes
 
 ## Phase 1 — investigate
 
-state.md `phase: investigate`. An entry-gate + context load plus an inner hypothesis-test loop. Exits to Phase 2 only when a hypothesis is confirmed AND its Result: field cites an artifact per Evidence Standard.
+state.md `phase: investigate`. An entry-gate + context load plus an inner hypothesis-test loop. Exits to Phase 2 only when a hypothesis is confirmed, its Result: field cites an artifact per Evidence Standard, and the §1.6 independent verification confirms the root cause (or fails open with the unverified disclosure).
 
 **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md`** — Steps 1.1-1.7, the missing-data and stall gates, infrastructure-cause guidance, isolation techniques.
 
@@ -223,7 +236,7 @@ state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduct
 
 state.md `phase: ship`. Findings handoff to downstream skill OR user-handles — proposals + tests authored locally (no-ship boundary per § Your role, § ACI per-phase).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`** — Steps 3.0-3.5, the Debug Findings template, the cleanup contract, and the Scientific-Mode Definition of done. The handoff is persisted via `atomic_state_write` BEFORE the escalation `AskUserQuestion` fires, and every `open_questions[]` entry reaches `resolved` or `wontfix` first.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`** — Steps 3.0-3.5, the Debug Findings template, the cleanup contract, and the Scientific-Mode Definition of done. Exits when every `open_questions[]` entry reaches `resolved` or `wontfix` (§3.0) and the §3.2 escalation pick resolves to a terminal state — `phase: done` or `phase: ship-summary-only` — with the findings handoff already persisted via `atomic_state_write` before that question fired.
 
 ---
 
@@ -231,13 +244,19 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship`. Parallel to Scientific Mode; shared Phase 0 routes here on anchored verify-keyword signals (Phase 0 above).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A6 (purpose, diff resolution, skip conditions, RED-phase workflow, spawn template, findings template) and this mode's Definition of done. Zero surviving red tests is a valid deliverable: terminal `adversarial-aborted`.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A6 (purpose, diff resolution, skip conditions, RED-phase workflow, spawn template, findings template) and this mode's Definition of done. Exits when findings are surfaced, the `pitfall` learnings are recorded ahead of the A4 step 6 escalation AUQ, and that pick reaches this chain's terminal `phase: done` via Run `/geniro:implement` — the other two options fall outside the adversarial chain — or directly to terminal `phase: adversarial-aborted` when zero red tests survive independent re-verification — a valid deliverable, not a failure.
+
+---
+
+## Task execution entry / state recovery
+
+State file: `.geniro/state/debug/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules). On entry, `Glob` for it; if present, validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before acting on it, then route per the helper's § Consumer contract and resume from the persisted `phase:` value. No state file found → fresh run, proceed to Phase 0. Write each phase transition through `atomic_state_write`; a terminal phase (§ State machine) is final.
 
 ---
 
 ## REFERENCE
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram (§1), state.md + handoff schemas (§2), infrastructure checklist (§3), isolation procedures (§4), stall taxonomy table (§5), adversarial spawn + findings templates (§6), worked examples — Cache not invalidating / Intermittent timeout / Verify recent changes (§7), open-PR scan (§8), emit payload shapes (§9).
+- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram, state/handoff schemas, infrastructure + isolation reference, stall taxonomy, adversarial templates, worked examples, open-PR scan, emit payload shapes (§1-9; see its own Contents).
 - `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — depth question (§1), hypothesis fan-out (§2), 3-verifier majority vote (§3).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes.
