@@ -140,7 +140,7 @@ Three shapes across the scope set. The schema itself is owned by the loader that
 - **`memory`** — its own `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only; no Rules / Constraints / Additional Steps.
 - **`review-extra/<slug>`** — directory-style, one file per custom reviewer, with YAML frontmatter (fields below) plus a `# Criteria` body.
 
-The optional `## Data Sources` section — valid in `global` and the per-skill scopes — declares the read-only sources the `/geniro:plan` and `/geniro:implement` verification steps cross-check load-bearing facts against; its entry shape, discovery, and read-only screening are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`, and an absent section just means no declared sources.
+The optional `## Data Sources` section — valid in `global` and the per-skill scopes — declares the read-only sources a skill phase cross-checks against wherever it establishes a load-bearing fact; its entry shape, discovery, and read-only screening are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`, and an absent section just means no declared sources.
 
 The optional `## Verification Surface` section — same scopes — declares what each of the project's checks covers and what it leaves uncovered, so a run picks the check that actually demonstrates a criterion and states the result at that check's width; its entry shape and consumption contract are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md`, and an absent section changes nothing.
 
