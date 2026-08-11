@@ -603,7 +603,7 @@ _vps_check_launch_config() {
 # 14. effort_tier
 _vps_check_effort_tier() {
   local fm="$1" tier
-  local fix="Set frontmatter effort_tier to one of trivial / small / medium / big, lowercase — Phase 5 milestone-mode and check 3's research threshold both read it, and an absent or miscased value relaxes both silently."
+  local fix="Set frontmatter effort_tier to one of trivial / small / medium / big, lowercase — Phase 5 milestone-mode and the source_materials check's research threshold both read it, and an absent or miscased value relaxes both silently."
   if ! _vps_fm_has "$fm" effort_tier; then
     _vps_emit effort_tier fail "Frontmatter has no effort_tier." "$fix"
     return

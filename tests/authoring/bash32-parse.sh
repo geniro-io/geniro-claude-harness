@@ -49,7 +49,12 @@ else
   pass "self-test: detector fires on the known-bad comment-in-\$() shape"
 fi
 
-for f in $(find hooks lib -name '*.sh' -type f | sort); do
+# tests/ is in scope alongside hooks/ and lib/. It was not, and that gap is how a
+# one-line `case ... ;; esac` inside a `$( )` — which bash 3.2 cannot parse —
+# reached CI in an authoring lint. Every one of these runs on a contributor's
+# macOS box, where /bin/bash IS 3.2, so a parse error there is a broken suite for
+# them even though the file it checks is fine.
+for f in $(find hooks lib tests scripts -name '*.sh' -type f | sort); do
   if err=$("$SYS_BASH" -n "$f" 2>&1); then
     pass "bash $ver parses $f"
   else

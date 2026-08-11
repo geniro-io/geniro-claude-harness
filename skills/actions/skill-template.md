@@ -66,7 +66,7 @@ created-by: geniro:actions
 ## Authoring rules (applied during synthesis)
 
 - **Description** — this bullet is the authoring-side statement of the `description:` rule and its length cap: the description starts with "Use when …" and runs to at most the character cap `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh` enforces (`_VAF_DESC_MAX_CHARS`), which is the single home for that number. A terminal "Skip for …" clause (≤4 named categorical neighbors) is **optional** — add it only when an adjacent action would create routing collisions.
-- **Steps** are numbered and concrete. Each step names the tool or shell command (e.g., "Run `gh pr view {{argument}} --json title,body`"), not vague verbs ("look at the PR").
+- **Steps** are numbered and concrete. Each step names the tool or shell command (e.g., "Run `gh pr view <pr_number> --json title,body`", naming the positional arg the way `argument-hint:` names it), not vague verbs ("look at the PR").
 - **One-level deep**: if a step needs sub-detail, inline it; do NOT chain to another `.md` file. Claude's partial reads can miss content nested through references.
 - **Secrets**: never inline tokens. Reference env vars (e.g., `$SLACK_BOT_TOKEN`). The Geniro file-protection hook blocks `.env`/`*.key`/`*.pem` writes.
 - **Side effects**: if the action writes to external systems (Slack, GitHub, files outside `.geniro/`), the action's `description` SHOULD name them — a run is not re-confirmed (`/geniro:actions` Phase 4.3), so the description is where the user learns what to expect.

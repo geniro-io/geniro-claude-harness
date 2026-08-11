@@ -2,7 +2,7 @@
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules, near-zero token usage.
 
-**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, is the enumeration of which checks are scripted, so adding one only means editing the script's own call list. Each check's *Scripted*/*Judgment* tag below is the single record of which kind it is. The judgment checks turn on reasoning no command can make — whether a citation is load-bearing, whether an area is sensitive, whether a verification method is real, whether a done-condition names an observable signal — so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports all fourteen in number order.
+**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, is the enumeration of which checks are scripted, so adding one only means editing the script's own call list. Each check's *Scripted*/*Judgment* tag below is the single record of which kind it is. The judgment checks turn on reasoning no command can make — whether a citation is load-bearing, whether an area is sensitive, whether a verification method is real, whether a done-condition names an observable signal — so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports every check in §Contents' number order.
 
 **Status:** Authoritative. Each check returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
@@ -136,7 +136,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 *Scripted.* Frontmatter carries `effort_tier`, set to one of `trivial` / `small` / `medium` / `big`, lowercase. Fails on an absent field and on any other value, `Trivial` included.
 
-The field is not a label: Phase 5 milestone-mode fires off the Big tier, and check 3's research-agent threshold is read per tier. Both read it by comparing against the lowercase enum, so an absent or miscased value relaxes both without saying so — the shape of failure a shipped spec cannot show you.
+The field is not a label: Phase 5 milestone-mode fires off the Big tier, and check `source_materials`'s research-agent threshold is read per tier. Both read it by comparing against the lowercase enum, so an absent or miscased value relaxes both without saying so — the shape of failure a shipped spec cannot show you.
 
 ---
 
@@ -144,4 +144,4 @@ The field is not a label: Phase 5 milestone-mode fires off the Big tier, and che
 
 The `(check_id, status, finding_text, fix_hint)` tuple is fixed regardless of which surface produced it — the script for its own emitted rows, orchestrator-side reasoning for everything tagged *Judgment*.
 
-`status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in table order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally ("14/14 clean") is not a validator result: it reads the same whether all fourteen ran or five did, which is exactly how a partial pass reaches the user looking like a complete one.
+`status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in table order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally (e.g. "N/N clean") is not a validator result: it reads the same whether every check ran or only some did, which is exactly how a partial pass reaches the user looking like a complete one.

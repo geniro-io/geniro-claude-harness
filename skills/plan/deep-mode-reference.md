@@ -18,7 +18,7 @@ Plan-specific layers of the opt-in `--deep` quality mode. The cross-skill contra
 
 ## 1. Activation
 
-`/geniro:plan --deep <topic>` sets `deep-mode: true`. Semantic parse at Phase 0 mode-detect — matches `--deep` / `deep` / `deep mode`. When `--deep` is absent, a depth question (Standard / Deep) is asked as the LAST question in the Phase 3 clarify sequence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2 — no new standalone gate; on a Trivial task (Phase 3 skipped) depth falls back to flag-only. Persist `deep-mode:` to state.md frontmatter and the activation to `approvals[]` category `deep_mode_choice`. When false (default), Phase 4 runs its standard single-pass path and Phase 7.5 fires only on its Big-tier gate; deep mode adds zero overhead.
+`/geniro:plan --deep <topic>` sets `deep-mode: true`. Semantic parse at Phase 0 mode-detect — matches `--deep` / `deep` / `deep mode`. When `--deep` is absent, a depth question (Standard / Deep) is asked as the LAST question in the Phase 3 clarify sequence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2 — no new standalone gate; on a Trivial task (Phase 3 skipped) depth falls back to flag-only. Persist `deep-mode:` to state.md frontmatter and the activation to `approvals[]` category `deep_mode_choice`. When false (default), Phase 4 runs its standard single-pass path; Phase 7.5 still fires — it is always-on, on every effort tier — but runs its single-pass batch verification (§4) rather than the 3-verifier majority. `--deep` adds zero overhead outside these two spots.
 
 ## 2. Recall — Phase 4 approach panel
 

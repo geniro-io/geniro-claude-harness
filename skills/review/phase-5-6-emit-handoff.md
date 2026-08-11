@@ -19,6 +19,8 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 
 State.md `phase: persist`.
 
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load (Phase 2 entry) may have silently dropped the rules — re-Read all files and echo per the helper's contract. This phase writes the handoff and runs the PR-post drill after the verifier fan-out and the Phase 3/4 filter-and-stratify stretch, the longest context-consuming span since the Phase 2 refresh.
+
 ### 5.0 Repeat findings (re-run rounds)
 
 On a round ≥2 re-run, an admitted finding carrying the `repeat-of-prior-round` marker stays in the main `## Findings` list with a "seen since round <N>" annotation, every gate intact, and a `<R> repeated unchanged from round <N-1>` clause on the Disposition line. Skipped on a first review / fresh-PR round. Full mechanics: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 (Repeat-finding presentation).

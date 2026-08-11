@@ -215,13 +215,6 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 ### Pre-Inlined Context
 {{paste any pre-existing notes from the orchestrator on what's already known about the external technology, so the agent doesn't re-establish background}}
 
-### Investigation strategy
-1. Use WebSearch for each query. Use WebFetch to read full page content when a search result looks highly relevant.
-2. Search for official documentation of relevant frameworks/libraries
-3. Search for best practices, known issues, or common patterns
-4. Search for comparisons or alternatives if the question involves choices
-5. Search for security advisories or deprecation notices if relevant
-
 ### Output schema (literal shape)
 **Sources consulted:** [list with URLs]
 
@@ -249,7 +242,7 @@ The verifier inherits the orchestrator's session tier (OMIT `model=`); the spawn
 ```
 Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Verify Investigation Answer (READ-ONLY)
-Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit (also restated here per context-isolation-checklist.md § Required pre-inlined context, the prohibited-tools field belt-and-suspenders).
+Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit.
 
 **Original question:** {{user's question}}
 WORKTREE: [from `git rev-parse --show-toplevel`]

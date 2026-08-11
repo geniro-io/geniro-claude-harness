@@ -1,6 +1,6 @@
 ---
 name: reflection-agent
-description: "Post-task improvement synthesizer. Spawned by /geniro:reflect (user-invoked, on-demand) to extract durable project-rule candidates from recent work — a diff, a finding set, or session extracts drawn from past transcripts or from the running session — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
+description: "Post-task improvement synthesizer. Spawned by /geniro:reflect (user-invoked, on-demand) to extract durable project-rule candidates from recent work — a diff, a finding set, or session extracts drawn from past transcripts or from the running session — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / Memory / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
 maxTurns: 50
@@ -49,7 +49,7 @@ Absorb the diff / findings. Identify what is genuinely NEW about this task: a co
 
 ### Step 2 — Draft candidate lessons
 
-For each durable lesson, draft `target / file / change / why`. Classify the `target` using the routing table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — apply its decision ladder (first match wins): auto-enforceable → project rules/hooks; file-pattern-scoped code rule → `.claude/rules/<scope>.md`; cross-cutting style → `.geniro/instructions/code-style.md`; skill-behavior gate → `.geniro/instructions/<skill>.md`; project-wide command/structure/gate → CLAUDE.md; hard-to-reverse + surprising + genuine-tradeoff decision → ADR; reusable technical insight → learnings; uncertain → learnings.
+For each durable lesson, draft `target / file / change / why`. Classify the `target` using the routing table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` — apply its decision ladder (first match wins): auto-enforceable → project rules/hooks; file-pattern-scoped code rule → `.claude/rules/<scope>.md`; cross-cutting style → `.geniro/instructions/code-style.md`; skill-behavior gate → `.geniro/instructions/<skill>.md`; project-wide command/structure/gate → CLAUDE.md; hard-to-reverse + surprising + genuine-tradeoff decision → ADR; collaboration preference or correction about how the user wants you to work → Memory (native auto-memory); reusable technical insight → learnings; uncertain → learnings.
 
 ### Step 3 — Dedupe against existing rules
 
@@ -75,7 +75,7 @@ Return this exact structure (the orchestrator parses it). Emit the summary even 
 ## Reflection — N improvement candidate(s)
 
 ### [TARGET] Candidate title
-- **Target:** CLAUDE.md | .claude/rules/<scope>.md | .geniro/instructions/<skill>.md | .geniro/instructions/code-style.md | ADR | learnings
+- **Target:** CLAUDE.md | .claude/rules/<scope>.md | .geniro/instructions/<skill>.md | .geniro/instructions/code-style.md | ADR | Memory | learnings
 - **File:** <concrete path the change would land in>
 - **Change:** WHEN <condition> → <action> — one concrete line, specific enough to apply
 - **Evidence:** <incident citation from this task — file:line, finding, or the user correction itself>

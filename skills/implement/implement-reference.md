@@ -56,7 +56,7 @@ Literal question shapes for the Step 0c workspace-setup AUQ. SKILL.md §PHASE 1 
 The option labels below carry NO `(Recommended)` suffix. The rule that fired in the 0b decision tree names which option gets it — rule 3 and rule 6 flip the label depending on `CONCURRENT_ACTIVITY`, so a suffix baked into a label here would render the wrong option as Recommended on every run those rules govern. Append ` (Recommended)` to exactly one label at render time: the one the fired rule names. Never fire this question with no Recommended option at all — an unlabeled set anchors the user on whichever option is listed first (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy).
 
 ```
-header: "Git workspace"
+header: "Workspace"
 question: "Where should /geniro:implement land its edits?"
 multiSelect: false
 options:
@@ -71,7 +71,7 @@ options:
 ### No-ticket-ID sub-flow
 
 ```
-header: "Ticket ID needed"
+header: "Ticket ID"
 question: "Branch format requires a ticket prefix (per .geniro/instructions/global.md), but no ticket ID was detected in $ARGUMENTS, spec.md, or the current branch. How do you want to proceed?"
 multiSelect: false
 options:
@@ -86,7 +86,7 @@ options:
 ### Question 3 — implement depth
 
 ```
-header: "Implement depth"
+header: "Run depth"
 question: "How deep should the implementation analysis go?"
 multiSelect: false
 options:
@@ -220,7 +220,7 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 | `PLANNING_ROOT` | `<PRIMARY_ROOT>/.geniro/planning` — cross-session subset (`_FEATURES.md`, `_CODEBASE_MAP.md`, `_focus-*.md`) |
 | `TASK_PLANNING_ROOT` | `$(pwd)/.geniro/planning/<task-slug>` — task-local (`spec.md`, prior `plan-*.md`) |
 | `HANDOFF_DIR` | `<PRIMARY_ROOT>/.geniro/state/handoff/` |
-| `TASK_DESCRIPTION` | First ~200 chars of `$ARGUMENTS` or `spec.title` |
+| `TASK_DESCRIPTION` | `$ARGUMENTS` or `spec.title`; truncation length owned by `${CLAUDE_PLUGIN_ROOT}/agents/knowledge-retrieval-agent.md` §Input contract |
 | `INFERRED_TAGS` | Tag list inferred by the orchestrator from task description (e.g., `react,auth,bug`) |
 | `TASK_CHAIN_CONTEXT` | The related-task chain block from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`, or omitted when empty |
 | `OUTPUT_PATH` | `<task-dir>/.kr-out.md` |
@@ -386,7 +386,6 @@ Agent(subagent_type="test-runner-agent", description="Running the test suite", p
 WORKTREE: [absolute path]
 TEST_COMMAND: [exact command string]
 CHANGED_FILES: [newline-separated paths]
-PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 
 OUTPUT_PATH: [absolute path under <task-dir>]
 MAX_FAILURES_REPORTED: 15
@@ -525,9 +524,11 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 | `security` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/security-criteria.md` | Injection, auth/authz, secret handling, untrusted-input flows, OWASP-top-10 |
 | `architecture` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` | Layering, coupling, abstractions, dead code, duplication, naming, file placement. **Also covers docs-staleness**: explicit check for README / architecture-doc / contributing-guide references to patterns or files renamed in Phase 2. **Also covers spec-compliance**: explicit check that the Phase 2 diff matches spec.md scope — no unspec'd files touched, no spec'd requirements unaddressed. **Also covers parallel-path symmetry (mirror-gap)** per architecture-criteria.md §1.6: when the diff adds a guard / replacement / cleanup on one path, verify every sibling path sharing the invariant got the same treatment. |
 | `tests` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` | Coverage of changed lines, edge cases, F→P invariant, brittle assertions, missing negative cases. **Pre-condition:** tests are green per Phase 2; this dim NEVER sees failing tests. |
-| `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities. |
+| `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities, and compliance with the repo's own authored rule files (the authored-rule-citation class conventions-criteria.md §1 hands off to rules-compliance-criteria.md). |
 
 **Code-style pre-inline slot (code-quality + architecture reviewers only):** if the Phase 1 / Phase 3-entry L4 loader echoed `Loaded code-style.md …`, pre-inline that content under a `## Code-style instructions` header per the reviewer-agent contract. If the loader echoed `No code-style.md found — skipping.`, omit the slot. Bugs / security / tests reviewers do NOT get the slot (code-style is orthogonal).
+
+**Authored-rule-files slot (code-quality reviewer only):** pass an `AUTHORED RULE FILES:` slot — one absolute path per line to the repo's own rule files (`CLAUDE.md`, `.claude/rules/`, `.cursor/rules/`, `.cursorrules`, `AGENTS.md`, etc.), discovered via Glob before spawning, or the sentinel `none found` when the repo ships none. Always composed, never omitted — an absent slot and a repo with no rule files read identically to the reviewer, and rules-compliance-criteria.md §1 falls back to its own Glob only when the slot is missing entirely. Other dimensions do NOT get this slot.
 
 **ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff. The `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` whitelist (`[Read, Glob, Grep, Bash, "mcp__*"]`) blocks Edit / Write / Agent outright — those tool names are absent from the grant. `Bash` itself is unrestricted by the whitelist, and the `mcp__*` grant is read-only *by prompt contract*, not by the whitelist: read-only Bash use and no mutating/external-network MCP calls are enforced by the inlined prompt instruction, per `${CLAUDE_PLUGIN_ROOT}/ARCHITECTURE.md` §Optional MCP companions.
 
@@ -669,7 +670,7 @@ else:
 
 1. Do NOT silently push or claim completion.
 2. **Render the unresolved findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — a separate, already-emitted chat message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 unresolved findings, open the message with the decision-queue progress tracker (`✔` decided · `●` deciding now · `○` ahead — one stop per finding with a short plain-English tag). Each finding gets the visual-form block: the `### 🧭 Decision needed:` title, the `**In one sentence:**` opener, a conversational lead expanding what the code does and what the concern is, `**Why it matters:**` with its evidence cite, and a visual per the same contract's §Finding-type visual map. The per-dimension findings summary lives in this render — never inside the question.
-3. Then fire the lean `AskUserQuestion` (header: `"Resolve findings"`) with these options:
+3. Then fire the lean `AskUserQuestion` (header: `"Unresolved"`) with these options:
    - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). No handoff file is written: `/geniro:debug` opens its own investigation from `$ARGUMENTS` and reads no planning `state.md`, so state.md here is the run's audit trail, not a consumer-parsed handoff. Close by naming the unresolved findings in chat so the user can carry them into the `/geniro:debug` invocation.
    - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
    - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
@@ -691,7 +692,7 @@ Fires once the bounded fix loop converges (clean exit OR the accepted-findings e
 
 **Message-first render.** Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, emit a separate chat message listing each finding in plain English — title · `file:line` · one-line description. Call them "minor findings below the fix threshold"; severity labels and finding-ID shorthand are review-internal vocabulary that means nothing to the user. Entries carrying the `pre-existing` marker get an explicit callout — "this one concerns code this change didn't touch; fixing it widens the change" — and a serious-severity pre-existing entry states its severity in plain English ("the review rates this one serious"), so the user can weigh an expand-scope-now decision against a follow-up task.
 
-**Lean AskUserQuestion** (header: `Minor findings`):
+**Lean AskUserQuestion** (header: `Minor issues`):
 
 ```
 question: "The review also flagged <N> findings it didn't auto-fix — minor ones
@@ -762,7 +763,7 @@ When both conditions hold, the verification is mandatory: an unreachable page �
 
 ### Commit + Push + PR
 
-**Step 2 — Commit.** Before staging, run `git branch --show-current` and verify the working tree is on the branch this run targeted (the Phase-1 Step-0 captured `CURRENT_BRANCH` / state.md `branch:` field). The session-start / state-snapshot branch field can go stale across compaction or an intervening branch switch — trust the live command, not the snapshot. On a mismatch, do NOT `git add` or `git commit`; fire an `AskUserQuestion` (header: "Branch check", question: "The working tree is on branch `<live>` but this run targeted `<expected>` — committing here would land the change on the wrong branch. How do you want to proceed?", options: "Move my commit to `<expected>` first" / "Commit on `<live>` anyway" / "Stop — let me sort the branch out"). Once the branch is confirmed, stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). Provenance guard: diff `git status --porcelain` against CHANGED_FILES; any production file modified outside that set was authored by something other than this run — fire an `AskUserQuestion` (header: "Unexpected changes", options: "Include them — I authored them elsewhere" / "Exclude — commit only my files" / "Pause and review") rather than silently folding them into this run's commit. Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata. If a workflow file specifies commit-message format (e.g., appending issue ID), follow that format.
+**Step 2 — Commit.** Before staging, run `git branch --show-current` and verify the working tree is on the branch this run targeted (the Phase-1 Step-0 captured `CURRENT_BRANCH` / state.md `branch:` field). The session-start / state-snapshot branch field can go stale across compaction or an intervening branch switch — trust the live command, not the snapshot. On a mismatch, do NOT `git add` or `git commit`; fire an `AskUserQuestion` (header: "Branch check", question: "The working tree is on branch `<live>` but this run targeted `<expected>` — committing here would land the change on the wrong branch. How do you want to proceed?", options: "Move my commit to `<expected>` first" / "Commit on `<live>` anyway" / "Stop — let me sort the branch out"). Once the branch is confirmed, stage only this run's CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`). Provenance guard: diff `git status --porcelain` against CHANGED_FILES; any production file modified outside that set was authored by something other than this run — fire an `AskUserQuestion` (header: "Extra edits", options: "Include them — I authored them elsewhere" / "Exclude — commit only my files" / "Pause and review") rather than silently folding them into this run's commit. Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata. If a workflow file specifies commit-message format (e.g., appending issue ID), follow that format.
 
 **Step 4 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping — one instance of the general rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
 

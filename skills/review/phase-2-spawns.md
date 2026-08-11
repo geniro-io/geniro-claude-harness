@@ -87,7 +87,7 @@ Then fire the parallel batch — single message with N parallel `Agent` tool use
 - OMIT `model=` argument — reviewer-agent declares `model: inherit`. Custom reviewers that declare an explicit tier in their `.geniro/instructions/review-extra/<slug>.md` frontmatter pass that tier verbatim; otherwise OMIT.
 - Pre-inlined context per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`:
   - `PROJECT SEARCH POLICY:` — the `global.md` rules governing how to search this codebase, verbatim, or `none declared`. It governs every lookup the reviewer makes, not just its first.
-  - Diff of changed files — all files in both modes; in Batched payload mode organized into ~5-file groups as a structured reading order (highest-risk groups first and last), per the triage reference §12.
+  - Diff of changed files — all files in both modes; in Batched payload mode organized into groups as a structured reading order (highest-risk groups first and last), group size owned by the triage reference §12.
   - Project conventions from L4 (refreshed).
   - Mechanical pre-pass findings (Phase 1.5) as prior-context under `## Mechanical Pre-pass Findings`.
   - PLAN CONTEXT — spec-compliance + regressions dims ONLY (other dims see `PLAN CONTEXT: <plan tag fields only>` per the schema-aware reference).

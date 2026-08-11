@@ -125,7 +125,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 | Budget | Value | Why |
 |---|---|---|
 | Threads per batch | default 3; hard cap 5 | Each thread costs its own judge spawn and its own mechanical pass. Past 5 the merged report outgrows the per-finding AUQ ladder and the wall-clock stops being worth the added recurrence signal. A count above the cap is clamped, with the clamp stated to the user |
-| Thread file size | hard cap 5 MB; warn at 1 MB | JSONL session logs can grow large; >5 MB likely a merged multi-session log that should be split first. In a batch, an oversize thread is skipped and named in the report rather than aborting the run |
+| Thread file size | hard cap per `.claude/skills/find-threads/scan.py`'s `OVERSIZE_BYTES`; warn at 1 MB | JSONL session logs can grow large; over the hard cap likely means a merged multi-session log that should be split first. In a batch, an oversize thread is skipped and named in the report rather than aborting the run |
 | LLM-judge token budget | seed prompt ≤ 8 K tokens, thread excerpts ≤ 60 K tokens | The seed is the inlined short-form taxonomy, that thread's expectation set, and its mechanical findings (invariant #3). Per thread, and each judge has its own context, so a batch does not share this budget. Where the expectation set crowds the seed, summarise its blocks to their headings and boundaries rather than dropping the set — a judge holding the taxonomy but not the declared side runs every coverage check blind. Excerpts are sliced to the top-3 most-suspicious sections per check, not the full thread, to fit the 200 K context with headroom |
 | Findings raw cap | 60 per thread | More than 60 raw findings on one thread = the parser misclassified the format; halt and ask user to re-check input. Applies per thread, not to the batch total |
 | Findings kept cap | 25 surfaced to user | Counted AFTER the Phase 3 cross-thread merge, so a defect recurring in 3 threads consumes one slot. Past 25 the AUQ ladder becomes unworkable; if more survive, sort by recurrence × severity × confidence and truncate, noting the tail count |
@@ -147,18 +147,7 @@ Glob is permitted across phases for state-file lookup and helper resolution but 
 
 ## Definition of done
 
-These are the load-bearing exit gates — the checks that, if skipped, ship a wrong result. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
-
-- [ ] The thread set resolved from `$ARGUMENTS` with no question asked, excluded this session's own log by id, and named every clamped or skipped thread to the user
-- [ ] The expectation set was built from each thread's own trace, never from this checkout, and any degradation was stated and carried into the confidence of every finding that rests on it
-- [ ] Every coverage check ran against a declared side or did not run at all — no "missing" row rests on an expectation the trace never established
-- [ ] Phase 2 LLM-judge ran per invariant #3 with that thread's expectation set in its seed, and a judge that returned nothing usable is reported as a mechanical-only thread, never as a full judged pass
-- [ ] Phase 3 cross-thread merge ran before triage: recurring defects collapsed to one finding with `threads: [...]`, recurrence raising confidence but never severity
-- [ ] The coverage scoreboard rendered for every thread whose expectation set was non-empty, each gap citing the finding that carries its evidence
-- [ ] Every UNCERTAIN finding got its own AUQ, fired sequentially rather than batched into one multiSelect
-- [ ] Handoff written via `atomic_state_write` when the user chose to emit, with one `open_questions[]` entry per kept finding
-- [ ] State file cleaned up per the helper § Cleanup contract
-- [ ] No mutations to the analyzed thread file or any project file outside `.geniro/state/`
+The run-completion checklist is `.claude/skills/analyze-thread/analyze-thread-definition-of-done.md`. Read it at Phase 4 entry, before findings are presented and the handoff written.
 
 ---
 
@@ -209,6 +198,7 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 
 - `.claude/skills/analyze-thread/phase-1-2-parse-detect.md` — Phase 1 + Phase 2 Steps (Read on entry to Phase 1)
 - `.claude/skills/analyze-thread/phase-3-4-filter-present.md` — Phase 3 + Phase 4 Steps, incl. the per-finding gate and the handoff emit (Read on entry to Phase 3)
+- `.claude/skills/analyze-thread/analyze-thread-definition-of-done.md` — the run-completion checklist (Read on entry to Phase 4)
 - `.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic; §8 defines the expectation set the coverage checks compare against
 - `skills/_shared/load-custom-instructions.md` — the load / echo / refresh contract the I-class checks measure a run against
 - `skills/_shared/phase-entry-read.md` — the phase-body Read and echo contract behind K2

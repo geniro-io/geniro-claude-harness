@@ -36,7 +36,7 @@ A valid finding shape: "PR #N (peer) optimizes `<path>` at `<file:line>` via <me
 
 ## Severity guidelines
 
-- **CRITICAL**: not emitted. Optimization findings are improvements, not correctness bugs — bugs and security own CRITICAL. Any genuinely critical perf regression (unbounded query, sync I/O on hot path) belongs in architecture
+- **CRITICAL**: not emitted. Optimization findings are improvements, not correctness bugs — bugs and security own CRITICAL. Any genuinely critical perf regression (unbounded query, sync I/O on hot path) belongs in bugs — architecture never emits CRITICAL either (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §Severity guidelines), so a runtime-defect-grade regression routes past it to bugs
 - **HIGH**: per-row INSERT/UPDATE in a loop on a path that processes >100 items; long-list render >1000 rows without virtualization; eager-import of a heavy lib (>100KB minified) used only behind a tab/modal
 - **MEDIUM**: missing `.lean` / `raw:true` / projection on hot-path read; sequential awaits on independent calls; missing route code-splitting; missing `React.memo` on demonstrably expensive child; long-list render 100–1000 rows without virtualization; image without modern format / `loading="lazy"` on hero
 - **LOW**: minor projection wins on cold paths; below-fold image without `loading="lazy"`; tree-shaking-hostile `import _ from 'lodash'` where only one helper is used

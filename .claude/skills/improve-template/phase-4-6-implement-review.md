@@ -50,9 +50,9 @@ Apply the following approved changes:
   path, you have Read access) and apply it to every file you touch. That section is the only source
   for the budgets and for what to do on overflow — do not restate its numbers into the file you edit.
 - Preserve existing patterns (phase structure, agent spawning syntax, anti-rationalization tables)
-- Do NOT add features beyond what was approved
-- Do NOT refactor surrounding code
-- Do NOT add comments explaining the change itself
+- Match the change to exactly what was approved — extra scope here ships unreviewed
+- Touch only the lines the approved change requires, leaving surrounding code as found
+- Let the diff explain itself; skip comments narrating the change — those go stale the moment the code moves again
 - **Edit-in-place principle:** When fixing or improving an instruction, rewrite the
   original instruction to be explicit about the correct behavior. NEVER add separate
   notes, exceptions, caveats, or conditions below/after the original. Adding
@@ -221,7 +221,7 @@ Scan for user corrections, convention discoveries, and limitations encountered. 
 
 ### Step 4: Cleanup
 
-`rm -rf .geniro/state/improve-template/<slug>/` — the whole slug directory, per `skills/_shared/within-skill-state-handoff.md` § Cleanup contract — plus this run's two Phase 1 research reports (`.research-architecture-<slug>.md`, `.research-codebase-<slug>.md`). Delete only the current branch's slug; never glob across slugs. Also `rm -f` the two pre-rename paths, `.geniro/state/improve-template/state-<slug>.md` and `.geniro/improve-template-state.md` — the `/geniro:update` migration walk that owns legacy paths elsewhere runs against installed plugins and never sweeps this repo-local dev skill, so nothing else would remove them.
+`rm -rf .geniro/state/improve-template/<slug>/` — the whole slug directory, per `skills/_shared/within-skill-state-handoff.md` § Cleanup contract — plus this run's two Phase 1 research reports (`.research-architecture-<slug>.md`, `.research-codebase-<slug>.md`). Delete only the current branch's slug; never glob across slugs.
 
 ### Step 5: Suggest commit & push
 

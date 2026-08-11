@@ -304,6 +304,34 @@ for class in absent exact whitespace superstring nonstring string_field unparsea
   done <<< "$GUARDS"
 done
 
+# --- cross_grant class -----------------------------------------------------
+# Every class above grants and probes the SAME pattern ID. This one grants a
+# DIFFERENT ID than it probes — the shape T0 #3 (2026-08-10) exploited:
+# enforce-state-helper.sh's broad "enforce-state-helper" bypass sat as an
+# early exit ABOVE check_safety_json_write, so granting it also silently
+# disabled the narrower "safety-json-edit" gate on .geniro/safety.json itself
+# — the one file that can grant every other guard's bypass in a single write.
+# Both directions are probed: the actual regression (broad grant must not leak
+# into the narrow gate) plus the control (the narrow grant must not leak the
+# other way either, which was already correctly scoped and stays that way).
+cross_grant_check() {  # <grant-id> <probe-id> <label>
+  rm -f "$PROJ/.geniro/safety.json"
+  printf '{"allow_patterns":["%s"]}' "$1" > "$PROJ/.geniro/safety.json"
+  local result hook got
+  result=$(probe_for_id "$2")
+  hook="${result%% *}"
+  got="${result##* }"
+  if [ "$got" = "2" ]; then
+    pass "$hook [$2] [cross_grant]: $3"
+  else
+    fail "$hook [$2] [cross_grant]: $3 (expected exit=2, got exit=$got)"
+  fi
+}
+cross_grant_check "enforce-state-helper" "safety-json-edit" \
+  "granting enforce-state-helper does NOT also bypass safety-json-edit"
+cross_grant_check "safety-json-edit" "enforce-state-helper" \
+  "granting safety-json-edit does NOT also bypass enforce-state-helper"
+
 cd "$ORIGINAL_PWD" || exit 1
 
 echo

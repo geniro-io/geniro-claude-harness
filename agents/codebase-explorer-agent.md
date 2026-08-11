@@ -32,6 +32,7 @@ The orchestrating skill passes you these pre-resolved slots:
 | `SPEC_CONTENT` | Full spec.md body pre-inlined in the prompt |
 | `RULES_DIR` | Absolute path to `<WORKTREE>/.claude/rules/` — per-project file-scoped rule directory (separate from `.geniro/instructions/` L4 procedural memory). May be absent in early-stage repos. |
 | `SEMANTIC_MAP` | Full `_CODEBASE_MAP.md` body pre-inlined in the prompt (~2K tokens typical) |
+| `TASK_CHAIN_CONTEXT` | *(optional, omitted when empty)* The related-task chain block — the surrounding chain of work this task sits in — from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` |
 | `PROJECT SEARCH POLICY` | The project's rules for how to search this codebase, verbatim, or `none declared`. |
 | `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.ce-out.md`) |
 

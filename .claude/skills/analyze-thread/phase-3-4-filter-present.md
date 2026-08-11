@@ -42,6 +42,8 @@ Write Phase 3 checkpoint with `findings-kept: <count>`, `filtered: <count + reas
 
 **Purpose:** Show the user grouped findings, gate UNCERTAIN ones individually, and emit the handoff.
 
+**On entry, Read `.claude/skills/analyze-thread/analyze-thread-definition-of-done.md`** — this is the terminal phase, and that file is the run-completion checklist to walk before the handoff (or the skip) closes the run.
+
 ### Step 1: Print the findings table
 
 Group by category. Within each category, sort by recurrence (most threads first), then severity (blocker → warning → nit), then confidence (high → low).

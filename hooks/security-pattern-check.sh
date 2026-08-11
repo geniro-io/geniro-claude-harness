@@ -271,6 +271,17 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: scan content authored via heredoc / echo / printf ----
   COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
   if [ -z "$COMMAND" ]; then
+    # jq is present, but the command extracted empty — either tool_input.command
+    # was genuinely absent, or the payload was malformed JSON the parse above
+    # silently swallowed (`|| echo ""`). Falling open here must not be SILENT:
+    # the sibling Bash guards on this same matcher (file-protection.sh,
+    # block-dangerous-git.sh, block-geniro-deletion.sh, enforce-state-helper.sh)
+    # each run a raw-text fail-closed scan on this exact case. This scan's
+    # patterns are Perl/PCRE content matches scoped to the WRITE TARGET's file
+    # extension, which a malformed payload carries none of to scope against —
+    # so instead of a coarse re-scan, this falls open LOUDLY with a
+    # systemMessage rather than a bare exit 0.
+    printf '{"systemMessage":"Geniro guard degraded: security-pattern-check could not parse tool_input.command from this Bash call, so shell-side content authoring (heredoc/echo/printf writes) is NOT being scanned for this command."}\n'
     exit 0
   fi
 
@@ -562,6 +573,34 @@ _geniro_join_quoted_newlines() {
 }
 # GENIRO-VENDORED-END _geniro_join_quoted_newlines
   fi
+  if ! command -v _geniro_wv_expand_assignments >/dev/null 2>&1; then
+# GENIRO-VENDORED-BEGIN _geniro_wv_expand_assignments
+_geniro_wv_expand_assignments() {
+  local text="${1:-}"
+  [ -z "$text" ] && return 0
+  local _asn _name _val _pairs=""
+  while IFS= read -r _asn; do
+    [ -z "$_asn" ] && continue
+    _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
+    _name="${_asn%%=*}"
+    _val="${_asn#*=}"
+    case "$_val" in
+      '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
+      "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
+    esac
+    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
+    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+  done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+
+  while IFS=' ' read -r _ _name _val; do
+    [ -z "${_name:-}" ] && continue
+    text="${text//\$\{$_name\}/$_val}"
+    text="${text//\$$_name/$_val}"
+  done <<< "$(printf '%s' "$_pairs" | sort -rn)"
+  printf '%s\n' "$text"
+}
+# GENIRO-VENDORED-END _geniro_wv_expand_assignments
+  fi
   if ! command -v _geniro_wv_unquote_words >/dev/null 2>&1; then
 # GENIRO-VENDORED-BEGIN _geniro_wv_unquote_words
 _geniro_wv_unquote_words() {
@@ -768,6 +807,13 @@ _geniro_interp_write_targets() {
   # commands — which is what the heredoc arm already does for a multi-line body.
   # Contract: lib/write-vectors.sh.
   JOINED=$(_geniro_join_quoted_newlines "$JOINED")
+
+  # A variable carries its value into the command the shell runs, so a scan
+  # matching literal tokens misses every redirect target and heredoc/echo/printf
+  # payload that arrived through one (`F=app.py; printf 'eval(x)' > $F`). Substitute
+  # assigned literals back in before the target/payload extraction below runs.
+  # Contract: lib/write-vectors.sh §F.
+  JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 
   # Re-run THIS scan on each extracted payload; a block inside propagates out.
   # Nested indirection terminates because each payload is strictly shorter than

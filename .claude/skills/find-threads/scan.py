@@ -40,9 +40,10 @@ Output columns (TSV):
     - turns: user+assistant events in the scanned head; a trailing "+" means the file outran the
              12 MB read cap, so the count is a floor rather than a total.
     - list mode:   relevance=0, hits=0, snippet="" ; sorted by label asc, then newest-first.
-    - search mode: relevance = the most query terms that co-occur in one ~160-char window (the
-                   proximity score) ; hits = total term occurrences ; a thread is kept only when the
-                   query matches its body, title, or label ; sorted relevance desc, hits desc, newest.
+    - search mode: relevance = the most query terms that co-occur in one WINDOW-sized character
+                   window (see search_score below; the proximity score) ; hits = total term
+                   occurrences ; a thread is kept only when the query matches its body, title, or
+                   label ; sorted relevance desc, hits desc, newest.
 
 A "#SUMMARY threads=N projects=M edited=E read-only=R" line goes to stderr, so a consumer piping the
 TSV never has to filter a non-row line out of the stream.
@@ -233,9 +234,10 @@ def search_score(blob, terms):
     """Score a thread against the query.
 
     Returns (relevance, total_hits, snippet):
-      relevance  = the most query terms that co-occur inside one ~160-char window. Threads where
-                   the terms cluster (a real topical match) outrank threads where a common word
-                   like "post" merely appears scattered among unrelated JSON.
+      relevance  = the most query terms that co-occur inside one WINDOW-sized character window
+                   (set below). Threads where the terms cluster (a real topical match) outrank
+                   threads where a common word like "post" merely appears scattered among
+                   unrelated JSON.
       total_hits = total term occurrences (a tie-breaker within a relevance tier).
       snippet    = cleaned text around the densest window, for disambiguation in the list.
     """

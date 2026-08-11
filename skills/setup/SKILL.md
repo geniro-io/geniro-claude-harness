@@ -69,9 +69,9 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I already know this stack, skip Detect" | Every project is different. Auto-detection catches conventions code review misses. |
+| "I already know this stack, skip Detect" | Detect's scan output is what Phase 3 generates the Tech Stack / Validation Commands / domain-facts sections from (`phase-3-generate.md` §3.2). Skip it and generation has no project facts to write from, so Phase 4's Template-artifact / Generic-placeholder checks (`verification-checks.md`) flag the result as DRIFT and force a regeneration round. |
 | "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
-| "Default settings are fine, skip Interview" | User preferences prevent rework. 2 minutes of questions saves 20 minutes of fixing. |
+| "Default settings are fine, skip Interview" | §2.2 is where Detect's `unknown` fields and ambiguous guesses get corrected before Phase 3 generates CLAUDE.md from them. Skip it and those unresolved values ship straight into the file, where Phase 4's verification subagent reports them as DRIFT — an extra regeneration round for what one AUQ would have fixed. |
 | "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
 | "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
 | "I'll add the Geniro skill table / hooks list / path rules to CLAUDE.md" | No — CLAUDE.md is project-specific. Everything on the `verification-checks.md` §Excluded content list lives in plugin files and is loaded automatically; copying it into CLAUDE.md wastes tokens on every run. |

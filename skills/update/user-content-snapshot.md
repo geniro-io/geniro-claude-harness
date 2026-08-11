@@ -1,6 +1,6 @@
 # Update — user-content snapshot
 
-Sibling reference for `${CLAUDE_PLUGIN_ROOT}/skills/update/SKILL.md` §User-content snapshot. `phase-1-precheck.md` (baseline) and `phase-3-postcheck.md` (comparison) each paste these definitions verbatim into their own Bash call. The repo's usual escape from that duplication — `source "${CLAUDE_PLUGIN_ROOT}/lib/<name>.sh"` per Bash call, as `atomic-state-write.sh` and `clean-task-transients.sh` already do — belongs here too; these functions are not yet split into a `lib/` file, so both phases paste this block verbatim in the meantime. Both phases must paste byte-identical code: a drifted second copy would make the survival diff raise a false tamper alarm over content nothing touched. Change it here, then re-paste into both phase files in the same edit.
+Sibling reference for `${CLAUDE_PLUGIN_ROOT}/skills/update/SKILL.md` §User-content snapshot. `phase-1-precheck.md` (baseline) and `phase-3-postcheck.md` (comparison) each paste these definitions verbatim into their own Bash call. Both phases must paste byte-identical code: a drifted second copy would make the survival diff raise a false tamper alarm over content nothing touched. Change it here, then re-paste into both phase files in the same edit.
 
 ```bash
 # One "<sha256> <mtime> <path>" line per user-authored file, sorted. $1 = PRIMARY_ROOT.

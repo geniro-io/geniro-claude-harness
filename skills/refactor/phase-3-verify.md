@@ -4,6 +4,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry t
 
 ## Contents
 
+- 3.0 Refresh custom instructions on entry
 - 3.1 Diff sanity (all tiers)
 - 3.2 Independent reviewer-agent + custom reviewers (Medium+)
 - 3.3 Orchestrator disposition logic — PRODUCT-DECISION escalation, the 1-round fix loop
@@ -17,6 +18,10 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry t
 ## Phase 3 — verify
 
 state.md `phase: verify`. Diff sanity + independent review + completion summary + L2 emit + cleanup. No `git push` / `gh pr create` — refactor never ships code, only produces a working-tree diff (deliverable) and a state-file audit trail.
+
+### 3.0 Refresh custom instructions on entry
+
+On Phase 3 entry, single `load-custom-instructions(SKILL_SLUG: refactor, LOAD_TIER: pipeline, MODE: refresh)` call (pipeline tier's load set owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). §3.6 reads a project's `### After verify` steps as instruction content, not code — a compaction between Phase 2 and Phase 3 drops that content regardless of what Phase 2's own refresh loaded for code-editing, so this call is what makes it current again.
 
 ### 3.1 Diff sanity (all tiers)
 
@@ -109,7 +114,7 @@ At Phase 3 exit:
 
 ### 3.6 Custom post-verify steps
 
-Execute any user-authored post-verify steps from the loaded L4 `<skill>.md` (`.geniro/instructions/refactor.md`) — the Phase 2 §2.1 refresh carries this content into Phase 3, so no separate load is needed here. Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the anchor for this skill's terminal phase is `### After verify` (`verify` is the final non-terminal phase enum value; post-verify steps run after its work completes). Run any subsection whose phase anchor is post-verify.
+Execute any user-authored post-verify steps from the L4 `<skill>.md` (`.geniro/instructions/refactor.md`) refreshed at §3.0 above. Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the anchor for this skill's terminal phase is `### After verify` (`verify` is the final non-terminal phase enum value; post-verify steps run after its work completes). Run any subsection whose phase anchor is post-verify.
 
 Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes. §Git constraint still binds here: a post-verify step never runs `git add` / `git commit` / `git push` even when the user's instruction names one — refactor ships no commits regardless of what triggers the step.
 

@@ -43,7 +43,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 
 ## Loop invariants
 
-**Phase bodies.** Phases 1, 2, and 3 keep their Steps in sibling files (`phase-1-classify.md`, `phase-2-investigate.md`, `phase-3-present.md`). Read the matching one before any step of that phase and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — those files hold this skill's gates (the glossary-mismatch gate, the missing-data gate, the per-finding save approvals) and the further files they defer to are bound by the same contract.
+**Phase bodies.** Phases 1, 2, and 3 keep their Steps in sibling files (`phase-1-classify.md`, `phase-2-investigate.md`, `phase-3-present.md`). Read the matching one before any step of that phase and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — those files hold this skill's gates (the glossary-mismatch gate, the missing-data gate, the duplicate-answer gate) and the further files they defer to are bound by the same contract.
 
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply, with two investigate-specific bindings:
 

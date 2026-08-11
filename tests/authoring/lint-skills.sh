@@ -388,18 +388,23 @@ check_skill_sizes() {
     base=$(baseline_words "$r")
     if [ -n "$base" ]; then
       # Recorded: a maintainer already judged this size, so only growth past it is news.
-      [ "$n" -le "$base" ] && continue
-      report_warn "$r: grew to $n words (accepted baseline $base) — re-check what is load-bearing and where it sits, then '--accept $r'; do not trim to the number"
+      if [ "$n" -gt "$base" ]; then
+        report_warn "$r: grew to $n words (accepted baseline $base) — re-check what is load-bearing and where it sits, then '--accept $r'; do not trim to the number"
+      fi
     elif [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
       report_warn "$r: $n words (whole-file guideline <=$WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then '--accept $r'"
-    elif [ "$n" -le "$FRONTLOAD_WORDS" ]; then
-      continue   # unrecorded and inside both budgets — nothing to say
     fi
-    # Falls through for: a grown file, an unrecorded file over the whole-file guideline,
-    # and an unrecorded file over the front-load budget alone. That last case must reach
-    # the block below: the front-load budget is the figure with a mechanism behind it, so
-    # a newly authored 4,000-word skill — the population nobody has judged yet — has to
-    # be told which of its sections stop being re-attached.
+    # The compaction-boundary notice is UNCONDITIONAL on baseline/growth status, on
+    # purpose: an accepted SIZE and where its compaction BOUNDARY falls are different
+    # signals. The ratchet above exists so an accepted size is not re-reported every
+    # run; the boundary notice has no such reason to go silent for a file sitting AT
+    # its baseline — it still drops every section past ~$FRONTLOAD_WORDS words once
+    # the session compacts, and "re-check what is load-bearing" needs to say where
+    # that line falls whether or not the size itself is news this run. Gating this on
+    # `[ -n "$base" ] && [ "$n" -le "$base" ]` used to `continue` before this block ever
+    # ran, so a file oversize-but-stable at its recorded baseline never learned its own
+    # boundary (skills/implement/SKILL.md, skills/investigate/SKILL.md,
+    # .claude/skills/improve-template/SKILL.md all sat in that blind spot).
     if [ "$n" -gt "$FRONTLOAD_WORDS" ]; then
       cut=$(frontload_cut "$f")
       [ -n "$cut" ] && report_warn "$r: compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"

@@ -61,7 +61,7 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| E4 | Reference to deleted skill / nonexistent phase | warning | plugin | Grep assistant turns for `/geniro:<name>` or bare `/<name>` where `<name>` matches a deleted skill per README.md's "Skills deleted" table. Also flag references to phases that don't exist in the named skill (e.g., "Phase 7 of /geniro:review" — review has 6 phases). |
+| E4 | Reference to deleted skill / nonexistent phase | warning | plugin | Grep assistant turns for `/geniro:<name>` or bare `/<name>` where `<name>` matches a deleted skill per README.md's "Skills deleted" table. Also flag references to phases that don't exist in the named skill (e.g., a phase number past the end of `/geniro:review`'s own phases-overview list). |
 | E5 | Hardcoded line refs in instructions written | warning | plugin | Triggered when an `Edit`/`Write` targets `skills/**/SKILL.md` or `.claude/skills/**/SKILL.md`. Grep the new_string / content for patterns like `SKILL.md:\d+`, `line \d+`, `at line \d+`, `:325-345`. Flag matches — content-anchored language is required per `.claude/rules/skill-prose.md`. |
 | E6 | Internal jargon in user-facing prose | nit | plugin | Triggered when text in an `AskUserQuestion.question` / `description` / option `label` / TodoWrite item / final assistant report contains: `L4`, `L3`, `L2`, `L1` (as standalone tokens), `T1`, `T1.5`, `T2`, `T3` (as standalone tokens), bare `KR`, bare `CE`, bare `TR` (when referring to agents). Plain-English forms required per `.claude/rules/skill-prose.md` § "User-facing output uses plain English". |
 
@@ -206,7 +206,7 @@ A coverage check compares a declared side against an observed side, so it has tw
 
 ## 7. Evidence-excerpt ranking heuristic for the judge
 
-Phase 2 Step 2 slices the thread into excerpts to fit the 60K-token judge budget. The ranking decides which events to include:
+Phase 2 Step 2 slices the thread into excerpts to fit the judge's excerpt budget (SKILL.md §Budgets & quality gates — LLM-judge token budget row). The ranking decides which events to include:
 
 Suspicion score per event = sum of:
 
@@ -219,7 +219,7 @@ Suspicion score per event = sum of:
 - `+1` if the event is in the first 10 or last 10 events of the thread (start/end carry context)
 - `0` otherwise
 
-Sort events by suspicion descending; take top events until 60K-token budget is reached; sort the selection back into chronological order for the judge. Always include the opening user message and the closing assistant turn regardless of score (anchors for E3 task-drift judging), and both ends of each declaration the expectation set carries — the tool_result that established it, and the turns at the boundary where it applied — before spending the budget on the ranked tail: a purely score-sorted slice reliably keeps the declaration and drops its boundary, because a boundary where nothing happened scores near zero for exactly the reason it is the finding, and the judged coverage checks (I8-I11, K7, K8) need that empty boundary as evidence, not just the declaration. Where an excerpt had to be dropped anyway, tell the judge which checks are running on partial evidence rather than letting it read absence as proof.
+Sort events by suspicion descending; take top events until the excerpt budget is reached; sort the selection back into chronological order for the judge. Always include the opening user message and the closing assistant turn regardless of score (anchors for E3 task-drift judging), and both ends of each declaration the expectation set carries — the tool_result that established it, and the turns at the boundary where it applied — before spending the budget on the ranked tail: a purely score-sorted slice reliably keeps the declaration and drops its boundary, because a boundary where nothing happened scores near zero for exactly the reason it is the finding, and the judged coverage checks (I8-I11, K7, K8) need that empty boundary as evidence, not just the declaration. Where an excerpt had to be dropped anyway, tell the judge which checks are running on partial evidence rather than letting it read absence as proof.
 
 ---
 

@@ -4,7 +4,7 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 
 ## Contents
 
-- Phase 1 — Triage & context collect (13 steps; exit criterion at the end)
+- Phase 1 — Triage & context collect (steps listed below; exit criterion at the end)
 - Phase 1.5 — Mechanical pre-pass
   - 1.5.1 Check 1 — Lint
   - 1.5.2 Check 2 — Schema

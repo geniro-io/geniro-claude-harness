@@ -39,7 +39,7 @@ Used by:
 
 ### Required AUQ shape
 
-- **`header`**: short chip label set by the calling skill (e.g. `"Open decision"`, `"Escalate"`).
+- **`header`**: short chip label set by the calling skill (e.g. `"Decision"`, `"Escalate"`).
 - **Chat render (first):** render the finding to chat per `per-finding-question.md` §Message-first rendering before firing the AUQ — the self-contained block carries the tracker (when ≥2 decisions are queued), the one-sentence opener, the conversational lead, the why-it-matters line with its evidence cite, the visual (§ Finding-type visual map), and the options, built from the finding's structured fields (see `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format) and expanded into plain English per the self-containment rule there (never echoed verbatim when they carry reviewer shorthand).
 - **`question`** (lean): the plain-English one-line title, then a pointer to the chat block:
 
@@ -100,13 +100,13 @@ The chat block (`per-finding-question.md` §Message-first rendering) is the surf
 
 Used by:
 - `/geniro:debug` Phase 2 (Multi-path fix gate when a confirmed root cause has 2-4 valid fix paths with real trade-offs)
-- `/geniro:debug` Phase 2 escape hatch (Repro infeasible — alternative regression-guard picker when the bug is non-deterministic)
+- `/geniro:debug` Phase 2 escape hatch (No repro — alternative regression-guard picker when the bug is non-deterministic)
 
 Structurally identical to the Single-finding gate above, but the "finding" is constructed by the `/geniro:debug` investigation rather than read from a reviewer-agent `Options:` field — body fields come from `.geniro/state/debug/<slug>/state.md` instead of the reviewer-agent output.
 
 ### Required AUQ shape
 
-- **`header`**: short chip label set by the calling skill (`"Fix path"` for the multi-path fix gate, `"Repro infeasible"` for the repro-infeasible escape hatch — both `/geniro:debug` Phase 2).
+- **`header`**: short chip label set by the calling skill (`"Fix path"` for the multi-path fix gate, `"No repro"` for the repro-infeasible escape hatch — both `/geniro:debug` Phase 2).
 - **Chat render (first):** render the investigation context to chat per `per-finding-question.md` §Message-first rendering — the progress tracker (only when ≥2 fix decisions are queued), `### 🧭 Fix decision: <plain-English root-cause title>`, `**In one sentence:** <what this decision settles>`, a conversational root-cause digest (what is failing and why, plain English — name the file / behavior in words), the cause→effect flow visual per § Finding-type visual map (Debug root cause row), a **Reproduction status** line, then **Options** (each fix path + consequence). Pull fields from `.geniro/state/debug/<slug>/state.md`.
 - **`question`** (lean): multi-line markdown:
 

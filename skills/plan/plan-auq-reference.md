@@ -274,7 +274,7 @@ Then the LEAN AUQ:
 header: "Goal & scope"
 question: "Approve the Goal & scope step (3 sections above)?"
 options:
-  - label: "Approve all (3 sections)"
+  - label: "Approve all (3 sections) (Recommended)"
     description: "Objective + In scope + Out of scope as rendered."
   - label: "Explain a section further"
     description: "Pick a section; I'll walk through it in more depth, then re-ask."
@@ -293,7 +293,7 @@ The chat message is the load-bearing surface — it re-explains what was decided
 Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (the Big-tier milestone threshold):
 
 ```yaml
-header: "Milestone slicing"
+header: "Milestones"
 question: "This task is large enough to slice into milestones. Slice it now or keep as a single spec?"
 options:
   - label: "Slice into milestones"            # Recommended for Big
@@ -376,7 +376,7 @@ Two steps: a gate question, then (only on "Yes") a batched capture.
 A lean single-question AUQ. The gate question never auto-defaults — an empty answer is re-asked, not defaulted, because opting in is a real choice (unlike the per-field defaults in Step 2, which presuppose a "Yes"):
 
 ```yaml
-header: "Implement setup"
+header: "Setup"
 question: "Pre-define the implementation settings now, so /implement can run on its own?"
 options:
   - label: "Yes — set them now"
@@ -404,14 +404,14 @@ questions:
         description: "Cut a separate worktree so the current checkout is untouched."
       - label: "Here"
         description: "Work in the current directory as-is, no branch change."
-  - header: "Depth"
+  - header: "Run depth"
     question: "How deep should the implementation review go?"
     options:
       - label: "Standard"                     # Recommended → deep_mode: false
         description: "Single self-review pass; standard cost."
       - label: "Deep"
         description: "Multi-angle self-review plus a pre-edit fact-check; higher quality, higher cost."
-  - header: "Branch handling"
+  - header: "Branch sync"
     question: "If the branch is behind the default branch, how should /implement catch it up?"
     options:
       - label: "Rebase"                       # Recommended → branch_freshness: rebase

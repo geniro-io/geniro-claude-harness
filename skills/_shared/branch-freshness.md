@@ -79,7 +79,7 @@ BEHIND="$(git rev-list --count "HEAD..$BASE" 2>/dev/null || echo 0)"
 ### 4.1 Update-default AUQ
 
 ```
-header: "Update branch"
+header: "Pull latest"
 question: "You're on <DEFAULT_BRANCH>, <BEHIND> commit(s) behind the remote. Pull the latest before starting?"
 options:
   - "Pull latest (Recommended)"   -> git pull --ff-only origin <DEFAULT_BRANCH>
@@ -110,7 +110,7 @@ DIRTY="$(git status --porcelain 2>/dev/null | head -1)"
 When `DIRTY` is non-empty and the user picked an action that moves HEAD, do NOT run it against uncommitted changes — chain one more question:
 
 ```
-header: "Uncommitted work"
+header: "Unsaved work"
 question: "You have uncommitted changes. Stash them, run the update, then restore?"
 options:
   - "Stash, update, restore (Recommended)"  -> git stash push -u; <action>; git stash pop

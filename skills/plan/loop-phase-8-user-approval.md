@@ -4,6 +4,7 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 
 ## Contents
 
+- 8.0 Refresh custom instructions
 - 8.1 Approval gate — closure
 - 8.2 Shape — message-first
 - 8.3 Revision-round escalation
@@ -13,6 +14,12 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 - 8.6 Custom post-approval steps
 
 State.md `phase: user-approve` during this phase.
+
+### 8.0 Refresh custom instructions
+
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
+
+The nearest prior load site is Phase 6 (§6.0), itself a refresh of Phase 1 (§1.1). §8.6 below executes any user-authored `### After user-approve` block from this load — that block has to be the one currently on disk, not the one read before validation and the spec challenge.
 
 ### 8.1 Approval gate — closure
 
@@ -93,6 +100,6 @@ Dedup + sanitization automatic. After a successful emit, echo `Recorded learning
 
 ### 8.6 Custom post-approval steps
 
-After §8.5, before Phase 9. Execute any user-authored post-approval steps from the L4 `plan.md` instruction file (`.geniro/instructions/plan.md`) loaded at Phase 1 §1.1. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-approval anchor is `### After user-approve` (`user-approve` is the Phase 8 enum value, and the spec is committed at §8.4, so an `### After user-approve` subsection runs against an approved, committed spec). Run any subsection anchored to the end of `user-approve`, treating each bullet as an imperative to execute in order and honoring any `AskUserQuestion` the user's step prescribes.
+After §8.5, before Phase 9. Execute any user-authored post-approval steps from the L4 `plan.md` instruction file (`.geniro/instructions/plan.md`) loaded at this phase's own §8.0 refresh. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-approval anchor is `### After user-approve` (`user-approve` is the Phase 8 enum value, and the spec is committed at §8.4, so an `### After user-approve` subsection runs against an approved, committed spec). Run any subsection anchored to the end of `user-approve`, treating each bullet as an imperative to execute in order and honoring any `AskUserQuestion` the user's step prescribes.
 
 This is the generic extension point for project-specific post-plan work — e.g. duplicating the approved plan into a spec-driven-development tool's change format using the project's own tooling. The plugin stays tool-agnostic: the procedure lives entirely in the project's instruction file, not in this loop. Without this step a loaded `### After user-approve` block has no execution anchor and is silently dropped once Phase 9 runs (the same failure mode `/geniro:implement`'s `### After ship` step prevents). Skip silently when no such subsection is loaded.
