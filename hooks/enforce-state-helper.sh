@@ -265,9 +265,8 @@ emit_state_helper_decision() {
   helper=$(suggested_helper "$path")
 
   local prefix="State-helper [enforce-state-helper]"
-  local body="Direct write to canonical state path: $path
-$prefix:   Use \`$helper\` via Bash for atomicity guarantee.
-$prefix:   Pattern:
+  local body="Direct write blocked: $path is a canonical state path — writable, but only through \`$helper\`. This is a routing guard, not a denial: don't report the file as blocked or hand off a manual patch — route it below.
+$prefix:   Route it:
 $prefix:     source \"\${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh\"
 $prefix:     $helper \"$path\" <<'EOF'
 $prefix:     ...content...
@@ -281,7 +280,7 @@ $prefix:   Spec: skills/_shared/atomic-state-write.md"
 
   echo "$prefix: $body" >&2
   [ -n "$layout_hint" ] && echo "$layout_hint" >&2
-  echo "$prefix: To bypass per-project, add \"enforce-state-helper\" to allow_patterns in .geniro/safety.json." >&2
+  echo "$prefix: Project bypass (rare — silences the guard, not the atomicity risk): add \"enforce-state-helper\" to allow_patterns in .geniro/safety.json." >&2
   exit 2
 }
 

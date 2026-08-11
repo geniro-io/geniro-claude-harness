@@ -65,6 +65,64 @@ else
   fail "jsonl knowledge path suggests atomic_state_append"
 fi
 
+# ===== Block-message reframing pins (2026-08-11 incident): a real run treated
+# this hook's block as a hard denial of the FILE, reported it as such to the
+# user three times, and shipped a PR calling the gap unfixable by an agent —
+# even though .geniro/actions/ was writable the whole time via
+# atomic_state_write, which that same run had already used nine times that
+# session. The message was reworded to prevent that misreading. These pin the
+# load-bearing PROPERTIES of the wording, not its exact prose — a future
+# reword should still satisfy every anchor below, and an editor who can't
+# should stop and reconsider before deleting the assertion.
+# .geniro/actions/ is used deliberately: it's the path from the incident and a
+# non-obvious member of the protected-prefix list (easy to forget alongside
+# state/planning/knowledge).
+out=$(run_path '/proj/.geniro/actions/check-crawler-errors.md')
+
+# Pin 1: the required route is NAMED and the invocation is SHOWN, not just
+# implied. Losing this reintroduces the "blocked with no way forward" reading
+# that made the run treat the file as unwritable.
+if printf '%s' "$out" | grep -q 'atomic_state_write'; then
+  pass "actions/ block names the required helper (atomic_state_write)"
+else
+  fail "actions/ block names the required helper (atomic_state_write)"
+fi
+if printf '%s' "$out" | grep -qF "atomic_state_write \"/proj/.geniro/actions/check-crawler-errors.md\" <<'EOF'"; then
+  pass "actions/ block shows the concrete invocation pattern"
+else
+  fail "actions/ block shows the concrete invocation pattern"
+fi
+
+# Pin 2: the path is explicitly stated to be WRITABLE. This is the exact claim
+# missing from the old wording ("Direct write to canonical state path") that
+# let a run read the block as "this file can't be written" instead of "this
+# ROUTE can't be used". Losing the word is losing the fix.
+if printf '%s' "$out" | grep -q 'writable'; then
+  pass "actions/ block states the path is writable"
+else
+  fail "actions/ block states the path is writable"
+fi
+
+# Pin 3: the run is told this is routing guidance, not a denial — anchored on
+# "not a denial" rather than the full sentence, so a reword of the surrounding
+# prose doesn't false-fail this. This is the line that should have stopped the
+# incident run from reporting the file as blocked and offering a manual patch.
+if printf '%s' "$out" | grep -q 'not a denial'; then
+  pass "actions/ block frames itself as routing guidance, not a denial"
+else
+  fail "actions/ block frames itself as routing guidance, not a denial"
+fi
+
+# Pin 4: the safety.json bypass is still present (it's a legitimate, if rare,
+# escape hatch) but demoted — labeled "rare" rather than offered as the
+# obvious next step. Losing "rare" here is how the bypass drifts back into
+# looking like the sanctioned way out instead of the routing helper.
+if printf '%s' "$out" | grep -q 'Project bypass (rare'; then
+  pass "actions/ block marks the safety.json bypass as a rare escape hatch"
+else
+  fail "actions/ block marks the safety.json bypass as a rare escape hatch"
+fi
+
 # Canonical state/<skill>/<slug>/state.md must NOT carry the layout hint.
 out=$(run_path '/proj/.geniro/state/review/slug/state.md')
 expect_block "canonical state/<skill>/<slug>/state.md blocks" "$(rc_path '/proj/.geniro/state/review/slug/state.md')"
