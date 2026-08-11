@@ -2,9 +2,6 @@
 name: geniro-refactor
 description: "Use when restructuring code for better organization or reducing tech debt with zero behavior change. 3-phase loop (Plan → Apply → Verify); never ships — the diff is the deliverable. For behavioral changes use /geniro:implement; for performance use /geniro:review (optimizations dimension)."
 context: main
-model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
-argument-hint: "[what to refactor and why]"
 ---
 <!-- Generated from skills/refactor/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -22,7 +19,7 @@ argument-hint: "[what to refactor and why]"
 - Budgets — quality-first
 - Subagent model tiering · Agent failure handling
 - Evidence Standard
-- Universal rule: all choice questions use AskUserQuestion
+- Universal rule: all choice questions use AskQuestion
 - ACI per-phase tool surface
 - Git constraint
 - Memory I/O schedule
@@ -37,7 +34,7 @@ argument-hint: "[what to refactor and why]"
 **Detailed contracts:**
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — the smell-detection sub-step (reuse-vs-create audit per detected smell)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate — the single-finding AskUserQuestion gate
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate — the single-finding AskQuestion gate
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` § Visual rendering language — the shared visual language for gate messages rendered to chat before a lean question
 
 **Phase bodies.** Phase 1, Phase 2, and Phase 3 all live in sibling files, Read on entry to that phase and again on any resumption of it, including after a compaction: `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-1-plan.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
@@ -92,7 +89,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 S2. **One todo in_progress at a time.** Use `TodoWrite` to expose per-phase progress: at skill start, create phase-level todos (Plan, Apply, Verify); during Phase 2, add dynamic per-step todos derived from the approved plan; mark `in_progress` → `completed` as phases run.
 
-**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
+**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 `## Tool log` schema: typical run produces 3-6 entries (reviewer-agent + custom reviewers + escalation entries; smell detection and per-step execution run orchestrator-inline and emit to state.md `## Plan steps` directly).
 
@@ -164,26 +161,26 @@ Cite the canonical rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standa
 
 ---
 
-## Universal rule: all choice questions use AskUserQuestion
+## Universal rule: all choice questions use AskQuestion
 
-Route every user-facing choice in this skill through the `AskUserQuestion` tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which owns the rule and the reason. This skill's gates live in the phase files — Phase 1 §1.2 (baseline-red) and §1.3.2 (hard-signal escalation), §Budgets above (blocked-ratio cap, fix-loop), and Phase 3 §3.3 (disposition) — not a single list here.
+Route every user-facing choice in this skill through the `AskQuestion` tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which owns the rule and the reason. This skill's gates live in the phase files — Phase 1 §1.2 (baseline-red) and §1.3.2 (hard-signal escalation), §Budgets above (blocked-ratio cap, fix-loop), and Phase 3 §3.3 (disposition) — not a single list here.
 
 ---
 
 ## ACI per-phase tool surface
 
 **Phase 1 (Plan):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / AskUserQuestion.
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / AskQuestion.
 - Allowed Agent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
 - Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**
 - Allowed Agent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
-- Orchestrator uses Edit / Write / Bash (test cmd) / AskUserQuestion directly. Per-step regression runs via backpressure helper.
+- Orchestrator uses Edit / Write / Bash (test cmd) / AskQuestion directly. Per-step regression runs via backpressure helper.
 - Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
 
 **Phase 3 (Verify):**
-- Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / AskUserQuestion / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
+- Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / AskQuestion / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
 - Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only).
 - Allowed: targeted per-file revert per § Git constraint — the one orchestration-level exception to the git-write constraint.
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.

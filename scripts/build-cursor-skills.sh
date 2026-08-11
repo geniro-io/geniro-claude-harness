@@ -17,7 +17,11 @@
 #     only the current colliders: a mixed bare/prefixed scheme would still
 #     need a per-skill collision table, and a Cursor built-in added later
 #     could collide with a name left bare — uniform prefixing needs neither.
-#   - every other frontmatter field and the body copied verbatim, prefixed
+#   - every other frontmatter field copied verbatim except three Claude-only
+#     fields Cursor's Agent Skills spec does not recognize (allowed-tools,
+#     model, argument-hint), which are dropped; the body copied verbatim
+#     except AskUserQuestion -> AskQuestion (Cursor's tool name for it) —
+#     both call sites below carry the full rationale. Output is prefixed
 #     with a generated-file marker.
 #
 # Sibling phase/reference files (skills/<slug>/phase-*.md, *-reference.md) are
@@ -71,8 +75,29 @@ for dir in "$REPO_ROOT"/skills/*/; do
     echo "ERROR: no name in $src frontmatter" >&2
     exit 1
   fi
-  frontmatter="$(awk 'c<2 && /^---$/{c++; next} c==1' "$src" | sed "s/^name:.*/name: $prefixed/")"
-  body="$(awk 'c<2 && /^---$/{c++; next} c>=2' "$src")"
+  # Frontmatter fields Cursor's Agent Skills spec does not recognize:
+  #   - allowed-tools names tools by their Claude Code identifiers (Bash,
+  #     AskUserQuestion, ...) — worst of the three, since it asserts the
+  #     question tool is called AskUserQuestion, which is false here.
+  #   - model: inherit is a Claude Code SUBAGENT field, not a skill field.
+  #   - argument-hint has no Cursor skill counterpart.
+  # Dropped for the Cursor copy only; skills/<slug>/SKILL.md (Claude Code)
+  # keeps all three untouched.
+  frontmatter="$(awk 'c<2 && /^---$/{c++; next} c==1' "$src" | sed -e "s/^name:.*/name: $prefixed/" -e '/^allowed-tools:/d' -e '/^model:/d' -e '/^argument-hint:/d')"
+  # Translate AskUserQuestion -> AskQuestion (Cursor's structured-question
+  # tool) and nothing else. This is the one Claude-only tool name rewritten
+  # here, not because it matters more than the others but because it is the
+  # only one safe to rewrite with a blind sed: it is an exact identifier
+  # that never occurs as an English word, so every occurrence IS the tool
+  # name. The other Claude-only names that show up in these bodies — Bash,
+  # Edit, Agent — are also ordinary English words in running prose ("via
+  # Bash", "an Edit target", "the agent") and appear verbatim inside fenced
+  # shell/heredoc blocks; a blunt substitution across those would corrupt
+  # generated files in ways a diff review would not reliably catch. Those
+  # are left as-is and handled instead by the name-mapping rule in
+  # skills/_shared/runtime-portability.md, which every skill's preamble
+  # already points readers at.
+  body="$(awk 'c<2 && /^---$/{c++; next} c>=2' "$src" | sed 's/AskUserQuestion/AskQuestion/g')"
 
   # Content-integrity guard: a regression in the fence-consumption awk above
   # would corrupt every body-level "---" (a horizontal rule, or a fence inside

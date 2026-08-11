@@ -2,9 +2,6 @@
 name: geniro-instructions
 description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step; also for declaring read-only fact-verification sources (## Data Sources), recording what each project check covers and leaves uncovered so results are not overstated (## Verification Surface), or routing the agent's memory/learnings through a custom backend like an MCP (## Memory Backend). Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
 context: main
-model: inherit
-allowed-tools: [Read, Bash, Glob, Grep, AskUserQuestion]
-argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instructions', 'delete review rules']"
 ---
 <!-- Generated from skills/instructions/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -63,7 +60,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | "I'll silently overwrite existing instruction file" | A silent overwrite destroys user-authored rules with no undo — present overwrite/edit-instead/cancel via AUQ on `create` against an existing file. |
 | "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | An old enum fails silently in the loader — the anchor never fires and the user believes the step is wired. Validate-mode catches it and suggests the canonical name. |
 | "I'll spawn a subagent to do the freeform rule synthesis" | `/geniro:instructions` is a small CRUD frontend; a subagent adds no parallelism benefit and complicates the stateless single-transaction model for no return. |
-| "I'll output the questions as plain text instead of `AskUserQuestion`" | A plain-text question has no structured answer to persist or resume against — the transaction stalls waiting on a reply the skill has no slot for. |
+| "I'll output the questions as plain text instead of `AskQuestion`" | A plain-text question has no structured answer to persist or resume against — the transaction stalls waiting on a reply the skill has no slot for. |
 | "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | A custom scope name resolves no loader path — no skill's Step 0 ever reads it, so the rules it holds silently never load. |
 | "I'll skip showing the scope-specific scaffold to save tokens" | An empty new file with no scaffold reads as a mistake rather than a starting point — the user abandons it or miswrites the section shape. |
 
@@ -74,7 +71,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 - [ ] The dispatched mode's body file was Read and its Steps completed
 - [ ] User confirmed before running the destructive mode (`delete`)
 - [ ] Validation checked structure, phase names, scope validity, dropped-skill refs, and description rules
-- [ ] All user interactions used `AskUserQuestion` — no plain-text questions
+- [ ] All user interactions used `AskQuestion` — no plain-text questions
 - [ ] review-extra files validated against slug uniqueness, built-in collision, model/severity-default value sets, paths syntax, and count caps
 - [ ] Scope-specific scaffold shown on `create` (not skipped)
 
@@ -86,8 +83,8 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
-| `parse` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, all `mcp__*`, network |
-| `execute` | `Read`, `Bash` (`atomic_state_write`, `mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Write`, `Edit` (`.geniro/instructions/*` is a persistent-CRUD path — a direct write is hard-blocked by the state-helper hook; see `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-create.md` §Step 5), `Agent` (no subagents), `mcp__github__*`, network egress |
+| `parse` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskQuestion` | `Write`, `Edit`, mutating `Bash`, all `mcp__*`, network |
+| `execute` | `Read`, `Bash` (`atomic_state_write`, `mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskQuestion` | `Write`, `Edit` (`.geniro/instructions/*` is a persistent-CRUD path — a direct write is hard-blocked by the state-helper hook; see `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-create.md` §Step 5), `Agent` (no subagents), `mcp__github__*`, network egress |
 | `done` | (terminal report) | (none) |
 
 External sends: not in `/geniro:instructions` ACI ever.

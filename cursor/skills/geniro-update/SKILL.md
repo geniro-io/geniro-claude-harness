@@ -2,9 +2,6 @@
 name: geniro-update
 description: "Use when the status line shows a plugin update is available, or to manually pull the latest Geniro plugin version. Verifies plugin integrity, ensures user-authored .geniro/instructions/ and .geniro/actions/ survived intact, and walks any breaking changes in MIGRATION.md."
 context: main
-model: inherit
-allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep]
-argument-hint: "[--dry-run]"
 ---
 <!-- Generated from skills/update/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -43,7 +40,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or a fully resolved absolute pat
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five update-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
-- **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one example among this skill's several (the hash-check and tamper-diff AUQs in `phase-3-postcheck.md`, the per-entry migration AUQ in `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskUserQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
+- **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one example among this skill's several (the hash-check and tamper-diff AUQs in `phase-3-postcheck.md`, the per-entry migration AUQ in `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 - **Invariant #4 (bounded structured tool results)** — the migration-step AUQ truncates auto-detect output to its first ~10 lines; the full content diff is written to a log file rather than inlined.
 - **Invariant #5 (escalation gates, not silent abort)** — 4-retry exponential-backoff on network errors; abort after the 4th retry. (`phase-2-update.md` §Marketplace refresh + plugin update owns the exact delays.)
 - **Invariant #7 (errors → structured observations)** — this skill is stateless, so errors surface inline in the run's output rather than in a state-file `## Errors` section; no silent skips.
@@ -78,10 +75,10 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
-| `pre-check` | `Read`, `Bash` (`cat`, `grep`, `find`, `shasum`/`sha256sum`, `stat`, `python3 -c "json.load"`, plus the one sanctioned write: the `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content baseline snapshot redirected into `/tmp`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, any mutating `Bash` outside that snapshot write, `Agent`, all `mcp__*` |
+| `pre-check` | `Read`, `Bash` (`cat`, `grep`, `find`, `shasum`/`sha256sum`, `stat`, `python3 -c "json.load"`, plus the one sanctioned write: the `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content baseline snapshot redirected into `/tmp`), `Glob`, `AskQuestion` | `Write`, `Edit`, any mutating `Bash` outside that snapshot write, `Agent`, all `mcp__*` |
 | `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
-| `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh), `Glob`, `AskUserQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
-| `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
+| `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh), `Glob`, `AskQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
+| `migration` | `Read`, `AskQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
 External sends: not in `/geniro:update` ACI ever.

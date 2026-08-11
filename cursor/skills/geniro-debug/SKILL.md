@@ -2,9 +2,6 @@
 name: geniro-debug
 description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
 context: main
-model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Workflow]
-argument-hint: "[bug description | verify <diff-range> | verify last changes] [--deep]"
 ---
 <!-- Generated from skills/debug/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -64,7 +61,7 @@ This skill adds one invariant:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
+**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 `## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped. **Deep mode** (opt-in, default off): `--deep` (or the Phase 0 Debug-depth chooser when `--deep` is absent) deepens Phase 1 hypothesis generation (3× fan-out + dedup) and Phase 2 fix/reproduction verification (3 verifiers, majority vote) per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — higher quality at higher token cost, no change to gates or the no-ship boundary.
 
@@ -84,9 +81,9 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | No-access-by-default is the same fabrication shortcut as inconclusive-by-default: a limit on your own reach is a claim and carries the same artifact requirement (Evidence Standard). Attempt the read with the tools you have and capture what fails; the §1.5 missing-data gate opens on that captured failure. Handing the user a manual checklist your own shell answers in seconds skips the probe that would have settled it. |
 | "I have a script / curl / query that reproduces the bug, that's enough" | Scripts get deleted at §3.4 Cleanup and leave no regression guard. §2.4 mandates the reproduction be authored as a unit/integration test in the project's framework. Escape hatch (Reproduction Decision) is opt-in for genuinely non-reproducible cases only. |
-| "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | Every user-facing choice in this skill routes through the `AskUserQuestion` tool (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule) — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
+| "Per protocol I should ask via AskQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | Every user-facing choice in this skill routes through the `AskQuestion` tool (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule) — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 | "I'll name the reproduction test after the confirmed hypothesis number from `## Hypotheses`" | state.md gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. §2.4 mandates: describe the bug behavior, not the thread-local label. |
-| "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskUserQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
+| "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
 | "Bypass `git guardrail` hooks if a needed `git bisect` step blocks." | Hooks fail for a reason. `git bisect` is permitted (read-only investigation per § ACI per-phase). If a specific guardrail blocks legitimate debug work, the path is `.geniro/safety.json` allow_patterns, not `--no-verify`. |
 | "Self-fix indefinitely until verify passes." | §2.5 fix-loop escalation bounds the fix-attempt count and, past it, escalates AUQ ("Try different approach" / "Accept as documented limitation" / "Abort"). "Kick it until it passes" is an anti-pattern that wastes budget on a hypothesis that needs revisiting. |
 
@@ -142,23 +139,23 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 ## ACI per-phase tool surface
 
 **Phase 0 (Mode Detect):**
-- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.1 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; plus `atomic_state_write` to persist the mode/depth/freshness pick) / AskUserQuestion (the mode/depth/freshness gates).
+- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.1 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; plus `atomic_state_write` to persist the mode/depth/freshness pick) / AskQuestion (the mode/depth/freshness gates).
 - Explicitly blocked: any Edit/Write to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
 
 **Phase 1 (Investigate):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / AskUserQuestion.
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / AskQuestion.
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
 - Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
 - Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching without user confirmation.
 
 **Phase 2 (Propose):**
-- Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs) / AskUserQuestion.
+- Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs) / AskQuestion.
 - Allowed: Edit / Write for reproduction test authoring + experimental monkey-patches.
 - Allowed: `Workflow(...)` for the deep-mode 3-verifier majority vote (§2.4, `deep-mode: true` only). No Agent spawns.
 - Explicitly blocked: production-source Edit/Write outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
-- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup; the §3.1 working-tree check's read-only `git status --porcelain`, plus its blocker-path revert) / AskUserQuestion.
+- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup; the §3.1 working-tree check's read-only `git status --porcelain`, plus its blocker-path revert) / AskQuestion.
 - Explicitly blocked: Edit/Write, `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
 **Adversarial Mode (A4 spawn):**

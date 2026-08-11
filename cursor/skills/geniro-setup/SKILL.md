@@ -2,9 +2,6 @@
 name: geniro-setup
 description: "Use when starting on a new codebase or after a major plugin update. Detects tech stack, generates a project-specific CLAUDE.md (stack, commands, conventions, domain), and validates it. Re-run mode runs a migration sweep. Singleton bootstrap."
 context: main
-model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
-argument-hint: "[optional: path to template directory]"
 ---
 <!-- Generated from skills/setup/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -60,7 +57,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five setup-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
-- **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement firing its own §3.6 `AskUserQuestion` when an entry already points elsewhere — and any further mid-phase choice this skill reaches is routed through that same tool, never chat prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
+- **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement firing its own §3.6 `AskQuestion` when an entry already points elsewhere — and any further mid-phase choice this skill reaches is routed through that same tool, never chat prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 - **Invariant #4 (bounded structured tool results)** — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
 - **Invariant #5 (escalation gates, not silent abort)** — the validation retry loop escalates via AUQ (`accept-with-warnings | abort | start-over`) rather than aborting silently; retry cap and round count owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2.
 - **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
@@ -88,7 +85,7 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] Verification subagent passed within the retry cap, or resolved via the final-round AUQ escalation (cap owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2)
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
-- [ ] All user interactions used `AskUserQuestion`
+- [ ] All user interactions used `AskQuestion`
 - [ ] If re-run mode + plugin-version delta: restart-session warning emitted
 
 ## Budgets — quality-first
@@ -106,10 +103,10 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
 | `detect` | `Read`, `Bash` (read-only: `git`, `find`, `grep`, `cat`), `Glob`, `Grep`, `Agent` | `Write`, `Edit`, mutating `Bash`, `mcp__github__*` |
-| `interview` | `AskUserQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
-| `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod), `AskUserQuestion` | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
-| `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent), `AskUserQuestion` | `Write`, `Edit` |
-| `done` (cleanup) | `Bash` (rm of state file), `AskUserQuestion` (the §5.2 map-the-codebase question), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
+| `interview` | `AskQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
+| `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod), `AskQuestion` | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
+| `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent), `AskQuestion` | `Write`, `Edit` |
+| `done` (cleanup) | `Bash` (rm of state file), `AskQuestion` (the §5.2 map-the-codebase question), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
 
 External sends are not part of `/geniro:setup` ACI. Users wire those via `/geniro:actions` if needed.
 
