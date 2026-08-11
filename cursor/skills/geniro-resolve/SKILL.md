@@ -2,9 +2,6 @@
 name: geniro-resolve
 description: "Use when an open pull request has unresolved review comments (human or bot) and/or failing CI checks and the user wants them triaged into a fix plan rather than fixed by hand. Reads each unresolved thread + failing check, verifies and reproduces it against the code, asks the user about the ambiguous ones, then writes a comment-keyed spec.md + a handoff for /geniro:implement — which applies the fixes and, at ship, posts the drafted replies and resolves the threads. Read-only: never edits code or posts to the PR itself. Skip for producing a fresh review of a diff (use /geniro:review) or fixing a located bug with no PR feedback (use /geniro:debug or /geniro:implement)."
 context: main
-model: inherit
-allowed-tools: [Read, Grep, Glob, Bash, Agent, AskUserQuestion, TodoWrite]
-argument-hint: "[PR ref (#N or URL), or empty to detect from the current branch] [--bots-only | --humans-only] [--no-ci]"
 ---
 <!-- Generated from skills/resolve/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -90,9 +87,9 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
-| Phase 1 (Triage) | Read / Grep / Glob / Bash (`gh pr view`, `gh api graphql` / `gh pr checks` read side of `pr-threads.md`; workspace-sync git: `fetch` / `gh pr checkout` / `merge` / `rebase` / `pull` / `stash`; `atomic_state_write`; `clean_task_transients` on this run's own slug dir before a terminal `phase:` write) / AskUserQuestion (sync offers + no-PR fallback) | Edit / Write / any `gh` write (reply / resolve / PR-create) / `git push` / source-mutating Bash |
+| Phase 1 (Triage) | Read / Grep / Glob / Bash (`gh pr view`, `gh api graphql` / `gh pr checks` read side of `pr-threads.md`; workspace-sync git: `fetch` / `gh pr checkout` / `merge` / `rebase` / `pull` / `stash`; `atomic_state_write`; `clean_task_transients` on this run's own slug dir before a terminal `phase:` write) / AskQuestion (sync offers + no-PR fallback) | Edit / Write / any `gh` write (reply / resolve / PR-create) / `git push` / source-mutating Bash |
 | Phase 2 (Analyze & Verify) | Read / Grep / Glob / Bash (read-only repro, test runs) / Agent (`finding-verifier-agent` — OMIT `model=`) / atomic_state_write | Edit / Write on source / `gh` write |
-| Phase 3 (Clarify) | Read / AskUserQuestion / Agent (`finding-verifier-agent` on a Challenge pick — OMIT `model=`) / atomic_state_write | Edit / Write on source |
+| Phase 3 (Clarify) | Read / AskQuestion / Agent (`finding-verifier-agent` on a Challenge pick — OMIT `model=`) / atomic_state_write | Edit / Write on source |
 | Phase 4 (Emit) | Read / Grep / Bash (read-only apart from `atomic_state_write` for spec + handoff and `clean_task_transients` on this run's own slug dir) / Agent (spec-claim verifier — OMIT `model=`) | Edit / Write on source / `gh` write / `git push` |
 
 ## Memory I/O
@@ -120,7 +117,7 @@ These are the load-bearing exit gates and safety invariants — the checks that,
 
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: resolve`, `LOAD_TIER: pipeline`, `MODE: initial-load`; echo per the helper's contract. Then `load_semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` (default top-2). A project rule like "never wontfix a security bot's comment" only binds the triage if it is read before the verdicts are assigned.
 
-1. **Resolve the PR.** From `$ARGUMENTS` (`#N` / URL), else detect from the branch via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §1 (`gh pr view --json number,url,headRefOid,headRefName,baseRefName,…`). No PR found → fire an AskUserQuestion offering a PR ref or cancel; on cancel write `phase: aborted` and exit. Capture `owner/repo`, `number`, `pr-head-sha` (`headRefOid`), `head-branch` (`headRefName`), `base-branch` (`baseRefName`).
+1. **Resolve the PR.** From `$ARGUMENTS` (`#N` / URL), else detect from the branch via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §1 (`gh pr view --json number,url,headRefOid,headRefName,baseRefName,…`). No PR found → fire an AskQuestion offering a PR ref or cancel; on cancel write `phase: aborted` and exit. Capture `owner/repo`, `number`, `pr-head-sha` (`headRefOid`), `head-branch` (`headRefName`), `base-branch` (`baseRefName`).
 2. **Sync the workspace to the freshest code.** Skip the whole step on a compaction-resume (the workspace was synced when the run first started). Fire two offers in sequence; each is an offer, never auto-run; persist each pick to `approvals[]` (category `branch_freshness`); fail-open on any git error with a one-line caveat:
    - **a. Local checkout → PR head.** If `git rev-parse HEAD` differs from `pr-head-sha`, the comments reference commits your local tree does not have. Offer `gh pr checkout <number>` (Recommended) / keep current checkout. Detail + dirty-tree handling: `resolve-reference.md` §1.5.
    - **b. PR branch → its base.** Run `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` FRESH-CONTINUE, substituting the PR's `base-branch` for `DEFAULT_BRANCH` (§2 of that file). If the branch is behind its base, offer merge / rebase / skip; the shared file owns the dirty-tree and conflict handling.

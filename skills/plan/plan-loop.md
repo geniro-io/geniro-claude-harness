@@ -98,7 +98,7 @@ Two cross-phase files, both conditional:
 - `loop-artifact-call-sites.md` — the visual plan artifact's first publish plus every per-gate call site. Read at §1.5 only when `artifact_mode: true`; without artifact mode every **Artifact** line in a phase file is a silent no-op and this file is never loaded.
 - `loop-definition-of-done.md` — the run-completion checklist. Read at Phase 9, before the terminal `phase:` write.
 
-The table is the phase order. Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator hard-fail re-enters write-spec, and a Phase 8 revision re-enters section-approve; visual-companion "Adjust the plan instead" re-enters explore, and a Phase 7.5 `re-plan` verdict re-enters approaches.
+The table is the phase order. Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator hard-fail re-enters write-spec, and a Phase 8 revision re-enters section-approve; visual-companion "Adjust the plan instead" re-enters explore, a Phase 7.5 `re-plan` verdict re-enters approaches, and a Phase 7.5 milestone re-open re-enters write-spec.
 
 ---
 

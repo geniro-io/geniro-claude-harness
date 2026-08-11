@@ -2,9 +2,6 @@
 name: geniro-reflect
 description: "Use when the user wants to turn recent session experience into project rules, or asks what should be learned from the last sessions. Mines session history for durable rule and improvement candidates — recurring user corrections, rejected suggestions, repeated friction — and routes approved candidates to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / learnings. Pass a search string to mine the past sessions that mention it, --this-session to mine the running session's own corrections, or nothing to pick the most recent working sessions. Skip for questions about the codebase itself (/geniro:investigate) or reviewing a pending diff (/geniro:review)."
 context: main
-model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion]
-argument-hint: "[search string | --this-session | empty for recent sessions]"
 ---
 <!-- Generated from skills/reflect/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -86,7 +83,7 @@ Phases 1-3 are read-only; Phase 4 is the only phase that writes, and only to the
 | 1 — find sessions | `Bash` (read-only: `ls`, `find`, `wc`, `grep -la`), `Read`, `Glob`, `Grep`; under `--this-session` only the project-rules load runs | `Write`, `Edit`, mutating `Bash`, `Agent` |
 | 2 — analyze sessions | `Agent` (read-only transcript analysts), `Read`; under `--this-session` no tool at all — the extract comes from conversation context | `Write`, `Edit`, mutating `Bash` |
 | 3 — synthesize candidates | `Agent` (one `reflection-agent`), `Bash` (`query_learnings`), `Read` | `Write`, `Edit`, mutating `Bash` |
-| 4 — present and route | `AskUserQuestion`, `Read`, `Write`/`Edit` **only** on `CLAUDE.md`, `.claude/rules/<scope>.md`, or an ADR file; `Bash` (`atomic_state_write` for `.geniro/instructions/*`, `emit_learning`, `emit_rejection_if_signal`) | `Write`/`Edit` on any `.geniro/` path (hook-blocked — invariant #5), production-source edits, any write to a transcript, `Agent` |
+| 4 — present and route | `AskQuestion`, `Read`, `Write`/`Edit` **only** on `CLAUDE.md`, `.claude/rules/<scope>.md`, or an ADR file; `Bash` (`atomic_state_write` for `.geniro/instructions/*`, `emit_learning`, `emit_rejection_if_signal`) | `Write`/`Edit` on any `.geniro/` path (hook-blocked — invariant #5), production-source edits, any write to a transcript, `Agent` |
 
 ## Input
 
@@ -175,7 +172,7 @@ The agent returns the candidates that passed `${CLAUDE_PLUGIN_ROOT}/skills/_shar
 
 A candidate carrying `Recurrence-eligible: yes` never enters the walk — its lesson has already been seen 3+ times, so hand it to `/geniro:instructions create`, which collects its own approval; walking it here would be the second prompt for the same rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Recurrence-eligible candidates").
 
-Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation — render each candidate as a self-contained chat message first (the exact rule text in a fenced block, where it lands, the transcript evidence behind it), then fire its own lean `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. Options per candidate: **Write this rule** / **Skip this rule** / **Skip the rest**.
+Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation — render each candidate as a self-contained chat message first (the exact rule text in a fenced block, where it lands, the transcript evidence behind it), then fire its own lean `AskQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. Options per candidate: **Write this rule** / **Skip this rule** / **Skip the rest**.
 
 **On approval**, write before rendering the next candidate, routed per the improvement-routing §Routing table:
 

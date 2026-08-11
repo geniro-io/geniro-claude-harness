@@ -110,7 +110,7 @@ Infer the optional frontmatter from the description and criteria just gathered, 
 - label: "Change a field" — description: "Adjust the model, the file patterns, the default severity, or the external-data directive first"
 - label: "Cancel" — description: "Don't create the file"
 
-On "Change a field", ask which one and take the new value free-form, then re-render the assembled file and re-ask. On "Cancel", stop without writing.
+On "Change a field", fire `AskUserQuestion` (header: "Field") over the four fields — `model` / `paths` / `severity-default` / `requires-context` — then take the new value free-form, re-render the assembled file, and re-ask. On "Cancel", stop without writing.
 
 ### Step 8: Write the file
 

@@ -70,7 +70,7 @@ mkdir -p "$CLAUDE_USER_DIR/hooks"
 cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js" "$CLAUDE_USER_DIR/hooks/geniro-statusline.js"
 ```
 
-Check `$CLAUDE_USER_DIR/settings.json` for a `statusLine` entry. If absent, add one pointing to `<config-dir>/hooks/geniro-statusline.js`. If present and points to something else, ask the user before replacing.
+Check `$CLAUDE_USER_DIR/settings.json` for a `statusLine` entry. If absent, add one pointing to `<config-dir>/hooks/geniro-statusline.js`. If present and points to something else, `AskUserQuestion` (header: "Statusline") quoting the existing command: "Your `settings.json` statusLine is currently `<existing command>` — replace it with the Geniro statusline?" / options "Replace with Geniro statusline" / "Keep the existing one". This confirm is separate from the §3.3 batch AUQ — it overwrites a `~/.claude/settings.json` entry outside PROJECT_ROOT, which affects every other project on the machine, not just this one.
 
 Transition to Phase 4.
 

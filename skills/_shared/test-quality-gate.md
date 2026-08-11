@@ -12,9 +12,9 @@ This gate spawns no agent. The audit is already performed by the fresh `tests` r
 
 ## When it applies
 
-- The run authored or changed at least one test file (detect from the changed-files list / diff matching a test convention: `tests/**`, `test/**`, `__tests__/**`, `*.spec.*`, `*_test.*`, `*-test.*`, `*.test.*`). When no test file changed → skip entirely, silent. A behavior change with zero test edits is the broad reviewer's concern, not this gate's.
+- The run authored or changed at least one test file (detect from the changed-files list / diff matching a test convention: `tests/**`, `test/**`, `__tests__/**`, `*.spec.*`, `*_test.*`, `*-test.*`, `*.test.*`). When no test file changed → skip the user-facing decision entirely, silently — but still persist the skip per §Persistence below, so a later phase can tell it apart from a gate that should have run and didn't. A behavior change with zero test edits is the broad reviewer's concern, not this gate's.
 - Both spec-driven and inline-task runs. The claimed-vs-asserted and redundancy checks need no spec; the spec-coverage check is a silent no-op when no spec/plan is in context (nothing to map against).
-- Fail-open: if the `tests` reviewer errored or returned nothing parseable, note it under `## Caveats` and proceed — the gate never blocks Ship on its own infra failure.
+- Fail-open: if the `tests` reviewer errored or returned nothing parseable, persist the unavailable-audit state (§Persistence) and note it under `## Caveats`, then proceed — the gate never blocks Ship on its own infra failure.
 
 ## What it surfaces
 
@@ -33,6 +33,17 @@ From the Phase 3 `tests`-dimension output (and the `adversarial-tester` authored
   - **Ship as-is** — accept the open findings; record them in the ship report's deferred list.
 
   An empty answer means an upstream tool bug, not a user choice — re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
+
+## Persistence — state.md `## Test Quality Audit`
+
+The consumer (`/geniro:implement` Phase 3 Step 5) persists this gate's outcome to state.md `## Test Quality Audit` via `atomic_state_write` on every run, including the skipped and unavailable ones — so the Ship pre-terminal check (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §"Emit the ship report, then transition") reads a written record instead of this turn's narration. Four states share the one section:
+
+- **Ran, clean or all auto-fixed** — the sentinel `none — the test-quality gate ran and found no issues`, or a one-line found/fixed summary.
+- **Ran, open findings** — the disposition the user picked (tighten all / the picked subset / ship as-is) and what remains open.
+- **Precondition false — no test file changed** — the gate never applied (§When it applies); the sentinel `none — no test file changed this run; the gate's precondition never held`.
+- **Precondition held, audit unavailable** — a test file changed, but the `tests` reviewer errored or returned nothing parseable; the sentinel `none — a test file changed but the tests reviewer returned no usable audit this run`.
+
+A bare or absent section is none of the four: per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel, that reads as unknown — the step that should have written one of the four states above did not run.
 
 ## Boundaries
 

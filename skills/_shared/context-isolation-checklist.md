@@ -56,7 +56,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """)
 ```
 
-Do NOT spawn the built-in `Explore` subagent from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. `/geniro:implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
+Do NOT spawn the built-in `Explore` subagent, or a project-local user-authored agent (e.g. from `.claude/agents/`), from plugin skills — `codebase-research-agent` covers the same use case at orchestrator tier without the upstream-bug exposure. A project-local agent could match both of those (it can declare `model: inherit`, and being custom rather than built-in it sidesteps the same MCP-overflow issue) — the reason it's still out is its contract is unaudited: no guarantee it honors this file's pre-inlined-context checklist, and no `Context loaded:` line for the spawn site to check back (§Reading the load report back). The one place this plugin admits a user-authored agent is the custom-reviewer slot (`.geniro/instructions/review-extra/*.md`), not the research spawn. `/geniro:implement` Phase 1 keeps its dedicated `codebase-explorer-agent` (implementation-specific — takes a `spec.md`, produces REUSE/EXTEND/NO-ANALOGUE inventory); other phases use `codebase-research-agent`.
 
 This spawn is not complete when the call above fires — only when its report comes back and gets checked per §Reading the load report back further down this file.
 

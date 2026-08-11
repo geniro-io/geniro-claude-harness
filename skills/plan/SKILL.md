@@ -62,7 +62,7 @@ The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Pha
 mode-detect → explore → [visual-companion: UI-conditional] → clarify → approaches → section-approve → write-spec → validate → spec-challenge → user-approve → handoff → done
 ```
 
-Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve; visual-companion "Adjust the plan instead" re-enters explore; a Phase 7.5 `re-plan` verdict re-enters approaches.
+Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / validator hard-fail re-enters write-spec or section-approve; visual-companion "Adjust the plan instead" re-enters explore; a Phase 7.5 `re-plan` verdict re-enters approaches, and a Phase 7.5 milestone re-open re-enters write-spec.
 
 **Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed". Every transition into a terminal state first runs the transient cleanup (`clean_task_transients` against the planning task-dir, `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-9-handoff.md` §9.2) before the terminal `phase:` write; rationale and the preserved-durables list live there.
 
@@ -80,7 +80,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 | 8 | User approve — visual summary, lean AUQ, launch config, git commit |
 | 9 | Handoff — prints the `/geniro:implement <path>` command, terminal `phase: done` |
 
-**How to run it.** Read the spine `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` at entry — it carries the HARD-GATE, the gate presentation contract, the state-file echo contract, the terminal-state rule, the anti-rationalization table, and the §Phase files table mapping every phase to the file holding its steps. This spine read is bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` too, and it is the hop most worth guarding: a run that skips straight to the phase files still emits every per-phase line and is indistinguishable from a compliant one, while never having seen the HARD-GATE. Read that phase file on entry to the phase, not up front — as the phase's physically-first action, with a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`; read a conditional phase's file (0.5, 2, 7.5) only once its trigger fires. The spine is the authoritative phase contract; each phase file is authoritative for its own steps.
+**How to run it.** Read the spine `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` at entry — it carries the HARD-GATE, the gate presentation contract, the state-file echo contract, the terminal-state rule, the anti-rationalization table, and the §Phase files table mapping every phase to the file holding its steps. It is the hop most worth guarding: a run that skips straight to the phase files still emits every per-phase line and looks compliant, while never having seen the HARD-GATE. Both this spine read and each phase file's own read are bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — read a phase's file on entry to that phase, not up front, as its physically-first action with a one-line echo; read a conditional phase's file (0.5, 2, 7.5) only once its trigger fires. The spine is the authoritative phase contract; each phase file is authoritative for its own steps.
 
 **Re-Read the spine and the current phase's file after a compaction, before acting on the resumed phase.** Only this SKILL.md is re-attached after a summary — the spine and every phase file arrived as Read results and are gone, and the session-restore context carries task state, not the loop's instructions. state.md `phase:` names which phase file to read. A resume that skips this walks the phase's irreversible steps — the Phase 8 commit branch and its never-`git add -f` bar, the launch-config spec rewrite, the Phase 9 transient cleanup — with none of their rules in context.
 
@@ -90,7 +90,7 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across every phase, with plan-specific bindings:
 
-- **Invariant #1 (one result per tool call)** — a failed `AskUserQuestion` (the empty-answer bug) is re-asked per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions; never auto-default.
+- **Invariant #1 (one result per tool call)** — a failed `AskUserQuestion` (the empty-answer bug) is re-asked per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which also owns the rule that every user-facing choice routes through this tool — Phase 0 mode-detect, Phase 1 branch-freshness, Phase 3 grill, Phase 4 approach choice, Phase 5 cluster approval + milestone-mode, Phase 7 validator hard-fail, Phase 7.5 milestone re-open, and Phase 8 final approval are this skill's gates; never auto-default.
 - **Invariant #3 (permission before side-effect)** — Phase 6's `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the loop's only mutation, and `git commit` is deferred to Phase 8 post-approval. The `enforce-state-helper` PreToolUse hook hard-blocks any direct `Edit`/`Write` to canonical state paths (`.geniro/planning/**`, `.geniro/state/**`) regardless of `allowed-tools`, so every state write routes through `atomic_state_write` — omitting `Edit` from `allowed-tools` reflects that the skill never needs it, not an enforcement of its own. `Write` stays granted because `--artifact` mode needs it for the HTML file it authors in the session scratchpad before publishing; the hook is belt-and-suspenders on the two state paths, never a source-tree boundary.
 - **Invariant #4 (bounded results)** — Phase 1 research-agent output carries the per-spawn cap declared in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2, which owns that value; schema `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 - **Invariant #6 (grounded in observations)** — Phase 5 section content cites Phase 1 explore findings by `file:line`, not generic prose; the Phase 7 validator's citation check fails an uncited section.
@@ -170,15 +170,7 @@ When `deep-mode: true`, Phase 4 runs its deeper path and Phase 7.5 — which fir
 
 **Write contract.** Every state.md AND spec.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` (invariant #3) — the only working write path for both artifacts.
 
-**Validation before resume.** When Phase 0 detects a pre-existing state.md (resume path), pre-flight via `validate_state_file`:
-
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh"
-if ! validate_state_file ".geniro/planning/<task-slug>/state.md"; then
-# Open recovery AskUserQuestion (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency)
-...
-fi
-```
+**Validation before resume.** When Phase 0 detects a pre-existing state.md (resume path), pre-flight via `validate_state_file` (`${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh`); on failure, open the recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
 
 ---
 
@@ -187,14 +179,16 @@ fi
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskUserQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from the frontmatter `allowed-tools`, so the first publish raises the one-time `claude.ai` consent prompt — let it fire rather than pre-allowing the tool) | Edit / Write outside state.md |
-| Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) / native `Artifact` update + before-gate calls (§2.2, §2.3; artifact mode only, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`) and the `Write` to its session-scratchpad HTML file | Edit / Write outside state.md and the artifact scratchpad |
-| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only) / native `Artifact` update + before-gate calls (§3.4, §4.3, §4.4, §5.2; artifact mode only, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`) and the `Write` to its session-scratchpad HTML file | Edit / mutating Bash |
-| Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) / native `Artifact` update call (§6.1; artifact mode only, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`) and the `Write` to its session-scratchpad HTML file | Edit / direct Write outside the artifact scratchpad / mutating Bash |
+| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / AskUserQuestion / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt) | Edit / Write outside state.md |
+| Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) / native `Artifact` calls + scratchpad `Write`† | Edit / Write outside state.md and the artifact scratchpad |
+| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only) / native `Artifact` calls + scratchpad `Write`† | Edit / mutating Bash |
+| Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) / native `Artifact` call + scratchpad `Write`† | Edit / direct Write outside the artifact scratchpad / mutating Bash |
 | Phase 7 (Validate) | Read / AskUserQuestion / atomic_state_write (state.md `## Open Questions`; spec.md re-author of failing sections only, §7.3 step 2) | All other mutations |
-| Phase 7.5 (Spec challenge) | Read / Grep / Glob / Bash (read-only) / Agent (claim-verifier spawn) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
-| Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write / native `Artifact` before-gate + finalize calls (§8.2, §8.4; artifact mode only, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`) and the `Write` to its session-scratchpad HTML file | Edit / general-purpose Bash |
+| Phase 7.5 (Spec challenge) | Read / Grep / Glob / Bash (read-only) / AskUserQuestion / Agent (claim-verifier spawn) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
+| Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write / native `Artifact` calls + scratchpad `Write`† | Edit / general-purpose Bash |
 | Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
+
+†Artifact mode only — the update/before-gate/finalize calls at each phase's own gate sites, plus a `Write` to the session-scratchpad HTML file; exact call sites are `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`'s table, not repeated per-row here.
 
 Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, a category-4 execution pin per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
 

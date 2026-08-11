@@ -2,9 +2,6 @@
 name: geniro-actions
 description: "Use when scaffolding a reusable workflow-helper (Slack/PR/release automations) or invoking a previously-created action. Stored at .geniro/actions/. Run-mode executes the action directly — invoking it is the authorization, so no confirmation is asked. Skip for editing core Geniro skills — edit the plugin repo directly."
 context: main
-model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
-argument-hint: "[list|create|edit|run|delete|validate] [name] [...args]"
 ---
 <!-- Generated from skills/actions/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -57,7 +54,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 1. **Inline execution** — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
 2. **Invariant #2 (args validated)** — every write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written).
-3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 4.2). Five WAIT points survive, because none of them re-asks "are you sure you want to run this?": the cross-worktree confirmation (§Target resolution Step 2 — "use the copy from another worktree?"), the free-text picker (§Target resolution Step 3 — "which action?"), the tool-scope gap AUQ (Phase 4.3 — a step needs a tool outside the allowlist intersection), the one-time scope checkpoint when the run edits outside what the action declares (Phase 4.3), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body. `create` / `edit` / `delete` stay AUQ-gated under #3.
+3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 4.2). Five WAIT points survive today, because none of them re-asks "are you sure you want to run this?": the cross-worktree confirmation (§Target resolution Step 2 — "use the copy from another worktree?"), the free-text picker (§Target resolution Step 3 — "which action?"), the tool-scope gap AUQ (Phase 4.3 — a step needs a tool outside the allowlist intersection), the one-time scope checkpoint when the run edits outside what the action declares (Phase 4.3), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body — this is the exception list to the no-confirm contract, not a ceiling on it, and any further pause is still routed through `AskQuestion`, never plain-text prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. `create` / `edit` / `delete` stay AUQ-gated under #3.
 4. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final message.
 
 ## Anti-rationalization
@@ -74,7 +71,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; an "are you sure?" AUQ re-asks a decision the user already made. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
 | "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
 | "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
-| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — a top-scored fuzzy match can still be the wrong action, and `run` executes with no confirmation gate (Phase 4.2): a silent mismatch fires that action's side effects with nothing left to catch it. Every free-text resolution passes through AskUserQuestion. |
+| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — a top-scored fuzzy match can still be the wrong action, and `run` executes with no confirmation gate (Phase 4.2): a silent mismatch fires that action's side effects with nothing left to catch it. Every free-text resolution passes through AskQuestion. |
 | "I'll re-use the validation gate's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
 | "I'm in a linked worktree, so I'll refuse to edit/delete the main repo's copy of an action" | No — the main repo checkout is the canonical home of actions (`create` writes there); refusing would break the create→edit flow from a worktree. Local branch copies stay respected at read/run time (local wins); CRUD targets the canonical copy, asking only when both copies exist and differ. |
 
@@ -82,7 +79,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 Load-bearing exit gates — per-command mechanics live in their phase sections.
 
-- [ ] Every user interaction used `AskUserQuestion`; destructive ops (`delete`, and overwrite on `create`) confirmed via AUQ before running.
+- [ ] Every user interaction used `AskQuestion`; destructive ops (`delete`, and overwrite on `create`) confirmed via AUQ before running.
 - [ ] Writes to `.geniro/actions/` routed through `atomic_state_write` (T3 persistent-CRUD path); no `{{placeholder}}` left in any written file.
 - [ ] `create` and `edit` ran `validate_action_file` and cleared it (or applied the entry-mode rollback); `validate` exited non-zero on any CRITICAL/HIGH.
 - [ ] `run` executed inline with no run-confirmation gate (Phase 4.2), within the action's tool-scope intersection; the scope checkpoint fired (once) if the run edited outside what the action declares; L2 `discovery` emit fired on a successful `external-send: true` run.
@@ -96,13 +93,13 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
-| `parse` | `Read`, `Bash` (read-only), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
-| `execute` (list) | `Read`, `Glob`, `Bash(ls...)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
-| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p "$PRIMARY_ROOT"/.geniro/actions/, the .gitignore re-include procedure, mv)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
-| `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskUserQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
-| `execute` (delete) | `Read`, `Bash(rm)`, `AskUserQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
+| `parse` | `Read`, `Bash` (read-only), `Glob`, `AskQuestion` | `Write`, `Edit`, mutating `Bash`, `Agent` |
+| `execute` (list) | `Read`, `Glob`, `Bash(ls...)`, `AskQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
+| `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p "$PRIMARY_ROOT"/.geniro/actions/, the .gitignore re-include procedure, mv)`, `AskQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
+| `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
+| `execute` (delete) | `Read`, `Bash(rm)`, `AskQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
 | `execute` (run) | **Intersection of /geniro:actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
-| `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
+| `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
 **Run mode tool gating:** Phase 4.3 intersects the action's frontmatter `allowed-tools:` with this skill's own before any step runs.
@@ -135,7 +132,7 @@ Action frontmatter MAY include tools outside `/geniro:actions`' own `allowed-too
 
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. Echo per the helper's §Echo contract — one observable line per file loaded.
 
-Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which action is targeted. Surface every WAIT gate through the `AskUserQuestion` tool, not plain-text questions — plain-text prompts aren't gated and the run can proceed without an answer.
+Parse `$ARGUMENTS` to determine which sub-command runs and (optionally) which action is targeted. Surface every WAIT gate through the `AskQuestion` tool, not plain-text questions — plain-text prompts aren't gated and the run can proceed without an answer.
 
 ### Action detection
 
@@ -163,7 +160,7 @@ The non-verb portion of `$ARGUMENTS` is parsed differently for `create` vs `run`
 
 The proposed slug must clear `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh`'s slug-shape checks (`slug-shape` / `slug-length` / `slug-reserved-word`) — that helper is the single home for the kebab-case, length-cap, and reserved-word rules.
 
-Re-ask up to 3 times via AskUserQuestion until valid.
+Re-ask up to 3 times via AskQuestion until valid.
 
 ### Dispatch
 

@@ -2,9 +2,6 @@
 name: geniro-investigate
 description: "Use when answering deep codebase questions that need evidence — repo structure, code behavior, git history, or internet sources. Parallel research agents produce cited answers. Skip for bug fixes (/geniro:debug) or codebase mapping (/geniro:onboard)."
 context: main
-model: inherit
-allowed-tools: [Read, Bash, Glob, Grep, Agent, AskUserQuestion, WebSearch, WebFetch]
-argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why was X pattern chosen?']"
 ---
 <!-- Generated from skills/investigate/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -54,7 +51,7 @@ This skill adds one invariant:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
+**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 **`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
 
@@ -104,16 +101,17 @@ A claim is evidence-backed only when it cites a canonical artifact kind, per `${
 
 Reasoning, paraphrased agent claims, "looks consistent", convergent agent self-reports, and "I inferred from context" are not evidence — they are hypotheses that still need verification.
 
-If the orchestrator's tools cannot produce evidence for a load-bearing claim, the claim is unverified: an answer synthesized around it reads as authoritative while resting on nothing. Use the Phase 2 Step 2 verification gate or the Phase 2 Step 3 missing-data gate (AskUserQuestion) instead.
+If the orchestrator's tools cannot produce evidence for a load-bearing claim, the claim is unverified: an answer synthesized around it reads as authoritative while resting on nothing. Use the Phase 2 Step 2 verification gate or the Phase 2 Step 3 missing-data gate (AskQuestion) instead.
 
 ## ACI per-phase tool surface
 
 **Phase 1 (Classify+Scope):**
-- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; `atomic_state_write` for the state checkpoint and the Step 2.5 escalation write; the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare for Phase 1 prelim).
+- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; `atomic_state_write` for the state checkpoint and the Step 2.5 escalation write; the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare for Phase 1 prelim) / AskQuestion.
 - Allowed Agent spawns: none yet.
 - Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
 
 **Phase 2 (Investigate+Verify):**
+- Allowed: AskQuestion (Step 3 missing-data gate).
 - Allowed Agent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
 - Each spawned agent runs with its own tool whitelist (per the Phase 2 Step 1 spawn templates):
 - Codebase (`codebase-research-agent`): exactly its own `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one.
@@ -122,7 +120,7 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 - Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
 
 **Phase 3 (Synthesize+Review+Present):**
-- Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
+- Allowed: Read (for re-reading cited files during synthesis) / AskQuestion (Step 4 dive-deeper follow-up) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
 - Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier).
 - Fresh verifier agent: Read / Grep (no Edit / Write).
 
@@ -164,7 +162,7 @@ These are the load-bearing exit gates — the checks that, if skipped, make the 
 
 $ARGUMENTS
 
-**If `$ARGUMENTS` is empty**, use the `AskUserQuestion` tool with header "Investigation" and question "What kind of investigation, and about what?" with options "Trace how a feature works" / "Explain why a decision was made" / "Assess the risk of a change" / "Compare two approaches" — each answer must name the actual feature, decision, or area, not just the shape. Do not proceed until a subject is named.
+**If `$ARGUMENTS` is empty**, use the `AskQuestion` tool with header "Investigation" and question "What kind of investigation, and about what?" with options "Trace how a feature works" / "Explain why a decision was made" / "Assess the risk of a change" / "Compare two approaches" — each answer must name the actual feature, decision, or area, not just the shape. Do not proceed until a subject is named.
 
 ## Phase 1: Classify+Scope
 
@@ -208,7 +206,7 @@ T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative —
 
 ## State recovery
 
-On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/investigate/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
+On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/investigate/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
 
 ---
 

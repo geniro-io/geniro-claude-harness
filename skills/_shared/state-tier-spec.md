@@ -14,7 +14,7 @@ Helpers reference this spec:
 - Frontmatter contract — common-base + tier-specific required fields
 - T2 `open_questions` array schema — the handoff gate substrate
 - `authored_tests` array schema — the debug-handoff test record
-- Format rules — frontmatter fence + body conventions
+- Format rules — frontmatter fence + body conventions, incl. the `## Errors` unanswered-gate entry
 - Concrete examples — one worked frontmatter per tier/layout
 - Validation rules — what `validate_state_file` enforces
 - Slug rule — computing the session-bound slug
@@ -168,7 +168,7 @@ Omit any of the three when there is nothing real to put in it. An empty `why` is
 
 Each entry is `{action, completed-at, <action-specific-fields>}`, where `completed-at` is a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) interpolated in the same write call, never model-supplied (per `atomic-state-write.md` §Timestamp sourcing). The `action` value is one of a fixed enum so the SessionStart restore hook (`hooks/session-start-restore.sh`) can render a per-action resume warning — producers emit the literal string and the hook string-matches it. This table is the single source; add a new value here and to the hook's renderer in lockstep.
 
-**Entries record actions that completed.** An action that was skipped, refused, or failed never becomes an entry, and the enum is never extended to describe one (`git-commit-skipped` and the like). The restore hook renders every entry as something irreversible that already happened out in the world, so an entry describing a non-event tells the resumed session the opposite of the truth — and lands in the hook's unknown-action fallback while doing it. A skipped or failed action belongs in the state file's `## Errors` body section.
+**Entries record actions that completed.** An action that was skipped, refused, or failed never becomes an entry, and the enum is never extended to describe one (`git-commit-skipped` and the like). The restore hook renders every entry as something irreversible that already happened out in the world, so an entry describing a non-event tells the resumed session the opposite of the truth — and lands in the hook's unknown-action fallback while doing it. A skipped or failed action belongs in the state file's `## Errors` body section (schema below).
 
 | `action` | Emitted by | Action-specific fields |
 |---|---|---|
@@ -238,7 +238,7 @@ open_questions:
 **Consumer responsibilities:**
 - Before any mutating action that depends on the handoff (Edit/Write in /geniro:implement; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, resolve the unresolved entries one per `AskUserQuestion` call, fired in sequence — message-first render before each per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering; cap-extension applies only within a single entry whose options exceed 4, never to batching entries into one call. Persist each answer back to the producer's file via `atomic_state_write`, then proceed.
 - A consumer that finds `unresolved` entries and ships anyway is a contract violation.
-- **`open_questions: []` clears the gate; a missing key does not.** The empty array is the producer's statement that it surfaced none — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel in array form, and the reason the key is required rather than optional. A handoff with no `open_questions` key at all is one whose producer never reached the step that would have written it, so whether ambiguity exists is unknown — and this gate stands in front of edits to the user's tree. Say what is missing, then either re-run the producer or ask the user whether to proceed without it. Reading a missing key as "no questions" is the failure this distinction exists to prevent.
+- **`open_questions: []` clears the gate; a missing key does not.** The empty array is the producer's statement that it surfaced none — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel in array form, and the reason the key is required rather than optional. A handoff with no `open_questions` key at all is one whose producer never reached the step that would have written it, so whether ambiguity exists is unknown — and this gate stands in front of edits to the user's tree. Say what is missing, then fire one `AskUserQuestion` (header: `"Missing key"`) — "Re-run the producer" / "Proceed without it" — persisted to `approvals[]`. Reading a missing key as "no questions" is the failure this distinction exists to prevent.
 
 **Free-text body fallback:** the body section `## Open Questions` MAY mirror the frontmatter as a human-readable view (Markdown bullet list with `id` anchors), but the frontmatter is the source of truth. Validators check the frontmatter only; the body is informational.
 
@@ -259,12 +259,17 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 
 **`/geniro:review` producer-specific fields:**
 
-- `spawn_dims_declared: [<dim-slug>, ...]` — declared parallel-spawn list, written at Phase 2 entry before the batch fires. Consumed by Phase 4 §4.0 verification gate (declared-vs-actual diff).
-- `spawn_dims_count: <int>` — denormalized length of `spawn_dims_declared`.
+- `spawn_dims_declared: [<dim-slug>, ...]` — declared parallel-spawn list, written at Phase 2 entry before the batch fires. Consumed by Phase 4 §4.0 verification gate (declared-vs-actual diff). **Shared field:** `/geniro:implement` writes the same field at its own Phase 3 Step 1 — see the `/geniro:implement` entry below.
+- `spawn_dims_count: <int>` — denormalized length of `spawn_dims_declared`, same shared-field note.
 - `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default, requires_context}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Carries every short spawn-spec scalar; the unbounded `criteria-content` body is deliberately absent, because `/geniro:review`'s state file and its T2 handoff are the same physical file (`from-review-<branch>.md`), and persisting a user file's whole body into it would pay that cost twice. Phase 2 re-reads `source_path` for the body instead. Consumed by Phase 2 to merge into the spawn batch.
 - `mechanical_prepass_attempted: {<check-id>: <findings|clean|error>, ...}` — per-check outcome map written by Phase 1.5 §1.5.6/§1.5.7. Consumed by the Phase 4 §4.0a declaration check. A closed value set matters: `clean` is a recorded outcome, so a healthy diff that produced no findings is distinguishable from a check that was declared and never reached.
 - `report_status: <draft|final>` — whole-report lifecycle. Phase 5.1 writes `draft` so a mid-gate compaction still recovers the findings; the Phase 6 finalize step (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) flips it to `final` only after the Pre-gate (open questions) and the open-decision gate clear. The Action gate's handoff option and the §7.0 Post-drill guard both require `final`. **Back-compat (single source of this rule): a missing `report_status` reads as `final`** — mirrors the `step0_status: missing → resolved` precedent, so handoffs produced before this field exists are not retro-blocked. Other sites reference this rule; they do not restate it.
 - `deep-mode: <true|false>` — set by the `--deep` flag or the Deep chooser pick; the activation also persists to `approvals[]` category `deep_mode_choice`. Multiplies the reviewer/verifier fan-out (angle-diverse passes + signal-gated verification) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Missing reads as `false`. **Shared field:** `/geniro:plan`, `/geniro:implement`, and `/geniro:debug` carry the same `deep-mode` + `deep_mode_choice` pair (canonical cross-skill contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2); each deepens its own analysis phases per its `deep-mode-reference.md`. The field is therefore defined once here and not restated per producer section.
+
+**`/geniro:implement` producer-specific fields:**
+
+- `spawn_dims_declared: [<dim-slug>, ...]` / `spawn_dims_count: <int>` — same two fields as the `/geniro:review` entry above, written at this skill's own Phase 3 Step 1 before its fixed-grid reviewer batch fires. Consumed by Phase 3 Step 2's Round-1 declared-vs-returned check.
+- `reviewed_file_set: [<path>, ...]` — frontmatter list of the CHANGED_FILES the Phase 3 fix loop's final round's reviewer-agents and adversarial-tester actually received, written at the loop's exit (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop") in the same `atomic_state_write` call as the `## Deferred Findings` body section. Ship's commit-time review-coverage guard (same file, §"Commit + Push + PR" Step 2) diffs live CHANGED_FILES against it before staging.
 
 **`/geniro:debug` producer-specific `authored_tests` array (T2 handoff only):**
 
@@ -339,6 +344,22 @@ comment_resolutions:                 # MAY be []; only review-comment items appe
 - Closing `---` on its own line.
 - Empty line after closing fence before body.
 - Body MAY use `## Section` headers; per-skill conventions for content.
+
+### `## Errors` — the unanswered-gate entry
+
+Neither existing frontmatter array can hold a question that fired and got no reply: `approvals[]`'s Provenance rule (§T1.5 optional `approvals` array, above) forbids synthesizing an entry for one never answered, and `open_questions[]` is a producer→consumer handoff, not a same-run resumption record. Write it here instead, in the shape the restore hook already parses:
+
+```markdown
+## Errors
+- ts: <ISO-8601 UTC>
+  tool: AskUserQuestion
+  detail: <question header, or a short phrase naming the gate>
+  error: "fired; turn ended before an answer arrived"
+  attempted_fix: "none yet — discharged only by re-firing this exact question"
+  status: unresolved                 # → resolved once the tool returns a real answer to THIS question
+```
+
+Discharge conditions, what does not count as an answer, and the owning site for the `unresolved → resolved` flip are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 
 ---
 

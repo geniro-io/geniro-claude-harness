@@ -120,11 +120,13 @@ Synthesis matrix per smell:
 |---|---|---|---|
 | ALIGNS | * | * | FILTER (repo's chosen pattern) |
 | CONTRADICTS | OVER-ENGINEERED | * | FILTER (cure worse than disease) |
-| CONTRADICTS | APPROPRIATE | WIDESPREAD | FILTER OR consult user (intentional rather than smell) |
+| CONTRADICTS | APPROPRIATE | WIDESPREAD | ASK USER (ambiguous — house pattern or entrenched debt) |
 | CONTRADICTS | APPROPRIATE | ISOLATED | KEEP (genuine smell) |
 | NEUTRAL | APPROPRIATE | ISOLATED | KEEP (default) |
 
 KEEP smells enter plan-build. FILTERED smells are noted in state.md `## Filtered smells` section with the synthesis reason. No fail-open caveat needed — dedup and judgment run in orchestrator's main context.
+
+The ASK USER row is the one the matrix can't resolve alone: appropriate + contradicts convention + widespread reads equally as a deliberate house pattern or as debt nobody caught, and only the user knows which. When ≥1 smell lands there — the other four rows still resolve silently — render each to chat first (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering: name the pattern, how many files it spans, and the ambiguity), then fire ONE multi-select `AskUserQuestion` (header: "Intentional?", § Multi-select pick loop, chaining past 4 matches): the user picks which are real debt to KEEP — the rest FILTER as intentional. Persisted picks land in `## Filtered smells` / feed KEEP smells into plan-build same as any other row.
 
 ### 1.6 Risk classification, plan build, and approval
 

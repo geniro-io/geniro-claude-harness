@@ -50,7 +50,7 @@ Escalate every PRODUCT-DECISION finding to `/geniro:implement`; never gate-and-f
 Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per the reference's § Finding-type visual map — then fire the lean `AskUserQuestion`. 3 fixed options:
 
 1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: routed` (terminal — recovery treats as complete; the decision was handed to /geniro:implement). Without a terminal write here the run would resume re-surfacing an already-resolved escalation.
-2. **Revert this refactor and start over** — `git restore --source=HEAD -- <each path from git diff --name-only>` (per SKILL.md §Git constraint) with user confirmation. state.md → `reverted` (terminal).
+2. **Revert this refactor and start over** — `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). state.md → `reverted` (terminal).
 3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
 
 **Approvals-persistence:** before firing the PRODUCT-DECISION AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: refactor_product_decision` matching the finding (use finding `path:lines` + decision-type as disambiguator). If found, use prior `picked` value. If not found, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_write` BEFORE executing the chosen action.
@@ -59,7 +59,7 @@ Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings �
 
 **CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
 
-Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — state.md → `verify-escalated` with timestamp + 1-round fix attempt summary, then surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" (state.md → `routed`, terminal) / "Document remaining findings and keep the diff as-is" (state.md → `verify-summary-only`, terminal) / "Revert all changes" (`git restore --source=HEAD -- <each path from git diff --name-only>` per SKILL.md §Git constraint; state.md → `reverted`, terminal).
+Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — state.md → `verify-escalated` with timestamp + 1-round fix attempt summary, then surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" (state.md → `routed`, terminal) / "Document remaining findings and keep the diff as-is" (state.md → `verify-summary-only`, terminal) / "Revert all changes" (`git restore --source=HEAD -- <paths>` per SKILL.md §Git constraint; state.md → `reverted`, terminal).
 
 **MEDIUM findings only → note in completion summary; proceed.**
 

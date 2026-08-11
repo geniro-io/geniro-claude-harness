@@ -151,6 +151,7 @@ For obvious bug fixes. The user already showed what's broken.
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 | "The findings are obviously good, skip the redundancy check" | Phase 2b is a separate pass because a finding that reads well in the research table often duplicates an instruction already in the target file. Grep the target files for existing coverage and judge over-engineering per finding — inline, no spawn. |
 | "I'll skip internet research because the request feels local" | A new pattern or external API shipped with no external evidence is the failure this catches — internal-feeling requests still introduce new patterns. |
+| "This mid-phase pick isn't one of the skill's named gates — I'll settle it in chat" | The Phase 3 finding pick, the Phase 5 warning batch and pre-existing-bug walk, the create-skill overlap gate, and the Phase 6 ship gate are examples, not the complete set — route every user-facing choice through `AskUserQuestion` (`skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule). |
 
 ---
 

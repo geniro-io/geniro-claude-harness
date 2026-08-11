@@ -64,6 +64,8 @@ none — the test-authoring gate ran and authored no tests
 
 A bare-empty section reads as unknown rather than as clean, because a producer that never ran could not have written the sentinel — the sentinel is the only positive evidence available, so its absence is the signal.
 
+**A named case: a phase's own entry obligations.** The producer need not be a subagent — when a later gate depends on a phase's own required entry steps (a body Read, an instruction refresh, an acceptance check) having actually run, that phase is a producer too, and the same shape applies. Producer side: record a completion sentinel for those obligations at the phase's own exit, including the no-op case, somewhere the later phase can still read once the turn that ran them is gone — that turn's echo does not survive the phase boundary (§Why this exists). Consumer side: read it against the same table above, not against "the run reached this phase," since a skip and a compliant run both simply continue. This is a pattern to reach for where such a dependency exists, not a standing requirement on every phase — which obligations to record, and where, is the owning skill's own contract; this file states the shape, not the fields.
+
 **What "unknown" costs is proportional to what the gate guards.** For a gate standing in front of an external effect — a commit, a push, a posted review — resolve it before that effect: run the producing step, or ask. For an advisory gate that never blocks, one line in the run's output is the whole remedy; escalating there would trade a real skip for a false alarm on every clean run.
 
 ## Anti-rationalization

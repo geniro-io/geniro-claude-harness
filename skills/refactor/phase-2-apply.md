@@ -49,7 +49,7 @@ For each step N in `## Plan steps` where `status: pending`:
 
 **Blocked Step Protocol** — run the three bounded attempts in `refactor-patterns.md` §Blocked Step Protocol, orchestrator-inline. On the revert after attempt 3, write `status: blocked`, `attempts: 3`, `last_post_check: REVERTED` and the blocked-rationale row to state.md, then continue to the next step — never stop the session. `last_post_check: REVERTED` is what makes the next step's pre-condition check fire (predicate (b) above); omitting it silently skips the baseline re-verification after a revert touched the tree.
 
-A catastrophic Edit failure (filesystem error, unreadable target) is the one exit from this loop: revert the refactor's changes per SKILL.md §Git constraint with user confirmation, then escalate to the user with the failure context — retrying a transformation against a tree the tool cannot write leaves the working tree half-applied.
+A catastrophic Edit failure (filesystem error, unreadable target) is the one exit from this loop — retrying a transformation against a tree the tool cannot write leaves the working tree half-applied. Render the failure to chat first (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering), then fire the lean AUQ header "Edit failed": "Revert all changes" (Recommended) / "Show me the diff first" / "Keep changes for debugging" — same three options as the §2.4 Regression escalation below. On "Revert all changes", `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). state.md → `phase: reverted` (terminal).
 
 State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` § Refactoring Plan schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
 
@@ -58,7 +58,7 @@ State.md `## Plan steps` body schema captures per-step status (per `refactor-pat
 After execution returns, count BLOCKED-to-executed ratio (post-user-rejection denominator: approved plan steps minus user-rejected HIGH-risk steps). **Past the session-level blocked-ratio cap (`${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md` §Budgets — quality-first):** stop and escalate in two steps per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — render the run outcome to a chat message first (`**In one sentence:**` opener + a blocked-steps mini-table: step · what blocked it · retries used), then fire the lean `AskUserQuestion` header "Stuck":
 
 - **Keep what worked and escalate the rest** — proceed to Phase 3 with blocked-steps list noted; user runs `/geniro:implement` separately for blocked items. state.md → `phase: verify` with `## Accepted Blocks` body section.
-- **Revert all changes** — `git restore --source=HEAD -- <each path from git diff --name-only>` (per SKILL.md §Git constraint; with user confirmation). state.md → `phase: reverted` (terminal).
+- **Revert all changes** — `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). state.md → `phase: reverted` (terminal).
 - **Force-continue (not recommended)** — proceed to Phase 3 with blocked work treated as accepted. state.md → `phase: verify`.
 
 Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `phase: apply-escalated` with timestamp + blocked-ratio + blocked-steps list before AUQ; transitions per user pick. The open-question render surfaces this on resume.
@@ -67,7 +67,7 @@ Do NOT proceed to Phase 3 automatically when this cap triggers. state.md marks `
 
 After execution returns (or after user pick if fired), run the full test suite once (regression gate) and attach the captured run as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. Reasoning-from-the-diff is forbidden — the captured run is the only proof the zero-behavior-change guarantee held.
 
-If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git restore --source=HEAD -- <each path from git diff --name-only>` (per SKILL.md §Git constraint) after explicit user confirmation. state.md → `phase: reverted` (terminal).
+If regression failed: render the regression outcome to a chat message first (which tests broke, baseline→after delta) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering, then fire the lean AUQ "Regression" — "Revert all changes" / "Show me the diff first" / "Keep changes for debugging". Default: Revert. On "Revert", `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). state.md → `phase: reverted` (terminal).
 
 If green: state.md transitions to `phase: verify`. `## Apply Summary` body section captures executed / blocked / final-suite status.
 

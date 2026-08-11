@@ -143,7 +143,7 @@ If no issues in either category: report "LGTM — all checks passed"
 
 **Introduced issues** (from the current changes):
 - **Blockers:** Spawn a fresh fix agent (not the implementer). Then re-review with another fresh agent. Max 1 fix round.
-- **Warnings:** Present to user — let them decide.
+- **Warnings:** Multi-select `AskUserQuestion` (header: `"Warnings"`, ≤4 options per call, chaining past the cap), mirroring `.claude/skills/audit-plugin/phase-5-action-gate.md`'s pick path — apply the ones picked, ship the rest as-is.
 - **Nits:** Apply if trivial, skip if subjective.
 - **LGTM:** Proceed to Step 3.
 
@@ -171,7 +171,7 @@ Use the `AskUserQuestion` tool to ask:
   - "Skip — focus on the current changes only"
 
 - If **fix all**: spawn implementation agents for the pre-existing fixes (same Phase 4 flow), then re-run Phase 5 review on the new changes only.
-- If **pick**: present each bug individually and let the user select, then implement selected fixes.
+- If **pick**: walk the bugs one at a time — render each row, then fire its own lean `AskUserQuestion` (header: `"This bug"`) — "Fix it" / "Skip it" / "Skip the rest" — matching `skills/reflect/SKILL.md`'s per-candidate walk — then implement the ones fixed.
 - If **skip**: proceed to Phase 6.
 
 If no pre-existing bugs were found, skip this step.
@@ -236,7 +236,7 @@ After cleanup, run `bash tests/run-all.sh` — CI gates on it, so a red suite he
 If the user picks commit+push or commit-only:
 - Stage only the files listed in the Phase 6 Step 1 summary table (never `git add -A` or `git add .`).
 - Write the commit message via HEREDOC, following the repo's commit style (check `git log -5 --oneline` first).
-- For commit+push: run `git push` after the commit succeeds. If the branch has no upstream, report the exact `git push -u origin <branch>` command and ask the user to confirm before running it.
+- For commit+push: run `git push` after the commit succeeds. A branch with no upstream is a second decision the ship gate above never showed — creating a remote branch is its own outward, non-resumable action class (`skills/_shared/approval-scope.md`). Fire `AskUserQuestion` (header: `"No upstream"`) — **Question:** "No upstream for `<branch>` — push and create it?" **Options:** "Push and set upstream" / "Commit only, skip the push". Run `git push -u origin <branch>` only on the first.
 - Never use `--no-verify`, `--amend`, or any destructive flag.
 - If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
 

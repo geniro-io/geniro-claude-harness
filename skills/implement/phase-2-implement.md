@@ -5,7 +5,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 ## Contents
 
 - Steps 1-6 — read spec source, TodoWrite decomposition + file-set partition, sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
-- State.md update on phase exit · past-learning emit on retry exit
+- State.md update on phase exit · the `## Phase 2 Completion` sentinel · past-learning emit on retry exit
 - Loop visualization
 
 ---
@@ -43,13 +43,14 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
        c. JIT-load any .claude/rules/*.md whose paths: glob matches an Edit target
           (use the rule list returned by Codebase-Explorer §"Relevant Rules";
           cache rule bodies for the rest of Phase 2)
-       d. Mark todo completed via TodoWrite
+       d. Mark todo completed via TodoWrite — only once its content and this turn's
+          state.md write agree the slice is finished, not merely attempted
        e. Move to next todo
    ```
 
    **Delegating a group.** Step 2's partition sets the default: 2 or more disjoint groups delegate, one `general-purpose` subagent per group (`model="sonnet"` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the slice is already decided, so the delegate only applies it). A single group delegates too when it is a decided mechanical slice — fully determined, no design judgment required (a rename across many call sites is the canonical case); otherwise it stays inline as the common case, the orchestrator editing directly. Delegated todos are marked `in_progress` at spawn and `completed` on diff read (invariant S2 covers the exception). Delegate every group the partition yielded, spawned in ONE assistant response, same assistant turn, NOT one per turn — separate turns serialize the spawns and the delegation buys nothing. The binding constraint is the orchestrator's own context: each returned diff is read into the one context that also holds the spec, the rules, and the remaining todos, so when returns come back large, integrate before spawning more. Spawn per the template at `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Code-delegate spawn template". Rules: a delegate edits ONLY its named file set; on return, read its diff and check every reported path against that allowlist — an out-of-bounds path is a boundary violation to surface, not to fold in — then fold the in-bounds paths into `CHANGED_FILES` and mark its todos completed; integrate multiple delegates' returns one at a time.
 
-   A delegate that returns empty, errors, or can't finish its slice: check its allowlist for edits already made — a tool error returns no path list; a boundary stop after partial progress often leaves files changed. Surface any out-of-allowlist path as a boundary violation rather than folding it in; fold the rest into `CHANGED_FILES`, reconcile the inline work against that state, then take the rest inline. Never re-spawn the same slice, and never mark its todo completed without a diff to read.
+   A delegate that returns empty, errors, or can't finish its slice: check its allowlist for edits already made — a tool error returns no path list; a boundary stop after partial progress often leaves files changed. Surface any out-of-allowlist path as a boundary violation rather than folding it in; fold the rest into `CHANGED_FILES`, reconcile the inline work against that state, then take the rest inline. Never re-spawn the same slice, and never mark a todo `completed` while the work it names is unfinished — a delegate's todo needs a diff to read before it counts as done; an inline todo needs its own content and this turn's state.md write to actually agree the slice is finished (Step 3d).
 
    **Scope discipline.** Build what the todo's slice requires and nothing beyond it — no speculative abstractions, configuration options, or generalized helpers for needs the spec doesn't name. Generality added "while we're here" is scope the user never approved, and the code-quality reviewer flags it as speculative generality in Phase 3.
 
@@ -77,7 +78,17 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
    When an early trigger fires, state the plain-English reason in the AUQ question text (e.g. "the same test keeps failing across retries" / "this is turning out larger than the size you set in the spec") so the user knows why the gate opened early — never surface the raw signal name (e.g. `max_files_to_edit` / `change_scope` / `budget`).
 
-**State.md update on phase exit.** On escalation, write `phase: phase-2-escalated`. On the happy path leave `phase:` at `implement` — Phase 3 entry advances it to `self-review`, so each transition keeps exactly one site that performs it and the file names the phase actually completed if the run stops between the two. On `aborted`, write `## Termination reason: repeated-failure: phase-2 retry-limit (<N> failing Phase 2 checks)` — source-neutral, since the escalation covers both a failing test suite AND a failing/refused spec `verify:` acceptance check.
+**State.md update on phase exit.** On escalation, write `phase: phase-2-escalated`. On `aborted`, write `## Termination reason: repeated-failure: phase-2 retry-limit (<N> failing Phase 2 checks)` — source-neutral, since the escalation covers both a failing test suite AND a failing/refused spec `verify:` acceptance check. The happy path writes too, via the same `atomic_state_write` call as the block below: the helper overwrites rather than merges, so this write re-emits whatever `phase:` value it finds, unchanged — it exists only to carry the block. The `implement → self-review` transition is otherwise Phase 3 entry's alone; Step 6 option B is the one exception, advancing `phase:` directly because accepting the failure there is itself the phase-exit decision.
+
+**Every exit's write carries a `## Phase 2 Completion` block** (happy path, escalation, aborted alike) — the assessed sentinel per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel, covering this phase's two silent-skip-prone obligations:
+
+```
+## Phase 2 Completion
+instructions-refreshed: <yes|no>
+verify: <ALL_GREEN|HAS_FAILURES|INFRA_ERROR|none — <reason>>
+```
+
+`instructions-refreshed` reports whether this entry's refresh (above) actually ran, not whether it should have. `verify` carries step 5.5's classification when it ran, or its own `none —` sentinel naming why it didn't (no spec `verify:` lines; suite never reached `ALL_GREEN`). The phase-body Read itself needs no field: skipping it skips this instruction too, so the block's absence in state.md — not a value inside it — is what tells the Phase 3 pre-terminal check that a resumed or compacted run never passed through this exit.
 
 **Record a past learning on retry exit.** When Phase 2 exits AND `retry_count ≥ 2` (i.e., at least one fix-iteration happened), call `emit-learning` with `type: retry_failure_sequence`, `trust: verified`, required `ext.{phase: "phase-2-fix-loop", attempts: [...], resolution}`. Each `attempts[]` entry = `{round: N, failure: "<one-line summary>"}`. `resolution ∈ {passed, escalated, aborted}` matches the actual exit state. Sliding-window cap per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types, which owns the window size and the flip-then-append order. Single-retry exits (retry_count == 1) do NOT emit. Future Phase 1 `query-learnings` calls surface this as priming context.
 

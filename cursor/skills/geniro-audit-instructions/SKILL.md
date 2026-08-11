@@ -2,9 +2,6 @@
 name: geniro-audit-instructions
 description: "Use when auditing the current repo's AI-assistant instruction files — CLAUDE.md, AGENTS.md, Cursor rules, Copilot instructions, and every other agent-facing surface — for accuracy against the codebase, cross-tool consistency, bloat, structure, and coverage gaps: 'audit our AI instructions', 'is CLAUDE.md stale', 'are the cursor rules consistent with CLAUDE.md', 'clean up AGENTS.md'. Runs a deterministic pre-pass, then parallel dimension reviewers, re-verifies every finding against the cited lines, renders a tiered report, and applies approved fixes only after an action gate. Skip for generating a fresh CLAUDE.md (/geniro:setup), for creating or validating a single .geniro/instructions/ entry (/geniro:instructions), and for mining session history into new rules (/geniro:reflect)."
 context: main
-model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
-argument-hint: "[path | tool (cursor|claude|copilot|agents) | dimension (accuracy|consistency|bloat|structure|coverage) | --quick | empty for full audit]"
 ---
 <!-- Generated from skills/audit-instructions/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
 
@@ -31,7 +28,7 @@ You are the audit orchestrator. The target is every AI-assistant instruction fil
 3. **Phase 2 — Parallel dimension reviewers.** Spawn one reviewer per selected dimension in ONE response, within the §Budgets spawn cap.
 4. **Phase 3 — Merge, verify, filter.** Dedupe, count convergence, re-read every cited line, drop unverifiable and do-not-flag items, assign tiers.
 5. **Phase 4 — Report.** Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and render every finding in chat.
-6. **Phase 5 — Action gate.** AskUserQuestion: fix now / pick / report only. Approved fixes go to fix agents with disjoint file allowlists, then the mechanical battery re-runs to verify. Cleanup + commit offer.
+6. **Phase 5 — Action gate.** AskQuestion: fix now / pick / report only. Approved fixes go to fix agents with disjoint file allowlists, then the mechanical battery re-runs to verify. Cleanup + commit offer.
 
 ## Loop invariants
 
@@ -90,7 +87,7 @@ Shared invariant 2 ("Report before fix") is a prose rule; this table is its tool
 | `dimension-reviewers` (2) | `Agent` (reviewer spawns), `Bash` (`atomic_state_write` for `findings-<reviewer>.md` persistence) | `Edit`, `Write`, mutating `Bash` outside the state helper |
 | `merge-verify-filter` (3) | `Read`, `Bash` (read-only re-reads), `Agent` (`finding-verifier-agent` spawns) | `Edit`, `Write`, mutating `Bash` |
 | `report` (4) | `Read`, `Bash` (`atomic_state_write` for the dated report) | `Edit`, `Write`, mutating `Bash` outside the state helper, `Agent` |
-| `action-gate` (5) | `AskUserQuestion`, `Agent` (fix agents, spawned only after the gate approves), `Bash` (cleanup + commit offer) | `Edit`/`Write` before the gate fires, or outside an approved fix agent's disjoint allowlist |
+| `action-gate` (5) | `AskQuestion`, `Agent` (fix agents, spawned only after the gate approves), `Bash` (cleanup + commit offer) | `Edit`/`Write` before the gate fires, or outside an approved fix agent's disjoint allowlist |
 
 External sends are not part of `/geniro:audit-instructions` ACI.
 
@@ -151,7 +148,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## State recovery
 
-On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/audit-instructions/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
+On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/audit-instructions/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling), then resume from the next incomplete phase — reviewers whose `findings-<reviewer>.md` exists don't need re-spawning; missing ones do.
 
 ## Definition of done
 
