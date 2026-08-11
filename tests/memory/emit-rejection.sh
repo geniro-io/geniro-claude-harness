@@ -80,7 +80,7 @@ assert_signal "explicit Skip" "explicit_skip"
 new_sandbox
 emit_rejection_if_signal "/plan" "global" "ship_mode" "open PR" "Cancel" >/dev/null 2>&1
 tags=$(last_entry | jq -c '.tags')
-if echo "$tags" | grep -q 'auq-rejection' && echo "$tags" | grep -q 'ship_mode'; then
+if grep -q 'auq-rejection' <<<"$tags" && grep -q 'ship_mode' <<<"$tags"; then
   pass "tags include auq-rejection + category"
 else
   fail "tags wrong: $tags"

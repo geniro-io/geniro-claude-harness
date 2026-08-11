@@ -82,23 +82,23 @@ out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
 
-echo "$ac" | grep -q "Context was compressed by compaction" \
+grep -q "Context was compressed by compaction" <<<"$ac" \
   && pass "compact: Block 1 prefix" \
   || fail "compact: Block 1 prefix missing"
 
-echo "$ac" | grep -q "instructions/implement.md" \
+grep -q "instructions/implement.md" <<<"$ac" \
   && pass "compact: Block 2 active-skill instructions pointer" \
   || fail "compact: active-skill pointer missing"
 
-echo "$ac" | grep -q "state.md" \
+grep -q "state.md" <<<"$ac" \
   && pass "compact: Block 2 state.md pointer (validation passed)" \
   || fail "compact: state.md pointer missing"
 
-echo "$ac" | grep -q "Resume steps:" \
+grep -q "Resume steps:" <<<"$ac" \
   && pass "compact: Block 6 resume protocol header" \
   || fail "compact: Block 6 missing"
 
-echo "$sm" | grep -q "active task: feature-x · skill: /implement · branch: feature/x · phase: implement · non-resumable: 0" \
+grep -q "active task: feature-x · skill: /implement · branch: feature/x · phase: implement · non-resumable: 0" <<<"$sm" \
   && pass "compact: systemMessage shape (task/skill/branch/phase/non-resumable)" \
   || fail "compact: systemMessage shape wrong — '$sm'"
 
@@ -109,7 +109,7 @@ echo "$sm" | grep -q "active task: feature-x · skill: /implement · branch: fea
 sandbox=$(new_sandbox)
 out=$(run_hook resume "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
-echo "$ac" | grep -q "Restoring from prior session" \
+grep -q "Restoring from prior session" <<<"$ac" \
   && pass "resume: Block 1 phrasing" \
   || fail "resume: Block 1 phrasing missing"
 
@@ -122,7 +122,7 @@ out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
 
-echo "$ac" | grep -q "Active task detected at startup" \
+grep -q "Active task detected at startup" <<<"$ac" \
   && pass "startup with task: Block 1 phrasing" \
   || fail "startup with task: Block 1 missing"
 
@@ -146,25 +146,25 @@ ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
   || fail "cold startup: systemMessage should be suppressed — '$sm'"
 
 # Block 1 phrasing — must NOT claim a task was detected.
-if echo "$ac" | grep -q "Active task detected"; then
+if grep -q "Active task detected" <<<"$ac"; then
   fail "cold startup: Block 1 says 'Active task detected' (must omit)"
 else
   pass "cold startup: Block 1 omits 'Active task detected'"
 fi
 
-echo "$ac" | grep -q "no in-flight task" \
+grep -q "no in-flight task" <<<"$ac" \
   && pass "cold startup: Block 1 cold-startup phrasing fires" \
   || fail "cold startup: Block 1 cold-startup phrasing missing"
 
 # Block 6 — entire resume protocol must be suppressed (no active task,
 # so no "active task" block). State.md / spec.md / plan.md references would
 # be meaningless.
-if echo "$ac" | grep -q "Resume steps:"; then
+if grep -q "Resume steps:" <<<"$ac"; then
   fail "cold startup: Block 6 should be suppressed (no active task)"
 else
   pass "cold startup: Block 6 suppressed"
 fi
-if echo "$ac" | grep -q "Read state.md"; then
+if grep -q "Read state.md" <<<"$ac"; then
   fail "cold startup: should not reference state.md (no active task)"
 else
   pass "cold startup: no state.md reference"
@@ -184,7 +184,7 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "STATE FILE FAILED VALIDATION" \
+grep -q "STATE FILE FAILED VALIDATION" <<<"$ac" \
   && pass "validation fail: Block 3 fires" \
   || fail "validation fail: Block 3 missing"
 
@@ -204,7 +204,7 @@ out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
   | CLAUDE_PLUGIN_ROOT=/tmp/no-such-dir-$$ bash "$HOOK")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "Helpers not installed" \
+grep -q "Helpers not installed" <<<"$ac" \
   && pass "helper missing: Block 4 fires" \
   || fail "helper missing: Block 4 missing"
 
@@ -234,7 +234,7 @@ EOF
 
 out=$(run_hook compact "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-echo "$sm" | grep -q "active task: different-name · skill: /refactor · branch: feature/y · phase: rewrite" \
+grep -q "active task: different-name · skill: /refactor · branch: feature/y · phase: rewrite" <<<"$sm" \
   && pass "tier-2 fallback: branch grep finds non-slug task-dir" \
   || fail "tier-2 fallback failed — sm='$sm'"
 
@@ -271,15 +271,15 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "git-push (target: origin/feature/x, ref: a3f9e2" \
+grep -q "git-push (target: origin/feature/x, ref: a3f9e2" <<<"$ac" \
   && pass "Block 5: git-push structured rendering" \
   || fail "Block 5: git-push not rendered correctly"
 
-echo "$ac" | grep -q "pr-comment-posted (pr: 142, comment-id: 1834720" \
+grep -q "pr-comment-posted (pr: 142, comment-id: 1834720" <<<"$ac" \
   && pass "Block 5: pr-comment-posted rendering" \
   || fail "Block 5: pr-comment-posted not rendered correctly"
 
-echo "$ac" | grep -q "custom-unknown (completed:" \
+grep -q "custom-unknown (completed:" <<<"$ac" \
   && pass "Block 5: unknown-action fallback" \
   || fail "Block 5: unknown-action fallback missing"
 
@@ -310,11 +310,11 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "slack-notify-sent (channel: #deploys, ts: 1747393200.123456" \
+grep -q "slack-notify-sent (channel: #deploys, ts: 1747393200.123456" <<<"$ac" \
   && pass "Block 5: slack-notify-sent structured rendering" \
   || fail "Block 5: slack-notify-sent not rendered correctly"
 
-echo "$ac" | grep -q "release-tagged (tag: v1.85.0, completed:" \
+grep -q "release-tagged (tag: v1.85.0, completed:" <<<"$ac" \
   && pass "Block 5: release-tagged structured rendering" \
   || fail "Block 5: release-tagged not rendered correctly"
 
@@ -343,7 +343,7 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "pr-comment-amended (pr: owner/repo#2811, comment-id: 123456789, kind: delete, completed:" \
+grep -q "pr-comment-amended (pr: owner/repo#2811, comment-id: 123456789, kind: delete, completed:" <<<"$ac" \
   && pass "Block 5: pr-comment-amended structured rendering" \
   || fail "Block 5: pr-comment-amended not rendered correctly"
 
@@ -382,15 +382,15 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "ERRORS ENCOUNTERED IN PRIOR TURNS" \
+grep -q "ERRORS ENCOUNTERED IN PRIOR TURNS" <<<"$ac" \
   && pass "Block 5b: header fires" \
   || fail "Block 5b: header missing"
 
-echo "$ac" | grep -q "npm test" \
+grep -q "npm test" <<<"$ac" \
   && pass "Block 5b: unresolved error renders" \
   || fail "Block 5b: unresolved error missing"
 
-if echo "$ac" | grep -q "missing semi"; then
+if grep -q "missing semi" <<<"$ac"; then
   fail "Block 5b: resolved entry leaked (should be filtered)"
 else
   pass "Block 5b: resolved entry filtered out"
@@ -427,15 +427,15 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "PENDING QUESTIONS FROM PRIOR TURN" \
+grep -q "PENDING QUESTIONS FROM PRIOR TURN" <<<"$ac" \
   && pass "Block 5c: header fires" \
   || fail "Block 5c: header missing"
 
-echo "$ac" | grep -q "What OAuth provider" \
+grep -q "What OAuth provider" <<<"$ac" \
   && pass "Block 5c: unresolved question renders" \
   || fail "Block 5c: unresolved question missing"
 
-if echo "$ac" | grep -q "Old question"; then
+if grep -q "Old question" <<<"$ac"; then
   fail "Block 5c: resolved entry leaked"
 else
   pass "Block 5c: resolved entry filtered"
@@ -469,17 +469,17 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "DECISIONS ALREADY MADE" \
+grep -q "DECISIONS ALREADY MADE" <<<"$ac" \
   && pass "Block 5d: header fires" \
   || fail "Block 5d: header missing"
 
-echo "$ac" | grep -q '\[ship_mode\] User picked: "open PR"' \
+grep -q '\[ship_mode\] User picked: "open PR"' <<<"$ac" \
   && pass "Block 5d: approval rendering" \
   || fail "Block 5d: approval rendering wrong"
 
 # An entry carrying none of the three optional fields must render exactly the two
 # lines it always did — no stray "why:" label, no empty-value noise.
-echo "$ac" | grep -q 'why:' \
+grep -q 'why:' <<<"$ac" \
   && fail "Block 5d: rendered a why: label for an entry that carries no why" \
   || pass "Block 5d: optional fields absent render nothing"
 
@@ -525,25 +525,25 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q 'why: the branch already had an open PR' \
+grep -q 'why: the branch already had an open PR' <<<"$ac" \
   && pass "Block 5d: renders why when recorded" \
   || fail "Block 5d: why not rendered"
 
-echo "$ac" | grep -q 'result: PR 412 updated' \
+grep -q 'result: PR 412 updated' <<<"$ac" \
   && pass "Block 5d: renders result when recorded" \
   || fail "Block 5d: result not rendered"
 
-echo "$ac" | grep -q 'gh pr view reported state OPEN' \
+grep -q 'gh pr view reported state OPEN' <<<"$ac" \
   && fail "Block 5d: evidence leaked into the block — it belongs in the file only" \
   || pass "Block 5d: evidence stays out of the block"
 
 # The second entry carries `why: ""`. jq treats "" as truthy, so a presence test
 # would emit `why: ` with nothing after it.
-echo "$ac" | grep -qE 'why:[[:space:]]*$' \
+grep -qE 'why:[[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: an empty why rendered a bare label" \
   || pass "Block 5d: an empty-string why renders nothing"
 
-echo "$ac" | grep -q '\[deep_mode_choice\] User picked: "Standard"' \
+grep -q '\[deep_mode_choice\] User picked: "Standard"' <<<"$ac" \
   && pass "Block 5d: an entry with only the required fields still renders" \
   || fail "Block 5d: entry with empty optional field stopped rendering"
 
@@ -593,19 +593,19 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q '\[minor_findings\] User picked: "fix now"' \
+grep -q '\[minor_findings\] User picked: "fix now"' <<<"$ac" \
   && pass "Block 5d: all three entries render" \
   || fail "Block 5d: the third entry did not render — the fixture, not the guard, is being measured"
 
-echo "$ac" | grep -qE 'why:[[:space:]]*$' \
+grep -qE 'why:[[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: a whitespace-only why rendered a bare 'why:' label — the same empty claim as why: \"\", which the case above already requires to render nothing" \
   || pass "Block 5d: a whitespace-only why renders nothing"
 
-echo "$ac" | grep -qE 'why:[[:space:]]*(null|~)[[:space:]]*$' \
+grep -qE 'why:[[:space:]]*(null|~)[[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: 'why: null' rendered the literal word null as the reason a decision was made — YAML null is an absent value, and the block presents it to the resumed session as recorded rationale" \
   || pass "Block 5d: a null why renders nothing"
 
-echo "$ac" | grep -qE 'result:[[:space:]]*(null|~)[[:space:]]*$' \
+grep -qE 'result:[[:space:]]*(null|~)[[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: 'result: ~' rendered '~' as what acting on the pick produced — an absent result is the signal that the decision was recorded but never acted on, and this spelling of absent reads as a recorded outcome instead" \
   || pass "Block 5d: a tilde result renders nothing"
 
@@ -639,7 +639,7 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -qE 'why:[[:space:]]*[|>][[:space:]]*$' \
+grep -qE 'why:[[:space:]]*[|>][[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: a block-scalar why rendered the YAML marker as the reason ('why: |') and dropped the two lines under it — the block must carry the reason or say nothing, never a marker standing in for one" \
   || pass "Block 5d: a block-scalar why does not render its YAML marker as the reason"
 
@@ -651,7 +651,7 @@ sandbox=$(new_sandbox)
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-if echo "$ac" | grep -qE "ERRORS ENCOUNTERED|PENDING QUESTIONS|DECISIONS ALREADY MADE"; then
+if grep -qE "ERRORS ENCOUNTERED|PENDING QUESTIONS|DECISIONS ALREADY MADE" <<<"$ac"; then
   fail "empty state.md should produce no 5b/5c/5d blocks"
 else
   pass "empty state.md: no false-positive 5b/5c/5d emission"
@@ -703,19 +703,19 @@ out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
 # Block 3 must fire.
-echo "$ac" | grep -q "STATE FILE FAILED VALIDATION" \
+grep -q "STATE FILE FAILED VALIDATION" <<<"$ac" \
   && pass "validation fail (schema-version): Block 3 fires" \
   || fail "validation fail (schema-version): Block 3 missing"
 
 # Blocks 5/5b/5c/5d must all be suppressed.
-if echo "$ac" | grep -qE "ALREADY COMPLETED|ERRORS ENCOUNTERED|PENDING QUESTIONS|DECISIONS ALREADY MADE"; then
+if grep -qE "ALREADY COMPLETED|ERRORS ENCOUNTERED|PENDING QUESTIONS|DECISIONS ALREADY MADE" <<<"$ac"; then
   fail "validation fail: Blocks 5/5b/5c/5d leaked content from invalid state.md"
 else
   pass "validation fail: Blocks 5/5b/5c/5d all suppressed"
 fi
 
 # Direct grep — make sure no leaked value made it through.
-if echo "$ac" | grep -qE "leaked-error|leaked-question|leaked-pick|leaked-fix|ref: leaked"; then
+if grep -qE "leaked-error|leaked-question|leaked-pick|leaked-fix|ref: leaked" <<<"$ac"; then
   fail "validation fail: state.md content leaked into additionalContext"
 else
   pass "validation fail: no leaked content from suspect state.md"
@@ -772,13 +772,13 @@ out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
 
-if echo "$ac" | grep -q "Active task detected"; then
+if grep -q "Active task detected" <<<"$ac"; then
   fail "terminal phase=done: Block 1 should NOT say 'Active task detected'"
 else
   pass "terminal phase=done: Block 1 omits 'Active task detected'"
 fi
 
-if echo "$ac" | grep -q "Resume steps:"; then
+if grep -q "Resume steps:" <<<"$ac"; then
   fail "terminal phase=done: Block 6 resume protocol should be suppressed"
 else
   pass "terminal phase=done: Block 6 suppressed"
@@ -788,7 +788,7 @@ fi
   && pass "terminal phase=done: systemMessage suppressed (startup)" \
   || fail "terminal phase=done: systemMessage should be suppressed — '$sm'"
 
-echo "$ac" | grep -q "no in-flight task" \
+grep -q "no in-flight task" <<<"$ac" \
   && pass "terminal phase=done: cold-startup phrasing fires" \
   || fail "terminal phase=done: cold-startup phrasing missing"
 
@@ -817,13 +817,13 @@ out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
 
-if echo "$ac" | grep -q "Active task detected"; then
+if grep -q "Active task detected" <<<"$ac"; then
   fail "terminal status=completed: Block 1 should NOT say 'Active task detected'"
 else
   pass "terminal status=completed: Block 1 omits 'Active task detected'"
 fi
 
-if echo "$ac" | grep -q "Resume steps:"; then
+if grep -q "Resume steps:" <<<"$ac"; then
   fail "terminal status=completed: Block 6 resume protocol should be suppressed"
 else
   pass "terminal status=completed: Block 6 suppressed"
@@ -855,7 +855,7 @@ EOF
 out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "Active task detected" \
+grep -q "Active task detected" <<<"$ac" \
   && pass "escalated phase: still surfaced as active (terminal gate did not over-match)" \
   || fail "escalated phase: should still resume — 'Active task detected' missing"
 
@@ -883,7 +883,7 @@ EOF
 out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-if echo "$ac" | grep -q "Active task detected"; then
+if grep -q "Active task detected" <<<"$ac"; then
   fail "terminal phase=escalated: Block 1 should NOT say 'Active task detected'"
 else
   pass "terminal phase=escalated: Block 1 omits 'Active task detected'"
@@ -952,11 +952,11 @@ EOF
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "state/debug/feature-x/state.md" \
+grep -q "state/debug/feature-x/state.md" <<<"$ac" \
   && pass "terminal planning state does not shadow the live debug task" \
   || fail "terminal planning state shadows the live debug task"
 
-if echo "$ac" | grep -q "planning/feature-x/state.md"; then
+if grep -q "planning/feature-x/state.md" <<<"$ac"; then
   fail "finished planning state.md should not be surfaced"
 else
   pass "finished planning state.md is not surfaced"
@@ -1001,7 +1001,7 @@ sandbox=$(new_sandbox)
 out=$(run_hook compact "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-echo "$ac" | grep -q "work, not authority" \
+grep -q "work, not authority" <<<"$ac" \
   && pass "Block 1b: contract block fires with an active task" \
   || fail "Block 1b: contract block missing with an active task"
 
@@ -1011,7 +1011,7 @@ mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "fresh
 out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 
-if echo "$ac" | grep -q "work, not authority"; then
+if grep -q "work, not authority" <<<"$ac"; then
   fail "Block 1b: contract block should be absent on cold startup"
 else
   pass "Block 1b: contract block absent on cold startup"
@@ -1032,7 +1032,7 @@ mkdir -p "$sandbox/.geniro/knowledge"
 
 out=$(run_hook compact "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-echo "$sm" | grep -q "memory verified: 1/2 (50%)" \
+grep -q "memory verified: 1/2 (50%)" <<<"$sm" \
   && pass "coverage suffix present on systemMessage (default ON)" \
   || fail "coverage suffix missing/wrong — '$sm'"
 
@@ -1043,7 +1043,7 @@ cat > "$sandbox/.geniro/safety.json" <<'EOF'
 EOF
 out=$(run_hook compact "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-if echo "$sm" | grep -q "verified:"; then
+if grep -q "verified:" <<<"$sm"; then
   fail "coverage suffix should be suppressed when show_coverage:false — '$sm'"
 else
   pass "coverage suffix suppressed when memory.show_coverage:false"
@@ -1060,7 +1060,7 @@ mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git che
 
 out=$(run_hook startup "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-echo "$sm" | grep -q "memory verified: 2/2 (100%)" \
+grep -q "memory verified: 2/2 (100%)" <<<"$sm" \
   && pass "coverage overrides cold-startup suppression (systemMessage emitted)" \
   || fail "coverage should emit systemMessage on cold startup — '$sm'"
 
@@ -1075,7 +1075,7 @@ mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git che
 
 out=$(run_hook startup "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-if echo "$sm" | grep -q "verified:"; then
+if grep -q "verified:" <<<"$sm"; then
   fail "empty learnings.jsonl emitted a coverage suffix — '$sm'"
 else
   pass "empty learnings.jsonl: no coverage suffix (no verified: n/a spam)"
@@ -1098,7 +1098,7 @@ mkdir -p "$sandbox/.geniro/knowledge" && cd "$sandbox" && git init -q && git che
 
 out=$(run_hook startup "$sandbox")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-if echo "$sm" | grep -q "verified:"; then
+if grep -q "verified:" <<<"$sm"; then
   fail "all-deprecated learnings.jsonl emitted a coverage suffix — '$sm'"
 else
   pass "all-deprecated learnings.jsonl: no coverage suffix (no verified: n/a spam)"
@@ -1152,7 +1152,7 @@ dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbo
 [ "$dep" = "true" ] \
   && pass "default-ON: real hook flips the stale entry to deprecated on disk" \
   || fail "default-ON: real hook should archive the stale entry (deprecated=true); got deprecated=$dep"
-echo "$sm" | grep -Eq 'auto-archived: [1-9][0-9]*' \
+grep -Eq 'auto-archived: [1-9][0-9]*' <<<"$sm" \
   && pass "default-ON: systemMessage carries the auto-archived: N suffix" \
   || fail "default-ON: real hook should show auto-archived: N — '$sm'"
 # The hash marker is written via stage-and-rename (mv), not a bare truncating
@@ -1184,7 +1184,7 @@ cd "$sandbox" || exit 1
 out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
   | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-if echo "$sm" | grep -q "auto-archived:"; then
+if grep -q "auto-archived:" <<<"$sm"; then
   fail "opt-out: auto_archive_stale:false must suppress archival via the real hook resolver — '$sm'"
 else
   pass "opt-out genuinely disables auto-archive via the real hook (no auto-archived suffix)"
@@ -1212,7 +1212,7 @@ cd "$sandbox" || exit 1
 out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" \
   | GENIRO_AUTO_ARCHIVE_THRESHOLD=1 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
 sm=$(echo "$out" | jq -r '.systemMessage // ""')
-if echo "$sm" | grep -q "auto-archived:"; then
+if grep -q "auto-archived:" <<<"$sm"; then
   fail "malformed safety.json: unparseable file must fail-closed (suppress), not fail-open — '$sm'"
 else
   pass "malformed safety.json: unparseable file fails closed (auto-archive suppressed)"
@@ -1253,7 +1253,7 @@ touch -t 202501010000 .geniro/planning/ghost-plan/state.md
 
 out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
-if echo "$ac" | grep -q "Active task detected"; then
+if grep -q "Active task detected" <<<"$ac"; then
   fail "stale Tier-2 candidate should NOT be surfaced (mtime past cutoff)"
 else
   pass "stale Tier-2 candidate suppressed (past GENIRO_RESUME_STALE_DAYS)"
@@ -1263,7 +1263,7 @@ fi
 touch .geniro/planning/ghost-plan/state.md
 out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
-echo "$ac" | grep -q "Active task detected" \
+grep -q "Active task detected" <<<"$ac" \
   && pass "fresh Tier-2 candidate still surfaced (gate only skips stale)" \
   || fail "fresh Tier-2 candidate should be surfaced"
 
@@ -1272,7 +1272,7 @@ touch -t 202501010000 .geniro/planning/ghost-plan/state.md
 out=$(printf '{"source":"startup","cwd":"%s"}' "$sandbox" \
   | GENIRO_RESUME_STALE_DAYS=0 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
-echo "$ac" | grep -q "Active task detected" \
+grep -q "Active task detected" <<<"$ac" \
   && pass "GENIRO_RESUME_STALE_DAYS=0 disables the staleness gate (stale candidate surfaces)" \
   || fail "GENIRO_RESUME_STALE_DAYS=0 should disable the staleness gate"
 
@@ -1299,7 +1299,7 @@ touch -t 202501010000 .geniro/planning/feature-z/state.md
 
 out=$(run_hook startup "$sandbox")
 ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
-echo "$ac" | grep -q "Active task detected" \
+grep -q "Active task detected" <<<"$ac" \
   && pass "Tier-1 exact slug match resumes even when stale (never gated)" \
   || fail "Tier-1 exact slug match should not be staleness-gated"
 

@@ -180,7 +180,7 @@ cat > .geniro/knowledge/archive/learnings-2025-Q4.jsonl <<'EOF'
 {"ts":"2025-12-01T00:00:00Z","producer":"/debug","scope":"src/old/x","summary":"cold","tags":["bug"],"dedup_key":"a1","type":"diagnosis","trust":"verified"}
 EOF
 got=$(query_learnings | keys)
-if echo "$got" | grep -qv 'a1'; then
+if grep -qv 'a1' <<<"$got"; then
   pass "default (no --include-archive) skips archive entries"
 else
   fail "archive leaked into default query: $got"
@@ -239,7 +239,7 @@ set +e
 err=$(GENIRO_DECAY_TAU_DAYS="bogus" query_learnings --score-min 0.1 2>&1 >/dev/null)
 rc=$?
 set -e
-if [ "$rc" -eq 64 ] && echo "$err" | grep -q 'GENIRO_DECAY_TAU_DAYS'; then
+if [ "$rc" -eq 64 ] && grep -q 'GENIRO_DECAY_TAU_DAYS' <<<"$err"; then
   pass "non-numeric GENIRO_DECAY_TAU_DAYS fails loud (rc=64 + stderr notice)"
 else
   fail "bad tau should rc=64 with stderr notice; rc=$rc err='$err'"

@@ -92,7 +92,7 @@ fi
 new_sandbox
 echo "- src/foo.ts — original" > .geniro/planning/_CODEBASE_MAP.md
 err=$(update_semantic --file codebase-map --replace "- not-here" "irrelevant" 2>&1)
-if echo "$err" | grep -q 'did not match'; then
+if grep -q 'did not match' <<<"$err"; then
   pass "replace with no match emits stderr notice"
 else
   fail "replace-no-match stderr: '$err'"

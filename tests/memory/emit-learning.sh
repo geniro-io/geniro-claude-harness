@@ -53,7 +53,7 @@ fi
 new_sandbox
 echo '{"producer":"/debug","scope":"src/foo","summary":"ts test","tags":["bug"]}' | emit_learning
 ts=$(read_log | jq -r .ts)
-if echo "$ts" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
+if grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' <<<"$ts"; then
   pass "auto-injected ts in ISO-8601 UTC format"
 else
   fail "ts not ISO-8601 UTC: '$ts'"
@@ -183,7 +183,7 @@ done
 new_sandbox
 echo '{"producer":"/debug","scope":"x","summary":"key=AKIAIOSFODNN7EXAMPLE leaked","tags":["bug"]}' | emit_learning
 sum=$(read_log | jq -r .summary)
-if echo "$sum" | grep -q '\[REDACTED:aws-key\]'; then
+if grep -q '\[REDACTED:aws-key\]' <<<"$sum"; then
   pass "summary sanitization fires"
 else
   fail "summary not sanitized: '$sum'"
@@ -193,7 +193,7 @@ fi
 new_sandbox
 echo '{"producer":"/debug","scope":"x","summary":"y","tags":["bug"],"body":"Authorization: Bearer abc.def_123"}' | emit_learning
 body=$(read_log | jq -r .body)
-if echo "$body" | grep -q '\[REDACTED:bearer\]'; then
+if grep -q '\[REDACTED:bearer\]' <<<"$body"; then
   pass "body sanitization fires"
 else
   fail "body not sanitized: '$body'"
@@ -205,7 +205,7 @@ fi
 new_sandbox
 echo '{"producer":"/debug","scope":"x","summary":"y","tags":["bug","AKIAIOSFODNN7EXAMPLE"]}' | emit_learning
 tag1=$(read_log | jq -r '.tags[1]')
-if echo "$tag1" | grep -q '\[REDACTED:aws-key\]'; then
+if grep -q '\[REDACTED:aws-key\]' <<<"$tag1"; then
   pass "tags[] element sanitization fires"
 else
   fail "tag not sanitized: '$tag1'"
@@ -223,7 +223,7 @@ jq -nc '{
   }
 }' | emit_learning
 sym=$(read_log | jq -r .ext.symptom)
-if echo "$sym" | grep -q '\[REDACTED:jwt\]'; then
+if grep -q '\[REDACTED:jwt\]' <<<"$sym"; then
   pass "ext.symptom sanitization fires"
 else
   fail "ext.symptom not sanitized: '$sym'"
@@ -241,7 +241,7 @@ jq -nc '{
   }
 }' | emit_learning
 opt0=$(read_log | jq -r '.ext.options[0]')
-if echo "$opt0" | grep -q '\[REDACTED:api-key:anthropic\]'; then
+if grep -q '\[REDACTED:api-key:anthropic\]' <<<"$opt0"; then
   pass "ext.options[0] (array element) sanitization fires"
 else
   fail "ext.options[0] not sanitized: '$opt0'"
@@ -426,7 +426,7 @@ jq -nc '{
   links:{ pr:"https://api.example.com/hook?key=AKIAIOSFODNN7EXAMPLE" }
 }' | emit_learning
 lnk=$(read_log | jq -r '.links.pr')
-if echo "$lnk" | grep -q '\[REDACTED:aws-key\]'; then
+if grep -q '\[REDACTED:aws-key\]' <<<"$lnk"; then
   pass "links.pr (credential-bearing URL) sanitization fires"
 else
   fail "links.pr not sanitized: '$lnk'"
@@ -439,7 +439,7 @@ jq -nc '{
   links:{ refs:["clean-ref", "token sk-ant-api03-leaked here"] }
 }' | emit_learning
 lnk=$(read_log | jq -r '.links.refs[1]')
-if echo "$lnk" | grep -q '\[REDACTED:api-key:anthropic\]'; then
+if grep -q '\[REDACTED:api-key:anthropic\]' <<<"$lnk"; then
   pass "links.refs[1] (array element) sanitization fires"
 else
   fail "links.refs[1] not sanitized: '$lnk'"
@@ -456,7 +456,7 @@ jq -nc '{
   ext:"leaked key ghp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AB"
 }' | emit_learning
 ext_scalar=$(read_log | jq -r '.ext')
-if echo "$ext_scalar" | grep -q '\[REDACTED:api-key:github\]'; then
+if grep -q '\[REDACTED:api-key:github\]' <<<"$ext_scalar"; then
   pass "scalar ext sanitization fires (T0 #5)"
 else
   fail "scalar ext not sanitized: '$ext_scalar'"
@@ -469,7 +469,7 @@ jq -nc '{
   links:"https://api.example.com/hook?key=AKIAIOSFODNN7EXAMPLE"
 }' | emit_learning
 links_scalar=$(read_log | jq -r '.links')
-if echo "$links_scalar" | grep -q '\[REDACTED:aws-key\]'; then
+if grep -q '\[REDACTED:aws-key\]' <<<"$links_scalar"; then
   pass "scalar links sanitization fires"
 else
   fail "scalar links not sanitized: '$links_scalar'"
@@ -486,7 +486,7 @@ jq -nc '{
   tags:["bug", {"k":"sk-ant-api03-leaked-in-a-tag-object"}]
 }' | emit_learning
 tag_obj=$(read_log | jq -r '.tags[1].k')
-if echo "$tag_obj" | grep -q '\[REDACTED:api-key:anthropic\]'; then
+if grep -q '\[REDACTED:api-key:anthropic\]' <<<"$tag_obj"; then
   pass "non-string (object) tags[] element sanitization fires (T1 #11)"
 else
   fail "tags[1].k not sanitized: '$tag_obj'"

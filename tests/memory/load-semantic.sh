@@ -52,7 +52,7 @@ fi
 new_sandbox
 echo 'arch' > .geniro/planning/_architecture.md
 out=$(load_semantic --quiet --extras "architecture")
-if echo "$out" | grep -q '=== file: .geniro/planning/_architecture.md ==='; then
+if grep -q '=== file: .geniro/planning/_architecture.md ===' <<<"$out"; then
   pass "--extras 'architecture' resolves to _architecture.md"
 else
   fail "--extras bare name didn't resolve; got: $out"
@@ -62,7 +62,7 @@ fi
 new_sandbox
 echo 'feat' > .geniro/planning/_FEATURES.md
 out=$(load_semantic --quiet --extras "_FEATURES")
-if echo "$out" | grep -q '=== file: .geniro/planning/_FEATURES.md ==='; then
+if grep -q '=== file: .geniro/planning/_FEATURES.md ===' <<<"$out"; then
   pass "--extras '_FEATURES' resolves to _FEATURES.md"
 else
   fail "--extras with leading _ didn't resolve"
@@ -73,8 +73,8 @@ new_sandbox
 echo 'a' > .geniro/planning/_architecture.md
 echo 'f' > .geniro/planning/_FEATURES.md
 out=$(load_semantic --quiet --extras "_architecture _FEATURES")
-if echo "$out" | grep -q '=== file: .geniro/planning/_architecture.md ===' \
-   && echo "$out" | grep -q '=== file: .geniro/planning/_FEATURES.md ==='; then
+if grep -q '=== file: .geniro/planning/_architecture.md ===' <<<"$out" \
+   && grep -q '=== file: .geniro/planning/_FEATURES.md ===' <<<"$out"; then
   pass "--extras multiple files loaded"
 else
   fail "--extras multiple failed; got: $out"
@@ -101,7 +101,7 @@ touch _focus-OOPS.md _focus-WRONG.md
 # Plant the actual L3 file we want loaded
 echo 'real focus content' > .geniro/planning/_focus-auth.md
 out=$(load_semantic --quiet --extras "_focus-*" 2>/dev/null)
-if echo "$out" | grep -q 'OOPS\|WRONG'; then
+if grep -q 'OOPS\|WRONG' <<<"$out"; then
   fail "--extras glob-expanded against cwd (loaded $(echo "$out" | grep -oE 'OOPS|WRONG'))"
 else
   pass "--extras does not glob-expand against cwd"
@@ -214,7 +214,7 @@ echo '{"name":"foo"}' > package.json
 update_fingerprint
 echo '{"name":"changed"}' > package.json
 err=$(load_semantic 2>&1 >/dev/null)
-if echo "$err" | grep -q 'Project snapshot may be out of date.*package.json'; then
+if grep -q 'Project snapshot may be out of date.*package.json' <<<"$err"; then
   pass "diverged file → drift warning on stderr"
 else
   fail "drift warning missing or wrong; got: '$err'"
@@ -240,7 +240,7 @@ update_fingerprint package.json tsconfig.json
 echo '{"name":"changed"}' > package.json
 echo '{"target":"es2024"}' > tsconfig.json
 err=$(load_semantic 2>&1 >/dev/null)
-if echo "$err" | grep -q 'package.json' && echo "$err" | grep -q 'tsconfig.json'; then
+if grep -q 'package.json' <<<"$err" && grep -q 'tsconfig.json' <<<"$err"; then
   pass "drift warning lists both diverged files"
 else
   fail "diverged list incomplete: '$err'"
