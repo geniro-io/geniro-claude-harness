@@ -133,6 +133,8 @@ sys.stdout.write(b)
 PY
 ```
 
+**A field the transform leaves alone is re-written at its old value.** The whole-file write means state cannot drift, and equally cannot advance on its own: a `phase:` or `status:` that a step is meant to move forward moves only inside a write that moves it, so a body-only edit carries the previous value forward silently. That result validates clean — `validate_state_file` checks the field is present and non-empty, never that it agrees with the body — and stays invisible until a resume routes on it. When a write is the one meant to advance such a field, read the frontmatter back afterwards and quote the value it now holds before telling the user where the run stands.
+
 Editing the file in place instead — `sed -i`, an interpreter's `open(p,'w')`, an `Edit` call — is the truncate-and-rewrite this helper exists to replace, and it stays unsafe when a later `atomic_state_write` re-writes the result: by then the unprotected write already happened, so the helper copies damage rather than preventing it. The `enforce-state-helper.sh` hook blocks the in-place shape from a heredoc body too, since that is where it hides from shell-syntax scanning.
 
 When a step genuinely needs the new content staged on disk before the write, name the temp file with `mktemp`. A fixed path is shared by every session on the machine, so two concurrent runs stage into the same file and one writes the other's state into its own:

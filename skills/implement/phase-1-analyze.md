@@ -228,7 +228,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
    - **Persist the pick.** Record the user's choice in state.md frontmatter `approvals[]` with `category: spec_challenge`, `picked: <chosen option>`, `at: <ISO-8601 UTC>` for compaction-resume idempotency.
    - **Fail-open.** If the helper or any verifier spawn fails, write a line to state.md `## Errors`, emit a one-line notice to the user, and proceed to step 13 — a fact-check failure does not hard-block the run.
 
-13. **State.md write.** `atomic_state_write` with `phase: analyze` body sections populated → upon completion, transition `phase: implement`.
+13. **State.md write.** `atomic_state_write` with `phase: analyze` body sections populated. Leave `phase:` at `analyze` here — Phase 2 entry owns the advance to `implement`, so the file names the phase actually completed if the run stops between the two, and the transition has exactly one site that performs it rather than two that each read as if the other did.
 
 **Workflow plumbing.** Workflow integrations (`.geniro/workflow/*.md`) apply their argument-detection patterns BEFORE the semantic-parse table. Non-blocking — log warning if integration backend unavailable.
 
