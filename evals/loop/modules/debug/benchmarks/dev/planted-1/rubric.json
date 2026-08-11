@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "negative": false,
+  "items": [
+    {
+      "id": "gt-1",
+      "file": "src/cache/profile.ts",
+      "lines": [10, 12],
+      "class": "root-cause",
+      "severity": "CRITICAL",
+      "must_find": true,
+      "description": "The hypothesis set must reach the cache key: `profileCacheKey(userId)` in src/cache/profile.ts is built from the user id ALONE, while a profile's `permissions` are resolved per (user, workspace) pair (src/db/profile.ts) and the route reads `workspaceId` from the session but never passes it into the key (src/routes/profile.ts). So a profile cached while in workspace A is served verbatim after switching to workspace B, until the entry expires. A matching hypothesis names the key's missing workspace discriminator as the mechanism. Naming src/cache/profile.ts for some other reason, or naming the route as the cause without identifying the key, is NOT a match. Neither is a bare restatement that 'the cache is stale' with no mechanism.",
+      "acceptance_evidence": "src/cache/profile.ts:10-12 keys on userId only; src/db/profile.ts:5 resolves permissions per (userId, workspaceId); src/routes/profile.ts:9-15 has workspaceId in scope and does not key on it."
+    },
+    {
+      "id": "gt-2",
+      "file": "src/cache/redis.ts",
+      "lines": [7, 9],
+      "class": "ruled-out-by-tree",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "polarity": "absence",
+      "description": "The TTL must NOT be offered as the cause. `PROFILE_TTL_MS = 30_000` is written through `redis.set(..., \"PX\", ...)`, so the unit is milliseconds and the entry lives 30 seconds — which is what makes the symptom self-resolve, not what makes it happen. A hypothesis claiming the TTL is too long, or reading 30_000 as seconds/hours, has misread the unit: the reported symptom is already short-lived, so a long TTL contradicts the evidence rather than explaining it. Satisfied when no hypothesis names the TTL as the cause.",
+      "acceptance_evidence": "src/cache/redis.ts:9 PROFILE_TTL_MS = 30_000 with \"PX\" (milliseconds) at src/cache/redis.ts:17; the report says the symptom resolves on its own."
+    },
+    {
+      "id": "gt-3",
+      "file": "src/middleware/session.ts",
+      "lines": [7, 16],
+      "class": "ruled-out-by-tree",
+      "severity": "MEDIUM",
+      "must_find": false,
+      "polarity": "absence",
+      "description": "A failure to update the session on switch must NOT be offered as the cause. `switchWorkspace` assigns `req.session.workspaceId = nextWorkspaceId` and deletes both the session record and the outgoing workspace's member cache. The session IS updated; the route reads the NEW workspaceId and still returns the old profile, which is what isolates the fault to the key rather than the session. Satisfied when no hypothesis claims the session or its workspace id is not updated on switch.",
+      "acceptance_evidence": "src/middleware/session.ts:12-15 sets the new workspaceId and issues two DELs before next()."
+    }
+  ]
+}

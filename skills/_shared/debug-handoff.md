@@ -6,17 +6,13 @@ When `/geniro:debug` ran earlier in the same project, it left T2 handoff files a
 
 ## Step 1: Scan
 
-Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths and fallback paths; for each that exists, read fully.
+Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths; for each that exists, read fully.
 
-**Canonical paths (read first):**
+**Canonical paths:**
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`
 
-**Fallback paths (read only if canonical absent):**
-- `<PRIMARY_ROOT>/.geniro/state/debug/findings-state.md`
-- `<PRIMARY_ROOT>/.geniro/state/debug/adversarial-tests.md`
-
-If neither canonical nor fallback exists, this whole file is a no-op — skip to your next step.
+If neither exists, this whole file is a no-op — skip to your next step.
 
 ## Step 2: Extract
 

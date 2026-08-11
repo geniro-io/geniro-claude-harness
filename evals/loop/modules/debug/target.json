@@ -1,0 +1,50 @@
+{
+  "module": "debug",
+  "version": 1,
+  "parser": "debug-hypotheses",
+  "facets": [
+    { "name": "pass-1", "criteria": ["hypothesize.md", "infrastructure.md", "isolation.md"] },
+    { "name": "pass-2", "criteria": ["hypothesize.md", "infrastructure.md", "isolation.md"] },
+    { "name": "pass-3", "criteria": ["hypothesize.md", "infrastructure.md", "isolation.md"] }
+  ],
+  "assembly": {
+    "max_prompt_bytes": 614400,
+    "repo_rules_slot": false
+  },
+  "output_contract": {
+    "retry_regex": "### H",
+    "clean_regex": "## Hypotheses"
+  },
+  "judge_framing": {
+    "intro": "You are grading a set of competing root-cause hypotheses, produced from a bug report and a snapshot of the codebase it describes, against the known true cause. Return STRICT JSON only — no prose, no markdown fences.",
+    "gt_heading": "Ground-truth causal mechanisms the hypothesis set had to reach",
+    "negative_note": "(none — this is a NEGATIVE task: the reported behavior is the code working as designed, so there is no defect to name and every hypothesis below goes to residue)",
+    "findings_heading": "Hypotheses to grade",
+    "gt_noun": "ground-truth mechanism",
+    "match_rule": "the SAME causal mechanism at the SAME location — not merely the same file, and not the same\n   observable symptom. Two hypotheses naming one module for different reasons are different\n   hypotheses; one naming the right mechanism at a slightly wrong line is a match. A hypothesis\n   that restates the symptom ('the cache returns stale data') without naming a mechanism that\n   would produce it is NOT a match for any item.",
+    "plausible_real": "a mechanism that genuinely could produce the reported symptom in this tree,\n     and is not the ground-truth cause",
+    "noise": "a mechanism referring to code, config, or infrastructure that does not exist in this\n     tree, or that could not produce the reported symptom",
+    "nitpick": "real and correctly cited, but incapable of producing the reported symptom on its own"
+  },
+  "pass_expr": ".recall_must == 1",
+  "negative_pass_expr": "(.noise_strict // 0) == 0",
+  "champion_sync": [
+    {
+      "from": "skills/debug/phase-1-investigate.md",
+      "to": "criteria/hypothesize.md"
+    },
+    {
+      "from": "skills/debug/debug-state-reference.md",
+      "section": "3. Infrastructure investigation",
+      "to": "criteria/infrastructure.md"
+    },
+    {
+      "from": "skills/debug/debug-state-reference.md",
+      "section": "4. Isolation techniques",
+      "to": "criteria/isolation.md"
+    }
+  ],
+  "screen_facets": ["pass-1", "pass-2", "pass-3"],
+  "noise_floor": null,
+  "noise_floor_note": "UNMEASURED — this module has not run its A-vs-A. compare.sh prints 'no measured noise floor' on the noise axis until it has, and per DESIGN.md a module with no measured band cannot screen. Run the A-vs-A FIRST, and run its SECOND ARM with --no-cache per DESIGN.md, or that arm replays the first arm's cached responses and the tie is fake. The three same-criteria facets need no special handling: the assembler injects a per-facet dimension line, so their prompts hash distinctly and do not share a cache entry."
+}

@@ -1,0 +1,8 @@
+{
+  "id": "planted-1",
+  "mode": "spec",
+  "tree_dir": "tree",
+  "spec": "bug-report.md",
+  "lang": "typescript",
+  "project_context": "Express + Redis workspace API. A bug report is open against this tree and nothing has been changed in response to it yet. /geniro:debug is at Phase 1.4: the symptom is known, the codebase is readable, and the job is to produce the competing hypotheses the test loop would go on to falsify."
+}
