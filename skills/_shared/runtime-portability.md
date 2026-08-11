@@ -32,7 +32,7 @@ Claude Code wires `hooks/hooks.json` (PreToolUse guards, SessionStart restore). 
 | Security pattern scan | Before writing code, check it against the anti-pattern list in the Safety Hooks section of the plugin CLAUDE.md (eval/exec, unsafe yaml/pickle, shell injection, TLS bypass, XSS sinks, weak hashes). |
 | TDD-order enforcement | When a TDD cycle is active (`.geniro/state/tdd/state-<slug>.md` shows RED), do not edit production files until the failing test exists. |
 | Gate-render enforcement | Render the self-contained context message to chat BEFORE asking any decision question, per `gate-rendering.md` — no mechanical check will catch a blind gate for you. |
-| Tool-allowlist (`allowed-tools`) restriction | Hold a Reporter skill's no-`Edit`/no-`Write` contract yourself — Cursor subagents inherit every parent tool regardless of the frontmatter list (`reporter-boundary.md` §1). |
+| Reporter no-Edit/no-Write contract | Hold it yourself under every host, Claude Code included — `allowed-tools` only pre-approves listed tools, it never restricted `Write`/`Edit`; Cursor subagents additionally inherit every parent tool regardless of the frontmatter list (`reporter-boundary.md` §1). |
 
 If Cursor is the host and the plugin's Cursor hook set is installed (see `cursor/README.md` in the plugin root), the shell-side and file-side guards above fire mechanically again; the instruction layer still applies for anything the port does not cover.
 

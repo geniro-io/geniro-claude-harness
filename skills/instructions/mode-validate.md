@@ -80,10 +80,10 @@ The HIGH severity matches the spec `verify:` read-only doctrine: a data-source s
 
 | Rule | Severity |
 |---|---|
-| Criteria body or `description` references live external data (`mcp__`, the words "Notion" / "Linear" / "Jira", "fetch from", "the API", or an `http(s)://` URL) but no `requires-context:` is declared | MEDIUM — emit: "Criteria reference live external data, but no `requires-context:` is declared. This reviewer runs in a subagent without MCP access and will see no external data — declare `requires-context:` so the orchestrator fetches it (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context)." |
+| Criteria body or `description` references live external data (`mcp__`, the words "Notion" / "Linear" / "Jira", "fetch from", "the API", or an `http(s)://` URL) but no `requires-context:` is declared | MEDIUM — emit: "Criteria reference live external data, but no `requires-context:` is declared. Without it the orchestrator never fetches that data — declare `requires-context:` so it's pulled into `CUSTOM CONTEXT:` before spawn (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context)." |
 | `requires-context:` present but not a non-empty string | HIGH |
 
-This is the guard that catches the silent-empty-findings trap at authoring time: a reviewer whose criteria say "match the diff against the Notion incident report" but which never declares the dependency will spawn into a subagent that can't fetch it, producing empty or hallucinated findings with no error.
+This is the guard that catches the silent-empty-findings trap at authoring time: a reviewer whose criteria say "match the diff against the Notion incident report" but which never declares the dependency will spawn into a subagent that never receives it, producing empty or hallucinated findings with no error.
 
 ### Step 3 — Per-skill phase mapping
 
