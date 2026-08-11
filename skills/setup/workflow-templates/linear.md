@@ -6,6 +6,7 @@ This project uses Linear for issue tracking. Skills read this file at runtime to
 
 - Argument detection
 - Fetching issue context
+- Searching for issues
 - Status transitions
 - AI-disclosure prefix on authored comments
 - Commit message format
@@ -29,6 +30,14 @@ When a Linear reference is detected:
 1. Fetch the issue via Linear MCP: extract title, description, acceptance criteria, labels, priority, assignee
 2. Use the fetched context to inform discovery/planning — treat it as supplementary input alongside the user's description
 3. **If Linear MCP is unavailable:** log a warning and proceed without issue context (non-blocking). Do NOT fail the pipeline.
+
+## Searching for issues
+
+A bounded, read-only keyword search for other open issues — never creates, comments on, or transitions an issue — distinct from `## Fetching issue context` above, which fetches a single already-known ID:
+
+1. Search via Linear MCP `list_issues`: query on the target's distinguishing keywords (symptom, error string, feature name), scoped to open issues — exclude any issue already in a terminal state (`Done`, `Cancelled`, `Duplicate`, or a team's equivalent).
+2. Per hit, return `identifier`, `title`, `state.name`, and `url` — enough to judge relevance and show the user a useful line.
+3. **If Linear MCP is unavailable:** log a warning and proceed without search results (non-blocking). Do NOT fail the pipeline.
 
 ## Status transitions
 

@@ -66,7 +66,7 @@ No milestone files → Half B = "none".
 
 ## 4.5 Verify the gathered facts against declared data sources
 
-Once Half A and Half B have gathered the chain facts — parent epic status, sibling statuses, milestone states — cross-check each LOAD-BEARING chain fact against the project's declared data sources before assembling the block. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` for the full discover / screen / cross-check procedure; it consults the maximum applicable set (the project's declared `## Data Sources` plus the built-in code / git / tracker sources). Never assume a status from a single fetch when a declared source can confirm it.
+Once Half A and Half B have gathered the chain facts — parent epic status, sibling statuses, milestone states — cross-check each LOAD-BEARING chain fact against the project's declared data sources before assembling the block. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` for the full discover / screen / cross-check procedure; it consults the maximum applicable set (the project's declared `## Data Sources` plus the built-in sources — the code itself, git history, open pull requests, and the linked tracker). Never assume a status from a single fetch when a declared source can confirm it.
 
 Render each fact by the helper's outcome:
 
@@ -74,7 +74,7 @@ Render each fact by the helper's outcome:
 - **Conflicting** across sources → surface the conflict to the user in plain English and render the fact with the conflict noted (e.g. `In Progress (conflict: prod-db shows shipped)`).
 - **Unconfirmed** — no source could corroborate it → mark it `unconfirmed` in the TASK CHAIN CONTEXT block rather than presenting it as bare fact. This is the state for a status the fetch returned but no declared source (whose domain covers it) could corroborate; a status the fetch never returned is simply omitted.
 
-Fail-open per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §6: when a *declared* source errors or fails its read-only screen, drop that source and fall back to whatever sources did return, with a one-line plain-English caveat (e.g. `Couldn't double-check the related-ticket statuses against a project data source — showing the tracker fetch as-is.`). When there is simply no `## Data Sources` block, the tracker fetch is itself the built-in source — render the statuses normally with no caveat (absence is the normal case, not a degraded one). Never block assembly. Read-only throughout — this sub-step only reads sources, never mutates a tracker, DB, or deploy state.
+Fail-open per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §6: when a *declared* source whose `confirms:` hint matched a related-ticket status can't be reached, name that source and mark the status unconfirmed rather than folding the failure into a generic caveat (e.g. `Couldn't reach the deploy state, so this ticket's status is unconfirmed — showing the tracker fetch as-is.`). This differs from having no `## Data Sources` block at all: with no block declared, the tracker fetch is itself the built-in source and the statuses render normally with no caveat — absence of a declared source is the normal case, an unreachable one is not. Never block assembly. Read-only throughout — this sub-step only reads sources, never mutates a tracker, DB, or deploy state.
 
 ## 5. Assembly — the TASK CHAIN CONTEXT block + facts-only rule
 

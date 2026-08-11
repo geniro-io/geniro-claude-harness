@@ -36,7 +36,7 @@ From the agent findings, list each claim that would appear as `Evidence:` in the
 
 #### Re-verify each claim against ground truth
 
-For each claim, run the matching check yourself:
+For each claim, materialize its applicable-source list — the matching built-in check below, plus any `## Data Sources` entry whose `confirms:` hint matches the claim's domain — then resolve every source on it (selection, screening, and the max-source rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §3-§4):
 
 | Claim kind | Re-verification |
 |---|---|
@@ -46,20 +46,22 @@ For each claim, run the matching check yourself:
 | Commit / blame | Run `git show <hash>` or `git blame -L <range> <file>`, compare |
 | External fact (library version, API behavior) | Re-fetch the source URL or re-search; compare wording |
 
-A claim is **verified** when the orchestrator's own re-run matches the agent's report. A claim is **unverified** when the orchestrator cannot reproduce the agent's report OR ran the check and it failed to complete (no DB access, no service access, no credentials, no logs — cite the failure). An untried check is not an unverified claim: run it first.
+A claim is **verified** when the orchestrator's re-run, or an applicable source, matches the agent's report. A claim is **unverified** in one of two shapes: no applicable source exists to settle it, or a matching declared source existed and did not return — name that source and the failure (data-sources.md §6). An untried check is not an unverified claim: run it first.
 
 #### Route unverified claims
 
 For each unverified claim, choose ONE:
 - **Drop** it from the answer (the answer must work without this claim)
-- **Request data** from the user via the missing-data gate (Step 3 below) — needed when the claim is load-bearing AND only the user can provide the artifact (production logs, runtime state, screenshots, dataset access, credentials)
+- **Request data** from the user via the missing-data gate (Step 3 below) — needed when the claim is load-bearing AND either only the user can supply the artifact directly (production logs, runtime state, screenshots, dataset access, credentials) or a matching declared source exists but the session could not reach it
 
 Do NOT advance to Phase 3 synthesis until every load-bearing claim is either verified or has a pending user-data request.
 
 ### Step 3: Missing-data gate (WAIT for user data)
 
-If Step 2 left any load-bearing claim unverified AND only the user can supply the missing artifact, write `phase: investigate-escalated` to state.md via `atomic_state_write` — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of silently re-running Phase 2 — then PAUSE and use the `AskUserQuestion` tool (do NOT output options as plain text — use the tool's structured UI) BEFORE drafting the answer. Header: "Missing data". Phrase the question concretely; offer 2-4 specific options for what data the user can provide. Example: "Paste the failing request/response body" / "Paste the log line at the moment of the bug" / "I don't have it — proceed without"
+If Step 2 left any load-bearing claim unverified AND only the user can supply the missing artifact — directly, or by unblocking a declared source the session could not reach — write `phase: investigate-escalated` to state.md via `atomic_state_write` — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of silently re-running Phase 2 — then PAUSE and use the `AskUserQuestion` tool (do NOT output options as plain text — use the tool's structured UI) BEFORE drafting the answer. Header: "Missing data". Phrase the question concretely; offer 2-4 specific options for what data the user can provide. When a matching declared source exists but did not return, add an option to sign in to it and retry — phrased as an offer, never as a diagnosis, since the run cannot tell a missing sign-in from a source that is simply unreachable. Example: "Paste the failing request/response body" / "Paste the log line at the moment of the bug" / "Sign in to <source label> and retry" / "I don't have it — proceed without"
 
-If the user picks "I don't have it / skip", drop the corresponding claim — do NOT synthesize around it. If the user provides data, write `phase: investigate` back, treat the data as evidence kind (5) per the Evidence Standard, and re-enter Step 2 to re-verify the claim against the new artifact. Loop max twice; if still unverified, drop the claim and explicitly note the gap in the final answer.
+An empty or absent answer is not a user pick — `AskUserQuestion` can auto-resolve with nothing when no one is present to answer it. Treat it exactly like the exhausted loop below: drop the claim and name the gap in the final answer.
+
+If the user picks "I don't have it / skip", drop the corresponding claim — do NOT synthesize around it. If the user picks the sign-in option, re-enter Step 2 to resolve that source and re-verify the claim. If the user provides data, write `phase: investigate` back, treat the data as evidence kind (5) per the Evidence Standard, and re-enter Step 2 to re-verify the claim against the new artifact. Loop max twice; if still unverified, drop the claim and explicitly note the gap in the final answer.
 
 State.md `## Open Questions` body section logs missing-data gate question + user pick. State.md transitions: `investigate` → `present` once all claims verified or routed.
