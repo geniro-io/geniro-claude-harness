@@ -13,7 +13,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 ## PHASE 3: SELF-REVIEW + SHIP
 
-**State.md `phase: self-review`** on entry.
+**Advance state.md to `phase: self-review` as this phase's first write**, via `atomic_state_write` — same contract as the Phase 2 entry write: the helper re-emits every field the write leaves alone, so the phase advances only when a write advances it, and a resume routes on the value it finds.
 
 **Refresh the custom instructions** (always, regardless of compaction-marker presence). Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. `refresh` re-Reads every file and re-emits the Echo lines (procedure identical to the initial load), so this pass survives any Phase 2 compaction for the cost of one extra helper read; the Echo contract itself survives compaction via the SessionStart hook re-injection.
 
@@ -52,7 +52,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 ### Ship sub-step
 
-State.md `phase: ship` on entry.
+**Advance state.md to `phase: ship`** via `atomic_state_write` before step 0 — same re-emit contract as the phase entries above.
 
 0. **Reconcile the diff against the spec's requirements.** Spec-driven runs only; skip with a one-line note in inline-task mode. Walk section 6 (Steps) and every clause the spec states in mandatory language — "must", "regardless of", named symbols a step says to contain or change — and for each, point at the hunk in `git diff` that satisfies it. A requirement with no hunk is unbuilt, whatever the task list says.
 
