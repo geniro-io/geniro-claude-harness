@@ -4,7 +4,7 @@ description: "Use when a comprehensive code review of pending changes (a diff, b
 context: main
 model: inherit
 allowed-tools: [Read, Glob, Grep, Bash, Agent, AskUserQuestion, EnterWorktree, ExitWorktree, Workflow, "mcp__*"]
-argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep]"
+argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep] [--focus <text>]"
 ---
 
 # Code review skill

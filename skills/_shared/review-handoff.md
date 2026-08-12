@@ -155,6 +155,7 @@ resolved-threads-snapshot: [<path:line entries|null>]        # read by §7.1 ded
 pr-bot-comments-snapshot: [<path:line entries|null>]         # read by §7.1 dedup check 2
 pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3
 prior-round-summary: <text|null>                       # written/read across re-run rounds (§7)
+steering-note: <text|none>                             # this round's free-text steering from the user, or none (§7 step 5)
 spawn_dims_declared: [<dim-slug>, ...]   # producer-run: the dimension set declared before the Phase 2 batch fired
 spawn_dims_count: <int>                  # producer-run: length of spawn_dims_declared
 custom_reviewers: []                     # producer-run: discovered custom review dimensions (short spawn-spec scalars, never criteria bodies)
@@ -174,11 +175,12 @@ open_questions: []                    # always present; may be empty []. Entry s
 - Branch: <branch>
 - Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" (omit the clause when the review covered the whole PR). Naming the ancestor and its thread counts is what distinguishes a deliberately narrowed scope from a review that silently skipped files
 - Round: <N>
+- Steering: <this round's applied text, or "none">
 - Risk-tier: <standard|high>
 - Dimensions spawned: [<the `actual` set per §"Dimensions spawned — `declared` vs `actual`" below, naming any declared-but-missing dimension with its skip reason>]
 - Mechanical pre-pass: [lint:N, schema:M, secrets:K]
 - Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
-- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; a repeat stays in `## Findings` like any other kept finding — see the per-finding body schema below)
+- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred · <S> set aside by your steering note (omit when zero) · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; a repeat stays in `## Findings` like any other kept finding — see the per-finding body schema below)
 
 ## Findings
 
@@ -196,7 +198,7 @@ open_questions: []                    # always present; may be empty []. Entry s
 <deferred-entry blocks, or the assessed sentinel `none — the Phase 4 filter ran and deferred nothing`>
 
 ## Filtered
-<!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, no-action-needed, user-kept-off-pr, test-challenged, already-resolved-on-pr, overturned-after-post, convention-filtered). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, no-action-needed, user-kept-off-pr, test-challenged, already-resolved-on-pr, overturned-after-post, convention-filtered, user-steering: "<the steering instruction, verbatim>" — set only after admission + verification, per phase-3-4-filter-stratify.md §4.2; a CRITICAL never carries this reason). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
 
 ## Authored Tests

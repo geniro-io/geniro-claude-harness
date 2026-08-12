@@ -77,6 +77,7 @@ The plain-English rule (`per-finding-question.md` §Message-first rendering, sel
 - Memory-layer / state-tier / subagent tokens: `L1`–`L4`, `T1`–`T3`, `KR` / `CE` / `TR`.
 
 - `carry-over` / `carryover` — plain-English form: "carried over from the previous review round".
+- `USER STEERING` / `steering-note` — plain-English form: "your steering note for this round".
 
 On a hit, rewrite it into plain English — every token class listed above has a plain form: decision-type tags state what they mean for the user (`PRODUCT-DECISION` → "needs your decision"), memory-layer / state-tier / subagent codes state their plain meaning (`T2` → "handoff", `L4` → "project rules", `KR` → "knowledge-retrieval output"), and phase / step labels state what is happening (`Phase 6 Pre-gate` → "the open-question gate") — then re-scan until clean. Never fire a question whose rendered strings still match. A reviewer's verbatim `description:` about the code under review (a code symbol legitimately named `M1`, a cache the reviewer calls `L2`) stands; the scrub targets the orchestrator-composed question and option framing, not the finding's words about the code. Chat narration step-echoes pass the same translation tables — the scrub mechanism guards the AUQ and PR-comment boundaries, and by the plain-English rule narration follows the same vocabulary.
 

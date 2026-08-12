@@ -42,16 +42,19 @@ judgment the scripts deliberately do not encode.
   user until you have opened at least the failing trials' findings and one
   judge verdict and confirmed the failures look fair.
 - **Every choice goes through `AskUserQuestion`.** The spend approval above, the §1 run/edit/drop call, the §4 confirm/iterate/stop call, the §6 promote call, and the `calibrate` / `add-task` row walks are this cycle's gates, not the complete set — a pick that arises anywhere else still routes through the tool (`skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule).
-- **Committed benchmark content is anonymized.** Tasks mined from a real
-  repository never carry, in any committed file: the repo/company/product
+- **Committed benchmark content is anonymized.** A task mined from a private
+  repository never carries, in any committed file: the repo/company/product
   name, tracker ticket IDs, PR/issue numbers (including in task ids —
   `real-N`, never `pr-1234`), usernames or people's names, email domains,
-  review-comment IDs, or machine-local paths. Repo location goes through
-  `repo_alias` + the gitignored `repos.local.json`; commit SHAs and in-repo
-  file paths are fine (needed for staging and matching). Before committing a
-  new task, grep it for the source repo's name, the ticket prefix, the author
-  handles, `PR #`, and long digit runs (comment IDs) — this repo is public,
-  the benchmark sources are not.
+  review-comment IDs, or machine-local paths. Its repo location goes through
+  `repo_alias` + the gitignored `repos.local.json` instead. A task staged
+  directly against a known-public repository (e.g. the spec-check module's
+  OSS fixtures) commits `repo_url` — the URL discloses nothing a clone can't
+  already see. Commit SHAs and in-repo file paths are fine either way (needed
+  for staging and matching). Before committing a private-repository task,
+  grep it for the source repo's name, the ticket prefix, the author handles,
+  `PR #`, and long digit runs (comment IDs) — this repo is public, the
+  private benchmark sources are not.
 
 ## Intake
 

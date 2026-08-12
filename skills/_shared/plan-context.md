@@ -81,25 +81,31 @@ lifecycle: draft | approved | superseded
 
 ### Pre-inline schema (structured mode)
 
+The whole payload — goal-state frontmatter plus all 11 sections — is spec.md content, one untrusted source, so it gets ONE outer fence rather than a delimiter per section; a forged `--- Section 12 ---` line inside a section body cannot pass itself off as a fresh trust boundary because there isn't a per-section boundary to forge. The section headers inside the fence are plain markdown, informational only:
+
 ```
 PLAN CONTEXT:
---- Frontmatter goal-state ---
+---BEGIN UNTRUSTED PLAN---
+## Frontmatter — goal-state
 budget: { max_files_to_edit: N, max_lines_changed: M, time_budget: T }
 checkpoints: [{step_anchor: step-3, name: "post-migration"}, …]
 forbidden_actions: ["do NOT bypass auth middleware", …]
 approval_required_for: ["DB schema changes", …]
 tools_required: ["kubectl", "helm", …]
 lifecycle: approved
---- Section 1 (Objective) ---
+## Section 1 — Objective
 <body>
---- Section 2 (Scope — Included) ---
+## Section 2 — Scope — Included
 <body>
 …
---- Section 11 (Done Condition) ---
+## Section 11 — Done Condition
 <body>
+---END UNTRUSTED PLAN---
 ```
 
-**Cap:** structured mode honors a ~6000-char total cap (2× the prose mode's 3000 char cap, since the section-tagged format adds delimiter overhead and the reviewer benefits from section anchors). Truncation policy: if total exceeds cap, drop bodies of sections 4 (Assumptions) and 5 (Risks) first (less critical for diff-completeness checks); keep section 1, 2, 3, 6, 9, 11 always.
+Fence mechanism, including the collision rule for a payload that contains the marker text itself: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` §Untrusted-content fence.
+
+**Cap:** structured mode honors a ~6000-char total cap (2× the prose mode's 3000 char cap; rationale in §6). Truncation policy: if total exceeds cap, drop bodies of sections 4 (Assumptions) and 5 (Risks) first (less critical for diff-completeness checks); keep section 1, 2, 3, 6, 9, 11 always.
 
 ### Why structured wins
 
@@ -109,14 +115,16 @@ Spec-compliance reviewer can cite specific sections ("section 2 names `src/api/a
 
 ## 4. Prose mode (fallback)
 
-When no frontmatter is detected, treat PLAN CONTEXT as opaque prose:
+When no frontmatter is detected, treat PLAN CONTEXT as opaque prose, all sources concatenated inside one `PLAN` fence (same reasoning as the structured-mode outer fence above — the individual `## Source:` headers are informational, not trust boundaries):
 
 ```
 PLAN CONTEXT:
---- Source: <PR body | docs/spec.md | docs/plan.md | PLAN.md | SPEC.md> ---
+---BEGIN UNTRUSTED PLAN---
+## Source: <PR body | docs/spec.md | docs/plan.md | PLAN.md | SPEC.md>
 <content, capped at ~3000 chars total across all sources; truncate with "[…truncated…]" marker if needed>
---- Source: <next source if any> ---
+## Source: <next source if any>
 <content>
+---END UNTRUSTED PLAN---
 ```
 
 When no sources resolve, the entire field collapses to:
@@ -155,7 +163,7 @@ When a reviewer encounters a finding that contradicts a marker (e.g., the plan s
 
 Schema-mode ~6000-char total cap exists because:
 
-- Section-tagged format adds delimiter overhead (~10% of total).
+- One outer fence pair plus 11 plain section headers cost well under 1% of the cap — negligible next to the two reasons below.
 - Section anchors enable focused reviewer reasoning (less prose-scan needed).
 - Larger specs lose signal under U-shaped attention (still applies).
 

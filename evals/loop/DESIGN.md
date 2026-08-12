@@ -171,3 +171,10 @@ changes.
   step on ≤9 dev tasks with holdout untouched — off by default.
 - **A paid third-model judge as the default** — Claude subagents are free and
   a different family from the executor; the paid path stays a fallback.
+- **A public code-review benchmark's goldens as ground truth** — real PRs
+  across five languages, but the schema is a comment plus a severity: no
+  source file for all but 3 of 136 goldens, no base/head commit for
+  `stage-task.sh` to stage, and negative tasks are impossible by construction
+  (mined from fix commits only). The annotation repo also carries no licence.
+  Worth revisiting as a different, larger project: import the PR references
+  and author our own ground truth.

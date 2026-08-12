@@ -318,7 +318,7 @@ Some skills take flags and modifiers that change how a run behaves. Most answer 
 
 - **`/geniro:plan`** — `--deep` (wider approach search + 3-vote claim verification), `--artifact` (build a live visual plan page). Plan also accepts the implement launch modifiers (`worktree` / `no-worktree` / `current-branch` / `new-branch`, the ship choices `don't push` / `draft only` / `ready-for-review` / `stop after review`, and `freshness:merge|rebase|skip`) and saves them into the spec so `/geniro:implement` runs hands-free.
 - **`/geniro:implement`** — workspace (`new-branch` / `current-branch` / `worktree` / `no-worktree`), `--deep` (deeper self-review + pre-edit fact-check), `--no-adversarial`, and ship choices (`don't push` / `draft only` / `ready-for-review` / `stop after review`). A spec written by `/plan` can pre-answer the setup choices among these at once.
-- **`/geniro:review`** — `--deep` (multi-angle review + extra verification), `--plan <path>` (check the diff against a spec), and the workspace modifiers.
+- **`/geniro:review`** — `--deep` (multi-angle review + extra verification), `--plan <path>` (check the diff against a spec), `--focus <text>` (steer this round toward what you name), and the workspace modifiers.
 
 Full catalog for `/geniro:plan`, `/geniro:implement` and `/geniro:review` — every flag, the values it takes, and how it changes where the run stops to ask you something — in [`skills/_shared/flags-reference.md`](skills/_shared/flags-reference.md); that file covers those three skills only. Flags on the other skills are declared in each skill's `argument-hint` and documented in its body (e.g. `/geniro:debug --deep`).
 

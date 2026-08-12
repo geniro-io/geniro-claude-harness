@@ -54,6 +54,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 |---|---|---|---|
 | `--deep` | present / absent | Reviews each check from several angles and majority-verifies findings where the call is contested. Higher quality, higher cost. Without it, Standard runs one reviewer pass per dimension — N reviewers for this diff (computed at ask time). | The Phase 1 review-depth question (its own AUQ; folded into the re-review gate on round ≥2). |
 | `--plan <path>` | a spec path | Supplies the spec so the specification-compliance reviewer can check the diff against it. This is a context input, not a question pre-set. | No question — adds spec context to the reviewers. |
+| `--focus <text>` | free text | Pre-fills this run's steering note for reviewers — extra attention on a path, or a "stop flagging X" instruction. A "stop flagging" match still reaches the report; once verified, the orchestrator moves it to the filtered section instead of erasing it (a CRITICAL is exempt and stays kept). | The re-review gate's steering question (round ≥2 only — round 1 has no gate to skip). |
 | `worktree` / `no-worktree` / `here` / `current-branch` / `new-branch` | one value | Forces the workspace path the review inspects. | The Step 0 workspace question. |
 
 ## Non-suppressible safety gates
@@ -66,5 +67,5 @@ These gates fire on a real triggering event regardless of any flag, modifier, or
 - **Spec-challenge-on-drift** — a refuted cited claim or a blocking feasibility risk found by the pre-edit fact-check stops for the user.
 - **Shared-branch / open-PR ship** — a push to a shared or default branch, or one updating an open PR reached via a handoff, is commit-grade and still gates even under a ship-mode pre-set.
 - **Real merge / rebase conflict** — a clean fast-forward applies the pre-set freshness strategy silently, but an actual conflict surfaces interactively; a strategy pre-set is consent to attempt, not to resolve unseen conflicts.
-- **`/review` re-review gate** — on a re-run, the scope and depth decisions are always re-asked, never silently inherited.
+- **`/review` re-review gate** — on a re-run, the scope, depth, and steering decisions are always re-asked, never silently inherited.
 - **`/review` test-confirmation gate** — when testable findings exist, the offer to author failing tests for them fires and waits for approval.

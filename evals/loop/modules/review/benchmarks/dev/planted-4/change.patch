@@ -1,12 +1,18 @@
 diff --git a/src/truncate.ts b/src/truncate.ts
 new file mode 100644
-index 0000000..c86bc73
+index 0000000..1c50eeb
 --- /dev/null
 +++ b/src/truncate.ts
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,26 @@
 +export interface TruncateOptions {
 +  maxLength: number;
 +  ellipsis?: string;
++}
++
++const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
++
++function toGraphemes(value: string): string[] {
++  return Array.from(graphemeSegmenter.segment(value), (entry) => entry.segment);
 +}
 +
 +export function truncate(input: string, options: TruncateOptions): string {
@@ -14,20 +20,22 @@ index 0000000..c86bc73
 +  if (options.maxLength <= 0) {
 +    throw new RangeError(`maxLength must be positive, got ${options.maxLength}`);
 +  }
-+  if (input.length <= options.maxLength) {
++  const chars = toGraphemes(input);
++  if (chars.length <= options.maxLength) {
 +    return input;
 +  }
-+  if (options.maxLength <= ellipsis.length) {
-+    return input.slice(0, options.maxLength);
++  const ellipsisLength = toGraphemes(ellipsis).length;
++  if (options.maxLength <= ellipsisLength) {
++    return chars.slice(0, options.maxLength).join("");
 +  }
-+  return input.slice(0, options.maxLength - ellipsis.length) + ellipsis;
++  return chars.slice(0, options.maxLength - ellipsisLength).join("") + ellipsis;
 +}
 diff --git a/test/truncate.test.ts b/test/truncate.test.ts
 new file mode 100644
-index 0000000..6a03cf4
+index 0000000..c62673d
 --- /dev/null
 +++ b/test/truncate.test.ts
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,25 @@
 +import { truncate } from "../src/truncate";
 +
 +describe("truncate", () => {
@@ -48,5 +56,8 @@ index 0000000..6a03cf4
 +  });
 +  it("throws on non-positive maxLength", () => {
 +    expect(() => truncate("abc", { maxLength: 0 })).toThrow(RangeError);
++  });
++  it("keeps a surrogate pair intact instead of splitting it", () => {
++    expect(truncate("\u{1F600}bc", { maxLength: 2 })).toBe("\u{1F600}…");
 +  });
 +});
