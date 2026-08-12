@@ -13,7 +13,7 @@ argument-hint: "<issue description or area to improve>"
 
 - Loop invariants
 - Subagent model tiering · State persistence
-- Mode detection · Handoff-ingestion path · Complexity gate · Research selection matrix
+- Workspace · Mode detection · Handoff-ingestion path · Complexity gate · Research selection matrix
 - Anti-rationalization · Definition of done
 - Phase 1 (investigate) · Phase 2 (cross-reference & filter) · Phase 2b (redundancy validation) · Phase 3 (present to user) — Phases 1-3 in `phase-1-3-investigate-present.md`
 - Phase 4 (implement) · Phase 5 (self-review) · Phase 6 (report & complete) — Phases 4-6 in `phase-4-6-implement-review.md`
@@ -79,6 +79,26 @@ Body: the issue one-liner, `research-sources: [list]`, the approved-findings cou
 On skill start: `Glob(".geniro/state/improve-template/<slug>/state.md")`. If present, run the helper § Consumer contract — its Case A/B/C/D routing owns the resume decision and says when the user is asked anything, so a matching branch resumes silently — then continue from the next incomplete phase.
 
 Create-skill mode writes no checkpoint: the A→D author flow fits in one context, so there is nothing to resume.
+
+---
+
+## Workspace (before mode detection)
+
+Phase 4's agents edit plugin files and Phase 6 commits them, so where this run works is a real choice. Follow `skills/_shared/workspace-chooser.md` Mode WORK-BASE for the option catalogue, recommendation policy, and persistence contract — that repo-relative path, since a project-local skill expands no plugin-root variable and the authoring lint hard-fails on one.
+
+Run `ListAgents` once here, then passive-detect (first match wins):
+
+```
+1. Resumable state.md for this slug  ⇒ SKIP; re-apply its branch: / worktree: per
+                                       within-skill-state-handoff.md § Mismatch handling.
+2. Already inside a worktree         ⇒ CONTINUE here; echo tree and branch.
+3. Feature branch, no peer session   ⇒ CONTINUE in place; name `worktree` as the reverse.
+4. Protected branch OR peer session  ⇒ Fire the workspace question.
+```
+
+The peer-session trigger is this pipeline's alone: the plugin's own repo routinely has a second session editing it, both changesets interleave in `git status` carrying no authorship, and a file they both touched can only be staged whole. A worktree is what keeps them separable.
+
+Persist before Phase 1 spawns anything — `approvals[]` category `improve_template_workspace_setup` plus `branch:` / `worktree:` in one `atomic_state_write` — because Phase 1's research reads whichever tree this settles on. The `worktree` / `new-branch` / `current-branch` modifiers pre-answer and suppress the question.
 
 ---
 
@@ -159,6 +179,7 @@ For obvious bug fixes. The user already showed what's broken.
 
 These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
 
+- [ ] The workspace step settled before Phase 1 spawned anything, and its pick is recorded in the state file's `branch:` / `worktree:`
 - [ ] Every SKILL.md this run changed or created was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
 
 ### improve-existing-skill mode

@@ -46,7 +46,7 @@ Collect every signal below before deciding. How each is detected: `${CLAUDE_PLUG
 
 #### 0b — Decide action
 
-Decision tree (first match wins; evaluate top-down). Only rules 1-3 skip the question, and each turns on a mechanical signal — a spec that names the branch, a ticket whose slug is settled, or a default that looks plainly right is not a fourth exit, because none of them says whether the user wants a worktree, this branch, or that slug (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md` — reversibility is not the test):
+Decision tree (first match wins; evaluate top-down) — fires under Mode WORK-BASE of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §3, since implement is the run that authors the change it ships. Only rules 1-3 skip the question, and each turns on a mechanical signal — a spec that names the branch, a ticket whose slug is settled, or a default that looks plainly right is not a fourth exit, because none of them says whether the user wants a worktree, this branch, or that slug (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md` — reversibility is not the test):
 
 ```
 1. Resumable state.md exists for resolved task slug

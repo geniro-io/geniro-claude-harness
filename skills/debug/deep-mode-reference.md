@@ -16,14 +16,13 @@ Debug-specific layers of the opt-in `--deep` quality mode. The cross-skill contr
 
 ## 1. Activation
 
-`/geniro:debug --deep <bug>` sets `deep-mode: true`. Semantic parse at Phase 0 Step 0.2 — matches `--deep` / `deep` / `deep mode` — strip the token before mode-detect routing so it never enters the Scientific-vs-Adversarial decision. `--deep` deepens Scientific Mode's hypothesis generation (§2) and fix verification (§3) only; in Adversarial Mode it is accepted and recorded but currently deepens no stage, per §3's single-spawn ruling.
+`/geniro:debug --deep <bug>` sets `deep-mode: true`. Semantic parse at Phase 0 Step 0.4 — matches `--deep` / `deep` / `deep mode` — strip the token before mode-detect routing so it never enters the Scientific-vs-Adversarial decision. `--deep` deepens Scientific Mode's hypothesis generation (§2) and fix verification (§3) only; in Adversarial Mode it is accepted and recorded but currently deepens no stage, per §3's single-spawn ruling.
 
 **The HYBRID chooser** fires only when `--deep` is absent:
 
 - **`--deep` present** → deep-mode true; skip the chooser entirely.
 - **Compaction-resume** → skip the chooser; depth was persisted on the original run and the session-start restore hook re-applies it.
-- **Empty `$ARGUMENTS`** (the Phase 0 mode AskUserQuestion fires) → add the "Debug depth" question as a SECOND question in that same AskUserQuestion call, answered together with the mode pick.
-- **Otherwise** (the common path — non-empty input, no `--deep`) → fire a STANDALONE "Debug depth" chooser at Phase 0, before the Phase 1.1 memory load.
+- **Otherwise** → the "Debug depth" question either joins the Mode/Workspace `AskUserQuestion` call or fires standalone before the Phase 1.1 memory load — `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md` Step 0.4's table is the single source of truth for which.
 
 **The "Debug depth" question** (mirrors `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §"Mode AUQ — review depth" — no `(Recommended)` marker; depth is a per-run cost-vs-thoroughness pick where the alternative is only costlier, never safer):
 

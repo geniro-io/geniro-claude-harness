@@ -15,11 +15,17 @@ judgment the scripts deliberately do not encode.
 
 ## Iron rules (hold at every step)
 
+- **The executor is the user's pick, every time it is a pick.** Two adapters
+  can serve a run — `adapters/claude-subagent.md` (in-session subagents, free)
+  and `adapters/cursor-cli.sh` (`cursor-agent`, paid). Whenever a step could
+  run on either, ask which with `AskUserQuestion` before launching, naming what
+  each costs and listing the free one first. Ask per step, not per session: a
+  pick made for an earlier step is not consent for the next one, and a run that
+  does not need the paid executor should never take it by default. Only a step
+  one adapter cannot serve skips the question — say which adapter and why.
 - **Money asks first.** Before ANY paid sweep: run `run.sh --probe`, put the
   extrapolated cost in a chat message, and get an AskUserQuestion approval
-  naming the dollar figure, the executor adapter, AND the model — never assume
-  where a sweep runs; if the user hasn't named an executor + model this
-  session, that's part of the question. The per-sweep hard ceiling is
+  naming the dollar figure, the executor adapter, AND the model. The per-sweep hard ceiling is
   `run.sh --max-usd` (default $50) — raise it only with the user's number. Never launch on a stale rate — after a change to
   task shape, workspace size, or model, the probe is mandatory
   (`adapters/cursor-prices.json` §rule). Judging via Claude subagents is free;

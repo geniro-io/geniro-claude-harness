@@ -170,6 +170,7 @@ Read-only PR-feedback producer; mirrors the reporter-only boundary of `/review` 
 
 3 phases: Investigate → Propose → Ship (escalates to `/implement`).
 
+- Phase 0 Step 0.2 fires a conditional workspace AUQ (Mode INSPECT-HERE, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §4) when the working tree is on a protected branch outside a worktree — offering to debug in place, cut an isolated worktree, or cut a new branch, both creation paths at `HEAD` rather than the default-branch tip since relocating would change the code under investigation. The worktree option stands down on a dirty tree, which a fresh worktree can't carry forward and which is often the bug's own context; a branch cut at `HEAD` in the current worktree does carry it. Branch-derived paths key from the recorded pick, not a later branch re-read.
 - Phase 1 STALL gate: 5 inconclusive steps → diagnose-by-missing-component AUQ over an 8-category taxonomy (≤4 options per call, chained).
 - Phase 2 fix-loop gate: max 2 fix attempts; on third → AUQ.
 - Adversarial Mode (verify-changes) is a co-equal parallel workflow; delegates RED-phase test authoring to `adversarial-tester-agent`.
@@ -185,7 +186,7 @@ Opt-in quality mode on `/review`, `/plan`, `/implement`, `/debug`. Canonical con
 
 - Two independent layers: **recall** — run a generative stage 3× in parallel, then union + dedup BEFORE any cross-pass agreement signal is computed (otherwise a producer agreeing with itself inflates the signal); **precision** — one verifier per candidate by default, escalating to 3 independent verifiers aggregated by majority vote only on a contested or high-stakes call, where a single hallucinated vote cannot flip a disposition. An unparseable vote abstains (counts toward neither side); below 2 parseable votes, quorum fails → one fresh single-pass verifier.
 - Runs inside an internal `Workflow(...)` with raw-JSON returns (never `agent({schema})` — the StructuredOutput call drops on long agents). Raises quality, never speed: under the concurrency cap, 3× the agents fill the same waves at ~3-5× token cost — which is why it is opt-in and never the default.
-- Activation: `--deep` flag, or a Standard/Deep chooser folded into each skill's existing early AskUserQuestion (standalone only in `/debug`, which has no early always-fire gate). Persisted to `deep-mode:` frontmatter + `approvals[]` for compaction survival.
+- Activation: `--deep` flag, or a Standard/Deep chooser folded into each skill's existing early AskUserQuestion (in `/debug`, which has no early always-fire gate, the chooser stays standalone except on the path where Phase 0's conditional workspace gate fires — there it batches into that gate's question instead). Persisted to `deep-mode:` frontmatter + `approvals[]` for compaction survival.
 - Standard single-pass is the floor: a workflow failure degrades to single-pass with a plain-English caveat, never a hard stop. Deep mode changes pass count and aggregation only — every gate, boundary, and no-ship contract binds unchanged inside the workflow.
 
 ### Flags & presets

@@ -1,8 +1,8 @@
 # Workspace signals — shared Step 0 detection
 
-Canonical definitions for the workspace signals more than one skill collects before it decides where to run. `/geniro:implement` Step 0a and `/geniro:review` Phase 1 Step 0 both open with this set; each then adds its own skill-specific signals, which stay in that skill's own reference file.
+Canonical definitions for the workspace signals more than one skill collects before it decides where to run. `/geniro:implement` Step 0a, `/geniro:review` Phase 1 Step 0, and `/geniro:debug` Phase 0 Step 0.2 all open with this set; each then adds its own skill-specific signals, which stay in that skill's own reference file.
 
-Both callers detect the same four the same way, and they must: the two skills hand work to each other, so a divergent reading of "am I in a worktree" sends one of them to a different checkout than the other. Defining them twice is how that divergence arrives.
+All three callers detect the same four the same way, and they must: implement and review hand work to each other, and debug hands work to implement too, so a divergent reading of "am I in a worktree" sends the receiving skill to a different checkout than the one its handoff assumes. Defining them more than once is how that divergence arrives.
 
 ## Contents
 

@@ -53,7 +53,7 @@ Literal question shapes for the Step 0c workspace-setup AUQ. SKILL.md §PHASE 1 
 
 ### Question 1 — workspace (rules 3/5/6)
 
-The option labels below carry NO `(Recommended)` suffix. The rule that fired in the 0b decision tree names which option gets it — rule 3 and rule 6 flip the label depending on `CONCURRENT_ACTIVITY`, so a suffix baked into a label here would render the wrong option as Recommended on every run those rules govern. Append ` (Recommended)` to exactly one label at render time: the one the fired rule names. Never fire this question with no Recommended option at all — an unlabeled set anchors the user on whichever option is listed first (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy).
+This question instantiates the canonical option catalogue (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §2) under Mode WORK-BASE (§3), and its `(Recommended)` handling follows that helper's §5. The labels below therefore carry NO `(Recommended)` suffix: rule 3 and rule 6 flip the label depending on `CONCURRENT_ACTIVITY`, so a suffix baked in here would render the wrong option as Recommended on every run those rules govern. Append ` (Recommended)` at render time to the one label the fired rule names.
 
 ```
 header: "Workspace"
