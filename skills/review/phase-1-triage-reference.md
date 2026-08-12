@@ -58,7 +58,7 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 
 ### 0b — Decide action
 
-Decision tree (first match wins; evaluate top-down):
+Decision tree (first match wins; evaluate top-down) — fires under Mode INSPECT-HERE of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §4, since review inspects code that already exists rather than authoring what ships:
 
 ```
 1. IN_TARGET_WORKTREE == true (PR-ref input, already in the correct review worktree)
