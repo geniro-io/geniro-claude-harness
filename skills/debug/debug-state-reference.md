@@ -69,9 +69,9 @@ timestamp: <ISO-8601 UTC>
 phase: <enum per State Machine above>
 status: <in-progress|done|failed>
 non-resumable-actions: []
-approvals: []                         # categories: branch_freshness, disambiguate_mode, multi_path_fix, verification_stalled, deep_mode_choice, existing_fix_pr
+approvals: []                         # categories: branch_freshness, disambiguate_mode, multi_path_fix, verification_stalled, deep_mode_choice, existing_fix_pr, debug_workspace_setup
 deep-mode: <true|false>               # optional, set by the --deep flag or the Phase 0 Debug-depth chooser; missing reads as false
-baseline-dirty-paths: []              # git status --porcelain changed-path list captured at Phase 0 entry (Step 0.3, Scientific Mode only), before this run touches anything; Phase 3 §3.1's working-tree check subtracts it
+baseline-dirty-paths: []              # git status --porcelain changed-path list captured at Phase 0 entry (Step 0.1), before this run touches anything; consumed by Phase 3 §3.1's working-tree check, Scientific Mode only — Adversarial Mode's ship path never reads it
 geniro_kind: debug-state
 geniro_schema_version: m7-v1
 mode: <scientific|adversarial>
@@ -202,8 +202,8 @@ When /geniro:debug stalls (the stall gate fires — threshold defined in `${CLAU
 Agent(subagent_type="adversarial-tester-agent", prompt="""
 ## Task: Adversarial Edge-Case Test Authoring (Debug — Verify Changes)
 
-WORKTREE: [from `git rev-parse --show-toplevel`]
-BRANCH: [from `git branch --show-current`]
+WORKTREE: [state.md frontmatter `worktree:`]
+BRANCH: [state.md frontmatter `branch:`]
 DEEP-MODE: [state.md frontmatter `deep-mode:`; missing reads as false]
 PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 

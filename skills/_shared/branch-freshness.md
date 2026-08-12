@@ -2,7 +2,7 @@
 
 Canonical contract for the start-of-work synchronization gate. Work should begin on the freshest default branch: new branches/worktrees are cut from the latest default-branch tip, and a branch already in progress is offered an update before the next chunk of work begins.
 
-Consumers: `/geniro:implement` (both modes), `/geniro:plan`, `/geniro:debug`, `/geniro:refactor` (continue mode only — these three work in place and do not create branches), and `/geniro:resolve` (FRESH-CONTINUE only — works in place against an open PR, comparing against the PR's base branch rather than the repo default; see §2).
+Consumers: `/geniro:implement` (both modes), `/geniro:plan` and `/geniro:refactor` (continue mode only — these two work in place and do not create branches), `/geniro:debug` (FRESH-CONTINUE only — Phase 0 may create a branch or worktree, but always at the current `HEAD` rather than the default-branch tip, so Mode FRESH-BASE never applies to it), and `/geniro:resolve` (FRESH-CONTINUE only — works in place against an open PR, comparing against the PR's base branch rather than the repo default; see §2).
 
 ## Contents
 

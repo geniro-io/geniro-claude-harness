@@ -139,14 +139,14 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 ## ACI per-phase tool surface
 
 **Phase 0 (Mode Detect):**
-- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.1 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; plus `atomic_state_write` to persist the mode/depth/freshness pick) / AskQuestion (the mode/depth/freshness gates).
+- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.3 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; the Step 0.2 workspace commands `git worktree add` / `git checkout -b` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md`; plus `atomic_state_write` to persist the mode/depth/freshness/workspace pick) / AskQuestion (the mode/depth/freshness/workspace gates) / EnterWorktree (immediately after Step 0.2's `git worktree add`, so the run investigates inside the tree it just cut, not the protected checkout) / ExitWorktree. Under a runtime without these tools, substitute per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` §Tool substitutions.
 - Explicitly blocked: any Edit/Write to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
 
 **Phase 1 (Investigate):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / AskQuestion.
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
 - Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
-- Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching without user confirmation.
+- Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.
 
 **Phase 2 (Propose):**
 - Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs) / AskQuestion.
@@ -199,7 +199,7 @@ No L3/L2-read rows fire — diff-scoped work receives its diff pre-inlined, so a
 
 ## State file schema
 
-T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `deep_mode_choice`, `existing_fix_pr` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `deep_mode_choice`, `existing_fix_pr`, `debug_workspace_setup` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 `open_questions[]` entries carry `status: unresolved | resolved | wontfix`; an `unresolved` entry blocks the Phase 3 escalation until the §3.0 pre-gate clears it.
 
@@ -207,7 +207,7 @@ T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `
 
 ## Phase 0 — mode detection ($ARGUMENTS routing)
 
-state.md `phase: mode-detect`. Loads custom instructions, checks branch freshness, resolves debug depth, and routes `$ARGUMENTS` to Scientific Mode or Adversarial Mode.
+state.md `phase: mode-detect`. Loads custom instructions, records the starting working-tree state, decides where the investigation runs, checks branch freshness, resolves debug depth, and routes `$ARGUMENTS` to Scientific Mode or Adversarial Mode.
 
 **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`** — Steps, routing table, anchored verify-keyword signals. Exits when the mode is picked and persisted to `approvals[]`: Scientific → `phase: investigate`, Adversarial → `phase: adversarial-mode-detect`.
 
