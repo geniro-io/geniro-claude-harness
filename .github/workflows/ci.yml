@@ -58,3 +58,44 @@ jobs:
       - name: ShellCheck (warning severity — advisory)
         continue-on-error: true
         run: shellcheck --severity=warning $(find lib hooks tests evals cursor scripts -name '*.sh' -type f)
+
+  # The single check to mark "required" in branch protection. Every other job is
+  # a dependency here, so protection tracks one stable name instead of a list
+  # that silently goes out of date — a new job, or a new leg of the `tests`
+  # matrix, is covered the moment it is added to `needs` below, with no settings
+  # change. Branch protection matches by the `name:` string, so renaming this job
+  # stops the requirement from matching anything and the gate quietly disappears.
+  ci-gate:
+    name: CI Gate
+    needs: [tests, shellcheck]
+    # `always()` is what makes this usable as a required check. Without it a
+    # failed or skipped dependency skips this job too, and a skipped required
+    # check never reports a conclusion — the PR sits on "Expected — waiting for
+    # status" forever with nothing to click. Running unconditionally and
+    # deciding in the step below turns that into an honest red.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every upstream job to have succeeded
+        # Passed through the environment rather than interpolated into the shell:
+        # a `${{ }}` expansion inside `run:` is substituted as raw text before bash
+        # parses the line, so it is a command-injection site whenever any input is
+        # attacker-influenced. Trusted here, but the habit is the point.
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$NEEDS_JSON"
+          # Anything that is not an outright success fails the gate — `failure`,
+          # `cancelled`, and `skipped` alike. A skipped test job means the suites
+          # did not run, which is not evidence that they pass.
+          not_ok=$(printf '%s' "$NEEDS_JSON" \
+            | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"')
+          if [ -n "$not_ok" ]; then
+            printf '%s\n' "$not_ok" | while IFS= read -r line; do
+              echo "::error::upstream job did not succeed: $line"
+            done
+            exit 1
+          fi
+          echo "All upstream jobs succeeded."
