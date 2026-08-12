@@ -9,7 +9,7 @@ agents/codebase-research-agent.md 1967
 agents/finding-verifier-agent.md 2104
 agents/knowledge-retrieval-agent.md 1412
 agents/reflection-agent.md 1670
-agents/reviewer-agent.md 3570
+agents/reviewer-agent.md 3236
 agents/test-runner-agent.md 1133
 skills/actions/SKILL.md 2853
 skills/audit-instructions/SKILL.md 3461

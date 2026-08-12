@@ -76,8 +76,8 @@ _seam_workflow_refs_status() {
   [ "$gk" = "design-doc" ] || { echo "not-design-doc"; return; }
   [ "$gsv" = "m5-v1" ] && { echo "absent"; return; }              # treat field as absent on m5-v1
   block="$(printf '%s\n' "$fm" | awk '/^workflow_refs:/{f=1;next} f && /^[A-Za-z_]/{f=0} f{print}')"
-  printf '%s\n' "$block" | grep -qE '^[[:space:]]*-[[:space:]]' || { echo "absent"; return; }   # no entries → inline-task
-  if printf '%s\n' "$block" | _seam_workflow_refs_entries_ok; then echo "present"; else echo "malformed"; fi
+  grep -qE '^[[:space:]]*-[[:space:]]' <<<"$block" || { echo "absent"; return; }   # no entries → inline-task
+  if _seam_workflow_refs_entries_ok <<<"$block"; then echo "present"; else echo "malformed"; fi
 }
 
 # Per-entry required-key check (mirrors validator-checks #14, which validates PER ENTRY, not per block).
@@ -103,11 +103,11 @@ _seam_workflow_refs_entries_ok() {
 _seam_open_questions_shape() {
   local fm block k
   fm="$(_seam_frontmatter "$1")"
-  printf '%s\n' "$fm" | grep -qE '^open_questions:[[:space:]]*\[\][[:space:]]*$' && { echo "empty"; return; }
+  grep -qE '^open_questions:[[:space:]]*\[\][[:space:]]*$' <<<"$fm" && { echo "empty"; return; }
   block="$(printf '%s\n' "$fm" | awk '/^open_questions:/{f=1;next} f && /^[A-Za-z_]/{f=0} f{print}')"
-  printf '%s\n' "$block" | grep -qE '(^|[[:space:]])id:' || { echo "empty"; return; }
+  grep -qE '(^|[[:space:]])id:' <<<"$block" || { echo "empty"; return; }
   for k in id source question status; do
-    printf '%s\n' "$block" | grep -qE "(^|[[:space:]])$k:" || { echo "bad"; return; }
+    grep -qE "(^|[[:space:]])$k:" <<<"$block" || { echo "bad"; return; }
   done
   echo "ok"
 }
@@ -122,7 +122,7 @@ _seam_final_no_pending_pd() {
   [ "$rs" != "final" ] && { echo "ok-not-final"; return; }
   # Body field is the bold-colon form `- **step0_status:** pending` (or a bare `step0_status: pending`);
   # match any non-alphanumeric run (`**`, spaces) between the key and the value so both forms are caught.
-  if _seam_body "$1" | grep -qE 'step0_status:[^[:alnum:]]*pending'; then echo "violation"; else echo "ok"; fi
+  if grep -qE 'step0_status:[^[:alnum:]]*pending' <<<"$(_seam_body "$1")"; then echo "violation"; else echo "ok"; fi
 }
 
 # Body-section extractors for the m6-v3 fixture (B5). `^## ` terminates a section; `### ` severity
@@ -511,18 +511,19 @@ EOF
 expect_rc "$TMPDIR_BASE/from-review-elect.md" 0 "B5 m6-v3 handoff (USER-ELECTED promotion + structured deferred entry) validates"
 _b5_findings="$(_seam_findings_section "$TMPDIR_BASE/from-review-elect.md")"
 _b5_deferred="$(_seam_deferred_section "$TMPDIR_BASE/from-review-elect.md")"
-printf '%s\n' "$_b5_findings" | grep -qE '^- \[ \] F[0-9]+ — .*\[USER-ELECTED\].*· LOW' \
-  && printf '%s\n' "$_b5_findings" | awk '/USER-ELECTED/{f=1} f{print}' | grep -qE '\*\*(Severity|File):\*\*' \
+_b5_promoted="$(awk '/USER-ELECTED/{f=1} f{print}' <<<"$_b5_findings")"
+grep -qE '^- \[ \] F[0-9]+ — .*\[USER-ELECTED\].*· LOW' <<<"$_b5_findings" \
+  && grep -qE '\*\*(Severity|File):\*\*' <<<"$_b5_promoted" \
   && pass "B5 [USER-ELECTED] promotion sits in ## Findings as an ordinary per-finding block (checkbox title + sub-field labels)" \
   || fail "B5 promoted finding not parseable as an ordinary ## Findings block"
-if printf '%s\n' "$_b5_findings" | awk '/USER-ELECTED/{f=1} f{print}' | grep -qE 'Validation:'; then
+if grep -qE 'Validation:' <<<"$_b5_promoted"; then
   fail "B5 promoted LOW must carry NO verification fields (presence rules exempt LOW)"
 else
   pass "B5 promoted LOW carries no verification fields (LOW presence-rule exemption holds)"
 fi
-printf '%s\n' "$_b5_deferred" | grep -qE '^- \[ \] D[0-9]+ — ' \
-  && printf '%s\n' "$_b5_deferred" | grep -qE '\*\*File:\*\*' \
-  && printf '%s\n' "$_b5_deferred" | grep -qE '\*\*Why deferred:\*\*' \
+grep -qE '^- \[ \] D[0-9]+ — ' <<<"$_b5_deferred" \
+  && grep -qE '\*\*File:\*\*' <<<"$_b5_deferred" \
+  && grep -qE '\*\*Why deferred:\*\*' <<<"$_b5_deferred" \
   && pass "B5 deferred entry carries the structured block schema (D-id / File: / Why deferred:)" \
   || fail "B5 deferred-entry block schema not parseable"
 [ "$(_seam_final_no_pending_pd "$TMPDIR_BASE/from-review-elect.md")" = "ok" ] \
@@ -569,8 +570,8 @@ grep -qE '`?verify:`?' "$REPO_ROOT/skills/_shared/spec-template.md" \
 # §verify: shape). C2b only proves the field is named on all three ends; this exercises the SHAPE heuristic
 # itself with an accept/reject fixture pair (mirrors A4/A5 present-vs-malformed), so a bare `verify:` can't
 # slip through untested. The one-line check below is the documented trim-then-non-empty heuristic verbatim.
-if printf 'verify: pnpm test\n' | sed -E 's/^.*verify:[[:space:]]*//' | grep -qE '.' \
-  && ! printf 'verify:   \n'    | sed -E 's/^.*verify:[[:space:]]*//' | grep -qE '.'; then
+if grep -qE '.' <<<"$(sed -E 's/^.*verify:[[:space:]]*//' <<<'verify: pnpm test')" \
+  && ! grep -qE '.' <<<"$(sed -E 's/^.*verify:[[:space:]]*//' <<<'verify:   ')"; then
   pass "C2d verify: shape heuristic accepts a non-empty command, rejects a bare/whitespace-only verify:"
 else
   fail "C2d verify: shape heuristic drifted — non-empty command must accept AND bare verify: must reject"
