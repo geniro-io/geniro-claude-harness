@@ -21,11 +21,6 @@
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-state-helper.sh",
-            "statusMessage": "Checking shell command for direct state-file writes..."
-          },
-          {
-            "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-tdd-order.sh",
             "statusMessage": "Checking shell command for TDD-order constraint..."
           },

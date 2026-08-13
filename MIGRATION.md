@@ -10,6 +10,81 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### The state-helper guard no longer matches `Bash`
+
+`hooks/enforce-state-helper.sh` is registered under the `Edit|Write|MultiEdit|NotebookEdit`
+matcher only. Its shell-side branch — redirection, `tee`, `sed -i`, `cp`/`mv` destinations,
+`dd of=`, interpreter-mediated writes, and the seven shell-indirection channels it re-ran
+itself on — is gone, along with the ~1,100 lines of command parsing behind it.
+
+The branch had no declared target to read, so it inferred one from the command string, and
+when the inference failed it matched any `.geniro` string anywhere in the command. Measured
+across 1,408 sessions: 67 blocks, compliance under a third of the time, the rest a
+near-identical retry or a workaround — including a block on an edit to `MIGRATION.md` whose
+prose merely mentioned a state path.
+
+Writing a state file from the shell is now unenforced. It is still wrong: it truncates and
+rewrites, so a concurrent reader sees a partial file. Route it through `atomic_state_write` /
+`atomic_state_append` per `skills/_shared/atomic-state-write.md`.
+
+The T1 scratch exemption changed shape in the same pass: any dot-prefixed basename under
+`.geniro` is now treated as transient, replacing the closed roster of known filenames
+(`.kr-out.md` and siblings). A run's own scratch names no longer have to be on a list.
+
+**Action required:** None mechanically. If a project added `enforce-state-helper` to
+`allow_patterns` purely to get shell-side writes through, that entry can be dropped — it now
+only affects `Edit`/`Write`.
+
+**Auto-detect:**
+
+```bash
+grep -l '"enforce-state-helper"' .geniro/safety.json 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — the entry still governs the file-tool branch, so whether to drop it
+depends on why it was added.
+
+**Severity:** LOW — a guard narrows, so nothing that used to pass now fails.
+
+---
+
+### Three guards stop firing on files that were never the risk
+
+Each carve-out below comes from a measured false positive, not a theory:
+
+- **`file-protection.sh`** no longer blocks `.env` templates (`.env.example`, `.env.sample`,
+  `.env.template`, `.env.dist`, `.env.default(s)`) or `.env` backups (`.env*bak*`) — placeholders
+  and pre-edit snapshots, neither carrying a live secret. Lock files are no longer blocked inside
+  a disposable tree (`/tmp`, `/private/tmp`, `/var/folders`, a session scratchpad).
+- **`security-pattern-check.sh`** skips every pattern for test paths (`__tests__/`, `test(s)/`,
+  `spec/`, `e2e/`, `fixture(s)/`, `benchmark(s)/`, `*.spec.*`, `*.test.*`, `*_test.*`, `test_*`,
+  `conftest.py`) and session scratchpads. Its patterns describe shapes that are dangerous when
+  shipped; test code exercises them deliberately.
+- **`block-geniro-deletion.sh`**'s `worktree-remove-with-state` now inspects the worktree before
+  blocking, and allows removal when its `.geniro` is absent, empty, or fully tracked. It used
+  to fire on command shape alone.
+
+Deny messages across `file-protection.sh` and `block-dangerous-git.sh` now name the
+non-destructive alternative before the `safety.json` bypass.
+
+**Action required:** None. If a project added `write-env`, `write-lockfile`, or
+`worktree-remove-with-state` to `allow_patterns` to work around one of these false positives,
+the entry is likely no longer needed — and each one currently disables that pattern everywhere,
+including where it should fire.
+
+**Auto-detect:**
+
+```bash
+grep -oE '"(write-env|write-lockfile|worktree-remove-with-state|sec-[a-z-]+)"' .geniro/safety.json 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — review each listed pattern ID and drop the ones that were added to
+silence a false positive this change fixes.
+
+**Severity:** LOW — every change widens what passes.
+
+---
+
 ### The gate-render guard is removed
 
 `hooks/enforce-gate-render.sh` no longer ships, and `hooks/hooks.json` registers no `AskUserQuestion` hook. The guard hard-blocked a decision question fired with no visible assistant message in the current turn, and separately blocked a single call batching several product-decision findings. Both rules survive as prose contracts — `skills/_shared/gate-rendering.md` §Turn-completion guard (render, then ask) and `skills/_shared/per-finding-question-reference.md` §Single-finding gate (one finding per call) — but nothing enforces them at the tool boundary. The `gate-render` pattern ID retires with the hook: an `allow_patterns` entry naming it is inert, not an error.

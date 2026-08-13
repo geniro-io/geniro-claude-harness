@@ -229,16 +229,8 @@ expect_parity block-geniro-deletion.sh 0 "benign rename"   "mv src/a.js src/b.js
 # a false positive on ordinary code and documentation writing.
 expect_parity block-geniro-deletion.sh 0 "benign shell-out mention" "echo \"os.system('rm -rf $GTREE')\" > notes.md"
 
-expect_parity enforce-state-helper.sh 2 "sh -c state write"  "sh -c 'echo x > $STATE'"
-expect_parity enforce-state-helper.sh 2 "path-qualified sh -c" "/bin/sh -c 'echo x > $STATE'"
-expect_parity enforce-state-helper.sh 2 "pipe-to-shell"      "echo \"echo x > $STATE\" | bash"
-expect_parity enforce-state-helper.sh 2 "prefix-wrapped pipe" "echo \"echo x > $STATE\" | nohup bash"
-expect_parity enforce-state-helper.sh 2 "interp state write" "python3 -c \"open('$STATE','w').write('k')\""
-expect_parity enforce-state-helper.sh 2 "pathlib state open" "python3 -c \"from pathlib import Path; Path('$STATE').open('w')\""
-expect_parity enforce-state-helper.sh 0 "benign write"       "echo x > notes.txt"
 # A quoted literal spanning a newline that merely MENTIONS a state path: the
 # per-line quote-blanking pass used to read the second line as syntax and block.
-expect_parity enforce-state-helper.sh 0 "multi-line quoted mention" "$(printf 'echo "first line\nmentions %s"\n' "$STATE")"
 
 expect_parity block-dangerous-git.sh 2 "sh -c force push" "sh -c 'git push --force origin main'"
 expect_parity block-dangerous-git.sh 2 "pipe-to-shell"    "echo \"git push --force origin main\" | bash"

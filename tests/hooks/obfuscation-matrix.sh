@@ -96,7 +96,6 @@ block-dangerous-git.sh|reset-hard|git reset --hard HEAD~1|git reset HEAD~1
 block-dangerous-git.sh|push-mirror|git push --mirror origin|git push --tags origin
 block-geniro-deletion.sh|rm-geniro|rm -rf .geniro|rm -rf build
 file-protection.sh|write-env|echo k > .env|echo k > notes.txt
-enforce-state-helper.sh|write-state|echo k > .geniro/planning/t/state.md|echo k > notes.txt
 security-pattern-check.sh|sec-eval-exec|printf '\''eval(x)'\'' > bad.py|printf '\''print(1)'\'' > ok.py
 enforce-tdd-order.sh|prod-write|echo x > src/app.js|echo x > src/app.test.js
 '
@@ -167,7 +166,6 @@ done <<< "$BASES"
 TARGET_BASES='
 block-geniro-deletion.sh|rm-geniro-target|rm -rf {T}|.geniro
 file-protection.sh|write-env-target|echo k > {T}|.env
-enforce-state-helper.sh|write-state-target|echo k > {T}|.geniro/planning/t/state.md
 enforce-tdd-order.sh|prod-write-target|echo x > {T}|src/app.js
 '
 
@@ -198,7 +196,6 @@ done <<< "$TARGET_BASES"
 for pre in "cd .geniro &&" "pushd .geniro &&"; do
   check "file-protection.sh [cd-prefix: ${pre%% *}] blocks" "file-protection.sh" \
     "$pre echo k > .env" 2
-  check "enforce-state-helper.sh [cd-prefix: ${pre%% *}] blocks" "enforce-state-helper.sh" \
     "$pre echo k > planning/t/state.md" 2
   check "block-geniro-deletion.sh [cd-prefix: ${pre%% *}] blocks" "block-geniro-deletion.sh" \
     "$pre rm -rf planning" 2

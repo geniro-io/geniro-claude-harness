@@ -1219,9 +1219,104 @@ done <<< "$RSYNC_SPANS"
 
 # 4. git worktree remove  (worktrees commonly contain .geniro/ state not routed
 #    through ${PRIMARY_ROOT} — removal silently destroys it).
+#
+# The guard LOOKS before it blocks. It used to fire on the command shape alone,
+# telling the caller to "verify the worktree's .geniro/ is empty" — a
+# precondition the caller could satisfy but the guard could not observe, so
+# verifying changed nothing and the block stood. Measured across 1,408 sessions
+# (2026-08-13) that shape produced no compliance at all: in every trace the run
+# confirmed the worktree held nothing worth keeping and then either handed the
+# removal back to the user by hand or abandoned it, because the only remaining
+# exit was a permanent safety.json grant that a second guard exists to prevent.
+#
+# So: resolve the target, and block only when it really holds .geniro/ content
+# git would not preserve — untracked or ignored files. A worktree with no
+# .geniro/, or one whose .geniro/ is entirely tracked (the content survives in
+# the branch), is nothing to lose and is allowed through.
+#
+# Unresolvable target → block, unchanged. A path built from a variable or a
+# command substitution cannot be inspected, and this is a data-loss guard: the
+# fail-closed direction is the one that keeps state.
 if ! is_allowed "worktree-remove-with-state"; then
   if echo "$PADDED" | grep -qE 'git[[:space:]]+worktree[[:space:]]+remove[[:space:]]'; then
-    block "worktree-remove-with-state" "git worktree remove destroys the gitignored .geniro/ in the worktree. Verify the worktree's .geniro/ is empty (or that all needed state was routed to the primary worktree via _shared/primary-worktree.md) before removing."
+    _wt_span=$(printf '%s' "$PADDED" | grep -oE 'git[[:space:]]+worktree[[:space:]]+remove[^;&|]*' | head -1 || true)
+    _wt_target=""
+    set -f
+    # shellcheck disable=SC2086
+    for _wt_tok in ${_wt_span#*remove}; do
+      case "$_wt_tok" in
+        -*) continue ;;
+        *) _wt_target="$_wt_tok"; break ;;
+      esac
+    done
+    set +f
+
+    _wt_verdict="block"
+    _wt_detail="the worktree path could not be resolved from the command"
+    # A relative target is relative to where the command will RUN, not to where
+    # the hook runs. Resolve it against a leading `cd`/`pushd` when the command
+    # carries one — the common shape is `cd <abs> && git worktree remove
+    # <relative>`, and reading the relative path against the hook's own cwd
+    # would look at the wrong directory (or at nothing) and decide from that.
+    # A `cd` we cannot resolve leaves the target unresolvable, hence fail-closed.
+    _wt_base=""
+    _wt_cd=$(printf '%s' "$PADDED" | grep -oE '(^|[;&|(])[[:space:]]*(cd|pushd)[[:space:]]+[^;&|]+' | tail -1 || true)
+    if [ -n "$_wt_cd" ]; then
+      set -f
+      # shellcheck disable=SC2086
+      for _wt_tok in ${_wt_cd}; do
+        case "$_wt_tok" in cd|pushd|*/cd|*/pushd|-*|+*|';'|'&&'|'||') continue ;; esac
+        _wt_tok="${_wt_tok#\"}"; _wt_tok="${_wt_tok%\"}"
+        _wt_tok="${_wt_tok#\'}"; _wt_tok="${_wt_tok%\'}"
+        _wt_base="$_wt_tok"; break
+      done
+      set +f
+    fi
+    # _wt_anchored=1 means the resolved path is the one the command will act on,
+    # so "not found" genuinely means "nothing there". Without an anchor a
+    # missing directory only means it is missing from HERE.
+    _wt_anchored=0
+    case "$_wt_target" in
+      /*) _wt_anchored=1 ;;                      # absolute — use as given
+      *)
+        case "$_wt_base" in
+          '')  : ;;                              # no cd — hook cwd is a guess
+          /*)  _wt_target="${_wt_base%/}/$_wt_target"; _wt_anchored=1 ;;
+          *)   _wt_target='?unresolvable' ;;     # cd to a relative/variable dir
+        esac ;;
+    esac
+    case "$_wt_target" in
+      ''|*'$'*|*'`'*|*'*'*|*'?'*)
+        : ;;  # empty, variable, substitution or glob — leave fail-closed
+      *)
+        if [ ! -d "$_wt_target" ]; then
+          # Absent, and we know we looked in the right place.
+          [ "$_wt_anchored" = "1" ] && _wt_verdict="allow"
+          [ "$_wt_anchored" = "1" ] || _wt_detail="the target is relative and no leading cd anchors it, so its contents could not be checked"
+        elif [ ! -d "$_wt_target/.geniro" ]; then
+          _wt_verdict="allow"
+        else
+          # Untracked + ignored files under .geniro/ are the ones `git worktree
+          # remove` destroys for good. `|| true` because git exits non-zero when
+          # the directory is not a worktree at all, which is not a verdict.
+          # --untracked-files=all so the listing names the actual files rather
+          # than collapsing to `?? .geniro/` — the caller has to decide what is
+          # worth routing, and a directory name does not tell them.
+          _wt_at_risk=$(git -C "$_wt_target" status --porcelain --ignored --untracked-files=all -- .geniro 2>/dev/null | head -20 || true)
+          if [ -z "$_wt_at_risk" ]; then
+            _wt_verdict="allow"
+          else
+            _wt_detail="its .geniro/ holds untracked or ignored files that removal destroys for good:
+$_wt_at_risk"
+          fi
+        fi
+        ;;
+    esac
+
+    if [ "$_wt_verdict" = "block" ]; then
+      block "worktree-remove-with-state" "git worktree remove destroys the gitignored .geniro/ in the worktree, and $_wt_detail.
+Route the state first — copy what is worth keeping to the primary worktree (_shared/primary-worktree.md), or delete it — then re-run the removal; this guard re-checks and lets a clean worktree through."
+    fi
   fi
 fi
 

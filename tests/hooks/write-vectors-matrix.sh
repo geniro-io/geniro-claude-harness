@@ -4,7 +4,7 @@
 # Run: bash tests/hooks/write-vectors-matrix.sh
 #
 # The structural cause behind four of the 2026-08-07 audit's five T0 findings:
-# file-protection.sh, enforce-state-helper.sh and enforce-tdd-order.sh each
+# file-protection.sh and enforce-tdd-order.sh each
 # carry an INLINE, hand-duplicated copy of the same nine-plus syntax vectors
 # (redirect, tee, sed -i, cp/mv, dd of=, truncate, shred, install/rsync, ln -f,
 # sponge/ed/ex/patch, curl -o/wget -O) — they are NOT functions in
@@ -98,10 +98,6 @@ matrix_for_guard() {  # <label> <hook-path> <protected-target> <benign-target>
 
 # ===== file-protection.sh =====
 matrix_for_guard "file-protection.sh" "$REPO_ROOT/hooks/file-protection.sh" ".env" "notes.txt"
-
-# ===== enforce-state-helper.sh =====
-matrix_for_guard "enforce-state-helper.sh" "$REPO_ROOT/hooks/enforce-state-helper.sh" \
-  ".geniro/planning/task/state.md" "notes.txt"
 
 # ===== enforce-tdd-order.sh (RED phase) =====
 SANDBOX="$TMPDIR_BASE/tdd"
