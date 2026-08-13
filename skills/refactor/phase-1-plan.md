@@ -55,7 +55,7 @@ On Phase 1 entry, in order:
 | Tier | Refactor behavior |
 |---|---|
 | **Trivial** | 1-2 files, mechanical (rename, single extract). Skip smell detection. Skip the smell-evidence filter. Skip independent reviewer + custom reviewers. Orchestrator authors the plan directly from $ARGUMENTS + scope-files Read; goes straight to Phase 2 execution. |
-| **Small** | Full smell detection in Phase 1 BUT skip smell evidence (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
+| **Small** | Skip smell detection and the smell-evidence filter (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
 | **Medium** | Full pipeline as specified — orchestrator-inline smell detection + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
 | **Big** | Recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user wants to proceed without planning, require explicit confirmation via `AskUserQuestion` header "Scope": "Run /geniro:plan first" / "Proceed without a plan (risky)". On "Proceed without a plan", Big runs the Medium pipeline. The only difference is user has accepted the added risk of proceeding without architectural review. |
 
@@ -74,17 +74,19 @@ These 4 refactor-specific signals are orthogonal to the canonical effort-scaling
 
 Skipped for Trivial and Small per Step 3.
 
-The orchestrator runs the 6 smell detection categories + Deepening Opportunities lens inline — no subagent spawn, for the state-continuity reason spelled out at Phase 2 §2.2. For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
+The orchestrator runs the 6 smell detection categories, the Named smell baseline, the Helper Placement rule, and the Deepening Opportunities lens inline — no subagent spawn, for the state-continuity reason spelled out at Phase 2 §2.2. For wide cross-file locator queries that would otherwise require many inline Reads (e.g., "find all definitions of the duplicated helper across the repo"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. The smell-evidence pass itself stays orchestrator-inline so state continuity and the per-step regression-skip predicate are preserved.
 
 **Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Code Smell Detection — full smell taxonomy + change-impact scoring + escalation rules. Bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: Read it before the step that needs it and echo it. It is the sole home of the Data Safety Rule (no `DROP TABLE` / `TRUNCATE` / volume removal during a refactor) and of the test-file approval gate — and `/geniro:refactor` runs those phases orchestrator-inline, so no injected agent body carries them and no hook covers the commands they name. The orchestrator reads this file once at entry and applies the rubric inline.
 
 **Per-smell procedure:**
 
 1. Apply the 6 smell categories (duplication / long methods / god classes / dead code / tight coupling / type+import issues) via Read + the project's code-search tooling against the FILES IN SCOPE from Phase 1 §1.2.
-2. Apply the Deepening Opportunities lens — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first for vocabulary grounding, then scan for wide-interface shallow modules / pass-through wrappers / repeated cross-call orchestration / high-leverage shallow code.
-3. For every detected smell, run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (search designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format.
-4. Count consumers per smell with the project's code-search tooling (a code index returns dependents directly when configured; otherwise a count-mode structured search), scoped by language (`*.ts` / `*.py` / etc).
-5. Public-surface guard: flag smells that change public API signature, module export, or shared type — these are HIGH-risk regardless of consumer count.
+2. Match the scope files against the **Named smell baseline** in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Code Smell Detection — the named smells (Feature Envy, Shotgun Surgery, Primitive Obsession, and the rest of that list) that fall outside the 6 categories above.
+3. Apply the **Helper Placement** rule at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Helper Placement — flag an extracted helper sitting away from its one non-test call site without clearing one of the three bars (Rule of Three, hidden complexity callers need not know, a tested seam).
+4. Apply the Deepening Opportunities lens — read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first for vocabulary grounding, then scan for wide-interface shallow modules / pass-through wrappers / repeated cross-call orchestration / high-leverage shallow code.
+5. For every detected smell, run the canonical **Existing Abstraction Audit** at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — apply its Procedure (search designated helper directories, categorize REUSE-AS-IS / EXTEND / NO-ANALOGUE, force-fit guard, Rule of Three). Emit candidates inline alongside each smell using the audit's Output format.
+6. Count consumers per smell with the project's code-search tooling (a code index returns dependents directly when configured; otherwise a count-mode structured search), scoped by language (`*.ts` / `*.py` / etc).
+7. Public-surface guard: flag smells that change public API signature, module export, or shared type — these are HIGH-risk regardless of consumer count.
 
 Output (write directly to state.md `## Smells Detected`):
 
@@ -98,6 +100,7 @@ consumer_count: <int>
 files_affected: <bounded list>
 public_surface: <true|false>
 abstraction_audit: <REUSE-AS-IS|EXTEND|NO-ANALOGUE — per audit output>
+optimization_evidence: <omit for every category other than premature-optimization; for that category, the three-way search result for profiler/benchmark data, an identified hot path, and a stated performance budget — each stated present or absent, per the smell's own evidence requirement in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Code Smell Detection>
 ```
 
 Risk classification (LOW / MEDIUM / HIGH) and ordering happen in §1.6 (orchestrator decisions, not the smell-detector's job).

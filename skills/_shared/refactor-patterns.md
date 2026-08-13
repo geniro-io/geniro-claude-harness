@@ -71,6 +71,11 @@ Each smell reads what-it-is → how-to-fix:
 - **Message Chains** — long `a.b().c().d()` navigation → hide the walk behind one method.
 - **Middle Man** — a module that mostly delegates onward → cut it; call the target directly.
 - **Refused Bequest** — an implementer ignoring most of what it inherits → drop the inheritance, use composition.
+- **Conjoined Methods** — two functions whose implementations can't be read in isolation, each demanding the other be held in mind at once → inline one into the other.
+- **Premature Optimization** — code shaped for speed, trading clarity for a gain that no profiler/benchmark data, identified hot path, or stated performance budget backs → search for all three, state that each came back absent, then restore the clear form; a hit on any of them makes the code a behavior change to keep, not a simplification to remove.
+
+#### Helper Placement
+**Extracted helpers keep their placement, not just their existence.** Keep a helper in the file of its one non-test call site — moving it elsewhere costs the reader a file hop and hides nothing when nothing needs hiding, cheap for a few lines away, not cheap for a separate file. Extract to a separate file when it clears one of three bars: three or more distinct non-test call sites (Rule of Three — threshold and procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`); it hides a decision, invariant, or body of complexity that callers use without needing to know how it works — not merely a name that reads clearly at the call site (the failure mode is Conjoined Methods, fixed by inlining the two together, not by separating them further); or the separation is a tested seam. A helper whose only callers are test cases is Speculative Generality no matter how many tests call it; because inlining it back edits a test file, route it through the test-file approval step (§ Guardrails) instead of applying it directly. This rule governs whether an existing helper keeps its place; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` governs whether a new one should be created.
 
 #### Deepening Opportunities
 **Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` first** to ground the vocabulary (depth, seam, adapter, leverage, locality, deep vs shallow modules).
@@ -78,7 +83,7 @@ Each smell reads what-it-is → how-to-fix:
 This lens is orthogonal to the smell categories above — it asks "is this module **shallow** when it could be **deep**?" rather than "is there a smell?"
 
 Look for:
-- **Wide-interface modules with low internal logic** — e.g., a util file with 12 exported helpers each used once. The exports are the interface; the implementation is trivial. Consider absorbing the callers' logic INTO the module so the module hides more behavior behind fewer exports.
+- **Wide-interface modules with low internal logic** — e.g., a util file with 12 exported helpers each used once — are the shape to run the deletion test against. A vanishing-complexity result means inline the module and remove it; complexity that reappears across callers means the module was earning its keep — deepen it instead.
 - **Pass-through wrappers / leaky abstractions** — modules that re-export third-party types or expose adapter internals. These widen the seam without adding depth. Either deepen (absorb more behavior) or remove the wrapper.
 - **Repeated cross-call orchestration at call sites** — same 3-4 module calls in sequence, repeated across files. The orchestration belongs INSIDE one of those modules (deepening it) or in a new orchestrator module (narrowing the seam at every caller).
 - **High-leverage code with shallow implementation** — types or functions imported by 30+ files but with trivial internal logic. The leverage is wasted; deepening would let callers offload more responsibility.

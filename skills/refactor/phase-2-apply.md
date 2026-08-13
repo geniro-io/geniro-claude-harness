@@ -37,7 +37,7 @@ The orchestrator executes the approved plan inline, one step at a time — no su
 For each step N in `## Plan steps` where `status: pending`:
 
 1. **Re-read the target files** (Read tool) — capture current state of files affected by step N.
-2. **Pre-condition check** (orchestrator applies skip predicate per `refactor-patterns.md` § Step Execution Protocol, step 2):
+2. **Pre-condition check** (orchestrator applies skip predicate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Step Execution Protocol, step 2):
 - REQUIRED if N == 1, OR `last_post_check == unset|REVERTED`, OR external edits intervened
 - SKIPPED if N > 1 AND `last_post_check == PASS` (no edits intervene between sequential transformations — the previous step's post-check already validated the same baseline)
 - When required: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check step <N>" "<test_cmd_affected>"`. On fail: stop and report (broken baseline).
@@ -47,11 +47,11 @@ For each step N in `## Plan steps` where `status: pending`:
 - **PASS**: mark `status: complete`, `attempts: <N>`, `last_post_check: PASS`. Continue to next step.
 - **FAIL**: enter Blocked Step Protocol (below).
 
-**Blocked Step Protocol** — run the three bounded attempts in `refactor-patterns.md` §Blocked Step Protocol, orchestrator-inline. On the revert after attempt 3, write `status: blocked`, `attempts: 3`, `last_post_check: REVERTED` and the blocked-rationale row to state.md, then continue to the next step — never stop the session. `last_post_check: REVERTED` is what makes the next step's pre-condition check fire (predicate (b) above); omitting it silently skips the baseline re-verification after a revert touched the tree.
+**Blocked Step Protocol** — run the three bounded attempts in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` §Blocked Step Protocol, orchestrator-inline. On the revert after attempt 3, write `status: blocked`, `attempts: 3`, `last_post_check: REVERTED` and the blocked-rationale row to state.md, then continue to the next step — never stop the session. `last_post_check: REVERTED` is what makes the next step's pre-condition check fire (predicate (b) above); omitting it silently skips the baseline re-verification after a revert touched the tree.
 
 A catastrophic Edit failure (filesystem error, unreadable target) is the one exit from this loop — retrying a transformation against a tree the tool cannot write leaves the working tree half-applied. Render the failure to chat first (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering), then fire the lean AUQ header "Edit failed": "Revert all changes" (Recommended) / "Show me the diff first" / "Keep changes for debugging" — same three options as the §2.4 Regression escalation below. On "Revert all changes", `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). state.md → `phase: reverted` (terminal).
 
-State.md `## Plan steps` body schema captures per-step status (per `refactor-patterns.md` § Refactoring Plan schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
+State.md `## Plan steps` body schema captures per-step status (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Refactoring Plan schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
 
 ### 2.3 Session-level cap + escalation gate
 
