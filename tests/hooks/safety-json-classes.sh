@@ -37,23 +37,18 @@ fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo 
 
 # --- sandbox project -----------------------------------------------------------
 # One project dir carries everything the guards need to reach a firing verdict:
-# a .geniro/ root, a pinned branch (the TDD state-file slug comes from it), a
-# RED-phase TDD state file, and a render-less transcript for the gate guard.
+# a .geniro/ root, a pinned branch (the TDD state-file slug comes from it), and a
+# RED-phase TDD state file.
 PROJ="$TMPDIR_BASE/proj"
 mkdir -p "$PROJ/.geniro/state/tdd"
 cd "$PROJ" || exit 1
 git init -q 2>/dev/null || true
 git checkout -q -b sjc 2>/dev/null || true
 printf '## phase\nRED\n' > "$PROJ/.geniro/state/tdd/state-sjc.md"
-TRANSCRIPT="$PROJ/transcript.jsonl"
-{
-  jq -nc '{type:"user", message:{content:"please run the review"}}'
-  jq -nc '{type:"assistant", message:{content:[{type:"tool_use", name:"Bash", input:{}}]}}'
-} > "$TRANSCRIPT"
 
 # --- per-pattern-ID probe -------------------------------------------------------
 # T4-4: the bypass branch used to be asserted for one representative ID per
-# guard (7 rows) while the guards' OTHER pattern IDs had their block path
+# guard while the guards' OTHER pattern IDs had their block path
 # tested elsewhere but never their bypass — the allow_patterns wiring for
 # those 20+ IDs was unverified. Every pattern ID a guard exposes is its own
 # independently-grantable bypass (`is_allowed("<id>")` gates a distinct
@@ -159,13 +154,6 @@ probe_for_id() {  # <pattern-id>
     tdd-order)
       hook=enforce-tdd-order.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:"src/app.js", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    # --- enforce-gate-render.sh (1 ID) ---
-    gate-render)
-      hook=enforce-gate-render.sh
-      jq -nc --arg t "$TRANSCRIPT" \
-        '{tool_name:"AskUserQuestion", transcript_path:$t,
-          tool_input:{questions:[{question:"Full explanation above. Approve?", options:[{label:"Approve"},{label:"Cancel"}]}]}}' \
-        | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
     # --- security-pattern-check.sh (8 IDs) ---
     sec-eval-exec)
       hook=security-pattern-check.sh
@@ -202,7 +190,7 @@ probe_for_id() {  # <pattern-id>
   echo "$hook $rc"
 }
 
-# The full pattern-ID roster this guard set exposes (35 IDs across 7 guards).
+# The full pattern-ID roster this guard set exposes (34 IDs across 6 guards).
 GUARDS="force-push
 force-push-with-lease
 push-delete
@@ -229,7 +217,6 @@ write-vault
 enforce-state-helper
 safety-json-edit
 tdd-order
-gate-render
 sec-eval-exec
 sec-pickle
 sec-yaml-unsafe

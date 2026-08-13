@@ -48,7 +48,6 @@ geniro-statusline.js|installed into the user's settings.json by /geniro:setup, n
 # so it is spelled out here rather than derived, and the prose is checked
 # against it.
 UNWIRED_FOR_CURSOR="
-enforce-gate-render.sh|Cursor has no AskUserQuestion hook event
 geniro-check-update.js|marketplace update check has no Cursor equivalent
 "
 
