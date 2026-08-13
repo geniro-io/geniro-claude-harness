@@ -10,6 +10,24 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### The gate-render guard is removed
+
+`hooks/enforce-gate-render.sh` no longer ships, and `hooks/hooks.json` registers no `AskUserQuestion` hook. The guard hard-blocked a decision question fired with no visible assistant message in the current turn, and separately blocked a single call batching several product-decision findings. Both rules survive as prose contracts — `skills/_shared/gate-rendering.md` §Turn-completion guard (render, then ask) and `skills/_shared/per-finding-question-reference.md` §Single-finding gate (one finding per call) — but nothing enforces them at the tool boundary. The `gate-render` pattern ID retires with the hook: an `allow_patterns` entry naming it is inert, not an error.
+
+**Action required:** None. Optionally drop the now-inert `gate-render` entry from the project's safety config.
+
+**Auto-detect:**
+
+```bash
+grep -l '"gate-render"' .geniro/safety.json 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — remove the `gate-render` string from `allow_patterns[]`; leaving it changes nothing.
+
+**Severity:** LOW — a guard is removed, so nothing that used to pass now fails.
+
+---
+
 ### `/geniro:plan --prd` and its problem-discovery phase are removed
 
 The `--prd` flag, the Phase 0.5 problem-first interview, the state.md `## Problem Framing` block, and the spec's optional `## Problem & Evidence` section are gone. The phase file `skills/plan/loop-phase-0.5-problem-discovery.md` no longer ships, `problem-discovery` is no longer a `phase:` value, and `## Problem & Evidence` is no longer an allowed body section — the Phase 7 `schema_completeness` check now fails a spec carrying it.
@@ -341,20 +359,6 @@ grep -rl -- '--simplify' .geniro/instructions/ .geniro/actions/ 2>/dev/null
 **Auto-fix:** Manual-only — drop the now-inert `--simplify` token from the matched instruction/action files.
 
 **Severity:** LOW — behavior-preserving removal; the flag degrades to a no-op and the simplify lens persists via the standard dimensions.
-
----
-
-### New gate-render guard hard-blocks blind decision questions
-
-`hooks/enforce-gate-render.sh` is a new PreToolUse hard-block (exit 2) on the `AskUserQuestion` tool. A decision question that references content "above" (in the question text, option labels, or option descriptions) while the current turn contains no visible assistant message is blocked — the user would be answering blind, violating the message-first gate contract (`skills/_shared/gate-rendering.md`). A block is NOT a user denial: the stderr message instructs the model to write the full gate render as an ordinary chat message and then re-ask the same question. The hook reverse-scans the transcript back to the last real user message (2000-record cap, one 0.4s retry against the transcript lazy-flush race) and fails open on missing jq (loud), missing transcript, cap overflow, or a garbage transcript.
-
-**Action required:** None for typical installs — questions preceded by their context message pass untouched. If a workflow legitimately fires bare "above"-referencing questions, add `gate-render` to `.geniro/safety.json` `allow_patterns`.
-
-**Auto-detect:** N/A — only reveals itself when a blocked question occurs (fail-loud); the hook output prints the exact bypass ID to add.
-
-**Auto-fix:** Manual-only — render the gate message before re-asking, or add `gate-render` to `.geniro/safety.json` `allow_patterns` to opt out.
-
-**Severity:** LOW — fail-loud with a recovery directive; the model re-renders and re-asks, and no data loss is possible.
 
 ---
 

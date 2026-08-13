@@ -203,7 +203,7 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 - `.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic; §8 defines the expectation set the coverage checks compare against
 - `skills/_shared/load-custom-instructions.md` — the load / echo / refresh contract the I-class checks measure a run against
 - `skills/_shared/phase-entry-read.md` — the phase-body Read and echo contract behind K2
-- `skills/_shared/gate-rendering.md` — gate render-then-ask shape and the lean-question conventions behind K3-K6, K8
+- `skills/_shared/gate-rendering.md` — gate render-then-ask shape and the lean-question conventions behind K3-K5, K8
 - `skills/_shared/skip-visibility.md` — the subagent load report and the assessed sentinel, the two proofs an echo cannot carry
 - `.claude/skills/find-threads/scan.py` — the thread-discovery engine batch mode calls. Its module docstring documents every output column, the config-dir roots it scans, and the work-bearing classification. Add a new config dir by exporting `FIND_THREADS_EXTRA_ROOTS` (colon-separated), which overrides its `EXTRA_ROOTS` default
 - `skills/_shared/within-skill-state-handoff.md` — slug rules + Case A/B/C/D resume UX

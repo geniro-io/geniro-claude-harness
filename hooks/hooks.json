@@ -60,16 +60,6 @@
             "statusMessage": "Scanning for security anti-patterns..."
           }
         ]
-      },
-      {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-gate-render.sh",
-            "statusMessage": "Checking the question has its context message..."
-          }
-        ]
       }
     ],
     "SessionStart": [
