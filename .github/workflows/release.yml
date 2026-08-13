@@ -19,12 +19,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # The bump commit below is pushed straight to `main`, which a ruleset
+      # guards with the required "CI Gate" check. A direct push can never
+      # satisfy that rule on its own — the commit is brand new, so no check has
+      # reported on it yet — so the push must come from a ruleset bypass actor.
+      # `GITHUB_TOKEN` cannot be one: its app is not installed on the org, and
+      # GitHub rejects it as a bypass actor for that reason. This app is, and
+      # its token expires in an hour.
+      - name: Mint a push token from the release app
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           # The pre-release test gate below runs the full suite, and the eval
           # suites read pinned judge prompts from the evals/vendor submodule.
           submodules: true
+          # Persisted as the credential `git push` uses in the bump step.
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Verify jq is available
         run: jq --version
