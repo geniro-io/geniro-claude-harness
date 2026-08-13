@@ -26,16 +26,16 @@ Find every real defect this dimension owns by reading the changed code and its c
 - Bridge code to untyped libraries uses any
 - Check if there's legitimate reason
 
-5. **Comments explaining "why"** — These are good, not obvious
-- Explaining business logic or tricky decisions is valuable
-- Only flag comments that state the obvious code
+5. **Comments explaining "why"** — valuable when they stay true; test durability, not why-ness
+- A short comment carrying a durable constraint or business rule is not a finding
+- Point-in-time content — change history, measurement notes, directives to a future author — belongs in the change description whatever its subject
+- Flag length independent of subject: a block running well past the constraint it carries is change-description text living in the source
+- `// retry cap: 3 — upstream rate-limits above that` is fine; a paragraph on how the cap was chosen is not
 
 6. **Linter conflicts** — If codebase uses specific config
 - Project might enforce different style than standard
 - Check `.eslintrc`, `prettier.config`, etc.
 - Don't flag if matches project config
-
-7. **Tagging documentation gaps as MEDIUM** — Documentation polish, PR-description verbosity, comment wording, and naming suggestions are LOW (never MEDIUM). MEDIUM requires the drift to break or degrade a load-bearing tool consumer. If you are uncertain, default to LOW. LOW sits below the Phase 4.1 admission gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5), so it lands in `## Deferred — sub-threshold` rather than on the PR — for a style finding that is the intended disposition, not a reason to inflate the tier.
 
 ## Severity tagging
 
@@ -45,3 +45,5 @@ Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibra
 - **HIGH** — never emitted by this style-rubric class.
 - **MEDIUM** — Convention drift on a tooling-load-bearing field (e.g., missing `risk_class:` in a `.geniro/actions/*.md` that the action runner requires; missing `name:` in a SKILL.md frontmatter that the loader rejects; missing `paths:` in a `review-extra/<slug>.md` that the dispatcher needs). The drift must demonstrably break or degrade a tool that consumes the field. Documentation gaps, comment wording, naming polish, formatting, and style suggestions are NOT MEDIUM — they are LOW.
 - **LOW** — Style / formatting / naming polish; documentation gaps; comment wording; comment-rot (stale references, contradictory or low-value comments) on ordinary code; convention drift on optional fields; mismatched-but-non-load-bearing rule violations. Comment-rot rises to MEDIUM only when the inaccurate comment is a load-bearing doc that a tool or generated API surface consumes (e.g., a stale `@param` in a doc-comment that a docs generator publishes) — same load-bearing test as the MEDIUM tier above.
+
+LOW sits below the Phase 4.1 admission gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5), landing in `## Deferred — sub-threshold` rather than on the PR — the intended disposition for a style finding, not a reason to inflate the tier.

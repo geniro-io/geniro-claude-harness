@@ -355,13 +355,15 @@ CODE_STYLE: [pre-inlined code-style / conventions content, or omit this line whe
 PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 
 Implement TODO_SPEC_EXCERPT against ALLOWED_FILES only — nothing beyond the slice. Match the
-surrounding files' conventions. Do NOT edit OTHER_DELEGATES_FILES or any file outside
-ALLOWED_FILES — general-purpose carries no tool-level restriction to them, so this boundary is
-a prompt-level contract the orchestrator checks against your returned diff. Do NOT run the full
-test suite — the orchestrator runs it once at end of phase.
+surrounding files' conventions. Write comments only for what stays true of the code — how to use
+it correctly, an invariant, a legal header, a TODO with an issue reference — each no longer than
+the constraint it carries; put rationale, prior behavior, and what you measured in your report
+back to the orchestrator, not the source. Do NOT edit OTHER_DELEGATES_FILES or any file outside
+ALLOWED_FILES. Do NOT run the full test suite — the orchestrator runs it once at end of phase.
 
-Critical constraints (prompt-level contract; general-purpose carries no tool-level restriction to
-enforce these):
+Critical constraints — this file-set boundary and the list below are a prompt-level contract;
+general-purpose carries no tool-level restriction to enforce them, so the orchestrator checks
+both against your returned diff:
 - No git mutation.
 - No destructive Bash.
 - No subagent spawning (leaf agent).
