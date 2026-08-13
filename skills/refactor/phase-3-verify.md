@@ -69,20 +69,21 @@ Orchestrator-inline addresses specific findings (Edit per finding); then re-spaw
 
 Output the markdown block directly in chat. No persistence to a handoff file — diff IS the deliverable.
 
-On the Trivial and Small tiers, neither the smell-evidence filter nor the reviewer batch runs (§1.3.1) — keep both headings and render a not-run line naming the tier and the reason instead of dropping the sections. A summary that drops them renders byte-identical to one where a Medium/Big run silently skipped the reviewer batch; the not-run line is what tells the two apart.
+On the Trivial and Small tiers, smell detection never runs (§1.3.1), so neither the smell-evidence filter nor the reviewer batch runs either — keep both headings and render a not-run line naming the tier and the reason instead of dropping the sections. A summary that drops them renders byte-identical to one where a Medium/Big run silently skipped the reviewer batch; the not-run line is what tells the two apart.
 
 ```markdown
 ## Refactor Complete
 
 ### Transformations Applied (N)
 - [file:line] — [what changed] — risk: [LOW/MEDIUM/HIGH] — consumers: N
+- [A Premature Optimization transformation appends its smell's `optimization_evidence` field verbatim — the profiler/benchmark data, identified hot path, and performance budget each stated present or absent.]
 
 ### Blocked Steps (N)
 - [file:line] — [what was attempted] — reason: [failure summary]
 
 ### Filtered smells (intentional patterns) (N)
 - [smell] — [reason filtered]
-- [Trivial/Small tier: "Not run — <tier> tier skips the smell-evidence filter (§1.3.1)." Medium/Big: omit this line; N counts the filtered smells above.]
+- [Trivial/Small tier: "Not run — <tier> tier skips smell detection (§1.3.1)." Medium/Big: omit this line; N counts the filtered smells above.]
 
 ### Review Findings
 - CRITICAL: N, HIGH: M, MEDIUM: K
