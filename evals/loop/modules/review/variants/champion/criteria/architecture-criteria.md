@@ -4,6 +4,15 @@ Design patterns, modularity, coupling, performance, scalability, and technical d
 
 Find every real defect this dimension owns by reading the changed code and its callers directly — your own analysis is the detector. The sections below are the contract you are held to: what NOT to flag, and how severity is calibrated.
 
+## Contents
+
+- §1.5 — Caller-blast check for semantic mutations
+- §1.6 — Parallel-path symmetry (mirror-gap)
+- §7.5 — Reinvented-wheel / build-vs-buy
+- §8 — Testability of the production code
+- Common false positives
+- Severity guidelines
+
 ## Cross-dimension boundary checks
 
 Two checks stay specified in full: each defines a defect-class boundary with the regressions dimension, and `severity-calibration.md` cites them by number.
@@ -55,6 +64,12 @@ When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code
 Severity HIGH when the untreated sibling loses or corrupts data; MEDIUM when it degrades gracefully. Anchor the finding at the edited path and name the unedited sibling `path:line`.
 
 This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence, since the two rubrics share this check by construction — Phase 3 dedup merges them, so do not suppress your finding on the assumption another dimension will cover it.
+
+### 7.5. Reinvented-wheel / build-vs-buy
+
+Hand-written code in a domain a maintained external library already solves — crypto, auth, password hashing, tokens, date/time math, parsing or serialization of untrusted input, retry-with-backoff, validation, HTTP clients, compression. Detection-only: this dimension flags the smell and tags the finding `[PRODUCT-DECISION]` so the user decides whether to adopt a library — it does not research candidates itself (no web access).
+
+Trigger condition, finding shape, and the `Options:` block are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` §MODE: review — apply that section when the diff hand-writes non-trivial functionality in one of the domains above; cite it rather than restating its procedure. Severity feeds the HIGH/MEDIUM rows below: MEDIUM is typical; HIGH only when the hand-written code carries real correctness or security risk a battle-tested library would remove (hand-rolled crypto, auth, timezone math, HTML sanitization); never CRITICAL — a runtime defect in the hand-rolled code itself is a bugs/security-dimension finding, not this one's.
 
 ### 8. Testability of the production code
 
@@ -117,6 +132,6 @@ This compact form is the primary owner of the check in review contexts that do N
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
 - **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is a runtime defect owned by the bugs dimension, not an architecture CRITICAL.
-- **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap (per §1.7) where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist; hand-rolled crypto / auth / parsing a battle-tested library would secure (per §7.5 reinvented-wheel).
-- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap (per §1.7) contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier); function-level complexity / deep nesting (per §4.5) on a critical path where the cognitive load raises real defect risk.
-- **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; excessive function-level nesting / cognitive load (per §4.5) on a non-critical path; documentation or PR-description nits about an architectural area.
+- **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist; hand-rolled crypto / auth / parsing a battle-tested library would secure (per §7.5 reinvented-wheel).
+- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier); function-level complexity / deep nesting on a critical path where the cognitive load raises real defect risk.
+- **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; excessive function-level nesting / cognitive load on a non-critical path; documentation or PR-description nits about an architectural area.

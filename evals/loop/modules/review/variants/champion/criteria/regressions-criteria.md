@@ -4,6 +4,13 @@ Defect-class audit for **unintended damage** introduced by the diff: production 
 
 Find every real defect this dimension owns by reading the changed code and its callers directly — your own analysis is the detector. The sections below are the contract you are held to: what NOT to flag, and how severity is calibrated.
 
+## Contents
+
+- The mirror-gap signal — §4 Parallel-path symmetry
+- Common false positives
+- Severity tagging — the four signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry
+- Anti-rationalization
+
 ## The mirror-gap signal
 
 Kept in full: `architecture-criteria.md` §1.6 and `severity-calibration.md` cite this procedure by number.
@@ -46,11 +53,11 @@ When two dims have legitimate overlap on the same hunk, both emit. The consuming
 | Behavior change outside stated intent; intent source EXISTS | Spec / PR body / commit message names intent; hunk is unrelated | HIGH, PRODUCT-DECISION |
 | Behavior change outside stated intent; intent source ABSENT | No spec, no PR body, no descriptive commit | MEDIUM, INTENT-CHECK |
 | Test deleted; production survives | Test removed in diff; production file / symbol persists | HIGH — coverage regression |
-| Test deleted alongside production (both removed) | Test and production removed in same diff | LOW informational OR skip; defer to §1 for the caller-blast finding |
+| Test deleted alongside production (both removed) | Test and production removed in same diff | LOW informational OR skip; defer to the deleted-symbol caller-blast signal above |
 | Conditional branch removed with surviving callers relying on the branch outcome | Diff drops an `else if` / `case` arm; grep shows callers asserting on the removed outcome | HIGH |
 | Guard / replacement / cleanup added on one path; sibling parallel path left untreated | Sibling shares the invariant and is not touched by the diff | HIGH when the gap causes data loss / corruption on the untreated path; MEDIUM when it degrades gracefully |
 
-The rubric is additive — a single hunk can trigger multiple rows (e.g., a deleted public API with no test replacement triggers CRITICAL for §1 AND HIGH for §3). Emit both findings; do not merge.
+The rubric is additive — a single hunk can trigger multiple rows (e.g., a deleted public API with no test replacement triggers CRITICAL for the deleted-symbol caller-blast signal AND HIGH for the test-coverage delta signal). Emit both findings; do not merge.
 
 ## Anti-rationalization
 
@@ -60,6 +67,6 @@ The rubric is additive — a single hunk can trigger multiple rows (e.g., a dele
 | "There's no spec.md, so I can't classify behavior changes as in-scope or out-of-scope; skip the dim." | Spec-less changes are the highest-risk regression class. When no intent source exists, default every behavior-mutating hunk to INTENT-CHECK at MEDIUM severity. The user resolves at the open-question gate; silently passing the hunk strips them of that decision. |
 | "Symbol-deletion blast radius is the architecture dim's job — skip it here." | `architecture-criteria.md` §1.5 covers blast radius of NON-deleted symbol changes (operator flips, return-value shifts in surviving code). Deleted-symbol caller blast is a distinct defect class with a different fix shape (restore vs. update caller vs. document migration). Both dims can fire; do not skip. |
 | "The PR body says 'minor refactor only' — that licenses the behavior change in this hunk." | "Minor refactor only" is intent narrative, not a license. A behavior-mutating hunk under a "refactor only" body is a contradiction between the stated intent and the diff — that IS the finding. Severity HIGH, decision-type PRODUCT-DECISION; the author must either narrow the diff or revise the body. |
-| "The deleted test was clearly redundant — same outcome as a surviving test." | Outcome match is not coverage match. Two tests asserting `expect(x).toBeNull()` can pin distinct cause paths. Emit the §3 finding when production survives; the cause-path verification belongs to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)" and routes from your finding via Phase 3 filter. |
+| "The deleted test was clearly redundant — same outcome as a surviving test." | Outcome match is not coverage match. Two tests asserting `expect(x).toBeNull()` can pin distinct cause paths. Emit the test-coverage delta finding when production survives; the cause-path verification belongs to `tests-criteria.md` §"Test Deletions in the Diff (Inverse Deletion Test)" and routes from your finding via Phase 3 filter. |
 | "The fix only touched the sync path; the weekly path is out of scope for this diff." | If the diff changed a guard / filter / replacement on one path, every parallel path sharing the same invariant IS in scope — an asymmetric edit IS the regression (the asymmetric-edit data-loss class — fix one branch of a cadence/type split, leave the mirror branch in the old behavior). Grep the enclosing module for the sibling symbol and verify the same treatment landed there; a sibling left untreated is the mirror-gap finding. |
 

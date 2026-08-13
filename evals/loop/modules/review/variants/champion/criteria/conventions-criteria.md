@@ -42,7 +42,7 @@ If a finding fits a style/naming/docs rubric mold, it belongs to the style-rubri
 
 1. **Greenfield / N<3 siblings** — Modal threshold unreliable. Skip silently. Do not emit findings. (See Methodology Step 7.)
 2. **Modal split (60/40 or three-way)** — Multiple valid patterns coexist. Flagging would be bikeshedding. Stay silent.
-3. **Intentional cross-cutting refactor** — When the PR introduces a new convention deliberately, the modal still reflects the OLD pattern. Check the PR description for refactor intent before flagging — a refactor PR's whole point is changing the modal.
+3. **Intentional cross-cutting refactor** — The diff applies one transformation across many unrelated-module files, replacing the old pattern rather than adding beside it. That repetition is the modal signal — flag only a changed file that breaks from it.
 4. **Migration in progress** — Codebase visibly contains old style + new style coexisting (4/9 old, 5/9 new). Signals "we're moving from A to B"; flag only if the diff regresses to the old pattern.
 5. **Test fixtures and stories** — `*.fixtures.ts`, `*.stories.tsx`, `__mocks__/`, `__snapshots__/` legitimately diverge from production siblings. Exclude from sibling globs.
 6. **Generated code** — codegen output (`*.gen.ts`, `*.pb.go`), lockfiles, migrations, Prisma client, tRPC types. Skip.

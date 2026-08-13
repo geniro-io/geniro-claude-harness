@@ -403,7 +403,7 @@ The Inverse Deletion Test below guards *deleted* tests from silent coverage loss
 
 The existing Litmus test (above) evaluates a TEST'S strength by mentally deleting the PRODUCTION code. Apply the inverse direction when the diff DELETES one or more tests: evaluate the test's intent by checking what scenario it pinned.
 
-> **Overlap with regressions-criteria.md §3 is deliberate.** That dimension also scans deleted tests, from the other end: it asks whether the production symbol a deleted test covered still survives (a coverage regression). This section asks whether the deleted test's *cause path* is still pinned by any surviving test. The two questions land on the same deletion and can produce the same finding, which is expected — Phase 3 dedup merges them. Do not suppress yours on the assumption the other dimension covers it: `/geniro:implement` Phase 3 spawns `tests` without `regressions`, so this section is the only owner of the deleted-test class there.
+> **Overlap with regressions-criteria.md's test-coverage delta signal is deliberate.** That dimension also scans deleted tests, from the other end: it asks whether the production symbol a deleted test covered still survives (a coverage regression). This section asks whether the deleted test's *cause path* is still pinned by any surviving test. The two questions land on the same deletion and can produce the same finding, which is expected — Phase 3 dedup merges them. Do not suppress yours on the assumption the other dimension covers it: `/geniro:implement` Phase 3 spawns `tests` without `regressions`, so this section is the only owner of the deleted-test class there.
 
 For every test removed by the diff (whole file deleted, OR an `it` / `test` / `describe` block removed from an existing file), ask:
 
@@ -457,8 +457,7 @@ This is the inverse of mutation testing: instead of mutating the code to see wha
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
-- **CRITICAL**: No tests for critical business logic; no error-handling tests on payment/auth/data-write paths; assertions test the wrong thing (false confidence) on a critical path
-- **HIGH**: Test gap on a critical-path or high-blast-radius behavior — auth, payments, data writes/migrations, security validators, public API contracts, irreversible operations. Or: a test exists but its assertions are too weak to catch the regression it was added to prevent (deletion-test failure on critical code)
+- **HIGH**: No tests for critical business logic; no error-handling tests on payment/auth/data-write paths; assertions test the wrong thing (false confidence) on a critical path; a test gap on a critical-path or high-blast-radius behavior — auth, payments, data writes/migrations, security validators, public API contracts, irreversible operations. Or: a test exists but its assertions are too weak to catch the regression it was added to prevent (deletion-test failure on critical code). This dim's ceiling is HIGH — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1's CRITICAL inclusion list has no coverage-gap class, and §2 caps a missing-test finding at MEDIUM/LOW; a critical-path coverage gap is this dim's own HIGH escalation, not a widening into CRITICAL.
 - **MEDIUM**: Routine coverage gap on modified code (new util, new helper, new branch); missing edge-case test for non-critical-path code; weak assertions on non-critical code; integration-test placement or organization issue; missing boundary test that wouldn't cause production impact
 - **LOW**: Style of tests, naming, organization, or minor coverage improvement on glue/wiring code
 
