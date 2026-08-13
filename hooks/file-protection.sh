@@ -116,17 +116,64 @@ is_allowed() {
   esac
 }
 
+# What to do INSTEAD, per pattern.
+#
+# A deny message that names only the bypass leaves the caller with two moves:
+# resend the same command, or widen the project's permanent allow list. Across
+# 1,408 sessions (2026-08-13) this guard's blocks produced a near-identical
+# retry more often than any other outcome, while block-dangerous-git.sh — whose
+# messages name a safer equivalent — produced a better command nearly every
+# time. The difference is this line.
+remedy_for() {
+  case "$1" in
+    write-env)
+      echo "Instead: write .env.example (blank values, committed) and let a human fill in the real .env, or export the variable for this command only. Template and backup spellings — .env.example / .env.sample / .env.template / .env.dist and .env*bak — are already exempt." ;;
+    write-git-internal)
+      echo "Instead: use the porcelain that owns the file — \`git config\` for config, \`git update-ref\` for refs, \`git remote\` for remotes. Hand-editing .git/ desynchronizes the index." ;;
+    write-lockfile)
+      echo "Instead: change the manifest (package.json / Cargo.toml / pyproject.toml) and let the package manager regenerate the lock file — \`pnpm install\`, \`cargo update\`, \`poetry lock\`. A hand-edited lock file is overwritten by the next install." ;;
+    write-cert-key)
+      echo "Instead: generate the key outside the repo and reference it by path, or use the project's secret store. A key written here lands in git history." ;;
+    write-credentials)
+      echo "Instead: reference the credential from the environment or the project's secret store, and commit only the example/placeholder form." ;;
+    write-tfstate)
+      echo "Instead: let Terraform own the file — \`terraform apply\`, \`terraform import\`, or \`terraform state mv/rm\` for surgery. Hand-edited state diverges from the real infrastructure." ;;
+    write-vault)
+      echo "Instead: use \`ansible-vault edit\` / the vault CLI, which re-encrypts on write. A plain write leaves the file readable." ;;
+    *) echo "" ;;
+  esac
+}
+
 block() {
   local pattern_id="$1"
   local description="$2"
   local path="$3"
+  local remedy
+  remedy=$(remedy_for "$pattern_id")
   echo "File protection [$pattern_id]: Cannot write to $description: $path" >&2
+  [ -n "$remedy" ] && echo "$remedy" >&2
   if [ -n "$SAFETY_FILE" ]; then
-    echo "To allow this pattern, add \"$pattern_id\" to allow_patterns in $SAFETY_FILE" >&2
+    echo "Or, if this file genuinely needs writing here, add \"$pattern_id\" to allow_patterns in $SAFETY_FILE" >&2
   else
-    echo "To allow this pattern in this project, create .geniro/safety.json with: {\"allow_patterns\": [\"$pattern_id\"]}" >&2
+    echo "Or, if this file genuinely needs writing here, create .geniro/safety.json with: {\"allow_patterns\": [\"$pattern_id\"]}" >&2
   fi
   exit 2
+}
+
+# A path inside a disposable tree — the system temp dirs (including macOS's
+# /var/folders mktemp root) and the per-session scratchpad. Files built there
+# are fixtures and scratch by construction: nothing reads them after the run,
+# and no package manager resolves against them.
+#
+# Consulted ONLY by the lock-file pattern. Credential, key and state-file
+# patterns deliberately still fire in a temp tree — a real secret written to
+# /tmp is a real secret on disk, and the pattern exists to catch it wherever it
+# lands. A generated lock file is the opposite: it is inert outside a project.
+# Here-string rather than `printf | grep -q`: under `pipefail` a `grep -q` that
+# matches early closes the pipe and the producer dies on SIGPIPE, so the
+# pipeline reports 141 on a MATCH — the inverse of the intended verdict.
+is_disposable_tree() {
+  grep -qE '(^|/)(private/)?tmp/|(^|/)var/folders/|/scratchpad/' <<< "$1"
 }
 
 # Run the full pattern set against one candidate path (case-insensitive).
@@ -136,9 +183,24 @@ check_protected_path() {
   local p_lower
   p_lower=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')
 
-  # 1. .env files (most common false-positive — dev-setup workflows often clone .env from a template)
+  # 1. .env files — the populated ones only.
+  #
+  # Template and backup spellings are exempt, because neither carries a live
+  # secret and both are ordinary work: `.env.example` / `.env.sample` /
+  # `.env.template` / `.env.dist` are committed placeholders (the whole point
+  # is that they hold blank values), and `cp .env .env.<something>bak` is the
+  # cautious move a run makes BEFORE editing config. Measured 2026-08-13: a run
+  # was blocked writing `.env.example` in a throwaway fixture tree and retried
+  # the identical command; another was blocked on `cp .env .env.m2bak` and
+  # handed the command back to the user to run by hand. Neither exposed a
+  # secret; both cost a turn or the whole task.
+  #
+  # `.env.local` / `.env.production` and friends stay blocked — those are
+  # populated files that differ from `.env` only in which environment they hold
+  # credentials for.
   if ! is_allowed "write-env"; then
-    if printf '%s' "$p_lower" | grep -qE '\.env$|\.env\.'; then
+    if printf '%s' "$p_lower" | grep -qE '\.env$|\.env\.' \
+       && ! printf '%s' "$p_lower" | grep -qE '\.env\.(example|sample|template|dist|defaults?)$|\.env[^/]*\.?bak[^/]*$'; then
       block "write-env" ".env file" "$p"
     fi
   fi
@@ -150,9 +212,14 @@ check_protected_path() {
     fi
   fi
 
-  # 3. Lock files (auto-generated by package managers — manual edits usually wrong)
+  # 3. Lock files (auto-generated by package managers — manual edits usually
+  # wrong), except inside a disposable tree, where the "lock file" is a fixture
+  # no resolver will ever read. Measured 2026-08-13: a run building a benchmark
+  # fixture under /private/tmp was blocked writing its `pnpm-lock.yaml` and had
+  # to drop the file from the fixture.
   if ! is_allowed "write-lockfile"; then
-    if printf '%s' "$p_lower" | grep -qE 'pnpm-lock\.yaml$|package-lock\.json$|yarn\.lock$|bun\.lockb$|cargo\.lock$|gemfile\.lock$|composer\.lock$|poetry\.lock$|pipfile\.lock$|go\.sum$'; then
+    if printf '%s' "$p_lower" | grep -qE 'pnpm-lock\.yaml$|package-lock\.json$|yarn\.lock$|bun\.lockb$|cargo\.lock$|gemfile\.lock$|composer\.lock$|poetry\.lock$|pipfile\.lock$|go\.sum$' \
+       && ! is_disposable_tree "$p_lower"; then
       block "write-lockfile" "package-manager lock file" "$p"
     fi
   fi

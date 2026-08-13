@@ -29,7 +29,11 @@ atomic_state_write "<path>" <<'EOF'
 EOF
 ```
 
-**Why, and why you can't route around it.** The helper does tmp + fsync + rename; a direct write truncates-and-rewrites, so a reader hitting that window sees a partial file. The `enforce-state-helper` PreToolUse hook hard-blocks both routes to it: `Edit`/`Write`/`MultiEdit` on a state path, *and* the Bash-side equivalents — redirection, `tee`, `sed -i`, `cp`/`mv` destinations, an interpreter opening the file for writing, even inside a `sh -c` / `eval` payload. Reads stay free. The exemptions are already encoded in the hook (T1 transient subagent outputs, `.geniro/state/tdd/`); a path it blocks is a path that needs the helper, not one that needs a workaround.
+**Why.** The helper does tmp + fsync + rename; a direct write truncates-and-rewrites, so a reader hitting that window sees a partial file.
+
+**What enforces it.** The `enforce-state-helper` PreToolUse hook hard-blocks `Edit`/`Write`/`MultiEdit`/`NotebookEdit` on a state path — it reads `file_path`, a declared target it cannot misread. Its exemptions are encoded in the hook (dot-prefixed T1 scratch, `.geniro/state/tdd/`); a path it blocks is a path that needs the helper, not one that needs a workaround.
+
+**Shell-side writes are on you.** The hook does not match `Bash`: a redirection, `tee`, `sed -i`, or an interpreter's `open(p,'w')` into a state path is undetected, and routing it through the helper is a contract you keep rather than one a guard enforces. The Bash branch was removed 2026-08-13 — with no target field to read it guessed one out of the command string, and the guessing blocked a `MIGRATION.md` edit whose prose mentioned a state path and a heredoc fragment that was not a path at all. Across 1,408 sessions it produced compliance under a third of the time; the rest was a near-identical retry or a workaround. An undetectable write beats a guard that blocks the wrong ones.
 
 Do not restate tier facts in this file — the copy drifts. Tier model, per-tier frontmatter, the terminal-exit cleanup contract, and the TDD carve-out are canonical in `skills/_shared/state-tier-spec.md`. Helper exit codes and the optimistic mtime-check pattern: `atomic-state-write.md`. Validator exit codes and the recovery prompt when validation fails before a resume: `validate-state-file.md`.
 

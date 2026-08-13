@@ -108,10 +108,11 @@ expect_verdict "shell write to .env -> deny" deny \
 expect_verdict "shell write to a normal file -> allow" allow \
   "$(shell_verdict file-protection.sh 'echo hello > notes.txt')"
 
-expect_verdict "shell write to a state path -> deny" deny \
+# enforce-state-helper no longer matches Bash — a shell-side state write is
+# out of its scope, so the shim has nothing to relay for it. The file-tool
+# side is covered by tests/hooks/enforce-state-helper.sh.
+expect_verdict "shell write to a state path -> allow (guard is file-tool only)" allow \
   "$(shell_verdict enforce-state-helper.sh 'echo body > .geniro/planning/task/state.md')"
-expect_verdict "state write through the atomic helper -> allow" allow \
-  "$(shell_verdict enforce-state-helper.sh 'atomic_state_write .geniro/planning/task/state.md')"
 
 expect_verdict "shell-authored anti-pattern -> deny" deny \
   "$(shell_verdict security-pattern-check.sh "printf '$EVAL_SNIPPET' > app.js")"

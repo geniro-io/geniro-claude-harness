@@ -167,6 +167,27 @@ expect_allow "node reading a .geniro file allowed"       "$(run_cmd "node -e \"c
 expect_allow "python deleting outside .geniro allowed"   "$(run_cmd "python3 -c \"import shutil; shutil.rmtree('build')\"")"
 
 # ===== git worktree remove =====
+# The guard inspects the target before blocking: a worktree that really holds
+# unrouted state blocks, a clean one goes through. It used to fire on the
+# command shape alone and tell the caller to "verify .geniro/ is empty" — a
+# precondition it could not observe, so verifying never unblocked anything.
+WT_ROOT="$TMPDIR_BASE/wtfix"
+mkdir -p "$WT_ROOT"
+git -C "$WT_ROOT" init -q .
+git -C "$WT_ROOT" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+git -C "$WT_ROOT" worktree add -q "$WT_ROOT/wt-clean" -b wtclean 2>/dev/null
+git -C "$WT_ROOT" worktree add -q "$WT_ROOT/wt-dirty" -b wtdirty 2>/dev/null
+mkdir -p "$WT_ROOT/wt-dirty/.geniro"
+printf 'unrouted\n' > "$WT_ROOT/wt-dirty/.geniro/scratch.txt"
+expect_block "worktree holding unrouted state blocks" \
+  "$(run_cmd "git worktree remove $WT_ROOT/wt-dirty")"
+expect_allow "clean worktree is allowed through" \
+  "$(run_cmd "git worktree remove $WT_ROOT/wt-clean")"
+expect_allow "absolute target that does not exist is allowed" \
+  "$(run_cmd 'git worktree remove /nonexistent/wt')"
+expect_block "clean worktree named through a relative path with no cd stays blocked" \
+  "$(run_cmd 'git worktree remove ./wt-clean')"
+
 expect_block "git worktree remove blocked"      "$(run_cmd 'git worktree remove ../wt')"
 # Regression: a quoted -C operand with a space must not leak the subcommand past
 # the global-options strip (audit D5b-2).

@@ -134,6 +134,39 @@ ext_matches() {
   esac
 }
 
+# Test files and disposable scratch trees are out of scope for every pattern
+# here.
+#
+# All eight patterns describe a code SHAPE that is dangerous when it ships —
+# none of them detects a leaked credential. Test code exercises those exact
+# shapes on purpose: a jsdom spec asserts against `innerHTML`, a TLS test
+# points at a self-signed local server, a shell-wrapper test builds the
+# injection it is proving is escaped. So does fixture-building: measured
+# 2026-08-13, a run authoring a security benchmark was blocked writing the
+# deliberately-unsafe download-to-shell construct its fixture existed to
+# contain, and two runs were blocked writing `live-row.spec.tsx` /
+# `popover.spec.tsx` for `sec-xss-sink` and resent near-identical content
+# because the message named the pattern but nothing that would satisfy it.
+#
+# Scoped to path shape, not content, so it cannot be spoofed from inside a
+# production file — a shipped module is not named `*.spec.ts` and does not live
+# under the session scratchpad.
+#
+# Deliberately NOT a blanket temp-directory exemption. `/tmp/x.py` is the
+# stand-in path this hook's own suite uses for "an ordinary source file", and
+# treating every temp path as scratch would silently void that whole suite —
+# and with it the coverage for anything a run builds in a temp worktree. The
+# two measured false positives are both reached by the named directories below.
+# Here-string rather than `printf | grep -q`: under `pipefail` a `grep -q` that
+# matches early closes the pipe and the producer dies on SIGPIPE, so the
+# pipeline reports 141 on a MATCH — the inverse of the intended verdict.
+is_test_or_scratch_target() {
+  local p="${1:-}"
+  [ -n "$p" ] || return 1
+  grep -qE \
+    '(^|/)(__tests__|__mocks__|tests?|spec|e2e|fixtures?|benchmarks?)/|\.(spec|test)\.[a-z0-9]+$|_test\.[a-z0-9]+$|(^|/)test_[^/]+$|(^|/)conftest\.py$|/scratchpad/' <<< "$p"
+}
+
 block() {
   local pattern_id="$1" description="$2" matched_line="$3"
   cat >&2 <<EOF
@@ -166,6 +199,7 @@ GENIRO_SPC_TRUNC_LEN=160
 check() {
   local id="$1" exts="$2" desc="$3" regex="$4"
   if is_allowed "$id"; then return 0; fi
+  if is_test_or_scratch_target "$FILE_PATH"; then return 0; fi
   if ! ext_matches "$exts"; then return 0; fi
   local matched=""
   # Echo only the matched construct ($&), not the whole source line ($_): the

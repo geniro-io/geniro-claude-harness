@@ -93,10 +93,12 @@ matrix_for_guard() {  # <label> <hook-path> <segment> <payload-tmpl-with-{P}>
 matrix_for_guard "enforce-state-helper.sh [safety.json write]" \
   "$REPO_ROOT/hooks/enforce-state-helper.sh" "safety.json" \
   '{"tool_name":"Write","tool_input":{"file_path":"{P}","content":"x"}}'
-# general state-path gate, Bash-side redirect (#2).
-matrix_for_guard "enforce-state-helper.sh [bash redirect]" \
+# general state-path gate, file-tool side (#2). Was a Bash redirect until the
+# shell-side branch was retired; the path-spelling matrix is what matters here
+# and it runs identically through file_path.
+matrix_for_guard "enforce-state-helper.sh [state path write]" \
   "$REPO_ROOT/hooks/enforce-state-helper.sh" "planning/task/state.md" \
-  '{"tool_name":"Bash","tool_input":{"command":"echo x > {P}"}}'
+  '{"tool_name":"Write","tool_input":{"file_path":"{P}","content":"x"}}'
 
 # ===== hooks/block-geniro-deletion.sh (findings #3, #4) =====
 matrix_for_guard "block-geniro-deletion.sh [rm -rf]" \

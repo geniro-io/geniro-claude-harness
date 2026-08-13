@@ -589,15 +589,50 @@ is_allowed() {
   esac
 }
 
+# The non-destructive command that reaches the same goal, per pattern.
+#
+# This guard is the one whose blocks measurably work: across 1,408 sessions
+# (2026-08-13) callers answered it by finding a safer equivalent — `git switch
+# -C` for a `reset --hard`, `branch -d` for a `-D`, `reset --mixed` for a
+# `restore --staged .` — far more often than they retried or worked around it.
+# They were re-deriving these each time. Naming them turns a reliable-ish
+# instinct into a stated one, and is why the sibling guards now do the same.
+remedy_for() {
+  case "$1" in
+    force-push|force-push-with-lease)
+      echo "Reach the same end without rewriting remote history: push a new branch and open a PR, or \`git revert\` the commits you want undone. If the rewrite is genuinely intended, fetch first so the lease is checked against a current ref." ;;
+    push-delete)
+      echo "Delete the branch through the forge (PR merge, or the branch UI) so the deletion is recorded and reviewable, rather than from the CLI." ;;
+    reset-hard)
+      echo "Move the branch pointer without touching the working tree: \`git switch -C <branch> <ref>\` when the tree is clean, or \`git reset --mixed <ref>\` to unstage while keeping every change." ;;
+    branch-delete-force)
+      echo "Use \`git branch -d\`, which refuses only branches whose work is unmerged — if it refuses, that work exists nowhere else and is the thing -D would destroy." ;;
+    clean-fd)
+      echo "Preview first with \`git clean -nd\`, then remove the named paths with \`rm\` — or \`git stash -u\` to set the untracked files aside recoverably." ;;
+    checkout-mass-discard|restore-mass-discard)
+      echo "Name the paths instead of a bare . or * — \`git checkout -- <path>\` / \`git restore <path>\`. To unstage everything while keeping the changes, \`git reset --mixed\`." ;;
+    update-ref-delete)
+      echo "Use \`git branch -d\` / \`git tag -d\`, which go through the reflog and stay recoverable." ;;
+    stash-drop)
+      echo "Apply it first (\`git stash pop\`) so the changes land somewhere, or leave the entry — stashes cost nothing to keep." ;;
+    worktree-remove-force)
+      echo "Remove without --force so git refuses on uncommitted work, or commit/stash inside the worktree first." ;;
+    *) echo "" ;;
+  esac
+}
+
 block() {
   local pattern_id="$1"
   local message="$2"
+  local remedy
+  remedy=$(remedy_for "$pattern_id")
   echo "Security blocked [$pattern_id]: $message" >&2
+  [ -n "$remedy" ] && echo "$remedy" >&2
   echo "Command: $COMMAND" >&2
   if [ -n "$SAFETY_FILE" ]; then
-    echo "To allow this pattern, add \"$pattern_id\" to allow_patterns in $SAFETY_FILE" >&2
+    echo "Or, if the destructive form is genuinely what you want, add \"$pattern_id\" to allow_patterns in $SAFETY_FILE" >&2
   else
-    echo "To allow this pattern in this project, create .geniro/safety.json with: {\"allow_patterns\": [\"$pattern_id\"]}" >&2
+    echo "Or, if the destructive form is genuinely what you want, create .geniro/safety.json with: {\"allow_patterns\": [\"$pattern_id\"]}" >&2
   fi
   exit 2
 }
