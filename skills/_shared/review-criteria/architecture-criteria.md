@@ -67,7 +67,7 @@ This compact form is the primary owner of the check in review contexts that do N
 
 ### 7.5. Reinvented-wheel / build-vs-buy
 
-Hand-written code in a domain a maintained external library already solves — crypto, auth, password hashing, tokens, date/time math, parsing or serialization of untrusted input, retry-with-backoff, validation, HTTP clients, compression. Detection-only: this dimension flags the smell and tags the finding `[PRODUCT-DECISION]` so the user decides whether to adopt a library — it does not research candidates itself (no web access).
+Hand-written code in a domain a maintained external library already solves — crypto, auth, password hashing, tokens, date/time math, parsing or serialization of untrusted input, retry-with-backoff, validation, HTTP clients, compression. Detection-only: this dimension flags the smell and tags the finding `[PRODUCT-DECISION]` so the user decides whether to adopt a library — it does not research candidates itself, since the reviewer-agent has no `WebSearch`/`WebFetch` grant and the review path cannot rely on web reach being present.
 
 Trigger condition, finding shape, and the `Options:` block are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` §MODE: review — apply that section when the diff hand-writes non-trivial functionality in one of the domains above; cite it rather than restating its procedure. Severity feeds the HIGH/MEDIUM rows below: MEDIUM is typical; HIGH only when the hand-written code carries real correctness or security risk a battle-tested library would remove (hand-rolled crypto, auth, timezone math, HTML sanitization); never CRITICAL — a runtime defect in the hand-rolled code itself is a bugs/security-dimension finding, not this one's.
 

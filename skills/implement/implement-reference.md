@@ -297,7 +297,7 @@ On missing/empty OUTPUT_PATH file OR `Agent` tool error: one silent retry. Secon
 
 ## Phase 1: Library reuse audit (build-vs-buy)
 
-**When it fires.** After the codebase-explorer output is read (Step 8), for each `NO-ANALOGUE` component in the explorer's reuse inventory, when `change_scope` ∈ {small, medium, big}. Skip trivial scope, and skip silently when the project has no package manifest — there is nothing to install into.
+**When it fires.** After the codebase-explorer output is read (Step 8), for each `NO-ANALOGUE` component in the explorer's reuse inventory, when `change_scope` ∈ {small, medium, big}. Skip trivial scope. Steps 1-4 skip silently when the project has no package manifest — there is nothing to install into — while Step 0's language/stdlib check always runs.
 
 **What it does.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` with MODE: implement — that file owns the full procedure (ecosystem detection, the single web-research spawn, the existence-verify + disqualifier funnel, the message-first confirmation gate with "Keep hand-written" as the non-Recommended default, `approvals[]` category `library_adoption` persistence, decline emit, and fail-open).
 

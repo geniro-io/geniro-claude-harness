@@ -6,14 +6,14 @@
 agents/adversarial-tester-agent.md 3327
 agents/codebase-explorer-agent.md 1418
 agents/codebase-research-agent.md 1967
-agents/finding-verifier-agent.md 2104
+agents/finding-verifier-agent.md 2186
 agents/knowledge-retrieval-agent.md 1412
 agents/reflection-agent.md 1670
 agents/reviewer-agent.md 3236
 agents/test-runner-agent.md 1133
 skills/actions/SKILL.md 2853
 skills/audit-instructions/SKILL.md 3461
-skills/debug/SKILL.md 3314
+skills/debug/SKILL.md 3329
 skills/implement/SKILL.md 4505
 skills/instructions/SKILL.md 2634
 skills/investigate/SKILL.md 3166
@@ -22,6 +22,6 @@ skills/plan/SKILL.md 3021
 skills/refactor/SKILL.md 3336
 skills/reflect/SKILL.md 3308
 skills/resolve/SKILL.md 3212
-skills/review/SKILL.md 3283
+skills/review/SKILL.md 3304
 skills/setup/SKILL.md 2346
 skills/update/SKILL.md 1851

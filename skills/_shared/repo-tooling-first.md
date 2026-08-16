@@ -35,6 +35,7 @@ This primitive is the generator-side member of the reuse family; it does not ove
 |---|---|
 | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` | Does THIS repo already have the CODE? (don't reinvent an in-repo abstraction) |
 | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` | Does the ECOSYSTEM already have the code? (build-vs-buy a library) |
+| `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` §Step 0 | Does the LANGUAGE itself already cover it? (stdlib / built-in capability / dependency-free pattern — don't buy or hand-write what the language ships) |
 | **this file** | Does THIS repo's own TOOLING already GENERATE the artifact? (don't hand-roll what a scaffolder produces) |
 
 ## 6. Fail-open + plain-English echo
