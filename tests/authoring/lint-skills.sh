@@ -280,6 +280,29 @@ done <<< "$spawns"
 rm -f "$valid_agents"
 [ "$unknown" -eq 0 ] && echo "OK: all subagent_type spawns resolve to a real agent or builtin"
 
+# 3b. Prefixed spawn form stated without its non-Claude-Code counterpart.
+# `geniro:` is the namespace Claude Code prefixes onto a marketplace-installed
+# plugin's agents. No other host has a plugin namespace, so under Cursor (and
+# every other runtime) the prefixed form resolves nowhere — and because
+# spawn-agent.md §Parallel-spawn sites degrades a batch as a unit, a fan-out
+# that opens at the prefixed rung there burns one dead spawn PER AGENT plus a
+# whole turn before any real work starts (observed: an 11-reviewer
+# /geniro-review fan-out). spawn-agent.md now enters the ladder at the bare
+# rung off-Claude-Code, but that file is a deferred read the happy path never
+# opens: what a run actually obeys is the spawn form written at the call site.
+# So every call site naming the prefixed form must name the bare one beside it.
+# spawn-agent.md itself is exempt — it is where the distinction is defined.
+missing_bare=0
+while IFS= read -r hit; do
+  [ -z "$hit" ] && continue
+  report_fail "prefixed-only spawn form (no bare-name counterpart for non-Claude-Code hosts): ${hit%%:*} — ${hit#*:}"
+  missing_bare=$((missing_bare + 1))
+done <<< "$(grep -rnE 'subagent_type[=:][[:space:]]*"?geniro:' skills agents 2>/dev/null \
+  | grep -v '^skills/_shared/spawn-agent\.md:' \
+  | grep -vE 'bare `?subagent_type|bare name|Claude Code only|bare `<agent>`|→ bare' \
+  | cut -d: -f1,2)"
+[ "$missing_bare" -eq 0 ] && echo "OK: every prefixed spawn form names its bare non-Claude-Code counterpart"
+
 # 4. Reference-graph inversion — skill-structure.md §Reference graph: skills cite
 # DOWNWARD into skills/_shared/, never the reverse. A helper that names a skill
 # body as the canonical home of a rule it consumes inverts the graph: the helper

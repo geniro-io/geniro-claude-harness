@@ -186,7 +186,7 @@ If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task
 
 ## Phase 1: Subagent spawn template
 
-Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, both `Agent(...)` tool calls together (the codebase-explorer alone when the store-empty gate in `phase-1-analyze.md` Step 7 skipped the knowledge-retrieval slot). Spawn `subagent_type="geniro:<agent>"`; on `Agent type not found` or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
+Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, both `Agent(...)` tool calls together (the codebase-explorer alone when the store-empty gate in `phase-1-analyze.md` Step 7 skipped the knowledge-retrieval slot). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host (`geniro:` is Claude Code's plugin namespace; no other host has one); on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` — the frontmatter governs (codebase-explorer-agent declares `model: inherit`; knowledge-retrieval-agent declares `model: sonnet`, a mechanical-gather carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
 ### Backgrounding when a handoff gate is pending (idle-overlap)
 
@@ -379,7 +379,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 ## Phase 2: test-runner-agent spawn template
 
-Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=` — test-runner-agent declares `model: sonnet` in frontmatter (mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Spawn `subagent_type="geniro:test-runner-agent"` (not-found error or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form).
+Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. OMIT `model=` — test-runner-agent declares `model: sonnet` in frontmatter (mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). Spawn `subagent_type="geniro:test-runner-agent"` under Claude Code, bare `subagent_type="test-runner-agent"` under any other host (fails-to-start or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form).
 
 The orchestrator pre-resolves these slots:
 
@@ -505,7 +505,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 ## Phase 3: Self-review reviewer-agent template
 
-Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type="geniro:reviewer-agent"`; on `Agent type not found` or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` (reviewer-agent declares `model: inherit`).
+Spawn reviewer-agents in parallel — one call per dimension, all `Agent(...)` tool uses in the SAME assistant response. Each uses `subagent_type="geniro:reviewer-agent"` under Claude Code, bare `subagent_type="reviewer-agent"` under any other host (`geniro:` is Claude Code's plugin namespace); on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. OMIT `model=` (reviewer-agent declares `model: inherit`).
 
 **Pass criteria paths, never criteria bodies — do not read the criteria files.** The dimensions table below names a large rubric across the built-in dimensions; pre-reading them to inline into prompts drags every word through the orchestrator's own context as pure pass-through payload, on every run, and the reviewer would have re-read them anyway. `reviewer-agent` holds `Read` and its §Step 1 reads whatever paths its prompt names. Inline a body only where the reviewer cannot Read the path but you can — say so in the slot so it knows which form it got. When the file is unreadable for you too, pass no criteria for that dimension and let the reviewer's §Fallback strategy run. Custom reviewers are the standing exception: `load-custom-reviewers.md` already returns `criteria-content` from the user's own file, so those spawns pass content as before.
 
@@ -572,7 +572,7 @@ Phase 3 Round 1 also spawns ONE `adversarial-tester-agent` in the same parallel 
 - Codebase-Explorer report `change_scope: trivial`, OR
 - `--no-adversarial` modifier present in `$ARGUMENTS`.
 
-Spawn `subagent_type="geniro:adversarial-tester-agent"` (not-found error or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form). OMIT `model=` (adversarial-tester-agent declares `model: inherit`).
+Spawn `subagent_type="geniro:adversarial-tester-agent"` under Claude Code, bare `subagent_type="adversarial-tester-agent"` under any other host (fails-to-start or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form). OMIT `model=` (adversarial-tester-agent declares `model: inherit`).
 
 The orchestrator pre-resolves these slots:
 
