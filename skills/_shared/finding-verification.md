@@ -163,7 +163,8 @@ For each cluster:
 
 After loop:
   Send the accumulated batch (the invariant below governs how).
-  - Use `Agent(subagent_type="geniro:finding-verifier-agent", ...)` per the ladder in
+  - Use `Agent(subagent_type="geniro:finding-verifier-agent", ...)` — bare `subagent_type="finding-verifier-agent"`
+    under any host other than Claude Code — per the ladder in
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
   - OMIT `model=` (orchestrator tier inherits via frontmatter `model: inherit`) per
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.

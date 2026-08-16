@@ -5,7 +5,7 @@
 - §The problem — registration name varies by runtime
 - §The rule — the prefixed → bare → general-purpose ladder
 - §Empty-result fallback — when a spawn returns 0 tokens
-- §Why prefixed-first — ordering rationale
+- §Why the entry rung is host-dependent — ordering rationale
 - §Worked example
 - §Anti-rationalization
 
@@ -20,10 +20,11 @@ The plugin defines several custom subagents in `${CLAUDE_PLUGIN_ROOT}/agents/*.m
 | Interactive Claude Code with plugin marketplace-installed | Yes, under plugin namespace | **No** | **Yes** |
 | Vendored / harness install (agents copied to `.claude/agents/geniro-*.md`, YAML `name:` unchanged) | Yes, under bare YAML name | **Yes** | No |
 | Claude Code SDK / harness / cloud runners | **No** ([SDK init reports `plugins`+`slash_commands`, not agents](https://code.claude.com/docs/en/agent-sdk/plugins)) | No — hard error | No — hard error |
+| Cursor, or any other non-Claude-Code plugin host | Yes, under bare YAML name (`cursor/agents/*.md`) | **Yes** | **No** — `geniro:` is Claude Code's plugin namespace and no other host has one |
 
-When the agent is not registered under the form you try, the call fails with: `Agent type 'X' not found. Available agents: …`. There is **no silent fallback**. Skills that don't handle this break in one or more runtimes.
+When the agent is not registered under the form you try, there is **no silent fallback** — the spawn never starts. Skills that don't handle this break in one or more runtimes. Hosts word the failure differently and you must recognize the class, not one string: Claude Code returns `Agent type 'X' not found. Available agents: …`; Cursor surfaces a subagent that reports `Couldn't start` with no error text at all.
 
-The "Available agents" list in that error is the ground truth for what works — when in doubt, read it. In interactive-plugin mode you will see `geniro:reviewer-agent` listed (not bare `reviewer-agent`); in vendored mode you will see bare names; in SDK/harness you will see neither.
+Where the host does list what it accepts, that list is the ground truth — when in doubt, read it. In interactive-plugin mode you will see `geniro:reviewer-agent` listed (not bare `reviewer-agent`); in vendored and Cursor installs you will see bare names; in SDK/harness you will see neither.
 
 ## The rule
 
@@ -31,13 +32,15 @@ The "Available agents" list in that error is the ground truth for what works —
 
 **`model=` is omitted at every rung, with two exceptions.** The agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`), and at rung 3 `general-purpose`'s own inherit-from-parent default does the same job. The first exception is a user-authored custom reviewer that declares an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass `model={user-declared-value}` verbatim, at whichever rung resolves. The second is a category-4 execution spawn (`model-tiering.md` §The rule, category 4) — its named sites pass `model="sonnet"` hard-pinned, unchanged across every rung. A hardcoded tier anywhere else defeats the user's session-level `/model` choice.
 
+**Where the ladder starts is a host question, decided before the first call.** `geniro:` is the namespace Claude Code prefixes onto a marketplace-installed plugin's agents; no other host has a plugin namespace, so under any other host rung 1 is not a form that might work — it is a form that provably cannot, and trying it burns the whole batch. Under Claude Code, enter at rung 1. Under any other host — Cursor, or any runtime where you had to resolve `${CLAUDE_PLUGIN_ROOT}` yourself per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — **skip rung 1 and enter at rung 2**. This is the one part of the ladder you decide rather than discover; everything below is still driven by what the calls return.
+
 When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
-1. **First attempt — prefixed form.** Call `Agent(subagent_type="geniro:<agent>", description="...", prompt="...")`. This step is the happy path on interactive Claude Code with the plugin marketplace-installed.
+1. **Claude Code only — prefixed form.** Call `Agent(subagent_type="geniro:<agent>", description="...", prompt="...")`. This is the happy path on interactive Claude Code with the plugin marketplace-installed, and it is skipped entirely on every other host.
 
-2. **If — and only if — the call returns `Agent type 'geniro:<agent>' not found. Available agents: ...`**, re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)`. This is the form registered in vendored / harness installs (where agents are copied to `.claude/agents/geniro-*.md` with their YAML `name:` field unchanged).
+2. **On any failure to start the agent at rung 1** — `Agent type 'geniro:<agent>' not found`, `Couldn't start`, or whatever else this host says when a subagent never begins — re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)`. This is the form registered in vendored / harness installs (agents copied to `.claude/agents/geniro-*.md` with their YAML `name:` unchanged) and in Cursor (`cursor/agents/*.md`), and it is where non-Claude-Code hosts enter. Judge by whether the agent started, not by whether the wording matched a string in this file.
 
-3. **If the bare-name attempt also returns "not found"**, re-attempt as:
+3. **If the bare-name attempt also fails to start**, re-attempt as:
 
    ```
    Agent(
@@ -63,9 +66,11 @@ When any spawn returns empty (zero output tokens / no parseable result):
 
 Caller skills that hardcode a tier (the narrow carve-outs in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`) apply this fallback — the hardcode is a speed/cost preference, never a hard requirement, so it degrades to inherit (then inline) before failing the phase.
 
-## Why prefixed-first
+## Why the entry rung is host-dependent
 
-Plugin namespacing (`geniro:reviewer-agent`) is the form Claude Code registers when the plugin is marketplace-installed — the "Available agents" error list shows the prefixed names in that runtime. Trying bare names first wastes one "not found" round-trip in the happy path.
+Under Claude Code the two forms are genuinely ambiguous — marketplace-installed registers `geniro:reviewer-agent`, a vendored install registers bare `reviewer-agent`, and you cannot tell which from inside the session, so the ladder guesses prefixed-first because that is the more common install and a wrong guess costs one round-trip. Under any other host there is nothing to guess: the namespace that would produce the prefix does not exist, so rung 1 fails 100% of the time.
+
+That asymmetry is why the entry rung is decided rather than discovered. The cost of a doomed rung 1 is not one round-trip either — §Parallel-spawn sites degrades the *whole batch* together, so an 11-reviewer fan-out under Cursor spends 11 dead spawns and a second full turn before any real work starts.
 
 ## Worked example
 
@@ -83,8 +88,9 @@ Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full to
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll try bare names first because that's what the skill file has written" | Skill files write agent identity as bare or already-prefixed notation interchangeably — neither is a literal call string. The orchestrator always starts the ladder at the prefixed form regardless of which spelling the skill used. Bare-first wastes a `not found` round-trip in the happy path. |
-| "I'll skip the prefixed attempt because we're definitely in vendored mode" | You cannot reliably tell at spawn time. Walk the ladder once at first spawn and cache the result for the session. The cost of one extra `not found` per session is negligible; the cost of guessing wrong is N wasted spawns. |
+| "I'll try bare names first because that's what the skill file has written" | Skill files write agent identity as bare or already-prefixed notation interchangeably — neither is a literal call string. Which rung you enter at is set by the host, not by the spelling the skill used: prefixed under Claude Code, bare everywhere else. |
+| "I'll skip the prefixed attempt because we're definitely in vendored mode" | Marketplace-vs-vendored is the case you genuinely cannot tell apart from inside a Claude Code session — walk the ladder there and cache the result. What you CAN tell is which host you are on, and that is the only thing rung 0 asks you to decide. |
+| "I'm on Cursor, but I'll still try the prefixed form first — the ladder will catch it" | The ladder catches it at the price of the entire batch: a `/geniro-review` fan-out spends 11 dead spawns and a wasted turn on a form the host has no namespace to resolve. A rung that fails 100% of the time on this host is not a first attempt, it is a known-dead call. |
 | "I'll prefix as `<some-other-plugin>:<agent>` — the prefix is the plugin name" | The prefix is the *installed* plugin namespace. For this plugin it is exactly `geniro` (matches `.claude-plugin/plugin.json`'s name field). Do not invent prefixes. |
 | "The first attempt failed — I should retry the same form just to be sure" | Plugin registration is fixed at session init. The cache does NOT carry across sessions, but it absolutely holds within a session; re-attempting wastes a call. Re-walk at next session's first spawn. |
 | "The agent body is long — I'll summarize it before inlining at step 3" | The agent's system prompt is the contract. Summarizing changes the contract. Inline the body verbatim (frontmatter stripped). |
