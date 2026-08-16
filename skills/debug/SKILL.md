@@ -3,7 +3,7 @@ name: debug
 description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
 context: main
 model: inherit
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Workflow, EnterWorktree, ExitWorktree]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, Workflow, EnterWorktree, ExitWorktree, WebSearch, WebFetch]
 argument-hint: "[bug description | verify <diff-range> | verify last changes] [--deep]"
 ---
 
@@ -144,7 +144,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - Explicitly blocked: any Edit/Write to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
 
 **Phase 1 (Investigate):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / AskUserQuestion.
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / WebSearch / WebFetch (§1.5 external-dependency hypothesis, tiers 2-3) / AskUserQuestion.
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
 - Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
 - Explicitly blocked: production-source Edit/Write, `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.
@@ -218,7 +218,7 @@ state.md `phase: mode-detect`. Loads custom instructions, records the starting w
 
 state.md `phase: investigate`. An entry-gate + context load plus an inner hypothesis-test loop. Exits to Phase 2 only when a hypothesis is confirmed, its Result: field cites an artifact per Evidence Standard, and the §1.6 independent verification confirms the root cause (or fails open with the unverified disclosure).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md`** — Steps 1.1-1.7, the missing-data and stall gates, infrastructure-cause guidance, isolation techniques.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md`** — Steps 1.1-1.7, the missing-data and stall gates, the external-dependency hypothesis step, infrastructure-cause guidance, isolation techniques.
 
 ---
 

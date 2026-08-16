@@ -1,13 +1,14 @@
 # Library reuse audit (build-vs-buy)
 
-Canonical procedure for "before hand-writing code, check whether a maintained EXTERNAL library already solves it." Defined ONCE here; referenced by `/geniro:plan` (approach design), `/geniro:implement` (candidate research + adoption gate), and `/geniro:review` (reinvented-wheel finding). This is the external-registry counterpart to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`, which covers in-repo reuse.
+Canonical procedure for "before hand-writing code, check whether a maintained EXTERNAL library already solves it." Defined ONCE here; referenced by `/geniro:plan` (approach design), `/geniro:implement` (candidate research + adoption gate), `/geniro:review` (reinvented-wheel finding), and `/geniro:refactor` (detection-only). This is the external-registry counterpart to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`, which covers in-repo reuse.
 
-The two are a funnel, never a parallel duplicate: this audit fires only after an in-repo `NO-ANALOGUE` result, so a hand-written candidate is checked against the repo first, then the ecosystem.
+The two are a funnel, never a parallel duplicate: Steps 1-4 fire only after an in-repo `NO-ANALOGUE` result, so a hand-written candidate is checked against the repo first, then the ecosystem.
 
 ## Contents
 
 - Modes
 - When to run / when to skip
+- Step 0 — Language / stdlib capability check
 - Step 1 — Detect the ecosystem
 - Step 2 — Research candidates
 - Step 3 — Filter funnel
@@ -23,14 +24,22 @@ The two are a funnel, never a parallel duplicate: this audit fires only after an
 
 The caller passes one mode:
 
-- **MODE: plan** — a no-spawn textual consideration during approach design: surface "adopt an external library vs hand-write" as a trade-off in the relevant approach(es) and the spec's Approach / Steps prose, without researching or naming unverified packages. No candidate research, no registry calls, no gate. The user approving the approach IS the planning-time confirmation; candidate research and the binding install confirmation live in `/geniro:implement`.
-- **MODE: implement** — full flow: detect ecosystem → research candidates → filter → confirmation gate → on adopt, hand the dependency to Phase 2 for install and integration.
-- **MODE: review** — detection only: flag hand-written code a maintained external library covers, as an advisory finding the user decides. No candidate research and no registry calls — the reviewer-agent has no web access, so `/geniro:review` reports the smell and `/geniro:implement` does the candidate research.
+- **MODE: plan** — a no-spawn textual consideration during approach design: check the language/stdlib (Step 0) → surface "adopt an external library vs hand-write" as a trade-off in the relevant approach(es) and the spec's Approach / Steps prose, without researching or naming unverified packages. No candidate research, no registry calls, no gate. The user approving the approach IS the planning-time confirmation; candidate research and the binding install confirmation live in `/geniro:implement`.
+- **MODE: implement** — full flow: check the language/stdlib → detect ecosystem → research candidates → filter → confirmation gate → on adopt, hand the dependency to Phase 2 for install and integration.
+- **MODE: review** — detection only: flag hand-written code a maintained external library covers, as an advisory finding the user decides. No candidate research and no registry calls — the reviewer-agent carries no `WebSearch`/`WebFetch` grant, so `/geniro:review` reports the smell and `/geniro:implement` does the candidate research.
 
 ## When to run / when to skip
 
-- **plan / implement** — run on each feature component (plan) or `NO-ANALOGUE` component the codebase-explorer reports (implement), when the effort tier is Small / Medium / Big. Skip Trivial: a one-liner never justifies a new dependency, and the supply-chain surface a dependency adds outweighs the saved lines. Skip silently when the project has no package manifest (Step 1 finds no ecosystem) — there is nothing to buy from.
+- **plan / implement** — run on each feature component (plan) or `NO-ANALOGUE` component the codebase-explorer reports (implement), when the effort tier is Small / Medium / Big. Skip Trivial: a one-liner never justifies a new dependency, and the supply-chain surface a dependency adds outweighs the saved lines. Skip Steps 1-4 silently when the project has no package manifest (Step 1 finds no ecosystem) — there is nothing to buy from; Step 0 needs no manifest and always runs.
 - **review** — run when the diff hand-writes non-trivial functionality in a domain libraries commonly own: date/time math, crypto / auth / password hashing / tokens, parsing or serialization of untrusted input, retry-with-backoff, validation, HTTP clients, compression. Skip trivial snippets and code that is the project's own differentiating logic.
+
+## Step 0 — Language / stdlib capability check
+
+Runs in MODE: plan and MODE: implement only — MODE: review skips this step entirely. Before treating the need as a build-vs-buy question, check whether the language's standard library, a built-in capability, or a dependency-free pattern already covers it.
+
+Resolve it in order, strongest first: the toolchain's own documentation command and the installed language distribution's bundled docs or type definitions — reachable via `Bash`/`Read` — before the official online documentation, skipped rather than guessed where no web reach exists. Availability is version-dependent; a recalled answer risks the same hallucination Safety guards against for packages.
+
+When the stdlib, the capability, or the pattern covers the need, there is nothing to buy — end the audit here; Steps 1-4 do not run, and the MODE: implement confirmation gate never fires since no candidate exists to confirm. Fail open on an inconclusive check: proceed to Step 1 rather than blocking.
 
 ## Step 1 — Detect the ecosystem (language-agnostic)
 
@@ -121,12 +130,12 @@ The existence check in Step 3 Stage 0 is mandatory, not optional polish. Languag
 
 ## Dedup boundary
 
-| | existing-abstraction-audit.md | this audit |
-|---|---|---|
-| Scope | in-repo reuse | external-registry reuse |
-| Looks at | `utils/ lib/ shared/` via the project's code search | npm / PyPI / crates / Maven / Go / RubyGems |
-| Fires | any reuse smell | only after an in-repo `NO-ANALOGUE` result |
-| Outcome | reuse-as-is / extend-existing / no-analogue | adopt-library / keep-hand-written |
+| | existing-abstraction-audit.md | this audit's Step 0 | this audit's Steps 1-4 | repo-tooling-first.md |
+|---|---|---|---|---|
+| Scope | in-repo reuse | language / stdlib reuse | external-registry reuse | repo-tooling reuse |
+| Looks at | `utils/ lib/ shared/` via the project's code search | the installed toolchain's own docs first, official docs second — version-pinned to the project's toolchain | npm / PyPI / crates / Maven / Go / RubyGems | the repo's own scaffolders, generators, and CLIs |
+| Fires | any reuse smell | before Steps 1-4, on any hand-write candidate (MODE: plan/implement only) | only after Step 0 finds no coverage and an in-repo `NO-ANALOGUE` result | before hand-writing an artifact a scaffolder already generates |
+| Outcome | reuse-as-is / extend-existing / no-analogue | covered (audit ends here) / not covered (continue to Step 1) | adopt-library / keep-hand-written | generate-through-tooling / hand-written fallback |
 
 ## Anti-rationalization
 

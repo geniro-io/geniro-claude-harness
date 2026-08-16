@@ -57,7 +57,7 @@ The kinds below are the complete set. A claim requiring evidence is backed by on
 | 5 | User-provided artifact (screenshot, log paste, captured request body, env-var dump) | user pastes the request body that triggered the bug |
 | 6 | External documented fact, cited by resolvable source URL and quoted at the point of use | upstream changelog entry / RFC clause / vendor doc paragraph, with the URL |
 
-Kind 6 covers claims about the world outside the repo, where no local probe can settle the question. It admits only what a reader can re-open and check: a URL that resolves plus the quoted passage the claim rests on. A remembered fact, a summarized page, or a URL without the quote is a hypothesis — the failure mode is a confidently-worded recollection that no longer matches what the source says.
+Kind 6 covers claims about the world outside the repo, where no local probe can settle the question. It admits only what a reader can re-open and check: a URL that resolves plus the quoted passage the claim rests on. A remembered fact, a summarized page, or a URL without the quote is a hypothesis — the failure mode is a confidently-worded recollection that no longer matches what the source says. It is also what a Phase 4.2 finding verifier cites for a claim the repo's own code cannot settle; trigger and resolution order: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2.5.
 
 ### Evidence ladder — how far the artifact reaches
 

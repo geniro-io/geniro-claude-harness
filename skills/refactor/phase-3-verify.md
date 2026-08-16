@@ -77,6 +77,7 @@ On the Trivial and Small tiers, smell detection never runs (§1.3.1), so neither
 ### Transformations Applied (N)
 - [file:line] — [what changed] — risk: [LOW/MEDIUM/HIGH] — consumers: N
 - [A Premature Optimization transformation appends its smell's `optimization_evidence` field verbatim — the profiler/benchmark data, identified hot path, and performance budget each stated present or absent.]
+- [A transformation whose smell carries a `library_reuse` field appends it verbatim — the matched library category, or `none found`.]
 
 ### Blocked Steps (N)
 - [file:line] — [what was attempted] — reason: [failure summary]
