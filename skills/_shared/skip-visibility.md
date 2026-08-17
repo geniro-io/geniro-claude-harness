@@ -50,8 +50,8 @@ A gate whose input another phase writes can be in more states than the artifact 
 **Producer side — always write the input, even when there is nothing to record.** A frontmatter array writes its empty form (`open_questions: []`). A body section keeps its heading and carries one line naming that the producing step ran:
 
 ```markdown
-## Authored Tests
-none — the test-authoring gate ran and authored no tests
+## Deferred — sub-threshold
+none — the Phase 4 filter ran and deferred nothing
 ```
 
 **Consumer side — what each reading means:**

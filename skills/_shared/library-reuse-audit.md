@@ -58,7 +58,7 @@ Never hardcode `npm`. The registry, the inspect command, and the adopt command a
 
 ## Step 2 — Research candidates (MODE: implement)
 
-Spawn ONE web-research agent (`subagent_type: general-purpose`, OMIT `model=` — it inherits the orchestrator tier; it needs `WebSearch` + `WebFetch`, which the read-only codebase agents lack). Orchestrate the spawn at the top level — subagents cannot spawn sub-agents.
+Spawn ONE web-research agent (`subagent_type: general-purpose`, OMIT `model=` by default — it inherits the orchestrator tier — or pass `model="<tier>"` when the calling skill's run carries `--subagent-model`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`; it needs `WebSearch` + `WebFetch`, which the read-only codebase agents lack). Orchestrate the spawn at the top level — subagents cannot spawn sub-agents.
 
 Prompt it to, for the one hand-written problem under audit:
 - Search the detected registry and the web for several candidate libraries that solve it — return several ranked candidates, never just the first hit.
