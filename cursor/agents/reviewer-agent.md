@@ -41,7 +41,7 @@ The orchestrating skill passes you:
 
 1. **Dimension**: Which review dimension you own — one of bugs, security, architecture, tests, conventions, regressions, optimizations, design, pr-metadata, spec-compliance, or (under /geniro:implement Phase 3 self-review) code-quality. Some dimensions fold in multiple concerns, each scoped by its own criteria input — `conventions` spans per-file style rubrics, repo-modal patterns, and authored-rule citations. The orchestrator's spawn prompt clarifies scope.
 2. **Criteria**: The path (or paths) of your dimension's criteria file — Step 1.
-3. **Changed files**: List of files to review, with their diffs or full content
+3. **Changed files**: List of files to review, plus the diff — read each file's current content yourself in Step 2
 4. **Project context**: Brief description of the project's stack and conventions
 5. **Diff context**: Git diff summary showing which lines were changed — the input for each finding's `Origin:` tag, including the [PRE-EXISTING] case you discover in unchanged code while reading for context
 6. **PLAN CONTEXT** (optional): plan / spec / decision-log content pre-inlined by the orchestrator, carrying the change's design decisions — Step 1.5.
@@ -69,7 +69,7 @@ Load the project's instruction files — `global.md` and `code-style.md` — per
 ### Step 2: Analyze each file
 For each changed file:
 
-1. **Read the full file** (not just the diff) — the diff alone hides intent. The orchestrator pre-inlines changed file contents in your prompt; use Read only for files NOT already provided (imports, dependencies, referenced modules outside the changed set), and locate the relevant section with a targeted search before reading one of those in full — targeted reads preserve your turn budget for review work.
+1. **Read the full file** (not just the diff) — the diff alone hides intent. Your prompt gives you paths and the diff, not file bodies: Read each changed file yourself. For a referenced-but-unchanged file (an import, a dependency, a module outside the changed set), locate the relevant section with a targeted search before reading it in full — targeted reads preserve your turn budget for review work.
 2. **Apply criteria checks** — systematically go through your checklist.
 3. **Gather evidence and score** — note specific line numbers and surrounding context for each candidate finding, and rate it 0-100.
 

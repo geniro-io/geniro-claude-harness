@@ -63,7 +63,6 @@ If a finding's `Options:` exceeds 4 OR carries `(more-options-exist: chain-follo
 ## Multi-select pick loop (multiple findings per call)
 
 Used by:
-- `/geniro:review` Phase 4.3 Step 2 (Test-gate "Let me pick" branch)
 - `/geniro:review` Phase 6 include-deferred gate, "Let me pick" branch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4.6)
 - `/geniro:implement` Phase 3 minor-findings gate, "Let me pick" branch
 - `/geniro:refactor` Phase 1 HIGH-risk step approval, the reject-specific-steps branch (the picked units are plan steps, not findings)
@@ -99,7 +98,7 @@ The `(Recommended)` suffix on an AskUserQuestion option is load-bearing — user
 
 - **Override-of-prior-finding rule.** When the orchestrator's AUQ option contradicts, downgrades, or proposes-to-ignore a prior `/geniro:review` CRITICAL or HIGH finding — read from `<task-dir>/state.md` or `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` — that option does not carry `(Recommended)`. The conservative path (verify the orchestrator's interpretation first; spawn skeptic to mirror-check; escalate to `/geniro:debug`) is the Recommended default instead. The orchestrator's interpretation of "this CRITICAL is stale / no-op / unused" is, by definition, an unverified claim until the skeptic mirror-check or an empirical re-run confirms it.
 - **Orchestrator-authored-hypothesis rule.** When the orchestrator wrote BOTH the hypothesis AND the option set (i.e. the user did not propose the change in `$ARGUMENTS`; the orchestrator decided mid-pipeline that the change-shape should shift — e.g. "I'll downgrade this CRITICAL to a comment-only cleanup"), the orchestrator's preferred option does not carry `(Recommended)`. The Recommended default is whichever option keeps the original change shape intact, or "Stop and let me describe the change" if no original shape applies.
-- **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option does not carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:debug` adversarial mode — the adversarial-tester-agent authors an attempted-removal RED test verifying the guard's necessity) OR "Keep the guard for now".
+- **Defensive-removal rule.** When the AUQ asks the user to confirm a removal of a public-interface parameter, defensive branch (`if X return null` / early-return / try/catch / retry / fallback), or test, the removal option does not carry `(Recommended)`. The Recommended default is "Verify the guard's purpose first" (which routes to `/geniro:debug` adversarial mode — it authors an attempted-removal RED test verifying the guard's necessity) OR "Keep the guard for now".
 
 ### Pre-selection is the lever
 

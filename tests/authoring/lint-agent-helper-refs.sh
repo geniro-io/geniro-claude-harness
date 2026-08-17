@@ -7,7 +7,7 @@
 # The rule is per FILE, not per mention: an agent must root a helper at least
 # once, after which short back-references to it are ordinary prose and cost
 # nothing. Flagging every bare mention would condemn the idiomatic shape
-# `adversarial-tester-agent.md` uses — one rooted READ directive up top, then
+# `knowledge-retrieval-agent.md` uses — one rooted READ directive up top, then
 # the short name at each point of use.
 #
 # lint-skills.sh check 5 already rejects a PATH-shaped rootless reference

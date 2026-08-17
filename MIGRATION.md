@@ -10,6 +10,30 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### `adversarial-tester-agent` is gone; `/geniro:review` no longer authors tests
+
+`agents/adversarial-tester-agent.md` no longer ships (the plugin now carries 7 agents, down from 8). The capability moved, not disappeared: `/geniro:implement` Phase 3 and `/geniro:debug` Adversarial Mode now generate hypotheses and author the same failing-then-passing-verified edge-case tests inline, in the orchestrator's own context, with no separate subagent spawn — the F→P verification invariant and the rule that a bug caught this way is a HIGH finding gating ship are unchanged.
+
+`/geniro:review` drops the capability rather than inlining it. Its Phase 4.3 test-confirmation gate, the `## Authored Tests` handoff section, the Phase 6 failing-tests push gate, and the authored-test carve-out in the reporter boundary are all removed — `/geniro:review` now authors nothing and is strictly read-only end to end. A workflow that relied on review's test-authoring offer, or that parses a `from-review-<branch>.md` handoff for a `## Authored Tests` section, needs to move that expectation to `/geniro:implement` Phase 3 or `/geniro:debug` Adversarial Mode instead.
+
+`--no-adversarial` still works on `/geniro:implement`, but its meaning narrowed along with the mechanism: it now skips the inline edge-case test-authoring step, where it previously skipped spawning the separate agent. The flag's effect at the call site is unchanged — the step still doesn't run — so nothing to do if you already pass it.
+
+Independently, the always-fire reviewer dimension grid in both `/geniro:implement` Phase 3 and `/geniro:review` Phase 2 now scales with the run's own size signal — the two skills key off different signals, each documented in its own column of `skills/_shared/review-grid-scaling.md`. `/geniro:implement` narrows on the codebase-explorer's four-level `change_scope` (fewer dimensions on `trivial`/`small`, the full set on `medium`/`big`, or on any diff whose scanned `Risk flags` matched a signal). `/geniro:review` narrows on its own binary size boundary (>8 files OR >400 LOC), expanding to the full set at or over that boundary or whenever its own computed `risk-tier` reads high. The narrowed set is always announced and recorded, never silently dropped.
+
+**Action required:** If any `.geniro/actions/*.md` or `.geniro/instructions/*.md` file names `adversarial-tester-agent` directly — a custom action that spawns it, or an instruction file that references it by name — update or remove that reference; the agent no longer resolves under any spawn ladder. If your own tooling parses a review handoff for a `## Authored Tests` section, stop expecting one.
+
+**Auto-detect:**
+
+```bash
+grep -rl "adversarial-tester-agent" .geniro/actions .geniro/instructions 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — the reference is user-authored content; whether to drop it or point at `/geniro:implement`'s inline step is a judgment call.
+
+**Severity:** MEDIUM — an install with a custom action or instruction file naming the deleted agent breaks the next time that file runs; everyone else sees only the narrower `/geniro:review` surface and the scaled reviewer grid, both of which degrade gracefully (fewer or no findings offered, never a failure).
+
+---
+
 ### The state-helper guard no longer matches `Bash`
 
 `hooks/enforce-state-helper.sh` is registered under the `Edit|Write|MultiEdit|NotebookEdit`
@@ -407,7 +431,9 @@ The run-mode risk-class confirmation gate is removed. Previously `/geniro:action
 
 ### `--tdd` / `--standard` flags removed from `/geniro:review`
 
-The Standard/TDD mode axis is gone from `/geniro:review`. The post-review test-confirmation gate is now the only test question: it fires automatically in every run whose kept findings include testable ones, offering to author failing tests for them — your approval gates the authoring, and the Failing-tests gate still gates any commit/push of the authored tests. Passing `--tdd` or `--standard` no longer changes behavior (test authoring never filtered the posted finding set, so the post set is unchanged). The `mode:` frontmatter field and `- Mode:` summary line are dropped from new review handoffs; values persisted by older runs (`mode: tdd` / `mode: standard`, `tdd_mode_choice` approvals) are read by no consumer and are ignored harmlessly.
+The Standard/TDD mode axis is gone from `/geniro:review`. The post-review test-confirmation gate was, at the time of that change, the only remaining test question: it fired automatically in every run whose kept findings included testable ones, offering to author failing tests for them, with a Failing-tests gate gating any commit/push of the authored tests. Passing `--tdd` or `--standard` no longer changes behavior (test authoring never filtered the posted finding set, so the post set is unchanged). The `mode:` frontmatter field and `- Mode:` summary line are dropped from new review handoffs; values persisted by older runs (`mode: tdd` / `mode: standard`, `tdd_mode_choice` approvals) are read by no consumer and are ignored harmlessly.
+
+*[Updated: the post-review test-confirmation gate and its Failing-tests push gate described above have since been removed entirely — `/geniro:review` now authors no tests in any run and posts findings only. Edge-case test authoring lives in `/geniro:implement` Phase 3 and `/geniro:debug` Adversarial Mode; see `skills/_shared/reporter-boundary.md` §1.]*
 
 **Action required:** None — remove `--tdd` / `--standard` from any saved command aliases, actions, or notes that invoke `/geniro:review`; the flags are now inert.
 
@@ -523,7 +549,7 @@ find .geniro/planning -maxdepth 2 \( -name '.kr-out.md' -o -name '.ce-out.md' -o
 
 ### Universal `model: inherit` cost trade-off
 
-All plugin subagents (`reviewer-agent` / `knowledge-retrieval-agent` / `codebase-explorer-agent` / `test-runner-agent` / `adversarial-tester-agent`) now declare `model: inherit` in frontmatter, and spawn sites OMIT the `model=` argument. *[Updated: `test-runner-agent` and `knowledge-retrieval-agent` have since been re-pinned to `model: sonnet` as mechanical carve-outs per `skills/_shared/model-tiering.md` §The rule, category 3; `reviewer-agent` / `codebase-explorer-agent` / `adversarial-tester-agent` still declare `model: inherit`.]* If your orchestrator session is on Opus, every reviewer-agent per `/review` and every Phase-3 spawn per `/implement` also runs on Opus — significantly higher cost than the prior hardcoded Sonnet floor. To restore the cheaper baseline, switch orchestrator tier via `/model sonnet` before running `/review` or `/implement`.
+All plugin subagents (`reviewer-agent` / `knowledge-retrieval-agent` / `codebase-explorer-agent` / `test-runner-agent` / `adversarial-tester-agent`) now declare `model: inherit` in frontmatter, and spawn sites OMIT the `model=` argument. *[Updated: `test-runner-agent` and `knowledge-retrieval-agent` have since been re-pinned to `model: sonnet` as mechanical carve-outs per `skills/_shared/model-tiering.md` §The rule, category 3; `reviewer-agent` and `codebase-explorer-agent` still declare `model: inherit`. `adversarial-tester-agent` no longer exists — it was deleted, and its edge-case test-authoring capability now runs inline inside `/geniro:implement` Phase 3 and `/geniro:debug` Adversarial Mode, with no separate subagent spawn.]* If your orchestrator session is on Opus, every reviewer-agent per `/review` and every Phase-3 spawn per `/implement` also runs on Opus — significantly higher cost than the prior hardcoded Sonnet floor. To restore the cheaper baseline, switch orchestrator tier via `/model sonnet` before running `/review` or `/implement`.
 
 One spawn site deliberately retains a hardcoded tier per `skills/_shared/model-tiering.md`: the `/geniro:setup` Phase 4 verification subagent (Sonnet under a tightly constrained NO-Write/Edit tool budget — safety contract, not preference). *[Updated: two corrections. First, this is no longer the only hardcoded-tier spawn — current doctrine has several execution-spawn `model="sonnet"` pins; the authoritative site list is `skills/_shared/model-tiering.md` §The rule, category 4 (do not re-enumerate it here; it drifts). Second, the "tool budget" framing above does not hold: the Agent tool carries no per-spawn tool allowlist (`ARCHITECTURE.md` §Subagent model selection), so the setup Phase-4 spawn's read-only floor is enforced only by its spawn-prompt instructions, not by a tool grant — a tier defended by a claimed tool budget is defended by nothing.]*
 

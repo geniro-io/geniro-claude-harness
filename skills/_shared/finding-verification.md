@@ -19,7 +19,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM, with no tier-s
 
 ## 1. When this fires
 
-After the Phase 4.1 multi-signal threshold gate — both its severity-gated Path A and its decision-type Path B, specified in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5, which owns the admission signals and their thresholds. Fires BEFORE the Phase 4.3 test-confirmation gate and Phase 5 stratification.
+After the Phase 4.1 multi-signal threshold gate — both its severity-gated Path A and its decision-type Path B, specified in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5, which owns the admission signals and their thresholds. Fires BEFORE Phase 5 stratification.
 
 The verified set is every kept finding at CRITICAL / HIGH / MEDIUM, whichever path admitted it: a Path-B `PRODUCT-DECISION` at MEDIUM or higher verifies against its own `File: path:lines` anchor like any Path-A survivor, because the handoff schema makes the verification fields mandatory at those severities. LOW is the only severity that skips — a trade-off at LOW is not a defect-to-confirm, and it carries no verification fields downstream.
 
@@ -166,8 +166,9 @@ After loop:
   - Use `Agent(subagent_type="geniro:finding-verifier-agent", ...)` — bare `subagent_type="finding-verifier-agent"`
     under any host other than Claude Code — per the ladder in
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
-  - OMIT `model=` (orchestrator tier inherits via frontmatter `model: inherit`) per
-    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
+  - OMIT `model=` by default (orchestrator tier inherits via frontmatter `model: inherit`),
+    or pass `model="<tier>"` when the run carries `--subagent-model` — per
+    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`.
 ```
 
 Critical: ALL verifier spawns fire in ONE assistant response, same assistant turn, NOT one per turn. Separate turns serialize execution and double wall-time; the canonical parallel-spawn invariant applies.
@@ -181,7 +182,7 @@ Critical: ALL verifier spawns fire in ONE assistant response, same assistant tur
 A §4.1 survivor can reach Phase 5 with no verdict two ways: the spawn fails — errors out even after the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, or returns output with no parseable `validation:` value after the one empty-result retry (inherit tier) — or the orchestrator never spawns one at all, the §6 context-budget rationalization this table exists to confront. Either way the finding lands in none of the §3 outcome buckets, and an unmarked `Validation:` would read as `confirmed` to every consumer via the legacy back-compat rule — masking "nobody checked this" as "this was checked" regardless of cause. The orchestrator instead assigns an explicit disposition, the two causes distinguished only by the `Verification-evidence:` string — a failed cluster spawn (after the ladder + one retry) assigns its string to EVERY finding in that cluster:
 
 - `Validation: unverified`, `Verification-confidence: 1`, `Recommended-action` mirroring the finding's original Decision Type, `Verification-evidence:` naming the cause verbatim — `"verifier did not run — spawn failed after retry"` for a tooling failure, `"verifier not spawned — orchestrator elected to skip verification"` for a deliberate skip.
-- The finding stays kept — fail-open, mirroring the Phase 1.5 mechanical pre-pass and Phase 4.3 test-gate doctrine: neither cause deletes a finding the reviewers already paid for.
+- The finding stays kept — fail-open, mirroring the Phase 1.5 mechanical pre-pass doctrine: neither cause deletes a finding the reviewers already paid for.
 - It is excluded from any PR post set and surfaced under `## Caveats`: "N findings could not be independently verified — the verifier never ran for them; they are kept in the report but will not be posted to the PR."
 - Write a state.md `## Errors` entry via `atomic_state_write`: `phase: stratify`, `error: verifier-spawn-failed` (or `verifier-spawn-skipped` for a deliberate skip), plus the affected finding IDs.
 
@@ -195,7 +196,7 @@ Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for a
 
 After all verifiers return, the orchestrator processes each finding's verdict block by the same rules:
 
-1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier` (or `not-actionable` when the verifier refuted on the §3.6 actionability bar — the defect was real but unreachable / no behavior delta). Do NOT propagate to Phase 4.3 test-confirmation gate or Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged. At CRITICAL and HIGH the demotion waits on the guard below.
+1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier` (or `not-actionable` when the verifier refuted on the §3.6 actionability bar — the defect was real but unreachable / no behavior delta). Do NOT propagate to Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged. At CRITICAL and HIGH the demotion waits on the guard below.
 
    **High-stakes refutation guard — one vote never drops a CRITICAL or HIGH.** A `refuted` verdict at those severities does not demote the finding by itself. Collect every high-stakes refutation the first batch produced and fire one more independent verifier per finding — the degenerate one-finding cluster of §2, composed fresh from the code, never shown the first verdict, since a second reader handed the first refutation is anchoring rather than verifying — as ONE parallel batch, same invariant as the first. Demote only when the second verdict is also `refuted`. On `confirmed`, `clarified`, or a spawn failure the finding stays kept, carrying a `Verification-evidence` note that records the split (`2-vote: 1 refuted / 1 confirmed → kept`) so the disagreement reaches the reader rather than being averaged away.
 

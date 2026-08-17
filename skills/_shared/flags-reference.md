@@ -36,11 +36,12 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 |---|---|---|---|
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Forces the workspace path — cut a fresh branch, work in place on the current branch, cut a worktree, or run in the current directory. | The Step 0 workspace question. |
 | `--deep` | present / absent | Deepens two phases — a multi-angle self-review with verification escalated only where the call is contested, and a 3× fact-check of the spec's cited claims before the first edit. | The Standard/Deep depth question (folded into the Step 0 workspace question). |
-| `--no-adversarial` | present / absent | Disables the adversarial-tester spawn in the self-review phase. | No question — drops the extra reviewer slot in the review round. |
+| `--no-adversarial` | present / absent | Skips the inline edge-case test authoring step in Phase 3 self-review. | No question — drops the extra authoring step from the review round. |
 | `don't push` / `no push` / `commit only` | one value | Commit succeeds, no push. | The ship-mode question. |
 | `draft only` / `draft PR` / `open draft` | one value | Push and open a draft PR. | The ship-mode question. |
 | `ready PR` / `ready-for-review` / `non-draft PR` | one value | Push and open a PR ready for review. | The ship-mode question. |
 | `stop after review` | present / absent | Exit before any commit; surface clean review status as the deliverable. | The ship-mode question. |
+| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every plugin spawn in this run to the named tier, overriding agent frontmatter (including the mechanical/execution pins). Announced once at run start. A value outside the four names the two working routes instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
 
 A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the ship-mode question — it routes through the gate so the safe draft default stays visible.
 
@@ -56,6 +57,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 | `--plan <path>` | a spec path | Supplies the spec so the specification-compliance reviewer can check the diff against it. This is a context input, not a question pre-set. | No question — adds spec context to the reviewers. |
 | `--focus <text>` | free text | Pre-fills this run's steering note for reviewers — extra attention on a path, or a "stop flagging X" instruction. A "stop flagging" match still reaches the report; once verified, the orchestrator moves it to the filtered section instead of erasing it (a CRITICAL is exempt and stays kept). | The re-review gate's steering question (round ≥2 only — round 1 has no gate to skip). |
 | `worktree` / `no-worktree` / `here` / `current-branch` / `new-branch` | one value | Forces the workspace path the review inspects. | The Step 0 workspace question. |
+| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every plugin spawn in this run to the named tier, overriding agent frontmatter (including the mechanical/execution pins). Announced once at run start. A value outside the four names the two working routes instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
 
 ## Non-suppressible safety gates
 
@@ -68,4 +70,3 @@ These gates fire on a real triggering event regardless of any flag, modifier, or
 - **Shared-branch / open-PR ship** — a push to a shared or default branch, or one updating an open PR reached via a handoff, is commit-grade and still gates even under a ship-mode pre-set.
 - **Real merge / rebase conflict** — a clean fast-forward applies the pre-set freshness strategy silently, but an actual conflict surfaces interactively; a strategy pre-set is consent to attempt, not to resolve unseen conflicts.
 - **`/review` re-review gate** — on a re-run, the scope, depth, and steering decisions are always re-asked, never silently inherited.
-- **`/review` test-confirmation gate** — when testable findings exist, the offer to author failing tests for them fires and waits for approval.

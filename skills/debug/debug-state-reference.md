@@ -9,10 +9,10 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` to 
 3. Infrastructure investigation — signals + investigation checklist
 4. Isolation techniques — binary search, git bisect, profiling
 5. Stall diagnosis taxonomy — 8-component missing-component table
-6. Adversarial Mode templates — A5 spawn prompt + A6 findings template
+6. Adversarial Mode templates — A5 handoff-persistence field mapping + A6 findings template
 7. Extended examples — intermittent timeout + verify recent changes
 8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
-9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5, `pitfall` Adversarial Mode A4 step 6)
+9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5, `pitfall` Adversarial Mode A4 step 5)
 
 ---
 
@@ -90,7 +90,7 @@ Body sections (Scientific Mode):
 - `## Proposed Fix`
 - `## Reproduction Test`
 - `## Accepted Limitations` (optional, path B)
-- `## Tool log` — selective logging (adversarial-tester-agent spawns, stall escalations)
+- `## Tool log` — selective logging (stall escalations, fix-loop escalations)
 - `## Errors`
 - `## Open Questions` (stall AUQ + outcome)
 - `## Resolved Questions` (Phase 3 §3.0 Pre-gate writes resolution mirror here)
@@ -101,7 +101,7 @@ Body sections (Adversarial Mode):
 
 - `## Diff Scope` (range + file count + LOC)
 - `## Authored Tests` (table: # / Path / Targeted source / Category / Confidence / F→P status)
-- `## Re-verification Results` (per authored test, written by A4 step 4: path / pre-rerun F→P status / kept or discarded / discard reason if discarded)
+- `## Re-verification Results` (per authored test, written by A4 step 3: path / F→P + flake-check status / kept or discarded / discard reason if discarded)
 - `## Tool log`, `## Errors`, `## Termination reason`
 
 ### from-debug-<branch>.md (T2 — handoff, Scientific Mode)
@@ -196,53 +196,19 @@ When /geniro:debug stalls (the stall gate fires — threshold defined in `${CLAU
 
 ## 6. Adversarial Mode templates
 
-### A5 spawn template
+### A5 handoff persistence
 
-```
-Agent(subagent_type="adversarial-tester-agent", prompt="""
-## Task: Adversarial Edge-Case Test Authoring (Debug — Verify Changes)
+Frontmatter for `from-debug-adversarial-<branch>.md`, written directly via `atomic_state_write` at A4 step 4 (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) — a direct Edit/Write to any `.geniro/state/` path is hard-blocked by the state-helper enforcement hook, so write it with `source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"` then `atomic_state_write "<path>" <<'EOF' … EOF`.
 
-WORKTREE: [state.md frontmatter `worktree:`]
-BRANCH: [state.md frontmatter `branch:`]
-DEEP-MODE: [state.md frontmatter `deep-mode:`; missing reads as false]
-PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
+Emit the complete T2 frontmatter, not only the test array. Field semantics are canonical at this file's §2 above — read it rather than guessing a field's shape. Required keys: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `worktree`, `timestamp`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `deep-mode`, `approvals`, `non-resumable-actions`, `authored_tests`, `open_questions`. Values this mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `schema-version: 1`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `non-resumable-actions: []` (this pass makes no persisted-AUQ pick and completes no non-resumable action), `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `branch` / `worktree` = state.md frontmatter `branch:` / `worktree:`, the Phase 0-recorded workspace; `timestamp` = a live clock read at write time. Omitting `branch`/`worktree` routes the consumer into the degraded fallback (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C), which drops the relocation suggestion the tests need to be found by.
 
-### Diff (changed files + contents)
-[Pre-inline `git diff <resolved-range>` output AND full contents of every changed source file from Step 1]
-
-### Shared Edge-Case Checklist (READ this file yourself at runtime — do NOT paste here)
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`
-
-### Project Test Framework
-- Test command (from CLAUDE.md Essential Commands): [e.g. `pnpm test`, `pytest`]
-- Test-file naming convention: [project's pattern — e.g. `*.test.ts` adjacent to source]
-- Exemplar test files (1-2, pre-inlined): [closest existing test files to the changed code]
-
-### Hypothesis Seeds
-none — adversarial mode runs a fresh pass (no prior reviewer findings available in debug).
-
-### Output
-Write your report to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) via the atomic-write helper — a direct Edit/Write to any `.geniro/state/` path is hard-blocked by the state-helper enforcement hook, so write it with `source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"` then `atomic_state_write "<path>" <<'EOF' … EOF`. Authored test files go to the project's normal test paths. Do NOT git add/commit/push.
-
-Emit the complete T2 frontmatter, not only the test array — an omitted `branch`/`worktree` routes every consumer into the degraded fallback (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C), which drops the relocation suggestion your tests need to be found by. (`/geniro:review` sidesteps this by writing its handoff orchestrator-side; fixing what you emit here is the smaller change for this producer.) Field semantics for `from-debug-adversarial-<branch>.md` are canonical at this file's §2 above — read it rather than guessing a field's shape. Required keys: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `worktree`, `timestamp`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `deep-mode`, `approvals`, `non-resumable-actions`, `authored_tests`, `open_questions`. The values this mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `schema-version: 1`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `non-resumable-actions: []` (you make no persisted-AUQ pick and complete no non-resumable action), `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `branch` = BRANCH, `worktree` = WORKTREE, `deep-mode` = DEEP-MODE (the slots above); `timestamp` = a live clock read at write time.
-
-`authored_tests: [...]` carries one entry per RED test kept after your 3× flake check — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree. Read the entry schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § Producer-specific extensions and fill every field from your run; the values this mode fixes are `mode: adversarial` (matching the top-level `mode:` discriminator), `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring your A6 Confidence column, and `path` resolved against your own `git rev-parse --show-toplevel`.
+`authored_tests: [...]` carries one entry per RED test kept after the A4 step 3 flake check — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree. Entry schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § Producer-specific extensions; the values this mode fixes are `mode: adversarial` (matching the top-level `mode:` discriminator), `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring the A6 Confidence column, `path` resolved against `git rev-parse --show-toplevel`.
 
 `authored_tests: []` (empty array) is the correct form for the zero-red-tests terminal outcome. Body `**Test file:**` lines remain the human-readable mirror; the frontmatter is the contract.
 
-### F→P invariant
-A test that passes today proves nothing about the bug, and a flaky failure proves even less — keep only a test that fails 3 times in a row on the current code. If it passes today, delete the test and mark `discarded-cannot-repro`. Flaky = discard.
-
-### Scope
-Diff-only — the orchestrator resolved the scope above. Do NOT author tests for files outside the changed-files list. Hard cap: 10 authored tests.
-
-Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> && …`) and resolve every file path under it.
-""", description="Adversarial tests: /geniro:debug verify-changes")
-```
-
 ### A6 findings template
 
-After re-verification, present this block directly in chat and persist (via the agent's write at A4 step 3 + the orchestrator's re-verify delta if tests were discarded):
+After the A4 step 3 authoring-and-verification loop, present this block directly in chat and persist it via A4 step 4:
 
 ```markdown
 ## Adversarial Findings
@@ -250,8 +216,8 @@ After re-verification, present this block directly in chat and persist (via the 
 **Diff scope:** [range + file count + LOC]
 
 **Hypotheses generated:** [N]
-**Tests authored (kept after re-verify):** [M]
-**Tests discarded (F→P failed on re-run):** [K]
+**Tests authored (kept after F→P + flake check):** [M]
+**Tests discarded (F→P or flake check failed):** [K]
 
 ### CRITICAL / HIGH findings
 [For each finding, emit these labelled lines — the `**Test file:**` line is the human-readable mirror of the `authored_tests[]` frontmatter array that consumers fall back to parsing for legacy handoffs:]
@@ -268,10 +234,10 @@ After re-verification, present this block directly in chat and persist (via the 
 ### Discarded / Inconclusive
 [brief list with reasons]
 
-**Zero red tests?** [If M == 0 after re-verify: state plainly "no bugs found in scanned diff" — this is a valid outcome.]
+**Zero red tests?** [If M == 0: state plainly "no bugs found in scanned diff" — this is a valid outcome.]
 ```
 
-If zero red tests survive, skip escalation entirely and go directly to Cleanup. Otherwise proceed to escalation per A4 step 6.
+If zero red tests survive, skip escalation entirely and go directly to Cleanup. Otherwise proceed to escalation per A4 step 5.
 
 ---
 
@@ -303,9 +269,8 @@ If zero red tests survive, skip escalation entirely and go directly to Cleanup. 
 
 → Phase 0 Mode detect: anchored "verify last changes" → Adversarial
 → A2 Diff resolution: `git diff main...HEAD` (per scope-anchor rule #3)
-→ A4 Step 3: Spawn `adversarial-tester-agent` with pre-inlined diff + framework + exemplars
-→ A4 Step 4: Independently re-run 7 authored tests; 5 fail RED, 2 pass-today (discarded)
-→ A6 Adversarial Findings persisted to `from-debug-adversarial-<branch>.md`
+→ A4 Step 3: Generate hypotheses against the diff; author and F→P-verify tests inline — 7 authored, 5 kept after the flake check, 2 discarded (1 passed on current code, 1 diverged across rounds)
+→ A4 Step 4: Findings persisted to `from-debug-adversarial-<branch>.md`
 → Escalate: /geniro:implement with the authored tests as escalation targets
 
 ---
@@ -379,9 +344,9 @@ Same invocation form (`source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"` + he
 
 Substitute the run's real values: `scope` = the file/module the hypothesis targeted; `ext.evidence_against` = the captured artifact that eliminated it (per the Evidence Standard, not narrative).
 
-### `pitfall` (Adversarial Mode A4 step 6)
+### `pitfall` (Adversarial Mode A4 step 5)
 
-Same invocation form. One entry per RED test kept after the A4 step 4 re-verification — no `ext` block:
+Same invocation form. One entry per RED test kept after the A4 step 3 F→P and flake-check verification — no `ext` block:
 
 ```json
 {
@@ -394,4 +359,4 @@ Same invocation form. One entry per RED test kept after the A4 step 4 re-verific
 }
 ```
 
-Substitute the run's real values: `scope` = the production source path the kept test targets (its `targeted_source`); `summary` = the defect in one line (mirrors the A6 **Hypothesis** line); `tags` inferred from the A6 **Category** column plus the changed files. `trust: verified` — the re-verified F→P run (A4 step 4) is the captured artifact. `pitfall` is a user-facing type per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract rule 1: echo `Recorded learning: <summary>` after a `rc=0` return, and surface a non-zero return per that section's rule 3 rather than swallowing it.
+Substitute the run's real values: `scope` = the production source path the kept test targets (its `targeted_source`); `summary` = the defect in one line (mirrors the A6 **Hypothesis** line); `tags` inferred from the A6 **Category** column plus the changed files. `trust: verified` — the F→P and flake-check run (A4 step 3) is the captured artifact. `pitfall` is a user-facing type per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract rule 1: echo `Recorded learning: <summary>` after a `rc=0` return, and surface a non-zero return per that section's rule 3 rather than swallowing it.

@@ -23,7 +23,6 @@ Within `m6-v2`/`v3`, a producer that verified only HIGH findings emits verificat
 - §4 — Action gate (consolidated decision)
 - §4.6 — Include-deferred gate (chained after the "/geniro:implement findings" pick)
 - §5 — Round-N escalation
-- §6 — Failing-tests gate
 - §7 — Action == Post drill. **Conditional, and now a separate file** — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` carries §7.0 (fail-closed guard, four invariants) through §7.8 (post-posting overturn reconciliation). Reachable only when the Action gate's pick is "Post Draft PR review", never when `pr-ref: none`. Read that file on that pick; skip it otherwise.
 - §8 — Empty-answer handling (universal)
 - §9 — Terminal state mapping
@@ -34,32 +33,27 @@ Within `m6-v2`/`v3`, a producer that verified only HIGH findings emits verificat
 
 /geniro:review does not apply fixes. The Phase 6 handoff message never includes "I'll fix these now" language. The fix path routes to /geniro:implement (manual, or via the Phase 6 handoff line).
 
-**The three conditional Phase 6 gates — §3 Step 0 (open-decision), §4.6 (include-deferred), and §6 (Failing-tests) — skip when the review produced nothing for them to decide, and ALL FOUR hold:**
+**The two conditional Phase 6 gates — §3 Step 0 (open-decision) and §4.6 (include-deferred) — skip when the review produced nothing for them to decide, and ALL THREE hold:**
 
 - Zero kept findings remain in `## Findings` after Phase 4.2 (at any severity, not only CRITICAL / HIGH / MEDIUM).
 - Zero `Decision Type: PRODUCT-DECISION` findings — a Path-B LOW is still the user's call and still needs the §3 open-decision gate.
 - `## Deferred — sub-threshold` carries its `none — …` sentinel — entries there mean the §4.6 include-deferred gate has something to offer.
-- `## Authored Tests` carries its `none — …` sentinel — entries there mean the §6 Failing-tests gate has a commit policy to settle.
 
-A bare section satisfies neither condition. The skip exists for a review that provably produced nothing to decide, and a section whose producer never wrote it has proved nothing — so the gates run, and the pass that reaches them says which section was unwritten. Severity alone does not decide which of the three conditional gates skip either: an all-LOW review still needs the open-decision gate for a LOW product-decision and the include-deferred gate for its sub-threshold entries, so checking only "no CRITICAL / HIGH / MEDIUM" exits before either fires.
+A bare section satisfies neither condition. The skip exists for a review that provably produced nothing to decide, and a section whose producer never wrote it has proved nothing — so the gates run, and the pass that reaches them says which section was unwritten. Severity alone does not decide which of the two conditional gates skip either: an all-LOW review still needs the open-decision gate for a LOW product-decision and the include-deferred gate for its sub-threshold entries, so checking only "no CRITICAL / HIGH / MEDIUM" exits before either fires.
 
-**§3.5 (finalize) and §4 (Action) are never part of this skip — both fire on every pass, whatever the four conditions above resolve to.** §3.5 is a silent draft→final flip, not a gate: skipping it strands a clean review at `draft` forever, which trips /geniro:implement's draft warning and fails Invariant D in the §7.0 Pre-Post guard if the user later posts that round's findings. §4 fires because a clean review still leaves one live decision — run another round, or exit and keep the report — and `/geniro:review`'s Definition of Done requires the Action pick in `approvals[]` unconditionally; without it, a skipped gate ends the phase with no recorded terminal choice for the §9 mapping to resolve. §4's option set is unchanged on a clean pass — `Post Draft PR review` already omits itself on zero findings per §Post-option presence — but phrase the question around the clean result rather than a finding count, since "how should I proceed with the 0 findings" reads as a defect to the user. So a "skip" pass still runs §3.5, then §4, before it exits.
+**§3.5 (finalize) and §4 (Action) are never part of this skip — both fire on every pass, whatever the three conditions above resolve to.** §3.5 is a silent draft→final flip, not a gate: skipping it strands a clean review at `draft` forever, which trips /geniro:implement's draft warning and fails Invariant D in the §7.0 Pre-Post guard if the user later posts that round's findings. §4 fires because a clean review still leaves one live decision — run another round, or exit and keep the report — and `/geniro:review`'s Definition of Done requires the Action pick in `approvals[]` unconditionally; without it, a skipped gate ends the phase with no recorded terminal choice for the §9 mapping to resolve. §4's option set is unchanged on a clean pass — `Post Draft PR review` already omits itself on zero findings per §Post-option presence — but phrase the question around the clean result rather than a finding count, since "how should I proceed with the 0 findings" reads as a defect to the user. So a "skip" pass still runs §3.5, then §4, before it exits.
 
 ---
 
 ## 2. Gate chain — fire each as a separate AUQ
 
-Phase 6 surfaces up to 4 sequential top-level gates. Each one decides a different thing and must be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
+Phase 6 surfaces up to 3 sequential top-level gates. Each one decides a different thing and must be its own `AskUserQuestion` call — never collapse them into a single summary question, never paraphrase the question text, never merge options across gates.
 
 **Firing order:**
 
 1. **Pre-gate — Resolve Open Questions:** fires once when state.md frontmatter `open_questions[]` has any entry with `status: unresolved`. Chain one AUQ per such entry, fired in sequence (cap-extension per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension — within a single entry only, never batching entries). Always-WAIT, and it completes before any other Phase 6 gate fires — these questions gate what /geniro:review posts. Full procedure: §2.5 below.
 2. **Step 0 — Open-decision (per finding):** fires once per `Decision Type: PRODUCT-DECISION` finding kept by the Phase 3 §3.3 KEEP/FILTER judgment. Skipped when zero PRODUCT-DECISION findings remain.
 3. **Action (Always-WAIT):** fires once whenever this phase fires — the consolidated top-level decision. User picks ONE next step: /geniro:implement / Post Draft PR / Continue rounds / Skip. Two picks drill into sub-gates of their own path, not extra top-level gates: "Post Draft PR review" drills into the §7 Post drill, and "/geniro:implement findings" drills into the §4.6 include-deferred gate when `## Deferred — sub-threshold` lists entries.
-4. **Failing tests:** fires once per gate-chain pass when the state file's `## Authored Tests` section lists test files — picks the commit policy for AI-authored tests; a later chat-text commit/push request re-fires it (§6). Firing order relative to Action gate conditional:
-- **`## Authored Tests` is bare (neither files nor sentinel):** resolve it before either branch below can apply and before the Post drill fires — §6's bare-section rule governs: check the working tree for tests this run authored, populate the section with rows or write the sentinel, then re-evaluate against the two branches below.
-- **Action == Post AND `## Authored Tests` lists files:** Failing-tests fires BEFORE the Post drill (GitHub reviews API rejects comments whose `path` is absent from `commit_id`'s tree).
-- **Action != Post OR `## Authored Tests` carries its sentinel:** Failing-tests fires AFTER Action gate's path completes.
 
 Sequential: do not fire gate N+1 until gate N's answer is collected.
 
@@ -67,7 +61,7 @@ Sequential: do not fire gate N+1 until gate N's answer is collected.
 
 ## 2.5. Pre-gate — Resolve Open Questions
 
-This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gates — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`.
+This gate runs FIRST in Phase 6 — before the Step 0 and Action gates — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`.
 
 **Why it runs first.** An open question here is one whose answer changes what the Action gate is choosing between (e.g., "API seeder additions in-scope or split into a separate PR?" — the answer changes which findings get posted). Letting Action gate fire first means the user picks "/geniro:implement findings" without realizing those questions still gate the implementation.
 
@@ -113,7 +107,7 @@ This gate runs FIRST in Phase 6 — before Step 0, Action, and Failing-tests gat
 
 5. Each entry gets its own `AskUserQuestion` call, fired in sequence with a message-first render before each (per step 2); cap-extension per § Cap-extension applies within a single entry only, never batching entries into one call.
 
-6. After the last entry resolves, every `open_questions[]` entry is in `{resolved, wontfix}` before proceeding to Step 0 / Action / Failing-tests. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
+6. After the last entry resolves, every `open_questions[]` entry is in `{resolved, wontfix}` before proceeding to Step 0 / Action. Verify by re-reading the frontmatter; if any `unresolved` remains, loop back to step 2.
 
 ---
 
@@ -198,12 +192,8 @@ open_questions: []                    # always present; may be empty []. Entry s
 <deferred-entry blocks, or the assessed sentinel `none — the Phase 4 filter ran and deferred nothing`>
 
 ## Filtered
-<!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, no-action-needed, user-kept-off-pr, test-challenged, already-resolved-on-pr, overturned-after-post, convention-filtered, user-steering: "<the steering instruction, verbatim>" — set only after admission + verification, per phase-3-4-filter-stratify.md §4.2; a CRITICAL never carries this reason). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, no-action-needed, user-kept-off-pr, already-resolved-on-pr, overturned-after-post, convention-filtered, user-steering: "<the steering instruction, verbatim>" — set only after admission + verification, per phase-3-4-filter-stratify.md §4.2; a CRITICAL never carries this reason). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
-
-## Authored Tests
-<!-- Populated when the test-confirmation gate authored tests; lists each AI-authored test file by path. The §6 Failing-tests gate fires on that list, and the sentinel is what tells it the gate ran and produced none. -->
-<list of test file paths, or the assessed sentinel `none — the test-authoring gate ran and authored no tests`>
 
 ## Caveats
 <!-- One line per fail-open or coverage gap the run hit — a failed PR/tracker fetch, a thin mechanical pre-pass, a dropped custom reviewer, a finding left `Validation: unverified`, a test that flipped green on re-run. The section is where every fail-open path in the producer lands, so it is part of the skeleton even on a clean run. -->
@@ -251,7 +241,7 @@ EOF
 
 Each finding under `## Findings` renders as the multi-line per-finding body block below (NOT a one-liner) — the Phase 3 §3.3 KEEP/FILTER judgment preserves every reviewer-agent field; dropping fields to reach a one-liner is the failure mode the schema prevents.
 
-**Gate-input sections carry a sentinel when empty.** `## Deferred — sub-threshold` and `## Authored Tests` are the two body sections a Phase 6 gate reads to decide whether to fire, and both are written by an earlier phase. Left bare, neither can distinguish a phase that ran and found nothing from a phase that never ran at all — so the producer writes the `none — <step> ran …` line rather than leaving the section blank, and a consumer that reads a bare section treats the gate's precondition as unknown instead of clear. Contract and consumer obligations: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel. The `## Open Questions` mirror already works this way, and frontmatter `open_questions: []` is the same distinction in array form.
+**Gate-input sections carry a sentinel when empty.** `## Deferred — sub-threshold` is the body section the §4.6 gate reads to decide whether to fire, and it is written by an earlier phase. Left bare, it cannot distinguish a phase that ran and found nothing from a phase that never ran at all — so the producer writes the `none — <step> ran …` line rather than leaving the section blank, and a consumer that reads a bare section treats the gate's precondition as unknown instead of clear. Contract and consumer obligations: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel. The `## Open Questions` mirror already works this way, and frontmatter `open_questions: []` is the same distinction in array form.
 
 **Write/rewrite discipline — schema comes from the template, never from memory.** Any full handoff write (Phase 5.1 first write) or rewrite (a later round updating the file, a re-author after compaction, any whole-file replacement) follows this procedure — re-authoring the handoff from memory drops the identity frontmatter, renames fields (`pr-head-sha` → `pr-head-oid`, breaking the §7.4 freshness check that then reads null), collapses the per-finding verification fields into a prose line (downstream parses it as legacy `m6-v1`), and drops snapshot fields the same run's Post drill needs:
 
@@ -284,7 +274,7 @@ Each field is `null` when the producer had nothing to capture (no PR ref, or `gh
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff. Every finding — including an unchanged repeat from a prior round — lives under the handoff's `## Findings` body:
 
 ```markdown
-- [ ] F1 — [NEW|PRE-EXISTING] [optional: CONFIRMED-BY-TEST|CHALLENGED-BY-TEST|POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR|USER-ELECTED] **<short title>** · <SEVERITY> [optional: · seen since round <N>]
+- [ ] F1 — [NEW|PRE-EXISTING] [optional: POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR|USER-ELECTED] **<short title>** · <SEVERITY> [optional: · seen since round <N>]
   - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
   - **File:** path/to/file.ts:42-48
   - **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
@@ -351,7 +341,7 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 Read the `## Findings` body section, scanning each finding's `Decision Type:` and `step0_status:` fields — every kept finding, including an unchanged repeat from a prior round, lives there.
 
 1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). For CRITICAL / HIGH / MEDIUM findings, check the `Validation:` field before firing the AUQ — four cases. `confirmed` or `clarified` → proceed. `Validation: refuted` should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. `Validation: unverified` (the verifier never ran — a failed spawn or a deliberate skip, per finding-verification.md §4.5) → proceed with the AUQ but surface a one-line warning that the finding was not independently verified; the decision is the user's either way, so the missing verification is disclosed, not blocking. A missing `Validation:` (legacy handoff per §2 back-compat) is treated as `confirmed` — proceed with the AUQ but surface the one-line warning.
-2. **Render the finding to chat first.** Before any `AskUserQuestion` fires, render the finding to chat as a self-contained block instantiating the § Message-first rendering template at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate. The render must be a SEPARATE, already-emitted assistant message that exists BEFORE the AUQ fires — same-turn text does not satisfy the contract; honor the render-exists check ("Scrub before the AUQ fires") in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate. The decision queue for its tracker is the kept PRODUCT-DECISION finding set (tracker only when ≥2 remain). Expand any reviewer shorthand so the question stands on its own. Build the chat block from the finding's `options:` sub-list and body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) per the spec's § Source-field map. The option set also carries the "Explain further" reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (writes no decision, consumes no round cap; surfaces via the § Cap-extension chained call when decision options fill 4 slots). It also carries a **"Challenge this finding"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Challenge-finding option: picking it spawns one fresh `finding-verifier-agent` (the Phase 4.2 verifier mechanism — spawn via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, OMIT `model=`) primed with the user's stated objection, then re-renders the finding with the returned `confirmed` / `refuted` verdict + fresh evidence and re-fires this gate. A `refuted` verdict demotes the finding to `## Filtered` (written via `atomic_state_write`) and drops its gate; a `confirmed` verdict re-presents the same options. The challenge writes no resolution and never flips `step0_status` — only a resolution path does (step 4).
+2. **Render the finding to chat first.** Before any `AskUserQuestion` fires, render the finding to chat as a self-contained block instantiating the § Message-first rendering template at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate. The render must be a SEPARATE, already-emitted assistant message that exists BEFORE the AUQ fires — same-turn text does not satisfy the contract; honor the render-exists check ("Scrub before the AUQ fires") in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate. The decision queue for its tracker is the kept PRODUCT-DECISION finding set (tracker only when ≥2 remain). Expand any reviewer shorthand so the question stands on its own. Build the chat block from the finding's `options:` sub-list and body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) per the spec's § Source-field map. The option set also carries the "Explain further" reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (writes no decision, consumes no round cap; surfaces via the § Cap-extension chained call when decision options fill 4 slots). It also carries a **"Challenge this finding"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Challenge-finding option: picking it spawns one fresh `finding-verifier-agent` (the Phase 4.2 verifier mechanism — spawn via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, OMIT `model=` by default or pass `model="<tier>"` when the run carries `--subagent-model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`) primed with the user's stated objection, then re-renders the finding with the returned `confirmed` / `refuted` verdict + fresh evidence and re-fires this gate. A `refuted` verdict demotes the finding to `## Filtered` (written via `atomic_state_write`) and drops its gate; a `confirmed` verdict re-presents the same options. The challenge writes no resolution and never flips `step0_status` — only a resolution path does (step 4).
 
    **Then fire the lean `AskUserQuestion`.** Set `header: "Decision"`. Build the lean `question` + option `label`+`description` from the same finding fields per the spec's § Source-field map. Leave each option's `preview` empty or a one-line recap (per per-finding-question.md) — never the finding body.
 3. **Append the "Keep off the PR" disposition to the AUQ options — mandatory, every PRODUCT-DECISION AUQ.** Beyond the finding's own `options:` bullets, add ONE standard option: `label: "Keep off the PR — I'll handle this"`, `description: "Record the decision for you; do not include this finding in anything posted to the PR."` Why it is its own step: the keep-on-PR / keep-off-PR call belongs to the user — it is the audience control for a residue the PR author cannot action (a governance / legal / data-classification / business-intent question). Omitting the option does not drop the decision; it silently transfers it to the orchestrator at payload time (§7.1), which is the exact failure this step prevents. The option occupies one AUQ slot, so when the finding's own `options:` already lists 4, chain a follow-up per the cap-extension rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension) — never drop or merge an existing option to make room.
@@ -436,7 +426,7 @@ Do NOT auto-invoke /geniro:implement — surface the suggestion only. The user r
 
 ## 4.6 Include-deferred gate (chained after the "/geniro:implement findings" pick)
 
-Fires when the §4 Action-gate pick is `"/geniro:implement findings"` AND `## Deferred — sub-threshold` holds ≥1 entry. The section's `none — …` sentinel → skip silently (no no-op menus). The gate resolves BEFORE the §4 follow-up echo line and before the Failing-tests gate — the echo names the handoff the user will run, so the fix list must be settled first. Structurally this is the "/geniro:implement findings" pick's drill-down — a sub-gate of the Action path like the §7.2 granularity gate on the Post pick, not a fifth top-level gate.
+Fires when the §4 Action-gate pick is `"/geniro:implement findings"` AND `## Deferred — sub-threshold` holds ≥1 entry. The section's `none — …` sentinel → skip silently (no no-op menus). The gate resolves BEFORE the §4 follow-up echo line — the echo names the handoff the user will run, so the fix list must be settled first. Structurally this is the "/geniro:implement findings" pick's drill-down — a sub-gate of the Action path like the §7.2 granularity gate on the Post pick, not a fourth top-level gate.
 
 A bare section is neither entries nor sentinel: the Phase 4 filter's deferral result never reached the handoff, so there is nothing here to offer. Skip, and say in the §4 follow-up line that the deferred list is unwritten — the user is about to run a fix list assembled without it.
 
@@ -473,30 +463,6 @@ When round ≥3 AND user picks "Continue rounds", fire a secondary AUQ:
 - **Abort** — terminal `aborted` state; `## Termination reason: repeated-failure: round-limit-3`.
 
 Persist user pick to `approvals[]` with category `round_n_escalation`, written via `atomic_state_write`.
-
----
-
-## 6. Failing-tests gate
-
-This is the commit-POLICY gate — it decides whether to commit/push the tests already authored, and it fires unconditionally whenever the handoff's `## Authored Tests` section lists test files, even when the Action gate already completed or the session is wrapping up.
-
-A chat-text request to commit or push the authored tests — at any later point — is answered by firing THIS gate, never by executing directly: chat text is never a gate. It is distinct from the earlier test-AUTHORING gate, which offered to write those tests during the stratify phase and populated `## Authored Tests`. Do not conflate the two: authoring produced the files, this gate decides where they go.
-
-**A bare `## Authored Tests` section is not an answer.** The section's `none — …` sentinel is what says the test-authoring gate ran and produced nothing; a section with neither files nor sentinel means that gate's result is unknown, and this gate cannot skip on an unknown. Resolve it before the run reaches an external effect — a commit, a push, or the §7 Post drill: check the working tree for tests this run authored and either populate the section or write the sentinel, then decide. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel carries the general rule.
-
-Firing order relative to the Action gate is conditional per the gate chain (§2).
-
-- **Header:** "Failing tests"
-- **Question:** "How should the N failing tests authored during the test-confirmation step be handled? They are AI-authored — review before merging. They fail by design, so once pushed the branch's checks will stay red until the findings are fixed or the tests are removed. If you just chose to post findings as a Draft PR review, the comment bodies reference these test files by path — pushing them to the PR's branch is what makes those references resolve for PR reviewers."
-
-**Options:**
-- "Commit failing tests on current branch" — orchestrator stages only the test files listed in `## Authored Tests` (never `git add -A` / `git add .`), composes a commit message following the repo's commit style (check `git log -5 --oneline` first), and commits via HEREDOC. **Recommended** — except when user selected "Post" in Action gate, in which case commit+push is Recommended.
-- "Commit + push to current branch's upstream" — same as commit-only, then `git push`. **Recommended when user selected "Post" in Action gate** (the posted comment bodies reference the test files by path; pushing makes those references resolve) — load-bearing, not cosmetic.
-- "Leave uncommitted" — tests stay on disk for user to review and stage manually.
-
-Never use `--no-verify`, `--amend`, or destructive flags. If a pre-commit hook fails, surface the failure and stop — do not retry or bypass.
-
-Persist user pick to `approvals[]` with category `failing_tests_commit_policy`, written via `atomic_state_write`.
 
 ---
 
