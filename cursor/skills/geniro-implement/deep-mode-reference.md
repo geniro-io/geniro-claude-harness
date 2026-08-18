@@ -29,9 +29,9 @@ No implement-side logic is needed here — deep mode passes `DEEP: true` to the 
 
 ## 3. Recall — Phase 3 self-review (3 angle-diverse passes per dimension)
 
-Standard Phase 3 Round 1 spawns one `reviewer-agent` per dimension (bugs / security / architecture / tests / code-quality + any custom dims) in one parallel batch. Deep mode replaces the Round-1 batch with a `Workflow(...)` that runs EACH dimension under 3 distinct angles and unions + dedups in-script:
+Standard Phase 3 Round 1 spawns one `reviewer-agent` per dimension in the `change_scope`-scaled grid (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`) plus any custom dims, in one parallel batch. Deep mode replaces the Round-1 batch with a `Workflow(...)` that runs EACH dimension under 3 distinct angles and unions + dedups in-script:
 
-- The declared dimension set is unchanged — the 3 angles are a multiplier on each declared dim, not a new dim. The `adversarial-tester-agent` stays a SINGLE spawn: it already hunts edge cases exhaustively, and triple-running test authoring would triple authored-test churn for little recall gain.
+- The declared dimension set is unchanged — the 3 angles are a multiplier on each declared dim, not a new dim. The edge-case test-authoring step stays a SINGLE pass: it already hunts edge cases exhaustively, and triple-running it would triple authored-test churn for little recall gain.
 - For each dimension, spawn 3 independent `reviewer-agent` passes (parallel), each with the same context the single-pass spawn passes (diff, criteria paths, the dim's context slots), but each scoped to a DISTINCT angle so the passes search near-disjoint regions rather than re-running one identical prompt — **A common path** (likely defects on the typical code path), **B boundaries and error paths** (rare inputs, boundary conditions, exception/error handling, resource lifecycle, concurrency), **C interaction** (how the change couples with the rest of the diff and surrounding code — callers of changed symbols, sibling/parallel paths, flags and config). The angles are dimension-agnostic, so the angle instruction is a short prefix on the existing per-dim prompt — no per-dimension angle table to maintain.
 - Union + dedup the 3 angle passes of one dimension into a single per-dim finding set BEFORE the fix loop consumes them — same file + overlapping line range + same defect class = one finding (note `seen-in: N/3 angles` as an intra-dim reliability signal). Dedup intra-dim so the 3 angle passes of one dimension agreeing is never mistaken for cross-dimension agreement.
 
@@ -52,7 +52,7 @@ Standard Phase 3 routes every Round-1 finding straight into the fix loop. Deep m
 
 ## 5. Interaction with the fix loop
 
-Deep cost is front-loaded on Round 1 discovery + verification. The bounded fix loop (rounds 2-3, dims with actionable findings only — a minor-only dim counts as clean) re-spawns SINGLE-pass — re-running the deep fan-out every round would multiply the loop cost for diminishing returns, since Round 1's deep pass already established the verified finding set and a later round only re-checks whether the applied fixes hold. The `test-runner-agent` and `adversarial-tester-agent` behavior is unchanged across rounds. Round 4 entry stays forbidden (escalate-AUQ) exactly as in standard mode.
+Deep cost is front-loaded on Round 1 discovery + verification. The bounded fix loop (rounds 2-3, dims with actionable findings only — a minor-only dim counts as clean) re-spawns SINGLE-pass — re-running the deep fan-out every round would multiply the loop cost for diminishing returns, since Round 1's deep pass already established the verified finding set and a later round only re-checks whether the applied fixes hold. The `test-runner-agent` behavior and the edge-case test-authoring step are unchanged across rounds. Round 4 entry stays forbidden (escalate-AUQ) exactly as in standard mode.
 
 ## 6. Workflow shape
 
@@ -60,7 +60,7 @@ One script, two phases (recall then verify). Both fan-outs instantiate the canon
 
 Implement supplies these pieces:
 
-- **Recall phase.** The stage set is the declared Phase 3 dimension set minus the adversarial-tester, run under the three angles named in §3 above. Dedup key: same file + overlapping line range + same defect class, with the within-dim tally carried as `seen-in: N/3 angles`.
+- **Recall phase.** The stage set is the declared Phase 3 dimension set (the `change_scope`-scaled grid, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`), run under the three angles named in §3 above. Dedup key: same file + overlapping line range + same defect class, with the within-dim tally carried as `seen-in: N/3 angles`.
 - **Verify phase.** The candidates are the flattened per-dim findings the recall phase returned, and the survivors (`verdict !== 'refuted'`) enter the fix loop. Its escalation predicate, per §4:
 
 ```
@@ -69,7 +69,7 @@ Implement supplies these pieces:
 //   OR (first.validation === 'refuted' && f.seen_in >= 2)
 ```
 
-Every reviewer/verifier prompt re-asserts the read-only contract (no Edit/Write/git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn.
+Every reviewer/verifier prompt re-asserts the read-only contract (no Edit/Write/git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn by default, or pass `model="<tier>"` at every spawn — including inside this workflow — when the run carries `--subagent-model` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Subagent model tiering); that is the user's own election for the run, not the cheaper-tier shortcut the workflow mitigation guards against.
 
 ## 7. Fail-safe
 
@@ -84,5 +84,5 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5 — the standard sin
 | "Deep mode is on, so run the fix loop 3× every round too." | Deep cost is front-loaded on Round 1 (§5). Rounds 2-3 re-check whether the applied fixes hold — single-pass is sufficient there, and re-running the deep fan-out per round would multiply the loop cost for diminishing returns. |
 | "Skip verification — if the angle passes surfaced a finding, just fix it." | The angle passes raise recall (find more); verification raises precision (avoid fixing a hallucinated defect) — different levers. Every finding still gets at least one verifier before the fix, and contested or high-stakes findings get the full 3-vote majority (§4). Fixing a false positive wastes a round and can introduce a regression. |
 | "Run one verifier on every finding to save tokens." | The single-vote path is gated, not blanket (§4): a low-confidence first vote, ANY CRITICAL/HIGH finding, or a refute contradicting `seen-in >= 2/3` escalates to the full 3. In a mutation skill both a wrong fix and a dropped real bug are costly, so high-stakes findings always take the majority — one vote is accepted only for the corroborated MEDIUM-and-lower bulk. |
-| "Multiply the adversarial-tester 3× too, for parity with the reviewer dims." | The adversarial-tester already hunts edge cases exhaustively and AUTHORS tests; tripling it triples authored-test churn for little recall gain. Deep mode multiplies the reviewer dimensions and the verifier votes, and keeps the adversarial-tester a single spawn (§3). |
+| "Multiply the edge-case test-authoring step 3× too, for parity with the reviewer dims." | The step already hunts edge cases exhaustively and AUTHORS tests inline; tripling it triples authored-test churn for little recall gain. Deep mode multiplies the reviewer dimensions and the verifier votes, and keeps the edge-case step a single pass (§3). |
 | "I'm in the deep Workflow now, so I can let the agents apply the fixes in parallel." | The workflow agents are read-only — they find and verify only. The orchestrator owns every fix and every `atomic_state_write` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6). Parallel agents editing source is exactly the boundary the wrapper tempts you to drop. |

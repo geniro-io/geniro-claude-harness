@@ -27,7 +27,6 @@ Deep mode sets the boolean `deep-mode: true`. It changes HOW MANY reviewer/verif
 - **Flag:** `/geniro:review --deep <args>` sets deep mode. Semantic parse (matches `--deep`, `deep`, `deep mode`).
 - **Chooser:** when no `--deep` flag is present, the Phase 1 depth question (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §11) asks review depth — "Standard" / "Deep — multi-angle review + extra verification". Picking Deep sets the boolean.
 - **State:** persist `deep-mode: <true|false>` to state.md frontmatter and the handoff frontmatter (schema-lockstep per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` /geniro:review producer fields; missing reads as `false`). Persist the chooser pick to `approvals[]` with category `deep_mode_choice` so the session-restore hook re-applies it on a compaction-resume.
-- **Composition:** deep mode does not change the Phase 4.3 test-confirmation gate — the gate still fires on the verified survivors whenever eligible findings exist; the two never conflict.
 
 When `deep-mode: false` (default), Phase 2 and Phase 4.2 run exactly as today (single reviewer batch; one `finding-verifier-agent` verdict per survivor via file-clustered verifier spawns) — deep mode adds no overhead to standard runs.
 
@@ -74,7 +73,7 @@ When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no ti
 
 Two fan-outs: the Phase 2 recall script and the Phase 4.2 vote script (may be one script with two phases, or two calls). Both skeletons are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 §Script skeletons — instantiate them rather than re-deriving. Review's substitutions: the stage set is the declared §2.1 dimension grid, the angles are the three in §2, and the dedup key is the intra-dim rule in §5.
 
-**Apply every mandatory Workflow mitigation in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at both fan-outs** — raw JSON over `agent({schema})`, the boundary re-asserted in every prompt, path constants outside template literals, `model=` omitted, the registration ladder, no `run_in_background`. Each one prevents an observed failure; read them before writing the script.
+**Apply every mandatory Workflow mitigation in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at both fan-outs** — raw JSON over `agent({schema})`, the boundary re-asserted in every prompt, path constants outside template literals, `model=` omitted, the registration ladder, no `run_in_background`. Each one prevents an observed failure; read them before writing the script. `model=` omitted is the default, not an absolute: when the run carries `--subagent-model`, pass `model="<tier>"` at every spawn inside both fan-outs instead (`${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §Subagent model tiering) — that is the user's own election for the run, not the cheaper-tier shortcut the mitigation guards against.
 
 **Review's escalation predicate** — the one skill-specific piece of the vote skeleton. It keys on cross-dim `convergence_count` (not the within-dim `seen_in`) and escalates a high-stakes finding only on a `refuted` first vote, not in both directions, because review reports rather than fixes:
 
@@ -107,15 +106,13 @@ Degrade per the three rungs in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.m
 Every skill invariant binds inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — read-only agents, orchestrator-owned `atomic_state_write`, unchanged gates, no ship. Review's two specifics:
 
 - **Action gate** — deep mode does not add or change the action-gate chain. The canonical 4 option labels bind unchanged, their chained sub-gates (the Post-mode drill, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.2; the include-deferred gate, §4.6) are part of the canonical chain rather than deep-mode variants, and the `report_status: final` precondition (§3.5 of the same reference) binds unchanged.
-- **No-ship** — deep mode never pushes or fixes. The authored-test push carve-out (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1) is the only sanctioned write, and it is independent of deep mode.
+- **No-ship** — deep mode never pushes, fixes, or authors a test; the Reporter boundary (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`) holds unchanged under the workflow wrapper.
 
 ---
 
 ## 8. Edge cases
 
 **`--deep` on a trivial diff.** Deep mode still runs (the user asked for it). The cost is real but bounded; the Action gate / triage-out of trivial files (size triage, `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §12) still applies, so a formatting-only diff is triaged out before the fan-out.
-
-**`--deep` with test authoring approved at the Phase 4.3 gate.** Both apply: the angle-diverse / signal-gated fan-out AND failing-test authoring. The deep verification runs first (Phase 4.2); the test-gate (Phase 4.3) runs on the survivors of the gated verification, so authored tests target verified findings only — a strict improvement.
 
 **Round-2+ re-run.** Prior-round findings feed the reviewer prompts as today. Depth is re-asked on a fresh re-run — via the §7 re-review gate (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7) — because a fresh `/geniro:review` re-invocation never inherits the prior round's `deep_mode_choice`; only a compaction-resume of an in-flight run re-applies it. Passing `--deep` on the re-run pre-resolves depth to Deep as on any run.
 

@@ -37,7 +37,6 @@ seed_task_dir() {
   : > "$d/.kr-out.md"
   : > "$d/.ce-out.md"
   : > "$d/.tr-out.md"
-  : > "$d/.adversarial-out.md"
   : > "$d/.spec-challenge-out.md"
   : > "$d/.research-out.md"
   : > "$d/.research-backend.md"          # per-facet
@@ -57,7 +56,7 @@ seed_task_dir "$t1"
 clean_task_transients "$t1"
 leftover=$(find "$t1" -maxdepth 1 \( \
   -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' \
-  -o -name '.adversarial-out.md' -o -name '.spec-challenge-out.md' \
+  -o -name '.spec-challenge-out.md' \
   -o -name '.research-*.md' -o -name 'notes.md' -o -name 'playwright-verify.png' \
   \) 2>/dev/null)
 if [ -z "$leftover" ]; then

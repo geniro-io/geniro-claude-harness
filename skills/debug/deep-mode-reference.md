@@ -16,7 +16,7 @@ Debug-specific layers of the opt-in `--deep` quality mode. The cross-skill contr
 
 ## 1. Activation
 
-`/geniro:debug --deep <bug>` sets `deep-mode: true`. Semantic parse at Phase 0 Step 0.4 — matches `--deep` / `deep` / `deep mode` — strip the token before mode-detect routing so it never enters the Scientific-vs-Adversarial decision. `--deep` deepens Scientific Mode's hypothesis generation (§2) and fix verification (§3) only; in Adversarial Mode it is accepted and recorded but currently deepens no stage, per §3's single-spawn ruling.
+`/geniro:debug --deep <bug>` sets `deep-mode: true`. Semantic parse at Phase 0 Step 0.4 — matches `--deep` / `deep` / `deep mode` — strip the token before mode-detect routing so it never enters the Scientific-vs-Adversarial decision. `--deep` deepens Scientific Mode's hypothesis generation (§2) and fix verification (§3) only; in Adversarial Mode it is accepted and recorded but currently deepens no stage, per §3's ruling that Adversarial Mode's test authoring stays single-pass regardless of depth.
 
 **The HYBRID chooser** fires only when `--deep` is absent:
 
@@ -52,7 +52,7 @@ Standard Phase 2.4 judges "does the monkey-patched fix turn the F→P test red�
 - **Majority of 3** tolerates one bad vote. A verifier whose output won't parse **abstains** (counts toward neither side; parse defensively — a parse failure is never a refute). Quorum < 2 parseable votes → run one fresh single-pass verifier for that judgment (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §5).
 - A majority "fix does not resolve / test too weak" verdict routes back into the standard §2.5 fix-loop (fix-fail counter increments as usual); a majority "resolved + strong guard" verdict advances to Phase 3 exactly as the standard single-pass judgment would.
 
-**The `adversarial-tester-agent` stays a SINGLE spawn even in deep mode.** It already hunts edge cases exhaustively and AUTHORS tests; tripling test authoring triples authored-test churn for little recall gain. Deep mode multiplies hypothesis generation and the fix-verification votes, and keeps the adversarial-tester a single spawn.
+**Adversarial Mode's test authoring stays single-pass even in deep mode.** It already hunts edge cases exhaustively and authors tests inline; tripling the hypothesis-authoring loop would triple authored-test churn for little recall gain. Deep mode multiplies Scientific Mode's hypothesis generation and fix-verification votes only.
 
 ## 4. Fail-safe + boundary
 
@@ -64,7 +64,7 @@ Standard Phase 2.4 judges "does the monkey-patched fix turn the F→P test red�
 
 Each degrades with a plain-English caveat (`Deep mode couldn't run the extra passes for <stage> — fell back to a single pass.`), never a hard stop. A shallower-than-requested investigation is still a valid investigation.
 
-**Boundary.** Apply the 5 Workflow mitigations from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at every spawn: return raw JSON text and parse defensively (never `agent({schema})`); re-assert the read-only boundary in every agent prompt; build path/context strings as plain constants OUTSIDE backtick template literals (a bare `${CLAUDE_PLUGIN_ROOT}` inside a literal is read as JS interpolation and crashes the script); OMIT `model=` so passes inherit the orchestrator tier; resolve the `adversarial-tester-agent` registration via the session-resolved rung (prefixed → bare → general-purpose with body inlined).
+**Boundary.** Apply the 5 Workflow mitigations from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §4 at every spawn: return raw JSON text and parse defensively (never `agent({schema})`); re-assert the read-only boundary in every agent prompt; build path/context strings as plain constants OUTSIDE backtick template literals (a bare `${CLAUDE_PLUGIN_ROOT}` inside a literal is read as JS interpolation and crashes the script); OMIT `model=` so passes inherit the orchestrator tier; resolve any plugin-agent spawn's registration via the session-resolved rung (prefixed → bare → general-purpose with body inlined) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
 
 Every workflow agent prompt re-asserts debug's read-only contract: no `Edit`/`Write`, no `git`/`gh`, no `.geniro/` state writes. The spawned passes return hypotheses and verdicts, nothing else: the orchestrator — not a spawned pass — owns every `atomic_state_write`, the fix-proposal write (text only, never applied to production source), and the reproduction-test authoring. **Debug does not ship** — the no-ship boundary binds inside every workflow step (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`). Deep mode changes pass count and aggregation, nothing else.
 

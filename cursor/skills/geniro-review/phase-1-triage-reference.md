@@ -199,6 +199,8 @@ After Step 0 settles, every subsequent Phase 1 step and downstream phases run fr
 
 **`--focus <text>` extraction (before target-shape detection).** Strip a `--focus <text>` flag from `$ARGUMENTS` first — free text through end-of-line or the next recognized flag — so the routing table below never mistakes steering prose for a branch name, file path, or diff range. The extracted text feeds `steering-note:` (§7 step 5/6); on its own it names no target.
 
+**`--subagent-model <tier>` extraction (same point as `--focus`).** Strip it from `$ARGUMENTS` too, before target-shape detection. Persist `subagent-model: <tier>` to state.md frontmatter now — missing reads as `inherit` — so a compaction between this step and the Phase 2 spawn batch does not silently revert every reviewer back to the frontmatter default. Values and the fallback routes for an inexpressible tier: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`.
+
 The pre-step resolves the review target from the remaining `$ARGUMENTS`:
 
 | Input shape | Routing |

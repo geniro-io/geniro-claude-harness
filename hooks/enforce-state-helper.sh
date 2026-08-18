@@ -227,9 +227,9 @@ matches_state_path() {
   #   T1 ephemeral scratch — any DOT-PREFIXED basename under .geniro/, plus the
   #     one undotted convention (notes.md) and the verification screenshot.
   #     Deliberately a rule, not a roster: the named T1 outputs (.kr-out.md,
-  #     .ce-out.md, .tr-out.md, .adversarial-out.md, .research-out.md,
-  #     .spec-challenge-out.md, .research-<facet>.md) are a fixed set only for
-  #     the agents that ship today, while a run invents scratch names freely.
+  #     .ce-out.md, .tr-out.md, .research-out.md, .spec-challenge-out.md,
+  #     .research-<facet>.md) are a fixed set only for the agents that ship
+  #     today, while a run invents scratch names freely.
   #     A closed roster blocked one such name (.review-round1.md) six times in
   #     a single run (measured 2026-08-13) with no way for the run to learn the
   #     roster from the deny text. Dot-prefixed is the convention every T1

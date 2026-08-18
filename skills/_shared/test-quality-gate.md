@@ -18,7 +18,7 @@ This gate spawns no agent. The audit is already performed by the fresh `tests` r
 
 ## What it surfaces
 
-From the Phase 3 `tests`-dimension output (and the `adversarial-tester` authored-test list), select the test-honesty findings — those flagged for claimed-vs-asserted mismatch, spec-coverage gap, weak/zero assertions (the Deletion Test), redundancy among new tests, or a scenery test recommended for removal (presentational detail, framework behavior, duplicated coverage). Partition them:
+From the Phase 3 `tests`-dimension output (and the tests that Phase 3's own inline edge-case authoring step wrote), select the test-honesty findings — those flagged for claimed-vs-asserted mismatch, spec-coverage gap, weak/zero assertions (the Deletion Test), redundancy among new tests, or a scenery test recommended for removal (presentational detail, framework behavior, duplicated coverage). Partition them:
 
 - **Found and already fixed** — test-quality findings the bounded fix loop resolved this run. They need no decision; list them for visibility so the user sees the audit ran and what it changed.
 - **Open** — test-quality findings not auto-resolved (a judgment call the loop left standing, or one it did not fix). These carry the decision.

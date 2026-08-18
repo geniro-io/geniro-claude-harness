@@ -74,7 +74,7 @@ If Phase 5 re-enters after compaction:
 
 ## Phase 6 — Action gate handoff
 
-State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§6 and §8-§9.
+State.md `phase: action-gate`. **Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§5 and §8-§9.
 
 The GitHub reviews-API Post drill (§7.0-§7.8) lives in its own file, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md`. Read it only if the Action gate's pick is "Post Draft PR review" — it is unreachable when `pr-ref: none`. On that path read it WHOLE, before the first `gh api` call and echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: the §5.4 anchors reach the POST itself but not the three things that must happen first — the §7.2 granularity question and §7.3 per-finding post/skip gate (non-skippable whenever the filtered set is non-empty), the §7.5 pre-POST scrub against the never-add set, and the `redact_secrets` pass over every free-form segment. Those are sole-homed there, and a finding that quotes a credential re-leaks it onto a surface that outlives the fix. Loop invariant S2 and the §7.0 Pre-Post guard bind only on that same path, so they are satisfied vacuously on every other pick.
 
@@ -91,12 +91,10 @@ Summary of the Phase 6 chain — each gate is its own AUQ, never collapsed; step
 
    Full AskUserQuestion shape (literal block), descriptions, and severity-driven recommendation rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4. Persist user pick to `approvals[]` with category `action_gate` via `atomic_state_write` (never a raw write on the handoff path).
    - **Include-deferred gate (chained).** When the pick is `"/geniro:implement findings"` and the report holds set-aside minor findings, a chained question asks whether to include them in the fix list, resolving before the follow-up echo line; skipped silently when none. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §4.6.
-5. **Failing-tests gate** — fires unconditionally whenever state.md `## Authored Tests` lists test files (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6, which also carries what a section with neither files nor its `none — …` sentinel obliges before an external effect). A chat request to commit/push authored tests — whenever it arrives — re-fires this gate instead of executing directly.
 
 Operational rules:
 
-- **Terminal cleanup** — when the Phase 4.3 test gate ran, `rm -rf` `<PRIMARY_ROOT>/.geniro/state/review/<branch-slug>/` at the terminal `phase:` write. That directory is keyed by branch, not by run, and holds only the adversarial tester's transient report; nothing else sweeps it (the `/geniro:update` migration walk scans `.geniro/planning` only), so skipping this leaves one directory per reviewed branch forever. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"Who cleans what, and when".
-- **Reporter behavior** — no fix loop inside /geniro:review. /geniro:implement self-review (5-dim parallel) is a separate skill with a separate contract.
+- **Reporter behavior** — no fix loop inside /geniro:review, and no test authoring: a finding's `Decision Type` travels into the handoff unchanged, and any confirming test is `/geniro:implement`'s to author when it applies the fix. /geniro:implement self-review (its own scaled reviewer grid) is a separate skill with a separate contract.
 - **Round-N escalation gate** when round ≥3 + "Continue rounds" pick — secondary AUQ (Continue / Escalate / Abort). Terminal `aborted` records `## Termination reason: repeated-failure: round-limit-3`.
 - **Pre-Post unresolved-ambiguity guard** (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` §7.0) — defensive re-check before `gh api POST /reviews`: aborts the Post drill if any `open_questions[]` entry has `status == unresolved`, OR any PRODUCT-DECISION finding has `step0_status: pending`, OR any kept CRITICAL/HIGH/MEDIUM finding still carries `Validation: refuted` (it should have been filtered at Phase 4.2), OR the report is still `report_status: draft` (the §3.5 finalize step never ran). Fail-closed second line of defense against producers writing new entries mid-phase or the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3) being skipped under drift.
 ---

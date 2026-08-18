@@ -26,14 +26,16 @@
 # outside this repo, so its words cannot be measured here. R2 therefore pins the
 # ten built-ins and says so, rather than inventing a row.
 #
-# Excluded from both profiles, deliberately: the adversarial-tester spawn (its
-# Phase 4.3 gate is approval-bound, so it is not part of a floor or a ceiling),
-# the deep-mode paths (both profiles are single-pass), memory-backend.md
-# (loaded only when a project declares a backend), and spawn-agent.md /
-# model-tiering.md — phase-2-spawns.md gates the spawn-agent.md Read behind a
-# not-found error or an empty spawn result, and model-tiering.md is cited, not
-# Read, at every review call site; neither is paid for on the happy path this
-# floor/ceiling pair measures.
+# Excluded from both profiles, deliberately: the deep-mode paths (both
+# profiles are single-pass), memory-backend.md (loaded only when a project
+# declares a backend), and spawn-agent.md / model-tiering.md — phase-2-
+# spawns.md gates the spawn-agent.md Read behind a not-found error or an
+# empty spawn result, and model-tiering.md is cited, not Read, at every
+# review call site; neither is paid for on the happy path this floor/ceiling
+# pair measures. /geniro:review authors no tests of its own (any confirming
+# test is /geniro:implement's to author when it applies a fix,
+# skills/review/phase-5-6-emit-handoff.md §Reporter behavior), so there is no
+# test-authoring spawn to exclude here.
 
 # ---- R1: orchestrator ----
 R1	orchestrator	1	skills/review/SKILL.md
@@ -86,7 +88,6 @@ R2	orchestrator	1	skills/review/phase-1-triage-reference.md
 R2	orchestrator	1	skills/review/phase-2-spawns.md
 R2	orchestrator	1	skills/review/phase-3-4-filter-stratify.md
 R2	orchestrator	1	skills/review/phase-5-6-emit-handoff.md
-R2	orchestrator	1	skills/review/phase-4-3-test-gate-reference.md
 R2	orchestrator	1	skills/_shared/loop-invariants.md
 R2	orchestrator	1	skills/_shared/evidence-standard.md
 R2	orchestrator	1	skills/_shared/gate-rendering.md

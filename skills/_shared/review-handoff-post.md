@@ -25,12 +25,9 @@ through `§7.8`, and those citations resolve to the sub-sections below.
 
 ## 7. Action == Post drill (PR-ref input only)
 
-When user picked "Post" in the Action gate:
+When user picked "Post" in the Action gate, continue with §7.0-§7.8 below.
 
-1. If `## Authored Tests` lists test files: fire Failing-tests gate FIRST (push lands before `gh api` POST). A section carrying neither files nor its `none — …` sentinel is resolved here, before the POST, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §6 — this is the external-effect boundary that rule names, and posting comments that reference unpushed test paths is what it prevents.
-2. Continue with §7.0-§7.8 below.
-
-When Action != Post or Post option was omitted, skip §7.0-§7.8 and proceed to Failing-tests (when applicable) and cleanup.
+When Action != Post or Post option was omitted, skip §7.0-§7.8 and proceed to cleanup.
 
 ### 7.0 Unresolved-ambiguity guard (fail-closed)
 
@@ -88,7 +85,7 @@ The §7.2 granularity AUQ and §7.3 per-finding gate count only non-excluded fin
 
 When §7.1 empties the post set, fall back to Skip semantics — do not call `gh api` POST; surface `All eligible findings were excluded (already on the PR, kept-off-PR, no action needed, or unverified) — nothing drafted on PR` once in chat.
 
-Every kept finding posts, apart from these exclusions. The test-confirmation gate never filters the posted finding set — when it authored failing tests, each `[CONFIRMED-BY-TEST]` finding gains a `**Failing test:** \`<path>\`` line (per §7.5), but no finding is ever removed from the post set.
+Every kept finding posts, apart from these exclusions.
 
 ### 7.2 Granularity gate
 
@@ -105,7 +102,7 @@ Chain a follow-up `AskUserQuestion` with header "Post mode":
 
 ### 7.3 Per-finding gate
 
-Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by §7.1 when applicable — the test-confirmation gate applies no filter of its own). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
+Fires only on "Pick one-by-one". Iterate over the eligible-findings list (filtered by §7.1 when applicable). For each finding, fire ONE `AskUserQuestion` per canonical Single-finding gate shape at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`. Calling-skill-set fixed menu: finding's own `Options:` is ignored; calling-skill menu is the three options below.
 
 - **`header`:** `"Post finding?"`
 - **Chat render (first):** render the finding to chat per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — a self-contained block instantiating that template. The posting loop over ≥2 eligible findings is a decision queue, so each render opens with the tracker (`✔ Decision 1 — <short tag> · ● Decision 2 of N — <short tag> · ○ …`; the denominator is the eligible-finding count after the §7.1 filter). The user decides whether to post from an explained finding, not a side-box snippet.
@@ -125,15 +122,7 @@ After loop completes (or user picked "Stop posting"), aggregated post set is the
 
 ### 7.4 Post via the GitHub reviews API
 
-Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url`. Pass snapshotted `pr-head-sha` as `commit_id` — but see head-SHA freshness rule. ONE `gh api` call posts the entire review.
-
-**Head-SHA freshness — re-fetch when authored tests were just pushed.** When Failing-tests gate fired BEFORE this step AND user picked "Commit + push", the local push advanced the PR's head past `pr-head-sha`. Re-fetch:
-
-```bash
-gh pr view <pr-ref> --json headRefOid --jq '.headRefOid'
-```
-
-Use the returned value as `commit_id`. Also overwrite state file's `pr-head-sha:` with the re-fetched value. Without this re-fetch, API rejects comments whose `path` is not present in `commit_id`'s tree with `Validation Failed: path could not be resolved`.
+Parse `<owner>/<repo>/<number>` from the state-file Summary's `pr-url`. Pass snapshotted `pr-head-sha` as `commit_id`. ONE `gh api` call posts the entire review.
 
 **Split the post set.** Pick the side from the unified diff hunk the finding's line sits in: a line removed (`-`) in the hunk is LEFT (base side); an added (`+`) or context line of the new file is RIGHT; a line in no hunk routes to the body. Three file-finding routes, in order:
 - (a) Findings with `File: <path>` whose line is present on the RIGHT (an added or context line of the new file, in the diff's `commit_id` tree) → inline `comments[]` array with `side:"RIGHT"`. Inline-anchor every such finding regardless of severity — a LOW finding on a changed line is still an inline comment, never a body bullet. Severity gates whether a finding is kept (Phase 4.1), not where a kept finding renders.
@@ -179,17 +168,17 @@ comment-ids: [<id1>, <id2>,...]
 
 ### 7.5 PR-comment body content rules (hard)
 
-GitHub PR comments are public, audience-expanding output. Each comment body opens with the severity badge per the §7.4 comment-object template (`**MEDIUM** — <description>`) and carries only these four things: the severity badge, the finding's plain-language description, the recommendation, and (for `[CONFIRMED-BY-TEST]` findings) the appended `**Failing test:** \`<test-path>\`` line. The orchestrator's internal finding handle (`M1`, `M1b`, `L5`, …) is a chat/handoff cross-reference only — it never prefixes or appears in a comment title, because the PR author has no map for `M1b`.
+GitHub PR comments are public, audience-expanding output. Each comment body opens with the severity badge per the §7.4 comment-object template (`**MEDIUM** — <description>`) and carries only these three things: the severity badge, the finding's plain-language description, and the recommendation. The orchestrator's internal finding handle (`M1`, `M1b`, `L5`, …) is a chat/handoff cross-reference only — it never prefixes or appears in a comment title, because the PR author has no map for `M1b`.
 
 **Never add** to the body or top-level review body:
 - Plugin branding (`Geniro`, `/geniro:` prefix, "Generated by …" footers).
 - Decision-type tags (`[FIX-NOW]`, `[TESTABLE]`, `[PRODUCT-DECISION]`, `[INTENT-CHECK]`).
 - AUQ `header:` chip labels echoed as if they were tags (`[Open question]`, `[Decision]`). These literals are reserved for the §2.5 Pre-gate and §3 Step 0 AUQs that gate downstream action; echoing them in a PR comment body re-projects unresolved ambiguity onto the PR author, which is the exact failure mode those gates exist to prevent. If a finding reads as an open question, it has not completed §3 — abort the post and re-fire the gate per §7.0, do not relabel it for the PR.
-- Pipeline phase names (`Phase 4.3`, `judge pass`, `relevance filter`, `test-confirmation gate`).
+- Pipeline phase names (`Phase 4.2`, `judge pass`, `relevance filter`).
 - Confidence numerics (no `*Confidence: NN%*`).
 - State-file paths or schema references.
 - User-decision artifacts (`user picked X`, `approved by user`, the round's `steering-note` free text).
-- Internal tags (`[CONFIRMED-BY-TEST]`, `[CHALLENGED-BY-TEST]`, `[POSTED-TO-PR]`, `[NEW]`, `[PRE-EXISTING]`, `[ALIGNS-WITH-PLAN]`, `[USER-ELECTED]`, `TRUNCATED`).
+- Internal tags (`[POSTED-TO-PR]`, `[NEW]`, `[PRE-EXISTING]`, `[ALIGNS-WITH-PLAN]`, `[USER-ELECTED]`, `TRUNCATED`).
 - Internal finding IDs / orchestrator labels (`M1`, `M1a`, `M1b`, `M2`, `M3`, `L1`…`L7`, `F1`…, and any `<letter><digit>` handle assigned to enumerate findings in the chat summary or handoff). They exist only to cross-reference findings off the PR; the comment body opens with the severity badge, never a finding handle.
 - Internal knowledge-base references — incident IDs (`incident 4`), learning IDs (`learning B.1.5`), and the project's internal incident-report cross-references (a `B.x.y`-style token when it is introduced by the word `incident`/`learning` or appears as a bare parenthetical cross-reference, e.g. `(incident 4 / learning B.1.5)`). These index a private incident log / learnings store the PR author cannot open, so the bare ID reads as noise. The `incident`/`learning` keyword or the parenthetical cross-reference shape is what identifies the pattern — a bare `<letter>.<digit>.<digit>` that is a genuine code fact under review (a spec section ref, a test-case ID, a version) is NOT this pattern and stands. Cite the failure mode in plain language ("the documented backdated-migration-ordering failure") and drop the parenthetical ID — or substitute a shareable link if the reviewer briefing carries one.
 

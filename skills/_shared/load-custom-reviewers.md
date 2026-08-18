@@ -117,14 +117,15 @@ Run this once per spawn-spec whose `requires-context` is non-null, AFTER Step 7 
 
 For each spec the helper returns, the consumer skill appends one `Agent()` call to its parallel reviewer batch. The `model=` argument is **conditionally included**:
 
-- When `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument entirely. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit` directive.
-- When `spec.model ∈ {haiku, sonnet, opus}` (the user explicitly declared a tier in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. User-explicit override beats inherit.
-- When `spec.model == "auto"` → PASS `model="auto"` under a host whose spawn facility takes it (Cursor); under Claude Code there is no such selector, so OMIT the argument and treat it as `inherit`. Either way the user's intent — "let the host pick" — is honored rather than silently replaced by a tier of ours.
+- When the run carries `--subagent-model` → PASS `model="<tier>"` verbatim, beating every case below including a custom reviewer's own declared `model:` — the flag is the user's own run-wide election (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`).
+- Otherwise, when `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument entirely. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit` directive.
+- Otherwise, when `spec.model ∈ {haiku, sonnet, opus}` (the user explicitly declared a tier in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. User-explicit override beats inherit.
+- Otherwise, when `spec.model == "auto"` → PASS `model="auto"` under a host whose spawn facility takes it (Cursor); under Claude Code there is no such selector, so OMIT the argument and treat it as `inherit`. Either way the user's intent — "let the host pick" — is honored rather than silently replaced by a tier of ours.
 
 Inherit form (default — user did not declare `model:`):
 
 ```
-Agent(subagent_type="geniro:reviewer-agent", prompt="""
+Agent(subagent_type="geniro:reviewer-agent", prompt="""   # ladder rung 1 — Claude Code only; bare name under any other host
 DIMENSION: {spec.dimension-label}
 CRITERIA: {spec.criteria-content}
 PROJECT SEARCH POLICY: [verbatim global.md rules governing how to search this codebase, or `none declared` — governs every lookup the reviewer makes, not just its first]
@@ -163,4 +164,5 @@ Custom reviewers spawn once per review run — exactly like every built-in dimen
 | "If `paths:` is set and matches nothing, I'll fire anyway just to be safe" | If the user scoped a reviewer to `**/*.sql` and the diff has no SQL files, firing it wastes a Sonnet call and produces zero findings. Silently drop — the `paths:` field IS the user's opt-out for unrelated diffs. |
 | "I'll cache the spawn-specs across consumer-skill invocations within the session" | Don't. The changed-files list differs per invocation, so the `paths:` filter result differs too. Re-run the helper on every consumer-skill invocation. The cost is one Glob + N small Reads — cheap relative to the parallel reviewer batch itself. |
 | "Custom reviewer's frontmatter omitted `model:` — I'll default to `sonnet` at the spawn site" | When `model:` is OMITTED in the custom-reviewer frontmatter, default to `inherit`, not `sonnet`. Custom reviewers follow the same default as built-ins per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. The user opts INTO a hardcoded tier only by explicitly writing `model: haiku` / `model: sonnet` / `model: opus` — honor that declaration when present, OMIT `model=` at the spawn site when absent. |
+| "The custom reviewer declared its own `model:` — that beats a `--subagent-model` the run carries." | Backwards. `--subagent-model` is the user's own run-wide election and beats every other source including a custom reviewer's declared tier — see the conditional list above. A per-file frontmatter declaration predates the run; the flag is the user speaking for this run specifically. |
 | "The custom reviewer's criteria say to fetch from Notion — I'll add the MCP tool to its spawn so the subagent fetches it" | MCP tool names are per-install, so the tool to call is unknowable at the spawn site — naming one here pins a call that will not resolve in another installation. The orchestrator pre-fetches the data and injects it via `requires-context:` / `CUSTOM CONTEXT:` instead — see §Hydrating requires-context. Without a `requires-context:` declaration, the reviewer silently sees no external data; that's what the validate-lint guard in `/geniro:instructions` flags at authoring time. |

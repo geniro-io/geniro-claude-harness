@@ -20,7 +20,7 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 
 ## Test design philosophy (canonical)
 
-This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), the `adversarial-tester-agent` when authoring F→P tests (`/geniro:implement` Phase 3 self-review (Round 1), `/geniro:debug` Adversarial Mode), and the `/geniro:debug` reproduction-test author. Write the test according to these principles; review the test against them.
+This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), by `/geniro:implement` Phase 3's inline edge-case test authoring step and `/geniro:debug` Adversarial Mode's inline F→P test authoring, and by the `/geniro:debug` reproduction-test author. Write the test according to these principles; review the test against them.
 
 ### 1. Tests describe behavior, not implementation
 
@@ -89,9 +89,9 @@ Every newly-authored test must demonstrate red-then-green at least once before b
 A test that passes the first time you run it (without any production change) is testing something that already works — either it's redundant with existing coverage OR it's not actually exercising the new behavior. Investigate before committing. This rule applies to:
 - New tests authored during `/geniro:implement` Phase 2
 - Reproduction tests authored during `/geniro:debug` Phase 2
-- F→P tests authored during `/geniro:debug` Adversarial Mode and `/geniro:review`'s Phase 4.3 test-confirmation gate
+- F→P tests authored during `/geniro:implement` Phase 3's inline edge-case authoring step and `/geniro:debug` Adversarial Mode
 
-`/geniro:debug` Adversarial Mode and `/geniro:review`'s Phase 4.3 test-confirmation gate both enforce F→P with 3-run determinism checks; the `adversarial-tester-agent` deletes tests that pass on current code.
+`/geniro:implement` Phase 3's inline edge-case authoring and `/geniro:debug` Adversarial Mode both enforce F→P with 3-run determinism checks; each deletes a test that passes on current code.
 
 ## What to check
 

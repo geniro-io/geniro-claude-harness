@@ -74,7 +74,7 @@ for a in knowledge-retrieval-agent test-runner-agent; do
 done
 
 # --- a judgment-grade agent must NOT be downgraded ---
-for a in reviewer-agent codebase-explorer-agent finding-verifier-agent adversarial-tester-agent; do
+for a in reviewer-agent codebase-explorer-agent finding-verifier-agent; do
   if [ "$(cursor_model "$a")" = "inherit" ]; then
     pass "$a keeps the user's tier (inherit)"
   else

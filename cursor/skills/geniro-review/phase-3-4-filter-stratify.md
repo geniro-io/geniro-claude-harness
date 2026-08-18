@@ -10,11 +10,10 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
   - 3.1 Orchestrator-side dedup + convergence
   - 3.2 Mechanical+LLM dedup
   - 3.3 KEEP/FILTER judgment
-- Phase 4 — Stratification & test gate
+- Phase 4 — Stratification & verification
   - 4.0 Post-spawn verification gate (declared vs actual)
   - 4.1 Multi-signal admission gate
   - 4.2 Per-finding empirical-reproduction verification
-  - 4.3 Failing-to-passing test-confirmation gate
 
 ---
 
@@ -45,7 +44,7 @@ No external agent to fail — dedup and judgment run in orchestrator's main cont
 
 ---
 
-## Phase 4 — Stratification & test gate
+## Phase 4 — Stratification & verification
 
 State.md `phase: stratify`.
 
@@ -110,7 +109,7 @@ The admission gate is unchanged for repeat findings — an unchanged repeat is s
 
 Every kept CRITICAL / HIGH / MEDIUM finding from Phase 4.1 — each Path-A survivor, plus any Path-B `PRODUCT-DECISION` at those severities — is verified by a fresh `finding-verifier-agent` spawn — in standard mode, survivors citing the same file share one spawn at the cluster size defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4 (solo and sentinel-`File` findings spawn singly), all clusters fired as a parallel batch in a single assistant turn, with one independent verdict per finding. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` at Phase 4.2 entry, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — unread, this step has no source for the cluster cap, the per-verifier input contract, the §4.5 disposition rule, or the §6 anti-sycophancy guard, and a run improvises all four — and apply its contract as written. No tier-scaling, no severity-scaling — every finding kept at these severities is verified regardless of `risk-tier`. When `deep-mode: true`, each survivor gets a signal-gated verification — one verifier, escalating to a 3-vote majority only where the call is contested or high-stakes; escalation triggers, abstain rule, and quorum fail-safe are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md` §3 (the per-verifier contract is unchanged — only the vote count differs). A LOW `PRODUCT-DECISION` admitted by §4.1 Path B alone carries no Evidence-Block to re-read and routes to the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3) rather than defect-confirmation — so it skips this step; a Path-B admission at MEDIUM or higher is verified here like any other survivor (§4.1 Path B). A MEDIUM survivor carries an Evidence-Block-grade citation by admission (§4.1), and Loop Invariant #6 mandates Evidence at every kept severity, so a code-anchored survivor normally has a concrete file:line for the verifier to re-read; a CRITICAL or HIGH admitted on severity alone may arrive thinly cited, and supplying the missing quote is precisely this step's job; a Path-B MEDIUM+ may carry only its `File: path:lines` anchor, which the verifier reads the same way. The two sentinel-`File` dimensions (`SPEC-COMPLIANCE` / `PR-METADATA`) are path-less by design and verify against the diff instead of a code slice — see the path-less branch below.
 
-For each cluster, the orchestrator reads the cited file once (each member's slice window) plus caller and test-dir grep context at the caps defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 (the canonical home for the slice/grep sizes — not restated here so they cannot drift), then composes a `finding-verifier-agent` spawn per that file's §2-§2.5 input contract (NOT the full reviewer bundle — isolation from the originating reviewer's framing prevents anchoring). All verifier spawns fire in ONE assistant response — `subagent_type="geniro:finding-verifier-agent"`, OMIT `model=`; registration failures follow the deferred-ladder rule in SKILL.md §Subagent model tiering. In that SAME response — welded like the §2.3.1 spawn echo, never a separate turn — emit:
+For each cluster, the orchestrator reads the cited file once (each member's slice window) plus caller and test-dir grep context at the caps defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 (the canonical home for the slice/grep sizes — not restated here so they cannot drift), then composes a `finding-verifier-agent` spawn per that file's §2-§2.5 input contract (NOT the full reviewer bundle — isolation from the originating reviewer's framing prevents anchoring). All verifier spawns fire in ONE assistant response — `subagent_type="geniro:finding-verifier-agent"` under Claude Code, bare `subagent_type="finding-verifier-agent"` under any other host (`geniro:` is Claude Code's plugin namespace, and a batch fired at the wrong rung is dead in full), model per SKILL.md §Subagent model tiering; registration failures follow the deferred-ladder rule in the same section. In that SAME response — welded like the §2.3.1 spawn echo, never a separate turn — emit:
 
 > Verifying <F> findings with <S> independent checks (grouped by file).
 
@@ -119,7 +118,7 @@ For each cluster, the orchestrator reads the cited file once (each member's slic
 Each verifier emits: `validation: confirmed | refuted | clarified`, `recommended_action: fix-now | testable | product-decision | intent-check | drop`, `confidence: 1-5`, `evidence: "<file:line quote>"`.
 
 Aggregation:
-- `refuted` findings move to `## Filtered`. Do NOT propagate to §4.3 F→P gate, Phase 5 stratify, or T2 handoff. At CRITICAL / HIGH the demotion is not final on one verdict: the high-stakes refutation guard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5 rule 1) fires a second independent verifier per refuted finding as one parallel batch, and only a second `refuted` demotes.
+- `refuted` findings move to `## Filtered`. Do NOT propagate to Phase 5 stratify or T2 handoff. At CRITICAL / HIGH the demotion is not final on one verdict: the high-stakes refutation guard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5 rule 1) fires a second independent verifier per refuted finding as one parallel batch, and only a second `refuted` demotes.
 - `clarified` findings keep severity but update `decision-type` to the verifier's `recommended_action`; verifier confidence and evidence append to the finding body.
 - `confirmed` findings retain decision-type; verifier confidence and evidence append.
 - **Steering suppression.** A `confirmed` or `clarified` finding the reviewer noted as matching this round's "stop flagging" steering instruction (`steering-note:`, `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 5) moves to `## Filtered`, `reason:` set to the steering text verbatim, severity preserved so the user can re-elevate. This fires only here — after the finding has cleared §4.1 admission and this verifier pass — never earlier, so a steering note can never keep an unchecked finding from being validated. A CRITICAL is exempt: the §3.3 floor keeps it in `## Findings`, with the steering text recorded as a note on the finding instead of a filter reason.
@@ -127,16 +126,6 @@ Aggregation:
 
 A `refuted` verdict on a CRITICAL is high-impact (the finding drops out of the handoff entirely), which is why it takes two independent verdicts to land — the high-stakes refutation guard at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5 rule 1. Each of them requires a literal quote from the cited file showing the defect is NOT present (paraphrased "looks fine" is insufficient); see the same file §6 for the anti-sycophancy guard.
 
-### 4.3 Failing-to-passing test-confirmation gate
-
-**Full contract:** `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-4-3-test-gate-reference.md`.
-
-Summary:
-- Filter findings by decision-type per the runtime-behavior classification rule.
-- **Mandatory user-approval gate before any `adversarial-tester-agent` spawn.** Do not spawn without approval — the gate is the load-bearing safety property, since an unapproved spawn authors tests the user never asked for. Persist to `approvals[]` with category `test_gate_choice`.
-- The gate fires whenever eligible findings exist — never bypassed, never deferred to end-of-run. When the eligible set is empty, the approval gate and the agent spawn are skipped with no AUQ, but the `## Authored Tests` sentinel write still runs — a bare section reads as an unwritten result, not a clean one (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel).
-- Spawn ONE adversarial-tester-agent with eligible findings as hypothesis seeds. Orchestrator's independent re-run IS the gate; never trust the agent's red/green claim alone.
-- Demote-don't-delete: green tests demote findings to `## Filtered` with `[CHALLENGED-BY-TEST]` tag; original severity preserved for re-elevation.
-- Fail-open: agent failures surface "test-gate fail-open" under `## Caveats` + write `## Errors` entry.
+A finding's `Validation` verdict from this step is final for this run — /geniro:review authors no confirming test of its own. Its existing `Decision Type` (`[TESTABLE]` / `[FIX-NOW]` / etc.) already travels into the handoff unchanged; `/geniro:implement` is what authors a confirming test, at the point it applies the fix.
 
 ---

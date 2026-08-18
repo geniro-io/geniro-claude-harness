@@ -54,7 +54,7 @@ Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with debug-specific bindings:
 
 - **Invariant #3 (permission before side-effect)** — /geniro:debug performs NO `git push` / `gh pr create`; the no-ship boundary holds under a dynamic `Workflow(...)` or ultracode mode too, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-- **Invariant #4 (bounded results)** — `adversarial-tester-agent` output is bounded by the hard cap on authored tests its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`); finding schema per that file's §Output Schema.
+- **Invariant #4 (bounded results)** — Adversarial Mode's authored-test output is bounded by its own hard cap (10 authored tests per run) and hypothesis-generation stop rule (5 consecutive discards) — § Budgets below; finding schema per `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A6.
 - **Invariant #5 (escalation gates)** — stall gate (§1.7) + fix-fail gate (§2.5) escalate via AUQ; never fabricate a conclusion.
 - **Invariant #6 (grounded in observations)** — a hypothesis is **confirmed** only when its `Result:` field in `## Hypotheses` cites an artifact from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. That standard also binds every fix-verification and reproduction-test capture: reasoning is correlation, and only reproduction with a captured artifact confirms causation.
 
@@ -64,7 +64,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
-`## Tool log` schema: typical run produces 0-3 entries (subagent-spawn outcomes for adversarial mode, stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped. **Deep mode** (opt-in, default off): `--deep` (or the Phase 0 Debug-depth chooser when `--deep` is absent) deepens Phase 1 hypothesis generation (3× fan-out + dedup) and Phase 2 fix/reproduction verification (3 verifiers, majority vote) per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — higher quality at higher token cost, no change to gates or the no-ship boundary.
+`## Tool log` schema: typical run produces 0-3 entries (stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped. **Deep mode** (opt-in, default off): `--deep` (or the Phase 0 Debug-depth chooser when `--deep` is absent) deepens Phase 1 hypothesis generation (3× fan-out + dedup) and Phase 2 fix/reproduction verification (3 verifiers, majority vote) per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — higher quality at higher token cost, no change to gates or the no-ship boundary.
 
 ---
 
@@ -77,7 +77,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | "I added experimental logging and while I'm here I'll patch the bug too" | Experiments and fixes are separate deliverables. Phase 2 mandates: revert experimental edits to non-test source; escalate the proposed patch as text. /geniro:implement applies the real fix cleanly. |
 | "Changes look fine, I'll skip adversarial mode" | "Looks fine" is the attacker's favorite surface. If user asked for verify-changes, run the adversarial pass — a zero-red-tests outcome is still a valid deliverable. |
 | "I'll reason about edges instead of authoring tests" | Reasoning is reviewer-mindset. Adversarial mode AUTHORS executable failing tests because reasoning misses what running code catches. |
-| "The agent reported F→P, I'll trust it" | Orchestrator MUST independently re-run authored tests (A4 step 4). Self-reported F→P is evidence, not proof. Same rule applies to scientific-mode hypothesis confirmation — re-run the test / re-read the file:line / re-execute the query yourself before advancing to Isolate. |
+| "This test would obviously fail — I don't need to actually run it before counting it" | Reasoning from the diff is not F→P. Adversarial Mode authors a test AND runs it to a real assertion failure before counting it (A4 step 3) — a test never observed red is not a finding. Same rule applies to scientific-mode hypothesis confirmation — re-run the test / re-read the file:line / re-execute the query yourself before advancing to Isolate. |
 | "The findings are in state.md, I'll just ask the escalation question" | state.md is a scratchpad, not a user-facing report. §3.1 requires an explicit findings summary in chat AND persisted to `from-debug-<branch>.md` before the escalation AUQ. The state file IS the handoff channel — inlining the summary into the escalation command lets copies drift. |
 | "The hypothesis matches the symptom — that's confirmation" | Symptom-matching is correlation, not causation. Confirmation requires a captured artifact per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. |
 | "I have no DB / log / production access — mark this hypothesis inconclusive" | No-access-by-default is the same fabrication shortcut as inconclusive-by-default: a limit on your own reach is a claim and carries the same artifact requirement (Evidence Standard). Attempt the read with the tools you have and capture what fails; the §1.5 missing-data gate opens on that captured failure. Handing the user a manual checklist your own shell answers in seconds skips the probe that would have settled it. |
@@ -100,21 +100,21 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 |---|---|---|---|
 | Inconclusive hypothesis tests | per §1.7 | stall gate | AUQ — diagnose-by-missing-component → user supplies missing or picks alternative |
 | Fix attempts failed verification | per §2.5 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
-| Adversarial mode authored tests | per the agent contract | (delegated to agent contract) | Stop authoring; surface findings |
-| Adversarial mode consecutive discards | per the agent contract | (delegated to agent contract) | Stop hypothesis generation; surface partial |
+| Adversarial mode authored tests | 10 per run | A4 step 3 (hypothesis-authoring loop) | Stop authoring; surface findings |
+| Adversarial mode consecutive discards | 5 consecutive | A4 step 3 (hypothesis-authoring loop) | Stop hypothesis generation; surface partial |
 
 **Architecture constraints (design intent, not budget):**
 
 | Constraint | Value |
 |---|---|
-| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `finding-verifier-agent` (Phase 1 root-cause verification, always-on) + `adversarial-tester-agent` (adversarial mode only) |
+| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `finding-verifier-agent` (Phase 1 root-cause verification, always-on). Adversarial Mode's test authoring runs inline — no subagent spawn. |
 | Reproduction-test framework | Project's native (detected from CLAUDE.md Essential Commands) |
 
 ---
 
 ## Subagent model tiering
 
-OMIT `model=` at every plugin-agent spawn site, per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Spawn plugin-defined subagents through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` → bare `<agent>` → `general-purpose` with agent body inlined); cache the resolved rung for the rest of the session.
+OMIT `model=` at every plugin-agent spawn site, per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Spawn plugin-defined subagents through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` under Claude Code → bare `<agent>`, the entry rung everywhere else → `general-purpose` with agent body inlined); cache the resolved rung for the rest of the session.
 
 Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies every pre-inlined field, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
@@ -122,7 +122,6 @@ Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at
 |---|---|
 | `codebase-research-agent` | Phase 1 codebase mapping / flow tracing / definition lookups (Loop Invariant S1). Targeted file:line reads tied to a specific hypothesis stay orchestrator-inline (Read / Grep / Glob). |
 | `finding-verifier-agent` | Phase 1 §1.6, always-on — re-verifies the confirmed root cause cold before Phase 2 opens; single spawn, never a fan-out. |
-| `adversarial-tester-agent` | Adversarial mode test authoring. The agent's F→P verification + 3× flake check enforce correctness regardless of inherited tier. |
 
 ---
 
@@ -159,10 +158,9 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup; the §3.1 working-tree check's read-only `git status --porcelain`, plus its blocker-path revert) / AskUserQuestion.
 - Explicitly blocked: Edit/Write, `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
-**Adversarial Mode (A4 spawn):**
-- `adversarial-tester-agent` runs under the spawn-agent ladder.
-- Agent's tool surface inherited via the agent's frontmatter (owned by `${CLAUDE_PLUGIN_ROOT}/agents/adversarial-tester-agent.md`).
-- Orchestrator's re-verification step uses read-only Bash (run test command).
+**Adversarial Mode (A4):**
+- Allowed: Read / Grep / Glob / Bash (read-only — diff resolution, framework detection, running the test command) / Edit / Write, scoped to test files and test-only fixtures/helpers (never production source) / AskUserQuestion (escalation gate).
+- Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`, `git add`. No Agent spawn — test authoring runs inline in this same context.
 
 The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
@@ -190,7 +188,7 @@ The safety hooks apply across every phase; the complete list and what each block
 | Phase | Helper | Direction | MODE |
 |---|---|---|---|
 | `adversarial-investigate` entry | `load-custom-instructions` | read L4 | `refresh` |
-| `adversarial-ship` exit | `emit-learning` | write L2 | n/a (type `pitfall` — A4 step 6) |
+| `adversarial-ship` exit | `emit-learning` | write L2 | n/a (type `pitfall` — A4 step 5) |
 
 No L3/L2-read rows fire — diff-scoped work receives its diff pre-inlined, so a snapshot load is scope creep.
 
@@ -242,7 +240,7 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship`. Parallel to Scientific Mode; shared Phase 0 routes here on anchored verify-keyword signals (Phase 0 above).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A6 (purpose, diff resolution, skip conditions, RED-phase workflow, spawn template, findings template) and this mode's Definition of done. Exits when findings are surfaced, the `pitfall` learnings are recorded ahead of the A4 step 6 escalation AUQ, and that pick reaches this chain's terminal `phase: done` via Run `/geniro:implement` — the other two options fall outside the adversarial chain — or directly to terminal `phase: adversarial-aborted` when zero red tests survive independent re-verification — a valid deliverable, not a failure.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A6 (purpose, diff resolution, skip conditions, RED-phase workflow, handoff persistence, findings template) and this mode's Definition of done. Exits when findings are surfaced, the `pitfall` learnings are recorded ahead of the A4 step 5 escalation AUQ, and that pick reaches this chain's terminal `phase: done` via Run `/geniro:implement` — the other two options fall outside the adversarial chain — or directly to terminal `phase: adversarial-aborted` when zero red tests survive the F→P and flake-check verification (A4 step 3) — a valid deliverable, not a failure.
 
 ---
 
