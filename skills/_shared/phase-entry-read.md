@@ -18,7 +18,7 @@ A skill split into a spine plus phase files reaches the model as the spine alone
 
 **The phase-body Read comes before any step of the phase.** No inspection of the project and no spawn precedes it — not a `git status` probe, not a Glob, not an Agent call. The phase's steps begin in the turn after.
 
-Two things are explicitly NOT displaced, because they are bookkeeping rather than phase work: the `phase:` stamp a skill writes to state.md on entry, and a `MODE: initial-load` memory load a skill prescribes as its own first action. Where those are ordered first, they stay first — this contract governs the order of the phase's *steps*, and the file it makes you Read is usually where those very loads are invoked.
+Three things are explicitly NOT displaced, because they are bookkeeping rather than phase work: the `phase:` stamp a skill writes to state.md on entry, a `MODE: initial-load` memory load a skill prescribes as its own first action, and — on a host where `${CLAUDE_PLUGIN_ROOT}` is unset — the plugin-root probe each SKILL.md preamble mandates, which is a precondition of this Read rather than an inspection competing with it. Where those are ordered first, they stay first — this contract governs the order of the phase's *steps*, and the file it makes you Read is usually where those very loads are invoked.
 
 Then echo, per below. The Read alone is not the contract — an unechoed Read is indistinguishable from a skipped one for anyone reviewing the run, including a later compaction-resume of it.
 
@@ -36,20 +36,22 @@ The echo carries only as far as this context. Where the obligation runs inside a
 
 ## Echo contract
 
-Print exactly one line when the Read returns:
+Print exactly one line when the Read returns, and close it with a verbatim fragment from inside the file — its first section heading below the Contents block, or, for a file with no sections, its first sentence:
 
 ```
-Phase <N> (<name>) — loaded <filename>.
+Phase <N> (<name>) — loaded <filename> · "<verbatim fragment>"
 ```
 
 Examples:
 
 ```
-Phase 1 (Analyze) — loaded phase-1-analyze.md.
-Phase 0 (Mode detect) — loaded phase-0-mode-detect.md.
+Phase 1 (Analyze) — loaded phase-1-analyze.md · "## PHASE 1: ANALYZE"
+Phase 2 (Propose) — loaded phase-2-propose.md · "### 2.1 Refresh custom instructions on entry"
 ```
 
-The echo is user-visible proof the Read fired, and it is the only such proof — no hook enforces this contract, by design.
+**The fragment is what makes the echo evidence.** A fixed template can be produced by a run that never opened the file, and is: measured on an unattended host with the phase files absent, runs emitted `Phase 1 (Analyze) — loaded phase-1-analyze.md.` verbatim for a file that did not exist, then proceeded through the whole flow reporting success. Quoting the file's own words does not make that impossible, but it converts the claim from a template into a specific, checkable one — the reader can open the file and compare, and a run one hop from a file it cannot reach has to invent a detail rather than repeat a form. Where the fragment cannot be produced, the Read did not happen: say that instead of echoing.
+
+No hook enforces any of this, by design — the echo and its fragment are the only trace the Read left.
 
 ## When to re-read
 

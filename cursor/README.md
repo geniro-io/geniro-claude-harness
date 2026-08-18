@@ -8,7 +8,7 @@ This repository is a dual-runtime plugin: `.claude-plugin/plugin.json` packages 
 | Agents | `agents/` (Claude frontmatter: `tools`, `model`, `maxTurns`) | `cursor/agents/` (Cursor frontmatter: `model`, `readonly`) — generated from `agents/` by `scripts/build-cursor-agents.sh` |
 | Hooks | `hooks/hooks.json` (PascalCase events, exit-2 blocks) | `cursor/hooks.json` (camelCase events) → `cursor/hooks/claude-hook-shim.sh` → the same scripts in `hooks/` |
 
-`cursor/skills/geniro-<slug>/SKILL.md` carries only the frontmatter (`name:` rewritten to match its directory) and the body — sibling phase/reference files stay in `skills/<slug>/` and are not duplicated. Every intra-skill reference in a skill body already resolves through the fully-qualified `${CLAUDE_PLUGIN_ROOT}/skills/<slug>/...` form, and `${CLAUDE_PLUGIN_ROOT}` resolves to the plugin root regardless of which copy of `SKILL.md` is doing the reading, so those reads land on `skills/<slug>/` either way.
+`cursor/skills/geniro-<slug>/` is self-contained for that skill: the `SKILL.md` (frontmatter `name:` rewritten to match the directory) plus a copy of every sibling the skill reads at runtime — its phase bodies, reference procedures, and templates, subdirectories preserved. Intra-skill references stay in the fully-qualified `${CLAUDE_PLUGIN_ROOT}/skills/<slug>/...` form and are not rewritten; the sibling copy satisfies them without any root resolution, per `skills/_shared/runtime-portability.md` §Plugin-root resolution rung 3. `skills/_shared/` and `agents/` are cross-cutting and stay at the plugin root — a per-skill copy would duplicate ~900KB fourteen times and drift.
 
 ## Install
 
@@ -28,6 +28,20 @@ If the plugin is installed in Claude Code from the marketplace, enabling **Setti
 - **Session-start context restore.** The `sessionStart` hook re-injects the active task state and instruction-file list as `additional_context`.
 - **The subagents in `cursor/agents/`** for the parallel review/research fan-outs, registered under their bare names.
 
+## Cloud and background agents
+
+A Cursor cloud agent runs in a VM that has your repository and **nothing from your laptop**. Two things follow, and both have bitten a real run.
+
+**The plugin has to exist in that VM.** Where the skill reaches the agent as inlined text — the Claude Code compatibility-toggle route syncs the definition it found under `~/.claude/plugins/cache/`, a path the VM does not have — every `${CLAUDE_PLUGIN_ROOT}` reference in it points at your local machine. The agent then has the skill's spine and none of its phase bodies, gates, or spawn templates. It will not stall: it will reconstruct a plausible flow from your repo's own rules and report success. Make the plugin present instead, by one of:
+
+- installing Geniro as a **Cursor plugin at the team/marketplace level**, so it is provisioned into cloud environments rather than synced from a workstation;
+- **vendoring** the plugin into the repository (a submodule or a checked-in copy) — rung 4 of the resolution ladder finds any directory containing `.claude-plugin/plugin.json` inside the workspace;
+- adding a clone step to the environment's setup command.
+
+Failing all three, the skill runs degraded under a defined contract rather than an improvised one (`skills/_shared/runtime-portability.md` §"When the plugin's files are genuinely unreachable"): it announces what is missing, runs every phase and gate the spine names, and never lets your repo's rules stand in for the skill's decision gates.
+
+**Nobody is there to answer a gate.** A cloud agent has no `AskQuestion` reader — the run is one prompt in, one report out. `skills/_shared/non-interactive-host.md` owns what happens then: setup gates (workspace, depth, freshness, ship mode) take the most reversible option and are reported back as deferred decisions; safety and anomaly gates halt and hand the question back; and a floor of outward-facing actions — ready-for-review PR, merge, force-push, protected-branch push, posted comment, tracker transition — stays closed without an explicit answer. Pre-answer the setup gates through the sanctioned channels so the run does not have to default: the spec's `launch_config:` block, or launch modifiers in the invocation (`/geniro-implement <spec> worktree ship:draft`).
+
 ## What degrades or stays Claude-Code-only
 
 - **Structured decision gates** (`AskUserQuestion`) become plain chat questions with lettered options.
@@ -39,7 +53,7 @@ If the plugin is installed in Claude Code from the marketplace, enabling **Setti
 
 ## Maintaining the Cursor port
 
-- `cursor/skills/*/SKILL.md` are **generated** — edit `skills/<slug>/SKILL.md` (and its sibling phase/reference files, which are not duplicated), run `scripts/build-cursor-skills.sh`, commit the result. CI (`tests/cursor/build-skills-fresh.sh`) fails on drift.
+- **Everything under `cursor/skills/` is generated** — edit `skills/<slug>/SKILL.md` or any of its siblings, run `scripts/build-cursor-skills.sh`, commit the result. The generator clears each skill's output directory first, so a deleted source file disappears from the copy. CI (`tests/cursor/build-skills-fresh.sh`) fails on drift.
 - `cursor/agents/*.md` are **generated** — edit `agents/*.md`, run `scripts/build-cursor-agents.sh`, commit both. CI (`tests/cursor/build-agents-fresh.sh`) fails on drift.
 - `cursor/hooks.json` wires the shim; add new hook scripts there only if their event maps cleanly (see the translation map at the top of `cursor/hooks/claude-hook-shim.sh`).
 - `tests/cursor/hook-shim.sh` covers the adapter's translation and fail-open behavior.

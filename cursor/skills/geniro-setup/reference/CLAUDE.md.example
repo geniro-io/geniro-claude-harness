@@ -1,0 +1,125 @@
+# {{PROJECT_NAME}} — CLAUDE.md
+
+> **Reference example**: The /geniro:setup skill reads this for structure guidance and generates a project-specific CLAUDE.md from scratch — it does NOT fill in placeholders.
+
+## Sections
+
+- Project Overview
+- Coding Conventions
+- Design System
+- Testing
+- Git Workflow
+- Integration Points
+
+## Project Overview
+
+{{One paragraph describing what this project does and what domain it operates in. Extracted from README.md or project documentation during /geniro:setup. E.g., "A multi-tenant SaaS platform for managing construction project timelines, budgets, and contractor coordination."}}
+
+**Tech stack**: {{e.g., Python 3.11, Django 4.2, PostgreSQL, React 18, TypeScript}}
+
+**Key directories**:
+- `src/` — Application source code
+- `tests/` — Test suite
+- `docs/` — Documentation
+- {{Add project-specific structure}}
+
+**Domain context** (from project documentation):
+- {{Key domain entities — e.g., "Tenants, Projects, Budgets, Contractors, Milestones"}}
+- {{Domain safety rules — e.g., "Financial calculations use Decimal, never float", "Tenant data isolation is mandatory in all queries"}}
+- {{Architecture decisions — e.g., "Event-driven between services, synchronous within a service"}}
+
+**Essential commands**:
+```bash
+{{build}}            # Build the project
+{{test}}             # Run tests
+{{lint}}             # Lint (check only)
+{{typecheck}}        # Type checking
+{{format_fix}}       # Auto-format code
+{{lint_fix}}         # Auto-fix lint issues
+{{start}}            # Start dev server
+```
+
+**Additional commands** (if available):
+```bash
+{{codegen}}          # Code generation (GraphQL, OpenAPI, proto)
+{{e2e}}              # End-to-end tests
+{{preflight}}        # Full validation suite (build+lint+test)
+{{migrate}}          # Database migrations
+```
+
+See project README for full setup instructions and package.json (or requirements.txt, Cargo.toml, etc.) for dependencies.
+
+## Coding Conventions
+
+**Follow existing patterns**: Before writing new code, find the closest existing example in the codebase and follow its structure. This keeps consistency without needing explicit rules.
+
+**Code structure**: {{Describe your specific conventions briefly; prefer code examples over text}}
+- {{Architecture pattern: layered, MVC, hexagonal, etc.}}
+- {{Module organization principle}}
+- {{Error handling approach}}
+
+## Design System
+
+> Include this section only when the project has frontend code. Skip entirely for backend-only projects.
+
+**Styling approach**: {{e.g., Tailwind CSS 3.4 with shadcn/ui primitives, CSS Modules with styled-components for theming, MUI v5 with custom theme}}
+
+**Tokens & theme location**:
+- {{e.g., `tailwind.config.ts` for spacing/colors/breakpoints}}
+- {{e.g., `app/globals.css` defines CSS custom properties: --primary, --accent, --surface-1, --surface-2}}
+- {{e.g., `src/styles/tokens.ts` exports the design tokens module}}
+
+**Component library**: {{e.g., shadcn/ui in `components/ui/`, custom primitives in `components/primitives/`, MUI components imported from `@mui/material`}}
+
+**Spacing scale**: {{e.g., 4px base — valid steps 4 8 12 16 24 32 48 64; expressed as Tailwind p-1 p-2 p-3 p-4 p-6 p-8 p-12 p-16}}
+
+**Type scale**: {{e.g., Inter loaded via next/font; sizes text-xs to text-3xl from default Tailwind scale; weights 400/500/600/700}}
+
+**Color tokens** (semantic — never use raw hex): {{e.g., --primary, --primary-foreground, --accent, --muted, --destructive, --surface-1; light/dark pairs in app/globals.css}}
+
+**Breakpoints**: {{e.g., 375 mobile, 768 tablet, 1024 desktop, 1440 wide — Tailwind sm/md/lg/xl}}
+
+**Design exemplars** (canonical components to mirror visually):
+- {{e.g., `components/ui/button.tsx` — button states and variants}}
+- {{e.g., `components/forms/text-field.tsx` — input states, error display, label rhythm}}
+- {{e.g., `app/(dashboard)/projects/page.tsx` — page-level layout, density, hierarchy}}
+
+**State conventions**: {{e.g., hover via `hover:bg-accent`, focus via `focus-visible:ring-2 ring-ring`, disabled via `disabled:opacity-50 disabled:pointer-events-none`, loading uses `<Spinner />` from primitives, empty states use `<EmptyState />` template}}
+
+**Accessibility baseline**: {{e.g., WCAG AA contrast minimum, semantic HTML before ARIA, all interactive elements keyboard accessible, focus-visible rings on every focusable element}}
+
+**Aesthetic direction** (for greenfield work only — leave blank for matured projects): {{e.g., "minimal/editorial" or "warm/organic" — if set, UI-touching `/geniro:implement` runs use this when there's no existing convention to anchor to. If blank, stay on the universal baseline.}}
+
+## Testing
+
+**Test framework**: {{e.g., Jest, pytest, go test, RSpec}}
+
+**Test location**: {{e.g., `tests/` directory mirroring `src/` structure, co-located `*.test.ts` files}}
+
+**Running tests**:
+```bash
+{{test}}             # Run all tests
+{{test_single}}      # Run a single test file
+{{test_coverage}}    # Run tests with coverage
+```
+
+**Test conventions**:
+- {{Test naming pattern — e.g., "describe/it blocks", "test_<function>_<scenario>"}}
+- {{Coverage expectations — e.g., "Every feature needs tests before merging"}}
+- {{Test data approach — e.g., "Use factories, not fixtures"}}
+
+## Git Workflow
+
+**Branch naming**: `feature/`, `bugfix/`, `docs/`, `chore/` prefixes.
+
+**Pull requests**: Include a summary of changes, link related issues, and wait for approval.
+
+**Never force push** to shared branches (main, develop, production).
+
+## Integration Points
+
+{{PLACEHOLDER: Document any project-specific integrations}}
+
+- **CI/CD**: {{e.g., GitHub Actions, CircleCI — describe pipeline stages}}
+- **External APIs**: {{List third-party services and their purpose}}
+- **Databases**: {{e.g., PostgreSQL via Prisma, MongoDB via Mongoose}}

@@ -1,0 +1,102 @@
+<!-- Generated from skills/plan/plan-reference.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
+
+# /geniro:plan reference
+
+Companion reference for less-common usage paths of `/geniro:plan`. The main flow lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md`; this file documents edge cases and the shared rules consumed.
+
+## Contents
+
+- DESIGN_DOC mode — no refine path
+- Concrete example per section type (Phase 5 cluster chat-message substrate)
+- workflow_refs[] usage notes (m5-v2 / m5-v3 schema)
+- Edge cases (empty $ARGUMENTS, milestone-mode, code-references, compaction, validator hard-fail, concurrent runs)
+- Cross-references (shared rules consumed)
+
+---
+
+## DESIGN_DOC mode — no refine path
+
+The Phase 0 DESIGN_DOC AUQ has 2 options (per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-0-mode-detect.md` §0.2):
+
+- **Start fresh with this as context** (Recommended) — the prior doc is inlined into Phase 1 research-agent prompts under a `## Prior Design Doc` section. Phase 5 uses the standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) unconditionally — the prior doc is context, not template.
+- **Cancel** — exit without writing state.md.
+
+If the user really wants to surgically edit an existing design doc bypassing Phase 1-4, the correct path is to open the doc directly in an editor + manually update sections + re-run `/geniro:plan` only when ready to re-emit. /geniro:plan does NOT have an in-loop "edit existing sections" mode.
+
+---
+
+## Concrete example per section type
+
+Phase 5 cluster rendering (`loop-phase-5-section-approval.md` §5.2) renders every section in a cluster's chat message as a friendly digest block (lead sentence / `**Why:**` with evidence cite / `**How it gets built:**` / `**You'll see:**`) PLUS one concrete example and a visual, both closing out the section below its digest lines. This table supplies the example; the visual that goes with it is shared language, canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map".
+
+| Section | Concrete example shape |
+|---|---|
+| 1. Objective | One-line user-visible behavior statement: "User clicks X → sees Y within Z seconds" |
+| 2-3. Scope (Included/Excluded) | Bullet list mapping to specific files / endpoints / UI components (path-grounded, not feature-name) |
+| 4. Assumptions | Concrete invariants: "`USER.tz` always populated" — cite `file:line` where the invariant is guaranteed |
+| 5. Risks | Specific failure scenario + observable symptom: "Concurrent writers race on `events.cursor` → duplicate inserts → telemetry shows 2× `event.create` rate" |
+| 6. Steps | Pseudocode block OR file-by-file diff outline (3-5 lines) |
+| 7. Tools Required | Concrete CLI / MCP list: "`mcp__linear__update_issue`, `pnpm test`, `gh pr view`" |
+| 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — step anchors where a pause is warranted during the /geniro:implement run, advisory, per the section-8 note in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` |
+| 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch, each criterion closing on its acceptance command: `verify: pnpm test orders.spec` |
+| 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
+| 11. Done Condition | Observable signal phrase, plus the production signal when the change is outcome-bearing: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert; the dashboard metric shows backfill p95 under 5 min, one week after rollout" |
+
+The orchestrator renders the whole cluster to a chat message FIRST, then fires ONE lean AUQ for the cluster (Approve all / Explain a section further / Revise specific sections / Cancel). The chat message is the rendering surface — it has full width for code and diagrams the `AskQuestion` `preview` side-box cannot fit. See `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract".
+
+---
+
+## workflow_refs[] usage notes (m5-v2 / m5-v3 / m5-v4)
+
+Phase 1.4 fetches tracker references via the matching MCP (Linear / Jira / GitHub Issues / Asana) when `$ARGUMENTS` carries a URL/ID. Phase 6 copies the fetched payload from state.md `## Workflow Refs` into spec.md frontmatter `workflow_refs[]`. Downstream consumers (/geniro:implement Step 0, /geniro:review Phase 1, /geniro:debug Phase 1, /geniro:refactor Phase 1) read this field.
+
+**Schema-version compatibility:** the `geniro_schema_version` ladder is a cross-skill contract, so it lives in one place — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Schema-version compatibility, which names what each version adds and which versions every reader must accept.
+
+**Per-entry shape:** see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Per-entry shape — `kind` / `issue_id` / `url` / `fetched_at` required; `title` / `suggested_branch` / `status` / `parent_ref` optional.
+
+**Mutation responsibility:** `/geniro:plan` is a tracker reader only — Phase 1.4 fetches issue context to inform planning, Phase 6 copies the cached payload into spec.md frontmatter; both are local-write only, never POST to the tracker. Cross-skill mutation ownership (who may transition status, who may never create artifacts) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` §Mutation responsibility.
+
+**Staleness:** downstream readers re-fetch per the `fetched_at` staleness window defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` (§Per-entry shape). Cached `title` / `suggested_branch` / `status` fields let /geniro:implement Step 0 pre-fill AUQ defaults without re-fetching on every invocation.
+
+**Graceful degrade:** workflow file lookup is cwd-first, then `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A. When the file is absent from BOTH locations, Phase 7 check `workflow_refs_consistency` returns `warn` (not `fail`) — downstream skills skip workflow on-task-start hooks for that kind and continue. The workflow file may legitimately appear later in the project lifecycle.
+
+---
+
+## Edge cases
+
+- **Empty $ARGUMENTS** — Phase 0 fires an `AskQuestion` with 3 options ("New feature" / "Existing problem to solve" / "Cancel") followed by free-text capture. Non-empty answer → IDEA mode; "Cancel" → terminal without state.md.
+
+- **Topic spans multiple subsystems / very Big task** — the plan-loop completes normally (Phase 5 milestone-mode fires automatically per the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — the Big-tier milestone threshold). The Phase 9 handoff prints `/geniro:implement .geniro/planning/<slug>/milestone-1.md` for sliced specs.
+
+- **User wants to plan WITHOUT writing a spec.md** — not supported. The committed spec.md IS the durable artifact downstream skills consume via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`. /geniro:plan always ends by printing the `/geniro:implement <path>` command; to keep the spec for later, simply don't run it — the committed spec.md is the backlog entry (terminal `done`). The three detection markers must still be present per Phase 6 contract.
+
+- **`mode=CODE_REFERENCE`** — error and exit per Phase 0 (design-doc-detect helper returns CODE_REFERENCE → /geniro:plan emits error: "code reference passed to /geniro:plan; pass a topic or design-doc path. Did you mean /geniro:implement <path>?"). Do NOT fall back to `mode=IDEA` — silent misclassification of code references is the failure mode `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` §Anti-rationalization warns against.
+
+- **Compaction mid-Phase-5** — handled by the SessionStart re-injection of state.md `approvals[]` and `## Tool log`. The model re-reads `approvals[]` and skips already-answered AUQs; Phase 6 idempotent re-entry regenerates spec.md from persisted approvals.
+
+- **Phase 7 validator hard-fail past the auto-revision cap** — the `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). User has agency; no silent abort.
+
+- **Phase 8 user-revision round 3 exhaust** — the `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.3 escalation AUQ fires with 3 options (accept-as-is / re-revise / abort). Terminal `aborted` records `## Termination reason: repeated-failure: phase-8 revision-limit-3`.
+
+- **Concurrent /geniro:plan runs in different worktrees** — each worktree has its own `.geniro/planning/<task-slug>/state.md`.
+
+---
+
+## Cross-references
+
+Shared rules consumed by this skill:
+
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` — the loop's spine: the HARD-GATE, the gate presentation contract, the echo contract, terminal states, and the §Phase files table naming the `loop-phase-<N>-<name>.md` file that holds each phase's steps (Phases 0–9, with Phase 2 Visual Companion the one conditional phase — it fires on the UI trigger). The Phase 0 mode / empty-argument AUQs live in `loop-phase-0-mode-detect.md` §0.1–§0.2.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — Phase 0 mode detection algorithm; per-consumer behavior table for `/geniro:plan`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — Recommended-label policy for the Phase 4 approach AUQ + multi-select picker schema for Phase 5 milestone-name approval.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — tier rubric used by Phase 1 effort-tier-scaled spawns and Phase 5 milestone-mode trigger.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` — Phase 2 Visual Companion procedure (UI-conditional). Spawns the UI description agent (`model="sonnet"` per ui-preview-gate.md), runs the revision loop bounded per ui-preview-gate.md (against a published mockup in artifact mode, against the text description otherwise), returns the approved text to state.md `## UI Preview`.
+- `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — state.md write helper.
+- `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` — state.md validator for resume.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — L4 directive doc (Phase 1 entry refresh).
+- `${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh` — L3 read helper (Phase 1 entry).
+- `${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh` — L2 read helper (Phase 1 entry).
+- `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` — L2 write helper (Phase 8 conditional `decision` emit).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` — cross-layer L4/L3/L2 conflict protocol.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` — the standard spec schema template (Phase 6 input).
+- `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` — mechanical checks (Phase 7 input).

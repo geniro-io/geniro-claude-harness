@@ -18,8 +18,18 @@
 #   - AskUserQuestion appears zero times anywhere under a freshly generated
 #     cursor/skills/ (both the body substitution and the allowed-tools drop
 #     have to hold for this to be zero — allowed-tools alone names it too).
+#     Tree-wide on purpose: the generator translates the sibling phase and
+#     reference files it copies alongside each SKILL.md, and those name the
+#     question tool far more often than the spine does.
 #   - allowed-tools / model / argument-hint are absent from every generated
-#     file's frontmatter.
+#     SKILL.md, the file Cursor reads as the skill's manifest. Scoped to
+#     SKILL.md, not the tree: a sibling may carry those strings as content
+#     and be correct — skills/actions/skill-template.md is a template whose
+#     whole purpose is showing an author what a skill's frontmatter looks
+#     like, example-actions/*.md are authored skills with real frontmatter of
+#     their own, and instructions-authoring-reference.md documents a scaffold.
+#     None of them is a Cursor skill manifest, and stripping those lines
+#     would corrupt the very content they exist to carry.
 #
 # Deliberately NOT asserted: absence of Bash / Edit / Agent. Those are
 # ordinary English words in running prose ("via Bash", "an Edit target",
@@ -65,14 +75,19 @@ else
 fi
 
 # --- the three Claude-only frontmatter fields must be dropped from every
-#     generated copy; skills/<slug>/SKILL.md (Claude Code) is untouched and
-#     out of scope for this assertion ---
+#     generated SKILL.md; skills/<slug>/SKILL.md (Claude Code) is untouched
+#     and out of scope for this assertion, as are the copied siblings (see
+#     the scope note in the header) ---
+MANIFESTS="$(find "$TMP" -name SKILL.md)"
+if [ -z "$MANIFESTS" ]; then
+  fail "no generated SKILL.md found under $TMP — the generator produced nothing to assert on"
+fi
 for key in allowed-tools model argument-hint; do
-  HITS="$(grep -rl "^${key}:" "$TMP" 2>/dev/null || true)"
+  HITS="$(grep -l "^${key}:" $MANIFESTS 2>/dev/null || true)"
   if [ -z "$HITS" ]; then
-    pass "generated frontmatter never carries '$key:' (not a Cursor skill field)"
+    pass "generated SKILL.md frontmatter never carries '$key:' (not a Cursor skill field)"
   else
-    fail "'$key:' survived into generated frontmatter: $HITS — $REGEN_HINT"
+    fail "'$key:' survived into generated SKILL.md frontmatter: $HITS — $REGEN_HINT"
   fi
 done
 
