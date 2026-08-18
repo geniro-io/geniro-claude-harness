@@ -5,6 +5,8 @@ Applies when a skill runs under another Agent-Skills runtime (Cursor, Codex, Cop
 ## Contents
 
 - Plugin-root resolution
+- When the plugin's files are genuinely unreachable
+- When no user can answer
 - Hooks do not fire — self-enforce the conventions
 - Subagents do not inherit the orchestrator's cwd
 - Tool substitutions
@@ -17,7 +19,32 @@ Applies when a skill runs under another Agent-Skills runtime (Cursor, Codex, Cop
 
 ## Plugin-root resolution
 
-Each SKILL.md preamble carries the bootstrap: when `${CLAUDE_PLUGIN_ROOT}` is unset, the plugin root is the ancestor directory of the SKILL.md that contains `.claude-plugin/plugin.json`. Resolve it once, substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence in file references, and `export CLAUDE_PLUGIN_ROOT=<resolved-path>` in every Bash call that sources a `lib/*.sh` helper — several helpers read the variable directly. All `lib/*.sh` helpers are plain bash + jq and work unchanged once the path resolves — so "the state helpers probably assume Claude Code" is a guess this one resolution disproves, and dropping the state contract on it costs the run its only resumable record.
+Each SKILL.md preamble carries the bootstrap. Work the rungs in order and stop at the first that resolves:
+
+1. **The `CLAUDE_PLUGIN_ROOT` environment variable.** Unset under most hosts, but free to check.
+2. **The ancestor directory of the SKILL.md you are reading that contains `.claude-plugin/plugin.json`.** The normal answer under any plugin install, Cursor's included.
+3. **A sibling copy of the target file beside the SKILL.md you read.** The Cursor build ships each skill's own phase and reference files into its generated directory, so `${CLAUDE_PLUGIN_ROOT}/skills/<slug>/phase-1-analyze.md` is satisfied by `phase-1-analyze.md` sitting next to that copy. This rung resolves per-file and covers only a skill's own files — `skills/_shared/` and `agents/` are cross-cutting and live at the root.
+4. **A plugin checkout inside the workspace** — a vendored copy, a submodule, or a sibling clone of `geniro-claude-harness`. Identify it the same way: the directory containing `.claude-plugin/plugin.json`.
+
+Resolve once, substitute for every `${CLAUDE_PLUGIN_ROOT}` occurrence in file references, and `export CLAUDE_PLUGIN_ROOT=<resolved-path>` in every Bash call that sources a `lib/*.sh` helper — several helpers read the variable directly. All `lib/*.sh` helpers are plain bash + jq and work unchanged once the path resolves — so "the state helpers probably assume Claude Code" is a guess this one resolution disproves, and dropping the state contract on it costs the run its only resumable record.
+
+## When the plugin's files are genuinely unreachable
+
+Some hosts deliver a skill as text and nothing else: a cloud or background agent given the SKILL.md body inlined, with the path it came from pointing at a machine this run is not on. Every rung above then fails, and the operative half of the skill — its phase bodies, its reference procedures, this file — cannot be read at all.
+
+**The files are missing; the contract is not.** What survives is the SKILL.md body itself, which carries the phase map, the state machine, the loop invariants, and the anti-rationalization table. Run from it:
+
+- **Say so first.** Open the run by naming what is unavailable and which parts of the flow are therefore approximated. A degraded run that reads as a normal one is the failure mode — the user cannot audit a substitution they were never told about.
+- **Every phase still runs, in order, and every gate the spine names still fires.** A phase body you cannot read is a phase whose steps you must reconstruct from the spine, not a phase to skip. Where the spine names a gate without its option list, ask the question in your own words rather than deciding it.
+- **The project's own rules are not a substitute.** `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/*.mdc` and their kin govern how code is written; this skill governs which decisions are the user's. Adopting the former as a stand-in for the latter produces a run that edits the user's code without ever asking them anything — see the two rationalizations named at the top of this file.
+- **Prefer restoring the files over improvising without them.** A workspace with network access can fetch the plugin (`git clone https://github.com/geniro-io/geniro-claude-harness`, or a release tarball) into a scratch directory and set `CLAUDE_PLUGIN_ROOT` to it. Try this once, early; on failure say so and continue degraded rather than retrying.
+- **Report the degradation at the end too**, next to the deferred decisions below. The opening notice is gone from the user's screen by then, and the PR body is read by people who never saw it.
+
+## When no user can answer
+
+A host with no structured-question tool AND no human in the loop — a cloud agent, a scheduled run, a batch evaluation — does not get to drop its gates. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md` owns that contract: setup gates take the most reversible option and are reported as deferred decisions; safety and anomaly gates halt and hand the question back; a floor of outward-facing actions stays closed without an explicit answer. Read it before concluding a decision is yours to make.
+
+Note the ordering against the row below: a missing question tool is common and usually wrong (hosts rename it), while a missing *user* is a property of how the run was launched. Establish both before applying that file.
 
 ## Hooks do not fire — self-enforce the conventions
 
@@ -46,8 +73,8 @@ Both are already handled by the spawn contract, which every codebase-work spawn 
 
 | Claude Code tool | Substitute |
 |---|---|
-| `AskUserQuestion` | Resolve by name before concluding absence: this host's tool surface may carry the same capability under a different name (Cursor: `AskQuestion`). Only once no such tool exists under any name, fall back to chat: render the gate message, then a lean question with lettered options (recommended one first), and record the answer in state.md `approvals: []` exactly as an AUQ answer would. The resolved tool may carry no `header` field (Cursor's does not) — drop it and keep the question, rather than reading a field's absence as the tool's. A missing facility changes how the gate renders, never whether it fires. |
-| `Agent(subagent_type=...)` | Use the host's subagent/task-delegation facility with the same agent name (Cursor registers the plugin's agents under their bare names, e.g. `reviewer-agent`). If the host has no delegation facility, run the agent's contract inline: read `agents/<name>.md`, strip frontmatter, follow its body against its input slots, and treat its Output Format as the result. Parallel fan-outs then run sequentially — correctness is unchanged, only wall-time. |
+| `AskUserQuestion` | Resolve by name before concluding absence: this host's tool surface may carry the same capability under a different name (Cursor: `AskQuestion`). Only once no such tool exists under any name, fall back to chat: render the gate message, then a lean question with lettered options (recommended one first), and record the answer in state.md `approvals: []` exactly as an AUQ answer would. The resolved tool may carry no `header` field (Cursor's does not) — drop it and keep the question, rather than reading a field's absence as the tool's. A missing facility changes how the gate renders, never whether it fires. When the chat fallback has no reader either — an unattended run — apply §When no user can answer above; the gate is deferred and reported, never dropped. |
+| `Agent(subagent_type=...)` | Use the host's subagent/task-delegation facility with the same agent name (Cursor registers the plugin's agents under their bare names, e.g. `reviewer-agent`). Where the plugin's agents are not registered but the host ships generic ones (`explore`, `reviewer`, `tester`), delegate to the nearest generic and carry the plugin agent's contract in the spawn prompt — its scope, its evidence standard, and its Output Format — so what comes back is still the contracted artifact. The isolation is what the spawn buys, and a generic agent provides it. If the host has no delegation facility at all, run the agent's contract inline: read `agents/<name>.md`, strip frontmatter, follow its body against its input slots, and treat its Output Format as the result. Parallel fan-outs then run sequentially — correctness is unchanged, only wall-time. |
 | `model="sonnet"` at a spawn site | `haiku`/`sonnet`/`opus` are Claude Code model ids and no other roster carries them, so translate the intent per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Runtime resolution — under Cursor a mechanical or execution spawn passes `auto`. Judgment-grade spawns still omit the argument entirely, in every host. Never substitute a pinned model id of your own choosing. |
 | `TodoWrite` | Keep the numbered todo list in the state.md body and echo progress in chat. |
 | `Workflow` | Use the documented single-pass fallback at each deep-mode call site. |
