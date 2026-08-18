@@ -22,17 +22,23 @@ Caller contract (this skill's side):
 - Destination path: hold in-memory as Phase 5 substrate. Do NOT write a separate `ui-preview.md` artifact at the planning task-dir — the approved text feeds Phase 5 section 6 (Steps) + section 9 (Validation) directly.
 - Preview form: pass `MOCKUP: true` when state.md has `artifact_mode: true` and the page is not recorded unavailable (`artifact_status` is not `unavailable`); otherwise omit it and the text description runs unchanged. A user who opted into the visual plan artifact already consented to publishing a page, so the mockup rides that opt-in — do not add a question for it. In mockup form, fire the before-gate artifact call for this site before the preview question, and again on each revision round (call-site table in `loop-artifact-call-sites.md`), so the user studies the mockup on the page while answering in the terminal.
 
-### 2.3 Persistence
+### 2.3 Persistence — exit condition
 
-The approved text is appended to state.md `## UI Preview` body section via `atomic_state_write`:
+Phase 2 does not transition away from `phase: visual-companion` until `## UI Preview` is written to state.md via `atomic_state_write`, in whichever form matches the exit actually taken:
 
+- **Approved (→ Phase 3).**
 ```markdown
 ## UI Preview
 <approved text verbatim — the description, or the mockup's digest in mockup form; ≤200 lines per ui-preview-gate.md output constraint>
 ```
+- **Routed out (§2.4, → Phase 1 re-entry).** The assessed sentinel per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel:
+```markdown
+## UI Preview
+none — Phase 2 ran and the user routed to "adjust the plan instead"; re-entering Phase 1
+```
 
-Phase 5 section 6 / section 9 authoring cites this block as substrate. Phase 7 validator does not gate on `## UI Preview` presence (Phase 2 is conditional; absence is valid). In mockup form the mockup lives on the plan page the run already tracks (`artifact_url`), so nothing about it is duplicated here; once the preview is approved, fire the update for this site (call-site table in `loop-artifact-call-sites.md`) so the page's decision panel clears.
+Phase 5 section 6 / section 9 authoring cites the approved-text form as substrate. Phase 7 validator does not gate on `## UI Preview` presence at all — absence is only valid when the §2.1 trigger never fired; this exit condition is Phase 2's own to enforce. In mockup form the mockup lives on the plan page the run already tracks (`artifact_url`), so nothing about it is duplicated here; once the preview is approved, fire the update for this site (call-site table in `loop-artifact-call-sites.md`) so the page's decision panel clears.
 
 ### 2.4 Routing-out signal
 
-If the user picks "Adjust the plan instead" at any revision round of ui-preview-gate.md, return to Phase 1 with the user's feedback inlined into research-agent prompts. State.md transitions `phase: explore` (re-enter) — round-count not incremented since the user is correcting the plan substrate, not the UI preview itself.
+If the user picks "Adjust the plan instead" at any revision round of ui-preview-gate.md: write the §2.3 routed-out sentinel, then return to Phase 1 with the user's feedback inlined into research-agent prompts. State.md transitions `phase: explore` (re-enter) — round-count not incremented since the user is correcting the plan substrate, not the UI preview itself.

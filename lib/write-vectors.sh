@@ -467,8 +467,29 @@ _geniro_wv_cd_prefix() {
 
 # Resolve shell expansions inside an extracted literal against an assignment in
 # the SAME command — the shape that writes a computed path
-# (`F=.env; python3 -c "open('$F','w')…"`). Prints the resolved literal; returns
-# 1 when a referenced variable has no visible assignment (target unknown).
+# (`F=.env; python3 -c "open('$F','w')…"`). Prints one resolved candidate per
+# line; returns 1 when a referenced variable has no visible assignment at all
+# (target unknown).
+#
+# ALL-OR-NOTHING per variable, not last-binding-wins: the raw command text can
+# carry a `$VAR` reference at MORE THAN ONE write/delete call site (two `open`
+# calls either side of a reassignment), and this function is handed one
+# extracted literal at a time with no notion of WHERE in `cmd` that literal
+# sits — it cannot tell which assignment was live at ITS particular call site.
+# Picking only the last assignment in the text (the previous `tail -1`)
+# resolves every call site to the SAME single value, so a call site that ran
+# with an EARLIER, still-live binding is silently cleared while the resolver
+# reports a decoy — a bypass, not a false positive. Resolving every literal
+# binding as its own candidate costs nothing here (the caller just checks
+# more strings), so each is emitted on its own line — the same move
+# `_geniro_wv_resolve_pathlib_var` makes for a python variable one layer up.
+#
+# A variable is forced unresolved (return 1) the moment ANY of its bindings is
+# not a plain literal — `F=$(cmd)`, `F=` (empty), `F=$OTHER` — since a value
+# built from an expansion this scanner cannot evaluate makes every OTHER
+# literal binding equally untrustworthy as "the" answer; asserting a superset
+# built from only the literal-looking bindings would still assert a possibly-
+# wrong answer instead of deferring to the caller's conservative fallback.
 _geniro_wv_resolve() {
   local lit="${1:-}" cmd="${2:-}"
   case "$lit" in
@@ -476,24 +497,140 @@ _geniro_wv_resolve() {
     *'$'*) : ;;
     *) printf '%s' "$lit"; return 0 ;;
   esac
-  local resolved="$lit" ref vn val val_esc
+  local candidates="$lit" ref vn vals val val_esc new_candidates cand
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
     vn="${ref#\$}"; vn="${vn#\{}"; vn="${vn%\}}"
-    val=$(printf '%s' "$cmd" \
+    vals=$(printf '%s' "$cmd" \
       | grep -oE "(^|[[:space:];&|])${vn}=[^[:space:];&|\"']+" \
-      | tail -1 | sed -E 's/^[^=]*=//' || true)
-    if [ -z "$val" ]; then return 1; fi
-    # Escape backslash and & before using $val as a sed REPLACEMENT: unescaped,
-    # a backslash in the value mangles the substitution (sed reads it as an
-    # escape) and an & re-inserts the whole matched text instead of the
-    # literal value — either way the write/delete target silently comes out
-    # wrong. Order matters: double backslashes FIRST, then escape &, so the
-    # backslash this step inserts for & is not itself re-doubled.
-    val_esc=$(printf '%s' "$val" | sed 's/\\/\\\\/g; s/&/\\\&/g')
-    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val_esc}|g; s|[\$]${vn}|${val_esc}|g")
+      | sed -E 's/^[^=]*=//' | LC_ALL=C sort -u)
+    [ -z "$vals" ] && return 1
+    # A captured RHS that itself contains `$` or a backtick is an expansion or
+    # substitution this scanner cannot evaluate (`F=$OTHER`, `F=$(cmd)`), not a
+    # literal — treating its raw text as the resolved value would assert
+    # something the running shell never actually wrote to disk. One such
+    # binding taints the whole variable: every OTHER literal binding is
+    # equally untrustworthy as "the" answer once even one call site could have
+    # run with an unevaluable value instead.
+    if printf '%s' "$vals" | grep -qE '[$`]'; then
+      return 1
+    fi
+    new_candidates=""
+    while IFS= read -r cand; do
+      [ -z "$cand" ] && continue
+      while IFS= read -r val; do
+        [ -z "$val" ] && continue
+        # Escape backslash and & before using $val as a sed REPLACEMENT:
+        # unescaped, a backslash in the value mangles the substitution (sed
+        # reads it as an escape) and an & re-inserts the whole matched text
+        # instead of the literal value — either way the target silently
+        # comes out wrong. Order matters: double backslashes FIRST, then
+        # escape &, so the backslash this step inserts for & is not itself
+        # re-doubled.
+        val_esc=$(printf '%s' "$val" | sed 's/\\/\\\\/g; s/&/\\\&/g')
+        new_candidates="${new_candidates}$(printf '%s' "$cand" | sed "s|[\$]{${vn}}|${val_esc}|g; s|[\$]${vn}|${val_esc}|g")"$'\n'
+      done <<< "$vals"
+    done <<< "$candidates"
+    candidates="${new_candidates%$'\n'}"
   done <<< "$(printf '%s' "$lit" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' || true)"
-  printf '%s' "$resolved"
+  printf '%s' "$candidates"
+  return 0
+}
+
+# Resolve a pathlib target bound by an interpreter-level VARIABLE rather than
+# spelled adjacent to the write call — the shape
+#   p = pathlib.Path(".geniro/planning/x/state.md")
+#   ...
+#   p.write_text(s)
+# The literal sits on the assignment line, not next to `.write_text`, so the
+# adjacency match `Path("<lit>").write_text(` in the caller never sees it. This
+# is the same "follow the binding" move `_geniro_wv_resolve` makes for a shell
+# `$VAR` inside a literal, one level down inside the interpreter body: a target
+# that resolves through assignment must resolve here too, or the caller falls
+# back to treating every path-shaped token in the WHOLE command as a candidate
+# — which is what turned prose mentioning "binding.key" into a blocked write.
+#
+# ALL-OR-NOTHING per identifier, not last-binding-wins: a script can rebind
+# <ident> after the literal binding (`p = Path("<protected>"); ... p =
+# Path("x")`), and picking only the last assignment resolves to the wrong
+# single target while the real one never becomes a candidate — a bypass, not
+# a false positive. Resolving to a SUPERSET of candidates costs nothing here
+# (the caller just checks more paths), so every literal binding of <ident> is
+# emitted, one per line, whenever <ident>'s assignments are ALL literal. The
+# moment <ident> carries even one assignment whose right-hand side is not a
+# recognized literal shape — `p = Path(os.environ["X"])`, `p = secret` — the
+# runtime value at the write site is unknowable from any literal we did find,
+# so resolution fails outright (return 1) and the caller's unresolved/fallback
+# path takes over instead of asserting a possibly-wrong single answer.
+#
+# Three equivalent binding spellings count as literal: `p = pathlib.Path("<lit>")`,
+# `p = Path("<lit>")`, `p = "<lit>"`. The assignment must open a statement —
+# start of command, or right after `;`, `&`, `|`, or whitespace — never inside
+# a call's argument list, so a keyword argument (`log(p="<lit>")`) can never
+# masquerade as a binding of <ident>.
+_geniro_wv_resolve_pathlib_var() {
+  local ident="${1:-}" cmd="${2:-}"
+  [ -z "$ident" ] && return 1
+  local _q="\\\\?[\"']"
+  # The boundary a real assignment can open a statement after: command start,
+  # whitespace/`;`/`&`/`|`, or the quote a shell wraps an interpreter's `-c`
+  # payload in — the FIRST statement of `-c "p=...` sits right after that
+  # quote, not after any whitespace. `(` and `,` are deliberately excluded so a
+  # call's keyword argument never opens a "statement" here.
+  local _bound='(^|[[:space:];&|\"'"'"'])'
+  # An augmented assignment (`p /= x`, `p += x`) rebinds <ident> in a way the
+  # `=` scan below cannot see at all (`/=` never matches a bare `=`), and it
+  # can appear AFTER a perfectly literal binding — `p = Path('lit'); p /= x`
+  # still ends with p pointing at the augmented result, not the literal.
+  # Forced unresolved unconditionally, wherever the operator appears relative
+  # to any binding: a literal binding earlier in the command proves nothing
+  # about what <ident> holds by the time it reaches a write call.
+  local _augop='(\*\*|\/\/|>>|<<|\/|\+|-|\*|%|&|\||\^)='
+  if printf '%s' "$cmd" | grep -qE "${_bound}${ident}[[:space:]]*${_augop}"; then
+    return 1
+  fi
+  local rhs_list rhs lit lits="" nonlit=0 found=0
+  rhs_list=$(printf '%s' "$cmd" \
+    | grep -oE "${_bound}${ident}[[:space:]]*=[[:space:]]*[^;&|]+" \
+    | sed -E "s/^.*${ident}[[:space:]]*=[[:space:]]*//")
+  [ -z "$rhs_list" ] && return 1
+  # A binding counts as literal only when the RHS is EXACTLY a path literal,
+  # tail-anchored — `Path("lit") / x`, `.joinpath(...)`, `.with_name(...)`,
+  # `.with_suffix(...)`, `.parent`, a ternary, string concatenation and a
+  # trailing backslash line continuation all leave text after the literal, so
+  # none of them can match this and all fall through to `nonlit`, which forces
+  # the caller's conservative fallback instead of asserting a wrong single
+  # answer. `.resolve()`, `.absolute()` and `.expanduser()` are the sole
+  # exception carved out of the tail: each narrows or normalizes the SAME
+  # path rather than computing a new one, and without the carve-out
+  # `p = Path('notes/out.md').resolve()` regresses to the false positive this
+  # resolver exists to fix.
+  local _tail='([[:space:]]*(\.(resolve|absolute|expanduser)\(\))*[[:space:]]*)'
+  while IFS= read -r rhs; do
+    [ -z "$rhs" ] && continue
+    found=1
+    rhs=$(printf '%s' "$rhs" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//')
+    lit=""
+    if printf '%s' "$rhs" | grep -qE "^(pathlib\.)?Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)${_tail}\$"; then
+      lit=$(printf '%s' "$rhs" \
+        | grep -oE "^(pathlib\.)?Path\([[:space:]]*${_q}[^\\\\\"']+${_q}" \
+        | sed -E "s/^(pathlib\.)?Path\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"']\$//")
+    elif printf '%s' "$rhs" | grep -qE "^${_q}[^\\\\\"']+${_q}\$"; then
+      # Bare string binding: `p = "<lit>"` with no Path() wrapper — still a
+      # literal-valued variable a later `.write_text`/`.open` call can carry.
+      lit=$(printf '%s' "$rhs" \
+        | grep -oE "^${_q}[^\\\\\"']+${_q}" \
+        | sed -E "s/^\\\\?[\"']//; s/\\\\?[\"']\$//")
+    fi
+    if [ -n "$lit" ]; then
+      lits="${lits}${lit}"$'\n'
+    else
+      nonlit=1
+    fi
+  done <<< "$rhs_list"
+  [ "$found" = "0" ] && return 1
+  [ "$nonlit" = "1" ] && return 1
+  printf '%s' "$lits"
   return 0
 }
 
@@ -572,9 +709,29 @@ _geniro_interp_write_targets() {
         | grep -oE "${_wops_first}\([[:space:]]*${_q}[^\\\\\"']+${_q}" \
         | sed -E "s/^[^(]*\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
       # pathlib: the target is the Path(...) argument, not the write_text body.
+      # `.open(...)` only counts with a write mode — `Path('x').open()` with no
+      # args defaults to read, same as the builtin open()/fopen() gate above;
+      # without this `p.open().read()` reads as a write and blocks a plain read.
       printf '%s' "$cmd" \
-        | grep -oE "Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.(write_text|write_bytes|touch|open)" \
+        | grep -oE "Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.(write_text|write_bytes|touch)|Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.open\([^)]*${_q}[waxWAX>]" \
         | sed -E "s/^Path\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"'].*\$//"
+      # pathlib bound through a variable: `p = pathlib.Path("<lit>")` on an
+      # earlier line, then `p.write_text(...)` / `.write_bytes(...)` /
+      # `.touch()` / `.open(...)` later — the adjacency match just above only
+      # reaches a literal spelled next to the write call, not one bound one
+      # line up. Each bare identifier immediately before the write op is
+      # looked up via `_geniro_wv_resolve_pathlib_var`; an identifier with no
+      # visible binding prints nothing here and is caught by the unresolved
+      # check below instead. Same write-mode gate on `.open(...)` as the
+      # adjacent form above.
+      while IFS= read -r _wv_pvar; do
+        [ -z "$_wv_pvar" ] && continue
+        _geniro_wv_resolve_pathlib_var "$_wv_pvar" "$cmd" 2>/dev/null || true
+        printf '\n'
+      done <<< "$(printf '%s' "$cmd" \
+        | grep -oE "[A-Za-z_][A-Za-z0-9_]*\.(write_text|write_bytes|touch)\(|[A-Za-z_][A-Za-z0-9_]*\.open\([^)]*${_q}[waxWAX>]" \
+        | sed -E "s/\.(write_text|write_bytes|touch)\(\$//; s/\.open\(.*\$//" \
+        | sort -u)"
       # (Every comment in this $( ) body keeps its apostrophes and parentheses
       # balanced on purpose: bash 3.2 does not skip comments while scanning the
       # body, so an odd one reads as an unterminated quote or an unclosed group.)
@@ -609,11 +766,33 @@ _geniro_interp_write_targets() {
     unresolved=1
   fi
   # pathlib's write_text/write_bytes carry CONTENT, not a path — the target sits
-  # in the Path(...) call. A literal there was already emitted above; every other
-  # spelling (`p.write_text(d)` on a Path built earlier) leaves it unknown.
-  if printf '%s' "$cmd" | grep -qE '(write_text|write_bytes)\('; then
-    if ! printf '%s' "$cmd" | grep -qE "Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.(write_text|write_bytes)"; then
-      unresolved=1
+  # in the Path(...) call (spelled adjacent to the write, or bound to a variable
+  # on an earlier line and resolved by _geniro_wv_resolve_pathlib_var above; a
+  # literal from either shape was already emitted in the capture block). What
+  # is left unresolved here is a target that is NEITHER: no adjacent
+  # `Path("<lit>")`, and either no bare-identifier `IDENT.write_text(...)` call
+  # at all (e.g. a chained expression like `Path(x).write_text(...)`) or one
+  # whose identifier carries no visible literal-binding assignment.
+  # `.touch()` and a write-mode `.open(...)` are write-capable exactly like
+  # `write_text`/`write_bytes` and feed the SAME identifier capture above —
+  # gating only the first two here let an unresolvable `p.touch()` or
+  # `p.open('w')` yield zero candidates AND no fallback, the silent-allow this
+  # block exists to prevent.
+  local _wv_wgate="(write_text|write_bytes|touch)\\(|\\.open\\([^)]*${_q}[waxWAX>]"
+  if printf '%s' "$cmd" | grep -qE "$_wv_wgate"; then
+    if ! printf '%s' "$cmd" | grep -qE "Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.(write_text|write_bytes|touch)|Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.open\([^)]*${_q}[waxWAX>]"; then
+      local _wv_any_pvar=0 _wv_all_pvar_resolved=1 _wv_pvar3
+      while IFS= read -r _wv_pvar3; do
+        [ -z "$_wv_pvar3" ] && continue
+        _wv_any_pvar=1
+        _geniro_wv_resolve_pathlib_var "$_wv_pvar3" "$cmd" >/dev/null 2>&1 || _wv_all_pvar_resolved=0
+      done <<< "$(printf '%s' "$cmd" \
+        | grep -oE '[A-Za-z_][A-Za-z0-9_]*\.(write_text|write_bytes|touch)\(|[A-Za-z_][A-Za-z0-9_]*\.open\([^)]*'"${_q}"'[waxWAX>]' \
+        | sed -E "s/\.(write_text|write_bytes|touch)\(\$//; s/\.open\(.*\$//" \
+        | sort -u)"
+      if [ "$_wv_any_pvar" = "0" ] || [ "$_wv_all_pvar_resolved" = "0" ]; then
+        unresolved=1
+      fi
     fi
   fi
   if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(perl|ruby)[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*-[a-zA-Z]*i([[:space:].]|$)'; then
@@ -726,10 +905,41 @@ _geniro_wv_unquote_words() {
 # expansion, a substitution, or the output of a command is left alone rather
 # than chased, since nothing here evaluates anything. Longest names first, so
 # `$AB` is not clobbered by a rule for `$A`.
+#
+# ALL-OR-NOTHING per identifier, not first-assignment-wins: a script can bind
+# the SAME name more than once (`F=out.txt; F=<protected>; printf x > "$F"`),
+# and this function has no notion of WHICH assignment was live at the read
+# site — only that the text carries more than one candidate. The previous
+# code picked a value anyway: it substituted whichever binding its pass
+# reached first, which — since a substituted `$NAME` disappears from the text
+# before a later binding of the SAME name is ever tried — silently became
+# "first assignment in the text wins," an accident of iteration order with no
+# relationship to what the shell would actually run. That let a read site
+# resolve to a decoy while the real, live value (possibly the protected one)
+# was never checked — a bypass, not a false positive.
+#
+# A name whose every occurrence agrees on ONE literal value substitutes
+# exactly as before — ordinary shell with a single (or idempotently repeated)
+# binding is unaffected. A name that is EVER non-literal, or carries two or
+# more DISTINCT literal values, is instead rewritten to an inert SENTINEL:
+# on its own the sentinel matches no protected pattern (cost-free to a caller
+# doing plain literal matching, e.g. block-dangerous-git.sh's command-text
+# scan), while a caller whose vector IS the write/delete target — file-
+# protection.sh's and enforce-tdd-order.sh's candidate extraction — greps its
+# own extracted candidate for the sentinel and, on a match, routes into the
+# SAME conservative fallback an unresolved interpreter target already uses:
+# `_geniro_wv_path_tokens` over the surrounding text, which still carries
+# every literal binding as a plain token, so `F=<protected>; F=out.txt;
+# printf x > "$F"` still surfaces `<protected>` as a candidate even though the
+# live value at the read site is the benign one — the same "check the
+# superset, not just the one you can prove" trade this function's sibling
+# resolvers make.
 _geniro_wv_expand_assignments() {
   local text="${1:-}"
   [ -z "$text" ] && return 0
-  local _asn _name _val _pairs=""
+  local _sentinel='GENIRO_WV_AMBIGUOUS_VAR'
+  local _nonlit=$'\x01NONLIT\x01'
+  local _asn _name _val _raw=""
   while IFS= read -r _asn; do
     [ -z "$_asn" ] && continue
     _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
@@ -739,9 +949,24 @@ _geniro_wv_expand_assignments() {
       '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
       "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
     esac
-    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
-    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+    case "$_val" in ''|*'$'*|*'`'*) _val="$_nonlit" ;; esac
+    _raw="${_raw}${_name} ${_val}"$'\n'
   done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+  [ -z "$_raw" ] && { printf '%s\n' "$text"; return 0; }
+
+  local _names n _pairs=""
+  _names=$(printf '%s' "$_raw" | awk '{print $1}' | LC_ALL=C sort -u)
+  while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    local _distinct _val_out
+    _distinct=$(printf '%s' "$_raw" | grep -E "^${n} " | sed -E "s/^${n} //" | LC_ALL=C sort -u)
+    if [ "$(printf '%s\n' "$_distinct" | grep -c .)" = "1" ] && [ "$_distinct" != "$_nonlit" ]; then
+      _val_out="$_distinct"
+    else
+      _val_out="$_sentinel"
+    fi
+    _pairs="${_pairs}${#n} ${n} ${_val_out}"$'\n'
+  done <<< "$_names"
 
   while IFS=' ' read -r _ _name _val; do
     [ -z "${_name:-}" ] && continue

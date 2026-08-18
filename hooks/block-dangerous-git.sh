@@ -401,7 +401,9 @@ if ! command -v _geniro_wv_expand_assignments >/dev/null 2>&1; then
 _geniro_wv_expand_assignments() {
   local text="${1:-}"
   [ -z "$text" ] && return 0
-  local _asn _name _val _pairs=""
+  local _sentinel='GENIRO_WV_AMBIGUOUS_VAR'
+  local _nonlit=$'\x01NONLIT\x01'
+  local _asn _name _val _raw=""
   while IFS= read -r _asn; do
     [ -z "$_asn" ] && continue
     _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
@@ -411,9 +413,24 @@ _geniro_wv_expand_assignments() {
       '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
       "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
     esac
-    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
-    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+    case "$_val" in ''|*'$'*|*'`'*) _val="$_nonlit" ;; esac
+    _raw="${_raw}${_name} ${_val}"$'\n'
   done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+  [ -z "$_raw" ] && { printf '%s\n' "$text"; return 0; }
+
+  local _names n _pairs=""
+  _names=$(printf '%s' "$_raw" | awk '{print $1}' | LC_ALL=C sort -u)
+  while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    local _distinct _val_out
+    _distinct=$(printf '%s' "$_raw" | grep -E "^${n} " | sed -E "s/^${n} //" | LC_ALL=C sort -u)
+    if [ "$(printf '%s\n' "$_distinct" | grep -c .)" = "1" ] && [ "$_distinct" != "$_nonlit" ]; then
+      _val_out="$_distinct"
+    else
+      _val_out="$_sentinel"
+    fi
+    _pairs="${_pairs}${#n} ${n} ${_val_out}"$'\n'
+  done <<< "$_names"
 
   while IFS=' ' read -r _ _name _val; do
     [ -z "${_name:-}" ] && continue
