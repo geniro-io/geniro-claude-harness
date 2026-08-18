@@ -2,7 +2,7 @@
   "name": "geniro",
   "displayName": "Geniro",
   "description": "Production-grade agent harness: spec-first planning, multi-agent implement/review/debug skills, and safety guardrails. Cursor packaging of the Geniro plugin — skills, agents, and hooks are all Cursor-format ports under cursor/, generated from the canonical skills/ and agents/ sources.",
-  "version": "5.16.1",
+  "version": "5.17.0",
   "author": {
     "name": "Geniro",
     "email": "hello@geniro.io"
