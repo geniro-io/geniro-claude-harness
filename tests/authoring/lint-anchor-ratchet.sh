@@ -83,7 +83,7 @@ EOF
 cite "$tree" "Missing section"
 out=$(run_lint "$tree")
 rc=$?
-if printf '%s\n' "$out" | grep -q 'rose to 1 (recorded 0)'; then
+if grep -q 'rose to 1 (recorded 0)' <<<"$out"; then
   pass "self-test: a citation naming no heading in the cited file raises the count"
 else
   fail "self-test: a plainly dangling anchor did not raise the count — the fixture, not the resolver, is being measured. Output: $out"
@@ -115,7 +115,7 @@ run_cleanup
 EOF
 cite "$tree" "Cleanup contract"
 out=$(run_lint "$tree")
-if printf '%s\n' "$out" | grep -q 'rose to 1 (recorded 0)'; then
+if grep -q 'rose to 1 (recorded 0)' <<<"$out"; then
   pass "a citation is unresolved when its only match is a comment inside a code fence"
 else
   fail "the deleted heading 'Cleanup contract' left its citer dangling and the count did not move — the resolver accepted '# Cleanup contract:' from inside a bash fence as the heading. This is the rename the check exists to catch, and code fences carrying '# ' comment lines are everywhere in this corpus. Output: $(printf '%s\n' "$out" | grep -i anchor)"
@@ -136,7 +136,7 @@ text
 EOF
 cite "$tree" "--deep mode activation"
 out=$(run_lint "$tree")
-if printf '%s\n' "$out" | grep -q 'rose to '; then
+if grep -q 'rose to ' <<<"$out"; then
   fail "the anchor '--deep mode activation' matches the heading '## --deep mode activation' verbatim, yet the count rose — the first two words go to grep unquoted-by-option ('grep -qiF \"--deep mode\"' exits 2), so a valid citation is reported as a heading that was renamed or deleted. Output: $(printf '%s\n' "$out" | grep -i anchor)"
 else
   pass "an anchor beginning with a dash resolves against the heading that carries it"
