@@ -1,6 +1,6 @@
 # Definition of Done — `/geniro:plan`
 
-The run-completion checklist of the `/geniro:plan` loop (spine: `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`). Walk the full list at Phase 9, before the terminal `phase: done` write. An `aborted` write happens at one of the four cancel paths (`plan-loop.md` §Terminal states — §0.4, §5.2, §7.3, §8.3) instead, none of which enter Phase 9 — at each of those, walk only §Abort-path subset below before the write.
+The run-completion checklist of the `/geniro:plan` loop (spine: `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`). Walk the full list at Phase 9, before the terminal `phase: done` write. An `aborted` write happens at one of the five cancel paths (`plan-loop.md` §Terminal states — §0.4, §3.1, §5.2, §7.3, §8.3) instead, none of which enter Phase 9 — at each of those, walk only §Abort-path subset below before the write.
 
 Every item below is an exit gate — a condition checkable as done or not-done once the run ends. Per-phase mechanics live in each phase's own file; this is the final contract check, not a re-listing of the steps.
 
@@ -24,7 +24,7 @@ Every item below is an exit gate — a condition checkable as done or not-done o
 
 ## Abort-path subset
 
-The full list above presumes phases an early cancel path never reaches — spec.md, the Phase 7 validator, the Phase 8 approve. At each of the four cancel paths (§0.4, §5.2, §7.3, §8.3 in `plan-loop.md` §Terminal states), walk only the gates that hold regardless of how far the run got, before the `aborted` write:
+The full list above presumes phases an early cancel path never reaches — spec.md, the Phase 7 validator, the Phase 8 approve. At each of the five cancel paths (§0.4, §3.1, §5.2, §7.3, §8.3 in `plan-loop.md` §Terminal states), walk only the gates that hold regardless of how far the run got, before the `aborted` write:
 
 - [ ] Every decision made so far is in `approvals[]`.
 - [ ] `clean_task_transients` ran against the planning task-dir before this write.

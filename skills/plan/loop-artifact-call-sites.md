@@ -17,7 +17,7 @@ The sites, in loop order — a site missing from this table is an artifact updat
 | §3.4 on grill termination | Update (`clarify`) | the decision log |
 | §4.3 before the approach question | Before-gate (`approach`) | approach write-ups, stress-test evidence, data-flow diagram |
 | §4.4 after the approach pick persists | Update (`approach`) | chosen approach + considered alternatives |
-| §5.2 step 1, before each cluster gate | Before-gate (`sections`) | the cluster's section digests + steps-flow diagram |
+| §5.2 step 1, before each cluster gate | Before-gate (`sections`) | the cluster's section digests + steps-flow diagram; on cluster 2, its public-contract-surface block too |
 | §5.2 Revise path, after re-authoring | Before-gate (`sections`) | the revised sections — refresh the panel, don't blank it; the gate is being re-presented |
 | §5.2's next-cluster authoring, after a cluster's picks persist | Update (`sections`) | that cluster's approved sections |
 | §6.1 after spec.md is written | Update (`spec`) | steps / validation / done conditions |
