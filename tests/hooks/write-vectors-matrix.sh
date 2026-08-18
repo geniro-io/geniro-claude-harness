@@ -3,23 +3,19 @@
 #
 # Run: bash tests/hooks/write-vectors-matrix.sh
 #
-# The structural cause behind four of the 2026-08-07 audit's five T0 findings:
-# file-protection.sh and enforce-tdd-order.sh each
-# carry an INLINE, hand-duplicated copy of the same nine-plus syntax vectors
-# (redirect, tee, sed -i, cp/mv, dd of=, truncate, shred, install/rsync, ln -f,
-# sponge/ed/ex/patch, curl -o/wget -O) — they are NOT functions in
-# lib/write-vectors.sh, so tests/hooks/write-vectors-fallback-parity.sh (which
-# enumerates only the canonical file's FUNCTION DEFINITIONS) cannot see them
-# drift. The sets already drifted once before this suite existed:
-# enforce-tdd-order.sh carries an extra in-place-interpreter-edit vector its
-# siblings don't need (they fall back to path-shaped tokens instead), which is
-# a deliberate design difference, not drift — this suite does not probe it.
+# The structural cause behind several of the 2026-08-07 audit's T0 findings:
+# file-protection.sh carries an INLINE, hand-duplicated copy of the same
+# nine-plus syntax vectors (redirect, tee, sed -i, cp/mv, dd of=, truncate,
+# shred, install/rsync, ln -f, sponge/ed/ex/patch, curl -o/wget -O) — they are
+# NOT functions in lib/write-vectors.sh, so
+# tests/hooks/write-vectors-fallback-parity.sh (which enumerates only the
+# canonical file's FUNCTION DEFINITIONS) cannot see them drift.
 #
-# This suite is the structural fix: ONE vector list, each entry driven against
-# all three guards with the guard's own protected-target fixture and a benign
-# control. A vector added to (or fixed on) one guard without the others now
-# fails CI immediately, instead of silently sitting open on two of three until
-# the next audit re-discovers it by hand.
+# This suite is the structural fix: ONE vector list, driven against the
+# guard's own protected-target fixture and a benign control. A vector added to
+# (or fixed on) the guard without a matching case here now fails CI
+# immediately, instead of silently sitting open until the next audit
+# re-discovers it by hand.
 #
 # Portability: bash 3.2 / BSD, no writes outside a mktemp sandbox, no network.
 # Payloads are inert text — the guards parse the command out of stdin JSON and
@@ -98,18 +94,6 @@ matrix_for_guard() {  # <label> <hook-path> <protected-target> <benign-target>
 
 # ===== file-protection.sh =====
 matrix_for_guard "file-protection.sh" "$REPO_ROOT/hooks/file-protection.sh" ".env" "notes.txt"
-
-# ===== enforce-tdd-order.sh (RED phase) =====
-SANDBOX="$TMPDIR_BASE/tdd"
-mkdir -p "$SANDBOX"
-cd "$SANDBOX" || exit 1
-git init -q 2>/dev/null || true
-git symbolic-ref HEAD refs/heads/matrix 2>/dev/null || true
-mkdir -p .geniro/state/tdd
-printf '## phase\nRED\n' > .geniro/state/tdd/state-matrix.md
-matrix_for_guard "enforce-tdd-order.sh" "$REPO_ROOT/hooks/enforce-tdd-order.sh" \
-  "src/app.js" "src/app.test.js"
-cd "$ORIGINAL_PWD" || exit 1
 
 echo
 echo "Tests run:    $TESTS_RUN"

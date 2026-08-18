@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # Smoke test for lib/branch-slug.sh — the single-source branch->slug derivation
-# that session-start-restore and enforce-tdd-order must reproduce exactly. A drift
-# in lowercase / collapse / truncate / trailing-dash handling computes a slug no
-# producer ever wrote, so Tier-1 state resolution misses on long branches. Pin
-# each rule so a derivation change fails the suite instead of silently breaking
-# state resolution.
+# that session-start-restore must reproduce exactly. A drift in lowercase /
+# collapse / truncate / trailing-dash handling computes a slug no producer ever
+# wrote, so Tier-1 state resolution misses on long branches. Pin each rule so a
+# derivation change fails the suite instead of silently breaking state
+# resolution.
 #
-# Both hooks also carry an INLINE _geniro_branch_slug fallback (for a vendored
-# install shipping hooks/ without lib/), each a separate copy of the same
-# 60-char truncation. This suite extracts both and asserts they resolve
-# IDENTICALLY to the canonical helper above — mirroring
-# tests/memory/lock-reclaim.sh's own fallback-lockstep section — so a
-# fallback that drifts (e.g. a truncation length edited in one home and not
-# the other two) fails here instead of only misbehaving on a vendored install.
+# The hook also carries an INLINE _geniro_branch_slug fallback (for a vendored
+# install shipping hooks/ without lib/), a separate copy of the same 60-char
+# truncation. This suite extracts it and asserts it resolves IDENTICALLY to
+# the canonical helper above — mirroring tests/memory/lock-reclaim.sh's own
+# fallback-lockstep section — so a fallback that drifts (e.g. a truncation
+# length edited in one home and not the other) fails here instead of only
+# misbehaving on a vendored install.
 #
 # Run: bash tests/memory/branch-slug.sh
 
@@ -57,14 +57,14 @@ sb="$(mktemp -d "$TMPDIR_BASE/repo.XXXXXX")"
 ( cd "$sb" && git init -q && git checkout -q -b 'Feature/Branch_Name' )
 eq "$(cd "$sb" && _geniro_branch_slug)" "feature-branch-name" "no-arg path derives the slug from the current git branch"
 
-# --- Fallback lockstep: session-start-restore.sh and enforce-tdd-order.sh each
-#     carry an inline _geniro_branch_slug fallback for a vendored install
-#     shipping hooks/ without lib/. Extract each and require it to resolve
-#     IDENTICALLY to the canonical helper sourced above, on the same ordinary,
-#     truncation-length, and truncation-boundary cases already pinned for the
-#     canonical form — a fallback edited in only one of its three homes (the
-#     shape the header above warns about) fails here.
-for hook in session-start-restore enforce-tdd-order; do
+# --- Fallback lockstep: session-start-restore.sh carries an inline
+#     _geniro_branch_slug fallback for a vendored install shipping hooks/
+#     without lib/. Extract it and require it to resolve IDENTICALLY to the
+#     canonical helper sourced above, on the same ordinary, truncation-length,
+#     and truncation-boundary cases already pinned for the canonical form — a
+#     fallback edited in only one of its two homes (the shape the header above
+#     warns about) fails here.
+for hook in session-start-restore; do
   FALLBACK=$(awk '
     /^if ! command -v _geniro_branch_slug /{inb=1; next}
     inb && /^fi$/{exit}

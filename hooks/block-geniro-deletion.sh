@@ -401,24 +401,43 @@ _geniro_wv_resolve() {
     *'$'*) : ;;
     *) printf '%s' "$lit"; return 0 ;;
   esac
-  local resolved="$lit" ref vn val val_esc
+  local candidates="$lit" ref vn vals val val_esc new_candidates cand
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
     vn="${ref#\$}"; vn="${vn#\{}"; vn="${vn%\}}"
-    val=$(printf '%s' "$cmd" \
+    vals=$(printf '%s' "$cmd" \
       | grep -oE "(^|[[:space:];&|])${vn}=[^[:space:];&|\"']+" \
-      | tail -1 | sed -E 's/^[^=]*=//' || true)
-    if [ -z "$val" ]; then return 1; fi
-    # Escape backslash and & before using $val as a sed REPLACEMENT: unescaped,
-    # a backslash in the value mangles the substitution (sed reads it as an
-    # escape) and an & re-inserts the whole matched text instead of the
-    # literal value — either way the write/delete target silently comes out
-    # wrong. Order matters: double backslashes FIRST, then escape &, so the
-    # backslash this step inserts for & is not itself re-doubled.
-    val_esc=$(printf '%s' "$val" | sed 's/\\/\\\\/g; s/&/\\\&/g')
-    resolved=$(printf '%s' "$resolved" | sed "s|[\$]{${vn}}|${val_esc}|g; s|[\$]${vn}|${val_esc}|g")
+      | sed -E 's/^[^=]*=//' | LC_ALL=C sort -u)
+    [ -z "$vals" ] && return 1
+    # A captured RHS that itself contains `$` or a backtick is an expansion or
+    # substitution this scanner cannot evaluate (`F=$OTHER`, `F=$(cmd)`), not a
+    # literal — treating its raw text as the resolved value would assert
+    # something the running shell never actually wrote to disk. One such
+    # binding taints the whole variable: every OTHER literal binding is
+    # equally untrustworthy as "the" answer once even one call site could have
+    # run with an unevaluable value instead.
+    if printf '%s' "$vals" | grep -qE '[$`]'; then
+      return 1
+    fi
+    new_candidates=""
+    while IFS= read -r cand; do
+      [ -z "$cand" ] && continue
+      while IFS= read -r val; do
+        [ -z "$val" ] && continue
+        # Escape backslash and & before using $val as a sed REPLACEMENT:
+        # unescaped, a backslash in the value mangles the substitution (sed
+        # reads it as an escape) and an & re-inserts the whole matched text
+        # instead of the literal value — either way the target silently
+        # comes out wrong. Order matters: double backslashes FIRST, then
+        # escape &, so the backslash this step inserts for & is not itself
+        # re-doubled.
+        val_esc=$(printf '%s' "$val" | sed 's/\\/\\\\/g; s/&/\\\&/g')
+        new_candidates="${new_candidates}$(printf '%s' "$cand" | sed "s|[\$]{${vn}}|${val_esc}|g; s|[\$]${vn}|${val_esc}|g")"$'\n'
+      done <<< "$vals"
+    done <<< "$candidates"
+    candidates="${new_candidates%$'\n'}"
   done <<< "$(printf '%s' "$lit" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' || true)"
-  printf '%s' "$resolved"
+  printf '%s' "$candidates"
   return 0
 }
 # GENIRO-VENDORED-END _geniro_wv_resolve
@@ -511,7 +530,9 @@ if ! command -v _geniro_wv_expand_assignments >/dev/null 2>&1; then
 _geniro_wv_expand_assignments() {
   local text="${1:-}"
   [ -z "$text" ] && return 0
-  local _asn _name _val _pairs=""
+  local _sentinel='GENIRO_WV_AMBIGUOUS_VAR'
+  local _nonlit=$'\x01NONLIT\x01'
+  local _asn _name _val _raw=""
   while IFS= read -r _asn; do
     [ -z "$_asn" ] && continue
     _asn="${_asn#"${_asn%%[A-Za-z_]*}"}"
@@ -521,9 +542,24 @@ _geniro_wv_expand_assignments() {
       '"'*'"') _val="${_val#\"}"; _val="${_val%\"}" ;;
       "'"*"'") _val="${_val#\'}"; _val="${_val%\'}" ;;
     esac
-    case "$_val" in ''|*'$'*|*'`'*) continue ;; esac
-    _pairs="${_pairs}${#_name} ${_name} ${_val}"$'\n'
+    case "$_val" in ''|*'$'*|*'`'*) _val="$_nonlit" ;; esac
+    _raw="${_raw}${_name} ${_val}"$'\n'
   done <<< "$(printf '%s\n' "$text" | grep -oE '(^|[;&|(]|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'\''[^'\'']*'\''|[^[:space:];&|)]*)' || true)"
+  [ -z "$_raw" ] && { printf '%s\n' "$text"; return 0; }
+
+  local _names n _pairs=""
+  _names=$(printf '%s' "$_raw" | awk '{print $1}' | LC_ALL=C sort -u)
+  while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    local _distinct _val_out
+    _distinct=$(printf '%s' "$_raw" | grep -E "^${n} " | sed -E "s/^${n} //" | LC_ALL=C sort -u)
+    if [ "$(printf '%s\n' "$_distinct" | grep -c .)" = "1" ] && [ "$_distinct" != "$_nonlit" ]; then
+      _val_out="$_distinct"
+    else
+      _val_out="$_sentinel"
+    fi
+    _pairs="${_pairs}${#n} ${n} ${_val_out}"$'\n'
+  done <<< "$_names"
 
   while IFS=' ' read -r _ _name _val; do
     [ -z "${_name:-}" ] && continue

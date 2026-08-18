@@ -2,7 +2,7 @@
 
 A pre-approval procedure that produces a preview of how the UI will look after a change, lets the user critique or rewrite it in their own words, and only then returns control to the caller's approval flow. Callers invoke this when a change touches UI files so the user shapes visual intent BEFORE any code is written.
 
-The preview has two forms. Default: a structured text description. When the caller passes `MOCKUP: true` — it has a live page to publish to — the agent renders a working HTML mockup and emits a compact text digest beside it, because a rendered page carries a UI far more reliably than a paragraph describing one. The digest is not optional in that form: it is the text the caller persists and its downstream sections cite, and a page URL is not citable substrate.
+The preview has two forms. Default: a structured text description. When the caller passes `MOCKUP: true` — it has a live page to publish to — the agent renders a working HTML mockup and emits a compact text digest beside it, because a rendered page carries a UI far more reliably than a paragraph describing one — the digest, not the page, is what the caller persists and its downstream sections cite.
 
 ## Contents
 
@@ -84,6 +84,8 @@ Present the agent's output verbatim — in mockup form that output is the digest
 - A) **Looks right — approve** — matches my intent, proceed to the caller's approval flow
 - B) **Describe differently — I'll explain** — I want to describe how the UI should look in my own words
 - C) **Adjust the plan instead** — the description is fine but the underlying plan is wrong
+
+A reply that isn't A, B, or C — a question back, off-topic text, anything that isn't a selection — has not answered the gate: apply the unanswered-gate contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions (record it if the caller keeps a state file, then re-fire this identical question) rather than reading it as approval or moving on.
 
 ### Step 3: Revision loop (only if user picked B)
 

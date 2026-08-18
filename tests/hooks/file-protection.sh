@@ -15,6 +15,15 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOOK="$REPO_ROOT/hooks/file-protection.sh"
 
+# The hook sources lib/write-vectors.sh via "${CLAUDE_PLUGIN_ROOT:-.}" — CWD-
+# relative when the var is unset. This suite cd's into a mktemp sandbox below,
+# so without exporting it every case here would silently exercise the hook's
+# own INLINE VENDORED fallback copy (the "no lib/" install path) instead of the
+# canonical helper this suite means to test. Same convention as
+# tests/hooks/write-vectors-matrix.sh's "with" mode; the deliberate "without"
+# comparison lives in tests/hooks/write-vectors-fallback-parity.sh.
+export CLAUDE_PLUGIN_ROOT="$REPO_ROOT"
+
 TMPDIR_BASE="$(mktemp -d)"
 ORIGINAL_PWD="$PWD"
 trap 'cd "$ORIGINAL_PWD"; rm -rf "$TMPDIR_BASE"' EXIT
@@ -193,6 +202,207 @@ expect_block "bash: awk print redirected into .env blocked"  "$(run_bash "awk 'B
 expect_block "bash: awk printf appended to a .pem blocked"   "$(run_bash "awk 'BEGIN{printf \"x\" >> \"cert.pem\"}'")"
 expect_block "bash: python var target resolved to .env blocked" "$(run_bash "F=.env; python3 -c \"open('\$F','w').write('K=v')\"")"
 expect_block "bash: python unresolvable target near .env blocked" "$(run_bash "python3 -c \"p='.env'; open(p,'w').write('K=v')\"")"
+
+# ===== pathlib bound through a variable on an earlier line (real reproducer) =====
+# `p = pathlib.Path("<lit>")` on one line, then `p.write_text(...)` on a LATER
+# one, is not the adjacent `Path("<lit>").write_text(...)` shape any vector
+# above resolves. Before assignment-following, the resolver gave up
+# (unresolved=10) and the caller fell back to treating every path-shaped TOKEN
+# in the whole heredoc body as a candidate target — so a markdown BODY merely
+# mentioning a protected-looking phrase ("... 5856 with binding.key") got read
+# as the write target and blocked a write to an unrelated, unprotected file.
+# lib/write-vectors.sh §_geniro_wv_resolve_pathlib_var follows the assignment
+# instead, the same move _geniro_wv_resolve already makes for a shell $VAR.
+expect_allow "bash: pathlib var bound to a normal path, prose mentions a protected-looking token, allowed" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("notes/out.md")
+s = "5856 with binding.key"
+p.write_text(s)
+PY')"
+# The narrowing must not become a hole: a variable bound to a genuinely
+# protected literal, then written through, still blocks — by resolving to the
+# real target instead of by the blanket fallback firing on stray text.
+expect_block "bash: pathlib var bound to .env by an earlier assignment, still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path(".env")
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var bound to a .pem by an earlier assignment, still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+key_path = pathlib.Path("server.pem")
+key_path.write_bytes(b"K")
+PY')"
+
+# ===== last-binding-wins bypass (real regression) =====
+# The resolver used to take the LAST literal binding of <ident> and the caller
+# treated "resolved" as "no longer unresolved" — so a script that rebinds the
+# identifier after the protected literal resolved to the decoy and the real
+# target never became a candidate. Ordinary source order, not adversarial:
+# `p = Path(".env"); p.write_text(a); p = Path("out.txt"); p.write_text(b)`.
+# All-or-nothing fixes it: every literal binding of <ident> is now a
+# candidate, so the earlier .env binding is never dropped just because a
+# later statement rebinds the same name.
+expect_block "bash: pathlib var rebound after a protected literal binding, still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path(".env")
+p.write_text(a)
+p = pathlib.Path("out.txt")
+p.write_text(b)
+PY')"
+# A rebind that mixes a protected literal binding with a later NON-literal one
+# (`os.environ[...]`) cannot be resolved to a single safe answer — the runtime
+# value of the second binding is unknowable from the command text — so the
+# resolver forces unresolved and the caller's blanket fallback (every
+# path-shaped token in the command) catches the .env mention instead.
+expect_block "bash: pathlib var rebound to a non-literal after a protected literal, still blocked" \
+  "$(run_bash 'python3 - <<PY
+import os, pathlib
+p = pathlib.Path(".env")
+p = pathlib.Path(os.environ["X"])
+p.write_text("K=v")
+PY')"
+# A call's keyword argument (`log(p="notes.txt")`) is not an assignment — the
+# assignment match is anchored to a statement boundary so `(` can never open
+# one — and must not resolve <ident> to the kwarg's value while the real,
+# non-literal binding two lines down is what actually reaches write_text.
+expect_block "bash: keyword argument does not masquerade as a pathlib var binding" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+def log(**kw): pass
+log(p="notes.txt")
+target = ".env"
+p = pathlib.Path(target)
+p.write_text("K=v")
+PY')"
+# Control: a pathlib var written through .open() WITH a write mode must still
+# block — the read-mode carve-out just below must not swallow this shape.
+expect_block "bash: pathlib var written through .open('w') still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path(".env")
+p.open("w").write("x")
+PY')"
+
+# ===== RHS whitelist (second-round fix): a binding resolves to a literal ONLY
+# when the RHS is EXACTLY a path literal, tail-anchored — every shape below
+# APPENDS something after the literal, so under the old start-anchored-only
+# match each one resolved to the wrong (safe) prefix and silently dropped the
+# real protected target. Every idiomatic pathlib join/derive spelling must
+# still block. =====
+expect_block "bash: pathlib var Path(dir) / protected literal still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("safe") / ".env"
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var Path(dir).joinpath(protected) still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("safe").joinpath(".env")
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var augmented-assigned onto a protected literal still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("safe")
+p /= ".env"
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var .with_name(protected) still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("out.txt").with_name(".env")
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var .with_suffix(protected-ext) still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("x.txt").with_suffix(".pem")
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var .parent / protected literal still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("a/b").parent / ".env"
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var ternary onto a protected literal still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+c = False
+p = pathlib.Path("out.txt") if c else pathlib.Path(".env")
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var string-concatenated onto a protected literal still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("." + "/.env")
+p.write_text("K=v")
+PY')"
+expect_block "bash: pathlib var literal binding split by a backslash continuation still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("safe") \
+    / ".env"
+p.write_text("K=v")
+PY')"
+# The narrowing must not become the ORIGINAL false positive: `.resolve()` and
+# `.expanduser()` narrow/normalize the SAME path rather than compute a new
+# one, so a binding through either must still resolve to a literal.
+expect_allow "bash: pathlib var Path(lit).resolve() still allowed (FP relief)" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("notes/out.md").resolve()
+p.write_text("K=v")
+PY')"
+expect_allow "bash: pathlib var Path(lit).expanduser() still allowed (FP relief)" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path("notes/out.md").expanduser()
+p.write_text("K=v")
+PY')"
+
+# ===== unresolved gate extended to .touch()/.open(write-mode) =====
+# Only write_text/write_bytes used to set the unresolved flag on a failed
+# pathlib-var resolution, so an unresolvable `p.touch()`/`p.open('w')` yielded
+# zero candidates AND no fallback — a silent allow.
+expect_block "bash: pathlib var .touch() with unresolvable target still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+d = ".env"
+p = pathlib.Path(d)
+p.touch()
+PY')"
+expect_block "bash: pathlib var .open(write mode) with unresolvable target still blocked" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+d = ".env"
+p = pathlib.Path(d)
+p.open("w")
+PY')"
+expect_allow "bash: pathlib var .open() default mode with unresolvable target stays a read" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+d = ".env"
+p = pathlib.Path(d)
+p.open().read()
+PY')"
+
+# ===== pathlib var .open() with no write mode is a READ, not a write =====
+# `p.open()` defaults to mode "r" exactly like the builtin open(); the
+# identifier-capture grep used to match `.open(` unconditionally, so a plain
+# read through a pathlib var bound to a protected path was flagged as a write.
+expect_allow "bash: pathlib var read through .open() (default mode) allowed" \
+  "$(run_bash 'python3 - <<PY
+import pathlib
+p = pathlib.Path(".env")
+print(p.open().read())
+PY')"
+
 # No false positives: read-only interpreter calls, and writes elsewhere.
 expect_allow "bash: python3 reading .env allowed"        "$(run_bash "python3 -c \"print(open('.env').read())\"")"
 expect_allow "bash: node console.log allowed"           "$(run_bash "node -e \"console.log(1+1)\"")"
@@ -280,6 +490,53 @@ expect_block "bash: real write to .env on line 1 (newline) still blocked" \
   "$(run_bash $'echo x > .env\necho done')"
 expect_block "bash: real write to .env on line 2 (newline) still blocked" \
   "$(run_bash $'echo done\necho x > .env')"
+
+# ===== T2: a shell $VAR rebound before the write, not just a single binding =====
+# `_geniro_wv_expand_assignments` used to substitute ONE winning value for a
+# rebound identifier — whichever assignment its substitution pass reached
+# first, an accident of the sort order with no relationship to what the shell
+# would actually run — so `F=out.txt; F=.env; printf x > "$F"` resolved `$F`
+# to "out.txt" and the write to the real, live value (.env) was never checked.
+# lib/write-vectors.sh §F now rewrites an identifier bound to two or more
+# DISTINCT literals (or ever bound non-literally) to an inert sentinel instead
+# of guessing; this guard's own `add_candidate` recognizes that sentinel and
+# falls back to every literal binding in the command, the same move the
+# unresolved-interpreter-target branch already makes.
+expect_block "bash: \$VAR rebound benign-then-protected, still blocked" \
+  "$(run_bash 'F=out.txt; F=".env"; printf x > "$F"')"
+# Decision: a rebind is ALWAYS treated as ambiguous, even when the FINAL
+# value is provably benign — this mirrors _geniro_wv_resolve_pathlib_var's
+# ALL-OR-NOTHING rule (any rebind forces the conservative path) rather than
+# trying to track which assignment is "live" at the one read site. A regex
+# scan over raw text has no control-flow visibility (an intervening `if`
+# could make either binding the one that actually ran), so re-deriving
+# "last assignment wins" here would silently reopen the exact bypass this fix
+# closes the moment the rebind sits inside a conditional. The one-time cost
+# is a rebind-to-benign pattern landing in the conservative token fallback
+# instead of resolving cleanly — cheap next to a live write to a protected
+# path going unchecked.
+expect_block "bash: \$VAR rebound protected-then-benign is STILL conservative (not last-wins)" \
+  "$(run_bash 'F=".env"; F=out.txt; printf x > "$F"')"
+# Rebinding to a NON-literal (a command substitution) after a literal binding
+# taints the identifier exactly like a second literal binding does — the
+# scanner cannot evaluate `$(...)`, so the value actually live at the read
+# site is unknowable from the text either way.
+expect_block "bash: \$VAR literal-then-non-literal rebind, still blocked" \
+  "$(run_bash 'F=".env"; F=$(echo out.txt); printf x > "$F"')"
+# The SAME literal value bound twice is not a rebind — no ambiguity, no
+# fallback, ordinary idempotent shell stays exactly as fast/precise as before.
+expect_block "bash: \$VAR bound twice to the SAME protected literal, still blocked" \
+  "$(run_bash 'F=".env"; F=".env"; printf x > "$F"')"
+expect_allow "bash: \$VAR bound twice to the SAME benign literal, still allowed" \
+  "$(run_bash 'F=out.txt; F=out.txt; printf x > "$F"')"
+# Ordinary single-binding shell — the common case — must resolve cleanly and
+# stay allowed; this is the false-positive check this fix must not regress.
+expect_allow "bash: ordinary single-binding \$VAR redirect allowed" \
+  "$(run_bash 'OUT=build/out.txt; echo x > "$OUT"')"
+expect_allow "bash: \$VAR from a command substitution, unrelated to any protected name, allowed" \
+  "$(run_bash 'TMP=$(mktemp); echo x > "$TMP"')"
+expect_allow "bash: \$VAR rebound but only ever READ, not written, allowed" \
+  "$(run_bash 'F=a.txt; F=b.txt; cat "$F"')"
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"

@@ -3,11 +3,11 @@
 #
 # A skill writes state under a slug derived from the branch name
 # (.geniro/state/tdd/state-<slug>.md, .geniro/planning/<slug>/...). The
-# session-start-restore and enforce-tdd-order hooks must derive the SAME slug to
-# read that state back. A divergent derivation (e.g. a different truncation
-# length) computes a slug no producer ever wrote, so Tier-1 state resolution
-# misses on every long branch. Keeping the derivation here is what guarantees
-# producer and consumer agree.
+# session-start-restore hook must derive the SAME slug to read that state
+# back. A divergent derivation (e.g. a different truncation length) computes a
+# slug no producer ever wrote, so Tier-1 state resolution misses on every long
+# branch. Keeping the derivation here is what guarantees producer and consumer
+# agree.
 #
 # Rules (kept in lockstep with skills/_shared/within-skill-state-handoff.md
 # §Slug rules): lowercase -> collapse non-alphanumeric runs to a single dash ->

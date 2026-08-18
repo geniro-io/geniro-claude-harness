@@ -11,8 +11,9 @@
 #   - preToolUse content aliases (content / contents / code_edit / new_string /
 #     new_source) -> the security scan still sees the content and denies; the
 #     MultiEdit edits[] payload (no content key) keeps working.
-#   - The payload's cwd is where the guards run: a project-rooted payload fires
-#     the project's TDD gate even when the shim's own cwd is elsewhere.
+#   - The payload's cwd is where the guards run: a project-rooted payload finds
+#     the project's own safety.json bypass even when the shim's own cwd is
+#     elsewhere.
 #   - sessionStart -> Claude additionalContext re-emitted as additional_context.
 #   - A hook's stdout systemMessage -> agent_message on the shell/edit events.
 #   - jq missing -> loud Cursor-shaped notice instead of a silent fail-open.
@@ -153,34 +154,20 @@ else
 fi
 
 # --- the payload's cwd is where the guards look for project state ---
-# Guards walk up from their process cwd to find .geniro/; Cursor starts the hook
-# elsewhere, so the shim must move into the payload's cwd first. A RED TDD cycle
-# in a throwaway project is the cheapest observable: the gate can only fire if
-# the state file was found.
-if command -v git >/dev/null 2>&1; then
-  PROJ="$TMPDIR_BASE/proj"
-  mkdir -p "$PROJ/.geniro/state/tdd" "$PROJ/src" "$PROJ/tests"
-  git -C "$PROJ" init -q >/dev/null 2>&1
-  git -C "$PROJ" symbolic-ref HEAD refs/heads/cursor-shim-cwd >/dev/null 2>&1
-  printf '## phase\nRED\n' > "$PROJ/.geniro/state/tdd/state-cursor-shim-cwd.md"
-  BRANCH="$(git -C "$PROJ" branch --show-current 2>/dev/null || echo "")"
-  if [ "$BRANCH" = "cursor-shim-cwd" ]; then
-    expect_verdict "preToolUse production write during RED, shim cwd outside the project -> deny" deny \
-      "$(edit_verdict enforce-tdd-order.sh "$(jq -nc --arg p "$PROJ/src/app.js" '{file_path:$p}')" "$PROJ")"
-    expect_verdict "preToolUse test-file write during RED -> allow" allow \
-      "$(edit_verdict enforce-tdd-order.sh "$(jq -nc --arg p "$PROJ/tests/app.test.js" '{file_path:$p}')" "$PROJ")"
-    expect_verdict "beforeShellExecution production write during RED -> deny" deny \
-      "$(shell_verdict enforce-tdd-order.sh 'printf x > src/app.js' "$PROJ")"
-    expect_verdict "beforeShellExecution test-file write during RED -> allow" allow \
-      "$(shell_verdict enforce-tdd-order.sh 'printf x > tests/app.test.js' "$PROJ")"
-    expect_verdict "same production write with no project cwd -> allow (gate not in scope)" allow \
-      "$(edit_verdict enforce-tdd-order.sh "$(jq -nc --arg p "$PROJ/src/app.js" '{file_path:$p}')" "$TMPDIR_BASE")"
-  else
-    skip "cwd-fold cases (could not pin the fixture branch name)"
-  fi
-else
-  skip "cwd-fold cases (git not installed)"
-fi
+# Guards walk up from their process cwd to find .geniro/safety.json; Cursor
+# starts the hook elsewhere, so the shim must move into the payload's cwd
+# first. A project-scoped safety.json bypass in a throwaway project is the
+# cheapest observable: the write is only allowed if the guard actually walked
+# up from inside the project and found that file.
+PROJ="$TMPDIR_BASE/proj"
+mkdir -p "$PROJ/.geniro"
+printf '{"allow_patterns": ["write-env"]}\n' > "$PROJ/.geniro/safety.json"
+expect_verdict "preToolUse .env write with a project bypass, shim cwd inside the project -> allow" allow \
+  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/.env" '{file_path:$p}')" "$PROJ")"
+expect_verdict "beforeShellExecution .env write with a project bypass, shim cwd inside the project -> allow" allow \
+  "$(shell_verdict file-protection.sh "echo TOKEN=1 > $PROJ/.env" "$PROJ")"
+expect_verdict "same .env write with no project cwd -> deny (bypass not found)" deny \
+  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/.env" '{file_path:$p}')" "$TMPDIR_BASE")"
 
 # --- sessionStart re-emits additionalContext as additional_context ---
 OUT="$(jq -nc --arg r "$TMPDIR_BASE" '{hook_event_name:"sessionStart", workspace_roots:[$r]}' \

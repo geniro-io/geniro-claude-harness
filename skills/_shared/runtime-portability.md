@@ -57,7 +57,6 @@ Claude Code wires `hooks/hooks.json` (PreToolUse guards, SessionStart restore). 
 | `.geniro/` deletion guard | No bulk `rm -rf .geniro/` or `git add -f` on `.geniro/` paths; delete only specific files you created. |
 | File protection | Do not write `.env*`, `*.key`, `*.pem`, credentials, or lock files. |
 | Security pattern scan | Before writing code, check it against the anti-pattern list in the Safety Hooks section of the plugin CLAUDE.md (eval/exec, unsafe yaml/pickle, shell injection, TLS bypass, XSS sinks, weak hashes). |
-| TDD-order enforcement | When a TDD cycle is active (`.geniro/state/tdd/state-<slug>.md` shows RED), do not edit production files until the failing test exists. |
 | Gate-render enforcement | Render the self-contained context message to chat BEFORE asking any decision question, per `gate-rendering.md` — no mechanical check will catch a blind gate for you. |
 | Reporter no-Edit/no-Write contract | Hold it yourself under every host, Claude Code included — `allowed-tools` only pre-approves listed tools, it never restricted `Write`/`Edit`; Cursor subagents additionally inherit every parent tool regardless of the frontmatter list (`reporter-boundary.md` §1). |
 

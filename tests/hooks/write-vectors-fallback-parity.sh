@@ -208,6 +208,68 @@ expect_parity file-protection.sh 2 "bun runtime"         "bun -e \"require('fs')
 expect_parity file-protection.sh 2 "deno runtime"        "deno eval \"Deno.writeTextFileSync('$PROT','k')\""
 expect_parity file-protection.sh 2 "shutil.copy"        "python3 -c \"import shutil; shutil.copy('t','$PROT')\""
 expect_parity file-protection.sh 2 "os.rename"          "python3 -c \"import os; os.rename('t','$PROT')\""
+# pathlib var rebind: a protected literal binding followed by a later rebind
+# of the same identifier to a decoy — the all-or-nothing resolver must keep
+# the protected binding a candidate instead of letting the last one win.
+expect_parity file-protection.sh 2 "pathlib var rebind after protected literal" \
+  "python3 -c \"import pathlib; p=pathlib.Path('$PROT'); p.write_text('a'); p=pathlib.Path('out.txt'); p.write_text('b')\""
+# pathlib var read through .open() with no write mode must stay a read in
+# BOTH the canonical helper and every vendored copy.
+expect_parity file-protection.sh 0 "pathlib var read via .open() (default mode)" \
+  "python3 -c \"import pathlib; p=pathlib.Path('$PROT'); print(p.open().read())\""
+# RHS whitelist: a binding resolves to a literal ONLY when the RHS is EXACTLY
+# a path literal, tail-anchored — every idiomatic pathlib join/derive spelling
+# below appends something after the literal and must still block, in BOTH the
+# canonical helper and every vendored copy.
+expect_parity file-protection.sh 2 "pathlib var Path(dir) / protected literal" \
+  "python3 -c \"import pathlib; p=pathlib.Path('safe') / '$PROT'; p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var Path(dir).joinpath(protected)" \
+  "python3 -c \"import pathlib; p=pathlib.Path('safe').joinpath('$PROT'); p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var augmented-assigned onto protected" \
+  "python3 -c \"import pathlib; p=pathlib.Path('safe'); p /= '$PROT'; p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var .with_name(protected)" \
+  "python3 -c \"import pathlib; p=pathlib.Path('out.txt').with_name('$PROT'); p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var .with_suffix(protected)" \
+  "python3 -c \"import pathlib; p=pathlib.Path('x.txt').with_suffix('$PROT'); p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var .parent / protected literal" \
+  "python3 -c \"import pathlib; p=pathlib.Path('a/b').parent / '$PROT'; p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var ternary onto protected literal" \
+  "python3 -c \"import pathlib; c=False; p=pathlib.Path('out.txt') if c else pathlib.Path('$PROT'); p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var string-concatenated onto protected" \
+  "python3 -c \"import pathlib; p=pathlib.Path('.' + '/$PROT'); p.write_text('k')\""
+expect_parity file-protection.sh 2 "pathlib var literal split by backslash continuation" \
+  "$(printf 'python3 - <<PY\nimport pathlib\np = pathlib.Path(%s) \\\n    / %s\np.write_text("k")\nPY\n' "'safe'" "'$PROT'")"
+# The narrowing must not become the ORIGINAL false positive: `.resolve()` and
+# `.expanduser()` narrow/normalize the SAME path rather than compute a new
+# one, so a binding through either must still resolve to a literal.
+expect_parity file-protection.sh 0 "pathlib var Path(lit).resolve() (FP relief)" \
+  "python3 -c \"import pathlib; p=pathlib.Path('notes/out.md').resolve(); p.write_text('k')\""
+expect_parity file-protection.sh 0 "pathlib var Path(lit).expanduser() (FP relief)" \
+  "python3 -c \"import pathlib; p=pathlib.Path('notes/out.md').expanduser(); p.write_text('k')\""
+# Unresolved gate extended to .touch()/.open(write-mode): only write_text/
+# write_bytes used to set the unresolved flag, so an unresolvable
+# `p.touch()`/`p.open('w')` yielded zero candidates AND no fallback.
+expect_parity file-protection.sh 2 "pathlib var .touch() unresolvable target" \
+  "python3 -c \"import pathlib; d='$PROT'; p=pathlib.Path(d); p.touch()\""
+expect_parity file-protection.sh 2 "pathlib var .open(write mode) unresolvable target" \
+  "python3 -c \"import pathlib; d='$PROT'; p=pathlib.Path(d); p.open('w')\""
+expect_parity file-protection.sh 0 "pathlib var .open() default mode unresolvable target stays a read" \
+  "python3 -c \"import pathlib; d='$PROT'; p=pathlib.Path(d); p.open().read()\""
+# shell $VAR rebind: the same all-or-nothing rule as the pathlib var rebind
+# above, one layer down at the raw-shell resolver (_geniro_wv_resolve +
+# _geniro_wv_expand_assignments) — a variable bound to two or more DISTINCT
+# literals must keep every one of them a candidate instead of letting one
+# assignment silently win, in BOTH the canonical helper and every vendored copy.
+expect_parity file-protection.sh 2 "shell \$VAR rebound benign-then-protected" \
+  "F=out.txt; F=\"$PROT\"; printf x > \"\$F\""
+expect_parity file-protection.sh 2 "shell \$VAR rebound protected-then-benign (still conservative)" \
+  "F=\"$PROT\"; F=out.txt; printf x > \"\$F\""
+expect_parity file-protection.sh 2 "shell \$VAR rebound to a non-literal after a protected literal" \
+  "F=\"$PROT\"; F=\$(echo out.txt); printf x > \"\$F\""
+expect_parity file-protection.sh 0 "shell \$VAR bound twice to the SAME benign literal" \
+  "F=out.txt; F=out.txt; printf x > \"\$F\""
+expect_parity file-protection.sh 0 "shell \$VAR ordinary single binding" \
+  "OUT=build/out.txt; echo x > \"\$OUT\""
 expect_parity file-protection.sh 0 "benign write"       "echo x > src/app.js"
 expect_parity file-protection.sh 0 "benign interp read" "python3 -c \"print(open('src/app.js').read())\""
 expect_parity file-protection.sh 0 "benign quoted mention" "echo \"echo hello > /tmp/note.txt\" | wc -l"
@@ -236,18 +298,6 @@ expect_parity block-dangerous-git.sh 2 "sh -c force push" "sh -c 'git push --for
 expect_parity block-dangerous-git.sh 2 "pipe-to-shell"    "echo \"git push --force origin main\" | bash"
 expect_parity block-dangerous-git.sh 2 "prefix-wrapped pipe" "echo \"git push --force origin main\" | timeout 5 bash"
 expect_parity block-dangerous-git.sh 0 "benign push"      "git push origin feature/x"
-
-# enforce-tdd-order needs a RED-phase state file to have any verdict at all; the
-# slug comes from the branch name, so the sandbox pins one.
-git symbolic-ref HEAD refs/heads/parity 2>/dev/null || true
-mkdir -p "$SANDBOX/.geniro/state/tdd"
-printf '## phase\nRED\n' > "$SANDBOX/.geniro/state/tdd/state-parity.md"
-expect_parity enforce-tdd-order.sh 2 "sh -c prod write"   "sh -c 'echo x > src/app.js'"
-expect_parity enforce-tdd-order.sh 2 "pipe-to-shell"      "echo \"echo x > src/app.js\" | bash"
-expect_parity enforce-tdd-order.sh 2 "interp prod write"  "python3 -c \"open('src/app.js','w').write('k')\""
-expect_parity enforce-tdd-order.sh 0 "test-file write"    "echo x > src/app.test.js"
-expect_parity enforce-tdd-order.sh 0 "RED output capture" "npm test > /tmp/out.log"
-rm -rf "$SANDBOX/.geniro/state"
 
 expect_parity security-pattern-check.sh 2 "sh -c authoring"  "sh -c \"printf 'eval(x)' > bad.py\""
 expect_parity security-pattern-check.sh 2 "pipe-to-shell"    "echo \"printf 'eval(x)' > bad.py\" | bash"

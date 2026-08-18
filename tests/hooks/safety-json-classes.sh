@@ -37,14 +37,12 @@ fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo 
 
 # --- sandbox project -----------------------------------------------------------
 # One project dir carries everything the guards need to reach a firing verdict:
-# a .geniro/ root, a pinned branch (the TDD state-file slug comes from it), and a
-# RED-phase TDD state file.
+# a .geniro/ root and a pinned branch.
 PROJ="$TMPDIR_BASE/proj"
-mkdir -p "$PROJ/.geniro/state/tdd"
+mkdir -p "$PROJ/.geniro"
 cd "$PROJ" || exit 1
 git init -q 2>/dev/null || true
 git checkout -q -b sjc 2>/dev/null || true
-printf '## phase\nRED\n' > "$PROJ/.geniro/state/tdd/state-sjc.md"
 
 # --- per-pattern-ID probe -------------------------------------------------------
 # T4-4: the bypass branch used to be asserted for one representative ID per
@@ -150,10 +148,6 @@ probe_for_id() {  # <pattern-id>
     safety-json-edit)
       hook=enforce-state-helper.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:".geniro/safety.json", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    # --- enforce-tdd-order.sh (1 ID) ---
-    tdd-order)
-      hook=enforce-tdd-order.sh
-      jq -nc '{tool_name:"Write", tool_input:{file_path:"src/app.js", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
     # --- security-pattern-check.sh (8 IDs) ---
     sec-eval-exec)
       hook=security-pattern-check.sh
@@ -190,7 +184,7 @@ probe_for_id() {  # <pattern-id>
   echo "$hook $rc"
 }
 
-# The full pattern-ID roster this guard set exposes (34 IDs across 6 guards).
+# The full pattern-ID roster this guard set exposes (33 IDs across 5 guards).
 GUARDS="force-push
 force-push-with-lease
 push-delete
@@ -216,7 +210,6 @@ write-tfstate
 write-vault
 enforce-state-helper
 safety-json-edit
-tdd-order
 sec-eval-exec
 sec-pickle
 sec-yaml-unsafe

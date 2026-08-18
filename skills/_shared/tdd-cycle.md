@@ -1,8 +1,6 @@
 # TDD cycle
 
-Canonical RED→GREEN→REFACTOR procedure. Consumer: `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A4. RED-phase workflow. The PreToolUse hook `enforce-tdd-order.sh` reads this rule's state file.
-
-**Currently dormant.** §A4 cites this file's RED phase for its verification logic but never performs the `## phase: RED` state-file write below, and no other file under `skills/` writes `.geniro/state/tdd/state-<slug>.md` either. With no writer, the state file never exists, so `enforce-tdd-order.sh` takes its "state file does not exist → exit 0" branch on every run — the hook is wired but inert. Treat the cycle below as the contract a future consumer implements against, not as an active gate: do not rely on `enforce-tdd-order.sh` to block out-of-order edits until a consumer actually writes the state file.
+Canonical RED→GREEN→REFACTOR procedure. Consumer: `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A4. RED-phase workflow. This is an unenforced convention — no hook blocks an out-of-order edit; the discipline holds only because the orchestrator follows it.
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
 
@@ -13,7 +11,6 @@ This file is the single source of truth. Skills cite this file; do NOT inline-pa
 - §RED phase — write the failing test first
 - §GREEN phase — minimal code to pass
 - §REFACTOR phase — clean up under green tests
-- §Hook enforcement — how `enforce-tdd-order.sh` reads the state file
 - §Anti-rationalization
 - §Definition of Done
 
@@ -29,7 +26,7 @@ The cycle below collapses all three. Each phase has a verification step + an Evi
 
 ## State file contract
 
-The TDD cycle persists its current phase in a slug-scoped state file so the PreToolUse hook can gate Edit|Write at the right moment, and so cycle progress survives compaction.
+The TDD cycle persists its current phase in a slug-scoped state file so cycle progress survives compaction and a concurrent session on another branch can tell which phase is active.
 
 - **Path:** `.geniro/state/tdd/state-<slug>.md`. Slug computed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules. Never write to a non-scoped path; sibling slugs belong to parallel pipelines on other branches and must not collide.
 - **Format:** Markdown with sections (NOT JSON). JSON corrupts on partial write — half a `{...}` is unparseable, while half a Markdown file is still readable. The within-skill-state-handoff convention is Markdown for exactly this reason.
@@ -43,7 +40,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
   ---
   ```
 
-- **Required body section `## phase`** with one of: `RED` / `GREEN` / `REFACTOR` / `IDLE`. Phase transitions are linear: `IDLE → RED → GREEN → REFACTOR → IDLE` (REFACTOR is optional; valid to skip from `GREEN → IDLE`). This is the only section the hook reads — it gates Edit|Write by phase, then by test-file name pattern (see RED phase below); it does not track or compare a per-cycle target path.
+- **Required body section `## phase`** with one of: `RED` / `GREEN` / `REFACTOR` / `IDLE`. Phase transitions are linear: `IDLE → RED → GREEN → REFACTOR → IDLE` (REFACTOR is optional; valid to skip from `GREEN → IDLE`). This is the field a reader checks to know what should be happening next (see RED phase below); the file does not track or compare a per-cycle target path.
 - **Atomic write:** orchestrator writes via `mktemp` + `mv -f` (POSIX-atomic — `mv` within the same filesystem is one inode swap). Direct `>` redirect is forbidden — a partial write during compaction leaves the file unreadable mid-cycle. Sample shell:
 
   ```bash
@@ -52,11 +49,11 @@ The TDD cycle persists its current phase in a slug-scoped state file so the PreT
   mv -f "$tmp" "$state_file"
   ```
 
-- **Single-writer:** ONLY the orchestrator writes this file. Subagents never write it — the PreToolUse hook reads it; if a subagent could write it, the agent could trivially set `phase: GREEN` and bypass enforcement. Spawn sites declare `disallowedTools: ["Write", "Edit"]` for the state file path or restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
+- **Single-writer:** ONLY the orchestrator writes this file. Subagents never write it — a subagent writing concurrently could race the orchestrator's own write and leave `## phase` out of sync with what actually happened, misleading whoever reads it next. Spawn sites declare `disallowedTools: ["Write", "Edit"]` for the state file path or restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
 
 ## RED phase
 
-1. **Author the failing test FIRST.** Production code changes are forbidden in this phase. The test targets the new behavior using the already-approved public interface signatures.
+1. **Author the failing test FIRST.** Production code changes are forbidden in this phase — a self-imposed discipline, not a mechanical block; nothing stops the edit, so hold the order yourself. The test targets the new behavior using the already-approved public interface signatures.
 2. **Run the test command** (project-specific, captured from CLAUDE.md). Capture stdout/stderr + exit code verbatim.
 3. **Verify exit code != 0 AND the failure signature matches the behavior under test.** A test that fails with `ImportError: no module named X` does not prove the new behavior is uncovered — it proves the test file is malformed. The signature must be a real assertion failure (`AssertionError`, `expected X got Y`, or equivalent).
 4. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` schema: command, exit code, the tail length that schema specifies. Reasoning-from-the-diff is forbidden — the captured run is the only proof.
@@ -74,24 +71,14 @@ If exit code is 0 (test passes on current code), REJECT the RED step — the tes
 
 ## REFACTOR phase
 
-REFACTOR is optional but strongly preferred. Skip with explicit IDLE; do not leave the state file at `GREEN` indefinitely (downstream sessions reading a stale `GREEN` mis-handle Edit|Write enforcement).
+REFACTOR is optional but strongly preferred. Skip with explicit IDLE; do not leave the state file at `GREEN` indefinitely (a downstream session reading a stale `GREEN` would wrongly believe a cycle is still in flight).
 
 1. **Refactor either the test or the production code** — preserve test intent. Allowed moves: rename a poorly-named local, extract a duplicated helper, collapse a redundant conditional. Forbidden: changing a test's assertion to make a refactored implementation pass.
 2. **Run the FULL test suite** (NOT just the cycle's one test). The point of REFACTOR is to verify the change preserves all existing behavior, not just the just-added behavior.
 3. **Verify all tests still GREEN.** If any test reddens, `git stash` the refactor and continue to next cycle; refactor in a follow-up.
 4. **Apply the assertion-completeness & spec-coverage checks** from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §"Assertion completeness & spec coverage" to the test this cycle authored: does it assert everything its name claims, does it cover the spec behavior the cycle targets, and is it redundant with a sibling test the cycle just added? RED proved the test *discriminates*; this proves it *covers what it claims*. Tighten the assertion or add the missing one before IDLE — a test that passed RED can still under-assert the behavior the cycle was for. Surface a finding message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering" only when a check fails; a clean cycle proceeds to IDLE silently.
 5. **Write Evidence Block** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. The Evidence Block is the same schema regardless of phase.
-6. **Update state file:** `## phase\nREFACTOR` during the refactor, then `## phase\nIDLE` on completion. The IDLE write is mandatory — without it the hook continues gating Edit|Write under the assumption a cycle is still in flight.
-
-## Hook enforcement
-
-The PreToolUse hook `enforce-tdd-order.sh` reads `.geniro/state/tdd/state-<slug>.md` on every `Edit` and `Write` call. Logic:
-
-- If state file does not exist OR `## phase` is `IDLE` → exit 0 (no gating; TDD cycle not active).
-- If `## phase` is `RED` AND the Edit|Write target file does NOT match a test convention (`tests/**` / `test/**` / `__tests__/**` directories; `*.spec.*`; `*_test.go`; or a `test_*` / `test-*` / `*_test.*` / `*-test.*` / `*.test.*` filename) → exit 2 with a stderr block that opens `[tdd-order] TDD cycle in RED phase — author the failing test BEFORE production code.`, points at this file, echoes the state-file path and the blocked target path, and notes the bypass (`add "tdd-order" to .geniro/safety.json allow_patterns`).
-- If `## phase` is `GREEN` or `REFACTOR` → exit 0 (production-code edits are expected in these phases).
-
-The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user without retry. The hook is read-only — it never writes the state file; only the orchestrator writes (per § State file contract single-writer).
+6. **Update state file:** `## phase\nREFACTOR` during the refactor, then `## phase\nIDLE` on completion. The IDLE write is mandatory — without it the state file wrongly signals to the next reader that a cycle is still in flight.
 
 ## Anti-rationalization
 
@@ -99,9 +86,9 @@ The hook exits 2 (not 1) so Claude Code surfaces the stderr message to the user 
 |---|---|
 | "I'll write the test after the code — it's the same diff in the end." | Tests passing immediately prove nothing about whether they discriminate the behavior under change. The failing-test step is the only verification that the test would have caught the bug; written-after, the test is theatre. |
 | "I know the code is right, RED is theatre." | If you didn't watch RED fail, you don't know if your test would have caught the bug. The cost of confirming RED is one test invocation; the cost of skipping it is silently shipping a test that passes on every implementation. |
-| "I'll skip REFACTOR — the GREEN code is fine, no duplication." | REFACTOR is optional, but explicitly mark state IDLE so the hook stops gating Edit|Write. Leaving phase at GREEN during the next cycle's RED step blocks the test author from writing the new test. |
-| "The state file is overhead — I'll skip writing it for this one quick fix." | The state file IS the contract. Without it the hook can't enforce order, and concurrent same-cwd sessions on different branches collide. The slug-scoped path solves the collision; the headers carry branch identity through compaction. |
-| "Subagents can write the state file — they're trustworthy." | Single-writer is non-negotiable. If a subagent could write `phase: GREEN`, the hook is bypassable by any agent that mis-reads the cycle, and the discipline collapses. Orchestrator writes; agents read (or are pre-inlined the relevant phase by the orchestrator). |
+| "I'll skip REFACTOR — the GREEN code is fine, no duplication." | REFACTOR is optional, but explicitly mark state IDLE so the state file doesn't mislead the next reader. Leaving phase at GREEN when the next cycle's RED step begins misrepresents which phase is genuinely active. |
+| "The state file is overhead — I'll skip writing it for this one quick fix." | The state file is the only record of which phase is active — concurrent same-cwd sessions on different branches would collide without it. The slug-scoped path solves the collision; the headers carry branch identity through compaction. |
+| "Subagents can write the state file — they're trustworthy." | Single-writer is non-negotiable. A subagent writing concurrently could race the orchestrator's own write and leave `## phase` wrong for whoever reads it next. Orchestrator writes; agents read (or are pre-inlined the relevant phase by the orchestrator). |
 | "I'll keep the state in JSON — it's more structured." | JSON corrupts on partial write — a half-written `{...}` is unparseable, while a truncated Markdown file with `## phase` sections is still readable. The format choice is for compaction-resilience, not aesthetics. |
 
 ## Definition of Done
