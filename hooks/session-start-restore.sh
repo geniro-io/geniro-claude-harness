@@ -92,10 +92,11 @@ if ! command -v _geniro_lock_reclaim_secs >/dev/null 2>&1; then
   }
 fi
 
-# Branch -> slug derivation, single-sourced in lib/branch-slug.sh so this hook and
-# the sibling enforce-tdd-order.sh compute an identical slug from a branch name (a
-# divergent form misses the producer's state file on every >60-char branch). Inline
-# fallback keeps the hook self-contained on a vendored install without lib/.
+# Branch -> slug derivation, single-sourced in lib/branch-slug.sh so this hook
+# always computes the same slug a producer's state-file path was derived from
+# (a divergent form misses the producer's state file on every >60-char
+# branch). Inline fallback keeps the hook self-contained on a vendored install
+# without lib/.
 _geniro_slug_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/branch-slug.sh"
 if [ -f "$_geniro_slug_helper" ]; then
   # shellcheck source=/dev/null

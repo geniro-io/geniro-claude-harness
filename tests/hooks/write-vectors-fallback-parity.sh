@@ -299,25 +299,6 @@ expect_parity block-dangerous-git.sh 2 "pipe-to-shell"    "echo \"git push --for
 expect_parity block-dangerous-git.sh 2 "prefix-wrapped pipe" "echo \"git push --force origin main\" | timeout 5 bash"
 expect_parity block-dangerous-git.sh 0 "benign push"      "git push origin feature/x"
 
-# enforce-tdd-order needs a RED-phase state file to have any verdict at all; the
-# slug comes from the branch name, so the sandbox pins one.
-git symbolic-ref HEAD refs/heads/parity 2>/dev/null || true
-mkdir -p "$SANDBOX/.geniro/state/tdd"
-printf '## phase\nRED\n' > "$SANDBOX/.geniro/state/tdd/state-parity.md"
-expect_parity enforce-tdd-order.sh 2 "sh -c prod write"   "sh -c 'echo x > src/app.js'"
-expect_parity enforce-tdd-order.sh 2 "pipe-to-shell"      "echo \"echo x > src/app.js\" | bash"
-expect_parity enforce-tdd-order.sh 2 "interp prod write"  "python3 -c \"open('src/app.js','w').write('k')\""
-expect_parity enforce-tdd-order.sh 0 "test-file write"    "echo x > src/app.test.js"
-expect_parity enforce-tdd-order.sh 0 "RED output capture" "npm test > /tmp/out.log"
-# shell $VAR rebound to a production file, benign-then-prod: the guard's
-# default is deny-unless-recognized-test-file, so the ambiguous-rebind
-# sentinel from lib/write-vectors.sh §F already reads as "not a test file"
-# with no extra wiring in this guard — verify that holds in the vendored copy
-# too.
-expect_parity enforce-tdd-order.sh 2 "shell \$VAR rebound to a prod file" \
-  "F=src/app.test.js; F=src/app.js; echo x > \"\$F\""
-rm -rf "$SANDBOX/.geniro/state"
-
 expect_parity security-pattern-check.sh 2 "sh -c authoring"  "sh -c \"printf 'eval(x)' > bad.py\""
 expect_parity security-pattern-check.sh 2 "pipe-to-shell"    "echo \"printf 'eval(x)' > bad.py\" | bash"
 expect_parity security-pattern-check.sh 2 "interp authoring" "node -e \"require('fs').writeFileSync('app.js','eval(userInput)')\""

@@ -33,7 +33,7 @@ slug="${slug:0:60}"
 slug="${slug%-}"
 ```
 
-This derivation is single-sourced for shell consumers in `${CLAUDE_PLUGIN_ROOT}/lib/branch-slug.sh` (`_geniro_branch_slug`); the session-start-restore and enforce-tdd-order hooks source it (with an inline fallback for vendored installs). The block above is the canonical spec an orchestrator follows when it computes the slug itself.
+This derivation is single-sourced for shell consumers in `${CLAUDE_PLUGIN_ROOT}/lib/branch-slug.sh` (`_geniro_branch_slug`); the session-start-restore hook sources it (with an inline fallback for vendored installs). The block above is the canonical spec an orchestrator follows when it computes the slug itself.
 
 When `git` is unavailable or the project isn't a git repo, the fallback chain produces slug `detached-unknown` — the file still works for single-session use; collision is impossible without branches.
 

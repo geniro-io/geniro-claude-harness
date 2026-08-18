@@ -33,20 +33,15 @@ TMPDIR_BASE="$(mktemp -d)"
 ORIGINAL_PWD="$PWD"
 trap 'cd "$ORIGINAL_PWD"; rm -rf "$TMPDIR_BASE"' EXIT
 
-# enforce-tdd-order.sh needs a RED-phase state file to have ANY verdict, keyed
-# to the current branch's slug — otherwise it exits 0 on every command
-# regardless of spelling, and its BASES row below would pass vacuously. Run
-# every check in this suite from inside one sandboxed git repo, pinned to a
-# fixed branch, with that file already present: harmless to every other guard
-# (none of them read TDD state), and it also removes this suite's incidental
-# dependency on the caller's own cwd/branch/safety.json.
+# Run every check in this suite from inside one sandboxed git repo, pinned to
+# a fixed branch: it removes this suite's incidental dependency on the
+# caller's own cwd/branch/safety.json (every guard walks up from cwd looking
+# for a project's own .geniro/safety.json bypass list).
 SANDBOX="$TMPDIR_BASE/sandbox"
 mkdir -p "$SANDBOX"
 cd "$SANDBOX" || exit 1
 git init -q
 git symbolic-ref HEAD refs/heads/obfuscation-matrix 2>/dev/null || true
-mkdir -p .geniro/state/tdd
-printf '## phase\nRED\n' > .geniro/state/tdd/state-obfuscation-matrix.md
 
 TESTS_RUN=0
 TESTS_FAILED=0
@@ -97,7 +92,6 @@ block-dangerous-git.sh|push-mirror|git push --mirror origin|git push --tags orig
 block-geniro-deletion.sh|rm-geniro|rm -rf .geniro|rm -rf build
 file-protection.sh|write-env|echo k > .env|echo k > notes.txt
 security-pattern-check.sh|sec-eval-exec|printf '\''eval(x)'\'' > bad.py|printf '\''print(1)'\'' > ok.py
-enforce-tdd-order.sh|prod-write|echo x > src/app.js|echo x > src/app.test.js
 '
 
 run_guard() {  # <hook> <command>
@@ -166,7 +160,6 @@ done <<< "$BASES"
 TARGET_BASES='
 block-geniro-deletion.sh|rm-geniro-target|rm -rf {T}|.geniro
 file-protection.sh|write-env-target|echo k > {T}|.env
-enforce-tdd-order.sh|prod-write-target|echo x > {T}|src/app.js
 '
 
 path_variants() {  # <target> -> "id|spelling" lines
@@ -229,8 +222,8 @@ check "block-dangerous-git.sh [var: unresolvable value] allows" "block-dangerous
 
 # --- axis 5: guard-helper parity ---------------------------------------------
 # The two T0 findings above (block-geniro-deletion.sh missing the backslash-
-# unescape rule; security-pattern-check.sh and enforce-tdd-order.sh missing
-# variable expansion) were the same shape twice: a guard that normalizes only
+# unescape rule; security-pattern-check.sh missing variable expansion) were
+# the same shape twice: a guard that normalizes only
 # ONE of the two obfuscation axes lib/write-vectors.sh covers, silently, with
 # no signal anywhere that it had fallen behind its five siblings. This
 # assertion is the parity check itself — every Bash-matcher guard in

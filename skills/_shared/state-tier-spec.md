@@ -92,7 +92,7 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 
 ### Tier-exempt — TDD-cycle state file
 
-- `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; the PreToolUse hook `enforce-tdd-order.sh` reads it; subagents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase so the hook can gate `Edit`/`Write` at the right moment (the hook reads `## phase` alone — it does not store or compare a per-cycle target path) — it is not a frontmatter-bearing durable artifact and is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
+- `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; subagents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase — an unenforced convention, not a mechanically gated one; nothing reads it to block an edit — and it is not a frontmatter-bearing durable artifact, so it is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
 
 ### No ad-hoc state files under `.geniro/state/`
 

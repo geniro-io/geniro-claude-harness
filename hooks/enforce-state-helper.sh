@@ -24,9 +24,9 @@
 # Shell-side atomicity is now a prose contract (CLAUDE.md §State Files), not a
 # hook: an undetectable write is better than a guard that blocks the wrong ones.
 #
-# Paths under .geniro/state/tdd/ are exempt: the TDD-order hook's state file is
-# a documented exception written via its own mktemp + mv procedure
-# (skills/_shared/tdd-cycle.md §State file contract).
+# Paths under .geniro/state/tdd/ are exempt: the TDD cycle's own RED-phase
+# state file is a documented exception written via its own mktemp + mv
+# procedure (skills/_shared/tdd-cycle.md §State file contract).
 #
 # Per-project bypass:
 #   .geniro/safety.json — { "allow_patterns": ["enforce-state-helper"] }
@@ -316,7 +316,7 @@ esac
 # `.geniro/state/tdd/../../planning/foo/state.md` carries the substring while
 # resolving to a canonical state file outside it. Reject the traversal (fall
 # through to matches_state_path below, no exemption) before the substring test
-# runs, mirroring enforce-tdd-order.sh's is_non_production_target.
+# runs, mirroring check_delete_arg's `*/../*` guard in block-geniro-deletion.sh.
 case "/$FILE_PATH/" in
   */../*) ;;
   *.geniro/state/tdd/*) exit 0 ;;

@@ -72,7 +72,7 @@
 #
 # Hooks source this with an inline fallback so a vendored install shipping
 # hooks/ without lib/ still recurses — a missing helper must never make a guard
-# fail open. See hooks/enforce-tdd-order.sh for the sourcing pattern. Every
+# fail open. See hooks/file-protection.sh for the sourcing pattern. Every
 # fallback is a VERBATIM copy of the function it stands in for (delimited by
 # `GENIRO-VENDORED-BEGIN/END` markers); a one-sided edit here reopens the hole
 # on vendored installs.
@@ -925,8 +925,8 @@ _geniro_wv_unquote_words() {
 # on its own the sentinel matches no protected pattern (cost-free to a caller
 # doing plain literal matching, e.g. block-dangerous-git.sh's command-text
 # scan), while a caller whose vector IS the write/delete target — file-
-# protection.sh's and enforce-tdd-order.sh's candidate extraction — greps its
-# own extracted candidate for the sentinel and, on a match, routes into the
+# protection.sh's and block-geniro-deletion.sh's candidate extraction — greps
+# its own extracted candidate for the sentinel and, on a match, routes into the
 # SAME conservative fallback an unresolved interpreter target already uses:
 # `_geniro_wv_path_tokens` over the surrounding text, which still carries
 # every literal binding as a plain token, so `F=<protected>; F=out.txt;
