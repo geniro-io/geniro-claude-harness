@@ -23,6 +23,8 @@ Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches
 - **Trade-off** (1 sentence: gain vs give-up)
 - **Effort estimate** (Trivial / Small / Medium / Big per effort-scaling.md)
 
+**A materially cheaper shape is a real approach, not filler.** Price the objective at less than full scope as one of the 2-3 candidates, not a fourth: a strict subset carrying most of the value, or reaching it through configuration or an existing mechanism instead of new code. Include one whenever it is genuinely on the table. The filler bar above rejects a strawman *of the same shape*, built to pad the option count; a cheaper shape is its opposite — the only candidate that can shrink the work rather than plan it, and the one nobody proposes because the request already implies the full build. Give it the same `Trade-off:` line as every other approach, naming what it gives up, so the user weighs a real option rather than reading a suggestion to do nothing. Every candidate here still has to be buildable — this phase's output becomes a spec, so "build nothing" is not an approach but a Phase 3 conclusion, routed at §3.1.
+
 ### 4.2 Independent stress-test (adversarial weighing)
 
 The model that generated the approaches in §4.1 also ranks them in the §4.3 AUQ — same context, same blind spots, so its `Recommended` pick just re-confirms its own bias. Before ranking, get an independent challenge grounded in the actual codebase, so the `Recommended` marker reflects feasibility evidence rather than the author's confidence.

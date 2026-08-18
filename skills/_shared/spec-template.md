@@ -142,7 +142,7 @@ Author a `verify: <shell command>` line on every criterion a single read-only co
 
 ## 11. Done Condition
 
-<Single statement of the observable signal that the task is complete. E.g., "all 5 acceptance tests green AND PR approved" / "feature ships behind flag AND telemetry shows ≥1 successful use".>
+<Single statement of the observable signal that the task is complete. E.g., "all 5 acceptance tests green AND PR approved" / "feature ships behind flag AND telemetry shows ≥1 successful use". An outcome-bearing change adds a second clause naming the production signal that would show it worked — see the section-11 guidance below.>
 ```
 
 The schema has exactly 11 numbered headers (`## 1` … `## 11`); downstream consumers and the validator key off header text, not ordinal count.
@@ -173,6 +173,8 @@ Body sections beyond the 11 (allowed):
 **Section 9 (Validation):** for each criterion verified by tests, name the public seam the test enters through — the exported function, endpoint, or CLI command a real caller uses (e.g. `POST /api/orders`, `checkout(cart, payment)`). Prefer an existing seam over a new one, and the highest seam that still observes the behavior (seam vocabulary: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md`); cite prior art — a similar existing test file — when one exists. Leaving the seam unnamed defers the choice to /geniro:implement mid-build, where a wrong seam surfaces as a review finding instead of at the section-approval gate.
 
 **Section 10 (Rollback-Recovery):** "none — pure additive" is a valid body BUT must be explicit. Phase 7 validator does not auto-fail if body is "none" — it auto-fails if body is empty.
+
+**Section 11 (Done Condition):** the first clause states when the work is *built* — tests green, PR approved. When the change is also meant to move something in production — adoption, latency, error rate, conversion, cost — add a second clause naming the signal that would show it worked, the source that reads it, and when to look: "the APM dashboard metric shows p95 checkout latency under 400ms, one week after rollout". Word it in one of the observable-signal shapes (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/done-condition-check.md` §"Stopping-condition ontology") — a clause matching none of them is free-text, and free-text is never graded, so at ship time the user is not told the outcome criterion is still open. Take the source from the project's declared `## Data Sources` block (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`) and read the current value through it, so the target sits against a measured baseline rather than a guess. Where no declared source can read the signal, write that gap in place of the number — "no source currently measures checkout latency" — which is a finding the user can act on; a baseline nobody measured reads as measured, and the first person to act on it is the one who discovers it was invented. Internal refactors, pure bug fixes, and tooling changes carry no outcome clause.
 
 **Sections 4, 5, 10 for Trivial tasks:** may have body content "none — task scope precludes" with brief rationale. All 11 headers stay present even for Trivial tasks — the Phase 7 schema_completeness check parses the section headers and fails validation if one is missing; the body under a non-applicable header may be "none with rationale".
 

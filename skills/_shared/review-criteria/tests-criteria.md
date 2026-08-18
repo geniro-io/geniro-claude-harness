@@ -387,6 +387,7 @@ When a spec / plan is in context (spec.md section 9 Validation criteria, section
 
 - Flag any spec-enumerated behavior with no covering assertion. Severity tracks the criterion's blast radius (critical-path behavior → HIGH; routine → MEDIUM).
 - When no spec/plan is in context (inline-task runs), this check is a silent no-op — there is no enumerated behavior set to map against.
+- A section-11 outcome clause naming a production measurement and a window ("the dashboard metric shows p95 under 400ms, one week after rollout") is not a behavior a test can cover — drop it from the mapping instead of flagging it uncovered. Its enabling artifact stays in scope: where the clause depends on instrumentation the run added, the test for that emission is mappable and missing it is a finding. Same line `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §10 draws.
 
 **Red flag:** a behavior the spec lists as in-scope or as a Done-Condition / acceptance criterion, with no test in the diff that references it.
 

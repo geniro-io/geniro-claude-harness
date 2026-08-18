@@ -38,7 +38,7 @@ Phase 5 cluster rendering (`loop-phase-5-section-approval.md` §5.2) renders eve
 | 8. Approval Points | Named decisions + AUQ shape (header / question / option count) — step anchors where a pause is warranted during the /geniro:implement run, advisory, per the section-8 note in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` |
 | 9. Validation | Test names + ASCII test outline: `it('rejects negative quantity')` + 3-line body sketch, each criterion closing on its acceptance command: `verify: pnpm test orders.spec` |
 | 10. Rollback-Recovery | One-line revert command OR feature-flag toggle pseudocode (e.g., `featureFlag.disable('new-auth')`) |
-| 11. Done Condition | Observable signal phrase: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert" |
+| 11. Done Condition | Observable signal phrase, plus the production signal when the change is outcome-bearing: "all 5 acceptance tests green AND telemetry shows ≥1 successful event insert; the dashboard metric shows backfill p95 under 5 min, one week after rollout" |
 
 The orchestrator renders the whole cluster to a chat message FIRST, then fires ONE lean AUQ for the cluster (Approve all / Explain a section further / Revise specific sections / Cancel). The chat message is the rendering surface — it has full width for code and diagrams the `AskUserQuestion` `preview` side-box cannot fit. See `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §"Gate presentation contract".
 
