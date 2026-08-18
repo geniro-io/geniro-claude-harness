@@ -50,7 +50,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`: research and rev
 |---|---|---|
 | Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | inherit (OMIT `model=`) | Reasoning-grade research runs at the tier the user chose for the session |
 | Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits the orchestrator's context; a spawn would only buy isolation this work doesn't need |
-| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `model="sonnet"` | Execution spawns per model-tiering.md category 4 — the user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
+| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `model="sonnet"` ceiling | Execution spawns per model-tiering.md category 4 — the user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
 | Phase 5 review agent | inherit (OMIT `model=`) | Fresh reviewer judges at the same tier that authored the changes |
 | Create-skill Phase A duplicate-check + Phase B author agent | inherit (OMIT `model=`) | Semantic comparison and skill authoring are reasoning-grade — the author agent composes a skill from an interview, it does not transcribe one |
 

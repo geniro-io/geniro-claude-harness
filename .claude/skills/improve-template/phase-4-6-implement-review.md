@@ -32,7 +32,7 @@ Group approved findings into implementation units:
 Pre-inline the current file content each agent needs (from Phase 1 codebase research).
 
 ```
-Agent(model="sonnet",  # execution spawn — model-tiering.md category 4; the change is approved and the files are named
+Agent(model="sonnet",  # execution spawn — model-tiering.md category 4; the change is approved and the files are named. Ceiling: a purely textual round sizes below it
       prompt="""
 ## Task: Implement Changes
 Apply the following approved changes:

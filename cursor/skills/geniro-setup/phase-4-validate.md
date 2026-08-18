@@ -8,7 +8,7 @@ Phase file for `/geniro:setup`. The spine — invariants, budgets, tool surface,
 
 ```
 Agent(subagent_type="general-purpose", # ad-hoc verification agent — spawns as general-purpose directly; the ${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md ladder applies only if promoted to a plugin-defined agent
-model="sonnet", # hardcode carve-out per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md — tier and its reason stated in §Subagent model tiering; keep the pin
+model="sonnet", # carve-out per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md category 2 — a fixed check-and-report the orchestrator re-decides from; this is the ceiling, and a small generated CLAUDE.md is a §Sizing down-pick
 prompt="""
 You are a READ-ONLY verifier. The Agent tool has no per-spawn tool allowlist, so this
 paragraph is the whole read-only floor: do not create, edit, or delete any file, and run no

@@ -189,7 +189,7 @@ When `deep-mode: true`, Phase 4 runs its deeper path and Phase 7.5 — which fir
 
 †Artifact mode only — the update/before-gate/finalize calls at each phase's own gate sites, plus a `Write` to the session-scratchpad HTML file; exact call sites are `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`'s table, not repeated per-row here.
 
-Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, a category-4 execution pin per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
+Every `Agent` and `Workflow` spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, a category-4 execution spawn whose `sonnet` is a ceiling the orchestrator may size below, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
 
 ---
 
