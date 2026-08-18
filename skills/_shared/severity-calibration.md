@@ -176,7 +176,7 @@ Admission constraint for MEDIUM: a MEDIUM finding requires the Evidence-Block. A
 
 **The high-stakes refutation guard is what keeps this safe.** Putting the whole correctness judgment on the verifier concentrates the risk in a single verdict, and the documented failure mode of an LLM defect-filter is over-refutation — dropping a real bug. So at CRITICAL / HIGH one `refuted` verdict never demotes a finding by itself; it takes a second, independent verdict. That rule and its fail-safe are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5.
 
-No tier-dependent behavior at admission — `risk-tier: high` changes nothing in this gate, since the only thing it ever relaxed was a confidence floor that no longer exists. The §4.3 test-confirmation gate affects neither §4.1 admission nor §4.2 verification — test authoring runs after the finding set is fixed and never filters it.
+No tier-dependent behavior at admission — `risk-tier: high` changes nothing in this gate, since the only thing it ever relaxed was a confidence floor that no longer exists.
 
 Rationale:
 

@@ -16,4 +16,5 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 - [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
 - [ ] `report_status: draft→final` flipped on this pass once the decision gates cleared — including on a clean review with no gates to fire; on a Post, `[POSTED-TO-PR]` markers persisted.
 - [ ] The Action gate fired (always-WAIT) with its pick in `approvals[]`; the chained include-deferred gate fired on the `/geniro:implement findings` pick when set-aside minor findings existed; the round-N gate fired when round ≥3.
-- [ ] `--deep` honored when present; approved test authoring stayed additive — never filtering the posted finding set.
+- [ ] `--deep` honored when present.
+- [ ] No test was authored — a testable finding's `Decision Type` carries into the handoff unchanged, for `/geniro:implement` to confirm when it applies the fix.

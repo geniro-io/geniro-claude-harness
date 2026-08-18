@@ -35,7 +35,6 @@ clean_task_transients() {
     "$task_dir"/.kr-out.md \
     "$task_dir"/.ce-out.md \
     "$task_dir"/.tr-out.md \
-    "$task_dir"/.adversarial-out.md \
     "$task_dir"/.spec-challenge-out.md \
     "$task_dir"/notes.md \
     "$task_dir"/playwright-verify.png \
