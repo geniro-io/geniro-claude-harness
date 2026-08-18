@@ -93,7 +93,7 @@ External sends are not part of `/geniro:audit-instructions` ACI.
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=`, inheriting the orchestrator's tier so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 5 fix agents pin `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, receiving findings the user already approved and a file allowlist it may not extend. Phase 3's T0/T1 cold-verify uses the `finding-verifier-agent` ladder (OMIT `model=`). The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
+All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=`, inheriting the orchestrator's tier so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 5 fix agents pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, receiving findings the user already approved and a file allowlist it may not extend. That tier is the ceiling; a round of purely textual instruction-file edits takes a cheaper one, the same tier across the batch (same file, §Sizing a non-judgment spawn). Phase 3's T0/T1 cold-verify uses the `finding-verifier-agent` ladder (OMIT `model=`). The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
 
 ---
 

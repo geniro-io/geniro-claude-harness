@@ -104,7 +104,7 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 | `no-worktree` / `here` | Force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
 | `--no-adversarial` | Skips Phase 3's edge-case test-authoring step for this run. |
 | `--deep` / `deep` | Sets `deep-mode: true` — the deeper Phase 1 + Phase 3 paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. |
-| `--subagent-model <tier>` | Pins every plugin spawn this run makes to `<tier>`, per `SKILL.md` §Subagent model tiering. Sets `subagent-model: <tier>` (Step 4 persists it alongside `deep-mode`; missing reads as `inherit`). |
+| `--subagent-model <tier>` | Pins every judgment-grade spawn this run makes to `<tier>` and caps the non-judgment ones, per `SKILL.md` §Subagent model tiering. Sets `subagent-model: <tier>` (Step 4 persists it alongside `deep-mode`; missing reads as `inherit`). |
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
 

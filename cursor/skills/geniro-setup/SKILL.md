@@ -46,11 +46,11 @@ CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 ## Subagent model tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — and it is a documented hardcode carve-out. This table is the one place the carve-out's tier and its reason are stated; the §4.1 spawn site and the Cross-references entry point here.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — a documented carve-out. This table is the one place its tier and reason are stated; the §4.1 spawn site and the Cross-references entry point here.
 
 | Spawn | Tier | Why |
 |---|---|---|
-| Verification subagent (validate generated CLAUDE.md against codebase) | `sonnet` | Mechanical check-and-report: runs a fixed check list and emits PASS/DRIFT lines the orchestrator re-decides from, so its output does not scale with orchestrator tier |
+| Verification subagent (validate generated CLAUDE.md against codebase) | `sonnet` ceiling | Mechanical check-and-report: runs a fixed check list and emits PASS/DRIFT lines the orchestrator re-decides from, so its output does not scale with orchestrator tier. A short generated CLAUDE.md sizes below the ceiling (`model-tiering.md` §Sizing a non-judgment spawn) |
 
 ## Loop invariants
 
