@@ -23,6 +23,8 @@
 #      a hook ported to Cursor, or a new hook that never was, moves this set.
 #   3. Every prose sentence stating a count of Cursor-unwired hooks states the
 #      real one.
+#   4. Every hook the wiring exec's directly is tracked executable — a guard the
+#      OS refuses to run fails open exactly like one nothing registers.
 
 set -uo pipefail
 
@@ -136,6 +138,49 @@ while IFS= read -r hit; do
   esac
 done < <(_prose_gap_hits)
 [ "$prose_checked" -gt 0 ] && echo "OK: $prose_checked prose count(s) of the Cursor gap agree with the wiring files"
+
+# --- 4. Every directly-invoked hook is executable -----------------------------
+# A command like `"${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` is exec'd by the runtime,
+# not handed to an interpreter: with the exec bit missing the OS answers
+# "Permission denied", the hook is skipped, and the guard fails open on every
+# tool call. v5.17.1 shipped four PreToolUse guards at mode 644 — a full-file
+# rewrite through tmp+rename drops the bit — while every hook suite stayed
+# green, because the suites invoke hooks as `bash "$HOOK"`, a form that never
+# needs it. The git index mode is the shipped truth: a worktree chmod that was
+# never staged still installs non-executable.
+_direct_invocations() {  # <hooks.json> -> repo-relative paths the runtime exec's
+  jq -r '[.. | objects | select(has("command")) | .command] | .[]' "$1" 2>/dev/null \
+    | awk '{print $1}' \
+    | tr -d '"'"'" \
+    | sed -e 's|\${CLAUDE_PLUGIN_ROOT}/*||' -e 's|^\./||' \
+    | grep '/' \
+    | grep -v '^/' \
+    | sort -u
+}
+
+_index_mode() { git ls-files -s -- "$1" 2>/dev/null | awk '{print $1}'; }
+
+exec_checked=0
+exec_fails_before="$FAILS"
+for wiring in hooks/hooks.json cursor/hooks.json; do
+  while IFS= read -r script; do
+    [ -n "$script" ] || continue
+    exec_checked=$((exec_checked + 1))
+    if [ ! -f "$script" ]; then
+      report_fail "$wiring runs \`$script\`, which does not exist"
+      continue
+    fi
+    mode="$(_index_mode "$script")"
+    if [ -n "$mode" ]; then
+      [ "$mode" = "100755" ] || report_fail "$wiring exec's $script but it is tracked as mode $mode — the runtime gets 'Permission denied' and the guard fails open; \`git add --chmod=+x $script\`"
+    elif [ ! -x "$script" ]; then
+      report_fail "$wiring exec's $script but it is not executable — the runtime gets 'Permission denied' and the guard fails open"
+    fi
+  done < <(_direct_invocations "$wiring")
+done
+if [ "$exec_checked" -gt 0 ] && [ "$FAILS" -eq "$exec_fails_before" ]; then
+  echo "OK: $exec_checked directly-invoked hook script(s) are executable"
+fi
 
 # --- self-test: check 3 does not read untracked/ignored files -----------------
 # A tree-wide grep would also read gitignored `.geniro/` local planning files —
