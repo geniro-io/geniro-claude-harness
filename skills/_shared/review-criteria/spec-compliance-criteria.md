@@ -35,7 +35,7 @@ When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schem
 
 Every finding cites the specific section (or frontmatter field) violated/missing — e.g., `Evidence: section 2 (Scope.Included) names "src/api/auth/*" but diff touches no auth file`. The checks below name the canonical section anchors.
 
-**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9 and 12. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. Emit a structured `open_questions[]` entry with `source: spec-compliance`, `status: unresolved`, `question: "PLAN CONTEXT lacks structured frontmatter — checks 10 (Done Condition) and 11 (Tools Required) skipped. Confirm whether these are covered out-of-band, or upgrade the spec/design doc to the structured schema."`.
+**Prose fallback:** when frontmatter is absent (unstructured PLAN CONTEXT), run checks 1-9 and 12. Skip checks #10 (Done Condition) and #11 (Tools Required) — there's no section anchor to cite. State the reduced coverage in your returned report — `Coverage: prose mode — checks 10 (Done Condition) and 11 (Tools Required) skipped, no section anchor to cite` — so the orchestrator lands it as a `## Caveats` line. Never an `open_questions[]` entry: absent frontmatter is a fact you read for yourself, and the answer changes nothing about what the review posts, which is what that array is for (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2).
 
 ## LINEAR CONTEXT supplement (workflow integration)
 
