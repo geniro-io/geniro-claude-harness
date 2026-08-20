@@ -1,15 +1,15 @@
 # /geniro:resolve — reference
 
-Phase detail and schemas for `/geniro:resolve`. The skill body (`SKILL.md`) holds the workflow; this file holds the item inventory, the verdict rubric, and the two output schemas. The `gh` command shapes live once in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` — this file references them, never re-states them.
+Phase detail and schemas for `/geniro:resolve`. The skill body (`SKILL.md`) holds the workflow and its invariants; this file holds the item inventory, the verdict + filter rubric, the gate mechanics, the ship gate and the report shape. The `gh` command shapes live once in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` — this file references them, never re-states them.
 
 ## Contents
 
 - §1 — Inventory item schema (Phase 1)
 - §1.5 — Workspace sync: local checkout → PR head (Phase 1)
-- §2 — Verdict rubric + verify/reproduce (Phase 2)
-- §2.5 — Clarify gate mechanics (Phase 3)
-- §3 — Spec `## Comment Resolution Map` (Phase 4)
-- §4 — Handoff `comment_resolutions[]` (Phase 4)
+- §2 — Verdict + filter rubric (Phase 2)
+- §2.5 — Gate mechanics (Phase 2)
+- §3 — Reply shapes + the ship gate (Phase 3)
+- §4 — Final report (Phase 3)
 
 ---
 
@@ -28,21 +28,22 @@ The read side of `pr-threads.md` (§2 threads, §3 checks) returns raw GraphQL /
   line: <int|null>
   body: |                      # review-comment: the thread conversation; ci-check: check output
     <verbatim text>
-  verdict:                     # filled in Phase 2
-  reply_draft:                 # filled in Phase 2 (review-comment only)
-  verify:                      # filled in Phase 4 (fix items)
-  fix_step_anchor:             # filled in Phase 4 (fix items)
+  verdict:                     # Phase 2: fix | ask | answer-only | decline
+  reason:                      # Phase 2, decline only: wrong-claim | over-engineering | out-of-scope | regression-risk | too-large
+  picked:                      # Phase 2, ask only: true once the user picks it, false when left unpicked
+  reply_draft:                 # Phase 3 (review-comment only)
+  files_touched:               # Phase 3 (applied items) — what the reply names and the resolve gate checks
 ```
 
 Build rules:
 - Collapse a multi-comment thread to ONE item — concatenate the comment bodies into `body`, keep the FIRST comment's `databaseId` as `comment_id` (the reply anchor) and the thread `id` as `thread_id`.
 - Drop threads with `isResolved == true` (idempotency).
-- A `CHANGES_REQUESTED` formal review with no inline thread becomes an item with `thread_id: null` (it cannot be resolved via API) — verdict `answer-only` at most.
-- Group items by `path` so Phase 2 verifies neighbours together; CI items with `path: null` form their own group.
+- A `CHANGES_REQUESTED` formal review with no inline thread becomes an item with `thread_id: null` — it cannot be replied to or resolved through the API, so it can still produce a fix, but its outcome reaches the user through the final report rather than the PR.
+- Group items by `path` so one read of a file in Phase 2 serves every item citing it; CI items with `path: null` form their own group.
 
 ## 1.5 Workspace sync: local checkout → PR head (Phase 1)
 
-The first of the two Phase 1 sync offers (the second — branch vs its base — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`). The comments are anchored to the PR head (`pr-head-sha` = `headRefOid`); if the local tree sits on a different commit, the verifier reads code the comments do not describe.
+The first of the two Phase 1 sync offers (the second — branch vs its base — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`). The comments are anchored to the PR head (`pr-head-sha` = `headRefOid`); if the local tree sits on a different commit, the analysis reads code the comments do not describe and the fixes land somewhere other than the PR branch.
 
 ```bash
 LOCAL_HEAD="$(git rev-parse HEAD 2>/dev/null)"
@@ -54,68 +55,105 @@ LOCAL_HEAD="$(git rev-parse HEAD 2>/dev/null)"
 
 ```
 header: "Update to PR"
-question: "Your checkout is on a different commit than the PR's latest (<short pr-head-sha>). Check out the PR's latest commit before triaging the comments?"
+question: "Your checkout is on a different commit than the PR's latest (<short pr-head-sha>). Check out the PR's latest commit before working through the comments?"
 options:
   - "Check out the PR head (Recommended)"  -> gh pr checkout <number>
   - "Keep my current checkout"             -> no git action
 ```
 
 - `gh pr checkout <number>` handles both cases — on the PR branch but behind (fast-forwards), or not on the PR branch at all (creates/switches to it). It refuses on a dirty tree; when `git status --porcelain` is non-empty, chain the §5 dirty-tree offer from `branch-freshness.md` (stash → checkout → pop) rather than forcing it.
-- Fail-open: any non-zero `gh`/`git` exit → surface a one-line caveat ("Couldn't switch to the PR head — triaging against your current checkout; some comments may reference code you don't have locally.") and proceed. Persist the pick to `approvals[]` (category `branch_freshness`).
+- Fail-open: any non-zero `gh`/`git` exit → surface a one-line caveat ("Couldn't switch to the PR head — working against your current checkout; some comments may reference code you don't have locally, and any fix will land here rather than on the PR branch.") and proceed. Persist the pick to `approvals[]` (category `branch_freshness`).
 
 Run this BEFORE the branch-vs-base offer (Step 2b): land on the PR head first, then bring that up to date with the base.
 
-## 2. Verdict rubric + verify/reproduce (Phase 2)
+## 2. Verdict + filter rubric (Phase 2)
 
-Per item, after reading the cited code and attempting a repro:
+Per item, after reading the cited code and attempting a repro. The filter is the verdict — there is no separate pass.
 
-| Verdict | When | Reply draft | Downstream |
-|---|---|---|---|
-| `fix` | The comment names a real, reachable issue in the current head; you can state what + how to fix | "Addressed in <one-line summary of the fix>." | Becomes a spec Step; `comment_resolutions[]` with `resolve_after_fix: true` |
-| `answer-only` | The comment asks a question that needs a reply but no code change | The answer, grounded in the code | `comment_resolutions[]` with `verdict: answer-only`, `resolve_after_fix: false` |
-| `needs-clarification` | The intended change is ambiguous — two or more plausible reads | — (deferred to Phase 3) | An `open_questions[]` entry; resolved answer may later become a `fix` |
-| `wontfix` | The comment is mistaken, stale, already-fixed, or out of PR scope | The evidence-backed push-back (cite the code that refutes it) | `comment_resolutions[]` with `verdict: wontfix`, `resolve_after_fix: false` (reply, leave thread open) |
+| Verdict | When | Downstream |
+|---|---|---|
+| `fix` | The comment names a real, reachable issue in the current head, and the correction is behavior-preserving: it makes the code do what its own tests, spec and callers already expect | Applied in Phase 3 without asking. Reply names what changed; thread resolves once the fix is pushed |
+| `ask` | The correction is real and worth making, but it changes something a caller could depend on — an API shape, a default, error semantics, a data format, ordering, a deliberate performance trade-off. Also: any item you cannot confidently place on either side of that line | Goes to the decision gate. Picked → applied like a `fix`. Unpicked → nothing applied, nothing posted, reported to the user |
+| `answer-only` | The comment asks a question that needs a reply but no code change | Reply posted; thread stays open unless the answer settles it |
+| `decline` | The ask fails the worth-doing bar below | Evidence-backed push-back reply; thread stays open; no code change |
 
-**Verify each `fix`/`wontfix`** (invariant #2). Every `fix`/`wontfix` item gets a fresh `finding-verifier-agent` verdict — no small-PR carve-out — treating the comment as the finding (the cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2). Items citing the same file share one spawn, at the cluster cap defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4, one verdict block each; a solo item spawns singly. The tier (SKILL.md Budgets table) sets the vote count, not whether the verifier runs: one verifier vote by default; on Big, signal-gate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3 to 3 votes only on a contested verdict, run per item rather than clustered. Fire the whole batch in one assistant turn. Aggregate:
-- A `fix` the verifier **refutes** (the issue is not real / not reachable / already fixed) demotes to `wontfix` (draft the push-back) or drops if clearly stale.
-- A `wontfix` the verifier **refutes** (the comment is actually right) re-opens as `needs-clarification` or `fix`.
+**The worth-doing bar.** A `decline` always carries one `reason`, and the reason is what the push-back argues:
 
-**Reproduce** before marking `fix`:
-- A bug-claim → construct a concrete failing case or name the exact trigger path. A claim that cannot be reproduced is evidence for `wontfix`, not `fix`.
-- A `ci-check` → run the failing command locally when the check name/output makes it derivable (`test:unit` → the project test command scoped to the failing file). A locally-reproduced failure confirms the `fix`; a green local run flags an environment-only / flaky check → `answer-only` ("passes locally; likely flaky/env").
+| `reason` | The case for declining | What the push-back must show |
+|---|---|---|
+| `wrong-claim` | The comment is mistaken, stale, or describes an already-fixed or unreachable path | The code that refutes it, cited by `path:line` |
+| `over-engineering` | The ask adds an abstraction, a configuration surface, or a generalization the current code has one caller for | What the existing code does, and what the abstraction would cost against one use |
+| `out-of-scope` | The ask is a real improvement to code this PR did not change | That the cited lines are outside the PR's diff, plus where the work belongs instead |
+| `regression-risk` | Making the change would break behavior something depends on | The dependent — a test that pins it, a caller that relies on it, a documented contract |
+| `too-large` | The ask is real and in scope but is its own piece of work, not a review-round fix | What the change would actually touch, so the user can size the separate work |
 
-## 2.5 Clarify gate mechanics (Phase 3)
+Two rules keep this from becoming a way to avoid work: a `decline` is only ever assigned with evidence you can quote, and every `decline` is re-checked by a fresh `finding-verifier-agent` before its reply is drafted (SKILL.md §Loop invariants #3). A verifier that refutes the decline re-opens the item as `fix` or `ask`. "I would rather not" is not a reason on this table.
 
-Each ambiguous item's lean `AskUserQuestion` carries the item's own interpretations as options, plus two standing aids:
+**Reproduce before you commit to a verdict.**
+- A bug claim → construct a concrete failing case or name the exact trigger path. A claim that cannot be reproduced is evidence for `decline` / `wrong-claim`.
+- A `ci-check` → run the failing command locally when the check name and output make it derivable (`test:unit` → the project test command scoped to the failing file). A locally-reproduced failure confirms the `fix`; a green local run flags an environment-only or flaky check → report it, no code change.
+
+## 2.5 Gate mechanics (Phase 2)
+
+**The decision gate — one multi-select call over the `ask` items.** Shape per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Multi-select pick loop:
+
+- `multiSelect: true`; `question`: "Pick the changes to apply".
+- One option per `ask` item. `label`: the change in the user's terms ("Retry default 3 → 5"). `description`: one line naming the consequence and who is exposed to it. `preview`: empty or a one-line recap.
+- Past 4 items, chain per that file's §Cap-extension — never drop an item to fit the call.
+
+The chat message that precedes it (§Message-first rendering in the same file) is the rendering surface, and it carries all three groups, in this order:
+
+1. **Applying without asking** — one line per `fix`: the comment, the file, the correction. Short; these need no decision, only visibility.
+2. **Needs your call** — one block per `ask`: what the reviewer asked, what the code does now, what changes for a caller if it is applied, and what happens if it is not. This is the block the gate is answerable from, so consequence goes here, not classification.
+3. **Declining** — one line per `decline`: the comment, the reason, and the evidence in a clause. The user is answerable for a push-back posted under their PR, so they see it before it is drafted.
+
+**The single-item gate — one call per ambiguous item.** Shape per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate. Options are the item's competing readings plus two standing aids:
 
 - **"Explain further"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option. Renders a deeper walkthrough and re-fires the same question; writes nothing, consumes no cap slot.
-- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Challenge-finding option. Spawns one fresh `finding-verifier-agent` (the Phase 2 re-verify mechanism; OMIT `model=`) primed with the user's objection, to re-check whether the comment is valid and reachable. Re-renders the item with the verdict, then re-fires the question. A `refuted` result reclassifies the item to `wontfix` (with the evidence-backed push-back draft) and drops its gate.
+- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (OMIT `model=`) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate.
 
-When the item's interpretations plus these two aids exceed 4 slots, chain per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Cap-extension — never drop an interpretation to make room. The chain extends only that one item's own option list past 4; items still fire one at a time, never batched into one call's `questions[]`.
+Persist every pick to `approvals[]` (category `comment_decision`). An unpicked `ask` sets `picked: false` and stops there — no edit, no reply, thread untouched — and appears in the final report under what was left for the user.
 
-Persist each pick to `approvals[]` (category `comment_clarification`) and write the resolved answer into the item's `open_questions[]` entry, setting `related_comments: [<thread_id>]` so the question traces back to the comment that raised it. A deferred item stays `status: unresolved` and travels to `/geniro:implement` for re-gating.
+## 3. Reply shapes + the ship gate (Phase 3)
 
-## 3. Spec `## Comment Resolution Map` (Phase 4)
+**Reply drafts.** One per review-comment item, addressed to the reviewer, in plain English:
 
-Appended to `spec.md`'s standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) as an allowed extra body section. Human-readable; the `comment_resolutions[]` array (§4) mirrors its review-comment rows.
+| Verdict | Shape |
+|---|---|
+| `fix` | "Addressed in `<short-sha>` — `<what changed>` (`<path:line>`)." |
+| `decline` | The reason from §2 stated as a position, with the evidence quoted: what the code does, why the change is not being made, and — for `too-large` / `out-of-scope` — where the work belongs instead. |
+| `answer-only` | The answer, grounded in the code, cited by `path:line`. |
 
-```markdown
-## Comment Resolution Map
+Never post a reply that asks the reviewer to check something you can check yourself — resolve it first and state the result.
 
-| # | Source | Author | Location | Verdict | What & how to fix (or push-back) | Resolves via |
-|---|--------|--------|----------|---------|----------------------------------|--------------|
-| 1 | review-comment | coderabbitai[bot] | api/users.ts:42 | fix | Guard the null deref before the map() | step-3 |
-| 2 | review-comment | alice | api/users.ts:88 | wontfix | Intentional — the caller already validates; cite L70-74 | — |
-| 3 | review-comment | bob | api/users.ts:12 | answer-only | Yes, the retry is bounded at 3 (L9) | — |
-| 4 | ci-check | — | test:unit (users.spec) | fix | Update the fixture for the new field | step-5 |
+**The ship gate.** One `AskUserQuestion`, fired after the chat render of the outcome:
+
+```
+header: "Ship"
+question: "Fixed <N> comments; declined <M>. Commit and push to PR #<num>, and post the <R> replies?"
+options:
+  - "Commit, push, reply and resolve (Recommended)"  -> the whole chain
+  - "Commit and push only"                           -> no reply, no resolve
+  - "Commit only"                                    -> no push (and so no reply: an unpushed fix is not visible)
+  - "Leave it in the working tree"                   -> nothing; the diff is the deliverable
 ```
 
-- Every `fix` row maps to a Step in §6 (`Resolves via step-N`) and a §9 `verify:` criterion.
-- `wontfix` / `answer-only` rows have no Step (`Resolves via —`) — they produce only a reply.
-- The drafted reply text for each row is NOT in this table (it can be long) — it lives in the handoff `comment_resolutions[].reply_draft`.
+When nothing was applied — every item declined, answered, or left unpicked — there is no commit to make and the gate narrows to the replies alone: "Post the <R> replies to PR #<num>?" / "Post nothing". A run with no fixes and no replies skips the gate and goes straight to the report; there is nothing to authorize.
 
-## 4. Handoff `comment_resolutions[]` (Phase 4)
+Annotate the question text with anything the user needs to weigh: a test failure that survived the retry, a pre-existing failure the run did not cause, a fix whose files did not make it into the commit. The gate's answer governs every outward action in the chain — a later step never carries out something it stopped short of.
 
-The array lives in `from-resolve-<branch>.md` frontmatter and MAY be `[]`. Its per-entry schema — the fields `thread_id`, `comment_id`, `source`, `author`, `path`, `line`, `verdict`, `reply_draft`, `resolve_after_fix`, `verify`, `fix_step_anchor`, `status`, plus their enums and the producer/consumer responsibilities — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §Producer-specific extensions (change in lockstep with `/geniro:implement`). Read the field definitions there before the Phase 4 write rather than reconstructing them here.
+## 4. Final report (Phase 3)
 
-What `/geniro:implement` then does with each entry at its Ship sub-step is that same section's Consumer responsibilities; the producer's job ends at writing the array.
+Printed to chat at the end of every run, including one that shipped nothing:
+
+```markdown
+### /geniro:resolve — PR #<num>
+
+**Fixed (<N>)** — <one line each: comment author, what changed, path>
+**Declined (<M>)** — <one line each: comment author, reason, the evidence in a clause>
+**Left for you (<K>)** — <the `ask` items not picked, and any item whose fix did not land>
+**Tests** — <verdict, or "no test command documented in the project's instructions">
+**On the PR** — <what was pushed, how many replies posted, how many threads resolved, and anything skipped after a failed write>
+```
+
+Every item in the inventory appears in exactly one of the first three sections — a run that silently drops an item is a run whose triage the user cannot check.

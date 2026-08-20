@@ -10,7 +10,7 @@
 #
 # That fallback is a second copy of a security-critical scanner, and a second
 # copy drifts. It already had: with CLAUDE_PLUGIN_ROOT unset, file-protection.sh
-# allowed `Path('.env').open('w')` that it blocks with lib/ present. A one-sided
+# allowed `Path('tls.key').open('w')` that it blocks with lib/ present. A one-sided
 # fix to the canonical helper silently leaves the vendored path open, so this
 # suite fails CI on exactly that.
 #
@@ -183,7 +183,7 @@ expect_parity() {  # <hook-basename> <expected-rc> <label> <command>
 # out or writing through an async / non-node runtime is the same channel as the
 # `*Sync` node spelling. Every one of those spellings walked past four to six
 # guards while this matrix was green on bare `sh` alone.
-PROT=".env"
+PROT="tls.key"
 STATE=".geniro/planning/task/state.md"
 GTREE=".geniro/instructions"
 

@@ -93,7 +93,7 @@ matrix_for_guard() {  # <label> <hook-path> <protected-target> <benign-target>
 }
 
 # ===== file-protection.sh =====
-matrix_for_guard "file-protection.sh" "$REPO_ROOT/hooks/file-protection.sh" ".env" "notes.txt"
+matrix_for_guard "file-protection.sh" "$REPO_ROOT/hooks/file-protection.sh" "tls.key" "notes.txt"
 
 echo
 echo "Tests run:    $TESTS_RUN"

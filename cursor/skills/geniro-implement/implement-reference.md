@@ -39,7 +39,7 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 | Signal | How detected |
 |---|---|
 | `EXISTING_TASK_STATE` | Glob `.geniro/planning/*/state.md`; any state.md whose frontmatter `branch:` equals `CURRENT_BRANCH` AND `phase:` is terminal ⇒ "prior task on this branch" |
-| `REVIEW_HANDOFF` / `DEBUG_HANDOFF` / `RESOLVE_HANDOFF` | The matching `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<CURRENT_BRANCH>.md` file exists. `EXISTING_TASK_STATE` does not cover the resolve case — that glob scans `.geniro/planning/*/state.md`, while /geniro:resolve keeps its state under `.geniro/state/resolve/<slug>/`. |
+| `REVIEW_HANDOFF` / `DEBUG_HANDOFF` | The matching `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<CURRENT_BRANCH>.md` file exists. |
 | `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
 | `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`). Empty list when field absent. |
 | `SPEC_LAUNCH_CONFIG` | If spec.md present at resolved task slug: parse the optional `launch_config:` frontmatter block (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — `workspace` / `deep_mode` / `branch_freshness` / `ship_mode`, plus the optional `tracker_status` (present only when the spec had a linked tracker ticket). Empty when the block is absent, on an inline-task run with no spec, or on a pre-`m5-v4` spec that omits it. |
@@ -138,7 +138,7 @@ A choice a spec `launch_config` pre-answered (0g) carries the same shape plus `s
 | Workflow MCP unavailable when Question 2 fires | Question 2 still fires; "Yes" answer logs warning and proceeds without MCP call. Non-blocking. |
 | Workflow file present but `### On task start` section missing | Question 2 omitted silently. |
 | User picks "Other" with custom text on Question 1 | Treat as "Current branch" semantically; no git mutation; echo custom text into state.md `## Workspace decision` body block. |
-| Several handoffs for the current branch (any mix of review / debug / resolve) | Each satisfies rule 2 of 0b. Echo every matched signal in its plain-English form; behavior otherwise identical. |
+| Several handoffs for the current branch (any mix of review / debug) | Each satisfies rule 2 of 0b. Echo every matched signal in its plain-English form; behavior otherwise identical. |
 | Stale handoff (older than the current work) | Still triggers rule 2. Emit soft notice: `"The <producer> handoff is N days old — re-run /geniro:<producer> if you want fresh findings."` |
 | `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 4 fires (worktree-mismatch AUQ) — a worktree checked out on a protected branch is itself the anomaly to surface; rule 5 requires `IN_WORKTREE == false`. |
 
@@ -177,10 +177,9 @@ No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 
 
 When `$ARGUMENTS` does not directly carry a spec path, walk these in order and stop at the first hit:
 
-1. **A handoff's `spec_path:`** — for each `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` the Step 0a signals flagged, read its frontmatter and follow a `spec_path:` value to the spec it names. `/geniro:resolve` is the producer that writes the key, and it keeps its spec OUTSIDE `.geniro/planning/` (at `.geniro/state/resolve/<slug>/spec.md`), so entries 2-4 cannot reach it — without this entry an auto-continued resolve run falls silently into inline-task mode and never loads the spec's Steps or its §9 `verify:` lines. It resolves first because a handoff for the current branch points at a spec authored for exactly the work this run is continuing. The handoff file itself is never the spec: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` classifies it as `CODE_REFERENCE`. Key absent (a producer that authors no spec, e.g. `/geniro:review`) or target file missing → fall through to entry 2.
-2. `<task-dir>/spec.md` — preferred (`/geniro:plan` canonical output).
-3. `<task-dir>/plan.md` — alias.
-4. design-doc frontmatter detect via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — covers design docs that don't follow naming convention.
+1. `<task-dir>/spec.md` — preferred (`/geniro:plan` canonical output).
+2. `<task-dir>/plan.md` — alias.
+3. design-doc frontmatter detect via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` — covers design docs that don't follow naming convention.
 
 If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task mode**: write a brief inline plan to state.md body under `## Inline Plan` containing one-sentence goal, file list (best-effort), and approach summary. This becomes the source-of-truth for Phase 3 self-review (the `spec` field consumed by reviewer-agents).
 
@@ -192,7 +191,7 @@ Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — 
 
 ### Backgrounding when a handoff gate is pending (idle-overlap)
 
-Default: spawn both agents BLOCKING and read their outputs at Step 8 — the common no-handoff run, unchanged. Engage the overlap ONLY when Step 0a flagged a review, debug, or resolve handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF` / `RESOLVE_HANDOFF`) carrying unresolved open-questions: those questions are on disk and independent of the agents' output, so the Step 12 open-questions AUQ can fire while the agents compute (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`). Procedure:
+Default: spawn both agents BLOCKING and read their outputs at Step 8 — the common no-handoff run, unchanged. Engage the overlap ONLY when Step 0a flagged a review or debug handoff for this branch (`REVIEW_HANDOFF` / `DEBUG_HANDOFF`) carrying unresolved open-questions: those questions are on disk and independent of the agents' output, so the Step 12 open-questions AUQ can fire while the agents compute (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`). Procedure:
 
 1. Spawn both agents `run_in_background: true` in ONE assistant response (same template + slots below; only the background flag changes).
 2. In that same turn, run Step 12 sub-steps 1-7 — read the handoff, persist its body, parse `open_questions[]`, filter to unresolved, fire the open-questions AUQ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 (message-first render, then a lean question), and persist each answer the moment it is picked: round-trip the producer handoff to `status: resolved` (sub-step 6) and append the `review_handoff_resolution` approval to state.md (sub-step 7). Persist in the pick-turn — never defer persistence across the Step 8 drain, where large agent outputs make compaction likely and an unpersisted pick is lost and re-asked (the blocking path persists immediately after each pick; the overlap must not widen that window). These sub-steps consume the handoff and the user's answers, never the agents' output, so they are provably independent.
@@ -317,7 +316,6 @@ The frontmatter key set varies by producer, so re-emit whichever keys the file y
 |---|---|
 | `review` | `pr-ref`, `pr-body`, `resolved-threads-snapshot`, `linear-task-ref`, `linear-parent-ref`, `report_status` (sub-step 3 reads this back) |
 | `debug` | `geniro_kind`, `geniro_schema_version`, `mode`, `authored_tests[]` (sub-step 9 reads this back — drop it and the F→P-test extraction finds nothing) |
-| `resolve` | `comment_resolutions[]` (sub-step 10 stashes it for the Ship "Resolve PR review threads" step), `pr-ref`, `pr-url`, `pr-head-sha` |
 
 Common to all producers: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `approvals`, `non-resumable-actions`, and the other `open_questions[]` entries. Re-emit every body section (review's `## Findings`, debug's `## Debug Findings`, …) unchanged too — dropping one silently truncates producer state a downstream re-review reads back. Within the resolved entry, every field other than `status` and `resolution` stays as written — do not work from a remembered list of field names, because an entry may carry any of the optional fields the canonical set declares (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2), and the write is a full-file overwrite, so an unnamed one is simply dropped.
 

@@ -33,7 +33,7 @@ Used by:
 - `/geniro:review` Phase action-gate (PRODUCT-DECISION resolution; PR-comment Pick-one-by-one per-finding gate — calling-skill-set fixed menu: Post / Skip / Stop posting)
 - `/geniro:implement` Phase 3 self-review fix loop (resolving findings that need the user's decision)
 - `/geniro:refactor` escalation
-- `/geniro:resolve` Phase 3 Clarify gate (one ambiguous PR-comment item per call; the "Challenge this comment" option re-verifies the comment)
+- `/geniro:resolve` Phase 2 single-item gate (one ambiguous PR-comment item per call; the "Challenge this comment" option re-verifies the comment)
 
 **One finding per call — never batched.** Each finding fires its own `AskUserQuestion` call carrying exactly one entry in `questions[]`: render that finding to chat, fire the question, collect the answer, then move to the next. When ≥2 findings need resolving, that is N sequential calls — never one call whose `questions[]` array holds several findings (the tabbed multi-question prompt the user navigates with Tab and submits all at once). Batching defeats the message-first render: a finding's chat block and its visual can only precede a call that asks about that one finding, so a multi-finding call leaves every finding but the first un-rendered at the moment of decision. The cap-extension rule (`per-finding-question.md` §Cap-extension) governs ONE finding's option overflow, never the finding count.
 
@@ -63,7 +63,7 @@ A finding's option set MAY include a **"Challenge this finding"** option — a r
 - Picking it makes the calling skill spawn a fresh verification pass primed with the user's stated objection, then re-render the finding to chat with the returned verdict + fresh evidence and re-fire the same gate. For `/geniro:review` the pass is a `finding-verifier-agent` (the same mechanism that confirmed the finding at Phase 4.2); see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3 for the wired action.
 - A `refuted` verdict demotes the finding (drops its gate); a `confirmed` verdict re-presents the same options, now with the verification the user asked for.
 - It writes no resolution and does NOT count toward any revision/round cap — double-checking a finding must not cost the user a round, mirroring Explain-further.
-- The calling skill owns the re-verification action and decides whether to offer the option; `/geniro:review` mandates it on every PRODUCT-DECISION gate, and `/geniro:resolve` offers it (labelled "Challenge this comment") on every Clarify gate. When the finding's decision options plus the appended reading-aid and challenge options exceed 4 slots, surface them via the chained call (`per-finding-question.md` §Cap-extension); never drop a resolution path to make room.
+- The calling skill owns the re-verification action and decides whether to offer the option; `/geniro:review` mandates it on every PRODUCT-DECISION gate, and `/geniro:resolve` offers it (labelled "Challenge this comment") on every single-item gate. When the finding's decision options plus the appended reading-aid and challenge options exceed 4 slots, surface them via the chained call (`per-finding-question.md` §Cap-extension); never drop a resolution path to make room.
 
 ### Scrub before the AUQ fires (hard)
 

@@ -1,6 +1,6 @@
 # PR review-thread + CI I/O — shared contract
 
-Single source for reading unresolved PR review threads and failing CI checks, and for writing replies / resolving threads. `/geniro:resolve` calls the **read side** (Phase 1); `/geniro:implement` calls the **write side** (Ship sub-step). The I/O logic lives here so the two skills never drift on the `gh` shapes or the thread-node-id ↔ numeric-comment-id mapping.
+Single source for reading unresolved PR review threads and failing CI checks, and for writing replies / resolving threads. `/geniro:resolve` calls both sides — the read side in its Phase 1, the write side once its Phase 3 ship gate answers. The I/O logic lives here so a caller never has to re-derive the `gh` shapes or the thread-node-id ↔ numeric-comment-id mapping.
 
 ---
 
@@ -59,7 +59,7 @@ gh api "/repos/$OWNER/$REPO/check-runs/$CHECK_RUN_ID/annotations" \
   --jq '.[] | {path,start_line,annotation_level,message}' 2>/dev/null   # best-effort
 ```
 
-A CI item carries no `thread_id` — a check goes green on the next push, there is nothing to resolve. CI items become spec fix-Steps only; they get NO `comment_resolutions[]` entry (§7).
+A CI item carries no `thread_id` — a check goes green on the next push, there is nothing to resolve. A CI item becomes a fix and a line in the caller's report; it never produces a reply (§7).
 
 ## 4. Write side: reply to a thread
 
@@ -79,16 +79,16 @@ gh api graphql -F threadId="$THREAD_ID" -f query='
 mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}){ thread{ isResolved } } }'
 ```
 
-Resolve ONLY a thread whose fix landed and whose verdict is `fix` (`resolve_after_fix: true`). A `wontfix` thread gets a reply (§4) but stays OPEN — resolving it would hide the disagreement from the reviewer, whose call it is to accept the push-back or not.
+Resolve ONLY a thread whose verdict is `fix` and whose fix the caller has confirmed is in the pushed diff. A declined thread gets a reply (§4) but stays OPEN — resolving it would hide the disagreement from the reviewer, whose call it is to accept the push-back or not.
 
 ## 6. MCP fallback + fail-open
 
 **Default: the §2 `gh api graphql` call.** The one escape hatch — when the GitHub MCP server is registered, the read side may use `mcp__github__pull_request_read` instead, consuming `reviewThreads[]` + `reviews[]` from its payload (same fields). There is no MCP equivalent for §4/§5 writes in the base server, so the write side always uses `gh`.
 
-Every call here is **fail-open**: a failed read sets the affected snapshot to null and the caller proceeds with a caveat (a resolve run with no thread data degrades to "nothing to triage"); a failed write marks that `comment_resolutions[]` entry `status: skipped` and reports it — never a hard stop, never a silent success.
+Every call here is **fail-open**: a failed read sets the affected snapshot to null and the caller proceeds with a caveat (a resolve run with no thread data degrades to "nothing to triage"); a failed write marks that item skipped and reports it — never a hard stop, never a silent success.
 
 ## 7. Caller contract
 
-- **Read side (`/geniro:resolve` Phase 1):** read-only. The skill's `allowed-tools` excludes Edit/Write; this helper's read calls are the skill's only `gh` use.
-- **Write side (`/geniro:implement` Ship sub-step):** an external write to a public surface — the caller gates it behind an `AskUserQuestion` (the action gate), exactly like `gh pr create` / `git push`. This helper performs the write; it does NOT own the gate. After a successful write, the caller appends a `pr-comment-posted` entry to state.md `non-resumable-actions[]`.
-- **Schema:** the read side populates, and the write side consumes, the handoff `comment_resolutions[]` array defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`/geniro:resolve` producer fields. `thread_id` flows to §5, `comment_id` to §4, `verify:` / `fix_step_anchor` decide whether the fix landed before a resolve.
+- **Read side (`/geniro:resolve` Phase 1):** read-only, and the run's first contact with the PR. Fetch before any analysis, so the verdicts are assigned against the code the comments describe.
+- **Write side (`/geniro:resolve` Phase 3):** an external write to a public surface — the caller gates it behind an `AskUserQuestion` (the ship gate), exactly like `gh pr create` / `git push`. This helper performs the write; it does NOT own the gate. After a successful reply, the caller appends a `pr-comment-posted` entry to state.md `non-resumable-actions[]`.
+- **Item fields:** the read side populates the caller's inventory (`${CLAUDE_PLUGIN_ROOT}/skills/resolve/resolve-reference.md` §1); `thread_id` flows to §5 here, `comment_id` to §4. A thread is resolved only after the caller has confirmed the fix is in the pushed diff.

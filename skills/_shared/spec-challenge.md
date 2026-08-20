@@ -2,11 +2,11 @@
 
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the procedure.
 
-An adversarial verification pass, invoked per the calling skill's contract, that hardens a `spec.md` before it is acted on — `/geniro:plan`, `/geniro:implement`, and `/geniro:resolve` each invoke it on every spec-driven run. It re-verifies the spec's load-bearing factual claims against the live code, red-teams the chosen approach, then synthesizes a verdict. The failure class it exists to catch is the factually-wrong claim that reads as plausible prose: a headline mechanism that carries no weight, a backfill predicate that matches zero rows, a write-volume estimate off by an order of magnitude — defects that survive every gate keyed on structure rather than ground truth.
+An adversarial verification pass, invoked per the calling skill's contract, that hardens a `spec.md` before it is acted on — `/geniro:plan` and `/geniro:implement` each invoke it on every spec-driven run. It re-verifies the spec's load-bearing factual claims against the live code, red-teams the chosen approach, then synthesizes a verdict. The failure class it exists to catch is the factually-wrong claim that reads as plausible prose: a headline mechanism that carries no weight, a backfill predicate that matches zero rows, a write-volume estimate off by an order of magnitude — defects that survive every gate keyed on structure rather than ground truth.
 
-## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit), /geniro:resolve (MODE: plan over its produced spec)
+## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit)
 
-`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, on every run. `/geniro:implement` invokes in Phase 1 after research and before the first Edit/Write, on every spec-driven run. `/geniro:resolve` invokes over the spec it emits, before handoff. Each caller passes `MODE`; the rest of the contract is identical.
+`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, on every run. `/geniro:implement` invokes in Phase 1 after research and before the first Edit/Write, on every spec-driven run. Each caller passes `MODE`; the rest of the contract is identical.
 
 ## Contents
 
@@ -43,7 +43,7 @@ Caller invokes:
 
 The caller receives back:
 - A verdict (per §7, MODE-specific).
-- The scratch report at `<TASK_DIR>/.spec-challenge-out.md` (transient working file — the owning skill's terminal-exit cleanup removes it as part of the T1 rm set: `/geniro:plan` on `done`/`aborted`, `/geniro:implement` and `/geniro:resolve` on every terminal `phase:` write; the `/geniro:update` migration walk sweeps any `.geniro/planning` leftover from an interrupted run).
+- The scratch report at `<TASK_DIR>/.spec-challenge-out.md` (transient working file — the owning skill's terminal-exit cleanup removes it as part of the T1 rm set: `/geniro:plan` on `done`/`aborted`, `/geniro:implement` on every terminal `phase:` write; the `/geniro:update` migration walk sweeps any `.geniro/planning` leftover from an interrupted run).
 - In plan mode: a list of keep-with-modifications fixes to fold into the spec.
 - In implement mode: either a silent clean-pass note OR a fired AskUserQuestion (per §8).
 

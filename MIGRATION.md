@@ -10,6 +10,86 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### `/geniro:resolve` fixes the comments itself; the resolve handoff is gone
+
+`/geniro:resolve` was a read-only producer: it triaged an open PR's review comments into a
+`spec.md` plus a `from-resolve-<branch>.md` handoff, and `/geniro:implement` applied the fixes and
+closed the threads. It is now a 3-phase executor (Fetch & Triage -> Decide -> Fix & Close) that
+applies the fixes itself, commits, pushes, posts the replies and resolves the threads, all behind
+one ship gate.
+
+What changed for a run:
+
+- **A worth-doing filter decides each comment before any fix.** An ask that is over-engineering,
+  outside the PR's scope, would regress working behavior, or is its own separate piece of work is
+  `decline`d with an evidence-backed push-back rather than implemented. Every decline is re-checked
+  by a fresh verifier before its reply is drafted.
+- **Anything that changes behavior is picked by you.** One multi-select gate covers every fix that
+  alters an API shape, a default, error semantics, a data format, or ordering. Unpicked items are
+  applied to nothing and posted to nothing.
+- **Verification is signal-gated.** The old always-on verifier spawn per `fix`/`wontfix` is gone; a
+  verifier now runs on a `decline` or a contested `fix` only. An uncontested fix verifies itself by
+  landing and passing its test.
+- **No spec, no handoff, no `/geniro:implement` leg.** `spec_path:`, `comment_resolutions[]`, the
+  `## Comment Resolution Map` spec section, the `related_comments` open-question field, and
+  `/geniro:implement`'s `RESOLVE_HANDOFF` signal and Ship-step thread-resolution sub-step are all
+  removed. `.geniro/state/resolve/<slug>/` is now swept at terminal exit like the other
+  session-bound skills, since nothing downstream reads it.
+
+**Action required:** A `from-resolve-<branch>.md` handoff left over from an earlier run is now inert
+— `/geniro:implement` no longer looks for one, so its fixes will not be applied and its threads will
+not be closed by that route. Delete the stale handoff and re-run `/geniro:resolve` on the PR, which
+re-triages only the threads still unresolved. Any tooling that parses `comment_resolutions[]` needs
+to stop expecting it.
+
+**Auto-detect:**
+
+```bash
+ls .geniro/state/handoff/from-resolve-*.md 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — deleting a handoff discards its recorded verdicts and drafted replies,
+so whether to re-run `/geniro:resolve` or work the PR by hand is the user's call.
+
+**Severity:** MEDIUM — only installs holding an unconsumed resolve handoff are affected, and the
+failure is inaction (the handoff is ignored) rather than a broken run.
+
+---
+
+### `hooks/file-protection.sh` no longer protects env files
+
+The `write-env` pattern is removed. Writing, copying, or redirecting into an env file in any
+spelling — the populated one, `.env.local`, `.env.production` — is no longer blocked, and the pattern ID
+`write-env` no longer exists.
+
+Every carve-out added for this pattern (`.env.example` and the other template spellings, `.env*bak*`)
+still left the next legitimate spelling blocking: copying an env file into a fresh worktree, into a
+fixture tree, or out of a backup is ordinary setup work, and a run that hits the guard resends the
+identical command or hands it back to the user. Content-level secret scanning is unaffected —
+`hooks/security-pattern-check.sh` still scans what a write puts INTO a file.
+
+Git internals, lock files, `*.pem`, `*.key`, `credentials.*`, `secrets.*`, `*.tfstate` and `.vault`
+are unchanged.
+
+**Action required:** None. A project that listed `write-env` in `.geniro/safety.json`
+`allow_patterns` can drop the entry — it now names a pattern that does not exist. An unknown entry
+is ignored, so leaving it in place breaks nothing.
+
+**Auto-detect:**
+
+```bash
+grep -o '"write-env"' .geniro/safety.json 2>/dev/null
+```
+
+**Auto-fix:** Remove the `"write-env"` string from the `allow_patterns` array in
+`.geniro/safety.json`, leaving every other entry intact.
+
+**Severity:** LOW — a stale allowlist entry is inert, and the guard relaxing means fewer blocks, not
+a broken run. Projects relying on this guard to prevent an accidental env-file overwrite should know
+it no longer fires.
+
+---
+
 ### `adversarial-tester-agent` is gone; `/geniro:review` no longer authors tests
 
 `agents/adversarial-tester-agent.md` no longer ships (the plugin now carries 7 agents, down from 8). The capability moved, not disappeared: `/geniro:implement` Phase 3 and `/geniro:debug` Adversarial Mode now generate hypotheses and author the same failing-then-passing-verified edge-case tests inline, in the orchestrator's own context, with no separate subagent spawn — the F→P verification invariant and the rule that a bug caught this way is a HIGH finding gating ship are unchanged.

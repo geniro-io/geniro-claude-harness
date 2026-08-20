@@ -412,8 +412,7 @@ _vps_check_schema_completeness() {
 10. Rollback-Recovery
 11. Done Condition'
   optional='Considered Alternatives
-Milestones
-Comment Resolution Map'
+Milestones'
 
   while IFS= read -r h; do
     [ -n "$h" ] || continue
@@ -429,7 +428,7 @@ VPS_REQUIRED
     return
   fi
 
-  # Any `## ` header outside the 11 required plus the 4 allowed-optional fails.
+  # Any `## ` header outside the 11 required plus the 2 allowed-optional fails.
   headers="$(printf '%s\n' "$body" | awk -v off="$offset" '/^## / { print NR + off "\t" substr($0, 4) }')"
   while IFS= read -r h; do
     [ -n "$h" ] || continue
@@ -445,7 +444,7 @@ $headers
 VPS_HEADERS
   if [ "$found" -eq 1 ]; then
     _vps_emit schema_completeness fail "Top-level section outside the schema: $extra." \
-      "Remove it, or fold its content into one of the 11 required sections — only Considered Alternatives / Milestones / Comment Resolution Map are allowed beyond them."
+      "Remove it, or fold its content into one of the 11 required sections — only Considered Alternatives / Milestones are allowed beyond them."
     return
   fi
   _vps_emit schema_completeness pass "" ""

@@ -436,8 +436,8 @@ _geniro_wv_cd_prefix() {
 # A guard's shell-syntax vectors (redirection, tee, sed -i, cp/mv, rm) read a
 # command whose heredoc bodies and quoted literals were blanked as data. An
 # interpreter's file op is never shell syntax in any position, so
-# `python3 -c "open('.env','w').write(k)"` and
-# `awk 'BEGIN{print k > ".env"}'` reach the filesystem completely unchecked.
+# `python3 -c "open('tls.key','w').write(k)"` and
+# `awk 'BEGIN{print k > "tls.key"}'` reach the filesystem completely unchecked.
 # These two functions scan the RAW command for that channel.
 #
 # The op lists are keyed on BASE names (`writeFile`, `rm`, `copyFile`) with an
@@ -467,7 +467,7 @@ _geniro_wv_cd_prefix() {
 
 # Resolve shell expansions inside an extracted literal against an assignment in
 # the SAME command — the shape that writes a computed path
-# (`F=.env; python3 -c "open('$F','w')…"`). Prints one resolved candidate per
+# (`F=tls.key; python3 -c "open('$F','w')…"`). Prints one resolved candidate per
 # line; returns 1 when a referenced variable has no visible assignment at all
 # (target unknown).
 #
