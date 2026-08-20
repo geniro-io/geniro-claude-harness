@@ -21,7 +21,7 @@
 #     rc 10 — at least one target is a variable/expression this scan cannot
 #             resolve; the caller decides (fail-safe, never fail-open).
 #
-# Fixture paths are neutral (.env, secret.txt, proj/data) — the helper is
+# Fixture paths are neutral (tls.key, secret.txt, proj/data) — the helper is
 # path-agnostic and each caller supplies its own path predicate.
 #
 # Portability: bash 3.2 / BSD, no writes anywhere, no network.
@@ -62,7 +62,7 @@ expect() {
 
 echo "===== _geniro_extract_inner_payloads — arm 1: the \`-c\` family ====="
 
-run_extract 'sh -c "printf k > .env"';        expect "sh -c, double-quoted payload"        'printf k > .env' 0
+run_extract 'sh -c "printf k > tls.key"';        expect "sh -c, double-quoted payload"        'printf k > tls.key' 0
 run_extract "bash -lc 'rm -f x'";             expect "bash -lc, single-quoted payload"     'rm -f x' 0
 run_extract 'zsh -euc "echo hi"';             expect "zsh -euc, flag cluster containing c" 'echo hi' 0
 run_extract 'dash -c echo';                   expect "dash -c, bare payload"               'echo' 0
@@ -101,7 +101,7 @@ fi
 echo
 echo "===== _geniro_extract_inner_payloads — arm 3: pipe-to-shell (stdin) ====="
 
-run_extract 'echo "printf k > .env" | bash';  expect "echo \"…\" | bash"                  'printf k > .env' 0
+run_extract 'echo "printf k > tls.key" | bash';  expect "echo \"…\" | bash"                  'printf k > tls.key' 0
 run_extract "printf 'rm -f x' | sh";          expect "printf '…' | sh"                    'rm -f x' 0
 run_extract 'echo "rm -f x" | sudo bash';     expect "pipe through a sudo prefix"         'rm -f x' 0
 run_extract 'echo "rm -f x" | /usr/bin/sh';   expect "pipe into a path-qualified shell"   'rm -f x' 0
@@ -163,12 +163,12 @@ run_extract "cat <<< 'just data'";             expect "herestring into a non-she
 echo
 echo "===== _geniro_interp_write_targets — python ====="
 
-run_write 'python3 -c "open(\".env\",\"w\").write(1)"'
-expect "open(path, \"w\") with escaped quotes" '.env' 0
-run_write "python3 -c \"open('.env','w')\""
-expect "open(path, 'w')" '.env' 0
-run_write "python3 -c \"open('.env','a')\""
-expect "open(path, 'a') — append is a write" '.env' 0
+run_write 'python3 -c "open(\"tls.key\",\"w\").write(1)"'
+expect "open(path, \"w\") with escaped quotes" 'tls.key' 0
+run_write "python3 -c \"open('tls.key','w')\""
+expect "open(path, 'w')" 'tls.key' 0
+run_write "python3 -c \"open('tls.key','a')\""
+expect "open(path, 'a') — append is a write" 'tls.key' 0
 # The third conjunct is the write MODE: a read must stay allowed or every
 # interpreter one-liner that opens a file becomes a block.
 run_write "python3 -c \"open('x.txt')\""
@@ -176,14 +176,14 @@ expect "open(path) with no mode is a read — no target" '' 0
 run_write "python3 -c \"data = open('x.txt').read()\""
 expect "open(path).read() is a read — no target" '' 0
 
-run_write "python3 -c \"from pathlib import Path; Path('.env').open('w')\""
-expect "Path(path).open('w')" '.env' 0
-run_write "python3 -c \"from pathlib import Path; Path('.env').touch()\""
-expect "Path(path).touch()" '.env' 0
-run_write "python3 -c \"from pathlib import Path; Path('.env').write_text('x')\""
-expect "Path(path).write_text()" '.env' 0
-run_write "python3 -c \"from pathlib import Path; Path('.env').write_bytes(b'x')\""
-expect "Path(path).write_bytes()" '.env' 0
+run_write "python3 -c \"from pathlib import Path; Path('tls.key').open('w')\""
+expect "Path(path).open('w')" 'tls.key' 0
+run_write "python3 -c \"from pathlib import Path; Path('tls.key').touch()\""
+expect "Path(path).touch()" 'tls.key' 0
+run_write "python3 -c \"from pathlib import Path; Path('tls.key').write_text('x')\""
+expect "Path(path).write_text()" 'tls.key' 0
+run_write "python3 -c \"from pathlib import Path; Path('tls.key').write_bytes(b'x')\""
+expect "Path(path).write_bytes()" 'tls.key' 0
 # write_text carries CONTENT, not a path — with the Path built earlier the target
 # is unknowable, which must surface as rc=10 rather than as silence.
 run_write "python3 -c \"p = build(); p.write_text('x')\""
@@ -192,8 +192,8 @@ expect "write_text on a Path built earlier → rc=10, no target" '' 10
 echo
 echo "===== _geniro_interp_write_targets — node / perl / ruby / php / awk ====="
 
-run_write "node -e \"fs.writeFileSync('.env','x')\""
-expect "node writeFileSync" '.env' 0
+run_write "node -e \"fs.writeFileSync('tls.key','x')\""
+expect "node writeFileSync" 'tls.key' 0
 run_write "node -e \"fs.appendFileSync('a.log','x')\""
 expect "node appendFileSync" 'a.log' 0
 run_write "node -e \"fs.createWriteStream('o.bin')\""
@@ -231,33 +231,33 @@ echo "===== _geniro_interp_write_targets — copy / rename (target is arg 2) ===
 
 # The interpreter spelling of a `cp`/`mv` DESTINATION. Without these the same
 # clobber walks past a guard that blocks the shell spelling.
-run_write "python3 -c \"import shutil; shutil.copy('t','.env')\""
-expect "shutil.copy destination" '.env' 0
-run_write "python3 -c \"import shutil; shutil.copy2('t','.env')\""
-expect "shutil.copy2 destination" '.env' 0
-run_write "python3 -c \"import shutil; shutil.move('t','.env')\""
-expect "shutil.move destination" '.env' 0
-run_write "python3 -c \"import os; os.rename('t','.env')\""
-expect "os.rename destination" '.env' 0
-run_write "python3 -c \"import os; os.replace('t','.env')\""
-expect "os.replace destination" '.env' 0
-run_write "node -e \"fs.copyFileSync('t','.env')\""
-expect "fs.copyFileSync destination" '.env' 0
-run_write "node -e \"fs.renameSync('t','.env')\""
-expect "fs.renameSync destination" '.env' 0
+run_write "python3 -c \"import shutil; shutil.copy('t','tls.key')\""
+expect "shutil.copy destination" 'tls.key' 0
+run_write "python3 -c \"import shutil; shutil.copy2('t','tls.key')\""
+expect "shutil.copy2 destination" 'tls.key' 0
+run_write "python3 -c \"import shutil; shutil.move('t','tls.key')\""
+expect "shutil.move destination" 'tls.key' 0
+run_write "python3 -c \"import os; os.rename('t','tls.key')\""
+expect "os.rename destination" 'tls.key' 0
+run_write "python3 -c \"import os; os.replace('t','tls.key')\""
+expect "os.replace destination" 'tls.key' 0
+run_write "node -e \"fs.copyFileSync('t','tls.key')\""
+expect "fs.copyFileSync destination" 'tls.key' 0
+run_write "node -e \"fs.renameSync('t','tls.key')\""
+expect "fs.renameSync destination" 'tls.key' 0
 run_write "python3 -c \"import shutil; shutil.copy('t', dest)\""
 expect "copy with a variable destination → rc=10" '' 10
 
 echo
 echo "===== _geniro_interp_write_targets — truncation (T4-10) ====="
 
-# _wops_first omitted truncation ops: `os.truncate('.env', 0)` rewrites the file
-# to zero bytes exactly like `truncate -s 0 .env` on the shell side, but yielded
+# _wops_first omitted truncation ops: `os.truncate('tls.key', 0)` rewrites the file
+# to zero bytes exactly like `truncate -s 0 tls.key` on the shell side, but yielded
 # no target and no rc=10 either — a silent bypass, not a fail-safe unknown.
-run_write "python3 -c \"os.truncate('.env', 0)\""
-expect "os.truncate(path, 0)" '.env' 0
-run_write "node -e \"fs.truncateSync('.env', 0)\""
-expect "fs.truncateSync(path, 0)" '.env' 0
+run_write "python3 -c \"os.truncate('tls.key', 0)\""
+expect "os.truncate(path, 0)" 'tls.key' 0
+run_write "node -e \"fs.truncateSync('tls.key', 0)\""
+expect "fs.truncateSync(path, 0)" 'tls.key' 0
 run_write "node -e \"fs.ftruncateSync(fd, 0)\""
 expect "fs.ftruncateSync(fd, 0) — fd is not a literal path → rc=10" '' 10
 
@@ -266,9 +266,9 @@ echo "===== _geniro_interp_write_targets — exit codes ====="
 
 run_write "python3 -c \"open(F,'w')\""
 expect "variable target → rc=10, no literal" '' 10
-run_write "F=.env; python3 -c \"open('\$F','w')\""
-expect "variable assigned in the SAME command resolves → rc=0" '.env' 0
-run_write "python3 -c \"open(os.environ['X'],'w')\""
+run_write "F=tls.key; python3 -c \"open('\$F','w')\""
+expect "variable assigned in the SAME command resolves → rc=0" 'tls.key' 0
+run_write "python3 -c \"open(ostls.keyiron['X'],'w')\""
 expect "target from the environment → rc=10" '' 10
 # perl -i / ruby -i edit in place; the file operand is on the command line, so
 # rc=10 tells the caller to look there.
@@ -278,7 +278,7 @@ run_write "ruby -i -pe 'x' src/app.js"
 expect "ruby -i in-place edit → rc=10" '' 10
 # No interpreter → the whole scan is skipped; the caller's shell-syntax vectors
 # own this shape.
-run_write "cp t .env"
+run_write "cp t tls.key"
 expect "a shell-syntax copy is not this scan's channel" '' 0
 run_write ""
 expect "empty command → rc=0, no target" '' 0

@@ -2,6 +2,10 @@
 # file-protection.sh
 # PreToolUse hook for Write/Edit/MultiEdit AND Bash — blocks writes to sensitive files.
 # Prevents accidental exposure of credentials and protected configurations.
+# `.env` files are NOT protected here: the copy a run makes to stand up a new
+# worktree, a fixture tree, or a restored backup is ordinary work, and every
+# spelling of it was landing on this guard. Content-level secret scanning
+# still runs in security-pattern-check.sh.
 #
 # Edit/Write/MultiEdit branch: checks .tool_input.file_path.
 # Bash branch: catches shell-side writes the file-tool matcher never sees —
@@ -12,13 +16,13 @@
 # Heredoc bodies are always scrubbed before extraction (a heredoc fed to
 # `cat > file` is data, not syntax). Quoted string literals are scrubbed for
 # vectors 1-11 — but a WHITESPACE-FREE quoted or backslash-escaped redirect
-# target (`> ".env"`, `> '.env'`, `> .e""nv`) is recovered first by the
+# target (`> "tls.key"`, `> 'tls.key'`, `> tls.k""ey`) is recovered first by the
 # unquote pass (§E below) before that blanking runs, so it is still caught:
 # only a target quoted WITH internal whitespace, or a protected name merely
 # MENTIONED inside prose, is blanked as data — that trade-off is what avoids
 # hard-blocking benign commands. Vector 12 (interpreter-mediated writes) scans
 # the heredoc-scrubbed, QUOTE-INTACT text instead: an interpreter's write
-# target IS a quoted literal (`open('.env','w')`), so blanking quotes there
+# target IS a quoted literal (`open('tls.key','w')`), so blanking quotes there
 # would blind the vector on its own true positives. The scrubbed positions
 # that ARE syntax are the shell-indirection payloads — `sh -c "..."`,
 # `eval "..."`, a quoted program piped to a shell, a heredoc body fed to one,
@@ -30,10 +34,10 @@
 #
 # Schema:
 #   {
-#     "allow_patterns": ["write-env", "write-lockfile"]
+#     "allow_patterns": ["write-lockfile", "write-cert-key"]
 #   }
 #
-# Pattern IDs: write-env, write-git-internal, write-lockfile, write-cert-key,
+# Pattern IDs: write-git-internal, write-lockfile, write-cert-key,
 #              write-credentials, write-tfstate, write-vault
 
 set -euo pipefail
@@ -51,8 +55,8 @@ if ! command -v jq >/dev/null 2>&1; then
   RAW_TARGETS=$(printf '%s' "$RAW" \
     | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
     | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-  if printf '%s' "$RAW_TARGETS" | grep -qE '\.env($|[^A-Za-z0-9])|\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
-    echo "File protection blocked [jqless-fallback]: the tool input names a protected file (.env, *.pem, *.key, credentials.*, secrets.*) and jq is unavailable, so only a coarse raw-text check ran. Install jq to restore full parsing and the .geniro/safety.json allowlist." >&2
+  if printf '%s' "$RAW_TARGETS" | grep -qE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
+    echo "File protection blocked [jqless-fallback]: the tool input names a protected file (*.pem, *.key, credentials.*, secrets.*) and jq is unavailable, so only a coarse raw-text check ran. Install jq to restore full parsing and the .geniro/safety.json allowlist." >&2
     exit 2
   fi
   printf '{"systemMessage":"Geniro guard inactive: jq not found on PATH, so sensitive-file writes are checked only by a coarse name scan. Install jq to restore the guard."}\n'
@@ -79,8 +83,8 @@ if [ -z "$TOOL_NAME" ] && [ -z "$FILE_PATH" ]; then
   RAW_TARGETS=$(printf '%s' "$INPUT" \
     | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
     | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-  if printf '%s' "$RAW_TARGETS" | grep -qE '\.env($|[^A-Za-z0-9])|\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
-    echo "File protection blocked [jqless-fallback]: the tool input names a protected file (.env, *.pem, *.key, credentials.*, secrets.*) but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
+  if printf '%s' "$RAW_TARGETS" | grep -qE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
+    echo "File protection blocked [jqless-fallback]: the tool input names a protected file (*.pem, *.key, credentials.*, secrets.*) but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
     exit 2
   fi
 fi
@@ -103,7 +107,7 @@ SAFETY_FILE=$(find_safety_json 2>/dev/null || true)
 if [ -n "$SAFETY_FILE" ] && [ -f "$SAFETY_FILE" ]; then
   # allow_patterns entries name exact pattern IDs. The membership test below is a
   # substring probe over the space-joined list, so a single entry that CARRIES
-  # whitespace ("harmless write-env alsoharmless") would silently enable every ID
+  # whitespace ("harmless write-lockfile alsoharmless") would silently enable every ID
   # spelled inside it. Reject those at load rather than weaken the probe.
   ALLOWED=$(jq -r '.allow_patterns[]? | select(type == "string" and (test("[[:space:]]") | not))' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
 fi
@@ -126,8 +130,6 @@ is_allowed() {
 # time. The difference is this line.
 remedy_for() {
   case "$1" in
-    write-env)
-      echo "Instead: write .env.example (blank values, committed) and let a human fill in the real .env, or export the variable for this command only. Template and backup spellings — .env.example / .env.sample / .env.template / .env.dist and .env*bak — are already exempt." ;;
     write-git-internal)
       echo "Instead: use the porcelain that owns the file — \`git config\` for config, \`git update-ref\` for refs, \`git remote\` for remotes. Hand-editing .git/ desynchronizes the index." ;;
     write-lockfile)
@@ -183,29 +185,7 @@ check_protected_path() {
   local p_lower
   p_lower=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')
 
-  # 1. .env files — the populated ones only.
-  #
-  # Template and backup spellings are exempt, because neither carries a live
-  # secret and both are ordinary work: `.env.example` / `.env.sample` /
-  # `.env.template` / `.env.dist` are committed placeholders (the whole point
-  # is that they hold blank values), and `cp .env .env.<something>bak` is the
-  # cautious move a run makes BEFORE editing config. Measured 2026-08-13: a run
-  # was blocked writing `.env.example` in a throwaway fixture tree and retried
-  # the identical command; another was blocked on `cp .env .env.m2bak` and
-  # handed the command back to the user to run by hand. Neither exposed a
-  # secret; both cost a turn or the whole task.
-  #
-  # `.env.local` / `.env.production` and friends stay blocked — those are
-  # populated files that differ from `.env` only in which environment they hold
-  # credentials for.
-  if ! is_allowed "write-env"; then
-    if printf '%s' "$p_lower" | grep -qE '\.env$|\.env\.' \
-       && ! printf '%s' "$p_lower" | grep -qE '\.env\.(example|sample|template|dist|defaults?)$|\.env[^/]*\.?bak[^/]*$'; then
-      block "write-env" ".env file" "$p"
-    fi
-  fi
-
-  # 2. Git internals
+  # 1. Git internals
   if ! is_allowed "write-git-internal"; then
     if printf '%s' "$p_lower" | grep -qE '\.git/'; then
       block "write-git-internal" "git internal file" "$p"
@@ -938,16 +918,16 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     RAW_TARGETS=$(printf '%s' "$INPUT" \
       | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
       | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-    if printf '%s' "$RAW_TARGETS" | grep -qE '\.env($|[^A-Za-z0-9])|\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
-      echo "File protection blocked [jqless-fallback]: the tool input names a protected file (.env, *.pem, *.key, credentials.*, secrets.*) but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
+    if printf '%s' "$RAW_TARGETS" | grep -qE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.'; then
+      echo "File protection blocked [jqless-fallback]: the tool input names a protected file (*.pem, *.key, credentials.*, secrets.*) but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
       exit 2
     fi
     exit 0
   fi
-  # Heredoc bodies are DATA, not shell syntax — a `> .env` inside one is text.
+  # Heredoc bodies are DATA, not shell syntax — a `> tls.key` inside one is text.
   # Drop body lines (between <<TAG / <<-TAG / <<'TAG' / <<\TAG and the closing TAG)
   # before any extraction; the line carrying the << operator itself is kept, so
-  # `cat <<EOF > .env` still yields its redirect target.
+  # `cat <<EOF > tls.key` still yields its redirect target.
   SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
     hd {
       line = $0
@@ -1013,9 +993,9 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # Contract: lib/write-vectors.sh §F.
   JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 
-  # Quoted string literals that carry WHITESPACE are data (`echo "see > .env"`
+  # Quoted string literals that carry WHITESPACE are data (`echo "see > tls.key"`
   # writes nothing) and get blanked out below. A WHITESPACE-FREE quoted or
-  # backslash-escaped redirect target (`> ".env"`, `> '.env'`, `> .e""nv`) is a
+  # backslash-escaped redirect target (`> "tls.key"`, `> 'tls.key'`, `> tls.k""ey`) is a
   # single shell word, not prose — the unquote pass right below recovers it
   # BEFORE the blanking pass runs, so it still reaches the candidate
   # extraction and blocks. Order is load-bearing: unquote first, blank second.
@@ -1028,7 +1008,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # quoted-literal blanking pass) — otherwise two ordinary prose apostrophes
   # straddling a `;` pair across it and blank the real command between them.
   # Recover words the shell would pass but the blanking below would erase — a
-  # quoted or backslash-escaped TARGET (`echo x > '.env'`, `> .e""nv`) is one
+  # quoted or backslash-escaped TARGET (`echo x > 'tls.key'`, `> tls.k""ey`) is one
   # shell word, so blanking it as data would hide the protected path outright.
   # Contract: lib/write-vectors.sh §E.
   JOINED=$(_geniro_wv_unquote_words "$JOINED")
@@ -1056,7 +1036,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # again), scoped to a cd/pushd target that is itself under `.git/`;
   # add_candidate below re-prefixes each relative operand with it. The LAST
   # such `cd`/`pushd` wins, matching execution order. Filename-matched
-  # patterns (.env, *.pem, *.key, …) need no help here — they match on the
+  # patterns (*.pem, *.key, credentials.*, …) need no help here — they match on the
   # operand text alone, cd or not.
   CD_PREFIX=$(_geniro_wv_cd_prefix "$ONELINE" ".git")
 
@@ -1154,7 +1134,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   # 3) In-place sed: file arguments of a `sed -i` span are overwritten. An
   #    UNQUOTED script token (s/.../.../, y|...|...) is skipped — it is sed
   #    code, not a path, and a substitution that merely MENTIONS a protected
-  #    name (s/.env.a/.env.b/) must not block; quoted scripts were already
+  #    name (s/a.key/b.key/) must not block; quoted scripts were already
   #    blanked by the quote scrub above.
   while IFS= read -r span; do
     [ -z "$span" ] && continue
@@ -1375,7 +1355,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #     writing, or an awk program redirecting `print` into one. Vectors 1-11
   #     read $ONELINE, whose heredoc bodies and quoted literals were BOTH
   #     blanked as data — but an interpreter's write target IS a quoted literal
-  #     (`open('.env','w')`), so scanning $ONELINE would blind this vector on
+  #     (`open('tls.key','w')`), so scanning $ONELINE would blind this vector on
   #     its own true positives. This vector therefore scans $SCRUBBED instead:
   #     heredoc bodies dropped (a heredoc fed to `cat > file` is textual data,
   #     not code — a heredoc that merely AUTHORS TEXT mentioning an interpreter
@@ -1437,7 +1417,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     # The write target is a variable or expression (`open(p,'w')`), unresolvable
     # from the command text. Fall back to every path-shaped token in it: the
     # protected patterns are distinctive filenames, so a token that is not one of
-    # them costs nothing, while `p='.env'; open(p,'w')` still lands.
+    # them costs nothing, while `p='tls.key'; open(p,'w')` still lands.
     while IFS= read -r tok; do
       [ -z "$tok" ] && continue
       add_candidate "$tok"

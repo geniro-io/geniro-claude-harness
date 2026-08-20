@@ -104,8 +104,8 @@ expect_verdict ".geniro/ bulk delete -> deny" deny \
 expect_verdict "single-file .geniro/ delete -> allow" allow \
   "$(shell_verdict block-geniro-deletion.sh 'rm -f .geniro/planning/task/notes.md')"
 
-expect_verdict "shell write to .env -> deny" deny \
-  "$(shell_verdict file-protection.sh 'echo TOKEN=1 > .env')"
+expect_verdict "shell write to tls.key -> deny" deny \
+  "$(shell_verdict file-protection.sh 'echo TOKEN=1 > tls.key')"
 expect_verdict "shell write to a normal file -> allow" allow \
   "$(shell_verdict file-protection.sh 'echo hello > notes.txt')"
 
@@ -121,16 +121,16 @@ expect_verdict "shell-authored benign content -> allow" allow \
   "$(shell_verdict security-pattern-check.sh "printf 'const a = 1;' > app.js")"
 
 # --- preToolUse with Cursor `path` alias hits file protection ---
-OUT="$(jq -nc '{hook_event_name:"preToolUse", tool_name:"Write", tool_input:{path:".env"}, cwd:"."}' \
+OUT="$(jq -nc '{hook_event_name:"preToolUse", tool_name:"Write", tool_input:{path:"tls.key"}, cwd:"."}' \
   | bash "$SHIM" file-protection.sh)"
 RC=$?
 if [ "$RC" -eq 0 ] && [ "$(printf '%s' "$OUT" | jq -r '.permission' 2>/dev/null)" = "deny" ]; then
-  pass "preToolUse Write .env via path alias -> permission deny"
+  pass "preToolUse Write tls.key via path alias -> permission deny"
 else
-  fail "preToolUse Write .env -> expected deny JSON, got rc=$RC out=$OUT"
+  fail "preToolUse Write tls.key -> expected deny JSON, got rc=$RC out=$OUT"
 fi
-expect_verdict "preToolUse Write .env via target_file alias -> deny" deny \
-  "$(edit_verdict file-protection.sh '{"target_file":".env"}')"
+expect_verdict "preToolUse Write tls.key via target_file alias -> deny" deny \
+  "$(edit_verdict file-protection.sh '{"target_file":"tls.key"}')"
 
 # --- preToolUse content aliases reach the security scan ---
 # The guard reads .content / .new_string / .new_source; a Cursor payload naming
@@ -161,13 +161,13 @@ fi
 # up from inside the project and found that file.
 PROJ="$TMPDIR_BASE/proj"
 mkdir -p "$PROJ/.geniro"
-printf '{"allow_patterns": ["write-env"]}\n' > "$PROJ/.geniro/safety.json"
-expect_verdict "preToolUse .env write with a project bypass, shim cwd inside the project -> allow" allow \
-  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/.env" '{file_path:$p}')" "$PROJ")"
-expect_verdict "beforeShellExecution .env write with a project bypass, shim cwd inside the project -> allow" allow \
-  "$(shell_verdict file-protection.sh "echo TOKEN=1 > $PROJ/.env" "$PROJ")"
-expect_verdict "same .env write with no project cwd -> deny (bypass not found)" deny \
-  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/.env" '{file_path:$p}')" "$TMPDIR_BASE")"
+printf '{"allow_patterns": ["write-cert-key"]}\n' > "$PROJ/.geniro/safety.json"
+expect_verdict "preToolUse tls.key write with a project bypass, shim cwd inside the project -> allow" allow \
+  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/tls.key" '{file_path:$p}')" "$PROJ")"
+expect_verdict "beforeShellExecution tls.key write with a project bypass, shim cwd inside the project -> allow" allow \
+  "$(shell_verdict file-protection.sh "echo TOKEN=1 > $PROJ/tls.key" "$PROJ")"
+expect_verdict "same tls.key write with no project cwd -> deny (bypass not found)" deny \
+  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/tls.key" '{file_path:$p}')" "$TMPDIR_BASE")"
 
 # --- sessionStart re-emits additionalContext as additional_context ---
 OUT="$(jq -nc --arg r "$TMPDIR_BASE" '{hook_event_name:"sessionStart", workspace_roots:[$r]}' \
@@ -228,7 +228,7 @@ if [ "$STUB_OK" -eq 1 ]; then
   else
     fail "jq missing on beforeShellExecution -> expected a loud notice, got: $OUT"
   fi
-  OUT="$(jq -nc '{hook_event_name:"preToolUse", tool_name:"Write", tool_input:{path:".env"}, cwd:"."}' \
+  OUT="$(jq -nc '{hook_event_name:"preToolUse", tool_name:"Write", tool_input:{path:"tls.key"}, cwd:"."}' \
     | PATH="$STUB_BIN" bash "$SHIM" file-protection.sh)"
   if printf '%s' "$OUT" | jq -e '.agent_message | test("jq not found")' >/dev/null 2>&1; then
     pass "jq missing on preToolUse -> agent_message names the inactive guard"
@@ -285,12 +285,12 @@ if [ "$STUB2_OK" -eq 1 ]; then
     fail "jq missing (grep/mktemp present), rm -rf .geniro -> expected deny, got: $OUT"
   fi
 
-  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"echo TOKEN=1 > .env", cwd:"."}' \
+  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"echo TOKEN=1 > tls.key", cwd:"."}' \
     | PATH="$STUB_BIN2" bash "$SHIM" file-protection.sh)"
   if printf '%s' "$OUT" | jq -e '.permission == "deny"' >/dev/null 2>&1; then
-    pass "jq missing (grep/mktemp present), .env write -> coarse scan denies through the shim"
+    pass "jq missing (grep/mktemp present), tls.key write -> coarse scan denies through the shim"
   else
-    fail "jq missing (grep/mktemp present), .env write -> expected deny, got: $OUT"
+    fail "jq missing (grep/mktemp present), tls.key write -> expected deny, got: $OUT"
   fi
 else
   skip "jq-missing-but-grep/sed/mktemp-present cases (could not build the stub PATH)"

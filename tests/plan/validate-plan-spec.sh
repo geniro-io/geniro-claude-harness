@@ -356,7 +356,7 @@ expect_status schema-prd.md schema_completeness fail "a retired optional section
 reset_spec; EXTRA_SECTION='## Comment Resolution Map
 
 - comment 1 -> step 2'; mk_spec schema-crm.md
-expect_status schema-crm.md schema_completeness pass "the resolve-only optional section is allowed"
+expect_status schema-crm.md schema_completeness fail "the retired resolve-only section is no longer allowed"
 
 reset_spec; EXTRA_SECTION=''; mk_spec schema-min.md
 expect_status schema-min.md schema_completeness pass "no optional sections at all is still complete"

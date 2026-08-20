@@ -15,8 +15,8 @@
 # The rule this encodes: a guard matches PROGRAMS, and the shell offers many
 # spellings per program. A spelling the shell resolves to a blocked command must
 # block; a benign command wearing the same spelling must not. The second half is
-# the one that keeps a fix honest — unquoting operands to catch `> '.env'` is
-# only correct while `echo "set x > .env to configure"` still passes.
+# the one that keeps a fix honest — unquoting operands to catch `> 'tls.key'` is
+# only correct while `echo "set x > tls.key to configure"` still passes.
 #
 # Adding a guard here costs one BASES row. Adding a spelling costs one TRANSFORMS
 # row and is immediately driven against every guard, which is the property the
@@ -90,7 +90,7 @@ block-dangerous-git.sh|clean-fd|git clean -fd|git clean -n
 block-dangerous-git.sh|reset-hard|git reset --hard HEAD~1|git reset HEAD~1
 block-dangerous-git.sh|push-mirror|git push --mirror origin|git push --tags origin
 block-geniro-deletion.sh|rm-geniro|rm -rf .geniro|rm -rf build
-file-protection.sh|write-env|echo k > .env|echo k > notes.txt
+file-protection.sh|write-cert-key|echo k > tls.key|echo k > notes.txt
 security-pattern-check.sh|sec-eval-exec|printf '\''eval(x)'\'' > bad.py|printf '\''print(1)'\'' > ok.py
 '
 
@@ -159,7 +159,7 @@ done <<< "$BASES"
 # {T} in TARGET_BASES marks the operand path_variants re-spells.
 TARGET_BASES='
 block-geniro-deletion.sh|rm-geniro-target|rm -rf {T}|.geniro
-file-protection.sh|write-env-target|echo k > {T}|.env
+file-protection.sh|write-cert-key-target|echo k > {T}|tls.key
 '
 
 path_variants() {  # <target> -> "id|spelling" lines
@@ -188,7 +188,7 @@ done <<< "$TARGET_BASES"
 # spelling of the TARGET, and it applies to every guard that matches paths.
 for pre in "cd .geniro &&" "pushd .geniro &&"; do
   check "file-protection.sh [cd-prefix: ${pre%% *}] blocks" "file-protection.sh" \
-    "$pre echo k > .env" 2
+    "$pre echo k > tls.key" 2
     "$pre echo k > planning/t/state.md" 2
   check "block-geniro-deletion.sh [cd-prefix: ${pre%% *}] blocks" "block-geniro-deletion.sh" \
     "$pre rm -rf planning" 2
@@ -211,7 +211,7 @@ check "block-geniro-deletion.sh [var: path] blocks" "block-geniro-deletion.sh" \
 check "block-geniro-deletion.sh [var: benign path] allows" "block-geniro-deletion.sh" \
   'P=build; rm -rf $P' 0
 check "file-protection.sh [var: target] blocks" "file-protection.sh" \
-  'T=.env; echo k > $T' 2
+  'T=tls.key; echo k > $T' 2
 check "file-protection.sh [var: benign target] allows" "file-protection.sh" \
   'T=notes.txt; echo k > $T' 0
 # A value that is itself a substitution is NOT chased — nothing here evaluates

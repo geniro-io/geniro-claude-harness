@@ -208,12 +208,12 @@ Reporter loop — six numbered phases plus a mechanical pre-pass (triage → mec
 /geniro:review #1234                          # PR review with draft-review posting gate
 ```
 
-### `/geniro:resolve` — PR-feedback triage to fix-plan
+### `/geniro:resolve` — PR feedback, decided and fixed
 
-Read-only PR-feedback triage → fix-plan producer (4-phase loop: Fetch & Triage → Analyze & Verify → Clarify → Emit). Reads an open PR's unresolved review threads (human + bot) AND failing CI checks via `_shared/pr-threads.md`; per item classifies intent, verifies it against the code, reproduces the bug-claim / CI failure, and assigns a verdict (fix / answer-only / needs-clarification / wontfix), with each fix/wontfix adversarially re-verified. Ambiguous items render as a self-contained chat explanation before a lean question. Emits a comment-keyed `spec.md` (standard schema + a `## Comment Resolution Map` section) and a handoff carrying `open_questions[]` + a `comment_resolutions[]` array, which `/geniro:implement` consumes to apply the fixes and — action-gated, at its Ship step — post the drafted replies + resolve the threads. **Never edits code, never posts to the PR** (the read-only producer boundary).
+3-phase loop (Fetch & Triage → Decide → Fix & Close). Reads an open PR's unresolved review threads (human + bot) AND failing CI checks via `_shared/pr-threads.md`, syncs the workspace to the PR head, then decides each item through a worth-doing filter: `fix` (real and behavior-preserving — applied without asking), `ask` (changes something a caller could depend on — goes to the decision gate), `answer-only`, or `decline` with a reason (`wrong-claim` / `over-engineering` / `out-of-scope` / `regression-risk` / `too-large`) and an evidence-backed push-back. Every decline, and every fix whose read is contested, is re-checked by a fresh verifier before it counts. Two user gates: one multi-select over everything that changes behavior, one ship gate that authorizes commit + push + replies + thread resolution. Threads resolve only once the fix is in the pushed diff; a declined thread gets its reply and stays open.
 
 ```
-/geniro:resolve #1234                         # triage an open PR's feedback into a fix plan
+/geniro:resolve #1234                         # work through an open PR's feedback
 /geniro:resolve                               # infer the PR from the current branch
 ```
 
@@ -384,7 +384,7 @@ geniro/
 │   ├── plan/                    # spec-first planning
 │   ├── implement/               # autonomous implementation
 │   ├── review/                  # multi-dim code review
-│   ├── resolve/                 # PR-feedback triage → fix plan
+│   ├── resolve/                 # PR feedback → decided and fixed
 │   ├── debug/                   # scientific-method investigation
 │   ├── refactor/                # zero-behavior-change restructuring
 │   ├── onboard/                 # codebase mapping

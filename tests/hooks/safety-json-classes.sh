@@ -9,9 +9,9 @@
 #
 # and then tests membership with a substring probe over the space-joined list.
 # That pairing is load-bearing in BOTH directions. Without the `select`, one entry
-# carrying whitespace ("harmless write-env alsoharmless") silently enables every
+# carrying whitespace ("harmless write-cert-key alsoharmless") silently enables every
 # pattern ID spelled inside it — a bypass the project never granted. And the
-# probe's own surrounding spaces are what keep a superstring ("write-envx") from
+# probe's own surrounding spaces are what keep a superstring ("write-cert-keyx") from
 # matching. Each sibling guard carries its own copy of this loader, so the
 # property has to be asserted on all of them, not on one.
 #
@@ -120,9 +120,9 @@ probe_for_id() {  # <pattern-id>
       hook=block-geniro-deletion.sh
       jq -nc '{tool_name:"Bash", tool_input:{command:"git add -f .geniro/actions/foo.md"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
     # --- file-protection.sh (7 IDs) ---
-    write-env)
+    write-cert-key)
       hook=file-protection.sh
-      jq -nc '{tool_name:"Write", tool_input:{file_path:".env", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+      jq -nc '{tool_name:"Write", tool_input:{file_path:"tls.key", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
     write-git-internal)
       hook=file-protection.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:".git/config", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
@@ -201,7 +201,7 @@ rm-geniro-state-subdir
 find-geniro-delete
 worktree-remove-with-state
 git-add-force-geniro
-write-env
+write-cert-key
 write-git-internal
 write-lockfile
 write-cert-key

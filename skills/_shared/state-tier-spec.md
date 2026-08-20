@@ -40,9 +40,8 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 |---|---|
 | `/implement` | `clean_task_transients` before EVERY terminal `phase:` write — `done`, `aborted`, `debug-handoff`, `self-review-only`, `ship-committed-only` — not only the Ship path. |
 | `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
-| `/debug`, `/refactor`, `/onboard`, `/investigate`, `/audit-instructions` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. `/audit-instructions` deletes its slug dir at the Phase 5 action gate; the dated report at `.geniro/state/audit-instructions/report-<date>.md` lives outside the slug dir and survives (§Path roots → T1.5). |
+| `/debug`, `/refactor`, `/onboard`, `/investigate`, `/audit-instructions`, `/resolve` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. `/audit-instructions` deletes its slug dir at the Phase 5 action gate; the dated report at `.geniro/state/audit-instructions/report-<date>.md` lives outside the slug dir and survives (§Path roots → T1.5). |
 | `/review` | Nothing to clean — its T2 handoff file (`from-review-<branch>.md`) doubles as its working state during the run and is a persistent T2 artifact, not scratch; it writes no `.geniro/state/review/` scratch of its own. |
-| `/resolve` | `clean_task_transients` on `.geniro/state/resolve/<slug>/` before every terminal `phase:` write — transients go, the dir stays. It is a spec producer whose `spec.md` and handoff are consumed downstream by `/implement`, so an `rm -rf` would delete the deliverable, the same reason `/plan` retains its planning task-dir and `/setup` its singleton. |
 
 Transients left behind by an interrupted run are swept by the `/geniro:update` migration walk; that sweep is deliberately recurring rather than one-shot.
 
@@ -57,7 +56,7 @@ Transients left behind by an interrupted run are swept by the `/geniro:update` m
 | `.geniro/planning/<task-dir>/.kr-out.md` | knowledge-retrieval-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.ce-out.md` | codebase-explorer-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.tr-out.md` | test-runner-agent (subagent report) |
-| `.geniro/state/resolve/<slug>/.spec-challenge-out.md` | spec-challenge pass, `/resolve` |
+| `.geniro/state/resolve/<slug>/.tr-out.md` | test-runner-agent (subagent report), `/resolve` |
 | `.geniro/planning/<task-dir>/.research-out.md` | codebase-research-agent (subagent report) |
 | `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
 | `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
@@ -170,12 +169,12 @@ Each entry is `{action, completed-at, <action-specific-fields>}`, where `complet
 
 | `action` | Emitted by | Action-specific fields |
 |---|---|---|
-| `git-push` | `/geniro:implement` | `target`, `ref` |
+| `git-push` | `/geniro:implement`, `/geniro:resolve` | `target`, `ref` |
 | `pr-created` | `/geniro:implement` | `pr`, `url` |
-| `pr-comment-posted` | `/geniro:implement` | `pr`, `comment-id` |
+| `pr-comment-posted` | `/geniro:resolve` | `pr`, `comment-id` |
 | `pr-review-comment-batch` | `/geniro:review` | `pr-ref`, `finding-count`, `comment-ids` |
 | `pr-comment-amended` | `/geniro:review` (review-handoff.md §7.8) | `pr-ref`, `comment-id`, `kind: edit\|reply\|delete` |
-| `git-commit` | `/geniro:plan`, `/geniro:implement` | `commit-sha` |
+| `git-commit` | `/geniro:plan`, `/geniro:implement`, `/geniro:resolve` | `commit-sha` |
 | `slack-notify-sent` | none today — reserved | `channel`, `ts` |
 | `release-tagged` | none today — reserved | `tag` |
 
@@ -228,7 +227,7 @@ open_questions:
 
 **Producer responsibilities:**
 - Initialize `open_questions: []` in the handoff frontmatter; never use a free-text `## Open Questions` Markdown bucket — body sections are not machine-readable.
-- Each entry has `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `related_comments`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body; `related_comments` is the `/geniro:resolve`-producer equivalent — it links a question to the review-thread `thread_id`(s) that raised it.
+- Each entry has `id`, `source`, `question`, `status` set; all other fields (`context`, `evidence`, `options`, `recommendation`, `related_findings`, `related_hypotheses`, `resolution`) are optional. `related_hypotheses` is the `/geniro:debug`-producer equivalent of `related_findings` — it links a question to Hypothesis IDs from the debug run's `## Hypotheses` body.
 - **Fill `context` + `evidence` + `options` + `recommendation` whenever feasible** — they're the substrate the consumer renders into a rich, self-contained chat explanation per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering. A bare `question:` field leaves the consumer to synthesize options at render time (legacy fallback), which produces terse AUQs that erode user trust.
 - When the question gates a reviewer finding, populate `related_findings` so the consumer can cross-reference into the body `## Findings` section for additional detail (Confidence / Origin).
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
@@ -244,7 +243,6 @@ open_questions:
 
 - Each `open_questions[]` entry — `question`, `context`, `evidence[].snippet`, `options[].description`, `options[].preview`, `recommendation.rationale`.
 - Each finding block in the body — the `Evidence:` codeblock, `Suggested fix:`, and `Verification-evidence:`. `Verification-evidence:` is a literal quote lifted from the cited `file:line`, present on every kept CRITICAL / HIGH / MEDIUM finding, so it carries the same exposure as the reviewer's own `Evidence:` codeblock beside it.
-- Each `comment_resolutions[]` entry — `reply_draft`.
 
 A security finding that quotes a hardcoded credential otherwise persists the secret verbatim in a file that outlives the run and ships to every downstream consumer; the `[REDACTED:…]` placeholder still locates the leak. Structured fields (ids, paths, enums, timestamps) skip the pipe. A new free-form field added to any of these structures joins this list in the same edit — the pipe is defined by what the value is, not by what happened to be enumerated when the field was introduced.
 
@@ -299,43 +297,6 @@ authored_tests:
 - Read `authored_tests[]` before falling back to body-string parsing. The shared consumer protocol at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` codifies the prefer-frontmatter / fallback-to-body order.
 - Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
 - The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only Edit/Write blocker for /geniro:implement Phase 1.
-
-**`/geniro:resolve` producer-specific fields:**
-
-- `spec_path: <repo-relative path>` — the `spec.md` this run authored, at `.geniro/state/resolve/<slug>/spec.md`. Required on every `from-resolve-<branch>.md`. `/geniro:implement` follows it as the FIRST entry of its spec-discovery walk (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Spec discovery walk-list") — the only route to a spec that lives outside `.geniro/planning/`. Without it a `RESOLVE_HANDOFF` auto-continue falls into inline-task mode and never loads the spec's Steps or its §9 `verify:` lines. Producers that author no spec (`/geniro:review`, `/geniro:debug`) omit the key; a consumer treats absent-or-unresolvable as fall-through, not an error.
-
-**`/geniro:resolve` producer-specific `comment_resolutions` array (T2 handoff only):**
-
-The `from-resolve-<branch>.md` handoff (`producer: resolve`, `consumer: implement`) carries, alongside the common `open_questions[]`, one entry per review-comment item whose verdict produces a reply. `/geniro:implement` reads it at its Ship sub-step to post the drafted replies and resolve the threads. The `## Comment Resolution Map` body section is the human-readable mirror; this array is the source of truth. CI-check items do NOT appear here — a failing check has no thread to resolve and goes green on the next push; it lives only in the spec Steps.
-
-```yaml
-comment_resolutions:                 # MAY be []; only review-comment items appear
-  - thread_id: PRRT_kwDOExample      # reviewThread node id — for the resolveReviewThread mutation
-    comment_id: 1234567890           # top comment databaseId — for the reply endpoint
-    source: review-comment           # always review-comment here
-    author: coderabbitai[bot]        # bot logins keep their suffix
-    path: api/users.ts               # cited location (null when the comment is not line-anchored)
-    line: 42
-    verdict: fix                     # fix | answer-only | wontfix
-    reply_draft: |                   # the text to post on the thread
-      Addressed in <commit> — guarded the null deref; see api/users.ts:42.
-    resolve_after_fix: true          # fix → true (post + resolve); answer-only / wontfix → false (post only)
-    verify: "pnpm test users.spec"   # passes ⇒ the fix landed (mirrors the spec §9 criterion); null if none
-    fix_step_anchor: step-3          # the spec Step that implements the fix; null for answer-only / wontfix
-    status: pending                  # pending | posted | skipped (set by the consumer)
-```
-
-**Producer responsibilities (`/geniro:resolve`):**
-- Initialize `comment_resolutions: []` even when empty, so the consumer distinguishes "no replies by design" from "field absent in a non-resolve handoff".
-- One entry per review-comment item with verdict `fix` / `answer-only` / `wontfix`. `needs-clarification` items go to `open_questions[]` instead (resolved later, they may re-enter as a `fix`).
-- `verdict: fix` sets `resolve_after_fix: true`, a `fix_step_anchor` pointing at the spec Step, and a `verify:` mirroring that Step's §9 acceptance check (or null when none exists). `wontfix` / `answer-only` set `resolve_after_fix: false` and null `fix_step_anchor` / `verify`.
-- The I/O shapes for the eventual reply + resolve live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` (write side).
-
-**Consumer responsibilities (`/geniro:implement`):**
-- Parse `comment_resolutions[]` at Phase 1 Step 12 alongside `open_questions[]`; stash it for the Ship sub-step. It is NOT an Edit/Write gate — only `open_questions[]` blocks editing.
-- At the Ship sub-step, for each `verdict: fix` entry, re-verify the fix landed (run `verify:`, else confirm `fix_step_anchor`'s files are in the pushed diff). Not landed → set `status: skipped`, never resolve.
-- Gate the batch behind ONE AskUserQuestion (external write, like `git push`), then via `pr-threads.md` write side post `reply_draft` and resolve the thread when `resolve_after_fix: true`. Mark `status: posted`; append a `pr-comment-posted` entry to `non-resumable-actions[]`.
-- A handoff with no `comment_resolutions[]` (any non-resolve producer) skips the Ship sub-step entirely.
 
 ---
 
