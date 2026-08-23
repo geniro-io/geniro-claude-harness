@@ -66,21 +66,40 @@ Any phase may branch to the `aborted` terminal on cancel; phase-8 revision / val
 
 **Terminal states:** `done`, `aborted`. The SessionStart hook treats both as "planning complete or cancelled — no resume needed". Every transition into a terminal state first runs the transient cleanup (`clean_task_transients` against the planning task-dir, `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-9-handoff.md` §9.2) before the terminal `phase:` write; rationale and the preserved-durables list live there.
 
-| Phase | Purpose |
-|---|---|
-| 0 | Mode detect — $ARGUMENTS, opt-in flags, task-dir, initial state.md |
-| 1 | Explore — tier-scaled research spawns, memory refresh, `workflow_refs` fetch |
-| 2 | Visual Companion (UI-conditional) — UI preview: a rendered mockup on the plan page in artifact mode, a text description otherwise |
-| 3 | Grill — uncapped, checkpoint-bounded decision-tree clarification |
-| 4 | Approaches — 2-3 stress-tested, one lean AUQ, Recommended first |
-| 5 | Section approval — the fixed section schema in 3 cluster gates; milestone-mode |
-| 6 | Write spec.md — NO auto-commit |
-| 7 | Mechanical validator — the full check set in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md` |
-| 7.5 | Spec challenge — the spec's claims re-read against the code; advisory, fail-open |
-| 8 | User approve — visual summary, lean AUQ, launch config, git commit |
-| 9 | Handoff — prints the `/geniro:implement <path>` command, terminal `phase: done` |
+## Phase 0 — Mode detect
+$ARGUMENTS, opt-in flags, task-dir, initial state.md
 
-**How to run it.** Read the spine `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` at entry — it carries the HARD-GATE, the gate presentation contract, the state-file echo contract, the terminal-state rule, the anti-rationalization table, and the §Phase files table mapping every phase to the file holding its steps. It is the hop most worth guarding: a run that skips straight to the phase files still emits every per-phase line and looks compliant, while never having seen the HARD-GATE. Both this spine read and each phase file's own read are bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — read a phase's file on entry to that phase, not up front, as its physically-first action with a one-line echo; read a conditional phase's file (0.5, 2, 7.5) only once its trigger fires. The spine is the authoritative phase contract; each phase file is authoritative for its own steps.
+## Phase 1 — Explore
+Tier-scaled research spawns, memory refresh, `workflow_refs` fetch
+
+## Phase 2 — Visual Companion (UI-conditional)
+UI preview: a rendered mockup on the plan page in artifact mode, a text description otherwise
+
+## Phase 3 — Grill (decision-tree clarification)
+Uncapped, checkpoint-bounded decision-tree clarification
+
+## Phase 4 — Approaches
+2-3 stress-tested, one lean AUQ, Recommended first
+
+## Phase 5 — Section approval
+The fixed section schema in 3 cluster gates; milestone-mode
+
+## Phase 6 — Write spec.md
+NO auto-commit
+
+## Phase 7 — Mechanical validator
+The full check set in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`
+
+## Phase 7.5 — Spec challenge
+The spec's claims re-read against the code; advisory, fail-open
+
+## Phase 8 — User approval
+Visual summary, lean AUQ, launch config, git commit
+
+## Phase 9 — Handoff
+Prints the `/geniro:implement <path>` command, terminal `phase: done`
+
+**How to run it.** Read the spine `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` at entry — it carries the HARD-GATE, the gate presentation contract, the state-file echo contract, the terminal-state rule, the anti-rationalization table, and the §Phase files table mapping every phase to the file holding its steps. It is the hop most worth guarding: a run that skips straight to the phase files still emits every per-phase line and looks compliant, while never having seen the HARD-GATE. Both this spine read and each phase file's own read are bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — read a phase's file on entry to that phase, not up front, as its physically-first action with a one-line echo; read a conditional phase's file (2) only once its trigger fires. The spine is the authoritative phase contract; each phase file is authoritative for its own steps.
 
 **Re-Read the spine and the current phase's file after a compaction, before acting on the resumed phase.** Only this SKILL.md is re-attached after a summary — the spine and every phase file arrived as Read results and are gone, and the session-restore context carries task state, not the loop's instructions. state.md `phase:` names which phase file to read. A resume that skips this walks the phase's irreversible steps — the Phase 8 commit branch and its never-`git add -f` bar, the launch-config spec rewrite, the Phase 9 transient cleanup — with none of their rules in context.
 
@@ -128,9 +147,9 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
 | Phase 3 grill checkpoint | the checkpoint trigger per §3.4 — no fixed question cap | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
-| Phase 5 per-cluster revision rounds | 3 | §5.2 | Cluster AUQ re-fires without Revise — approve-as-rendered / explain-further / cancel; an unresolved change carries to the Phase 8 gate. |
+| Phase 5 per-cluster revision rounds | §5.2 owns the count | §5.2 | Cluster AUQ re-fires without Revise — approve-as-rendered / explain-further / cancel; an unresolved change carries to the Phase 8 gate. |
 | Phase 7 → Phase 6 auto-revision rounds | §7.3 owns the count | §7.3 | AUQ — accept-as-is / re-revise / abort. |
-| Phase 8 user-revision rounds | 3 | §8.3 | AUQ — accept-as-is / re-revise / abort. |
+| Phase 8 user-revision rounds | §8.3 owns the count | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2 | invariant #4 | Truncation with marker, not abort. |
 
 **Question cadence:** Phase 3 uncapped; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.

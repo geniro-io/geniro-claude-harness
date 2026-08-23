@@ -345,11 +345,11 @@ All hooks run automatically after installation. Per-project bypass via `.geniro/
 
 | Hook | Protection |
 |------|-----------|
-| **File protection** | Blocks writes to `.env`, `*.key`, `*.pem`, lock files, credentials, `*.tfstate`, `*.vault*` |
-| **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec, bypass `push-delete`) |
+| **File protection** | Blocks writes to `*.key`, `*.pem`, lock files, credentials, `*.tfstate`, `*.vault*` — not `.env` (that pattern was removed outright; content-level secret scanning still runs in the security pattern scan) |
+| **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec, bypass `push-delete`), stash deletion (`git stash clear` / `git stash drop`, bypass `stash-drop`) |
 | **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/`, `git worktree remove`, `git add -f` on `.geniro/` paths |
 | **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions set + CLAUDE.md so context survives compaction |
-| **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — blocks direct writes to canonical state paths under `.geniro/`, including Bash-side writes (redirection, `tee`, `sed -i`, `cp`/`mv`, `dd of=`); suggests `atomic_state_write` / `atomic_state_append` |
+| **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block, file tools only — no `Bash` branch) — blocks direct writes to canonical state paths under `.geniro/`; suggests `atomic_state_write` / `atomic_state_append` |
 | **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — regex scan of edit content and shell commands for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes |
 
 ## Updating
@@ -396,7 +396,7 @@ geniro/
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
 │                                # load-custom-instructions, query/emit-learnings, etc.)
-├── hooks/                       # 7 safety hooks + statusline + update check
+├── hooks/                       # safety hooks + statusline + update check (roster: HOOKS.md §Hook scripts)
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer

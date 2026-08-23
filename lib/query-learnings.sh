@@ -338,7 +338,15 @@ record_access() {
   # the narrow post-rename window is traded away, and that trade is
   # intentional here — this is a best-effort counter bump, not a primary
   # write path.
-  local tmp="${log}.tmp.$$"
+  # Hostname suffix (not just $$) prevents an NFS-shared .geniro/ from letting
+  # two hosts race to the SAME tmp name — atomic-state-write.sh:52-54 adds it
+  # for the identical reason; this rewrite's own PID-only name was invisible
+  # to that guard (2026-08-23 audit T4-31). Sanitized the same way: anything
+  # outside [A-Za-z0-9.-] becomes `_` so a path-breaking hostname can't turn
+  # this into an unwritable target.
+  local host="${HOSTNAME:-localhost}"
+  host="${host//[^A-Za-z0-9.-]/_}"
+  local tmp="${log}.tmp.$$.${host}"
   # Read raw and `fromjson?` per line: a malformed line yields no output for that
   # line rather than aborting jq. The post-jq count guard below then refuses the
   # rewrite so the unparseable line is preserved (never-deletes invariant — the

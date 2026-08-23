@@ -16,11 +16,11 @@ argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]
 - Loop invariants
 - Anti-rationalization
 - Budgets — quality-first
-- Subagent model tiering
-- Spec metadata contract
 - ACI per-phase tool surface
-- Memory I/O schedule
 - Definition of done
+- Spec metadata contract
+- Subagent model tiering
+- Memory I/O schedule
 - Phase 1 / 1.5 / 2 / 3 / 4 / 5 / 6 — one section each, pointing at that phase's file
 - REFERENCE
 
@@ -105,22 +105,6 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ---
 
-## Subagent model tiering
-
-Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site so the session tier propagates (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` carries the rationale and carve-outs). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host — `geniro:` is Claude Code's plugin namespace, so on Cursor the prefixed form cannot resolve and the whole reviewer fan-out is spent discovering that. Only on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder (`geniro:<agent>` under Claude Code → bare `<agent>`, the entry rung everywhere else → `general-purpose` with the agent body inlined) and empty-result fallback, then cache the resolved rung for the session. Neither helper is read on the happy path — this summary is the operative rule until a spawn fails.
-
-Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `finding-verifier-agent` (the per-finding verifier, Phase 4.2). One exception to OMIT absent the flag below: a custom reviewer declaring an explicit `model:` in its `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass that value verbatim. Every Agent prompt satisfies every pre-inlined field per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
-
-**`--subagent-model <tier>` overrides all of the above for this run — including inside a deep-mode Workflow fan-out.** When `$ARGUMENTS` carries the flag, pass `model="<tier>"` at every judgment-grade Agent spawn this run makes — `reviewer-agent`, `finding-verifier-agent`, and the `codebase-research-agent` side-query spawns (§Loop invariants S1) alike — beating both the inherit default and a custom reviewer's own declared `model:` — the flag is the user's own election for the run, the same shape as that declaration but scoped wider. One spawn this skill makes is not judgment-grade — the scoped `knowledge-retrieval-agent` that reads learnings when `memory.md` routes them to a backend (Phase 1) — and the flag caps that one rather than raising it: `sonnet` is its ceiling, and a stronger named tier does not lift it. Values, the per-batch caching rule behind spawning the fan-out on one tier, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; every phase file's spawn sites below apply it without re-stating this rule. Persisted to state.md frontmatter `subagent-model:` at the §1 flag parse (`phase-1-triage-reference.md` §1) so a compaction before Phase 2 fires does not silently revert every reviewer spawn back to the frontmatter default.
-
----
-
-## Spec metadata contract (/geniro:plan → /geniro:review)
-
-When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`. Accepted `geniro_schema_version`: `m5-v1` (treat `workflow_refs` as absent), `m5-v2`, `m5-v3` (entries also carry parent-epic + sibling chain fields), `m5-v4` (same `workflow_refs[]`, may add a `launch_config` block /geniro:review ignores). Merge with tracker refs in `$ARGUMENTS` and the PR body by `(kind, issue_id)`: `$ARGUMENTS` wins, then PR body, then spec frontmatter. Read-only — never mutate tracker state.
-
----
-
 ## ACI per-phase tool surface
 
 | Phase | Allowed tools | Restricted |
@@ -130,6 +114,28 @@ When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLA
 | Phase 5 / 6 | `Bash` for `atomic_state_write` on the handoff path (the Phase 5.1 write, gate resolutions, `approvals[]`); `emit-learning`; `gh api POST /pulls/N/reviews` with `event` omitted (§5.4, Post drill only); Phase 6 AskUserQuestion; Agent — one `finding-verifier-agent` spawn, only on the "Challenge this finding" pick (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3 Step 0) | No Edit/Write anywhere — a reporter never mutates source or rules, and the state-helper hook hard-blocks direct writes under `.geniro/state/`, so the helper is the only route to the handoff. Never `gh api` with `event: COMMENT` / `APPROVE` / `REQUEST_CHANGES`, never the submit endpoint `gh api POST /pulls/N/reviews/<id>/events` (publishing a pending review is the user's action); no reviewer re-spawn without the Round-N gate pick |
 
 The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
+
+---
+
+## Definition of done
+
+The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/review/review-definition-of-done.md`. Walk it at Phase 6, before the terminal `phase:` write.
+
+---
+
+## Spec metadata contract (/geniro:plan → /geniro:review)
+
+When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`. Accepted `geniro_schema_version`: `m5-v1` (treat `workflow_refs` as absent), `m5-v2`, `m5-v3` (entries also carry parent-epic + sibling chain fields), `m5-v4` (same `workflow_refs[]`, may add a `launch_config` block /geniro:review ignores). Merge with tracker refs in `$ARGUMENTS` and the PR body by `(kind, issue_id)`: `$ARGUMENTS` wins, then PR body, then spec frontmatter. Read-only — never mutate tracker state.
+
+---
+
+## Subagent model tiering
+
+Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site so the session tier propagates (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` carries the rationale and carve-outs). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host — `geniro:` is Claude Code's plugin namespace, so on Cursor the prefixed form cannot resolve and the whole reviewer fan-out is spent discovering that. Only on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder (`geniro:<agent>` under Claude Code → bare `<agent>`, the entry rung everywhere else → `general-purpose` with the agent body inlined) and empty-result fallback, then cache the resolved rung for the session. Neither helper is read on the happy path — this summary is the operative rule until a spawn fails.
+
+Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `finding-verifier-agent` (the per-finding verifier, Phase 4.2). One exception to OMIT absent the flag below: a custom reviewer declaring an explicit `model:` in its `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass that value verbatim. Every Agent prompt satisfies every pre-inlined field per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
+
+**`--subagent-model <tier>` overrides all of the above for this run — including inside a deep-mode Workflow fan-out.** When `$ARGUMENTS` carries the flag, pass `model="<tier>"` at every judgment-grade Agent spawn this run makes — `reviewer-agent`, `finding-verifier-agent`, and the `codebase-research-agent` side-query spawns (§Loop invariants S1) alike — beating both the inherit default and a custom reviewer's own declared `model:` — the flag is the user's own election for the run, the same shape as that declaration but scoped wider. One spawn this skill makes is not judgment-grade — the scoped `knowledge-retrieval-agent` that reads learnings when `memory.md` routes them to a backend (Phase 1) — and the flag caps that one rather than raising it: `sonnet` is its ceiling, and a stronger named tier does not lift it. Values, the per-batch caching rule behind spawning the fan-out on one tier, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; every phase file's spawn sites below apply it without re-stating this rule. Persisted to state.md frontmatter `subagent-model:` at the §1 flag parse (`phase-1-triage-reference.md` §1) so a compaction before Phase 2 fires does not silently revert every reviewer spawn back to the frontmatter default.
 
 ---
 
@@ -144,12 +150,6 @@ The safety hooks apply across every phase; the complete list and what each block
 | Phase 5.3 | `emit-learning` (write L2) — producer /geniro:review, type `pitfall`, trust `verified` |
 
 `pitfall` is the only L2 type /geniro:review emits, and only on the convergence threshold `phase-5-6-emit-handoff.md` §5.3 defines.
-
----
-
-## Definition of done
-
-The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/review/review-definition-of-done.md`. Walk it at Phase 6, before the terminal `phase:` write.
 
 ---
 

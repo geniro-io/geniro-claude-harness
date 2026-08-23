@@ -4,6 +4,8 @@
 
 Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry to Phase 3, and again on any resumption of it, including after a compaction. The spine keeps the state machine, the loop invariants, the anti-rationalization table, the budgets, §Git constraint and the tool surface — this file carries the Steps. Bare `§3.M` refs below point at this file's own sub-sections; `§ <name>` refs name a section inside the cited helper, and a `Phase 1 §1.M` / `Phase 2 §2.M` ref points at the sibling phase file (`refactor/phase-1-plan.md` for Phase 1, `refactor/phase-2-apply.md` for Phase 2).
 
+**On this same entry, also Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md`** — the run-completion checklist, walked at §3.4 before the terminal `phase:` write.
+
 ## Contents
 
 - 3.0 Refresh custom instructions on entry

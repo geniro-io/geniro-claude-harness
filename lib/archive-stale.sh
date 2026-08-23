@@ -240,7 +240,15 @@ archive_stale_learnings() {
   # to avoid. The `mv -f` rename below is still atomic and keeps concurrent
   # readers safe; only power-loss durability in the narrow post-rename window
   # is traded away, and that trade is intentional here.
-  local tmp="${log}.tmp.$$"
+  # Hostname suffix (not just $$) prevents an NFS-shared .geniro/ from letting
+  # two hosts race to the SAME tmp name — atomic-state-write.sh:52-54 adds it
+  # for the identical reason; this rewrite's own PID-only name was invisible
+  # to that guard (2026-08-23 audit T4-31). Sanitized the same way: anything
+  # outside [A-Za-z0-9.-] becomes `_` so a path-breaking hostname can't turn
+  # this into an unwritable target.
+  local host="${HOSTNAME:-localhost}"
+  host="${host//[^A-Za-z0-9.-]/_}"
+  local tmp="${log}.tmp.$$.${host}"
   printf '%s\n' "$processed" | jq -c 'del(._is_stale)' > "$tmp" 2>/dev/null || {
     rm -f "$tmp"
     echo "archive-stale: failed to prepare new log content" >&2
@@ -308,11 +316,11 @@ if [ "$_as_direct" = "1" ]; then
     # resume execution right after the interrupted command, running the rest of
     # the rewrite with the lock already free for a concurrent writer.
     # `rm -f "${tmp:-}"` also cleans up the rewrite temp from the real-run
-    # branch below (`$tmp="${log}.tmp.$$"`, declared `local` inside
+    # branch below (`$tmp="${log}.tmp.$$.${host}"`, declared `local` inside
     # archive_stale_learnings) — a signal landing between the `jq … > "$tmp"`
     # write and the `mv -f` rename would otherwise orphan
-    # learnings.jsonl.tmp.<pid> beside the log permanently, since only the
-    # lock (not the temp file) was released. Bash traps are dynamically
+    # learnings.jsonl.tmp.<pid>.<host> beside the log permanently, since only
+    # the lock (not the temp file) was released. Bash traps are dynamically
     # scoped, so `$tmp` resolves to the function's local variable here even
     # though the trap is set at this outer, direct-invocation scope — matching
     # the peer site at query-learnings.sh's INT/TERM traps.

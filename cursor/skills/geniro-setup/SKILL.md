@@ -106,7 +106,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | `interview` | `AskQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
 | `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod), `AskQuestion` | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
 | `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent), `AskQuestion` | `Write`, `Edit` |
-| `done` (cleanup) | `Bash` (rm of state file), `AskQuestion` (the §5.2 map-the-codebase question), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
+| `done` (cleanup) | `Bash` (rm of state file), `AskQuestion` (the §5.2 map-the-codebase question), `Read` (the §5.4 compaction-resume re-read of `setup-rerun-reference.md`), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
 
 External sends are not part of `/geniro:setup` ACI. Users wire those via `/geniro:actions` if needed.
 

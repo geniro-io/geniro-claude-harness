@@ -9,6 +9,16 @@ argument-hint: "[status | experiment <hypothesis> | judge <run-dir> | verdict <c
 
 # eval-loop — drive the module improvement cycle
 
+## Contents
+
+- Iron rules (executor pick · money asks first · holdout dark · one change per
+  experiment · rubric version bump)
+- Intake
+- The cycle — 1. Error analysis → EXP file · 2. Screen · 3. Judge (free path)
+  · 4. Verdict · 5. Confirm · 6. Promote
+- Side jobs — calibrate · add-task · new module · A-vs-A
+- Reporting
+
 Working dir for everything here: `evals/loop/`. Read its `DESIGN.md` on first
 use in a session. Mechanics live in the scripts; this skill supplies the
 judgment the scripts deliberately do not encode.

@@ -61,7 +61,6 @@ R1	orchestrator	1	skills/_shared/reporter-boundary.md
 R1	orchestrator	1	skills/_shared/scope-anchor.md
 R1	orchestrator	1	skills/_shared/effort-scaling.md
 R1	orchestrator	1	skills/_shared/context-isolation-checklist.md
-R1	orchestrator	1	skills/_shared/within-skill-state-handoff.md
 R1	orchestrator	1	skills/_shared/emit-learning.md
 R1	orchestrator	1	skills/_shared/runtime-portability.md
 R1	orchestrator	1	skills/_shared/flags-reference.md
@@ -79,7 +78,6 @@ R1	criteria	1	skills/_shared/review-criteria/regressions-criteria.md
 
 # ---- R1: agent bodies (7 dimension spawns, no verifiers) ----
 R1	agent-body	7	agents/reviewer-agent.md
-R1	agent-body	7	skills/_shared/reviewer-agent-reference.md
 
 # ---- R2: orchestrator (R1's set plus what a spec, a PR and a verify pass add) ----
 R2	orchestrator	1	skills/review/SKILL.md
@@ -106,7 +104,6 @@ R2	orchestrator	1	skills/_shared/reporter-boundary.md
 R2	orchestrator	1	skills/_shared/scope-anchor.md
 R2	orchestrator	1	skills/_shared/effort-scaling.md
 R2	orchestrator	1	skills/_shared/context-isolation-checklist.md
-R2	orchestrator	1	skills/_shared/within-skill-state-handoff.md
 R2	orchestrator	1	skills/_shared/emit-learning.md
 R2	orchestrator	1	skills/_shared/runtime-portability.md
 R2	orchestrator	1	skills/_shared/flags-reference.md
@@ -131,5 +128,4 @@ R2	criteria	1	skills/_shared/review-criteria/spec-compliance-criteria.md
 
 # ---- R2: agent bodies (10 dimension spawns + 5 verifier spawns) ----
 R2	agent-body	10	agents/reviewer-agent.md
-R2	agent-body	10	skills/_shared/reviewer-agent-reference.md
 R2	agent-body	5	agents/finding-verifier-agent.md

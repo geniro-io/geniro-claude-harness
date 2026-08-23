@@ -29,7 +29,7 @@ Phase 2 does not transition away from `phase: visual-companion` until `## UI Pre
 - **Approved (→ Phase 3).**
 ```markdown
 ## UI Preview
-<approved text verbatim — the description, or the mockup's digest in mockup form; ≤200 lines per ui-preview-gate.md output constraint>
+<approved text verbatim — the description, or the mockup's digest in mockup form; length per ui-preview-gate.md's output constraint>
 ```
 - **Routed out (§2.4, → Phase 1 re-entry).** The assessed sentinel per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel:
 ```markdown

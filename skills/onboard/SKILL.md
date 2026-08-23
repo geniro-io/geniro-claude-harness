@@ -156,7 +156,7 @@ Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-i
 **Procedure:**
 
 1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod, .github/, src/.
-2. **Estimate scan size** — count the repo's source files, honoring its ignore rules and any `--depth N`; record `scan_depth: N` in state.md frontmatter so Phase 2 mapping honors the same bound.
+2. **Estimate scan size** — count the repo's source files, honoring its ignore rules and any `--depth N`.
 3. **Apply the read budget:** sample within it — files chosen for relevance (entry points, manifests, top-level modules), not directory order — and proceed: 50 files by default, `--cap N` to raise it, `--focus` to narrow what gets sampled, `--depth N` to bound traversal. Proceeding is the default because the question is unanswerable before the user has seen anything about the repo, and the budget already bounds the cost. Escalate only when the repo is large enough that a 50-file sample can no longer represent it (50,000+ files) and no `--focus` or `--cap` was given: auto-apply `--depth 2` so traversal doesn't stall, then fire the repo-size scan cap AUQ — header "Repo-size cap":
 - **"Narrow to specific areas"** — user supplies focus areas (the `--focus <area>` flag); re-run scan with that filter.
 - **"Expand scan (specify cap)"** — user provides explicit cap (e.g. 200, 500). **Persists to state.md `approvals[]` with category `expand_scope`.**
@@ -263,7 +263,6 @@ task_slug: <slug>
 worktree: <abs-path>
 focus_areas: []
 scan_cap: <N>          # default owned by §1.3 Step 2
-scan_depth: <N|null>
 ---
 
 ## Scope

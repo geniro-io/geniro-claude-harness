@@ -49,7 +49,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so cycle pr
   mv -f "$tmp" "$state_file"
   ```
 
-- **Single-writer:** ONLY the orchestrator writes this file. Subagents never write it — a subagent writing concurrently could race the orchestrator's own write and leave `## phase` out of sync with what actually happened, misleading whoever reads it next. Spawn sites declare `disallowedTools: ["Write", "Edit"]` for the state file path or restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`.
+- **Single-writer:** ONLY the orchestrator writes this file. Subagents never write it — a subagent writing concurrently could race the orchestrator's own write and leave `## phase` out of sync with what actually happened, misleading whoever reads it next. The Agent tool has no tool-withholding argument to enforce this at the spawn call, so spawn sites restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Prohibited tools list.
 
 ## RED phase
 

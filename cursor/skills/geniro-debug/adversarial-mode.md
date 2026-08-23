@@ -6,6 +6,17 @@ Phase file for `/geniro:debug`. The spine — invariants, budgets, tool surface,
 
 state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship`. Parallel to Scientific Mode; shared Phase 0 routes here on anchored verify-keyword signals (Phase 0 — `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`).
 
+## Contents
+
+- A1. Purpose
+- A2. Diff resolution — default scope, base branch, supported input shapes
+- A3. Skip conditions
+- A4. RED-phase workflow — the numbered steps, hypothesis ceiling, F→P and flake verification
+- A5. Handoff persistence
+- A6. Findings template
+- A7. Cleanup
+- Definition of done
+
 ### A1. Purpose
 
 Attacker-mindset pass that AUTHORS executable F→P failing tests against a diff, run inline in this same context — no subagent spawn. Complements Scientific Mode: Scientific Mode REPORTS hypotheses about a known bug; Adversarial Mode hunts for unknown bugs in recent changes by writing tests that fail on today's code. Because authoring and verification share one context, the guarantee against a false RED claim is not a second reader — it is that no hypothesis counts until its own test has actually been run and observed to fail (A4 step 3).
@@ -39,7 +50,7 @@ Runs the **RED phase** of the canonical cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_
 
    **F→P invariant.** Run the authored test. A hypothesis counts only once its test is demonstrated RED on current code with a real assertion failure — an import error or setup exception does not prove the behavior is uncovered, it proves the test file is malformed. A test that passes today, or never produces a genuine assertion failure, is discarded (`discarded-cannot-repro`) and its file deleted — no bug, or the hypothesis was wrong.
 
-   **Flake check.** Once a round of tests is kept, run them together in one filtered test-command invocation, repeated **3 times total**, each run captured separately. A kept test's error signature must match across all 3 rounds; one that diverges is `inconclusive` — discard and delete it. Flaky failures are worse than none: they train the next reader to re-run until green and mask a real regression once it starts failing for a new reason.
+   **Flake check.** Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Edge-case test authoring" — same 3-run determinism procedure, applied here to this mode's kept RED tests before they enter `## Authored Tests`. Flaky failures are worse than none: they train the next reader to re-run until green and mask a real regression once it starts failing for a new reason.
 
    **Stop rule.** 5 hypotheses in a row ending `inconclusive` or `discarded-cannot-repro` stops hypothesis generation — return what survived rather than grinding on a diff that has already yielded what it will.
 

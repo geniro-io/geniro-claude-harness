@@ -90,7 +90,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 |---|---|---|
 | Phase 1 (Triage) | Read / Grep / Glob / Bash (`gh pr view`, `gh api graphql` / `gh pr checks` read side of `pr-threads.md`; workspace-sync git: `fetch` / `gh pr checkout` / `merge` / `rebase` / `pull` / `stash`; `atomic_state_write`) / AskQuestion (sync offers + no-PR fallback) | Edit / Write on source / any `gh` write / `git push` |
 | Phase 2 (Decide) | Read / Grep / Glob / Bash (read-only repro, test runs) / Agent (`finding-verifier-agent` — OMIT `model=`) / AskQuestion / atomic_state_write | Edit / Write on source / `gh` write / `git push` |
-| Phase 3 (Fix & close) | Read / Grep / Glob / Edit / Write on source / Bash (`git add` / `commit`; after the ship gate: `git push`, the `pr-threads.md` write side; `atomic_state_write`; the terminal sweep of this run's own slug dir) / Agent (`test-runner-agent` — OMIT `model=`) / AskQuestion / TodoWrite | `git push` / `gh` write before the ship gate answers; force-push; branch or PR creation |
+| Phase 3 (Fix & close) | Read / Grep / Glob / Edit / Write on source / Bash (after the ship gate: `git add` / `commit` / `git push`, the `pr-threads.md` write side; `atomic_state_write`; the terminal sweep of this run's own slug dir) / Agent (`test-runner-agent` — OMIT `model=`) / AskQuestion / TodoWrite | `git add` / `commit` / `git push` / `gh` write before the ship gate answers; force-push; branch or PR creation |
 
 ## Memory I/O
 
@@ -122,7 +122,7 @@ These are the load-bearing exit gates — the checks that, if skipped, break the
 2. **Sync the workspace to the freshest code.** Skip the whole step on a compaction-resume (the workspace was synced when the run first started). Fire two offers in sequence; each is an offer, never auto-run; persist each pick to `approvals[]` (category `branch_freshness`); fail-open on any git error with a one-line caveat:
    - **a. Local checkout → PR head.** If `git rev-parse HEAD` differs from `pr-head-sha`, the comments reference commits your local tree does not have — and the fixes must land on the PR branch, not beside it. Offer `gh pr checkout <number>` (Recommended) / keep current checkout. Detail + dirty-tree handling: `resolve-reference.md` §1.5.
    - **b. PR branch → its base.** Run `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` FRESH-CONTINUE, substituting the PR's `base-branch` for `DEFAULT_BRANCH` (§2 of that file). If the branch is behind its base, offer merge / rebase / skip; the shared file owns the dirty-tree and conflict handling.
-3. **Fetch threads + checks.** Run the read side of `pr-threads.md` (§2 unresolved review threads — humans AND bots; §3 failing CI checks). Skip §3 entirely when `--no-ci` is passed. Persist `pr-ref` / `pr-url` / `pr-head-sha` / `resolved-threads-snapshot` to state.md via `atomic_state_write`.
+3. **Fetch threads + checks.** Run the read side of `pr-threads.md` (§2 unresolved review threads — humans AND bots; §3 failing CI checks). Skip §3 entirely when `--no-ci` is passed. Persist `pr-ref` / `pr-url` / `pr-head-sha` to state.md via `atomic_state_write`.
 4. **Build the item inventory.** Collapse each thread to one item (`thread_id`, `comment_id`, author, `is_bot`, path, line, conversation body). Each failing check is an item (name, output, annotation path:line if any). Drop `isResolved == true` threads (#7). When `--bots-only` is passed, drop every item with `is_bot == false`; when `--humans-only` is passed, drop every item with `is_bot == true` (CI-check items have no `is_bot` and are never dropped by either flag). Group items by file so one read of a file serves every item on it.
 5. **Tier the workload.** Classify via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` (item count + file spread) → sets the verifier vote count on a contested call (#3). Write `phase: decide`.
 
@@ -130,11 +130,11 @@ Full fetch shapes + the inventory schema: `${CLAUDE_PLUGIN_ROOT}/skills/resolve/
 
 ## PHASE 2: DECIDE
 
-state.md `phase: decide`. Reads the code behind every item, assigns each a verdict through the worth-doing filter, and puts the behavior-changing and ambiguous ones in front of the user. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/resolve/phase-2-decide.md`** — it carries the Steps, and every `PHASE 2` citation in this skill resolves there. Exit: `phase: fix` once every item carries a verdict and every gated item carries an answer.
+state.md `phase: decide`. Reads the code behind every item, assigns each a verdict through the worth-doing filter, and puts the behavior-changing and ambiguous ones in front of the user. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/resolve/phase-2-decide.md`** — it carries the Steps, and every `PHASE 2` citation in this skill resolves there. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase file holds the decision gate, so work started before the Read runs outside it. Exit: `phase: fix` once every item carries a verdict and every gated item carries an answer.
 
 ## PHASE 3: FIX & CLOSE
 
-state.md `phase: fix`. The only phase that edits source, and the only one that touches the PR. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/resolve/phase-3-fix-close.md`** (re-Read on any resumption of this phase, including after a compaction) — it carries the Steps, and every `PHASE 3` citation in this skill resolves there. Exit: `phase: done` (terminal) once the ship gate's answer has been carried out and the final report is printed.
+state.md `phase: fix`. The only phase that edits source, and the only one that touches the PR. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/resolve/phase-3-fix-close.md`** (re-Read on any resumption of this phase, including after a compaction) — it carries the Steps, and every `PHASE 3` citation in this skill resolves there. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase file holds the ship gate, so work started before the Read runs outside it. Exit: `phase: done` (terminal) once the ship gate's answer has been carried out and the final report is printed.
 
 ---
 

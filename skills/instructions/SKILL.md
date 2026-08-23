@@ -99,7 +99,7 @@ External sends: not in `/geniro:instructions` ACI ever.
 | CLAUDE.md (not a memory layer) | not read | not written | That's `/geniro:setup`'s domain |
 | L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/geniro:instructions`'s entire surface |
 
-**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.
+**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.
 
 ## Termination case → state mapping
 

@@ -6,7 +6,7 @@ Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phas
 
 - Phase 4 — Implement (delegated)
 - Phase 5 — Self-review (fresh subagent)
-- Phase 6 — Report, learn & complete
+- Phase 6 — Report, learn & complete (Definition of done · Summary · verification proposal · learnings · cleanup · ship)
 - Description-format validator (Phase 4 Step 3 extension)
 
 ---
@@ -179,6 +179,28 @@ If no pre-existing bugs were found, skip this step.
 ---
 
 ## PHASE 6: REPORT, LEARN & COMPLETE
+
+### Step 0: Walk the Definition of done
+
+These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
+
+- [ ] The workspace step settled before Phase 1 spawned anything, and its pick is recorded in the state file's `branch:` / `worktree:`
+- [ ] Every SKILL.md this run changed or created was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
+
+#### improve-existing-skill mode
+- [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
+- [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
+- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md, including the description-format sub-checks
+- [ ] A fresh agent reviewed the changes in Phase 5 and passed them, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
+- [ ] The state file is cleaned up, `tests/run-all.sh` passed, and commit-and-push was offered to the user rather than performed unasked
+
+#### create-skill mode
+- [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
+- [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
+- [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
+- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the description-format sub-checks
+- [ ] A fresh review agent applied the Phase C create-skill checklist and its blockers are fixed
+- [ ] Commit-and-push was offered to the user rather than performed unasked
 
 ### Step 1: Summary
 

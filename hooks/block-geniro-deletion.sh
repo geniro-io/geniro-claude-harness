@@ -69,7 +69,10 @@ if ! command -v jq >/dev/null 2>&1; then
   # case before failing open. Coarse by design (it also sees the token inside a
   # quoted string) — accepted for a rarely-hit degraded path.
   RAW=$(cat)
-  if printf '%s' "$RAW" | grep -qE 'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+[^|;&]*\.geniro'; then
+  # -i: case-insensitive. macOS PATH lookup resolves `RM` exactly like `rm`
+  # (2026-08-23 audit T0-3), and `.geniro`/`.GENIRO` are the same inode on the
+  # filesystem this coarse scan defends (T0-2) — fold both halves of the match.
+  if grep -qiE 'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+[^|;&]*\.geniro' <<< "$RAW"; then
     echo "Geniro safety blocked [jqless-fallback]: a recursive rm touching .geniro/ was seen and jq is unavailable, so only a coarse raw-text check ran. Install jq to restore full command parsing." >&2
     exit 2
   fi
@@ -87,7 +90,8 @@ if [ -z "$COMMAND" ]; then
   # pass: run the same coarse fail-closed raw-text scan the jq-absent branch
   # above uses, so a recursive .geniro/ delete still blocks even when parsing
   # broke.
-  if printf '%s' "$INPUT" | grep -qE 'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+[^|;&]*\.geniro'; then
+  # -i: same case-fold as the jq-absent branch above (T0-2/T0-3).
+  if grep -qiE 'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+[^|;&]*\.geniro' <<< "$INPUT"; then
     echo "Geniro safety blocked [jqless-fallback]: a recursive rm touching .geniro/ was seen but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
     exit 2
   fi
@@ -317,7 +321,7 @@ _geniro_extract_inner_payloads() {
   # hand-listed set of separators: `(python3 …)` in a subshell and
   # `out=$(python3 …)` in a command substitution disabled this arm and BOTH
   # interpreter families below while the class enumerated `[|;&[:space:]]|/`.
-  if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+  if grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)' <<< "$cmd"; then
     # A dot is allowed before the op name because that is how the ops are normally
     # reached (`require('child_process').execSync(…)`); the cost is that a JS
     # `re.exec("s")` also yields its argument, which re-scans as an inert word.
@@ -379,7 +383,7 @@ _geniro_extract_inner_payloads() {
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
     # span is ordinary shell command substitution, already visible to the
     # guards as syntax, and re-extracting it would only add noise.
-    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)'; then
+    if grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)' <<< "$cmd"; then
       while IFS= read -r _m; do
         [ -z "$_m" ] && continue
         _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
@@ -416,7 +420,7 @@ _geniro_wv_resolve() {
     # binding taints the whole variable: every OTHER literal binding is
     # equally untrustworthy as "the" answer once even one call site could have
     # run with an unevaluable value instead.
-    if printf '%s' "$vals" | grep -qE '[$`]'; then
+    if grep -qE '[$`]' <<< "$vals"; then
       return 1
     fi
     new_candidates=""
@@ -448,7 +452,16 @@ _geniro_interp_delete_targets() {
   local cmd="${1:-}"
   [ -z "$cmd" ] && return 0
   # Same non-word left boundary as the write roster — see the note there.
-  if ! printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+  # Here-string + explicit rc capture for the same pipefail/SIGPIPE reason as
+  # the write-side interpreter-presence gate in lib/write-vectors.sh: under
+  # `pipefail`, `printf | grep -q` dies on SIGPIPE when it MATCHES early,
+  # reporting 141 — and on this negated gate `!` turns that into true, silently
+  # returning "no interpreter here". Only a CONFIRMED non-match (rc 1) takes
+  # the early return.
+  local _wv_rc
+  grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)' <<< "$cmd"
+  _wv_rc=$?
+  if [ "$_wv_rc" = "1" ]; then
     return 0
   fi
 
@@ -484,7 +497,7 @@ _geniro_interp_delete_targets() {
     } 2>/dev/null || true
   )"
 
-  if printf '%s' "$cmd" | grep -qE "${_ops}\([[:space:]]*${_nonlit}"; then
+  if grep -qE "${_ops}\([[:space:]]*${_nonlit}" <<< "$cmd"; then
     unresolved=1
   fi
 
@@ -807,8 +820,16 @@ block() {
 # the same reason (a missing lib/ must never make either guard fail open).
 # tests/hooks/path-normalize-matrix.sh feeds both guards every spelling above
 # and asserts identical exit codes — a one-sided edit fails it.
+# Case-folded FIRST, before any structural trimming: `rm -rf .GENIRO` and
+# `rm -rf .Geniro/instructions` name the SAME inode as their lowercase
+# spelling on a case-insensitive filesystem (the default on macOS), and every
+# segment/prefix check below is a literal-lowercase comparison — so an
+# uppercase spelling walked straight past the whole-tree and subdir gates
+# (2026-08-23 audit T0-2). Folding here, once, means every caller inherits
+# case-insensitivity for free instead of each needing its own `tr` pass.
 _geniro_normalize_path() {
   local p="${1:-}"
+  p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
   while [ "${p#./}" != "$p" ]; do p="${p#./}"; done
   # Collapse `//` and `/./` with prefix/suffix cuts, looped to a fixed point —
   # NOT ${p//pat/repl}: bash 3.2 (macOS /bin/bash) keeps the backslash of an
@@ -1034,11 +1055,18 @@ check_delete_arg_cd() {
     -*|/*|'~'*|'$'*) return 0 ;;
     "$cmdword"|*/"$cmdword") return 0 ;;
   esac
-  case "/$a" in */.geniro/*|*/.geniro) return 0 ;; esac
+  # Case-fold this shortcut's own probe: `$raw` was already checked case-
+  # insensitively via check_delete_arg above, so a miss here only skips the
+  # CD-PREFIXED re-check below (still safe either way) — but folding it keeps
+  # this file free of any bare-lowercase `.geniro` matcher for the case-fold
+  # lint to reason about uniformly.
+  case "/$(printf '%s' "$a" | tr '[:upper:]' '[:lower:]')" in */.geniro/*|*/.geniro) return 0 ;; esac
   check_delete_arg "${CD_PREFIX}/$a" "$recursive"
 }
 
-RM_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])rm[[:space:]]+[^|;&]*' || true)
+# -i on the command word: macOS PATH lookup resolves `RM` exactly like `rm`
+# (2026-08-23 audit T0-3) — `command -v RM` finds the same binary.
+RM_SPANS=$(printf '%s' "$PADDED" | grep -oiE '(^|[\\|;&(/[:space:]])rm[[:space:]]+[^|;&]*' || true)
 while IFS= read -r RM_SPAN; do
   [ -z "$RM_SPAN" ] && continue
   # Recursion gate. A recursive rm (-r/-R in any flag combination, or
@@ -1050,7 +1078,7 @@ while IFS= read -r RM_SPAN; do
   # loop evaluates ONLY its glob args (it skips non-glob args), keeping
   # single-file deletes allowed.
   recursive=0
-  if printf '%s' " $RM_SPAN " | grep -qE '[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]|[[:space:]]--recursive[[:space:]]'; then
+  if grep -qE '[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]|[[:space:]]--recursive[[:space:]]' <<< " $RM_SPAN "; then
     recursive=1
   fi
 
@@ -1061,7 +1089,7 @@ while IFS= read -r RM_SPAN; do
   #    the terminator class match at end-of-span; ) is in the class so
   #    `$(rm -rf .geniro)` terminates a match.
   if [ "$recursive" -eq 1 ] && ! is_allowed "rm-geniro-tree"; then
-    if printf '%s' "$RM_SPAN " | grep -qE '(/|[[:space:]"'"'"'])\.geniro/?[[:space:]"'"'"');|&]'; then
+    if grep -qiE '(/|[[:space:]"'"'"'])\.geniro/?[[:space:]"'"'"');|&]' <<< "$RM_SPAN "; then
       block "rm-geniro-tree" "rm -rf .geniro/ would wipe ALL plugin runtime + user-authored content (instructions, actions, workflow, FEATURES.md, learnings, planning artifacts). Use \`rm -f <single-file>\` for individual deletes."
     fi
   fi
@@ -1089,7 +1117,8 @@ done <<< "$RM_SPANS"
 #     files new content in is not a loss. The last operand is the destination;
 #     every earlier non-flag operand is a source and runs the same depth rules as
 #     an rm operand, so a 3+-segment task dir keeps its allowance.
-MV_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])mv[[:space:]]+[^|;&]*' || true)
+# -i: same command-word case-fold as RM_SPANS above (T0-3).
+MV_SPANS=$(printf '%s' "$PADDED" | grep -oiE '(^|[\\|;&(/[:space:]])mv[[:space:]]+[^|;&]*' || true)
 while IFS= read -r MV_SPAN; do
   [ -z "$MV_SPAN" ] && continue
   mv_operands=""
@@ -1120,7 +1149,8 @@ done <<< "$MV_SPANS"
 #     runs the depth rules at recursive=1: a bare `rmdir .geniro` or
 #     `rmdir .geniro/instructions` deletes the directory node itself exactly as
 #     `rm -rf` would, so the same whole-tree / subdir gates apply.
-RMDIR_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])rmdir[[:space:]]+[^|;&]*' || true)
+# -i: same command-word case-fold as RM_SPANS above (T0-3).
+RMDIR_SPANS=$(printf '%s' "$PADDED" | grep -oiE '(^|[\\|;&(/[:space:]])rmdir[[:space:]]+[^|;&]*' || true)
 while IFS= read -r RMDIR_SPAN; do
   [ -z "$RMDIR_SPAN" ] && continue
   set -f
@@ -1149,7 +1179,7 @@ if [ -n "$_id_targets" ] || [ "$_id_unresolved" = "1" ]; then
   # recursive too — otherwise the non-recursive path skips every non-glob arg
   # and `shutil.move('.geniro', …)` walks straight through.
   _id_recursive=0
-  if printf '%s' "$COMMAND" | grep -qE 'rmtree|rm_rf|rm_r\(|removedirs|recursive|shutil\.move|os\.rename|os\.replace|File\.rename|FileUtils\.(mv|move)|Deno\.remove(Sync)?|(rm|rmdir|rename)(Sync)?\('; then
+  if grep -qE 'rmtree|rm_rf|rm_r\(|removedirs|recursive|shutil\.move|os\.rename|os\.replace|File\.rename|FileUtils\.(mv|move)|Deno\.remove(Sync)?|(rm|rmdir|rename)(Sync)?\(' <<< "$COMMAND"; then
     _id_recursive=1
   fi
   while IFS= read -r _id_tok; do
@@ -1163,7 +1193,7 @@ if [ -n "$_id_targets" ] || [ "$_id_unresolved" = "1" ]; then
     while IFS= read -r _id_tok; do
       [ -z "$_id_tok" ] && continue
       check_delete_arg "$_id_tok" "$_id_recursive"
-    done <<< "$(printf '%s' "$COMMAND" | grep -oE "[^[:space:]\"'\`=(),;|&<>{}]+" 2>/dev/null | grep -E '(^|/)\.geniro(/|$)' 2>/dev/null || true)"
+    done <<< "$(printf '%s' "$COMMAND" | grep -oE "[^[:space:]\"'\`=(),;|&<>{}]+" 2>/dev/null | grep -iE '(^|/)\.geniro(/|$)' 2>/dev/null || true)"
   fi
 fi
 
@@ -1175,7 +1205,13 @@ fi
 # case/glob engine — the SAME engine a real shell filename expansion would
 # use — decides both, so no separate fnmatch reimplementation is needed.
 find_glob_covers_geniro() {
-  local pattern="$1"
+  local pattern
+  # Case-fold before the bash case/glob match below, which is case-SENSITIVE by
+  # default — `-name .GENIRO*` would otherwise not read as covering `.geniro`
+  # (2026-08-23 audit T0-2/T0-3 class). Lowering the CANDIDATE pattern rather
+  # than the three fixed probes below is the conservative direction: it can
+  # only make this return true (block) more often, never less.
+  pattern="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
   case ".geniro" in $pattern) return 0 ;; esac
   case "./.geniro" in $pattern) return 0 ;; esac
   case "a/.geniro/b" in $pattern) return 0 ;; esac
@@ -1189,7 +1225,11 @@ find_glob_covers_geniro() {
 # glob argument are already stripped by the JOINED pipeline's unquote pass
 # before $PADDED is built, so a token here is bare either way.
 find_span_targets_geniro() {
-  local span="$1" tok take=0 pat
+  local span tok take=0 pat
+  # Case-fold before the literal *.geniro* probe (T0-2): `find .GENIRO -delete`
+  # names the same inode as the lowercase spelling. The rest of this function
+  # tokenizes on whitespace only, so lowering the whole span costs nothing.
+  span="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
   case "$span" in *.geniro*) return 0 ;; esac
   set -f
   # shellcheck disable=SC2086
@@ -1210,18 +1250,19 @@ find_span_targets_geniro() {
 # 3. find ... .geniro ... -delete / -exec rm / piped to xargs rm — bulk deletion
 #    that walks the tree. All three spellings produce the same loss.
 if ! is_allowed "find-geniro-delete"; then
-  FIND_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])find[[:space:]]+[^|;&]*' || true)
+  # -i: same command-word case-fold as RM_SPANS above (T0-3).
+  FIND_SPANS=$(printf '%s' "$PADDED" | grep -oiE '(^|[\\|;&(/[:space:]])find[[:space:]]+[^|;&]*' || true)
   while IFS= read -r FIND_SPAN; do
     [ -z "$FIND_SPAN" ] && continue
     find_span_targets_geniro "$FIND_SPAN" || continue
-    if echo "$FIND_SPAN" | grep -qE -- '-delete'; then
+    if grep -qE -- '-delete' <<< "$FIND_SPAN"; then
       block "find-geniro-delete" "find ... -delete on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path, or pathlib.Path.unlink in Python) so each deletion is auditable."
     fi
     # The executed command is any of the loss family, not `rm` alone: `-exec mv` is
     # the displacement this guard's mv span already blocks directly,
     # unlink/shred/truncate destroy each matched file exactly as `rm` does, and
     # `rmdir` removes each matched (empty) directory node the same way.
-    if echo "$FIND_SPAN" | grep -qE -- '-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv|rmdir)([[:space:]]|$)'; then
+    if grep -qE -- '-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv|rmdir)([[:space:]]|$)' <<< "$FIND_SPAN"; then
       block "find-geniro-delete" "find ... -exec rm/mv/unlink/shred/truncate/rmdir on .geniro/ wipes or displaces user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
     fi
   done <<< "$FIND_SPANS"
@@ -1229,7 +1270,9 @@ if ! is_allowed "find-geniro-delete"; then
   # one of the producers (`echo .geniro | xargs rm -rf`, `ls .geniro/x | xargs rm`
   # lose the same content), so the arm matches any pipeline whose left side names
   # a .geniro path.
-  if echo "$PADDED" | grep -qE '\.geniro[^&;]*\|[[:space:]]*xargs([[:space:]]+(-[^[:space:]]+|\{\}))*[[:space:]]+([^[:space:]]*/)?rm([[:space:]]|$)'; then
+  # -i: folds both the `.geniro`/`.GENIRO` path and the `rm`/`RM` command word
+  # (T0-2/T0-3).
+  if grep -qiE '\.geniro[^&;]*\|[[:space:]]*xargs([[:space:]]+(-[^[:space:]]+|\{\}))*[[:space:]]+([^[:space:]]*/)?rm([[:space:]]|$)' <<< "$PADDED"; then
     block "find-geniro-delete" "piping a .geniro/ path into \`xargs rm\` wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
   fi
 fi
@@ -1238,10 +1281,11 @@ fi
 #     over the destination and removes everything the source lacks, the same loss
 #     as deleting the directory. The destination runs the same depth rules as an
 #     rm operand, so a deep task dir keeps its allowance.
-RSYNC_SPANS=$(printf '%s' "$PADDED" | grep -oE '(^|[\\|;&(/[:space:]])rsync[[:space:]]+[^|;&]*' || true)
+# -i: same command-word case-fold as RM_SPANS above (T0-3).
+RSYNC_SPANS=$(printf '%s' "$PADDED" | grep -oiE '(^|[\\|;&(/[:space:]])rsync[[:space:]]+[^|;&]*' || true)
 while IFS= read -r RSYNC_SPAN; do
   [ -z "$RSYNC_SPAN" ] && continue
-  printf '%s' "$RSYNC_SPAN" | grep -qE '[[:space:]]--delete([-=][a-z]+)?([[:space:]]|$)' || continue
+  grep -qE '[[:space:]]--delete([-=][a-z]+)?([[:space:]]|$)' <<< "$RSYNC_SPAN" || continue
   rsync_dest=""
   set -f
   # shellcheck disable=SC2086
@@ -1274,7 +1318,7 @@ done <<< "$RSYNC_SPANS"
 # command substitution cannot be inspected, and this is a data-loss guard: the
 # fail-closed direction is the one that keeps state.
 if ! is_allowed "worktree-remove-with-state"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+worktree[[:space:]]+remove[[:space:]]'; then
+  if grep -qE 'git[[:space:]]+worktree[[:space:]]+remove[[:space:]]' <<< "$PADDED"; then
     _wt_span=$(printf '%s' "$PADDED" | grep -oE 'git[[:space:]]+worktree[[:space:]]+remove[^;&|]*' | head -1 || true)
     _wt_target=""
     set -f
@@ -1372,11 +1416,15 @@ if ! is_allowed "git-add-force-geniro"; then
   # otherwise a `.geniro` mention ANYWHERE else in the command (an unrelated
   # commit message, a later command) satisfies the path probe on its own, and
   # force-adding a path that has nothing to do with .geniro/ blocks.
-  ADD_SPANS=$(printf '%s' "$PADDED" | grep -oE 'git[[:space:]]+(add|update-index)[[:space:]]+[^|;&]*' || true)
+  # -i on the command word: same fold as the git guard's `git`/`Git`/`GIT`
+  # match (T0-4). Flags stay case-sensitive below — `--FORCE` is not a real
+  # git flag, so folding it would only invite false positives.
+  ADD_SPANS=$(printf '%s' "$PADDED" | grep -oiE 'git[[:space:]]+(add|update-index)[[:space:]]+[^|;&]*' || true)
   while IFS= read -r ADD_SPAN; do
     [ -z "$ADD_SPAN" ] && continue
-    if echo "$ADD_SPAN" | grep -qE '(^|[[:space:]])(-[a-zA-Z]*f[a-zA-Z]*|--force)([[:space:]]|$)'; then
-      if echo "$ADD_SPAN" | grep -qE '(/|[[:space:]"'"'"'])\.geniro(/|[[:space:]"'"'"';|&])'; then
+    if grep -qE '(^|[[:space:]])(-[a-zA-Z]*f[a-zA-Z]*|--force)([[:space:]]|$)' <<< "$ADD_SPAN"; then
+      # -i: fold `.geniro`/`.GENIRO` (T0-2).
+      if grep -qiE '(/|[[:space:]"'"'"'])\.geniro(/|[[:space:]"'"'"';|&])' <<< "$ADD_SPAN"; then
         block "git-add-force-geniro" "git add -f (or the git update-index --add --force plumbing equivalent) on .geniro/ paths makes ignored files appear in the IDE's Source Control panel — one click of 'Discard All Changes' then deletes them. To track .geniro/ subdirs, negate them in .gitignore instead (e.g. \`!.geniro/actions/\` and \`!.geniro/actions/**\`)."
       fi
     fi

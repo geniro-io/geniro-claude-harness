@@ -61,22 +61,9 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 
 **Optional:** any skill with an AUQ that has a clear "yes/no" or "recommended/alternative" semantic can invoke this helper. Skills with only-informational AUQs (e.g., section-by-section confirm) should not invoke — no rejection signal there.
 
-## Read-side protocol — designed, not yet built
+## Read-side status
 
-**No skill performs this read today.** `/geniro:plan` and `/geniro:implement` name it as a future extension of their generic Phase 1 `query_learnings` call, but neither runs the filtered query below — `approach_choice`, `ship_mode`, and `library_adoption` entries currently accumulate with no reader; only `rule_candidate` (read by `/geniro:reflect`) has an implemented consumer. Treat the steps below as the contract a future consumer implements against, not as active behavior — building the readers is a feature, tracked separately from this write-side helper.
-
-A consumer that reads these L2 entries (to surface "user previously rejected X" hints) would:
-
-1. Read these entries at Phase 1 of the relevant skill — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a `## Memory Backend` block query the declared read tool for `user_rejected_suggestion` / `auq-rejection` / this scope (the local file is empty under `replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --type user_rejected_suggestion --tag auq-rejection [--tag <category>] --scope <current>`.
-2. Surface result count to user in pre-AUQ display:
-   ```
-   User previously rejected <suggestion> in <scope> (<relative-time>).
-   ```
-3. Use surfaced info to re-rank or omit the rejected option from current AUQ — but not silently skip the AUQ entirely. Pattern is informational, not gating.
-
-Candidate read sites, none wired today:
-- /geniro:plan Phase 4 (before showing approach AUQ)
-- /geniro:implement Phase 1 (during ship-mode prep)
+`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `approach_choice`, `ship_mode`, and `library_adoption` entries accumulate with no reader.
 
 ## Example flow
 
@@ -100,13 +87,4 @@ User picks: Postgres
      {type: user_rejected_suggestion,
       ext: {suggestion: "Redis", auq_category: approach_choice,
             rejection_signal: picked_non_recommended}}
-
-Two weeks later:
-User: /geniro:plan implement caching layer
-
-/geniro:plan Phase 1 query_learnings --type user_rejected_suggestion --scope global
--> surfaces: "User previously rejected Redis (approach_choice, 2 weeks ago)"
-
-/geniro:plan Phase 4: Skip Redis from approach list, or surface with notice
-  "(previously rejected by user)".
 ```

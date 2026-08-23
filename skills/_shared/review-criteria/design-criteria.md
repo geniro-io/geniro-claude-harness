@@ -18,11 +18,6 @@ Visual and interaction quality for UI changes: tokens, spacing, typography, stat
 - Hardcoded Tailwind color utilities (`text-white`, `bg-black`) or arbitrary classes (`text-[#abc]`) when a token system exists
 - Inline `style={{ color: '#fff' }}` for static colors
 
-**How to detect:**
-```bash
-grep -nE "#[0-9a-fA-F]{3,8}\b|rgb\(|rgba\(|hsl\(" file.tsx
-grep -nE "(text|bg|border|ring|fill|stroke)-\[#" file.tsx
-```
 **Red flag:** any raw color literal in a project that ships a token system (check `tailwind.config.*`, `theme.ts`, CSS variable files).
 
 ### 2. Spacing scale conformance
@@ -30,10 +25,6 @@ grep -nE "(text|bg|border|ring|fill|stroke)-\[#" file.tsx
 - Arbitrary Tailwind values like `p-[13px]`, `mt-[27px]`, `gap-[6px]`
 - Inline `style={{ padding: '13px' }}` for static spacing
 
-**How to detect:**
-```bash
-grep -nE "\b(p|m|gap|space|inset|top|right|bottom|left)[trblxy]?-\[" file.tsx | grep -v "var(--"
-```
 **Red flag:** any arbitrary spacing value in a project with a defined scale.
 
 ### 3. Typography conformance
@@ -41,12 +32,6 @@ grep -nE "\b(p|m|gap|space|inset|top|right|bottom|left)[trblxy]?-\[" file.tsx | 
 - Font sizes/weights outside the project's type scale
 - Inline `style={{ fontSize:... }}` or arbitrary `text-[15px]` / `font-[Inter]` classes
 
-**How to detect:**
-```bash
-# An arbitrary-value bracket holding a design token is the CORRECT pattern — without the
-# var(--…) exclusion every tokenized line in the file reports as a violation.
-grep -nE "font-\[|text-\[|fontFamily|@font-face|@import.*fonts" file.tsx | grep -v "var(--"
-```
 **Red flag:** typographic values that bypass the scale on a project with one.
 
 ### 4. Component variant invention
@@ -54,11 +39,6 @@ grep -nE "font-\[|text-\[|fontFamily|@font-face|@import.*fonts" file.tsx | grep 
 - Custom-built equivalents of components already in the library (custom Modal when a Dialog primitive exists)
 - New component file whose responsibility overlaps an existing primitive — "existing" includes peer PRs surfaced via the `PEER-PR CONTEXT:` slot in this prompt (when non-`none`); a valid finding shape is "PR #N (peer) introduces `<Component>` at `<file>` with overlapping responsibility — coordinate before shipping both"
 
-**How to detect:**
-```bash
-ls src/components/ui/ src/components/primitives/ 2>/dev/null
-grep -rn "export.*\(Button\|Modal\|Dialog\|Input\|Select\|Card\)" src/components/
-```
 **Red flag:** new file shipping UI the design system already provides.
 
 ### 5. State completeness
@@ -66,11 +46,6 @@ grep -rn "export.*\(Button\|Modal\|Dialog\|Input\|Select\|Card\)" src/components
 - Async or data surfaces missing loading / empty / error branches
 - Buttons with no `:disabled` styling, links with no `:hover` feedback
 
-**How to detect:**
-```bash
-grep -nE "hover:|focus:|focus-visible:|active:|disabled:" file.tsx
-grep -nE "(isLoading|loading|isEmpty|error)" file.tsx
-```
 **Red flag:** any interactive element silently missing one of the five base states, or any async surface without loading/empty/error.
 
 ### 6. Responsive coverage
@@ -78,11 +53,6 @@ grep -nE "(isLoading|loading|isEmpty|error)" file.tsx
 - Horizontal overflow at 375px (fixed widths or min-widths larger than viewport)
 - Touch targets smaller than ~44x44 on mobile
 
-**How to detect:**
-```bash
-grep -nE "\b(sm|md|lg|xl|2xl):" file.tsx
-grep -nE "w-\[?[0-9]{3,}|min-w-\[?[0-9]{3,}" file.tsx
-```
 **Red flag:** a flex/grid layout with multiple columns/rows and zero responsive prefixes.
 
 ### 7. WCAG AA contrast
@@ -99,12 +69,6 @@ grep -nE "w-\[?[0-9]{3,}|min-w-\[?[0-9]{3,}" file.tsx
 - `focus:outline-none` without a `focus-visible:ring-*` replacement
 - Icon-only buttons without `aria-label`; modal/overlay without ESC handler or focus trap
 
-**How to detect:**
-```bash
-grep -nE "<div[^>]*onClick" file.tsx
-grep -nE "focus:outline-none|outline-none" file.tsx
-grep -nE "<button[^>]*>\s*<(svg|Icon)" file.tsx
-```
 **Red flag:** focus-visible removed without replacement, or clickable `div`/`span` with no role or keyboard handler.
 
 ### 9. Exemplar drift
@@ -112,13 +76,6 @@ grep -nE "<button[^>]*>\s*<(svg|Icon)" file.tsx
 - Different border-radius family, shadow elevation, or spacing rhythm than neighboring components
 - Different container pattern (card vs bare panel) at the same hierarchy level
 
-**How to detect:**
-```bash
-# Compare the token SETS, not the lines: a line-numbered diff reports every line as changed
-# because the numbers differ, and shared temp-file names collide across parallel reviewers.
-diff <(grep -ohE "rounded-[a-z0-9-]*|shadow-[a-z0-9-]*|border-[a-z0-9-]*" exemplar.tsx | sort -u) \
-     <(grep -ohE "rounded-[a-z0-9-]*|shadow-[a-z0-9-]*|border-[a-z0-9-]*" new_file.tsx | sort -u)
-```
 **Red flag:** a button, card, or surface that looks nothing like its siblings.
 
 ### 10. Hierarchy and information density
@@ -137,6 +94,8 @@ diff <(grep -ohE "rounded-[a-z0-9-]*|shadow-[a-z0-9-]*|border-[a-z0-9-]*" exempl
 5. **Dark mode via CSS variables** — when files use semantic tokens (`text-foreground`, `bg-card`), contrast applies to the resolved value, not the literal class name.
 6. **Inline styles for dynamic values** — `style={{ width: progress + '%' }}` is fine; only flag inline styles for static literals.
 7. **Single-state elements** — static badges and labels don't need hover/focus/disabled; state completeness applies only to truly interactive surfaces.
+8. **An arbitrary-value bracket holding a `var(--…)` design token is the correct pattern, not a violation** — excluding it from a token/spacing/typography check is required; without the exclusion every tokenized line in the file reports as a false positive.
+9. **Exemplar-drift comparison is over token SETS, not line-numbered diffs** — a line-numbered diff reports every line as changed because the line numbers differ, and shared temp-file names collide across parallel reviewers; compare the sorted set of design tokens (radius / shadow / border classes) instead.
 
 ## Stack-agnostic patterns
 

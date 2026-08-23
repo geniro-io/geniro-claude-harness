@@ -258,6 +258,33 @@ while IFS= read -r guard; do
   done
 done <<< "$BASH_GUARDS"
 
+# --- axis 7: oversize payload (2026-08-23 audit T0-5/T0-6/T0-7) -------------
+# Under `pipefail`, `echo "$X" | grep -q PATTERN` reports 141 — not 1 — when
+# grep MATCHES early: grep exits at the first match, the producer dies on
+# SIGPIPE, and the pipeline's own exit status becomes 141. An `if … | grep
+# -q…; then` reads any nonzero rc as "no match", so a match that grep finds
+# on LINE 1 of oversized input still gets read as a miss once the input
+# crosses the pipe buffer (64KB on Linux, smaller on some BSDs) — grep is
+# done reading and closes its end before the producer finishes writing the
+# padding, and that early close is what raises SIGPIPE. A small payload never
+# crosses that boundary, so the same command blocked at a few dozen bytes and
+# passed once padded — exactly what was measured before the fix (force-push
+# alone → rc 2; the identical force-push as line 1 of a 114KB payload → rc 0).
+# The fix (a `<<<` here-string instead of a pipe) removes the pipe entirely,
+# so there is nothing for grep to close early and nothing to SIGPIPE — this
+# axis is what proves that, rather than trusting the small-payload BASES
+# checks above (which stay under the pipe buffer and would pass either way).
+PAD_100K="$(head -c 100000 /dev/zero | tr '\0' 'x')"
+
+while IFS='|' read -r hook id danger _benign; do
+  [ -z "$hook" ] && continue
+  oversized="${danger}
+# padding below exists only to push this payload past the pipe buffer a
+# SIGPIPE'd grep would close early on — ${PAD_100K}"
+  check "$hook [$id/oversize-payload] dangerous still blocks past the pipe buffer" "$hook" \
+    "$oversized" 2
+done <<< "$BASES"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

@@ -244,7 +244,7 @@ _geniro_extract_inner_payloads() {
   # hand-listed set of separators: `(python3 …)` in a subshell and
   # `out=$(python3 …)` in a command substitution disabled this arm and BOTH
   # interpreter families below while the class enumerated `[|;&[:space:]]|/`.
-  if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+  if grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)' <<< "$cmd"; then
     # A dot is allowed before the op name because that is how the ops are normally
     # reached (`require('child_process').execSync(…)`); the cost is that a JS
     # `re.exec("s")` also yields its argument, which re-scans as an inert word.
@@ -306,7 +306,7 @@ _geniro_extract_inner_payloads() {
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
     # span is ordinary shell command substitution, already visible to the
     # guards as syntax, and re-extracting it would only add noise.
-    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)'; then
+    if grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)' <<< "$cmd"; then
       while IFS= read -r _m; do
         [ -z "$_m" ] && continue
         _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
@@ -512,7 +512,7 @@ _geniro_wv_resolve() {
     # binding taints the whole variable: every OTHER literal binding is
     # equally untrustworthy as "the" answer once even one call site could have
     # run with an unevaluable value instead.
-    if printf '%s' "$vals" | grep -qE '[$`]'; then
+    if grep -qE '[$`]' <<< "$vals"; then
       return 1
     fi
     new_candidates=""
@@ -586,7 +586,7 @@ _geniro_wv_resolve_pathlib_var() {
   # to any binding: a literal binding earlier in the command proves nothing
   # about what <ident> holds by the time it reaches a write call.
   local _augop='(\*\*|\/\/|>>|<<|\/|\+|-|\*|%|&|\||\^)='
-  if printf '%s' "$cmd" | grep -qE "${_bound}${ident}[[:space:]]*${_augop}"; then
+  if grep -qE "${_bound}${ident}[[:space:]]*${_augop}" <<< "$cmd"; then
     return 1
   fi
   local rhs_list rhs lit lits="" nonlit=0 found=0
@@ -611,11 +611,11 @@ _geniro_wv_resolve_pathlib_var() {
     found=1
     rhs=$(printf '%s' "$rhs" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//')
     lit=""
-    if printf '%s' "$rhs" | grep -qE "^(pathlib\.)?Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)${_tail}\$"; then
+    if grep -qE "^(pathlib\.)?Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)${_tail}\$" <<< "$rhs"; then
       lit=$(printf '%s' "$rhs" \
         | grep -oE "^(pathlib\.)?Path\([[:space:]]*${_q}[^\\\\\"']+${_q}" \
         | sed -E "s/^(pathlib\.)?Path\([[:space:]]*\\\\?[\"']//; s/\\\\?[\"']\$//")
-    elif printf '%s' "$rhs" | grep -qE "^${_q}[^\\\\\"']+${_q}\$"; then
+    elif grep -qE "^${_q}[^\\\\\"']+${_q}\$" <<< "$rhs"; then
       # Bare string binding: `p = "<lit>"` with no Path() wrapper — still a
       # literal-valued variable a later `.write_text`/`.open` call can carry.
       lit=$(printf '%s' "$rhs" \
@@ -657,7 +657,18 @@ _geniro_interp_write_targets() {
   # whole channel. The left boundary is the same non-word class the shell matcher
   # uses: enumerating separators omitted `(` and backtick, so a subshell or a
   # command substitution around the interpreter disabled this whole family.
-  if ! printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript|awk|gawk|mawk)([[:space:]]|$)'; then
+  # Here-string, not a pipe: under `pipefail` a `printf | grep -q` that MATCHES
+  # early makes the producer die on SIGPIPE, so the pipeline itself reports 141
+  # — and on this NEGATED gate, `!` turns that 141 into true, silently returning
+  # "no interpreter here" for a command that plainly has one. The rc is captured
+  # explicitly rather than tested with `!` for the same reason: only a CONFIRMED
+  # non-match (rc 1) takes the early return, so any other rc — matched (0) or
+  # unexpected — falls through to the interpreter-specific scan below instead of
+  # reading as "no interpreter".
+  local _wv_rc
+  grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript|awk|gawk|mawk)([[:space:]]|$)' <<< "$cmd"
+  _wv_rc=$?
+  if [ "$_wv_rc" = "1" ]; then
     return 0
   fi
 
@@ -680,7 +691,7 @@ _geniro_interp_write_targets() {
   # past that guard just by being written in Python or Node.
   local _wops_second='(shutil\.copy[A-Za-z0-9_]*|shutil\.move|os\.rename|os\.replace|File\.rename|FileUtils\.(cp|mv|copy|move)|(copyFile|rename|cp)(Sync)?)'
   local unresolved=0 has_awk=0 lit resolved
-  if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(awk|gawk|mawk)([[:space:]]|$)'; then
+  if grep -qE '(^|[^[:alnum:]_])(awk|gawk|mawk)([[:space:]]|$)' <<< "$cmd"; then
     has_awk=1
   fi
 
@@ -758,11 +769,11 @@ _geniro_interp_write_targets() {
   # interpreter edits (perl -pi -e, ruby -i, perl -i.bak) whose target is the
   # file operand. The flag must end at a word or suffix boundary so an unrelated
   # long option (`ruby -version`) does not read as `-i`.
-  if printf '%s' "$cmd" | grep -qE "open\([[:space:]]*${_nonlit}[^)]*,[[:space:]]*${_q}[waxWAX>]|open\([^)]*mode[[:space:]]*=[[:space:]]*${_q}[wax]|(${_wops_first}|File\.open)\([[:space:]]*${_nonlit}"; then
+  if grep -qE "open\([[:space:]]*${_nonlit}[^)]*,[[:space:]]*${_q}[waxWAX>]|open\([^)]*mode[[:space:]]*=[[:space:]]*${_q}[wax]|(${_wops_first}|File\.open)\([[:space:]]*${_nonlit}" <<< "$cmd"; then
     unresolved=1
   fi
   # Copy/rename whose DESTINATION (second argument) is a variable or expression.
-  if printf '%s' "$cmd" | grep -qE "${_wops_second}\([^,)]*,[[:space:]]*${_nonlit}"; then
+  if grep -qE "${_wops_second}\([^,)]*,[[:space:]]*${_nonlit}" <<< "$cmd"; then
     unresolved=1
   fi
   # pathlib's write_text/write_bytes carry CONTENT, not a path — the target sits
@@ -779,8 +790,8 @@ _geniro_interp_write_targets() {
   # `p.open('w')` yield zero candidates AND no fallback, the silent-allow this
   # block exists to prevent.
   local _wv_wgate="(write_text|write_bytes|touch)\\(|\\.open\\([^)]*${_q}[waxWAX>]"
-  if printf '%s' "$cmd" | grep -qE "$_wv_wgate"; then
-    if ! printf '%s' "$cmd" | grep -qE "Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.(write_text|write_bytes|touch)|Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.open\([^)]*${_q}[waxWAX>]"; then
+  if grep -qE "$_wv_wgate" <<< "$cmd"; then
+    if ! grep -qE "Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.(write_text|write_bytes|touch)|Path\([[:space:]]*${_q}[^\\\\\"']+${_q}[[:space:]]*\)[[:space:]]*\.open\([^)]*${_q}[waxWAX>]" <<< "$cmd"; then
       local _wv_any_pvar=0 _wv_all_pvar_resolved=1 _wv_pvar3
       while IFS= read -r _wv_pvar3; do
         [ -z "$_wv_pvar3" ] && continue
@@ -795,7 +806,7 @@ _geniro_interp_write_targets() {
       fi
     fi
   fi
-  if printf '%s' "$cmd" | grep -qE '(^|[|;&[:space:]]|/)(perl|ruby)[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*-[a-zA-Z]*i([[:space:].]|$)'; then
+  if grep -qE '(^|[|;&[:space:]]|/)(perl|ruby)[[:space:]]+(-[a-zA-Z]*[[:space:]]+)*-[a-zA-Z]*i([[:space:].]|$)' <<< "$cmd"; then
     unresolved=1
   fi
 
@@ -807,7 +818,15 @@ _geniro_interp_delete_targets() {
   local cmd="${1:-}"
   [ -z "$cmd" ] && return 0
   # Same non-word left boundary as the write roster — see the note there.
-  if ! printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+  # Here-string + explicit rc capture for the same pipefail/SIGPIPE reason as
+  # _geniro_interp_write_targets: under `pipefail`, `printf | grep -q` dies on
+  # SIGPIPE when it MATCHES early, reporting 141 — and on this negated gate `!`
+  # turns that into true, silently returning "no interpreter here". Only a
+  # CONFIRMED non-match (rc 1) takes the early return.
+  local _wv_rc
+  grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)' <<< "$cmd"
+  _wv_rc=$?
+  if [ "$_wv_rc" = "1" ]; then
     return 0
   fi
 
@@ -843,7 +862,7 @@ _geniro_interp_delete_targets() {
     } 2>/dev/null || true
   )"
 
-  if printf '%s' "$cmd" | grep -qE "${_ops}\([[:space:]]*${_nonlit}"; then
+  if grep -qE "${_ops}\([[:space:]]*${_nonlit}" <<< "$cmd"; then
     unresolved=1
   fi
 

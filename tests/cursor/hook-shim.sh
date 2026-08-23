@@ -109,11 +109,12 @@ expect_verdict "shell write to tls.key -> deny" deny \
 expect_verdict "shell write to a normal file -> allow" allow \
   "$(shell_verdict file-protection.sh 'echo hello > notes.txt')"
 
-# enforce-state-helper no longer matches Bash — a shell-side state write is
-# out of its scope, so the shim has nothing to relay for it. The file-tool
-# side is covered by tests/hooks/enforce-state-helper.sh.
-expect_verdict "shell write to a state path -> allow (guard is file-tool only)" allow \
-  "$(shell_verdict enforce-state-helper.sh 'echo body > .geniro/planning/task/state.md')"
+# enforce-state-helper is no longer wired on beforeShellExecution at all (see
+# cursor/hooks.json) — the guard reads .tool_input.file_path, which a shell
+# payload never carries, so the entry only ever cost a shim + bash spawn per
+# command with nothing to show for it. It stays wired on preToolUse, where a
+# file_path is actually present; that side is covered by
+# tests/hooks/enforce-state-helper.sh.
 
 expect_verdict "shell-authored anti-pattern -> deny" deny \
   "$(shell_verdict security-pattern-check.sh "printf '$EVAL_SNIPPET' > app.js")"
@@ -357,6 +358,38 @@ if [ "$MISSING" -eq 0 ]; then
   pass "every script wired in cursor/hooks.json exists in hooks/"
 else
   fail "$MISSING wired script(s) missing from hooks/"
+fi
+
+# --- preToolUse matcher vocabulary is pinned to what the shim's alias map assumes ---
+#
+# Cursor's own hook runner picks entries by `matcher` BEFORE the shim ever
+# executes — the shim's Shell->Bash fold and its path/target_file/code_edit
+# alias map (claude-hook-shim.sh's preToolUse branch, ~line 146) both run
+# strictly after that selection, and neither one normalizes a *tool name*.
+# So cursor/hooks.json's preToolUse matcher string is the only place a Cursor
+# file-edit event has to spell its tool name the way the shim's alias logic
+# is written for (it special-cases MultiEdit's edits[] shape above, and its
+# comments name Write/Edit/MultiEdit/NotebookEdit as the tools in scope).
+# This test pins that vocabulary so the manifest and the shim's assumption
+# cannot drift apart silently: change one without the other and it fails.
+#
+# What it does NOT establish: whether Cursor's real preToolUse tool_name
+# values actually spell "Write" / "Edit" / "MultiEdit" / "NotebookEdit" this
+# way. That is still open — nothing in this repo drives a live Cursor
+# payload through the matcher — so a green result here pins internal
+# consistency, not a verified fact about Cursor's tool vocabulary. Confirming
+# that needs one real payload captured from a Cursor session.
+SHIM_ASSUMED_VOCAB="Edit MultiEdit NotebookEdit Write"
+MATCHERS="$(jq -r '.hooks.preToolUse[].matcher' "$REPO_ROOT/cursor/hooks.json" 2>/dev/null | sort -u)"
+if [ "$(printf '%s\n' "$MATCHERS" | wc -l | tr -d ' ')" = "1" ]; then
+  MANIFEST_VOCAB="$(printf '%s' "$MATCHERS" | tr '|' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
+  if [ "$MANIFEST_VOCAB" = "$SHIM_ASSUMED_VOCAB" ]; then
+    pass "preToolUse matcher vocabulary matches what the shim's alias map assumes ($MANIFEST_VOCAB)"
+  else
+    fail "preToolUse matcher vocabulary drifted: manifest has [$MANIFEST_VOCAB], shim alias map assumes [$SHIM_ASSUMED_VOCAB] -- update both together"
+  fi
+else
+  fail "preToolUse entries use inconsistent matcher strings: $(printf '%s' "$MATCHERS" | tr '\n' ';')"
 fi
 
 echo

@@ -32,15 +32,16 @@ state.md `phase:` enum transitions:
                                        │
                                        └── phase-1-escalated ──┬── investigate (supply-data loop-back)
                                                                ├── ship (abandon — partial findings; Phase 3 exit
-                                                               │         writes the terminal ship-summary-only)
+                                                               │         resolves to whichever terminal §3.2 picks)
                                                                └── aborted (terminal)
 
 investigate ── (§1.6 second refuted/clarified verifier round) ── phase-1-verification-stalled ──┬── investigate (try-different-hypothesis loop-back)
                                                                                                   ├── propose (proceed-with-unverified; no phase write)
                                                                                                   └── aborted (terminal)
 
-[entry] → adversarial-mode-detect ── adversarial-investigate ── adversarial-ship ──┬── done
-                                                                                   └── adversarial-aborted (terminal — zero red tests)
+[entry] → adversarial-mode-detect ── adversarial-investigate ──┬── (A3 skip condition) ── adversarial-aborted (terminal)
+                                                                └── adversarial-ship ──┬── done
+                                                                                       └── adversarial-aborted (terminal — zero red tests after F→P + flake check)
 ```
 
 Each escalation edge leaves the phase whose gate writes it: `phase-1-escalated` from `investigate` (the stall gate), `phase-1-verification-stalled` from `investigate` (the §1.6 verification-stalled gate, on a second consecutive refuted/clarified verifier round), `phase-2-escalated` from `propose` (the fix-loop gate).
@@ -102,7 +103,7 @@ Body sections (Scientific Mode):
 Body sections (Adversarial Mode):
 
 - `## Diff Scope` (range + file count + LOC)
-- `## Authored Tests` (table: # / Path / Targeted source / Category / Confidence / F→P status)
+- `## Authored Tests` — the column set canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`## Authored Tests` body table, shared with `/geniro:implement` Phase 3
 - `## Re-verification Results` (per authored test, written by A4 step 3: path / F→P + flake-check status / kept or discarded / discard reason if discarded)
 - `## Tool log`, `## Errors`, `## Termination reason`
 

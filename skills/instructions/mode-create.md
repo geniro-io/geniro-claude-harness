@@ -4,6 +4,8 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 
 ---
 
+For `review-extra`, follow the slug-bearing flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` instead of Steps 1-6 below — that flow writes the `review-extra/<slug>.md` path; running Steps 1-6 for a `review-extra` scope writes the wrong path and reports success before the redirect is ever reached.
+
 ### Step 1 — Check for existing file
 
 ```bash
@@ -48,5 +50,3 @@ Created `.geniro/instructions/<scope>.md`
 This file will be loaded by <affected skills list> at the start of each run.
 Edit via `/geniro:instructions edit <scope>`; lint via `/geniro:instructions validate`.
 ```
-
-For `review-extra`, follow the slug-bearing flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md`.

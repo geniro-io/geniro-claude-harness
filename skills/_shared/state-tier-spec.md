@@ -13,7 +13,7 @@ Helpers reference this spec:
 - No ad-hoc state files under `.geniro/state/` — free-form files bypass the validator, restore hook, and cleanup
 - Frontmatter contract — common-base + tier-specific required fields
 - T2 `open_questions` array schema — the handoff gate substrate
-- `authored_tests` array schema — the debug-handoff test record
+- `authored_tests` array schema — the debug-handoff test record; the `## Authored Tests` body table — the shared column set both `/geniro:debug` and `/geniro:implement` write to
 - Format rules — frontmatter fence + body conventions, incl. the `## Errors` unanswered-gate entry
 - Concrete examples — one worked frontmatter per tier/layout
 - Validation rules — what `validate_state_file` enforces
@@ -136,7 +136,7 @@ Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never 
 
 ### T1.5 optional `approvals` array
 
-Persisted AUQ outcomes for compaction-survival — written to T1.5 `state.md` files, and carried onto T2 handoffs by the producers that write one. Only **one-time** decisions (e.g., `$ARGUMENTS` disambiguation, ship-mode). Context-dependent decisions (escalation, retry choices) are NOT persisted.
+Persisted AUQ outcomes for compaction-survival — written to T1.5 `state.md` files, and carried onto T2 handoffs by the producers that write one. Every AUQ answered in the run gets an entry, including an escalation or retry gate that could in principle fire again (`round_n_escalation` in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`, `verification_stalled` in `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`): a resume that cannot tell a gate was already answered re-fires it and re-asks the user a question they already settled, which is the failure this field exists to prevent. What is NOT persisted is the reasoning behind a decision the orchestrator makes without asking — an in-flight escalation choice the run resolves itself, with no AUQ backing it.
 
 ```yaml
 approvals:
@@ -268,7 +268,7 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 
 - `spawn_dims_declared: [<dim-slug>, ...]` / `spawn_dims_count: <int>` — same two fields as the `/geniro:review` entry above, written at this skill's own Phase 3 Step 1 before its fixed-grid reviewer batch fires. Consumed by Phase 3 Step 2's Round-1 declared-vs-returned check.
 - `reviewed_file_set: [<path>, ...]` — frontmatter list of the CHANGED_FILES the Phase 3 fix loop's final round's reviewer-agents actually received, written at the loop's exit (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop") in the same `atomic_state_write` call as the `## Deferred Findings` body section. Ship's commit-time review-coverage guard (same file, §"Commit + Push + PR" Step 2) diffs live CHANGED_FILES against it before staging.
-- `## Authored Tests` body section — the tests Phase 3's inline edge-case authoring step wrote, tracked in the same table shape as `/geniro:debug` Adversarial Mode's own body section (`${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2: # / Path / Targeted source / Category / Confidence / F→P status), written as each authored test resolves so a compaction mid-step recovers the outcome instead of re-authoring hypotheses already tried.
+- `## Authored Tests` body section — the tests Phase 3's inline edge-case authoring step wrote, tracked in the column set canonical at §`## Authored Tests` body table below (the same shape `/geniro:debug` Adversarial Mode's own body section uses), written as each authored test resolves so a compaction mid-step recovers the outcome instead of re-authoring hypotheses already tried.
 
 **`/geniro:debug` producer-specific `authored_tests` array (T2 handoff only):**
 
@@ -295,8 +295,20 @@ authored_tests:
 
 **Consumer responsibilities:**
 - Read `authored_tests[]` before falling back to body-string parsing. The shared consumer protocol at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` codifies the prefer-frontmatter / fallback-to-body order.
-- Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
+- Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
 - The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only Edit/Write blocker for /geniro:implement Phase 1.
+
+### `## Authored Tests` body table
+
+Single source of truth for the body-section column set that records a hand-authored F→P test as it resolves — distinct from the `authored_tests[]` frontmatter array above (that array is the T2 handoff's machine-readable record; this table is the T1.5 `state.md` body's running log, written incrementally so a compaction mid-loop recovers the outcome instead of re-authoring hypotheses already tried).
+
+Columns: **# / Path / Targeted source / Category / Confidence / F→P status**.
+
+Two producers use this exact column set:
+- `/geniro:debug` Adversarial Mode — `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2, body section `## Authored Tests` of `.geniro/state/debug/<slug>/state.md`.
+- `/geniro:implement` Phase 3 edge-case test authoring — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Edge-case test authoring", body section `## Authored Tests` of the task-dir `state.md`.
+
+Both producers cite this section rather than restating the column set.
 
 ---
 

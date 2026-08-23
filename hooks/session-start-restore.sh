@@ -1032,8 +1032,11 @@ if [ -z "$COVERAGE_SUFFIX" ]; then
     # coverage line is genuinely absent. Scope the check to the block so an unrelated
     # `layer:`/`mode:` line elsewhere in the file cannot false-positive.
     _mb_block="$(awk '/^## Memory Backend/{f=1; next} /^## /{f=0} f' "$_memory_md" 2>/dev/null)"
-    if printf '%s' "$_mb_block" | grep -qE 'layer:[[:space:]]*learnings' 2>/dev/null \
-       && printf '%s' "$_mb_block" | grep -qE 'mode:[[:space:]]*replace' 2>/dev/null; then
+    # Here-string, not a pipe: under `pipefail` a `printf | grep -q` that
+    # MATCHES early makes the producer die on SIGPIPE, so the pipeline itself
+    # reports 141 instead of grep's own rc (2026-08-23 audit T0-5 class).
+    if grep -qE 'layer:[[:space:]]*learnings' 2>/dev/null <<< "$_mb_block" \
+       && grep -qE 'mode:[[:space:]]*replace' 2>/dev/null <<< "$_mb_block"; then
       MEMORY_BACKEND_NOTE="memory backend active — past learnings are tracked in your backend, not the local file"
     fi
   fi

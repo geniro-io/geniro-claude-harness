@@ -49,9 +49,9 @@ run_silent() {
         # Try to extract test count from common frameworks
         local summary=""
         # Jest/Vitest: "Tests: X passed, Y total"
-        summary=$(grep -E "Tests?:.*passed|test suites?.*passed" "$tmp_file" | tail -1)
+        summary=$(grep -E "Tests?:.*passed|test suites?.*passed" "$tmp_file" | tail -1) || true
         # pytest: "X passed"
-        [ -z "$summary" ] && summary=$(grep -E "^=+ .* passed" "$tmp_file" | tail -1)
+        [ -z "$summary" ] && { summary=$(grep -E "^=+ .* passed" "$tmp_file" | tail -1) || true; }
         # Go: count "ok" package lines — only when there is at least one, so a
         # non-Go run falls through to the generic line-count summary below
         # instead of always reporting "0 packages ok".
@@ -60,9 +60,15 @@ run_silent() {
             # `grep -c` exits 1 on zero matches even though it still prints "0" —
             # a bare assignment with no pipe propagates that rc to $?, so a caller
             # that sourced this function under `set -e` aborts here on the
-            # SUCCESS path (2026-08-09 audit #89). `:52` and `:55` above pipe
-            # through `tail`, whose own rc is what `$?` sees, so they are already
-            # unaffected.
+            # SUCCESS path (2026-08-09 audit #89). The two `grep | tail` summary
+            # assignments above carry the identical risk under a caller that also
+            # sets `pipefail`: pipefail reports the pipeline's exit status as the
+            # rightmost NONZERO exit code, not `tail`'s — so a `grep` that finds
+            # no summary line (the common case; most test runners never print a
+            # Jest/Vitest-shaped line) makes the whole pipeline report grep's rc 1
+            # even though `tail` itself always succeeds. Verified 2026-08-23:
+            # `run_silent "Tests" "echo hello world"` exited 1 and never reached
+            # the caller's next line. Guarded here with the same `|| true`.
             ok_count=$(grep -c "^ok" "$tmp_file" 2>/dev/null) || true
             [ "${ok_count:-0}" -gt 0 ] && summary="$ok_count packages ok"
         fi

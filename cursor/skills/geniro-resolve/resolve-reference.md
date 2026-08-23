@@ -153,9 +153,10 @@ Printed to chat at the end of every run, including one that shipped nothing:
 
 **Fixed (<N>)** — <one line each: comment author, what changed, path>
 **Declined (<M>)** — <one line each: comment author, reason, the evidence in a clause>
+**Answered (<A>)** — <one line each: comment author, the `answer-only` reply, path:line>
 **Left for you (<K>)** — <the `ask` items not picked, and any item whose fix did not land>
 **Tests** — <verdict, or "no test command documented in the project's instructions">
 **On the PR** — <what was pushed, how many replies posted, how many threads resolved, and anything skipped after a failed write>
 ```
 
-Every item in the inventory appears in exactly one of the first three sections — a run that silently drops an item is a run whose triage the user cannot check.
+Every item in the inventory appears in exactly one of the first four sections — a run that silently drops an item is a run whose triage the user cannot check.

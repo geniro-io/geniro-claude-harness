@@ -142,13 +142,6 @@ Confidence scoring guidance (still emit, advisory):
 - 20-39: Might be real, low priority
 - 0-19: Probably false positive
 
-Adjustments (still apply):
-
-- Evidence explicit (cites a file:line literal): +10
-- Pattern systemic (exists in 3+ places): -10 per individual; flag as systemic
-- Mitigating code exists nearby: -20
-- Criteria explicitly calls this out: +10
-
 ---
 
 ## 5. Multi-signal Phase 4.1 gate

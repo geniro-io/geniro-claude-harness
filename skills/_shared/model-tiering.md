@@ -9,7 +9,7 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 - Runtime resolution — how each host spells these tiers
 - `--subagent-model` — user-elected run-wide override
 - Tier table — fallback for runtimes without an orchestrator
-- Escalation signals (orchestrator-side advisory)
+- Escalation signals (tier-selection cues, read once up front)
 - Runtime escalation (Sonnet → Opus on failure)
 - Hard rules
 - Anti-rationalization
@@ -110,11 +110,9 @@ When a plugin subagent is invoked in a context without an interactive orchestrat
 | Code reasoning, implementation, bugs/security/architecture/tests/optimizations/conventions/design review, spec compliance, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
 | Architecture design, multi-file planning, deep hypothesis-driven debugging, threat modeling, novel-domain greenfield work | `opus` |
 
-## Escalation signals (orchestrator-side advisory)
+## Escalation signals (tier-selection cues, read once up front)
 
-When a task's shape argues for a stronger tier, surface a one-line advisory and continue — e.g. "Spec touches auth boundary + async work — consider running on Opus tier if not already (current: <tier>)". Signals never drive an automatic tier override; the user retains authority via `/model`.
-
-No skill wires per-signal detection for this. An advisory the user can act on only by abandoning the run and restarting on another tier does not earn a scan on every run, and the same risk surface already reaches them through the change-scope estimate and the reviewer dimensions. Read the signals as judgment cues when picking a tier up front: a schema or migration change, an auth or role boundary, 3+ coordinated modules, a new external integration, async / queue / background work, an ambiguous spec or absent acceptance criteria, a novel problem domain with no similar code in the repo to copy, long-horizon autonomy (multi-step plan, no human checkpoints), and an open-closed violation (changing public signatures, shared middleware, routing).
+No skill scans for these signals mid-run — read them once, when picking a tier before the run starts: a schema or migration change, an auth or role boundary, 3+ coordinated modules, a new external integration, async / queue / background work, an ambiguous spec or absent acceptance criteria, a novel problem domain with no similar code in the repo to copy, long-horizon autonomy (multi-step plan, no human checkpoints), and an open-closed violation (changing public signatures, shared middleware, routing). The same risk surface also reaches the user through the change-scope estimate and the reviewer dimensions, so a signal missed here is not the only net catching it. Signals never drive an automatic tier override; the user retains authority via `/model`.
 
 ## Runtime escalation (Sonnet → Opus on failure)
 

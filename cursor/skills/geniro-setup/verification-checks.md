@@ -24,38 +24,23 @@ Generation (`phase-3-generate.md` §3.2), the re-run pre-write audit and merge r
 
 ---
 
-## Cross-language contamination check (critical)
+## Cross-language contamination, template-artifact and generic-placeholder checks
 
-For each generated file (CLAUDE.md), verify it contains ONLY the detected stack's content. Use Grep on the generated files to search for wrong-language artifacts:
+These three checks are fixed literal-token/pattern batteries — run them with the script rather than re-deriving the token lists:
 
-| If detected language is… | Search for and flag if found: |
-|---|---|
-| Python | `npm`, `yarn`, `pnpm`, `tsc`, `jest`, `vitest`, ` tsx`, `package.json`, `node_modules`, ````typescript`, ````javascript` |
-| TypeScript/JavaScript | `pip`, `pytest`, `ruff`, `pyproject`, `requirements.txt`, `venv`, `__init__`, ````python` |
-| Go | `npm`, `pip`, `cargo`, `gem`, ````typescript`, ````python`, ````rust`, ````ruby` |
-| Rust | `npm`, `pip`, `go mod`, ````typescript`, ````python`, ````go` |
-| Ruby | `npm`, `pip`, `cargo`, ````typescript`, ````python`, ````rust` |
-| Java | `npm`, `pip`, `cargo`, `gem`, ````typescript`, ````python`, ````rust`, ````ruby` |
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-grep.sh" <detected-language> <generated-file> [<generated-file> ...]
+```
 
-For each wrong-language reference found in a generated file:
-1. Read the offending line(s).
-2. Decide whether it is a genuine cross-language reference (some projects legitimately use multiple languages, e.g. a monorepo with both Python and TypeScript) or a generation artifact.
-3. If it is a generation artifact → report it as a DRIFT item with file:line. The orchestrator removes it during regeneration; a Read-only subagent cannot edit it.
-4. If it is legitimate → leave it; do not report.
+`<detected-language>` is one of `python | typescript | javascript | go | rust | ruby | java` — whatever Phase Detect resolved. Each output line is `<CHECK-LABEL>|<file>:<line>:<text>`, where `<CHECK-LABEL>` is `CROSS-LANG`, `TEMPLATE`, or `PLACEHOLDER`.
 
-## Template artifact check
+**TEMPLATE and PLACEHOLDER hits need no further judgment** — report every line as a DRIFT item with its file:line so the orchestrator can rewrite the section to be concrete and project-specific, or regenerate it from the detected project facts.
 
-Search generated files for phrases that belong in templates, not in production files:
-- "customize this", "replace with", "fill in", "TEMPLATE NOTICE"
-- "e.g.,", "such as", "for example" followed by multiple framework alternatives
-- Parenthetical framework lists like "(Django, Rails, FastAPI, Spring, etc.)"
-- "customizable for" — this is template language, not project-specific content
-
-Each match → report as a DRIFT item with file:line so the orchestrator can rewrite the section to be concrete and project-specific.
-
-## Generic-placeholder check
-
-The generated CLAUDE.md must be project-specific, not generic boilerplate. Generation builds from the detected project facts (not from a copied template), so scan the output for unfilled placeholder content — `<TODO>`, `<your-...>`, `example.com`, or stack/command names that don't match what was detected. Grep for the generator's own residue tokens too: `{{`, `$TEMPLATE_DIR`, `$PROJECT_KNOWLEDGE`, `PLACEHOLDER`, `TODO`, `FIXME`, and the legacy section markers `<!-- geniro-setup-managed -->` / `<!-- geniro-setup-end -->` (CLAUDE.md is user-owned and carries no plugin markers). Any generic-placeholder hit → report a DRIFT item so the orchestrator regenerates that section from the detected project facts.
+**CROSS-LANG hits need one judgment call per hit** — the check itself cannot tell a genuine cross-language reference from a generation artifact:
+1. Read the offending line.
+2. Decide: is this a legitimate cross-language reference (some projects genuinely use multiple languages, e.g. a monorepo with both Python and TypeScript), or a generation artifact?
+3. Generation artifact → report it as a DRIFT item with file:line. The orchestrator removes it during regeneration; a Read-only subagent cannot edit it.
+4. Legitimate → leave it; do not report.
 
 ---
 

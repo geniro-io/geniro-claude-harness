@@ -73,7 +73,10 @@ if [ -z "$TOOL_NAME" ] && [ -z "$FILE_PATH" ]; then
   RAW_TARGETS=$(printf '%s' "$INPUT" \
     | grep -oE '"(file_path|notebook_path)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
     | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-  if printf '%s' "$RAW_TARGETS" | grep -qE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json|(^|/|[[:space:]])\.geniro/safety\.json'; then
+  # -i: `.GENIRO`/`.Geniro` name the same inode as `.geniro` (T0-1's own
+  # class) — this coarse scan runs precisely when structured parsing already
+  # failed, so it must not ALSO miss a canonical path over case alone.
+  if grep -qiE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json|(^|/|[[:space:]])\.geniro/safety\.json' <<< "$RAW_TARGETS"; then
     if [ "$HAVE_JQ" = "1" ]; then
       echo "State-helper [enforce-state-helper] blocked [jqless-fallback]: the tool input names a canonical .geniro/ state path but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
     else
@@ -157,8 +160,18 @@ fi
 # must never make either guard fail open.
 # tests/hooks/path-normalize-matrix.sh feeds both guards every spelling above
 # and asserts identical exit codes — a one-sided edit fails it.
+# Case-folded FIRST, before any structural trimming: `.GENIRO/safety.json` and
+# `.geniro/SAFETY.JSON` are the SAME inode on a case-insensitive filesystem
+# (the default on macOS), and every downstream matcher below (is_safety_json_path,
+# matches_state_path) is a literal-lowercase regex — so an uppercase spelling
+# walked straight through both and, for .GENIRO/safety.json specifically,
+# rewrote the real allow_patterns file every OTHER guard consults, disarming
+# them all from one unblocked Write (2026-08-23 audit T0-1). Folding here, once,
+# means every caller of this function inherits case-insensitivity for free
+# instead of each needing its own `tr` pass.
 _geniro_normalize_path() {
   local p="${1:-}"
+  p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
   while [ "${p#./}" != "$p" ]; do p="${p#./}"; done
   # Collapse `//` and `/./` with prefix/suffix cuts, looped to a fixed point —
   # NOT ${p//pat/repl}: bash 3.2 (macOS /bin/bash) keeps the backslash of an
@@ -180,7 +193,7 @@ _geniro_normalize_path() {
 is_safety_json_path() {
   local p
   p="$(_geniro_normalize_path "$1")"
-  echo "$p" | grep -qE '(^|/)\.geniro/safety\.json$'
+  grep -qE '(^|/)\.geniro/safety\.json$' <<< "$p"
 }
 
 check_safety_json_write() {
@@ -208,7 +221,7 @@ matches_state_path() {
   # Plugin metadata file (T3 CRUD). Decided BEFORE the exclusions below: it is
   # the one guarded path whose basename is dot-prefixed, so the T1 scratch rule
   # would otherwise exempt it.
-  if echo "$p" | grep -qE '(^|/)\.geniro/\.geniro-state\.json$'; then
+  if grep -qE '(^|/)\.geniro/\.geniro-state\.json$' <<< "$p"; then
     return 0
   fi
   # Exclusions — files under .geniro/ that are NOT frontmatter-bearing state
@@ -236,11 +249,11 @@ matches_state_path() {
   #     output already follows, and no canonical state file uses it — state.md,
   #     spec.md, milestone-N.md, from-<producer>-<branch>.md and learnings.jsonl
   #     are all undotted, so the rule cannot swallow a durable file.
-  if echo "$p" | grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.[^/]+$|/notes\.md$|/playwright-verify\.png$'; then
+  if grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.[^/]+$|/notes\.md$|/playwright-verify\.png$' <<< "$p"; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.
-  if echo "$p" | grep -qE '(^|/)\.geniro/(state|planning|knowledge|instructions|actions|workflow)/'; then
+  if grep -qE '(^|/)\.geniro/(state|planning|knowledge|instructions|actions|workflow)/' <<< "$p"; then
     return 0
   fi
   return 1
@@ -248,8 +261,9 @@ matches_state_path() {
 
 # Match the right helper to the tier.
 suggested_helper() {
-  local p="$1"
-  if echo "$p" | grep -qE '\.geniro/knowledge/.*\.jsonl$'; then
+  local p
+  p="$(_geniro_normalize_path "$1")"
+  if grep -qE '\.geniro/knowledge/.*\.jsonl$' <<< "$p"; then
     echo "atomic_state_append"
   else
     echo "atomic_state_write"
@@ -262,12 +276,13 @@ suggested_helper() {
 #   state/<skill>/<slug>/state.md  ·  state/setup/state.md singleton
 #   state/handoff/from-<producer>-<branch>.md  ·  state/tdd/state-<slug>.md
 non_canonical_state_layout() {
-  local p="$1"
-  echo "$p" | grep -qE '(^|/)\.geniro/state/' || return 1
-  if echo "$p" | grep -qE '(^|/)\.geniro/state/[^/]+/[^/]+/state\.md$'; then return 1; fi
-  if echo "$p" | grep -qE '(^|/)\.geniro/state/setup/state\.md$'; then return 1; fi
-  if echo "$p" | grep -qE '(^|/)\.geniro/state/handoff/from-[^/]+\.md$'; then return 1; fi
-  if echo "$p" | grep -qE '(^|/)\.geniro/state/tdd/state-[^/]+\.md$'; then return 1; fi
+  local p
+  p="$(_geniro_normalize_path "$1")"
+  grep -qE '(^|/)\.geniro/state/' <<< "$p" || return 1
+  if grep -qE '(^|/)\.geniro/state/[^/]+/[^/]+/state\.md$' <<< "$p"; then return 1; fi
+  if grep -qE '(^|/)\.geniro/state/setup/state\.md$' <<< "$p"; then return 1; fi
+  if grep -qE '(^|/)\.geniro/state/handoff/from-[^/]+\.md$' <<< "$p"; then return 1; fi
+  if grep -qE '(^|/)\.geniro/state/tdd/state-[^/]+\.md$' <<< "$p"; then return 1; fi
   return 0
 }
 

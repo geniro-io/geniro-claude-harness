@@ -36,6 +36,7 @@ context: main
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — the smell-detection sub-step (reuse-vs-create audit per detected smell)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate — the single-finding AskQuestion gate
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` § Visual rendering language — the shared visual language for gate messages rendered to chat before a lean question
+- `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md` — the run-completion checklist. Read at Phase 3 entry, before the terminal `phase:` write.
 
 **Phase bodies.** Phase 1, Phase 2, and Phase 3 all live in sibling files, Read on entry to that phase and again on any resumption of it, including after a compaction: `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-1-plan.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
 
@@ -71,7 +72,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-refe
 
 ## Terminal states
 
-`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Every transition into any of the five first writes the terminal `phase:` via `atomic_state_write`, and only then runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) — reversing the order lets cleanup's `rm -rf` run against a directory the write's own `mkdir -p` then silently recreates, leaving the slug dir behind despite cleanup having "run". `done`, `verify-summary-only`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.3 already writes the terminal phase and §3.7 is a later step in the same phase file. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe both calls explicitly, in this order — terminal write then cleanup: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), the `plan-escalated` "Abort" resolution (→ `aborted`), and Phase 2 §2.2 / §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
+`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Every transition into any of the five first writes the terminal `phase:` via `atomic_state_write`, and only then runs `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup (the slug-dir sweep + background-process kill) — reversing the order lets cleanup's `rm -rf` run against a directory the write's own `mkdir -p` then silently recreates, leaving the slug dir behind despite cleanup having "run". `done`, `verify-summary-only`, and the `reverted` / `routed` picks inside Phase 3 §3.3 get this for free, since §3.3 already writes the terminal phase and §3.7 is a later step in the same phase file. The paths that reach a terminal WITHOUT otherwise entering Phase 3 owe both calls explicitly, in this order — terminal write then cleanup: Phase 1 §1.2 (no tests exist → `routed`), §1.3.2 (hard-signal "Escalate" → `routed`), §1.2's "Fix the broken tests first (stop refactoring)" pick on a red baseline (→ `aborted`), and Phase 2 §2.2 / §2.3 / §2.4 (either revert pick → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
 
 ---
 
@@ -217,16 +218,7 @@ Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 
 ## Definition of done
 
-These are the load-bearing exit gates and safety invariants — the checks that, if skipped, break the zero-behavior-change guarantee or the no-ship boundary. Per-phase mechanics (tier classification, smell detection, plan building) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
-
-- [ ] Tests green before AND after the run — baseline captured (Phase 1) and final regression run captured as an Evidence Block (Phase 2 §2.4); the zero-behavior-change guarantee held
-- [ ] PRODUCT-DECISION findings escalated to `/geniro:implement` (always-WAIT), never fixed in-skill
-- [ ] CRITICAL/HIGH non-PD findings → 1-round fix loop; past that → "Findings remain" AUQ
-- [ ] Blocked-ratio cap exceeded (§Budgets) → stuck AUQ fired (user picks; never silent abort)
-- [ ] L2 emit fired with `discovery` or `pitfall` type + required `ext.*` fields
-- [ ] Custom post-verify steps executed — any `### After verify` subsection in the loaded `.geniro/instructions/refactor.md` ran, or none was loaded (Phase 3 §3.6)
-- [ ] No `git commit` / `git push` / `gh pr create` — diff stays uncommitted (user or /geniro:implement ships)
-- [ ] Cleanup completed
+The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md` — the load-bearing exit gates and safety invariants, including the no-ship boundary. Read at Phase 3 entry; walk it before the terminal `phase:` write.
 
 ---
 

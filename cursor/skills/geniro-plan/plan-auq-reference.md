@@ -299,7 +299,7 @@ header: "Milestones"
 question: "This task is large enough to slice into milestones. Slice it now or keep as a single spec?"
 options:
   - label: "Slice into milestones"            # Recommended for Big
-    description: "Model proposes 3-7 milestone names; user approves; the spec write step emits sibling milestone-N.md files alongside spec.md."
+    description: "Splits into 3-7 milestone files instead of one spec.md — you approve the names, then build and ship each one as its own /geniro:implement session."
   - label: "Keep as a single spec"
     description: "The spec write step emits only spec.md; /geniro:implement consumes the whole thing."
 ```
@@ -359,9 +359,9 @@ options:
   - label: "Approve — commit the plan"   # Recommended
     description: "Commits spec.md and prints the /geniro:implement command to build it."
   - label: "Request changes — I'll describe"
-    description: "Fires a sub-AUQ for revision text; revisions re-run affected sections (max 3 rounds)."
+    description: "Describe what needs to change — I'll revise and re-check just the affected sections."
   - label: "Abort — discard spec"
-    description: "Terminal aborted; spec.md remains on disk but not committed."
+    description: "Stops planning here — spec.md stays on disk but nothing is committed."
 ```
 
 What each pick then does — the lifecycle flip, the commit, the revision-round ladder — is in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.3–§8.4. This section holds the template only.
@@ -370,7 +370,7 @@ What each pick then does — the lifecycle flip, the commit, the revision-round 
 
 ## 5b. Phase 8 launch-config AUQ — pre-define implement settings (opt-in)
 
-Fires at the very end of planning — Phase 8, AFTER the user approves the spec (§5 above) and BEFORE the §8.4 git commit. Replaced by the flag-driven build in §8.3.5 when launch modifiers (workspace / `freshness:` / ship / `--deep`) are present in `$ARGUMENTS`; this interactive gate fires only when no launch modifier was passed. It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
+Fires at the very end of planning — Phase 8, AFTER the user approves the spec (§5 above) and BEFORE the §8.4 git commit. Replaced by the flag-driven build in §8.3.5 when launch modifiers (workspace / `freshness:` / ship) are present in `$ARGUMENTS`; this interactive gate fires only when no launch modifier was passed. `--deep` alone does not replace it. It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
 
 Two steps: a gate question, then (only on "Yes") a batched capture.
 
