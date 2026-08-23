@@ -30,6 +30,16 @@ context: main
 
 **Progressive load.** This file is the spine — role, invariants, gates, budgets, tool surface. Each phase's Steps live in a sibling file you Read on entry to that phase; the phase sections below carry the paths. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
 
+**`phase:` → phase file, for a post-compaction resume that can no longer see the phase sections below:**
+
+| `phase:` value | Read |
+|---|---|
+| `mode-detect` | `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md` |
+| `investigate`, `phase-1-escalated`, `phase-1-verification-stalled` | `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` |
+| `propose`, `phase-2-escalated` | `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-2-propose.md` |
+| `ship` | `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md` |
+| `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship` | `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` |
+
 **Section-reference convention.** A bare `§N.M` names a sub-step of Phase N and lives in that phase's file (`${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-N-*.md`), never in this spine. A `§N` written after a file path names that file's own top-level section.
 
 ---

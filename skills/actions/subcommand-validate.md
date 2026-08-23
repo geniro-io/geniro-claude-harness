@@ -22,7 +22,7 @@ Then add these validate-only rows:
 | `allowed-tools:` field present (if action mutates) | LOW |
 | No references to dropped skills in body | HIGH |
 
-Dropped-skill ref check uses the list at `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-validate.md` §Step 2 Reference checks — the canonical home; cite it rather than restating the slugs.
+Dropped-skill ref check uses the list at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/dropped-skills.md` §The list — the canonical home; cite it rather than restating the slugs.
 
 ### Step 3 — Output format
 

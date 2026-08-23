@@ -122,7 +122,7 @@ K-class answers "did every stage the skill declared actually run, and did every 
 
 ## 4. Judged checks — taxonomy seed for the LLM-judge prompt
 
-These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. This table is what the orchestrator inlines verbatim into each judge prompt (SKILL.md invariant #3); the judge returns findings in the schema documented in SKILL.md Phase 2 Step 2.
+These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. This table is what the orchestrator inlines verbatim into each judge prompt (SKILL.md's one-judge-per-thread invariant); the judge returns findings in the schema documented in SKILL.md Phase 2 Step 2.
 
 | ID | Name | Severity | Scope | What the judge looks for |
 |---|---|---|---|---|

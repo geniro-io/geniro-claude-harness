@@ -68,7 +68,7 @@ The user runs the commands themselves — never invoke them via Bash. Cross-bran
 
 | Reasoning | Why it's wrong |
 |---|---|
-| "I'll auto-run `git checkout <other-branch> -- <path>`" | Forbidden by `_shared/scope-anchor.md`. Suggest-only. |
+| "I'll auto-run `git checkout <other-branch> -- <path>`" | Forbidden by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. Suggest-only. |
 | "The tests exist on the source branch — close enough, skip the warning" | Missing in current worktree means the implementation that's about to start cannot run them. The user needs to know. |
 | "Debug findings are old — assume stale and ignore" | The consumer doesn't know how old. Surface them; let the user decide. |
 | "I'll embed this scan in Phase 2 instead of Phase 1" | The git-workspace decision in implement Phase 1 Step 0 (Workspace setup) depends on knowing whether debug authored anything. Detection MUST happen at startup. |

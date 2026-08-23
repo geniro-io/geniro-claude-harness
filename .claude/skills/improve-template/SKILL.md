@@ -177,25 +177,7 @@ For obvious bug fixes. The user already showed what's broken.
 
 ## Definition of done
 
-These are the load-bearing exit gates — the checks that, if skipped, ship an unreviewed or unapproved change to the plugin. Per-phase mechanics live in their phase sections; this list is the final correctness check, not a re-listing of every step.
-
-- [ ] The workspace step settled before Phase 1 spawned anything, and its pick is recorded in the state file's `branch:` / `worktree:`
-- [ ] Every SKILL.md this run changed or created was judged against `.claude/rules/skill-structure.md` § File-size limits, and any overflow was split into a companion reference rather than trimmed away
-
-### improve-existing-skill mode
-- [ ] Every implemented change traces to a finding the user approved at the Phase 3 evidence gate — no scope creep, and no evidence-free finding survived Phase 2's filter
-- [ ] Every spawned and every skipped research source is in `research-sources:` with its one-line reason
-- [ ] The Phase 4 Step 3 validation gate ran on every changed SKILL.md, including the description-format sub-checks
-- [ ] A fresh agent reviewed the changes in Phase 5 and passed them, and its subtraction report reached the Phase 6 summary — a pass that removed nothing said so and justified it
-- [ ] The state file is cleaned up, `tests/run-all.sh` passed, and commit-and-push was offered to the user rather than performed unasked
-
-### create-skill mode
-- [ ] The interview completed before authoring: skill kind, then 3-5 sequential questions covering trigger / anti-trigger / inputs / outputs / tools / optional subagents / optional workflow
-- [ ] The pre-existing-instruction check ran and its overlap table was reviewed — a duplicate is rejected and the user routed to the existing skill, never authored alongside it
-- [ ] The author agent received the interview transcript, the constraints, and 1-2 exemplar SKILL.md files
-- [ ] The Phase 4 Step 3 validation gate ran on the new file, including the description-format sub-checks
-- [ ] A fresh review agent applied the Phase C create-skill checklist and its blockers are fixed
-- [ ] Commit-and-push was offered to the user rather than performed unasked
+The run-completion checklist — the load-bearing exit gates that, if skipped, ship an unreviewed or unapproved change to the plugin — moved to `phase-4-6-implement-review.md` §Phase 6 Step 0, since it gates the Phase 6 report and that file is already Read at Phase 4 entry. Walk it there before the ship gate.
 
 ---
 

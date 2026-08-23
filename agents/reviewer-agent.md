@@ -85,7 +85,7 @@ When a finding's behavior is explicitly addressed by a plan decision absorbed in
 
 ## Confidence Scoring (advisory)
 
-Emit `Confidence: XX%` (0-100) on every finding — Step 4 carries the emit contract and what the number is used for. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, self-reported confidence is a weak predictor of correctness, not a useless one — strong enough to report alongside a finding, too weak to carry an admission decision alone. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reviewer-agent-reference.md` §Confidence rubric before you score your first finding — it carries the score bands and the scoring adjustments that map evidence, systemic-ness, and nearby mitigations onto the number.
+Emit `Confidence: XX%` (0-100) on every finding — Step 4 carries the emit contract and what the number is used for. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, self-reported confidence is a weak predictor of correctness, not a useless one — strong enough to report alongside a finding, too weak to carry an admission decision alone, advisory rather than an admission filter. Read that same §4 before you score your first finding — it carries the score bands and the scoring adjustments that map evidence, systemic-ness, and nearby mitigations onto the number.
 
 ## Output Format
 

@@ -27,7 +27,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 | Check | Severity | Example violation |
 |---|---|---|
 | File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
-| `## Rules` heading present (skip for `memory.md` — it carries the `## Memory Backend` block only) | HIGH | File has body but no `## Rules` header |
+| `## Rules` heading present (skip for `memory.md` — it carries the `## Memory Backend` block only; skip for `review-extra/<slug>.md` — uses `# Criteria` instead) | HIGH | File has body but no `## Rules` header |
 | `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead; skip for `memory.md`) | HIGH | Missing `## Constraints` |
 | File ≤ 300 lines (threshold env-overridable, see Step 1) | LOW | Longer instruction files consume more context and reduce rule adherence. Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
 
@@ -35,7 +35,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 
 | Check | Severity |
 |---|---|
-| No references to dropped skills — this row is the canonical home of the list: `/brainstorm`, `/decompose`, `/follow-up`, `/deep-simplify`, `/features`, `/learnings`, `/cleanup`, `/vendor` | HIGH |
+| No references to dropped skills — list at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/dropped-skills.md` §The list, the canonical home | HIGH |
 | No references to dropped phase names (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM |
 | `Additional Steps` subsections match the scope's legal anchor(s) in `instructions-authoring-reference.md` §5 — a real phase with no read site is rejected the same as a dropped one, and so is any `### Before <phase>` subsection (no skill reads that prefix) | MEDIUM |
 

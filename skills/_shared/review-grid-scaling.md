@@ -11,8 +11,10 @@ Scale the always-fire dimension set by the run's own size signal. A conditional 
 | `change_scope` | Dimensions fired |
 |---|---|
 | `trivial` | `bugs`, `tests` |
-| `small` | `bugs`, `security`, `tests`, `code-quality` |
+| `small` | `bugs`, `security`, `tests`, `code-quality` — plus `architecture` when a real spec.md resolved (see the spec-driven override below) |
 | `medium` / `big` | Full always-fire set — `bugs`, `security`, `architecture`, `tests`, `code-quality` |
+
+**Spec-driven `small`-tier override.** When the run resolved a real spec.md (not an inline task) and the resolved grid is the `small` row, `/geniro:implement` Phase 3 adds `architecture` regardless — it is the sole carrier of spec-compliance and docs-staleness checks in that skill, so the `small` row's drop of it would leave those checks silently uncovered on exactly the tier a spec-driven small diff lands in (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §Steps, Step 1). An inline-task run (no spec) keeps the table row unchanged.
 
 **`/geniro:review`** has no four-level signal to key off. Its Phase 1 §12 size triage (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`) is a single binary boundary — >8 files OR >400 LOC — plus a per-file Trivial/Substantive classification; neither tiers into four levels, and inventing a third tier for it guesses a level the run cannot compute, with a wrong guess silently dropping 4 of the 6 always-fire dimensions. Its column is two-level instead:
 

@@ -13,121 +13,46 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/onboard/SKILL.md` t
 
 ## 1. _CODEBASE_MAP.md format example
 
-The 8-section template in SKILL.md §Outputs is the operative spec; this worked example illustrates the rendering.
+The 8-section template in SKILL.md §Outputs is the operative spec; this skeleton illustrates the rendering form each section takes — a table, a fenced tree, a numbered flow, or bullets — not a specific stack.
 
 ````markdown
 # Codebase Map: [Project Name]
 
 **Generated:** [date]
-**Language:** TypeScript/Node.js
-**Framework:** Express, PostgreSQL
+**Language:** [primary language]
+**Framework:** [primary framework(s)]
 
 ## Project Overview
 
-| Aspect | Details |
-|--------|---------|
-| **Purpose** | User task management SaaS |
-| **Language/Stack** | TypeScript/Node.js, Express, PostgreSQL |
-| **Entry Point** | src/index.ts → Express server port 3000 |
-| **Database** | PostgreSQL, migrations in ./db/migrations |
+Table: Aspect | Details — rows for Purpose, Language/Stack, Entry Point, [datastore if any].
 
 ## Directory Structure
 
-```
-├── src/
-│ ├── index.ts # Server entry point
-│ ├── routes/ # Express route handlers
-│ │ ├── auth.ts
-│ │ ├── tasks.ts
-│ ├── services/ # Business logic
-│ │ ├── taskService.ts
-│ │ ├── authService.ts
-│ ├── models/ # Data models & types
-│ ├── middleware/ # Auth, logging, errors
-│ └── db/ # Database utilities
-├── tests/ # Jest unit & integration tests
-├── db/
-│ ├── migrations/ # SQL migration files
-│ └── schema.sql
-├──.env.example # Environment template
-├── package.json
-└── README.md
-```
+Fenced tree of the real top-level layout, annotated with a one-line role per folder (`# comment`).
 
 ## Module Relationships
 
-```
-Express App (index.ts)
-├── Routes (routes/*.ts)
-│ └── Services (services/*.ts)
-│ └── Database (db/*)
-│ └── Models (models/*.ts)
-└── Middleware (middleware/*.ts)
-├── Auth Middleware
-└── Error Handler
-```
-
-**Key Flows:**
-- User registers → authService.register → db.users.insert
-- User lists tasks → taskService.list → db.query → Task[]
+Fenced ASCII dependency diagram (top-level module → what it calls), followed by a **Key Flows** bullet list: `<Actor action> → <module.function> → <downstream call>`.
 
 ## Architecture Patterns
 
-| Pattern | Usage | Files |
-|---------|-------|-------|
-| **MVC** | Route → Service → DB | routes/, services/, db/ |
-| **Middleware Chain** | Auth → Logging → Business Logic | middleware/ |
-| **Error Handling** | Try-catch → ErrorHandler middleware | middleware/errorHandler.ts |
-| **Dependency Injection** | Service constructors receive DB instance | services/*.ts |
+Table: Pattern | Usage | Files — one row per recurring pattern actually present (MVC, DDD, Hexagonal, DI, etc.), not a fixed set.
 
 ## Key Files & Configuration
 
-| File | Role |
-|------|------|
-| package.json | Dependencies and scripts; npm, lockfile package-lock.json |
-| tsconfig.json | TypeScript compiler config |
-| .github/workflows | CI/CD via GitHub Actions |
-| db/schema.sql | Database schema reference |
-| db/migrations/ | SQL migration files (run on startup) |
-| .env.example | Environment template |
-
-**Entry points:**
-- API Server: src/index.ts (port 3000)
-- Tests: [test command from package.json/Makefile/CLAUDE.md]
-- DB Setup: [migration command if applicable]
+Table: File | Role — the real config/build/manifest files. Followed by an **Entry points** bullet list (server/CLI entry, test command, any setup/migration command).
 
 ## Conventions & Defaults
 
-- **Naming:** camelCase for variables/functions, PascalCase for classes
-- **Files:** One class/service per file
-- **Testing:**.test.ts suffix, Jest config in package.json
-- **Errors:** Custom error classes in errors.ts, caught by middleware
-- **Logging:** console.log for now (TODO: move to Winston)
-- **Auth:** JWT tokens in Authorization header
-- **Timestamps:** All models use UNIX timestamps (seconds since epoch)
+Bullet list, one line per convention actually observed — naming, file layout, testing, error handling, logging, auth, or any other project-specific default worth naming.
 
 ## Critical Paths
 
-### User Registration
-1. POST /auth/register → routes/auth.ts
-2. authService.register(email, password)
-3. Hash password → db.users.insert
-4. Return JWT token
-
-### List User Tasks
-1. GET /tasks (with JWT header) → authMiddleware checks token
-2. taskService.list(userId)
-3. db.query('SELECT * FROM tasks WHERE user_id = $1')
-4. Return Task[]
+One `### <flow name>` subsection per critical flow, each a numbered step list from trigger to result (e.g. a request path or a job pipeline), grounded in the code actually read.
 
 ## Tech Debt & Notes
 
-| Issue | Impact | Workaround |
-|-------|--------|-----------|
-| Logging is console.log | Hard to debug in prod | Read logs via SSH |
-| No rate limiting | DDoS risk | Add nginx upstream |
-| Migrations run on startup | Risk of conflicts | Plan migration strategy |
-| No type safety on DB queries | Runtime errors | Consider Prisma migration |
+Table: Issue | Impact | Workaround — real gotchas and legacy patterns found during the scan, not a placeholder set.
 ````
 
 ---

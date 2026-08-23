@@ -563,7 +563,7 @@ grep -l "Validation: unverified" .geniro/state/handoff/from-review-*.md 2>/dev/n
 
 ### State-helper enforcement now hard-blocks direct writes to `.geniro/` state paths (incl. Bash-side)
 
-`hooks/enforce-state-helper.sh` flips from warn-mode to hard-block, and now also covers the `Bash` tool. Direct `Edit`/`Write`/`MultiEdit` to a canonical state path under `.geniro/` (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`) is blocked (exit 2), as are Bash-side writes into the same paths (redirection `>`/`>>`, `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=`). Reads stay allowed, commands invoking the sanctioned helpers (`atomic_state_write` / `atomic_state_append`) are allowed, and paths under `.geniro/state/tdd/` are exempt (the TDD-order hook writes that file via its own mktemp + mv procedure). The prior warn-mode let a consumer session ignore 42 warnings in one run; the block makes the contract enforceable.
+`hooks/enforce-state-helper.sh` flips from warn-mode to hard-block, and now also covers the `Bash` tool. Direct `Edit`/`Write`/`MultiEdit` to a canonical state path under `.geniro/` (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`) is blocked (exit 2), as are Bash-side writes into the same paths (redirection `>`/`>>`, `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=`). Reads stay allowed, commands invoking the sanctioned helpers (`atomic_state_write` / `atomic_state_append`) are allowed, and paths under `.geniro/state/tdd/` are exempt (the TDD cycle's own RED-phase state file, written via its own mktemp + mv procedure, per `skills/_shared/tdd-cycle.md` §State file contract). The prior warn-mode let a consumer session ignore 42 warnings in one run; the block makes the contract enforceable.
 
 **Action required:** Route writes to `.geniro/` state paths through `atomic_state_write` / `atomic_state_append` (per `skills/_shared/atomic-state-write.md`). If a workflow legitimately needs to bypass the guard, add `enforce-state-helper` to `.geniro/safety.json` `allow_patterns`.
 
@@ -985,7 +985,7 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 
 ### New safety hooks may block unfamiliar operations
 
-> **Superseded — behavior changed in v3.0.0.** `enforce-state-helper.sh` no longer warns; it hard-blocks (exit 2) direct `Edit`/`Write`/`MultiEdit` and Bash-side writes to `.geniro/` state paths — see "State-helper enforcement now hard-blocks direct writes to `.geniro/` state paths" above. `CLAUDE.md` documents the hard-block behavior as current.
+> **Superseded — behavior changed in v3.0.0.** `enforce-state-helper.sh` no longer warns; it hard-blocks (exit 2) direct `Edit`/`Write`/`MultiEdit` to `.geniro/` state paths — see "The state-helper guard no longer matches `Bash`" above for the current, file-tool-only scope. `CLAUDE.md` documents the hard-block behavior as current.
 
 New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
 

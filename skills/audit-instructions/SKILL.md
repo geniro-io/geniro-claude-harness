@@ -31,15 +31,22 @@ You are the audit orchestrator. The target is every AI-assistant instruction fil
 5. **Phase 4 — Report.** Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and render every finding in chat.
 6. **Phase 5 — Action gate.** AskUserQuestion: fix now / pick / report only. Approved fixes go to fix agents with disjoint file allowlists, then the mechanical battery re-runs to verify. Cleanup + commit offer.
 
+**Phase bodies — Read on entry to that phase.** Phases 0-3 run from this file. The last two carry their Steps in siblings, and this table is where a resumed run finds them: only a skill's front-loaded prefix survives compaction, so a pointer that lives beside its own phase section is gone exactly when a resume needs it.
+
+| Phase | Body file |
+|---|---|
+| 4 — Report | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` |
+| 5 — Action gate | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` |
+
 ## Loop invariants
 
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply.
 
 The shared audit-pipeline invariants apply in full — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` §Shared invariants. This skill binds their three parameterized ones and adds one of its own:
 
-- **Do-not-flag list** (shared invariant 4) = the endorsed-patterns list in `dimensions-reference.md`, extended by the prior report's endorsements.
-- **Subtraction sweep** (shared invariant 5) = the bloat dimension, which runs on every audit including `--quick`.
-- **Whole mechanism** (shared invariant 7) = an entire instruction surface or section.
+- **Do-not-flag list** (the do-not-flag-list invariant) = the endorsed-patterns list in `dimensions-reference.md`, extended by the prior report's endorsements.
+- **Subtraction sweep** (the subtraction-sweep invariant) = the bloat dimension, which runs on every audit including `--quick`.
+- **Whole mechanism** (the no-blanket-deletion invariant) = an entire instruction surface or section.
 
 S1. **Secrets are cited, never quoted.** A credential found inside an instruction file is reported by location and shape, never by value — a finding that reproduces a secret re-leaks it onto a surface that outlives the fix.
 
@@ -49,8 +56,8 @@ S1. **Secrets are cited, never quoted.** A credential found inside an instructio
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "The reviewer quoted the line — no need to re-read it." | Shared invariant 1: admission requires YOUR Read of the cited location. |
-| "I'll fix this obviously dead path while scanning." | Shared invariant 2: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
+| "The reviewer quoted the line — no need to re-read it." | The no-unverified-finding invariant: admission requires YOUR Read of the cited location. |
+| "I'll fix this obviously dead path while scanning." | The report-before-fix invariant: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
 | "I'll spawn reviewers one at a time to manage context." | Reviewer output is capped (§Budgets); the orchestrator holds tables, not the reviewers' reading. Sequential spawns multiply wall-time. |
 | "AGENTS.md is a copy of CLAUDE.md — flag the duplication." | Deliberate mirroring (symlink or generated copy) is the endorsed way to serve many tools from one source. Flag drift BETWEEN the copies, never the mirroring itself. |
 | "CLAUDE.md is only 30 lines — that's a coverage gap." | Brevity is healthy. A coverage finding needs two pieces of evidence: the tool is actively used here, and a specific needed fact is documented nowhere. |
@@ -79,7 +86,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## ACI per-phase tool surface
 
-Shared invariant 2 ("Report before fix") is a prose rule; this table is its tool-level enforcement. `Edit`/`Write` on any repo file (state-file writes go through `atomic_state_write` in Bash, never the `Write` tool) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
+The report-before-fix invariant ("Report before fix") is a prose rule; this table is its tool-level enforcement. `Edit`/`Write` on any repo file (state-file writes go through `atomic_state_write` in Bash, never the `Write` tool) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
@@ -103,10 +110,10 @@ All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OM
 1. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: audit-instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. From the loaded `global.md` `## Rules`, extract the search-governing subset (a code index to query before plain-text search, a required lookup tool, an off-limits directory) into `$PROJECT_SEARCH_POLICY` for the Phase 2 spawn template — `none declared` when `global.md` declares nothing about searching.
 2. **Parse `$ARGUMENTS`:**
    - Empty → full audit (all dimensions, every surface found).
-   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. Shared invariant 5 still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
-   - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (shared invariant 5) runs scoped to the same path.
+   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. The subtraction-sweep invariant still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
+   - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (the subtraction-sweep invariant) runs scoped to the same path.
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
-   - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (shared invariant 5) unless `bloat` already names it.
+   - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (the subtraction-sweep invariant) unless `bloat` already names it.
 3. **Load the rubric:** Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` in full — Phase 2 pastes its sections into every reviewer prompt verbatim. Also read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — the shared reviewer schema pasted into every prompt, and the Phase 5 fix-round discipline.
 4. **Read the prior report, if any:** Glob `.geniro/state/audit-instructions/report-*.md`; read the most recent one's health summary and T0-T2 tier tables. Patterns its health summary endorses extend the do-not-flag list for this run, and its T0-T2 rows enter the Phase 3 merge tagged "still open?". `.geniro/state/` is gitignored, so this finds reports from prior runs on this machine only — a teammate's audit leaves no trace here, and finding nothing means "no local prior report", never "never audited".
 5. **Build the inventory and write the state checkpoint** per the reference §Run setup — enumerate the §Surface inventory globs, record what exists (with word counts and per-tool activity signals), and checkpoint after every phase.
@@ -145,7 +152,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 5 — Action gate
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the §Deletion gate walk for whole-surface removals (shared invariant 7), the disjoint-allowlist fix path with shared invariant 6's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, every deletion proposal has had its own gate, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the §Deletion gate walk for whole-surface removals (the no-blanket-deletion invariant), the disjoint-allowlist fix path with the finding-ownership invariant's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, every deletion proposal has had its own gate, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
 
 ## State recovery
 
@@ -157,11 +164,11 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 - [ ] Selected reviewers spawned in one response; outputs collected
 - [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt); every kept T0/T1 carries a cold verifier verdict
 - [ ] No secret value reproduced in the report, the chat render, or any state file (invariant S1)
-- [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded findings (shared invariant 5)
+- [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded findings (the subtraction-sweep invariant)
 - [ ] Report written to `.geniro/state/audit-instructions/report-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
 - [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
-- [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (shared invariant 6)
-- [ ] Every whole-surface deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval, and the ones kept recorded as considered-and-kept (shared invariant 7)
+- [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (the finding-ownership invariant)
+- [ ] Every whole-surface deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval, and the ones kept recorded as considered-and-kept (the no-blanket-deletion invariant)
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run clean, findings re-checked
 - [ ] Slug-scoped state cleaned up; commit offered for the fixed files only
 

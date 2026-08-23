@@ -16,7 +16,7 @@ If the re-derived tier now meets the canonical milestone-output condition (`${CL
 
 ### 7.5.1 Invoke the challenge helper
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the tier detected in Phase 1.2>`, DEEP: `<true when state.md deep-mode: true, else false>`.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, SPEC_PATH: `<task-dir>/spec.md`, TASK_DIR: `<task-dir>`, EFFORT_TIER: `<the re-derived effort_tier just written to spec frontmatter above>`, DEEP: `<true when state.md deep-mode: true, else false>`.
 
 The helper runs VERIFY (every claim in its §3 set, same-file claims clustered into shared verifier spawns per its spawn-batch shape) + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
 

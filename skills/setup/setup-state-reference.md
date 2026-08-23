@@ -13,7 +13,7 @@ producer: setup
 schema-version: 1
 branch: <git-branch> # may be empty if not a git repo
 timestamp: 2026-05-19T14:32:00Z # last-updated ISO-8601 UTC
-phase: detect # detect|interview|generate|validate|done|failed
+phase: detect # pre-flight|detect|interview|generate|validate|done|failed
 status: in-progress # in-progress|done|failed
 non-resumable-actions: [] # typically empty (/geniro:setup ships no external sends)
 approvals: [] # no preference questions; AUQ-only for detection confirm + onboard prompt

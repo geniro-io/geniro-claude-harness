@@ -17,7 +17,7 @@
 # Pattern IDs: force-push, force-push-with-lease, push-delete, reset-hard,
 #              branch-delete-force, clean-fd, checkout-mass-discard,
 #              restore-mass-discard, update-ref-delete, filter-branch,
-#              stash-drop
+#              stash-drop, worktree-remove-force
 #
 # Every matcher below requires the git SUBCOMMAND to be a literal token adjacent
 # to `git` (`git[[:space:]]+push`, `git[[:space:]]+reset`, …), so a command word
@@ -43,7 +43,7 @@ if ! command -v jq >/dev/null 2>&1; then
   # token inside a quoted string) — accepted for a rarely-hit degraded path where
   # blocking a real force-push matters more than a false positive on prose.
   RAW=$(cat)
-  if printf '%s' "$RAW" | grep -qE '\-\-force(-with-lease)?|reset[[:space:]]+--hard|filter-branch'; then
+  if grep -qE '\-\-force(-with-lease)?|reset[[:space:]]+--hard|filter-branch' <<< "$RAW"; then
     echo "Security blocked [jqless-fallback]: a destructive git token (--force / reset --hard / filter-branch) was seen and jq is unavailable, so only a coarse raw-text check ran. Install jq to restore full command parsing." >&2
     exit 2
   fi
@@ -60,7 +60,7 @@ if [ -z "$COMMAND" ]; then
   # silently swallowed (`|| echo ""`). A malformed payload must not be a free
   # pass: run the same coarse fail-closed raw-text scan the jq-absent branch
   # above uses, so a destructive token still blocks even when parsing broke.
-  if printf '%s' "$INPUT" | grep -qE '\-\-force(-with-lease)?|reset[[:space:]]+--hard|filter-branch'; then
+  if grep -qE '\-\-force(-with-lease)?|reset[[:space:]]+--hard|filter-branch' <<< "$INPUT"; then
     echo "Security blocked [jqless-fallback]: a destructive git token (--force / reset --hard / filter-branch) was seen but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
     exit 2
   fi
@@ -289,7 +289,7 @@ _geniro_extract_inner_payloads() {
   # hand-listed set of separators: `(python3 …)` in a subshell and
   # `out=$(python3 …)` in a command substitution disabled this arm and BOTH
   # interpreter families below while the class enumerated `[|;&[:space:]]|/`.
-  if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)'; then
+  if grep -qE '(^|[^[:alnum:]_])(python[0-9.]*|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([[:space:]]|$)' <<< "$cmd"; then
     # A dot is allowed before the op name because that is how the ops are normally
     # reached (`require('child_process').execSync(…)`); the cost is that a JS
     # `re.exec("s")` also yields its argument, which re-scans as an inert word.
@@ -351,7 +351,7 @@ _geniro_extract_inner_payloads() {
     # syntax at all. Narrowed to those two command words: elsewhere a backtick
     # span is ordinary shell command substitution, already visible to the
     # guards as syntax, and re-extracting it would only add noise.
-    if printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)'; then
+    if grep -qE '(^|[^[:alnum:]_])(ruby|perl)([[:space:]]|$)' <<< "$cmd"; then
       while IFS= read -r _m; do
         [ -z "$_m" ] && continue
         _pl=$(printf '%s' "$_m" | sed -E 's/^`//; s/`$//')
@@ -656,10 +656,18 @@ block() {
 
 # Each check: id, regex (POSIX ERE on the padded command), message.
 # Order matters: more specific patterns first.
+#
+# Every pattern below matches the `git` command word as [gG][iI][tT] rather
+# than the literal `git`: macOS PATH lookup resolves `Git`/`GIT` to the same
+# binary as `git` (`command -v Git` finds `/opt/homebrew/bin/Git`), so
+# `Git push --force` and `GIT push --force` return rc 0 through a
+# case-sensitive match (2026-08-23 audit T0-4). Flags stay case-sensitive on
+# purpose — `--FORCE` is not a real git flag, so folding flags would only
+# create false positives, not close a bypass.
 
 # 1. force-push-with-lease — must come before generic force-push
 if ! is_allowed "force-push-with-lease"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*--force-with-lease'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+push[^&;|]*--force-with-lease' <<< "$PADDED"; then
     block "force-push-with-lease" "git push --force-with-lease can still overwrite remote work if your local ref is stale"
   fi
 fi
@@ -669,24 +677,24 @@ if ! is_allowed "force-push"; then
   # Trailing anchor ([[:space:];&|]|$): a separator can abut the flag with no
   # space (`git push --force;echo done`), so whitespace-only anchors would miss
   # the most common chained spellings.
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]--force([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+push[^&;|]*[[:space:]]--force([[:space:];&|]|$)' <<< "$PADDED"; then
     block "force-push" "git push --force overwrites remote history"
   fi
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]-f([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+push[^&;|]*[[:space:]]-f([[:space:];&|]|$)' <<< "$PADDED"; then
     block "force-push" "git push -f overwrites remote history"
   fi
   # Combined short flags like -fu (force + set-upstream)
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+push[^&;|]*[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:];&|]|$)' <<< "$PADDED"; then
     block "force-push" "git push with combined -f flag overwrites remote history"
   fi
   # Plus-prefixed refspec (e.g. `git push origin +main`) forces the push with no flag.
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]][+][^[:space:]]+'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+push[^&;|]*[[:space:]][+][^[:space:]]+' <<< "$PADDED"; then
     block "force-push" "git push with a +refspec (e.g. +main) force-overwrites remote history"
   fi
   # --mirror force-updates EVERY ref to match the local repo exactly, including
   # refs no --force/-f flag names — the same unconditional overwrite force-push
   # exists to block, just spelled as a whole-repo mode instead of a single flag.
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+push[^&;|]*[[:space:]]--mirror([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+push[^&;|]*[[:space:]]--mirror([[:space:];&|]|$)' <<< "$PADDED"; then
     block "force-push" "git push --mirror force-updates every remote ref (and deletes remote refs absent locally) to match the local repo exactly"
   fi
 fi
@@ -698,21 +706,21 @@ fi
 #     clusters like -df are not a valid push delete spelling); the colon refspec
 #     matches a token whose source side is empty (`:dst`).
 if ! is_allowed "push-delete"; then
-  PUSH_SPAN=$(echo "$PADDED" | grep -oE 'git[[:space:]]+push[^&;|]*' || true)
+  PUSH_SPAN=$(echo "$PADDED" | grep -oE '[gG][iI][tT][[:space:]]+push[^&;|]*' || true)
   if [ -n "$PUSH_SPAN" ]; then
-    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]--delete([[:space:];&|]|$)'; then
+    if grep -qE '[[:space:]]--delete([[:space:];&|]|$)' <<< "$PUSH_SPAN"; then
       block "push-delete" "git push --delete removes a branch on the remote"
     fi
-    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]-d([[:space:];&|]|$)'; then
+    if grep -qE '[[:space:]]-d([[:space:];&|]|$)' <<< "$PUSH_SPAN"; then
       block "push-delete" "git push -d removes a branch on the remote"
     fi
-    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]:[^[:space:];&|]+'; then
+    if grep -qE '[[:space:]]:[^[:space:];&|]+' <<< "$PUSH_SPAN"; then
       block "push-delete" "git push with a :refspec (e.g. origin :branch) deletes that branch on the remote"
     fi
     # --prune deletes every remote-tracking ref that no longer exists locally —
     # the same remote-ref-loss --delete/-d cause, just applied in bulk instead
     # of to one named branch.
-    if echo "$PUSH_SPAN" | grep -qE '[[:space:]]--prune([[:space:];&|]|$)'; then
+    if grep -qE '[[:space:]]--prune([[:space:];&|]|$)' <<< "$PUSH_SPAN"; then
       block "push-delete" "git push --prune deletes every remote ref that no longer exists locally"
     fi
   fi
@@ -725,10 +733,10 @@ fi
 #    working tree from HEAD exactly like `reset --hard` does, on the same
 #    matcher shape `git add -f`'s plumbing coverage already uses.
 if ! is_allowed "reset-hard"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+reset[^&;|]*[[:space:]]--hard([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+reset[^&;|]*[[:space:]]--hard([[:space:];&|]|$)' <<< "$PADDED"; then
     block "reset-hard" "git reset --hard discards uncommitted work irreversibly"
   fi
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+read-tree[^&;|]*[[:space:]]--reset([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+read-tree[^&;|]*[[:space:]]--reset([[:space:];&|]|$)' <<< "$PADDED"; then
     block "reset-hard" "git read-tree --reset resets the index and working tree exactly like reset --hard"
   fi
 fi
@@ -738,17 +746,17 @@ if ! is_allowed "branch-delete-force"; then
   # Extract the `git branch ...` span (up to the next &/;/| separator) and match
   # flags only within it, so a -D/--force from a different command chained after
   # `git branch` (e.g. `git branch --list && gcc -DFOO`) cannot false-positive.
-  BRANCH_SPAN=$(echo "$PADDED" | grep -oE 'git[[:space:]]+branch[^&;|]*' || true)
+  BRANCH_SPAN=$(echo "$PADDED" | grep -oE '[gG][iI][tT][[:space:]]+branch[^&;|]*' || true)
   if [ -n "$BRANCH_SPAN" ]; then
     # Match -D whether standalone or combined into a short-flag cluster (-Df, -fD,
     # -rD, ...), mirroring the force-push combined-flag matcher. `-D` always means
     # force-delete in `git branch`; the lowercase `-d` (safe delete of a merged
     # branch) has no uppercase D and is intentionally not matched.
-    if echo "$BRANCH_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*D[a-zA-Z]*([[:space:]]|$)'; then
+    if grep -qE '[[:space:]]-[a-zA-Z]*D[a-zA-Z]*([[:space:]]|$)' <<< "$BRANCH_SPAN"; then
       block "branch-delete-force" "git branch -D (including combined flags like -Df) force-deletes unmerged branches"
     fi
-    if echo "$BRANCH_SPAN" | grep -qE '[[:space:]]--delete([[:space:]]|$)' && \
-       echo "$BRANCH_SPAN" | grep -qE '[[:space:]]--force([[:space:]]|$)'; then
+    if grep -qE '[[:space:]]--delete([[:space:]]|$)' <<< "$BRANCH_SPAN" && \
+       grep -qE '[[:space:]]--force([[:space:]]|$)' <<< "$BRANCH_SPAN"; then
       block "branch-delete-force" "git branch --delete --force force-deletes unmerged branches"
     fi
   fi
@@ -763,24 +771,24 @@ if ! is_allowed "clean-fd"; then
   # the PADDED comment above), so a dry-run span cannot mask a destructive
   # sibling in the same command regardless of which separator joins them
   # (`git clean -n && git clean -fd`, or the same pair on two physical lines).
-  CLEAN_SPANS=$(echo "$PADDED" | grep -oE 'git[[:space:]]+clean[^&;|]*' || true)
+  CLEAN_SPANS=$(echo "$PADDED" | grep -oE '[gG][iI][tT][[:space:]]+clean[^&;|]*' || true)
   while IFS= read -r CLEAN_SPAN; do
     [ -z "$CLEAN_SPAN" ] && continue
     # git treats -n/--dry-run as a preview even when combined with -f/-d —
     # nothing is deleted, so a dry-run span is allowed.
-    if echo "$CLEAN_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*n[a-zA-Z]*([[:space:]]|$)|[[:space:]]--dry-run([[:space:]]|$)'; then
+    if grep -qE '[[:space:]]-[a-zA-Z]*n[a-zA-Z]*([[:space:]]|$)|[[:space:]]--dry-run([[:space:]]|$)' <<< "$CLEAN_SPAN"; then
       continue
     fi
     # Short flag containing BOTH f and d in any order: -fd, -df, -fdx, -ffd, -dfx
-    if echo "$CLEAN_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*d[a-zA-Z]*([[:space:]]|$)'; then
+    if grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*d[a-zA-Z]*([[:space:]]|$)' <<< "$CLEAN_SPAN"; then
       block "clean-fd" "git clean -fd deletes untracked files and directories"
     fi
-    if echo "$CLEAN_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*d[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'; then
+    if grep -qE '[[:space:]]-[a-zA-Z]*d[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)' <<< "$CLEAN_SPAN"; then
       block "clean-fd" "git clean -df deletes untracked files and directories"
     fi
     # Separate tokens: a standalone -f/--force AND a standalone -d (in either order)
-    if echo "$CLEAN_SPAN" | grep -qE '[[:space:]](-f|--force)([[:space:]]|$)' && \
-       echo "$CLEAN_SPAN" | grep -qE '[[:space:]]-d([[:space:]]|$)'; then
+    if grep -qE '[[:space:]](-f|--force)([[:space:]]|$)' <<< "$CLEAN_SPAN" && \
+       grep -qE '[[:space:]]-d([[:space:]]|$)' <<< "$CLEAN_SPAN"; then
       block "clean-fd" "git clean -f -d deletes untracked files and directories"
     fi
   done <<< "$CLEAN_SPANS"
@@ -792,10 +800,10 @@ fi
 #    Single-file forms (`git checkout -- src/file.js`, `git checkout .gitignore`)
 #    stay allowed: the dot must be a standalone token, not part of a filename.
 if ! is_allowed "checkout-mass-discard"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+checkout[^&;|]*[[:space:]]\./?([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+checkout[^&;|]*[[:space:]]\./?([[:space:];&|]|$)' <<< "$PADDED"; then
     block "checkout-mass-discard" "git checkout with a bare . pathspec discards ALL uncommitted changes"
   fi
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+checkout[^&;|]*[[:space:]]\*'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+checkout[^&;|]*[[:space:]]\*' <<< "$PADDED"; then
     block "checkout-mass-discard" "git checkout with a * pathspec discards ALL uncommitted changes"
   fi
 fi
@@ -809,13 +817,13 @@ fi
 #    `-b`/`-c` (new-branch creation) carry no letter `f`, so an ordinary
 #    `git checkout -b feature/x` / `git switch -c feature/x` stays allowed.
 if ! is_allowed "checkout-mass-discard"; then
-  CO_SPANS=$(echo "$PADDED" | grep -oE 'git[[:space:]]+(checkout|switch)[^&;|]*' || true)
+  CO_SPANS=$(echo "$PADDED" | grep -oE '[gG][iI][tT][[:space:]]+(checkout|switch)[^&;|]*' || true)
   while IFS= read -r CO_SPAN; do
     [ -z "$CO_SPAN" ] && continue
-    if echo "$CO_SPAN" | grep -qE '[[:space:]]--force([[:space:]]|$)|[[:space:]]--discard-changes([[:space:]]|$)'; then
+    if grep -qE '[[:space:]]--force([[:space:]]|$)|[[:space:]]--discard-changes([[:space:]]|$)' <<< "$CO_SPAN"; then
       block "checkout-mass-discard" "git checkout/switch --force or --discard-changes discards ALL uncommitted changes"
     fi
-    if echo "$CO_SPAN" | grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)'; then
+    if grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)' <<< "$CO_SPAN"; then
       block "checkout-mass-discard" "git checkout/switch -f (including combined flags) discards ALL uncommitted changes"
     fi
   done <<< "$CO_SPANS"
@@ -825,10 +833,10 @@ fi
 #    `./`, or `*` pathspec anywhere in the `git restore` span (with or without
 #    --staged / -s <ref> before it) discards or unstages everything.
 if ! is_allowed "restore-mass-discard"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+restore[^&;|]*[[:space:]]\./?([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+restore[^&;|]*[[:space:]]\./?([[:space:];&|]|$)' <<< "$PADDED"; then
     block "restore-mass-discard" "git restore with a bare . pathspec discards ALL unstaged changes (or unstages everything with --staged)"
   fi
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+restore[^&;|]*[[:space:]]\*'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+restore[^&;|]*[[:space:]]\*' <<< "$PADDED"; then
     block "restore-mass-discard" "git restore with a * pathspec discards ALL unstaged changes (or unstages everything with --staged)"
   fi
 fi
@@ -836,14 +844,14 @@ fi
 # 8. update-ref -d / --delete (other flags like --no-deref may precede the
 #    delete flag, so the span is bounded rather than position-anchored)
 if ! is_allowed "update-ref-delete"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+update-ref[^&;|]*[[:space:]](-d|--delete)([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+update-ref[^&;|]*[[:space:]](-d|--delete)([[:space:];&|]|$)' <<< "$PADDED"; then
     block "update-ref-delete" "git update-ref -d deletes refs directly, bypassing reflog protection"
   fi
 fi
 
 # 9. filter-branch
 if ! is_allowed "filter-branch"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+filter-branch'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+filter-branch' <<< "$PADDED"; then
     block "filter-branch" "git filter-branch rewrites entire history; use git filter-repo or BFG instead and only with team coordination"
   fi
 fi
@@ -856,11 +864,27 @@ fi
 #     whole finding — no span-bounded flag check needed, unlike clean-fd/
 #     branch-delete-force above.
 if ! is_allowed "stash-drop"; then
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+stash[[:space:]]+clear([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+stash[[:space:]]+clear([[:space:];&|]|$)' <<< "$PADDED"; then
     block "stash-drop" "git stash clear permanently deletes every stashed change"
   fi
-  if echo "$PADDED" | grep -qE 'git[[:space:]]+stash[[:space:]]+drop([[:space:];&|]|$)'; then
+  if grep -qE '[gG][iI][tT][[:space:]]+stash[[:space:]]+drop([[:space:];&|]|$)' <<< "$PADDED"; then
     block "stash-drop" "git stash drop permanently deletes a stashed change"
+  fi
+fi
+
+# 11. worktree-remove-force — `git worktree remove -f` / `--force` removes a
+#     worktree even with uncommitted changes or untracked files, discarding
+#     them irrecoverably; without the flag git refuses and the work stays
+#     safe on disk. Span-bounded like branch-delete-force/clean-fd above so a
+#     --force elsewhere in the command doesn't false-positive a bare removal.
+#     `remedy_for` already carried this pattern ID's remedy text with nothing
+#     wired to call it (2026-08-23 audit T4-29) — this is that wiring.
+if ! is_allowed "worktree-remove-force"; then
+  WORKTREE_SPAN=$(echo "$PADDED" | grep -oE '[gG][iI][tT][[:space:]]+worktree[[:space:]]+remove[^&;|]*' || true)
+  if [ -n "$WORKTREE_SPAN" ]; then
+    if grep -qE '[[:space:]]-[a-zA-Z]*f[a-zA-Z]*([[:space:]]|$)|[[:space:]]--force([[:space:]]|$)' <<< "$WORKTREE_SPAN"; then
+      block "worktree-remove-force" "git worktree remove --force discards uncommitted work in that worktree irrecoverably"
+    fi
   fi
 fi
 

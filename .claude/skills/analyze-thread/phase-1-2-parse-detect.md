@@ -26,7 +26,7 @@ Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phas
 
 **Single mode.** Resolve the path; for a bare filename search the current working tree first, then the config-dir `projects/` trees. Check the file exists, is readable, and is under the hard cap (SKILL.md §Budgets & quality gates — Thread file size row). Between the warn threshold and the hard cap, warn before continuing — large threads slow the judge pass.
 
-**Explicit paths.** Two or more paths skip discovery and run as a batch over exactly those threads — this is how `/find-threads` hands over a multi-thread pick, and running them as one batch instead of N single runs is what earns the Phase 3 recurrence merge. Apply the single-mode existence and size checks to each; skip and name an oversize one rather than aborting; exclude this session's own log even when it is named (invariant #5); clamp to the 5-thread cap and say so.
+**Explicit paths.** Two or more paths skip discovery and run as a batch over exactly those threads — this is how `/find-threads` hands over a multi-thread pick, and running them as one batch instead of N single runs is what earns the Phase 3 recurrence merge. Apply the single-mode existence and size checks to each; skip and name an oversize one rather than aborting; exclude this session's own log even when it is named (the own-log-exclusion invariant); clamp to the 5-thread cap and say so.
 
 **Batch mode.** Discover threads with the sibling scan engine, which already enumerates every config-dir root, keeps only threads that did agentic work, and reports each thread's size and true project label:
 
@@ -36,7 +36,7 @@ python3 "<this skill's base directory>/../find-threads/scan.py" 2>/dev/null | so
 
 It prints one TSV row per thread — `mtime · date · oversize · kind · turns · relevance · hits · label · title · path · snippet` — and the sort makes it newest-first across all projects. Walk the rows top-down and take the first N that survive both filters:
 
-- **Skip this session's own log** (invariant #5). Identify it by session id: the session scratchpad directory path ends `<session-id>/scratchpad`, and the log filename is `<session-id>.jsonl`. When no scratchpad path is available, fall back to skipping the newest thread whose project label equals the current working directory — a session running this skill from that directory is writing exactly that log.
+- **Skip this session's own log** (the own-log-exclusion invariant). Identify it by session id: the session scratchpad directory path ends `<session-id>/scratchpad`, and the log filename is `<session-id>.jsonl`. When no scratchpad path is available, fall back to skipping the newest thread whose project label equals the current working directory — a session running this skill from that directory is writing exactly that log.
 - **Skip an oversize log** (`oversize` column = 1). Name it in the report so the skip is visible; do not abort the batch.
 
 Do NOT filter on `mtime` age. A recent timestamp means a session tab is open, not that a run is in progress — idle sessions keep touching their logs, so an age cutoff silently drops finished threads that are the most interesting ones. The only log that must be excluded is this one.
@@ -90,9 +90,9 @@ Skip plugin-specific checks (the `[plugin]` rows in checks-reference.md) when `g
 
 The A-H checks read an action and ask whether it was wrong. The I- and K-class checks ask what is *missing* — an instruction file never loaded, a phase never entered, an approval never asked — and a missing thing has no event to match on. They need a declared side, and Step 4b is where it is built.
 
-Project it out of the trace, per the field list and the degradation ladder in `checks-reference.md` §8. Everything needed is in the thread: the injected skill body carries the phases, phase-body pointers, load sites, and gates; each instruction file's own tool_result carries the blocks it shipped. Where a field is missing, take the §8 degradation rather than substituting this checkout for it (invariant #9), and let the weakening travel with each finding instead of being decided once for the thread.
+Project it out of the trace, per the field list and the degradation ladder in `checks-reference.md` §8. Everything needed is in the thread: the injected skill body carries the phases, phase-body pointers, load sites, and gates; each instruction file's own tool_result carries the blocks it shipped. Where a field is missing, take the §8 degradation rather than substituting this checkout for it (the trace-is-the-declaration invariant), and let the weakening travel with each finding instead of being decided once for the thread.
 
-Skip the step when `geniro-run: no` — a thread with no skill run declares nothing (invariant #10). Echo the set's shape in one line so the user can see what coverage will be measured against, and spot a parse that read nothing.
+Skip the step when `geniro-run: no` — a thread with no skill run declares nothing (the no-declaration-no-finding invariant). Echo the set's shape in one line so the user can see what coverage will be measured against, and spot a parse that read nothing.
 
 ### Step 5: Write Phase 1 checkpoint
 
@@ -118,7 +118,7 @@ The I- and K-class coverage checks are the exception on both counts, because the
 
 ### Step 2: Spawn the LLM-judge
 
-ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (invariant #3). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve a `CLAUDE_PLUGIN_ROOT`-rooted path inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
+ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (the one-judge-per-thread invariant). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve a `CLAUDE_PLUGIN_ROOT`-rooted path inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
 - The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the seed budget (SKILL.md §Budgets & quality gates — LLM-judge token budget row).
 - **This thread's expectation set** from Phase 1 Step 4b, with the degradation level it was built at. The judged coverage checks (the judged I/K-class rows in `checks-reference.md` §4) have no declared side without it and silently return nothing; the judge cannot re-derive it, because the turns it came from may not survive the excerpt slice. Send the set itself, never a pointer.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).

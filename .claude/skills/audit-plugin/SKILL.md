@@ -99,7 +99,7 @@ Sort the results into:
 - **Candidate lists** — pasted into the reviewer prompt of the dimension each one feeds (D3, D6, D7, D8, D9 per the D1 table). A dimension with an enumerable surface and no seed under-performs: the reviewer spends its budget rediscovering what a grep already knew.
 - **Context notes** — battery summary pasted into every reviewer prompt ("tests green, lint warns on X, shellcheck advisory on Y") so reviewers don't re-derive it.
 
-If `--quick`: jump to Phase 4 with machine findings only.
+If `--quick`: run the D6 subtraction sweep orchestrator-inline over the run's scope (per the subtraction-sweep invariant — no reviewer spawned), then jump to Phase 4 with machine findings plus that sweep's output.
 
 ## PHASE 2 — Parallel dimension reviewers
 

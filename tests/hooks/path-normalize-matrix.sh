@@ -20,6 +20,13 @@
 # adversary) picks, and that goes red immediately if `_geniro_normalize_path`
 # is ever reverted or edited out of only one of the two files.
 #
+# 2026-08-23 audit T0-1/T0-2: the same slash/dot-segment matrix was silent on
+# a whole SECOND axis — case. `.GENIRO` and `.geniro` are the same inode on a
+# case-insensitive filesystem, so a case-sensitive matcher is exactly as open
+# as one that forgets to collapse `.`/`//`. {XU}/{GU} below are that axis, and
+# a trailing block of command-word case variants (rm/RM, git/Git/GIT) closes
+# T0-3/T0-4 the same way.
+#
 # Portability: bash 3.2 / BSD, no writes outside a mktemp sandbox, no network.
 
 set -uo pipefail
@@ -49,6 +56,10 @@ trailing-slash|.geniro/{X}/
 trailing-double-slash|.geniro/{X}//
 dot-segment-trailing-slash|.geniro/./{X}/
 mixed-no-dotdot|./.geniro/./{X}//
+upper-geniro|.GENIRO/{X}
+mixed-case-geniro|.GeNiRo/{X}
+upper-segment|.geniro/{XU}
+upper-both|.GENIRO/{XU}
 '
 
 run_guard() {  # <hook-path> <payload-json>
@@ -67,10 +78,14 @@ run_guard() {  # <hook-path> <payload-json>
 # needing to have been told the new spelling in advance.
 matrix_for_guard() {  # <label> <hook-path> <segment> <payload-tmpl-with-{P}>
   local label="$1" hook="$2" seg="$3" payload_tmpl="$4"
+  local seg_upper
+  # tr, not bash 4's ${seg^^}: this suite runs on bash 3.2 (macOS /bin/bash).
+  seg_upper="$(printf '%s' "$seg" | tr '[:lower:]' '[:upper:]')"
   local id path_tmpl path payload rc first_rc="" all_agree=1
   while IFS='|' read -r id path_tmpl; do
     [ -z "$id" ] && continue
     path="${path_tmpl//\{X\}/$seg}"
+    path="${path//\{XU\}/$seg_upper}"
     payload="${payload_tmpl//\{P\}/$path}"
     rc=$(run_guard "$hook" "$payload")
     if [ -z "$first_rc" ]; then first_rc="$rc"; fi
@@ -104,6 +119,47 @@ matrix_for_guard "enforce-state-helper.sh [state path write]" \
 matrix_for_guard "block-geniro-deletion.sh [rm -rf]" \
   "$REPO_ROOT/hooks/block-geniro-deletion.sh" "instructions" \
   '{"tool_input":{"command":"rm -rf {P}"}}'
+
+# ===== Command-word case axis (2026-08-23 audit T0-3/T0-4) =====
+# Same "every spelling must agree with the plain form" property, applied to
+# the COMMAND WORD (rm/RM, git/GIT) rather than the .geniro path — macOS PATH
+# lookup resolves `RM`/`Git`/`GIT` to the same binary as the lowercase
+# spelling, so a matcher keyed to one case is exactly as open as one that
+# forgets a path spelling.
+# cmdword_matrix <label> <hook-path> <cmd-template-with-{C}>
+# {C} is substituted with each command-word spelling in turn; all must agree.
+cmdword_matrix() {  # <label> <hook-path> <cmd-tmpl-with-{C}-and-rest> <words...>
+  local label="$1" hook="$2" cmd_tmpl="$3"
+  shift 3
+  local word cmd payload rc first_rc="" all_agree=1
+  for word in "$@"; do
+    cmd="${cmd_tmpl//\{C\}/$word}"
+    payload="{\"tool_input\":{\"command\":\"${cmd}\"}}"
+    rc=$(run_guard "$hook" "$payload")
+    if [ -z "$first_rc" ]; then first_rc="$rc"; fi
+    if [ "$rc" = "$first_rc" ]; then
+      pass "$label [$word]: agrees with the plain spelling (rc=$rc)"
+    else
+      all_agree=0
+      fail "$label [$word]: DISAGREES with the plain spelling (plain=$first_rc, this=$rc), cmd=$cmd"
+    fi
+  done
+  if [ "$first_rc" != "2" ]; then
+    all_agree=0
+    fail "$label: the plain spelling itself did not block (rc=$first_rc) — the matrix is vacuous without a real gate to close"
+  fi
+  [ "$all_agree" = "1" ] && pass "$label: every command-word spelling decided identically (rc=2)"
+}
+
+cmdword_matrix "block-geniro-deletion.sh [rm -rf .geniro command-word case]" \
+  "$REPO_ROOT/hooks/block-geniro-deletion.sh" \
+  '{C} -rf .geniro' \
+  rm RM Rm rM
+
+cmdword_matrix "block-dangerous-git.sh [push --force command-word case]" \
+  "$REPO_ROOT/hooks/block-dangerous-git.sh" \
+  '{C} push --force' \
+  git Git GIT gIt
 
 echo
 echo "Tests run:    $TESTS_RUN"

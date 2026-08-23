@@ -93,7 +93,7 @@ No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS 
 
 ### Step 6: Cleanup
 
-Every terminal exit runs this — `done` after a "Done — answer is sufficient" pick, `present-summary-only` after the "I have a follow-up question" pick, `routed` from the Phase 1 Step 1.5 external-lookup exit, `aborted` from either escalation state. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
+Every terminal exit runs this — `done` after a "Done — answer is sufficient" pick, `present-summary-only` after the "I have a follow-up question" pick, `routed` from the Phase 1 Step 1.5 external-lookup exit. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 
 ```bash
 rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true

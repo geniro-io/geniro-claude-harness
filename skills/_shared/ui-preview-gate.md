@@ -26,10 +26,10 @@ Skip entirely unless at least one file in the predicted affected-files list matc
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent for the description. Pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the spec already decided what the UI does, and this spawn only transforms it into a structured description. That is the ceiling, not a fixed value: a spec covering one or two screens is a §Sizing down-pick, and the tier goes with it. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site. The agent is read/transform-only — set `disallowedTools: ["Edit", "Write", "NotebookEdit"]`.
+Spawn a general-purpose subagent for the description. Pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the spec already decided what the UI does, and this spawn only transforms it into a structured description. That is the ceiling, not a fixed value: a spec covering one or two screens is a §Sizing down-pick, and the tier goes with it. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site — the Agent tool has no tool-withholding parameter, so restate the read/transform-only constraint (no `Edit`, `Write`, `NotebookEdit`) inside the prompt body per that file's §Prohibited tools list.
 
 ```
-Agent(model="sonnet", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(model="sonnet", prompt="""
 ## Task: Describe UI Before Implementation
 
 Produce a textual, structured description of how the UI will LOOK after this change — so the user can review it and request changes BEFORE any code is written.
@@ -62,7 +62,7 @@ Keyboard flow, ARIA roles, focus order, contrast considerations.
 Things you could not infer from the inputs — as crisp questions. If none, write "none".
 
 ## Constraints
-- Do NOT write code. Describe intent only.
+- Read/transform-only — do not call Edit, Write, or NotebookEdit. Do NOT write code. Describe intent only.
 - Do NOT invent requirements that are not in the inputs.
 - Keep the whole response under 200 lines.
 """, description="UI preview: describe intent")

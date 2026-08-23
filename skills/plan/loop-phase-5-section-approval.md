@@ -4,6 +4,12 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 
 State.md `phase: section-approve` during this phase.
 
+## Contents
+
+- 5.1 Section template — the eleven sections and their order
+- 5.2 Cluster approval — message-first render, one decision per cluster, per-section persistence, tier-scaling
+- 5.3 Milestone-mode
+
 ### 5.1 Section template
 
 Use the **fixed section schema** detailed in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`:
@@ -48,7 +54,7 @@ Per cluster, apply the Gate presentation contract:
    - **Approve all (N sections)** (Recommended) — accept every section in the cluster as rendered.
    - **Explain a section further** — opens the same section picker as Revise. For each picked section, render a deeper walkthrough message — the full evidence chain (additional `file:line` cites), an expanded or alternative diagram, edge-case behavior, and exactly what /geniro:implement will and will not touch — then re-fire this AUQ. A reading aid, not a decision (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option): it writes no `approvals[]` entry, never changes section content, and does not count toward the 3 revision rounds.
    - **Revise specific sections** — opens a follow-up multi-select picker of the cluster's section names (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` multi-select schema). For each picked section, capture the revision (free-text), re-author it AND any same-cluster sections that depend on it, re-render the cluster message, then fire the before-gate update for this Revise site (call-site table in `loop-artifact-call-sites.md`) so the page mirrors the re-rendered chat. Then re-fire this AUQ. Max 3 revision rounds per cluster — on a 4th, re-render with Revise dropped (Approve all / Explain a section further / Cancel planning) and note that a change still wanted rides to the final approval gate, whose Request-changes path re-enters this phase.
-   - **Cancel planning** — terminal `aborted` + `## Termination reason: user-cancelled-at-phase-5`.
+   - **Cancel planning** — run the §9.2 transient cleanup (`clean_task_transients`, `loop-phase-9-handoff.md`) and walk `loop-definition-of-done.md` §Abort-path subset, then write terminal `aborted` + `## Termination reason: user-cancelled-at-phase-5`.
 
 4. **Persist each section pick** to `approvals[]` with category `section_<id>` (e.g., `section_objective`, `section_scope_included`). On "Approve all", append one entry per section in the cluster (`picked: approve`); on "Revise", record the revised sections distinctly (`picked: revised: <summary>`); "Explain a section further" persists nothing — only Approve/Revise picks write entries. The cluster is a presentation grouping only — no `cluster_<id>` category; per-section persistence granularity is unchanged, so compaction re-author (§6.4) and the SessionStart restore hook need no change.
 

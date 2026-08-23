@@ -166,14 +166,23 @@ load_semantic() {
     local -a extras_arr
     IFS=' ' read -ra extras_arr <<< "$extras"
     local e
-    for e in "${extras_arr[@]}"; do
-      [ -z "$e" ] && continue
-      # Accept either bare name or with leading underscore.
-      case "$e" in
-        _*) names+=("$e") ;;
-        *)  names+=("_$e") ;;
-      esac
-    done
+    # `--extras "   "` (whitespace only) passes the `-n "$extras"` test above
+    # but `read -ra` splits it into a ZERO-element array — and on bash 3.2
+    # (macOS /bin/bash), `"${extras_arr[@]}"` on an empty array is treated as
+    # an unset parameter, so under a caller's `set -u` this loop died with
+    # `extras_arr[@]: unbound variable` instead of just doing nothing
+    # (2026-08-23 audit T4-32, verified by reproduction). The count test is
+    # safe on an empty array on every bash version, unlike the expansion.
+    if [ "${#extras_arr[@]}" -gt 0 ]; then
+      for e in "${extras_arr[@]}"; do
+        [ -z "$e" ] && continue
+        # Accept either bare name or with leading underscore.
+        case "$e" in
+          _*) names+=("$e") ;;
+          *)  names+=("_$e") ;;
+        esac
+      done
+    fi
   fi
 
   local n path rc=0

@@ -21,7 +21,7 @@ If any check fails:
 4. If round 3 still fails → fire `AskUserQuestion` with header "Spec checks not passing":
  - **Accept as-is** — proceed to Phase 8 with the failed checks documented in `## Open Questions`; user has final say.
  - **Re-revise** — kick a fresh round-1 cycle (rare; usually indicates schema misunderstanding).
- - **Abort** — terminal `aborted` + `## Termination reason: phase-7-validator-hard-fail`.
+ - **Abort** — run the §9.2 transient cleanup (`clean_task_transients`, `loop-phase-9-handoff.md`) and walk `loop-definition-of-done.md` §Abort-path subset, then write terminal `aborted` + `## Termination reason: phase-7-validator-hard-fail`.
 
 ### 7.4 No transition to Phase 7.5 if validator hard-fails
 

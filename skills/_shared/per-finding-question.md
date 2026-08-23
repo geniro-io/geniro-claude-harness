@@ -48,7 +48,7 @@ Every gate under this contract follows a two-step shape — **render the finding
 
 **Separate-message rule.** The chat block must be a SEPARATE, already-emitted assistant message that exists before the `AskUserQuestion` fires. Emitting the text and the AUQ tool call in the same assistant turn does not satisfy the contract: same-turn text may not display in some clients, and the question must be answerable from what the user has already seen. A question that says "the message above" / "rendered above" / "summarized above" while no such message exists obtains an approval the user could not have been informed of — a gate failure, not a UX nit.
 
-**Turn-completion rule.** The inverse failure is forbidden too: once the chat block is emitted, the `AskUserQuestion` is the immediate next action. Canonical, with the guard's hard-block recovery, in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
+**Turn-completion rule.** The inverse failure is forbidden too: once the chat block is emitted, the `AskUserQuestion` is the immediate next action. Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
 **Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a reviewer phrase like "relies on the implicit entity-default @Filter at the 3 call sites" must be spelled out — which code paths, what the default does, why the reliance is in question — never echoed verbatim into the question. No term may appear in the `question` or any option that was not explained in the chat block first.
 

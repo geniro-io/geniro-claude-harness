@@ -21,11 +21,9 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.m
                │                 │            └── present-summary-only (terminal — "I have a follow-up question" pick)
                │                 │
                │                 └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
-               │                                             ├── present (user picks "drop unverified claims" → continue with gaps)
-               │                                             └── aborted (terminal)
+               │                                             └── present (user picks "drop unverified claims" → continue with gaps)
                │
                └── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
-                                        ├── aborted (terminal)
                                         └── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
 
 present ──┬── (happy: flows to done)
@@ -51,7 +49,7 @@ producer: investigate
 schema-version: 1
 branch: <git-branch>
 timestamp: <ISO-8601 UTC>
-phase: <classify|investigate|present|*-escalated|done|present-summary-only|aborted|routed>
+phase: <classify|investigate|present|*-escalated|done|present-summary-only|routed>
 status: <in-progress|done|failed>
 non-resumable-actions: []
 approvals: []
@@ -97,7 +95,7 @@ dive_round: <0-2>     # optional; Phase 3 dive-deeper round counter, survives co
 <missing-data gates, glossary mismatches>
 
 ## Termination reason
-<only on terminal aborted/routed states>
+<only on the terminal `routed` state>
 
 ## Persisted approvals
 <render of frontmatter approvals[] (category: glossary_resolve, duplicate_answer)>

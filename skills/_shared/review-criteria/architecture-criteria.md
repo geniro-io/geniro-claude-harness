@@ -79,20 +79,6 @@ Trigger condition, finding shape, and the `Options:` block are canonical at `${C
 - Test-context setup that is difficult or impossible to construct (hidden construction, hardcoded dependencies)
 - Logic embedded in infrastructure code with no injectable boundary
 
-**How to detect:**
-- Check if functions are testable (pure or injectable)
-- Look for functions with many side effects
-- Identify areas with complex setup required
-- Check for hardcoded values/dependencies
-- See if logic is embedded in infrastructure code
-
-**Red flags:**
-- Pure business logic mixed with I/O
-- Global state or singletons used throughout
-- Functions doing both computation and side effects
-- Difficult to create isolated test contexts
-- External API calls in core logic
-
 **Severity:** MEDIUM when the seam forcing heavy mocking sits in code this diff newly introduces; LOW for a pre-existing testability gap the diff does not worsen. Never CRITICAL — a test gap never crashes production on its own; a runtime defect it lets slip through is a bugs-dimension finding.
 
 ## Common false positives
@@ -117,12 +103,7 @@ Trigger condition, finding shape, and the `Options:` block are canonical at `${C
 - Check if values come from proper config sources
 - Don't flag if using DI framework
 
-5. **Learning code** — New developers might use older patterns
-- Code reviews should mentor, not just criticize
-- Consistency matters, but growth is important
-- Consider context and codebase age
-
-6. **Intentional simplification** — Simple code beats perfect design
+5. **Intentional simplification** — Simple code beats perfect design
 - Don't flag over-engineering fears
 - Some coupling is acceptable for simplicity
 - Only flag if causing real problems
