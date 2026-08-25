@@ -85,8 +85,8 @@ EOF
 ```
 
 **Trust label:**
-- `trust: verified` — investigation was code-grounded only (no WebFetch/WebSearch agents spawned, OR WebFetch results were not load-bearing to the final answer).
-- `trust: retrieved` — WebFetch/WebSearch findings were load-bearing to the final answer.
+- `trust: verified` — investigation was code-grounded only (no web-research agents spawned, OR web results were not load-bearing to the final answer).
+- `trust: retrieved` — web-research findings were load-bearing to the final answer.
 - `trust: inferred` — N/A for /geniro:investigate (model-deduced claims do not pass Evidence Standard's confidence-driven action).
 
 No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS sufficient for baseline awareness.

@@ -81,7 +81,7 @@ Query the thread for Geniro-skill signals:
 - Was a `/geniro:<skill>` slash command invoked? → `geniro-run: yes` + record which skill.
 - Was an `Agent(subagent_type=...)` call made? → record spawn sites for Phase 2 checks A1-A7.
 - Was an `AskUserQuestion` call made? → record approval gates for Phase 2 check D2.
-- Was a TodoWrite call made? → record final state for Phase 2 check D3.
+- Was a todo-list call made (`TodoWrite`, or `TaskCreate`/`TaskUpdate` on hosts that name it that)? → record final state for Phase 2 check D3.
 - Were `CLAUDE_PLUGIN_ROOT`-rooted / `_shared/` paths referenced? → confirms plugin-context.
 
 Skip plugin-specific checks (the `[plugin]` rows in checks-reference.md) when `geniro-run: no` AND no plugin signals appear. Generic checks still apply.

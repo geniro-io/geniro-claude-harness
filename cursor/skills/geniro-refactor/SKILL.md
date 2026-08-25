@@ -29,7 +29,7 @@ context: main
 
 ---
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve every reference it appears in, working these in order: the env var of that name; the ancestor directory of this file containing `.claude-plugin/plugin.json`; a copy of the referenced file sitting beside this one (the Cursor build ships each skill's own phase and reference files there); a plugin checkout inside the workspace. Where a rung yields a root, substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. **Work the rungs with a command, not a judgment:** the run's first Bash call lists the directory this file was read from and each candidate root, and its output is echoed verbatim before anything else. Read the rungs against that output — a path it does not show did not resolve, and a file it does not show cannot be read, however confidently a later step would report otherwise. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here: it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not** — open your first message by naming what is unavailable, run every phase and gate this skill declares, never let the project's own rules stand in for its decision gates, and take no outward-facing action (ready-for-review PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is a path placeholder Claude Code substitutes into file references, never a shell export — it reads empty in a Bash call under every host, Claude Code included, so an empty probe is no evidence of another runtime (`CLAUDECODE` in the environment marks Claude Code). Resolve the root by working these in order: the ancestor directory of this file containing `.claude-plugin/plugin.json`; a copy of the referenced file sitting beside this one (the Cursor build ships each skill's own phase and reference files there); a plugin checkout inside the workspace. Substitute the resolved root for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. **Work the rungs with a command, not a judgment:** the run's first Bash call lists the directory this file was read from and each candidate root, and its output is echoed verbatim before anything else. Read the rungs against that output — a path it does not show did not resolve, and a file it does not show cannot be read, however confidently a later step would report otherwise. A ladder that resolves is bookkeeping, not a finding: keep the echo to the probe output and the resolved root, and reserve a degraded-run notice for a rung that actually failed. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here: it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not** — open your first message by naming what is unavailable, run every phase and gate this skill declares, never let the project's own rules stand in for its decision gates, and take no outward-facing action (ready-for-review PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
 **Detailed contracts:**
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
@@ -88,7 +88,7 @@ This skill adds two invariants:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-S2. **One todo in_progress at a time.** Use `TodoWrite` to expose per-phase progress: at skill start, create phase-level todos (Plan, Apply, Verify); during Phase 2, add dynamic per-step todos derived from the approved plan; mark `in_progress` → `completed` as phases run.
+S2. **One todo in_progress at a time.** Use the todo-list tool to expose per-phase progress: at skill start, create phase-level todos (Plan, Apply, Verify); during Phase 2, add dynamic per-step todos derived from the approved plan; mark `in_progress` → `completed` as phases run.
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
@@ -172,17 +172,17 @@ Route every user-facing choice in this skill through the `AskQuestion` tool per 
 
 **Phase 1 (Plan):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / AskQuestion.
-- Allowed Agent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
-- Explicitly blocked: production-source Edit/Write, `git commit`, `git push`, `gh pr create`.
+- Allowed subagent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
+- Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**
-- Allowed Agent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
+- Allowed subagent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
 - Orchestrator uses Edit / Write / Bash (test cmd) / AskQuestion directly. Per-step regression runs via backpressure helper.
 - Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
 
 **Phase 3 (Verify):**
 - Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / AskQuestion / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
-- Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only).
+- Allowed subagent spawns: reviewer-agent + custom reviewers (Medium+ only).
 - Allowed: targeted per-file revert per § Git constraint — the one orchestration-level exception to the git-write constraint.
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.
 

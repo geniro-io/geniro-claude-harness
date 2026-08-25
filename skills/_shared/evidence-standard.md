@@ -17,7 +17,7 @@ This file is the single source of truth. Skills cite this file — the schema an
 LLM orchestrators and subagents reliably hallucinate success when not held to captured artifacts. Three observed failure modes:
 
 - An agent claims "tests pass" without ever running `pytest` (or the project's test command) — the PASS is inferred from the diff, not from a green run.
-- An orchestrator carries an earlier phase's PASS forward after Edit/Write mutations have invalidated it — the green it is citing no longer reflects the current tree.
+- An orchestrator carries an earlier phase's PASS forward after file mutations have invalidated it — the green it is citing no longer reflects the current tree.
 - A reviewer agent claims "the build is broken on main" without running the build — the claim is reasoning-from-the-diff, not observation.
 
 Evidence Block schema + the cross-phase carry rule + per-skill consumption gates are the layered defense.
@@ -27,7 +27,7 @@ Evidence Block schema + the cross-phase carry rule + per-skill consumption gates
 - Any "done", "passing", "validated", "ready to ship", "shipped" claim by the orchestrator or any subagent.
 - Every CRITICAL or HIGH finding emitted by reviewer agents (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`). MEDIUM findings should attach evidence when available. A CRITICAL or HIGH without evidence is still admitted at the Phase 4.1 gate on severity alone (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) — this standard binds at the post-verification step instead: the Phase 4.2 verifier is what supplies the missing quote, so an admitted-but-unevidenced finding is expected to carry evidence by the time it reaches the handoff, not at emit-time.
 - Every hypothesis confirmation in `/geniro:debug` — debug consumes this artifact-kind contract per its loop invariant #6.
-- Any PASS carried across a phase boundary. A build/lint/test PASS observed in an earlier phase stands as evidence only while nothing has changed since it was captured — any `Edit`/`Write`, a different `HEAD`, a different command, or a non-clean exit from the agent that reported it means re-run rather than carry. A PASS is a pre-mutation snapshot, not a clock.
+- Any PASS carried across a phase boundary. A build/lint/test PASS observed in an earlier phase stands as evidence only while nothing has changed since it was captured — any file edit, a different `HEAD`, a different command, or a non-clean exit from the agent that reported it means re-run rather than carry. A PASS is a pre-mutation snapshot, not a clock.
 - Any memory write claiming `trust: verified` — the captured-artifact bar governs L2 learnings too; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` § Evidence bar for `trust: verified`.
 
 ## Evidence Block schema

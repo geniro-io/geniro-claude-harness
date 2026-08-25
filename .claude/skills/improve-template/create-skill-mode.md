@@ -23,7 +23,7 @@ Investigate → Filter → Implement pipeline.
    - **Project-local** (`/<name>`) — adds to `.claude/skills/<name>/SKILL.md` in the user's project
    - **Plugin-internal helper** (no slash invocation) — `_shared/<name>.md` referenced by other skills
 
-2. **Ground the recommendations.** Read `.claude/rules/skill-structure.md` and `.claude/rules/skill-prose.md` — the maintained authoring rules this skill will be judged against in Phase B and Phase C. WebFetch `https://docs.claude.com/en/docs/claude-code/skills` only when the new skill touches a Claude Code surface you are unsure of; a failed fetch is not a blocker.
+2. **Ground the recommendations.** Read `.claude/rules/skill-structure.md` and `.claude/rules/skill-prose.md` — the maintained authoring rules this skill will be judged against in Phase B and Phase C. Fetch `https://docs.claude.com/en/docs/claude-code/skills` only when the new skill touches a Claude Code surface you are unsure of; a failed fetch is not a blocker.
 
 3. **Interview the user** via 3-5 sequential `AskUserQuestion` calls (one question per AUQ — don't batch in this phase, the answers compound):
    - **Trigger**: "What should activate this skill? (1-3 phrases or contexts users would describe)" — collect to use in the description's "Use when" clause
@@ -43,7 +43,7 @@ Investigate → Filter → Implement pipeline.
    - The path target (`skills/<name>/SKILL.md` or `.claude/skills/<name>/SKILL.md`)
    - Constraints (pre-inlined): description rules from `phase-4-6-implement-review.md` §Description-format validator + reference depth ≤1 hop + edit-in-place principle, plus an instruction to read `.claude/rules/skill-structure.md` § File-size limits for the size rule
    - 1-2 exemplar SKILL.md files closest in shape to the proposed skill (e.g., for a small command-style skill, point at `skills/instructions/SKILL.md`; for a multi-phase pipeline, point at `skills/refactor/SKILL.md`)
-   - Output instructions: "Write the SKILL.md file using the Write tool. Follow the structure of the exemplars. Description must follow `.claude/rules/skill-structure.md` §Frontmatter hygiene (length budget, third person, 'Use when' AND 'Skip for' clauses). Read `.claude/rules/skill-structure.md` § File-size limits and size the file by it; `skills/implement/implement-reference.md` is the canonical example of the SKILL-plus-reference split it asks for."
+   - Output instructions: "Write the SKILL.md file. Follow the structure of the exemplars. Description must follow `.claude/rules/skill-structure.md` §Frontmatter hygiene (length budget, third person, 'Use when' AND 'Skip for' clauses). Read `.claude/rules/skill-structure.md` § File-size limits and size the file by it; `skills/implement/implement-reference.md` is the canonical example of the SKILL-plus-reference split it asks for."
 
 2. **Validate (Phase 4 Step 3 validation gate from improve-template's existing flow)** — including the description-format checks in `phase-4-6-implement-review.md` §Description-format validator.
 

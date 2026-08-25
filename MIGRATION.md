@@ -756,9 +756,9 @@ Old T2 handoff files lack `spawn_dims_declared[]` / `spawn_dims_count` / `open_q
 
 ---
 
-### `/implement` Phase 2 TodoWrite decomposition
+### `/implement` Phase 2 todo-list decomposition
 
-`/geniro:implement` Phase 2 now uses TodoWrite to decompose the edit batch into 3-15 sequential todos with a one-in-progress invariant. No user-content format change — todos live in Claude Code's Tasks API, not state.md. Resuming a pre-v3 in-progress Phase 2 state.md re-decomposes via TodoWrite on next Phase 2 entry.
+`/geniro:implement` Phase 2 now uses the host's todo list to decompose the edit batch into 3-15 sequential todos with a one-in-progress invariant. No user-content format change — todos live in the host's task store, not state.md. Resuming a pre-v3 in-progress Phase 2 state.md re-decomposes on next Phase 2 entry.
 
 **Action required:** None — internal mechanic change.
 

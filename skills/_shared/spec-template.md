@@ -64,7 +64,7 @@ checkpoints: # list of {step_anchor, name} pairs
 forbidden_actions: # list of explicit "don't do this" rules
   - "do NOT modify production database schema directly — use migrations only"
   - "do NOT bypass auth middleware"
-approval_required_for: # advisory: step_anchors flagged for a user-approval pause — goal-state documentation only (the enforced /geniro:implement Edit/Write gate is the handoff open_questions[] check, not a step-anchor match)
+approval_required_for: # advisory: step_anchors flagged for a user-approval pause — goal-state documentation only (the enforced /geniro:implement code-edit gate is the handoff open_questions[] check, not a step-anchor match)
   - step-3
   - step-9
 tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in env — goal-state end
@@ -167,7 +167,7 @@ Body sections beyond the 11 (allowed):
 - [ ] 2. Widen the contract in `context-assembler.interface.ts:3-9` (`+userId`, `+entryPoint`). <!-- step-2 -->
 ```
 
-**Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not auto-gate on a step-anchor match; the enforced Edit/Write gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 handoff-resolution step). Use "none" if /geniro:implement may run autonomously start-to-finish.
+**Section 8 (Approval Points):** Declares step anchors that warrant a user-approval pause during the /geniro:implement run. These are advisory goal-state documentation — /geniro:implement does not auto-gate on a step-anchor match; the enforced code-edit gate in /geniro:implement is the handoff `open_questions[]` check (Phase 1 handoff-resolution step). Use "none" if /geniro:implement may run autonomously start-to-finish.
 
 **Section 9 (Validation):** for each criterion verified by tests, name the public seam the test enters through — the exported function, endpoint, or CLI command a real caller uses (e.g. `POST /api/orders`, `checkout(cart, payment)`). Prefer an existing seam over a new one, and the highest seam that still observes the behavior (seam vocabulary: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md`); cite prior art — a similar existing test file — when one exists. Leaving the seam unnamed defers the choice to /geniro:implement mid-build, where a wrong seam surfaces as a review finding instead of at the section-approval gate.
 

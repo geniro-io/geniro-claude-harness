@@ -81,7 +81,7 @@ Findings tagged `severity: CRITICAL` (secrets are always critical).
 
 ### 1.5.4 Custom-reviewer discovery
 
-**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` via Bash before invoking the helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
+**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call before invoking the helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to enumerate user-authored review dimensions in `.geniro/instructions/review-extra/<slug>.md`. The helper applies its `paths:` filter against the changed-files list, enforces the per-project cap it owns, and returns spawn-specs: `{slug, dimension-label: custom:<slug>, model, criteria-content, severity-default, requires-context, source-path}`.
 
@@ -99,7 +99,7 @@ custom_reviewers:
 
 The one spawn-spec field this list deliberately omits is `criteria-content` — the user file's whole body. Writing it here would drag every word of every custom rubric through `atomic_state_write` into a durable handoff that ships downstream, then back out at Phase 2: the same pass-through cost §2.3's "pass the path, never the body" rule exists to avoid, paid twice. `source_path` is the anchor instead — Phase 2 re-reads it for the body at the moment it composes the spawn.
 
-Phase 2 reads `custom_reviewers[]` from frontmatter and re-reads each `source_path` for the criteria body — no discovery, globbing, path-filtering, or cap-checking at Phase 2 entry (discovery lives here because Phase 1.5 already has Bash tooling primed, keeping the cognitively heavy Phase 2 spawn assembly free of it).
+Phase 2 reads `custom_reviewers[]` from frontmatter and re-reads each `source_path` for the criteria body — no discovery, globbing, path-filtering, or cap-checking at Phase 2 entry (discovery lives here because Phase 1.5 already has shell tooling primed, keeping the cognitively heavy Phase 2 spawn assembly free of it).
 
 On the helper's hard-cap error, surface it to chat, persist `custom_reviewers: []`, and let Phase 2 fire only the built-ins. A helper batch-size *warning* is advice to the user about how many custom reviewers to keep — it never trims the batch: the §2.1 always-fire rows fire on every run regardless of how many custom reviewers discovery returned.
 

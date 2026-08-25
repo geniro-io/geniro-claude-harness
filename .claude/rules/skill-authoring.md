@@ -2,11 +2,14 @@
 paths:
   - "skills/**/*.md"
   - "agents/**/*.md"
+  - ".claude/skills/**/*.md"
 ---
 
 # Skill & agent authoring — what NEVER ships to downstream consumers
 
 Files under `skills/**/*.md` and `agents/**/*.md` are distributed to every repo that installs this plugin. The rules below apply when editing or creating them.
+
+`.claude/skills/**/*.md` are this repo's own meta-skills and never ship. Only §6 binds there — a tool surface varies by host whether or not the file is distributed; the exclusions above it are written for a downstream reader who does not exist for those files.
 
 ## Hard exclusions (reject before commit)
 
@@ -56,6 +59,19 @@ A `skills/foo/SKILL.md` covers only what /foo does. Strip:
 - Future-work TODOs / FIXME / "deferred to next version".
 - Provenance ("adapted from X paper / Y blog / Z framework"). Restate the rule in your own voice.
 
+### 6. System-tool names used as instructions
+
+Instruct by capability, not by tool name — "keep a todo list", "read the file", "spawn the reviewer", "web search". The model already knows its own tool surface, and a host that registers the capability under another name (or omits it) still follows a capability instruction, where a named tool it does not have reads as a missing step.
+
+Literal names belong in the four places where the name is data rather than instruction:
+
+- `allowed-tools:` and agent `tools:` frontmatter.
+- Call syntax a run copies verbatim — `Agent(subagent_type=...)`, `disallowedTools=[...]`, `Workflow(...)`.
+- A sentence naming a specific parameter to pass or omit (`model=`, `run_in_background`).
+- A guard description quoting what a hook matcher matches, and the Tool substitutions table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`, whose whole job is mapping names across hosts.
+
+`Artifact` and `Workflow` stay named as Claude Code features: each has a substitutions row and an explicit not-available-here path, and their names are also section anchors and call syntax.
+
 ## Soft preferences (apply where reasonable)
 
 - Short imperative sentences.
@@ -72,7 +88,6 @@ Any string the orchestrator surfaces to the user must pass the **fresh-user test
 
 Preserve these — they are not noise:
 
-- Tool-name references (Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, TodoWrite).
 - File-path patterns the skill operates on.
 - Frontmatter field schemas.
 - Anti-rationalization tables (§3 above).

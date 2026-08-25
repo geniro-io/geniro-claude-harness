@@ -69,7 +69,7 @@ Phase 7 validator (check `source_materials`) requires ≥1 Agent entry with `sta
 
 ## Spawn contract
 
-Cross-phase, binding every Agent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, the Phase 4 stress-test critics, and the deep-mode generators/critics.
+Cross-phase, binding every subagent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, the Phase 4 stress-test critics, and the deep-mode generators/critics.
 
 Subagent model selection: follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Judgment-grade spawns OMIT `model=`. Spawn with `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host (`geniro:` is Claude Code's plugin namespace; no other host has one); on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session.
 

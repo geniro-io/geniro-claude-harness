@@ -145,7 +145,7 @@ Both dimensions must pass:
 - **No untranslated identifiers.** `T2` / `FIX-NOW` / `phase: triage` restated inline or dropped.
 - **No assumed hidden context.** The string explains the situation it is about. A review gate asking *"How should we handle the implicit entity-default @Filter at the 3 call sites?"* fails even though every word is plain English — the user was never shown what that code does, why it is a concern, or what the options mean. For decisions carrying finding or investigation context, render the self-contained explanation to a chat message first, then fire a lean question, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering.
 
-Applies to everything the orchestrator surfaces: chat narration, `TodoWrite` labels, `AskUserQuestion` `header` / `question` / `description` / option `label` / `preview`, status echoes, final report sections, and errors surfaced to chat (not the state-file `## Errors` body section — that is a structured artifact for downstream consumers).
+Applies to everything the orchestrator surfaces: chat narration, todo-list labels, `AskUserQuestion` `header` / `question` / `description` / option `label` / `preview`, status echoes, final report sections, and errors surfaced to chat (not the state-file `## Errors` body section — that is a structured artifact for downstream consumers).
 
 ### Translation tables
 

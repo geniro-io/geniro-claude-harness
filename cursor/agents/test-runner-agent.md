@@ -44,7 +44,7 @@ From WORKTREE, execute TEST_COMMAND once with both stdout and stderr redirected 
 
 ### Step 2 — Parse the saved log
 
-Use Grep + Read on the saved log file. Extract:
+Search and read the saved log file. Extract:
 
 - **Exit code** (captured in Step 1)
 - **Pass/fail/skip counts** — Grep for the runner's summary line (pytest: `X passed, Y failed`; jest/vitest: `Tests: X passed, Y failed`; go test: `FAIL`/`ok` per package, summary at the end)
@@ -61,7 +61,7 @@ If the runner crashed before producing a summary (segfault, infrastructure error
 
 ### Step 3 — Write the report
 
-Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the Write tool — using the schema below. Echo the log file path in your final assistant message so the orchestrator knows where to find the raw output if it needs to investigate beyond the report.
+Write the report to OUTPUT_PATH from a shell call — your grant has no direct file write — using the schema below. Echo the log file path in your final assistant message so the orchestrator knows where to find the raw output if it needs to investigate beyond the report.
 
 ## Output Schema
 

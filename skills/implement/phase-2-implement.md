@@ -4,7 +4,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 ## Contents
 
-- Steps 1-6 — read spec source, TodoWrite decomposition + file-set partition, sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
+- Steps 1-6 — read spec source, todo-list decomposition + file-set partition, sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
 - State.md update on phase exit · the `## Phase 2 Completion` sentinel · past-learning emit on retry exit
 - Loop visualization
 
@@ -20,7 +20,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 1. **Read spec source** — Phase 1 resolved either a spec.md path OR wrote `## Inline Plan` to state.md body. Inline-Read the spec.md (full body) and the Codebase-Explorer "Likely-Touched Files" + "Reuse Inventory" sections.
 
-2. **Decompose into todos via TodoWrite (Phase 2 entry — before any Edit).** Author N concrete edit-tasks via TodoWrite. Each todo = one logical unit of change, sliced vertically — one behavior paired with the test that pins it (e.g., "Add migration X + test the new column round-trips", "Add expiry check to Y controller + test expired tokens get 401") — never horizontally (all production edits first, then a trailing "add tests" todo). Tests authored in bulk after the code pass on first run and discriminate nothing; pairing each behavior with its test keeps every test anchored to a change it actually observed.
+2. **Decompose into todos with the todo-list tool (Phase 2 entry — before any edit).** Author N concrete edit-tasks in the todo list. Each todo = one logical unit of change, sliced vertically — one behavior paired with the test that pins it (e.g., "Add migration X + test the new column round-trips", "Add expiry check to Y controller + test expired tokens get 401") — never horizontally (all production edits first, then a trailing "add tests" todo). Tests authored in bulk after the code pass on first run and discriminate nothing; pairing each behavior with its test keeps every test anchored to a change it actually observed.
 
    When state.md carries `Authored-tests:` (a resolved `/geniro:debug` handoff's pre-existing reproduction tests), name each path — and its `Authored-tests-intent:` annotation when present — in the description of the todo whose slice it pins, so the pre-existing test surfaces as that todo's acceptance gate and the production-fix work cannot ship without it going GREEN.
 
@@ -29,7 +29,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
    - 3-10 todos for Medium scope
    - up to 15 todos for Big scope (unless already split into milestones)
 
-   All todos initially `status: pending`. Mark the FIRST todo `in_progress` before any Edit.
+   All todos initially `status: pending`. Mark the FIRST todo `in_progress` before any edit.
 
    A library adopted at the Phase 1 build-vs-buy library-reuse audit (`approvals[]` category `library_adoption`) also becomes a todo here: add it through the package manager (not by editing a lockfile — lockfile writes stay hook-protected) and integrate it in place of the hand-written component.
 
@@ -38,12 +38,12 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 3. **Work through todos sequentially — one in_progress at a time** (Loop invariant S2):
    ```
    for each todo in pending order:
-       a. Mark todo in_progress via TodoWrite
-       b. Make the Edit/Write changes for THAT slice ONLY
+       a. Mark the todo in progress
+       b. Make the edits for THAT slice ONLY
        c. JIT-load any .claude/rules/*.md whose paths: glob matches an Edit target
           (use the rule list returned by Codebase-Explorer §"Relevant Rules";
           cache rule bodies for the rest of Phase 2)
-       d. Mark todo completed via TodoWrite — only once its content and this turn's
+       d. Mark the todo completed — only once its content and this turn's
           state.md write agree the slice is finished, not merely attempted
        e. Move to next todo
    ```
@@ -56,7 +56,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
    **Comment discipline.** Write a comment for what stays true of the code — how to use it correctly, an invariant the types don't express, a legal header, a TODO with an issue reference — at the surrounding file's comment density. Point-in-time facts — why this approach won, what the code used to do, what was measured, what a reviewer should check — belong in the pull-request description or commit message, the non-obvious ones included, since nothing updates a comment when the code around it moves. Keep each comment to the length of the constraint it carries: a block running past a few lines is pull-request text in the wrong file, and a line restating what the code plainly does carries no constraint at all. A per-project `code-style.md` rule overrides this default where they conflict.
 
-   **Halt on unbidden working-tree mutation.** Between Edits, if the working tree changes in ways no in-flight delegate's declared file set accounts for — an Edit/Write repeatedly fails with "file changed since read", or files/tests appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Tree changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a working tree another process is mutating risks the commit being orphaned by an external reset.
+   **Halt on unbidden working-tree mutation.** Between edits, if the working tree changes in ways no in-flight delegate's declared file set accounts for — an edit repeatedly fails with "file changed since read", or files/tests appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Tree changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a working tree another process is mutating risks the commit being orphaned by an external reset.
 
 4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, OUTPUT_PATH `<task-dir>/.tr-out.md`, and `MAX_FAILURES_REPORTED` (default per the `test-runner-agent` spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md`). Spawn `subagent_type="geniro:test-runner-agent"` under Claude Code, bare `subagent_type="test-runner-agent"` under any other host (`geniro:` is Claude Code's plugin namespace); on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. Model per `SKILL.md` §Subagent model tiering — OMIT `model=` so the agent's `model: sonnet` governs on the first run of the phase, and pass a cheaper tier on a fix-loop re-spawn once the first run has shown how large this suite's output actually is. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
@@ -99,12 +99,12 @@ PHASE 2 (todo loop — coupled work inline, disjoint groups delegated, both runn
 
   spec.md + Codebase-Explorer report
        ↓
-  [Phase 2 entry] TodoWrite: decompose into N todos
+  [Phase 2 entry] todo list: decompose into N todos
        ↓
   Partition by file set (Step 2 close)
        │
        ├─ coupled work (inline, sequential):
-       │    ┌─→ todo[i].in_progress ──→ Edit/Write batch ──→ todo[i].completed ─┐
+       │    ┌─→ todo[i].in_progress ──→ edit batch ──→ todo[i].completed ─┐
        │    │                  [i++; loop until all completed]                  │
        │    └───────────────────────────────────────────────────────────────────┘
        │

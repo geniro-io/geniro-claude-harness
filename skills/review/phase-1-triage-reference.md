@@ -330,7 +330,7 @@ Skip for files / diff range / branch — the `PEER-PR CONTEXT:` slot renders `no
 
 ## 6. Custom-instructions load
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative `Read` directives on every file in the pipeline load set; the §Echo contract requires one observable line per file. Both are mandatory.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative read directives on every file in the pipeline load set; the §Echo contract requires one observable line per file. Both are mandatory.
 
 ---
 
