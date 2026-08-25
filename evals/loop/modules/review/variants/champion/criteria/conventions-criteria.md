@@ -63,9 +63,11 @@ Do NOT apply the modal threshold to peer PRs as if they were merged siblings —
 
 ## Severity guidelines
 
-- **CRITICAL**: never. Convention drift is never CRITICAL — bugs and security own that tier. Conventions caps at HIGH.
+Scoped to this file's modal-pattern class only — the authored-rule-citation class (`rules-compliance-criteria.md`) keeps its own ceiling, since a rule's severity there follows the impact of breaking it, not the fact that it's a rule.
+
+- **CRITICAL**: never for a modal-pattern finding. Convention drift inferred from sibling sampling is never CRITICAL — bugs and security own that tier. The modal-pattern class caps at HIGH.
 - **HIGH**: clear ≥80% modal violation in [NEW] code that introduces a pattern the repo uses nowhere else (zero-shot novel), or crosses a 100%-respected module/layer boundary.
 - **MEDIUM**: ≥80% modal violation in [NEW] code where the introduced pattern exists in 1–2 other places (minority but not novel); any [PRE-EXISTING] finding regardless of frequency.
 - **LOW**: not emitted. N<3 siblings or modal frequency below 80% means no finding at all — these conditions suppress the finding rather than producing a low-severity one.
 
-Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1 (the conventions dim tightens it — caps at HIGH, suppresses LOW; see §6).
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1 (this file tightens it for the modal-pattern class only — caps at HIGH, suppresses LOW; see §6). The authored-rule-citation class reads its severity from `rules-compliance-criteria.md` §4 instead — a CRITICAL correctness/security rule violation there is not suppressed to HIGH by this section.

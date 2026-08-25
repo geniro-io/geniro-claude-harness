@@ -111,7 +111,7 @@ Commit {{pre-change sha from Phase 4 Step 0}}; files {{paths from Phase 4 Step 0
 1. **Correctness:** Do the changes do what they claim? Any logic errors?
 2. **Consistency:** Do changes match patterns used elsewhere in the template?
    - Phase structure consistent with other skills?
-   - Agent spawning syntax matches template conventions?
+   - Spawn syntax matches template conventions?
    - Anti-rationalization tables present where needed?
 3. **Scope creep:** Were any changes made beyond what was approved?
 4. **Edit-in-place:** Were original instructions rewritten to be explicit, or were

@@ -2,11 +2,14 @@
 paths:
   - "skills/**/*.md"
   - "agents/**/*.md"
+  - ".claude/skills/**/*.md"
 ---
 
 # Skill & agent authoring — what NEVER ships to downstream consumers
 
 Files under `skills/**/*.md` and `agents/**/*.md` are distributed to every repo that installs this plugin. The rules below apply when editing or creating them.
+
+`.claude/skills/**/*.md` are this repo's own meta-skills and never ship. Only §6 binds there — a tool surface varies by host whether or not the file is distributed; the exclusions above it are written for a downstream reader who does not exist for those files.
 
 ## Hard exclusions (reject before commit)
 

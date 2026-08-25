@@ -78,7 +78,7 @@ Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the 5 MB
 | ...
 
 ### Filtered (transparency)
-- a1f42fdd check_id=A6 event-range=22-23 — FALSE-POSITIVE: TodoWrite legitimately listed 5 items, not duplicate spawns
+- a1f42fdd check_id=A6 event-range=22-23 — FALSE-POSITIVE: the todo list legitimately held 5 items, not duplicate spawns
 - a1f42fdd check_id=E4 event-range=87 — REDUNDANT: same root cause as finding #3
 ```
 
