@@ -75,7 +75,7 @@ return { ranked: top3(field), critiques }
 // firstFlagsBlocking(raw): parse defensively → true if parse-failed (abstain → escalate) OR a blocking risk carrying its file:line citation
 ```
 
-Each generator/critic prompt re-asserts the read-only contract (no Edit/Write/git; the orchestrator owns the spec write and all `atomic_state_write`), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6. OMIT `model=` at every spawn.
+Each generator/critic prompt re-asserts the read-only contract (no file writes or edits, no git; the orchestrator owns the spec write and all `atomic_state_write`), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6. OMIT `model=` at every spawn.
 
 ## 6. Fail-safe
 

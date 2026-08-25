@@ -14,7 +14,7 @@ If `$ARGUMENTS` is empty after stripping, the consumer falls back to its own emp
 
 ### Step 2 — Resolve to filesystem
 
-Treat the token as a candidate path. Resolve relative paths against the current working directory. Test for existence with the Read tool (or `ls` via Bash for a quick existence check).
+Treat the token as a candidate path. Resolve relative paths against the current working directory. Test for existence with a file read (or `ls` in a shell call for a quick existence check).
 
 **If the token resolves to an existing file:** evaluate the three detection markers below. **Defense in depth — accept ANY of:**
 

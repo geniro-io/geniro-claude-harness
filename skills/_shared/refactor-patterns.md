@@ -162,7 +162,7 @@ For each transformation in `## Plan steps`:
  If backpressure is unavailable, run directly with output capped: `[test command] 2>&1 | tail -80`.
  If pre-tests fail, stop and report — do not make changes on a broken baseline.
 
-3. **Apply change** — use the Edit tool for surgical, line-aware modifications. Keep changes within scope boundaries. Preserve code style and formatting. Add no comments narrating the transformation ("moved from X", "extracted helper") — the diff is the record; move existing meaningful comments (WHY rationale, legal headers, TODO/FIXME) with their code rather than dropping them.
+3. **Apply change** — use a surgical, line-aware edit. Keep changes within scope boundaries. Preserve code style and formatting. Add no comments narrating the transformation ("moved from X", "extracted helper") — the diff is the record; move existing meaningful comments (WHY rationale, legal headers, TODO/FIXME) with their code rather than dropping them.
 
 4. **Post-condition check** — run tests via backpressure:
  ```bash

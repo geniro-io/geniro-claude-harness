@@ -233,7 +233,7 @@ open_questions:
 - IDs are stable within a single handoff file (q1, q2, …); they may collide across handoffs.
 
 **Consumer responsibilities:**
-- Before any mutating action that depends on the handoff (Edit/Write in /geniro:implement; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, resolve the unresolved entries one per `AskUserQuestion` call, fired in sequence — message-first render before each per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering; cap-extension applies only within a single entry whose options exceed 4, never to batching entries into one call. Persist each answer back to the producer's file via `atomic_state_write`, then proceed.
+- Before any mutating action that depends on the handoff (code edits in /geniro:implement; status transitions in /geniro:implement Phase 3 Ship), check `open_questions[].status`. If any entry is `unresolved`, resolve the unresolved entries one per `AskUserQuestion` call, fired in sequence — message-first render before each per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering; cap-extension applies only within a single entry whose options exceed 4, never to batching entries into one call. Persist each answer back to the producer's file via `atomic_state_write`, then proceed.
 - A consumer that finds `unresolved` entries and ships anyway is a contract violation.
 - **`open_questions: []` clears the gate; a missing key does not.** The empty array is the producer's statement that it surfaced none — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel in array form, and the reason the key is required rather than optional. A handoff with no `open_questions` key at all is one whose producer never reached the step that would have written it, so whether ambiguity exists is unknown — and this gate stands in front of edits to the user's tree. Say what is missing, then fire one `AskUserQuestion` (header: `"Missing key"`) — "Re-run the producer" / "Proceed without it" — persisted to `approvals[]`. Reading a missing key as "no questions" is the failure this distinction exists to prevent.
 
@@ -296,7 +296,7 @@ authored_tests:
 **Consumer responsibilities:**
 - Read `authored_tests[]` before falling back to body-string parsing. The shared consumer protocol at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` codifies the prefer-frontmatter / fallback-to-body order.
 - Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
-- The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only Edit/Write blocker for /geniro:implement Phase 1.
+- The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only code-edit blocker for /geniro:implement Phase 1.
 
 ### `## Authored Tests` body table
 

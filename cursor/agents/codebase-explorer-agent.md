@@ -89,7 +89,7 @@ List which signals match. Estimate change scope as one of `trivial` / `small` / 
 
 ## Output Schema
 
-Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the Write tool — using exactly this structure:
+Write the report to OUTPUT_PATH from a shell call — your grant has no direct file write — using exactly this structure:
 
 ```markdown
 ## Codebase Exploration Report — spec "<spec.title>"

@@ -77,7 +77,7 @@ Glob `<TASK_PLANNING_ROOT>/plan-*.md` (versioned plans from prior runs of the sa
 
 ## Output Schema
 
-Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the Write tool — using exactly this structure:
+Write the report to OUTPUT_PATH from a shell call — your grant has no direct file write — using exactly this structure:
 
 ```markdown
 ## Knowledge Retrieval Report — task "<TASK_DESCRIPTION>"

@@ -6,7 +6,7 @@ An adversarial verification pass, invoked per the calling skill's contract, that
 
 ## Consumers: /geniro:plan (post-write, pre-approval), /geniro:implement (Phase 1, pre-edit)
 
-`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, on every run. `/geniro:implement` invokes in Phase 1 after research and before the first Edit/Write, on every spec-driven run. Each caller passes `MODE`; the rest of the contract is identical.
+`/geniro:plan` invokes after writing `spec.md` and before the human approval gate, on every run. `/geniro:implement` invokes in Phase 1 after research and before the first code edit, on every spec-driven run. Each caller passes `MODE`; the rest of the contract is identical.
 
 ## Contents
 
@@ -181,8 +181,8 @@ One carve-out, and only one: the user elects a fact correction at the `defects-f
 
 Keep the section live for the rest of the run. A claim is just as refuted when a failing test, a rendered screen, or the user's own push-back disproves it mid-implementation as when a verifier does here — and those arrive after this pass has finished, which is exactly when the record stops being written. Every later consumer reads this section rather than re-deriving it: the PR body and the final report, which otherwise restate the spec's number as measured fact, and any `/geniro:review` that loads the spec as plan context and would score the implementation against a claim already known to be false. The failure this prevents is narrow and real — a figure disproved mid-run, corrected in conversation, and then written into a public pull request under a sentence promising every number was measured.
 
-- `clean` verdict → emit a silent advisory note in the scratch report and proceed to the first Edit/Write. Do NOT fire an AskUserQuestion on a clean pass — a question with nothing to decide is noise, and the always-WAIT-restraint norm reserves the AUQ for a real decision.
-- `defects-found` verdict → fire ONE AskUserQuestion before the first Edit/Write:
+- `clean` verdict → emit a silent advisory note in the scratch report and proceed to the first code edit. Do NOT fire an AskUserQuestion on a clean pass — a question with nothing to decide is noise, and the always-WAIT-restraint norm reserves the AUQ for a real decision.
+- `defects-found` verdict → fire ONE AskUserQuestion before the first code edit:
 
 ```
 header: "Spec check"
@@ -198,7 +198,7 @@ Persist the pick to the calling skill's state.md `approvals[]` so a compaction-r
 
 ## 8.5 Re-entry — a spec that changed after a pass owes another one
 
-**Every edit to spec content re-enters this helper with `SCOPE: changed-only`.** That covers all four edit paths: the keep-with-modifications fixes this helper's own verdict folds in, the calling skill's validator auto-revision rounds, each round of user-requested changes at the approval gate, and the user-elected fact correction in implement mode (§8). The first three run before an approval gate; the fourth runs before the first Edit/Write, which is the same bar — content the user is about to act on that no verifier has read.
+**Every edit to spec content re-enters this helper with `SCOPE: changed-only`.** That covers all four edit paths: the keep-with-modifications fixes this helper's own verdict folds in, the calling skill's validator auto-revision rounds, each round of user-requested changes at the approval gate, and the user-elected fact correction in implement mode (§8). The first three run before an approval gate; the fourth runs before the first code edit, which is the same bar — content the user is about to act on that no verifier has read.
 
 The rule exists because the two checks are not interchangeable and only one of them was re-running. A structural validator re-reads shape — sections present, citations formatted, schema keys complete — and a re-authored spec passes it trivially, because re-authoring preserves shape by construction. Nothing in that pass reads code. So a spec could be fact-checked once, then legitimately rewritten (by this helper's own fixes, or by up to three rounds of user revisions), and reach approval with every added sentence unverified while reporting a clean validator. Observed outcome: a red-team verdict forces a spec rewrite, and the **newly authored** step — the one written in response to the strongest objection, and therefore the least examined — is the step the implementation later refutes.
 

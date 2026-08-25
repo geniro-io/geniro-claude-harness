@@ -28,7 +28,7 @@ Where the host does list what it accepts, that list is the ground truth — when
 
 ## The rule
 
-**Every Agent() spawn site for a custom plugin agent uses the runtime-detect-and-degrade ladder below.** A skill's instructions name a custom plugin agent by its identity — written bare (`reviewer-agent`) or already prefixed (`geniro:reviewer-agent`), both appear across skill files — but neither spelling is a literal call string. The orchestrator reads it as "the agent named X" and applies the ladder at call time regardless of which form the skill wrote. Skill files are NOT rewritten when this ladder changes.
+**Every spawn site for a custom plugin agent uses the runtime-detect-and-degrade ladder below.** A skill's instructions name a custom plugin agent by its identity — written bare (`reviewer-agent`) or already prefixed (`geniro:reviewer-agent`), both appear across skill files — but neither spelling is a literal call string. The orchestrator reads it as "the agent named X" and applies the ladder at call time regardless of which form the skill wrote. Skill files are NOT rewritten when this ladder changes.
 
 **`model=` is omitted at every rung, with two exceptions.** The agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`), and at rung 3 `general-purpose`'s own inherit-from-parent default does the same job. The first exception is a user-authored custom reviewer that declares an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass `model={user-declared-value}` verbatim, at whichever rung resolves. The second is a non-judgment site (`model-tiering.md` §The rule, categories 2-4) — it passes a tier, `sonnet` by default or the cheaper one that file's §Sizing a non-judgment spawn picked for this workload, unchanged across every rung. A tier anywhere else defeats the user's session-level `/model` choice.
 
@@ -49,7 +49,7 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
    )
    ```
 
-   Read the agent file with the Read tool, drop the leading `---\n…\n---\n` frontmatter block, and prepend the remaining body to your task prompt with a `---` separator. If the file has no leading `---` line, treat the whole file as the body and prepend verbatim. Pass the same `description=` you would have used.
+   Read the agent file, drop the leading `---\n…\n---\n` frontmatter block, and prepend the remaining body to your task prompt with a `---` separator. If the file has no leading `---` line, treat the whole file as the body and prepend verbatim. Pass the same `description=` you would have used.
 
 4. **Cache the resolution for the rest of the session.** Plugin registration is fixed at session init and does not change mid-session. Once you've established whether step 1 or step 2 worked (or both failed), every subsequent plugin-agent spawn in the same session uses that resolved form directly — do NOT re-walk the ladder. The cache does NOT carry across sessions; re-walk at the next session's first spawn.
 

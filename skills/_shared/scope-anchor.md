@@ -31,7 +31,7 @@ Concretely, when no target is supplied in `$ARGUMENTS`:
 
 A subagent's starting cwd is runtime-dependent. Claude Code passes the parent's working directory down ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)); other runtimes start it at the workspace root, which is a different tree on a different branch whenever the orchestrator works in a linked worktree or on a PR head. The subagent cannot detect this — nothing in its context says which tree it belongs to — so unanchored it reviews, edits, or tests the wrong code and reports success.
 
-**Rule.** Every `Agent(...)` spawn-prompt template that performs codebase work (review, edit, test, diff) carries one slot, populated by the orchestrator per `## The rule` above:
+**Rule.** Every spawn-prompt template that performs codebase work (review, edit, test, diff) carries one slot, populated by the orchestrator per `## The rule` above:
 
 ```
 WORKTREE: [from `git rev-parse --show-toplevel`]
@@ -45,7 +45,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 Every call carries the `cd`, not just the first: within a subagent `cd` does not persist between Bash calls ([Claude Code docs](https://code.claude.com/docs/en/sub-agents)), so a one-time `cd` is undone by the next call.
 
-The path clause covers what `cd` cannot reach. `Read` / `Glob` / `Grep` resolve a relative path against the subagent's own cwd, not against any shell, so a discovery glob the agent writes itself scans the wrong tree while every Bash call is correctly anchored — the quiet half of the same failure.
+The path clause covers what `cd` cannot reach. File reads, globs, and content searches resolve a relative path against the subagent's own cwd, not against any shell, so a discovery glob the agent writes itself scans the wrong tree while every Bash call is correctly anchored — the quiet half of the same failure.
 
 The subagent verifies nothing beyond this. `WORKTREE` is absolute, so `cd` either lands in the right tree or fails loudly on its own; a subagent re-deriving the orchestrator's branch decision adds no information, and across a parallel batch re-derives it once per agent.
 

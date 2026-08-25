@@ -8,7 +8,7 @@ Every audit-shaped skill runs under these. A consuming skill cites this section 
 
 1. **No unverified finding ships.** A reviewer finding is admitted only after the orchestrator Reads the cited `file:line` and confirms the quoted evidence exists there — reviewers hallucinate locations, and one fabricated `path:line` poisons trust in the whole report.
 2. **Report before fix.** Fixes happen only after the action gate — an audit that silently edits while scanning destroys the baseline its own findings cite.
-3. **Parallel spawns in one response.** Every reviewer `Agent(...)` call goes in the same assistant turn; sequential turns serialize the batch's wall-time.
+3. **Parallel spawns in one response.** Every reviewer spawn goes in the same assistant turn; sequential turns serialize the batch's wall-time.
 4. **The do-not-flag list is binding.** The consuming skill's endorsed-patterns list overrides any reviewer's instinct — re-flagging an endorsed pattern is the audit's own false-positive failure mode.
 5. **Every run sweeps for subtraction.** The subtraction dimension runs on every audit, whatever the run's scope or depth, and its verdict names what was examined and what was rejected even when it yields nothing. A repo accretes through rounds that never looked, and an unreported sweep is indistinguishable from a skipped one. The result is never mandated: zero findings is valid, a manufactured deletion is not.
 6. **Every approved finding has an owner.** Before spawning fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding assigned to nobody is work the user approved and never received.

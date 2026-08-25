@@ -25,7 +25,7 @@ Implement-specific layers of the opt-in `--deep` quality mode. The cross-skill c
 
 ## 2. Precision — Phase 1 spec fact-check (3× verify)
 
-No implement-side logic is needed here — deep mode passes `DEEP: true` to the Step 12.5 spec-challenge. Phase 1 already invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: implement` before the first Edit/Write; in deep mode add `DEEP: true`, and the helper runs each cited claim through 3 verifiers with majority aggregation (single-sourced in that file's §4 Deep-mode subsection — identical to plan's Phase 7.5 spec-check). The defects-found AskQuestion and the clean-pass silence are unchanged; deep mode only hardens the fact verification feeding them.
+No implement-side logic is needed here — deep mode passes `DEEP: true` to the Step 12.5 spec-challenge. Phase 1 already invokes `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: implement` before the first code edit; in deep mode add `DEEP: true`, and the helper runs each cited claim through 3 verifiers with majority aggregation (single-sourced in that file's §4 Deep-mode subsection — identical to plan's Phase 7.5 spec-check). The defects-found AskQuestion and the clean-pass silence are unchanged; deep mode only hardens the fact verification feeding them.
 
 ## 3. Recall — Phase 3 self-review (3 angle-diverse passes per dimension)
 
@@ -69,7 +69,7 @@ Implement supplies these pieces:
 //   OR (first.validation === 'refuted' && f.seen_in >= 2)
 ```
 
-Every reviewer/verifier prompt re-asserts the read-only contract (no Edit/Write/git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn by default, or pass `model="<tier>"` at every spawn — including inside this workflow — when the run carries `--subagent-model` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Subagent model tiering); that is the user's own election for the run, not the cheaper-tier shortcut the workflow mitigation guards against.
+Every reviewer/verifier prompt re-asserts the read-only contract (no file writes or edits, no git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn by default, or pass `model="<tier>"` at every spawn — including inside this workflow — when the run carries `--subagent-model` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Subagent model tiering); that is the user's own election for the run, not the cheaper-tier shortcut the workflow mitigation guards against.
 
 ## 7. Fail-safe
 

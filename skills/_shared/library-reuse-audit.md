@@ -26,7 +26,7 @@ The caller passes one mode:
 
 - **MODE: plan** — a no-spawn textual consideration during approach design: check the language/stdlib (Step 0) → surface "adopt an external library vs hand-write" as a trade-off in the relevant approach(es) and the spec's Approach / Steps prose, without researching or naming unverified packages. No candidate research, no registry calls, no gate. The user approving the approach IS the planning-time confirmation; candidate research and the binding install confirmation live in `/geniro:implement`.
 - **MODE: implement** — full flow: check the language/stdlib → detect ecosystem → research candidates → filter → confirmation gate → on adopt, hand the dependency to Phase 2 for install and integration.
-- **MODE: review** — detection only: flag hand-written code a maintained external library covers, as an advisory finding the user decides. No candidate research and no registry calls — the reviewer-agent carries no `WebSearch`/`WebFetch` grant, so `/geniro:review` reports the smell and `/geniro:implement` does the candidate research.
+- **MODE: review** — detection only: flag hand-written code a maintained external library covers, as an advisory finding the user decides. No candidate research and no registry calls — the reviewer-agent carries no web-research grant, so `/geniro:review` reports the smell and `/geniro:implement` does the candidate research.
 
 ## When to run / when to skip
 
@@ -37,13 +37,13 @@ The caller passes one mode:
 
 Runs in MODE: plan and MODE: implement only — MODE: review skips this step entirely. Before treating the need as a build-vs-buy question, check whether the language's standard library, a built-in capability, or a dependency-free pattern already covers it.
 
-Resolve it in order, strongest first: the toolchain's own documentation command and the installed language distribution's bundled docs or type definitions — reachable via `Bash`/`Read` — before the official online documentation, skipped rather than guessed where no web reach exists. Availability is version-dependent; a recalled answer risks the same hallucination Safety guards against for packages.
+Resolve it in order, strongest first: the toolchain's own documentation command and the installed language distribution's bundled docs or type definitions — reachable from a shell call or a file read — before the official online documentation, skipped rather than guessed where no web reach exists. Availability is version-dependent; a recalled answer risks the same hallucination Safety guards against for packages.
 
 When the stdlib, the capability, or the pattern covers the need, there is nothing to buy — end the audit here; Steps 1-4 do not run, and the MODE: implement confirmation gate never fires since no candidate exists to confirm. Fail open on an inconclusive check: proceed to Step 1 rather than blocking.
 
 ## Step 1 — Detect the ecosystem (language-agnostic)
 
-Read the ecosystem from the project snapshot (`_project.md` / CLAUDE.md §Tech Stack) first; fall back to a `Glob` for manifest/lockfile presence. Detect by FILE presence, never by inference. A monorepo can carry several manifests — scope to the manifest nearest the code under audit.
+Read the ecosystem from the project snapshot (`_project.md` / CLAUDE.md §Tech Stack) first; fall back to a path glob for manifest/lockfile presence. Detect by FILE presence, never by inference. A monorepo can carry several manifests — scope to the manifest nearest the code under audit.
 
 | Ecosystem | Manifest / lockfile | Registry | Inspect command (read-only) | Adopt command |
 |---|---|---|---|---|
@@ -58,7 +58,7 @@ Never hardcode `npm`. The registry, the inspect command, and the adopt command a
 
 ## Step 2 — Research candidates (MODE: implement)
 
-Spawn ONE web-research agent (`subagent_type: general-purpose`, OMIT `model=` by default — it inherits the orchestrator tier — or pass `model="<tier>"` when the calling skill's run carries `--subagent-model`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`; it needs `WebSearch` + `WebFetch`, which the read-only codebase agents lack). Orchestrate the spawn at the top level — subagents cannot spawn sub-agents.
+Spawn ONE web-research agent (`subagent_type: general-purpose`, OMIT `model=` by default — it inherits the orchestrator tier — or pass `model="<tier>"` when the calling skill's run carries `--subagent-model`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`; it needs web search and fetch, which the read-only codebase agents lack). Orchestrate the spawn at the top level — subagents cannot spawn sub-agents.
 
 Prompt it to, for the one hand-written problem under audit:
 - Search the detected registry and the web for several candidate libraries that solve it — return several ranked candidates, never just the first hit.
@@ -118,7 +118,7 @@ Persist the pick to state.md `approvals[]` with `category: library_adoption`, `p
 
 Skip the gate silently when no candidate survives Step 3 — ask nothing when there is nothing to adopt.
 
-On an Adopt pick, hand the dependency to Phase 2 as a TodoWrite item: add it through the package manager (the Step 1 adopt command, run via Bash), NOT by editing a lockfile — lockfile writes are blocked by the file-protection hook, and a package manager regenerates the lockfile correctly. Pass `--ignore-scripts` (or the ecosystem equivalent) when the package declares install scripts, then integrate the library in place of the hand-written component. An adopted library reshapes the Phase 2 todo list — install plus wire-up replaces implement-from-scratch.
+On an Adopt pick, hand the dependency to Phase 2 as a todo-list item: add it through the package manager (the Step 1 adopt command, run in a shell call), NOT by editing a lockfile — lockfile writes are blocked by the file-protection hook, and a package manager regenerates the lockfile correctly. Pass `--ignore-scripts` (or the ecosystem equivalent) when the package declares install scripts, then integrate the library in place of the hand-written component. An adopted library reshapes the Phase 2 todo list — install plus wire-up replaces implement-from-scratch.
 
 ## MODE: review — finding shape
 

@@ -15,7 +15,7 @@ Canonical resolver for cross-session persistent state. Ensures writes/reads land
 
 The default plugin `.gitignore` keeps `.geniro/*` out of git (only `workflow/`, `instructions/`, and `actions/` are negated). Two consequences:
 
-- **(a) Writes lost on worktree removal.** When `/geniro:implement`'s workspace-setup question (Step 0) picks the Git-worktree option, `EnterWorktree` switches the session into `.claude/worktrees/<dir>/` — every cwd-relative `.geniro/<x>` write lands in the worktree's gitignored tree and is destroyed when the user removes the worktree at session end.
+- **(a) Writes lost on worktree removal.** When `/geniro:implement`'s workspace-setup question (Step 0) picks the Git-worktree option, entering the worktree switches the session into `.claude/worktrees/<dir>/` — every cwd-relative `.geniro/<x>` write lands in the worktree's gitignored tree and is destroyed when the user removes the worktree at session end.
 - **(b) Authored content invisible to fresh linked worktrees.** Even when the worktree is fresh and persistent, the primary worktree's authored content (`.geniro/instructions/<scope>.md`, `.geniro/workflow/<kind>.md`, `.geniro/actions/<slug>.md`) is NOT propagated by `git worktree add` because those paths are gitignored at the project level (negation is a default; project-side `.git/info/exclude` may override). The main repo's `.geniro/<x>` never receives the write, and the linked worktree never sees the read.
 
 This affects every artifact designed to outlive the current task. Task-local state (planning/<task-dir>/* — transient scratch like notes.md is cleaned at the owning run's terminal exit; durable design artifacts like spec.md/state.md survive) is unaffected and stays cwd-relative.
@@ -44,7 +44,7 @@ fi
 
 Then for every cross-session artifact:
 - Reads: `Read "$PRIMARY_ROOT/.geniro/knowledge/learnings.jsonl"` (etc.)
-- Writes: `mkdir -p "$PRIMARY_ROOT/.geniro/knowledge"` then Edit/Write at the same prefix.
+- Writes: `mkdir -p "$PRIMARY_ROOT/.geniro/knowledge"` then write at the same prefix.
 
 If `git` is missing or the project isn't a git repo, both probes return empty → fall back to cwd-relative. Non-git projects have no linked-worktree problem.
 

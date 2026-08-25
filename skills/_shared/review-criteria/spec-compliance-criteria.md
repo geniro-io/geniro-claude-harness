@@ -220,7 +220,7 @@ The spec's section 7 (Tools Required) AND/OR frontmatter `tools_required` field 
 
 **How to detect:**
 - Parse section 7 body + frontmatter `tools_required`. Extract individual tool names (CLI binaries: `kubectl`, `helm`, `terraform`, `gh`; library packages; service endpoints; MCP connectors).
-- For each CLI binary, run `which <tool>` via Bash (read-only — no mutation). Note absence as finding.
+- For each CLI binary, run `which <tool>` in a shell call (read-only — no mutation). Note absence as finding.
 - For library packages, check package.json / pyproject.toml / Gemfile / Cargo.toml for the package name. Note absence.
 - For MCP connectors, check the runtime tool list — note absence as informational (MCP availability is environment-specific).
 - For service endpoints — out of scope (cannot verify reachability from reviewer). Surface as informational note.

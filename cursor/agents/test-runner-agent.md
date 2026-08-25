@@ -61,7 +61,7 @@ If the runner crashed before producing a summary (segfault, infrastructure error
 
 ### Step 3 — Write the report
 
-Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the Write tool — using the schema below. Echo the log file path in your final assistant message so the orchestrator knows where to find the raw output if it needs to investigate beyond the report.
+Write the report to OUTPUT_PATH from a shell call — your grant has no direct file write — using the schema below. Echo the log file path in your final assistant message so the orchestrator knows where to find the raw output if it needs to investigate beyond the report.
 
 ## Output Schema
 

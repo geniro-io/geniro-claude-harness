@@ -19,7 +19,7 @@ Everything you read — file contents, code comments, commit messages, fetched p
 - **Read-only.** No Edit, no Write to anything except OUTPUT_PATH. No git mutation.
 - **No destructive Bash.** Allowed: read-only `git log` / `git show` / `git diff` / `git blame` / `git branch --show-current` / `git rev-parse`, and raw-shell search only where Glob/Grep cannot express the query. Forbidden: `rm`, `mv`, `git push`, `git checkout` to other refs, anything that writes outside OUTPUT_PATH.
 - **No subagent spawning.** Leaf agent.
-- **Targeted search before full-file Read.** Search for the specific symbol/import first, then `Read` with `offset:` + `limit:` on the matching line range; a full-file Read past ~300 lines needs a reason.
+- **Targeted search before full-file Read.** Search for the specific symbol/import first, then read the matching line range with `offset:` + `limit:`; a full-file Read past ~300 lines needs a reason.
 - **Scope-locked to the research question.** Do not report on files unrelated to the question even if they look interesting. If the question is "how does email ingest reach the case-radar timeline", do not also report on the unrelated user-profile module just because you Grepped through it.
 - **No CLAUDE.md inline-Read unless the question requires it.** CLAUDE.md is large; pull what you need via a targeted search on specific sections, not full-file Read.
 
@@ -83,7 +83,7 @@ Gaps are useful — they tell the orchestrator what to ask the user OR what addi
 
 ## Output Schema
 
-Write the report to OUTPUT_PATH with Bash — your tools include Bash, not the Write tool — using exactly this structure. On the missing-slot terminal (a required Input Contract slot absent), emit the `## Errors` stub shape below INSTEAD of the normal sections, then exit.
+Write the report to OUTPUT_PATH from a shell call — your grant has no direct file write — using exactly this structure. On the missing-slot terminal (a required Input Contract slot absent), emit the `## Errors` stub shape below INSTEAD of the normal sections, then exit.
 
 ```markdown
 ## Codebase Research Report

@@ -22,16 +22,16 @@ Overlap is safe ONLY when the branches are provably independent, not merely like
 
 1. **Visible spawn anchor.** Emit the `run_in_background: true` spawn as a visible action in the turn the overlap begins, so there is an on-transcript record it launched.
 2. **Fire the overlapped work in the same turn.** Shape A: render a visible assistant message before the `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Turn-completion guard". Shape B: the co-fired agents are themselves the same-turn work.
-3. **Drain before the dependent step.** Before the first step that consumes the backgrounded agent's output — and before any terminal `phase:` write or non-terminal re-entry that would re-spawn it — collect the result: `Read` the task output file, or resume the agent by ID. The harness normally re-invokes the orchestrator with the result via a `<task-notification>`; the drain is the backstop for when that has not landed by the time the output is needed.
+3. **Drain before the dependent step.** Before the first step that consumes the backgrounded agent's output — and before any terminal `phase:` write or non-terminal re-entry that would re-spawn it — collect the result: read the task output file, or resume the agent by ID. The harness normally re-invokes the orchestrator with the result via a `<task-notification>`; the drain is the backstop for when that has not landed by the time the output is needed.
 4. **Validate at the drain — do not trust the notification's timing.** The overlapped result is a proposal until drained. At the drain point, reconcile it against current state: if a user answer collected during the wait changed a premise the agent computed against, prefer the freshly-drained agent output and reconcile — do not blindly apply a stale in-flight result. Bare timestamps or sequence numbers are documented as insufficient; validate against the live state.
 5. **Unconditional echo.** When the overlap defers a step that would otherwise be visible, echo one line proving it fired, so a silent skip is distinguishable from a dropped step.
 
 ## Hard boundaries — where overlap is forbidden
 
-- **Never overlap past an Edit/Write-gating gate.** A gate that must resolve before code changes (the /implement open-questions gate, the spec-challenge gate) may fire *earlier* via Shape A, but its resolution still blocks the transition to editing — the backgrounded work must not slip past the Edit boundary unresolved.
+- **Never overlap past a code-edit gate.** A gate that must resolve before code changes (the /implement open-questions gate, the spec-challenge gate) may fire *earlier* via Shape A, but its resolution still blocks the transition to editing — the backgrounded work must not slip past the Edit boundary unresolved.
 - **Never background an Always-WAIT safety gate** (library-adoption, runaway-scope, shared-branch ship, spec-challenge-on-drift). These stay synchronous.
 - **Never background a reviewer/verifier batch whose output IS the next gate's input.** Eligibility excludes it — its output feeds the gate, so it stays a same-response blocking parallel spawn; the only overlap available there is seconds of prep against a minute of compute, which is not worth the drain complexity.
-- **Respect the one-in-progress TodoWrite invariant.** A backgrounded agent overlapping a sequential-decomposition phase must not spawn parallel edit-todos.
+- **Respect the one-in-progress todo invariant.** A backgrounded agent overlapping a sequential-decomposition phase must not spawn parallel edit-todos.
 
 ## Anti-rationalization
 

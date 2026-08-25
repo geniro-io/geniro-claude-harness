@@ -31,7 +31,7 @@ The single-text-proposal default applies ONLY when there is one obvious right fi
 ### 2.3 Text fix proposal
 
 - Formulate the minimal fix for the root cause as a **text proposal**: file path(s), exact change (unified diff or before/after snippet), one-sentence rationale.
-- Do NOT write the fix to production/source files. Write/Edit are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/state/debug/<slug>/` artifacts) — not for applying the proposed patch.
+- Do NOT write the fix to production/source files. Writes and edits are available for EXPERIMENTS only (tests, logging, debug scripts, `.geniro/state/debug/<slug>/` artifacts) — not for applying the proposed patch.
 - If any experiment modified non-test source, revert those edits before escalation; the escalated skill applies the real fix cleanly.
 - Do NOT refactor adjacent code.
 

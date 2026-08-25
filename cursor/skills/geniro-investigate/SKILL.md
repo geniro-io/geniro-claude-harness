@@ -28,7 +28,7 @@ context: main
 
 3-phase loop (Classify+Scope → Investigate+Verify → Synthesize+Review+Present). Spawns parallel research agents to analyze code, git history, and internet sources, then synthesizes, verifies with a fresh agent, and presents the answer.
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is set by Claude Code. When it is unset (another Agent-Skills runtime, e.g. Cursor), resolve every reference it appears in, working these in order: the env var of that name; the ancestor directory of this file containing `.claude-plugin/plugin.json`; a copy of the referenced file sitting beside this one (the Cursor build ships each skill's own phase and reference files there); a plugin checkout inside the workspace. Where a rung yields a root, substitute it for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. **Work the rungs with a command, not a judgment:** the run's first Bash call lists the directory this file was read from and each candidate root, and its output is echoed verbatim before anything else. Read the rungs against that output — a path it does not show did not resolve, and a file it does not show cannot be read, however confidently a later step would report otherwise. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here: it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not** — open your first message by naming what is unavailable, run every phase and gate this skill declares, never let the project's own rules stand in for its decision gates, and take no outward-facing action (ready-for-review PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is a path placeholder Claude Code substitutes into file references, never a shell export — it reads empty in a Bash call under every host, Claude Code included, so an empty probe is no evidence of another runtime (`CLAUDECODE` in the environment marks Claude Code). Resolve the root by working these in order: the ancestor directory of this file containing `.claude-plugin/plugin.json`; a copy of the referenced file sitting beside this one (the Cursor build ships each skill's own phase and reference files there); a plugin checkout inside the workspace. Substitute the resolved root for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. **Work the rungs with a command, not a judgment:** the run's first Bash call lists the directory this file was read from and each candidate root, and its output is echoed verbatim before anything else. Read the rungs against that output — a path it does not show did not resolve, and a file it does not show cannot be read, however confidently a later step would report otherwise. A ladder that resolves is bookkeeping, not a finding: keep the echo to the probe output and the resolved root, and reserve a degraded-run notice for a rung that actually failed. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here: it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not** — open your first message by naming what is unavailable, run every phase and gate this skill declares, never let the project's own rules stand in for its decision gates, and take no outward-facing action (ready-for-review PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
 ## State machine
 
@@ -45,7 +45,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply, with two investigate-specific bindings:
 
 - **Invariant #4 (bounded structured tool results)** — the Codebase Analyst is `codebase-research-agent`, whose report cap its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` §Output Schema); the Git Historian and Internet Researcher are general-purpose spawns, capped at ~8K chars each. Either way, overflow truncates with a marker.
-- **Invariant #7 (errors → structured observations)** — WebFetch/WebSearch failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
+- **Invariant #7 (errors → structured observations)** — web fetch/search failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
 
 This skill adds one invariant:
 
@@ -53,7 +53,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 **Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate — the render is followed immediately by its lean `AskQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
-**`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier), L2 emits (`discovery` calls), and escalation entries. Routine Read / Bash / WebSearch skipped.
+**`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier), L2 emits (`discovery` calls), and escalation entries. Routine reads, shell calls, and web searches skipped.
 
 ## Anti-rationalization
 
@@ -97,7 +97,7 @@ Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codeb
 
 ## Evidence Standard
 
-A claim is evidence-backed only when it cites a canonical artifact kind, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact (kinds 1-6). Kind 6 (external documented fact, cited by resolvable source URL and quoted at the point of use) is what a WebFetch/WebSearch-sourced claim cites in this skill's external-research mode.
+A claim is evidence-backed only when it cites a canonical artifact kind, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact (kinds 1-6). Kind 6 (external documented fact, cited by resolvable source URL and quoted at the point of use) is what a web-sourced claim cites in this skill's external-research mode.
 
 Reasoning, paraphrased agent claims, "looks consistent", convergent agent self-reports, and "I inferred from context" are not evidence — they are hypotheses that still need verification.
 
@@ -116,7 +116,7 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 - Each spawned agent runs with its own tool whitelist (per the Phase 2 Step 1 spawn templates):
 - Codebase (`codebase-research-agent`): exactly its own `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one.
 - Git: Read / Bash (read-only git verbs); blocked: Edit / Write / mutating git.
-- Internet: WebSearch / WebFetch; blocked: Edit / Write / local Bash.
+- Internet: web search and fetch; blocked: file writes, edits, local shell calls.
 - Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
 
 **Phase 3 (Synthesize+Review+Present):**

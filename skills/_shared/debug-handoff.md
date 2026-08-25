@@ -33,7 +33,7 @@ If neither exists, this whole file is a no-op — skip to your next step.
 
 ## Step 3: Verify
 
-For each path in `authored-test-paths`, resolve relative to the current `git rev-parse --show-toplevel` and check existence with the Read tool (or `test -e` via Bash). Bucket each path as PRESENT or MISSING.
+For each path in `authored-test-paths`, resolve relative to the current `git rev-parse --show-toplevel` and check existence with a file read (or `test -e` in a shell call). Bucket each path as PRESENT or MISSING.
 
 ## Step 4: Decide and surface
 
@@ -58,7 +58,7 @@ Or copy directly if the source worktree is on disk:
 Skip if you intend to re-author them in this branch instead.
 ```
 
-The user runs the commands themselves — never invoke them via Bash. Cross-branch / cross-worktree file operations have no plugin precedent and conflict with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` "Forbidden discovery moves".
+The user runs the commands themselves — never invoke them in a shell call. Cross-branch / cross-worktree file operations have no plugin precedent and conflict with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` "Forbidden discovery moves".
 
 **Case B2 — All PRESENT but `debug-source-branch` differs from current branch.** Typical of implement Option A (`git checkout -b <new-branch>`) where uncommitted test files follow the working tree to the new branch. Surface a one-line note in the Phase 1 context summary: `Debug ran on '<debug-source-branch>'; you are now on '<current-branch>'; all <N> authored test(s) carried over to the new working tree.` No commands suggested — the tests are already where they need to be.
 

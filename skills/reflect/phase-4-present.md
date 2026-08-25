@@ -14,7 +14,7 @@ Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_s
 
 **On approval**, write before rendering the next candidate, routed per the improvement-routing §Routing table:
 
-- **CLAUDE.md / `.claude/rules/<scope>.md` / ADR** — ordinary `Edit`/`Write` by the orchestrator; these are user-visible project files, and the approval you just collected is the authorization.
+- **CLAUDE.md / `.claude/rules/<scope>.md` / ADR** — an ordinary file edit by the orchestrator; these are user-visible project files, and the approval you just collected is the authorization.
 - **`.geniro/instructions/<skill>.md` / `code-style.md`** — hand off to the `/geniro:instructions create` patterns, or write via `atomic_state_write` (`source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"`); direct `Edit`/`Write` is hook-blocked there (invariant #5).
 - **Project rules/hooks (CI, lint, project-local hooks)** — outside this skill's tool surface: name the exact change (which config, which check) in chat and let the user apply it in their own automation.
 - **Memory (native auto-memory)** — no file write exists to route to; state the approved preference plainly in the chat response so Claude Code's own auto-memory captures it.
@@ -34,7 +34,7 @@ emit_rejection_if_signal "/geniro:reflect" global rule_candidate "<candidate one
 These are the load-bearing exit gates — the checks that, if skipped, break the read-only contract, write a rule the user never approved, or let a declined candidate re-surface forever.
 
 - [ ] The running session entered evidence only because `--this-session` asked for it; on every other shape it was excluded by the final-user-turn identity check, not by file growth alone (Phase 1 step 4)
-- [ ] Every approved candidate was written through the mechanism its target routes to — ordinary `Edit`/`Write` only for CLAUDE.md / `.claude/rules/` / an ADR, `atomic_state_write` or the emit helpers for every `.geniro/` path (invariant #5)
+- [ ] Every approved candidate was written through the mechanism its target routes to — an ordinary file edit only for CLAUDE.md / `.claude/rules/` / an ADR, `atomic_state_write` or the emit helpers for every `.geniro/` path (invariant #5)
 - [ ] Every decline was logged via `emit_rejection_if_signal`, so the same candidate stops re-surfacing
 - [ ] Closing echo `Reviewed for improvements: <N> candidate(s)` fired — including at N=0, where it is the only signal the run completed rather than dropped a step
 - [ ] No transcript modified, moved, or deleted; no write outside the approved rules and the rejection/learning emits

@@ -91,7 +91,7 @@ dive_round: <0-2>     # optional; Phase 3 dive-deeper round counter, survives co
 <selective logging — subagent spawns, L2 emits, escalations>
 
 ## Errors
-<WebFetch/WebSearch failures, permission errors>
+<web fetch/search failures, permission errors>
 
 ## Open Questions
 <missing-data gates, glossary mismatches>
@@ -161,7 +161,7 @@ The agent's own workflow (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.
 ```
 Agent(description="Investigate: git history", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Git History Investigation (READ-ONLY)
-Produce a structured timeline + findings report on the git history relevant to the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit, and do NOT run mutating git operations (no `git add`, `git commit`, `git push`, `git checkout`, `git reset`). Read-only git verbs only: `log`, `blame`, `show`, `diff`.
+Produce a structured timeline + findings report on the git history relevant to the question. This is a read-only research task — do NOT write or edit any file, and do NOT run mutating git operations (no `git add`, `git commit`, `git push`, `git checkout`, `git reset`). Read-only git verbs only: `log`, `blame`, `show`, `diff`.
 
 **Question:** {{user's question}}
 **Target area:** {{files/modules to focus on}}
@@ -205,7 +205,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 ```
 Agent(description="Investigate: internet research", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Internet Research (READ-ONLY)
-Produce a structured external-sources report answering the question. This is a read-only research task — do NOT Edit, Write, or NotebookEdit; do NOT run any local-codebase Bash commands. Use WebSearch + WebFetch only.
+Produce a structured external-sources report answering the question. This is a read-only research task — do NOT write or edit any file; do NOT run any local-codebase shell commands. Use web search and fetch only.
 
 **Question:** {{user's question}}
 **Target area:** {{technologies, patterns, or concepts involved}}
@@ -246,7 +246,7 @@ The verifier inherits the orchestrator's session tier (OMIT `model=`); the spawn
 ```
 Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
 ## Task: Verify Investigation Answer (READ-ONLY)
-Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT Edit, Write, or NotebookEdit.
+Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT write or edit any file.
 
 **Original question:** {{user's question}}
 WORKTREE: [from `git rev-parse --show-toplevel`]
