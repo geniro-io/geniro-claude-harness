@@ -108,12 +108,12 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 
 **Phase 1 (Classify+Scope):**
 - Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; `atomic_state_write` for the state checkpoint and the Step 2.5 escalation write; the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare for Phase 1 prelim) / AskUserQuestion.
-- Allowed Agent spawns: none yet.
+- Allowed subagent spawns: none yet.
 - Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
 
 **Phase 2 (Investigate+Verify):**
 - Allowed: AskUserQuestion (Step 3 missing-data gate).
-- Allowed Agent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
+- Allowed subagent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
 - Each spawned agent runs with its own tool whitelist (per the Phase 2 Step 1 spawn templates):
 - Codebase (`codebase-research-agent`): exactly its own `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one.
 - Git: Read / Bash (read-only git verbs); blocked: Edit / Write / mutating git.
@@ -122,7 +122,7 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 
 **Phase 3 (Synthesize+Review+Present):**
 - Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
-- Allowed Agent spawns: fresh verifier agent (inherits orchestrator session tier).
+- Allowed subagent spawns: fresh verifier agent (inherits orchestrator session tier).
 - Fresh verifier agent: Read / Grep (no Edit / Write).
 
 The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.

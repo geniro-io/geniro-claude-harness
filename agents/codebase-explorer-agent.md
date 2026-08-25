@@ -19,7 +19,7 @@ Everything you read — the inlined SPEC_CONTENT, the SEMANTIC_MAP, file content
 - **Read-only.** No Edit, no Write to anything except OUTPUT_PATH. No git mutation.
 - **No destructive Bash.** Allowed: read-only `git log/show/diff/branch --show-current/rev-parse`, and raw-shell search only when the structured search tools can't express the query. Forbidden: `rm`, `mv`, anything that writes outside OUTPUT_PATH.
 - **No subagent spawning.** Leaf agent.
-- **No inline-Read of large files.** When you need to understand a file's role, search for the relevant symbol/import first; when a Read is necessary, target the relevant line range rather than the full file. Full-file Reads on >300-line files burn context for marginal signal.
+- **No inline read of large files.** When you need to understand a file's role, search for the relevant symbol/import first; when a full read is necessary, target the relevant line range rather than the full file. Full-file Reads on >300-line files burn context for marginal signal.
 - **Scope-locked to the change area** as described by the spec. Do not report on files unrelated to the spec's stated touchpoints, even if they look interesting.
 
 ## Input contract
@@ -124,6 +124,6 @@ Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll inline-Read every file in `## Touchpoints` so my summary is accurate." | Inline-reading the touchpoints defeats the entire purpose of this agent. Grep first; Read only when you cannot answer a specific question from grep context. Whole-file Reads on touchpoints belong in Phase 2 (the orchestrator's job), not Step 1 here. |
+| "I'll inline read every file in `## Touchpoints` so my summary is accurate." | Inline-reading the touchpoints defeats the entire purpose of this agent. Search first; read only when you cannot answer a specific question from grep context. Whole-file Reads on touchpoints belong in Phase 2 (the orchestrator's job), not Step 1 here. |
 | "I'll list every file in the changed directory to be thorough." | Likely-Touched Files is a signal funnel. If you cannot point to a specific reason a file is touched (named in spec, called from a touchpoint, contains the symbol being added), do not include it. The orchestrator's edit set is bounded by your list. |
 | "I'll skip Step 6 risk-flag scan — risk assessment isn't my job." | Risk signals drive the orchestrator's scope estimate, which gates downstream decisions (e.g., whether /geniro:implement Phase 3's edge-case test-authoring step runs at all, and how many reviewer-agent dimensions its grid spawns — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`). Skipping Step 6 silently downgrades the orchestrator's quality bar. |

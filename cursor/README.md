@@ -23,7 +23,7 @@ If the plugin is installed in Claude Code from the marketplace, enabling **Setti
 
 ## What works in Cursor
 
-- **The 13 runtime-portable skills**, each surfaced as `/geniro-<slug>`. Each carries a runtime-portability preamble that resolves the plugin root when `${CLAUDE_PLUGIN_ROOT}` is unset, so the shared helpers (`skills/_shared/`) and shell libraries (`lib/`) work unchanged. `/geniro-update` is the one exception, and `/geniro-reflect` is portable only in its `--this-session` shape — see the Claude-Code-only note below. Degradation contract: `skills/_shared/runtime-portability.md`.
+- **The 13 runtime-portable skills**, each surfaced as `/geniro-<slug>`. Each carries a runtime-portability preamble that resolves the plugin root from the ancestor directory holding a plugin manifest, so the shared helpers (`skills/_shared/`) and shell libraries (`lib/`) work unchanged. `/geniro-update` is the one exception, and `/geniro-reflect` is portable only in its `--this-session` shape — see the Claude-Code-only note below. Degradation contract: `skills/_shared/runtime-portability.md`.
 - **Safety + enforcement hooks** for shell commands and file writes: destructive-git guard, `.geniro/` deletion guard, protected-file writes, security pattern scan, state-helper enforcement — adapted through `cursor/hooks/claude-hook-shim.sh` (a blocked action returns `{"permission":"deny"}` with the guardrail reason).
 - **Session-start context restore.** The `sessionStart` hook re-injects the active task state and instruction-file list as `additional_context`.
 - **The subagents in `cursor/agents/`** for the parallel review/research fan-outs, registered under their bare names.

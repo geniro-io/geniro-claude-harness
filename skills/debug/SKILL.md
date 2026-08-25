@@ -155,22 +155,22 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 **Phase 1 (Investigate):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / WebSearch / WebFetch (§1.5 external-dependency hypothesis, tiers 2-3) / AskUserQuestion.
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
-- Allowed Agent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
+- Allowed subagent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
 - Explicitly blocked: production-source writes and edits, `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.
 
 **Phase 2 (Propose):**
 - Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs) / AskUserQuestion.
 - Allowed: Edit / Write for reproduction test authoring + experimental monkey-patches.
-- Allowed: `Workflow(...)` for the deep-mode 3-verifier majority vote (§2.4, `deep-mode: true` only). No Agent spawns.
+- Allowed: `Workflow(...)` for the deep-mode 3-verifier majority vote (§2.4, `deep-mode: true` only). No subagent spawns.
 - Explicitly blocked: production-source writes and edits outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
 - Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup; the §3.1 working-tree check's read-only `git status --porcelain`, plus its blocker-path revert) / AskUserQuestion.
-- Explicitly blocked: file writes and edits, `git commit`, `git push`, `gh pr create`, Agent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
+- Explicitly blocked: file writes and edits, `git commit`, `git push`, `gh pr create`, subagent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
 **Adversarial Mode (A4):**
 - Allowed: Read / Grep / Glob / Bash (read-only — diff resolution, framework detection, running the test command) / Edit / Write, scoped to test files and test-only fixtures/helpers (never production source) / AskUserQuestion (escalation gate).
-- Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`, `git add`. No Agent spawn — test authoring runs inline in this same context.
+- Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`, `git add`. No subagent spawn — test authoring runs inline in this same context.
 
 The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 

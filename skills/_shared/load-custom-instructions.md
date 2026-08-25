@@ -16,7 +16,7 @@
 
 ## Why this exists
 
-A natural-language "Load X" directive does not reliably trigger an actual file read — the model often treats it as already-satisfied and skips the actual file read. Defining the load procedure once here, in tool-explicit terms, is the durable fix: consumers reference this file by path instead of each restating the directive in prose that drifts apart.
+A natural-language "Load X" directive does not reliably trigger an actual file read — the model often treats it as already-satisfied and skips it. Defining the load procedure once here, in tool-explicit terms, is the durable fix: consumers reference this file by path instead of each restating the directive in prose that drifts apart.
 
 ## When to invoke
 

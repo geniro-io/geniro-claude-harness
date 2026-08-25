@@ -294,7 +294,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 ### Failure handling
 
-On missing/empty OUTPUT_PATH file OR a spawn error: one silent retry. Second failure → inline-Read fallback (orchestrator Grep + Read top exemplar files and `_CODEBASE_MAP.md` rows) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo a one-line notice to user. A `.kr-out.md` absent because the Step 7 store-empty gate skipped the spawn is a sanctioned skip, not a failure — none of this applies to it.
+On missing/empty OUTPUT_PATH file OR a spawn error: one silent retry. Second failure → inline read fallback (the orchestrator searches and reads the top exemplar files and `_CODEBASE_MAP.md` rows) with `change_scope: medium` as safe default. Emit L2 `diagnosis` with `trust: retrieved`. Echo a one-line notice to user. A `.kr-out.md` absent because the Step 7 store-empty gate skipped the spawn is a sanctioned skip, not a failure — none of this applies to it.
 
 ---
 

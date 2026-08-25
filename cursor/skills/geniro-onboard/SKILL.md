@@ -106,7 +106,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 **Phase 1 (Discover):**
 - Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`) / AskQuestion (the §1.3 repo-size-cap expansion gate).
-- Explicitly blocked: production-source writes and edits, `git add` / `git commit` / `git push`. Agent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
+- Explicitly blocked: production-source writes and edits, `git add` / `git commit` / `git push`. subagent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
 
 **Phase 2 (Map):**
 - Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskQuestion / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).

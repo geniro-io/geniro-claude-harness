@@ -44,7 +44,7 @@ From WORKTREE, execute TEST_COMMAND once with both stdout and stderr redirected 
 
 ### Step 2 — Parse the saved log
 
-Use Grep + Read on the saved log file. Extract:
+Search and read the saved log file. Extract:
 
 - **Exit code** (captured in Step 1)
 - **Pass/fail/skip counts** — Grep for the runner's summary line (pytest: `X passed, Y failed`; jest/vitest: `Tests: X passed, Y failed`; go test: `FAIL`/`ok` per package, summary at the end)

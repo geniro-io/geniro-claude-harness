@@ -16,7 +16,7 @@ Overlap is safe ONLY when the branches are provably independent, not merely like
 
 - **Shape A** — the question must be answerable without the spawn's output AND the spawn's result must not depend on the answer. If either side could inform the other, the branches are coupled: keep them serial. A user answer arriving while the agent computed against a now-changed premise is the documented stale-state failure — the overlapped result is a proposal, not a fact, until drained and checked.
 - **Shape B** — each agent's inputs must be fully assembled before the co-fire, and no agent may consume another's output. If agent 2 needs agent 1's result, they are a pipeline: keep them serial.
-- **Agent spawns only, never a fire-and-forget shell command.** A backgrounded agent is harness-tracked — completion re-invokes the orchestrator, the output file persists, and it is resumable by ID, so a missed return is detectable. A backgrounded shell command returns no exit code to inspect; its loss is silent (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract").
+- **subagent spawns only, never a fire-and-forget shell command.** A backgrounded agent is harness-tracked — completion re-invokes the orchestrator, the output file persists, and it is resumable by ID, so a missed return is detectable. A backgrounded shell command returns no exit code to inspect; its loss is silent (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract").
 
 ## The contract
 

@@ -2,7 +2,7 @@
 
 The agent-loop invariants every Geniro orchestrator skill upholds, regardless of phase count. A skill cites this file and then adds its own skill-specific invariants (e.g. `/geniro:implement` adds subagent-delegation and single-`in_progress`-todo rules; `/geniro:review` adds the Reporter boundary). This is the single source — consuming skills reference it rather than restating the list.
 
-1. **One result per tool call.** Every Edit / Write / Bash / Agent spawn produces exactly one structured result. A failed spawn yields a result with `status: failed` — never an absent one.
+1. **One result per tool call.** Every Edit / Write / Bash / subagent spawn produces exactly one structured result. A failed spawn yields a result with `status: failed` — never an absent one.
 2. **Args validated before execution.** Bash commands built from `$ARGUMENTS` or state-file fields pass input sanity-checks; paths are absolute; slugs match the project's naming rules.
 3. **Permission before side-effect.** Any tool call that mutates external state (`git push`, `gh pr create`, a posted PR comment, a tracker write) is preceded by an `AskUserQuestion` approval or a recorded prior approval.
 4. **Bounded, structured tool results.** Subagent and Bash output is capped (truncate-with-marker, or summarize) before it reaches downstream reasoning, so a single large result can't crowd the orchestrator's context.

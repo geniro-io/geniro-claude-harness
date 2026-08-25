@@ -172,17 +172,17 @@ Route every user-facing choice in this skill through the `AskQuestion` tool per 
 
 **Phase 1 (Plan):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / AskQuestion.
-- Allowed Agent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
+- Allowed subagent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
 - Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**
-- Allowed Agent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
+- Allowed subagent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
 - Orchestrator uses Edit / Write / Bash (test cmd) / AskQuestion directly. Per-step regression runs via backpressure helper.
 - Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
 
 **Phase 3 (Verify):**
 - Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / AskQuestion / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
-- Allowed Agent spawns: reviewer-agent + custom reviewers (Medium+ only).
+- Allowed subagent spawns: reviewer-agent + custom reviewers (Medium+ only).
 - Allowed: targeted per-file revert per § Git constraint — the one orchestration-level exception to the git-write constraint.
 - Explicitly blocked: `git commit`, `git push`, `gh pr create`.
 
