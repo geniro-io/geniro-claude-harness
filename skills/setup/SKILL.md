@@ -58,7 +58,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five setup-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
-- **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit) fold into that same batch AUQ, with the `settings.json` replacement firing its own §3.6 `AskUserQuestion` when an entry already points elsewhere — and any further mid-phase choice this skill reaches is routed through that same tool, never chat prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
+- **Invariant #3 (permission before side-effect)** — Write to project root files (`CLAUDE.md`, `.gitignore`) is AUQ-gated at the §3.3 batch gate in Phase Generate; user-config writes outside PROJECT_ROOT (the §3.6 statusline copy + `settings.json` edit, and the §3.7 Cursor skill links) fold into that same batch AUQ, with the `settings.json` replacement firing its own §3.6 `AskUserQuestion` when an entry already points elsewhere — and any further mid-phase choice this skill reaches is routed through that same tool, never chat prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 - **Invariant #4 (bounded structured tool results)** — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
 - **Invariant #5 (escalation gates, not silent abort)** — the validation retry loop escalates via AUQ (`accept-with-warnings | abort | start-over`) rather than aborting silently; retry cap and round count owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2.
 - **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
@@ -105,7 +105,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 |---|---|---|
 | `detect` | `Read`, `Bash` (read-only: `git`, `find`, `grep`, `cat`), `Glob`, `Grep`, `Agent` | `Write`, `Edit`, mutating `Bash`, `mcp__github__*` |
 | `interview` | `AskUserQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
-| `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod), `AskUserQuestion` | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
+| `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod, the §3.7 link script), `AskUserQuestion` | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
 | `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent), `AskUserQuestion` | `Write`, `Edit` |
 | `done` (cleanup) | `Bash` (rm of state file), `AskUserQuestion` (the §5.2 map-the-codebase question), `Read` (the §5.4 compaction-resume re-read of `setup-rerun-reference.md`), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
 
@@ -146,7 +146,7 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 
 ## Phase 3: Generate
 
-`phase: generate` · Steps: `phase-3-generate.md` §3.0-§3.6. Re-run mode runs the migration sweep and pre-write audit first (`setup-rerun-reference.md`); then generate project-only CLAUDE.md content, write every §3.3 target under the batch AUQ, apply re-run merge rules, create runtime directories + `.gitignore` re-include, and install the statusline. Exit when every §3.3 write target exists (or was explicitly skipped by the user's edit pick) and the batch AUQ is recorded in `approvals[]`.
+`phase: generate` · Steps: `phase-3-generate.md` §3.0-§3.7. Re-run mode runs the migration sweep and pre-write audit first (`setup-rerun-reference.md`); then generate project-only CLAUDE.md content, write every §3.3 target under the batch AUQ, apply re-run merge rules, create runtime directories + `.gitignore` re-include, install the statusline, and — on a machine with Cursor — link the skills into the Cursor profile so the `cursor-agent` CLI can see them. Exit when every §3.3 write target exists (or was explicitly skipped by the user's edit pick) and the batch AUQ is recorded in `approvals[]`.
 
 ## Phase 4: Validate
 

@@ -15,11 +15,31 @@ This repository is a dual-runtime plugin: `.claude-plugin/plugin.json` packages 
 **As a Cursor plugin (recommended)** — full experience: skills + subagents + safety hooks.
 
 1. Symlink or copy this repository to `~/.cursor/plugins/local/geniro` (symlink keeps it on the latest checkout), or import the repo through **Dashboard → Plugins → Team Marketplaces**.
-2. Restart Cursor. Skills appear in the `/` picker as `geniro-<slug>` (`/geniro-plan`, `/geniro-implement`, `/geniro-review`, ...) — see What degrades below for why every skill carries the prefix, not only the ones that collided; subagents (`reviewer-agent`, `codebase-explorer-agent`, ...) become Task-tool targets under their bare names.
+2. Restart Cursor. Skills appear in the **IDE's** `/` picker as `geniro-<slug>` (`/geniro-plan`, `/geniro-implement`, `/geniro-review`, ...) — see What degrades below for why every skill carries the prefix, not only the ones that collided; subagents (`reviewer-agent`, `codebase-explorer-agent`, ...) become Task-tool targets under their bare names. The `cursor-agent` **CLI** needs one extra step — next subsection.
 
 **Via the Claude Code compatibility toggle** — skills only, no hooks or agents.
 
 If the plugin is installed in Claude Code from the marketplace, enabling **Settings → Rules, Skills, Subagents → "Include third-party Plugins, Skills, and other configs"** lets the Cursor IDE pick the skills up from `~/.claude/plugins/cache/`. Safety hooks and subagents do not travel this route; prefer the Cursor plugin install above.
+
+### Extra step for the `cursor-agent` CLI — temporary workaround for a Cursor bug
+
+`cursor-agent` does not register skills from plugins **at all** — not from the Cursor marketplace, not from `~/.cursor/plugins/local/`, not via `--plugin-dir`, not through the compatibility toggle above ([confirmed by Cursor][cli-bug]; see also [the wider plugin-capabilities gap][caps-gap]). The IDE registers them; the CLI does not. It scans four hard-coded directories, none of which is a plugin directory: `<repo>/.claude/skills/`, `<repo>/.cursor/skills/`, `~/.cursor/skills/`, `~/.cursor/skills-cursor/`. An agent that cannot find the skill does not error — it silently proceeds on its own reasoning.
+
+`/geniro-setup` offers this step on any machine with a Cursor install — it appears in the write plan alongside CLAUDE.md and the statusline, so approving that gate installs the links. Run it by hand if you would rather not re-run setup:
+
+```bash
+scripts/install-cursor-skills.sh              # link cursor/skills/geniro-* into ~/.cursor/skills/
+scripts/install-cursor-skills.sh --uninstall  # remove exactly those links
+```
+
+Idempotent, and it never overwrites or deletes an entry it does not own (`~/.cursor/skills/` is shared with your own skills — anything under a `geniro-` name that is not one of its links is skipped and reported).
+
+**The links carry no version, so a plugin update does not break them.** Invoked from Claude Code's versioned install cache (`~/.claude/plugins/cache/<marketplace>/geniro/<version>/`), the script does not link there — it links to the marketplace checkout beside it (`~/.claude/plugins/marketplaces/<marketplace>/`), which holds the same plugin at a path with no version in it and is refreshed in place by a plugin update. A git checkout or `~/.cursor/plugins/local/geniro` is already version-independent and is used as-is. It prints the source it resolved. Only where the script is run from the versioned cache and no marketplace checkout exists does it fall back to the versioned path — it warns then, and `/geniro:update` re-points those links in its post-check (Claude Code only, since that skill needs the `claude plugin` CLI). Do this in addition to the plugin install — the plugin is still what gives the IDE its hooks and subagents.
+
+**This step goes away with the bug.** The check: install the plugin normally, remove every link, ask a fresh `cursor-agent` session whether it has the `geniro-implement` skill. When it says yes, delete the script, `tests/cursor/install-skills.sh`, and this subsection. Worth re-checking on each CLI update rather than assuming it is closed — the bug was already fixed once by a server-side flag (`v2026.05.05-84a231c`) and regressed by the August build.
+
+[cli-bug]: https://forum.cursor.com/t/cursor-agent-cli-does-not-register-skills-from-plugins-ide-does-parity-gap/158947
+[caps-gap]: https://forum.cursor.com/t/agent-does-not-have-access-to-plugin-capabilities-mcp-skills-commands-etc/154334
 
 ## What works in Cursor
 
@@ -57,3 +77,4 @@ Failing all three, the skill runs degraded under a defined contract rather than 
 - `cursor/agents/*.md` are **generated** — edit `agents/*.md`, run `scripts/build-cursor-agents.sh`, commit both. CI (`tests/cursor/build-agents-fresh.sh`) fails on drift.
 - `cursor/hooks.json` wires the shim; add new hook scripts there only if their event maps cleanly (see the translation map at the top of `cursor/hooks/claude-hook-shim.sh`).
 - `tests/cursor/hook-shim.sh` covers the adapter's translation and fail-open behavior.
+- `scripts/install-cursor-skills.sh` links, it does not copy — a regenerated `cursor/skills/` reaches an already-linked profile with no re-run. Covered by `tests/cursor/install-skills.sh`.

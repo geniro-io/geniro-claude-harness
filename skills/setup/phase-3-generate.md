@@ -40,8 +40,9 @@ Generated CLAUDE.md sections:
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
+- `$HOME/.cursor/skills/geniro-*` — symlinks to the plugin's generated Cursor skill copies (§3.7); a user-config write outside PROJECT_ROOT, listed only when §3.7's condition holds.
 
-Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, and the statusline install — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
+Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, the statusline install, and the §3.7 Cursor skill links when that step's condition holds — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
 
 ### 3.4 Conflict-resolution merge rules (re-run only)
 
@@ -71,6 +72,18 @@ cp "${CLAUDE_PLUGIN_ROOT}/hooks/geniro-statusline.js" "$CLAUDE_USER_DIR/hooks/ge
 ```
 
 Check `$CLAUDE_USER_DIR/settings.json` for a `statusLine` entry. If absent, add one pointing to `<config-dir>/hooks/geniro-statusline.js`. If present and points to something else, `AskUserQuestion` (header: "Statusline") quoting the existing command: "Your `settings.json` statusLine is currently `<existing command>` — replace it with the Geniro statusline?" / options "Replace with Geniro statusline" / "Keep the existing one". This confirm is separate from the §3.3 batch AUQ — it overwrites a `~/.claude/settings.json` entry outside PROJECT_ROOT, which affects every other project on the machine, not just this one.
+
+### 3.7 Link the skills for the Cursor CLI (conditional)
+
+Fires only when this machine has a Cursor install (`$HOME/.cursor/` exists) AND the resolved plugin root carries `cursor/skills/`. Skip silently when either is absent — there is nothing to link into, or nothing to link.
+
+`cursor-agent` registers skills from four hard-coded directories and no plugin directory is among them, so a plugin install alone leaves the CLI without any Geniro skill; the IDE is unaffected. A profile symlink is the only route that reaches it. `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §"Extra step for the `cursor-agent` CLI" carries the evidence, the source thread, and the condition for removing this step once Cursor fixes the bug.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-cursor-skills.sh"
+```
+
+The script is idempotent and skips any name in the shared `~/.cursor/skills/` it does not own, so a re-run costs nothing. It also picks its own link target: invoked from a versioned install cache it links to the marketplace checkout instead, so the links survive plugin updates. Report the source line it prints, and pass on its warning — the one case where the links do carry a version — rather than dropping it. Record the outcome for the §5.1 report.
 
 Transition to Phase 4.
 
