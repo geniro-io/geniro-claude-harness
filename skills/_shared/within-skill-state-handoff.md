@@ -83,10 +83,22 @@ Four cases — consumers must handle all four:
 
 **Case B — Branch matches, Worktree differs.** Rare (typically: user moved the repo or has multiple checkouts of the same branch). Surface a one-line note: `State found for branch '<branch>' but written from worktree '<state-worktree>'; current worktree is '<current-worktree>'. Proceeding.` No AUQ — Branch identity is sufficient for resume.
 
-**Case C — Branch differs (collision detected).** Fire `AskUserQuestion` (the canonical user-facing recovery — NOT improvised at runtime):
+**Case C — Branch differs (collision detected).** Render the clash, then fire `AskUserQuestion` (the canonical user-facing recovery — NOT improvised at runtime). The render is a chat message in the two layers of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers, because four branch and directory names packed into a question is exactly the shape a user skips:
+
+```
+### ⚠️ Unfinished work from a different branch
+
+**In one sentence:** there's saved progress from an earlier run that was working
+on a different branch than the one you're on now, so continuing it here would
+put those changes somewhere they weren't meant to go.
+
+**Technical detail:** saved state at <path> targets branch '<state-branch>'
+(worktree '<state-worktree>'); you are on '<current-branch>' (worktree
+'<current-worktree>').
+```
 
 - Header: "State clash"
-- Question: "State file at <path> targets branch '<state-branch>' (worktree '<state-worktree>') but you are on '<current-branch>' (worktree '<current-worktree>'). How should I proceed?"
+- Question: "Saved progress from another branch — explained above. How should I proceed?"
 - Options (in this order — first is Recommended):
  1. **"Stop — I'll switch to <state-branch>"** (Recommended) — abort the skill; user runs `git checkout <state-branch>` (or `cd <state-worktree>` if a sibling worktree) and re-invokes.
  2. **"Discard and start fresh on <current-branch>"** — delete the conflicting state file; begin a new pipeline scoped to current branch.

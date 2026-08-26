@@ -63,7 +63,7 @@ Do NOT run the full project test suite here — that's the receiving skill's res
 When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-patch round counts as one), surface to user — mirrors escalation pattern:
 
 1. Do **not** silently report "no fix works".
-2. Render the two failed attempts to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — what each attempt changed, what still fails, with evidence cites — then the lean `AskUserQuestion` with header "Fix-fail" and options:
+2. Render the two failed attempts to chat first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — what each attempt changed and what still fails, in plain words, then a `**Technical detail:**` block per attempt with the evidence cites and the failing output (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers) — then the lean `AskUserQuestion` with header "Fix-fail" and options:
 - **Try different approach** — go back to (Hypothesize) with a fresh angle. state.md transitions back to `phase: investigate`.
 - **Accept as documented limitation** — proceed to Phase 3 ship sub-step with `## Accepted Limitations` block in state.md body. state.md transitions to `phase: ship`. Receiving skill sees the unresolved limitation in the findings summary.
 - **Abort** — `phase: aborted` (terminal).

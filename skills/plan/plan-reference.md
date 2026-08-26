@@ -25,7 +25,7 @@ If the user really wants to surgically edit an existing design doc bypassing Pha
 
 ## Concrete example per section type
 
-Phase 5 cluster rendering (`loop-phase-5-section-approval.md` §5.2) renders every section in a cluster's chat message as a friendly digest block (lead sentence / `**Why:**` with evidence cite / `**How it gets built:**` / `**You'll see:**`) PLUS one concrete example and a visual, both closing out the section below its digest lines. This table supplies the example; the visual that goes with it is shared language, canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map".
+Phase 5 cluster rendering (`loop-phase-5-section-approval.md` §5.2) renders every section in a cluster's chat message as a friendly digest block (lead sentence / `**Why:**` in plain words / `**How it gets built:**` / `**You'll see:**` / `**Technical detail:**` with the evidence cite, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers) PLUS one concrete example and a visual, both closing out the section below its digest lines. This table supplies the example; the visual that goes with it is shared language, canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map".
 
 | Section | Concrete example shape |
 |---|---|

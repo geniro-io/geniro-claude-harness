@@ -182,11 +182,31 @@ One carve-out, and only one: the user elects a fact correction at the `defects-f
 Keep the section live for the rest of the run. A claim is just as refuted when a failing test, a rendered screen, or the user's own push-back disproves it mid-implementation as when a verifier does here — and those arrive after this pass has finished, which is exactly when the record stops being written. Every later consumer reads this section rather than re-deriving it: the PR body and the final report, which otherwise restate the spec's number as measured fact, and any `/geniro:review` that loads the spec as plan context and would score the implementation against a claim already known to be false. The failure this prevents is narrow and real — a figure disproved mid-run, corrected in conversation, and then written into a public pull request under a sentence promising every number was measured.
 
 - `clean` verdict → emit a silent advisory note in the scratch report and proceed to the first code edit. Do NOT fire an AskUserQuestion on a clean pass — a question with nothing to decide is noise, and the always-WAIT-restraint norm reserves the AUQ for a real decision.
-- `defects-found` verdict → fire ONE AskUserQuestion before the first code edit:
+- `defects-found` verdict → render the divergences to chat, then fire ONE AskUserQuestion before the first code edit.
+
+  **Render first.** A count and a one-line summary are not a decision the user can take: they are being asked whether to build against a plan that turned out to be partly wrong, and nothing in a count tells them which part. Write a self-contained chat message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the two layers of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers — one block per refuted or clarified claim:
+
+  ```
+  ### 🔍 Spec check: <N> thing(s) the plan assumed are no longer true
+
+  **In one sentence:** the plan was approved against how the code looked then;
+  <N> of its assumptions don't hold now, so this is a decision about whether to
+  build to the plan anyway.
+
+  **1. <plain-English title of the claim>**
+  The plan assumes <what the spec says, in ordinary words>. What's actually
+  there is <what the code shows, in ordinary words>.
+  **Why it matters:** <what building to the stale assumption would produce>
+  **Technical detail:** <path:lines> — <the evidence quote>
+  ```
+
+  Where a refuted claim is a number the spec states as measured, say the plan's figure and the real one in the plain layer — a wrong number is the one divergence a user can judge without reading any code.
+
+  **Then the lean question:**
 
 ```
 header: "Spec check"
-question: "Re-checking the approved spec against the current code turned up <N> issue(s): <one-line summary>. How do you want to proceed?"
+question: "The plan makes <N> assumption(s) that no longer match the code — explained above. How do you want to proceed?"
 options:
   - "Proceed anyway"            -> ignore the findings, continue implementing as specified
   - "Correct the spec here, then proceed" -> apply the fact corrections to the spec in place, re-check

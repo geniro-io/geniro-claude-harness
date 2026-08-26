@@ -87,29 +87,38 @@ Chat message rendered before the FIRST question:
 ```markdown
 First decision before I lock the approach:
 
-**Auth method** — how should the new endpoint authenticate?
-- JWT (existing middleware) — adds `@UseGuards(JwtAuthGuard)`; reads the token from the
-  Authorization header; 401 on missing/invalid. Test: `expect(401)...code: 'UNAUTHENTICATED'`.
-- Session cookie — adds `@UseGuards(SessionGuard)`; reads the `session_id` cookie;
-  mirrors `/auth/session.spec.ts`; same 401 shape.
-- Skip — record assumption "endpoint uses JWT (default)" in the Assumptions section for /geniro:implement to verify.
+**Auth method** — how should callers of the new endpoint prove who they are?
 
-I recommend JWT — the guard and its 401 contract already exist; a session flow would add a second auth path.
+- **A token sent with each request.** The caller attaches a token; anyone without a
+  valid one is turned away. This is the same check the rest of the API already does,
+  so there is nothing new to build or maintain.
+  **Technical detail:** `@UseGuards(JwtAuthGuard)`; token read from the Authorization
+  header; 401 on missing/invalid, `code: 'UNAUTHENTICATED'`.
+- **The browser's login cookie.** The caller is recognised by the session they already
+  have from logging in. Same rejection behavior for anyone not logged in, but the API
+  then has two ways of proving identity to keep working.
+  **Technical detail:** `@UseGuards(SessionGuard)`; reads the `session_id` cookie;
+  mirrors `/auth/session.spec.ts`; same 401 shape.
+- **Decide later.** I write down "tokens, unless told otherwise" as a stated assumption,
+  and the build step confirms it against the code before relying on it.
+
+I recommend the token check — it already exists and is already tested; the cookie route
+would add a second way in for the project to keep working.
 ```
 
-Then the LEAN single-question AUQ — options are short selectors; the consequences live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, the framing message names the recommendation and the AUQ's first option carries the `(Recommended)` marker:
+Then the LEAN single-question AUQ — options are short selectors carrying the plain layer only (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions); the identifiers live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, the framing message names the recommendation and the AUQ's first option carries the `(Recommended)` marker:
 
 ```yaml
 questions:
   - header: "Auth method"
-    question: "Which auth flow should this endpoint use?"
+    question: "How should callers of this endpoint prove who they are? (Options explained above.)"
     options:
-      - label: "JWT — existing middleware (Recommended)"
-        description: "@UseGuards(JwtAuthGuard); 401 on missing/invalid."
-      - label: "Session cookie"
-        description: "@UseGuards(SessionGuard); reads session_id cookie."
-      - label: "Skip — assume JWT"
-        description: "Recorded as an assumption for /geniro:implement to verify."
+      - label: "A token per request (Recommended)"
+        description: "The check the rest of the API already uses; nothing new to maintain."
+      - label: "The browser's login cookie"
+        description: "Recognises an already-logged-in user; adds a second way in to maintain."
+      - label: "Decide later — assume tokens"
+        description: "Recorded as a stated assumption for the build step to confirm."
 ```
 
 After the user answers, persist it (below), then render the next question's framing and fire its own single-question AUQ. If an earlier answer makes a pending question moot (e.g., "Skip auth entirely" removes a follow-up auth-scope question), drop it rather than asking it — depth-first walking exists precisely to let one answer reshape what follows.
@@ -178,7 +187,7 @@ Persist each checkpoint decision to `approvals[]` (§1 entry shape) with categor
 
 ## 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 
-Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language). Render the approaches to a chat message — progress tracker, one-sentence opener, then per approach a plain-English summary + ASCII diagram + what-changes + trade-off + stress-test verdict — and fire ONE lean AUQ whose options are just the approach names.
+Apply the Gate presentation contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language). Render the approaches to a chat message — progress tracker, one-sentence opener, then per approach a plain-English summary + trade-off, followed by that approach's `**Technical detail:**` block holding the ASCII diagram, what-changes, and the stress-test verdict with its cite (the plain-then-technical split is canonical in that file's §Two explanation layers) — and fire ONE lean AUQ whose options are just the approach names.
 
 Chat message rendered before the AUQ:
 
@@ -189,24 +198,31 @@ Plan approval — choosing the approach
 **In one sentence:** picking how to rebuild drifted telemetry counts — two ways to build it; I recommend the first.
 
 ### Service-layer fan-out  ✅ Recommended
-Split the per-user backfill into queued jobs; a worker pool takes N at a time, so memory stays flat no matter how many users.
+Line the users up in a queue and rebuild their counts a few at a time, so the
+job uses the same amount of memory whether there are 100 users or a million.
+Trade-off: one more moving part to run and monitor, in exchange for a backfill
+that can't run the server out of memory.
+
+**Technical detail:**
 
   ┌─────────────┐    ┌──────────────────┐    ┌────────────┐
   │ /backfill    │─→─│ BackfillQueue.add │─→─│ Worker pool│
   └─────────────┘    └──────────────────┘    └────────────┘
 
-What changes: new `src/jobs/BackfillQueue.ts` + a per-user job class.
-Trade-off: +1 infrastructure piece; bounded memory under load.
-Stress-test: no blockers; queue-table migration needed (minor, src/db/schema.ts:40).
+  What changes: new `src/jobs/BackfillQueue.ts` + a per-user job class.
+  Stress-test: no blockers; queue-table migration needed (minor, src/db/schema.ts:40).
 
 ### In-process Promise.all
-Loop the users and run 50 backfills at a time inside the existing process — nothing new to deploy.
+Rebuild the counts in batches of 50 inside the server that's already running —
+nothing new to deploy or operate. Trade-off: on a large customer the whole user
+list sits in memory at once, so this is the option that can fall over under size.
+
+**Technical detail:**
 
   for (chunk of chunks(users, 50)) await Promise.all(chunk.map(backfill))
 
-What changes: tweaks to `src/backfill/runner.ts` only.
-Trade-off: zero new infrastructure; memory spike on large datasets.
-Stress-test: major — runner.ts:88 already holds the full user set in memory; the spike compounds.
+  What changes: tweaks to `src/backfill/runner.ts` only.
+  Stress-test: major — runner.ts:88 already holds the full user set in memory; the spike compounds.
 ```
 
 Then the LEAN AUQ — single-select; `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy); `preview` omitted:
@@ -216,9 +232,9 @@ header: "Approach"
 question: "Which approach do you want to pursue? (Details in the message above.)"
 options:
   - label: "Service-layer fan-out (Recommended)"
-    description: "Queued jobs; bounded memory; minor migration. No blockers."
+    description: "Rebuilds counts a few at a time; memory stays flat. One new piece to run."
   - label: "In-process Promise.all"
-    description: "Zero new infra; memory spike on large datasets (major risk)."
+    description: "Nothing new to deploy; can run out of memory on large customers."
 ```
 
 The `Recommended` marker reflects the §4.2 stress-test ranking — an approach with a verified blocking feasibility risk is never Recommended. User pick → append to `approvals[]` with category `approach_choice`. Other approaches captured to body section `## Considered Alternatives`. The unsignaled (non-recommended) picks fire L2 emit via `emit-rejection.sh` when the picked label diverges from the recommended label.
@@ -248,24 +264,29 @@ included, and what stays out.
 └─────────────────────────────────┘
 
 ### 🎯 Objective
-We'll add a `/backfill` endpoint that re-derives per-user telemetry counts on demand.
-- **Why:** counts drift after retroactive event edits (evidence:
-  src/telemetry/aggregate.ts:120); the approach you picked is service-layer fan-out.
-- **How it gets built:** a `BackfillController.run()` calling the queued
-  `BackfillQueue` service; no change to the events schema.
-- **You'll see:** trigger `/backfill` → counts reconcile within ~30s.
+Add a way to ask the system to recount a user's telemetry on demand.
+- **Why:** the counts drift out of date whenever past events get edited, and
+  today there is no way to correct them short of a manual fix.
+- **You'll see:** trigger a backfill → that user's counts are correct within ~30s.
+- **Technical detail:** a `/backfill` endpoint —`BackfillController.run()`
+  calling the queued `BackfillQueue` service, the service-layer fan-out approach
+  you picked. Drift evidence: src/telemetry/aggregate.ts:120. No change to the
+  events schema.
 
 ### 📦 What's included
-We'll build the controller, the queue service, and a per-user job class.
-- **Why:** src/jobs/ already hosts a queue runner (src/jobs/runner.ts:40) — we
-  reuse it instead of adding new infrastructure.
+The endpoint itself, the queue that paces the work, and the per-user recount job.
+- **Why:** the project already runs a queue for other background work, so this
+  reuses it instead of adding a second one.
 - **You'll see:** the scope map above — 2 new files, 2 edited areas.
+- **Technical detail:** the existing runner is src/jobs/runner.ts:40; the new
+  files land beside it in src/jobs/.
 
 ### 🚫 What's excluded
-The event-schema migration and the admin dashboard stay out.
-- **Why:** the chosen approach reuses the existing schema; the dashboard is a
-  separate tracker epic (no file in the touched surface).
-- **You'll see:** src/db/schema.ts and src/admin/ untouched after implementation.
+Changing how events are stored, and any admin screen for triggering this.
+- **Why:** the approach works with the storage as it is, and the admin screen is
+  its own tracked piece of work.
+- **You'll see:** nothing in the database schema or the admin area changes.
+- **Technical detail:** src/db/schema.ts and src/admin/ untouched after implementation.
 ```
 
 Then the LEAN AUQ:
@@ -328,8 +349,6 @@ Plan approval — final step
 **In one sentence:** the full spec is written and checked — this is the last look
 before it's committed and handed to implementation.
 
-Spec on disk: `.geniro/planning/<slug>/spec.md`
-
 **🎯 The goal:** <section 1 body — single sentence>
 **📦 In / out:** <section 2 Included bullets + section 3 Excluded summary — reuse
 the in/out scope map from the Goal & scope step>
@@ -342,9 +361,11 @@ that set the level>
 **✅ How we'll know it's done:**
 ☐ <section 11 — one checkbox per observable signal, e.g. "all 5 acceptance tests green">
 ☐ <"telemetry shows ≥1 successful event insert">
-**Touched files:** <glob count from section 2 Scope.Included>
 
-Approval is valid for this planning session; re-approval is needed if spec.md is
+**Technical detail:** spec on disk at `.geniro/planning/<slug>/spec.md`;
+<glob count from section 2 Scope.Included> files in the touched surface.
+
+Approval is valid for this planning session; re-approval is needed if the spec is
 edited after this point.
 ```
 

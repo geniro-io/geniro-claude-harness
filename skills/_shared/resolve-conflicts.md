@@ -8,7 +8,7 @@
 
 **It does:**
 - Formats a canonical conflict notice block (soft conflict, skill continues using precedence-winning value).
-- Formats a hard-conflict text block intended for embedding in `AskUserQuestion` (L4 rule contradicts L3 reality, skill halts).
+- Formats a hard-conflict text block the calling skill renders to chat ahead of a lean `AskUserQuestion` (L4 rule contradicts L3 reality, skill halts).
 
 **It does NOT:**
 - Detect conflicts. Conflicts are semantic ("use webpack" in L4 conflicts with "vite.config.ts present" in L3); the calling skill — with its LLM context window of loaded L4/L3/L2 content — is the only entity that can reliably tell. The helper exists so that once a skill HAS decided a conflict exists, every skill formats the notice identically.
@@ -37,8 +37,8 @@ text=$(hard_conflict_block \
   --subject "http library" \
   --l4 "use axios" --l4-source ".geniro/instructions/global.md" \
   --l3 "axios removed from package.json; fetch in use" --l3-source ".geniro/planning/_project.md" \
-  --suggested-action "After you decide, /geniro:instructions edit global.md to refresh L4.")
-# ... feed $text into AskUserQuestion ...
+  --suggested-action "After you decide, /geniro:instructions edit global.md to refresh your project rules.")
+# ... emit $text as its own chat message, then fire the lean AskUserQuestion ...
 ```
 
 ## Flag reference
@@ -78,15 +78,16 @@ The layer that wins renders by its plain-English name ("your project rules" / "y
 ```
 Conflict that needs your decision: http library
 
-Your project rules and your project snapshot disagree, and the usual precedence (project rules win, then the snapshot, then past learnings) cannot settle it — the rule contradicts what the codebase currently looks like. Which one is your intent?
+A rule you set for this project and the current state of your codebase point in opposite directions, and the usual order — project rules first, then the project snapshot, then past learnings — cannot settle it, because the rule contradicts what the code looks like today. Which one is your intent?
 
+Technical detail:
   - Your project rules (.geniro/instructions/global.md): use axios
   - Your project snapshot (.geniro/planning/_project.md): axios removed from package.json; fetch in use
 
 After you decide, /geniro:instructions edit global.md to refresh your project rules.
 ```
 
-The hard-conflict block is **plain text** intended for embedding into `AskUserQuestion`'s `question` parameter; the skill itself wires the options (typically: "The project rules are right — refresh the snapshot", "The snapshot is right — update the rules", "Abort").
+The hard-conflict block is **plain text**, laid out in the two layers of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers: the frame sentence states the disagreement in ordinary words, and the source files sit under `Technical detail:`. The helper only has the `--l4` / `--l3` / `--l2` strings it was handed, so the frame stays generic — a calling skill holding the actual content expands the plain layer with the specifics ("the code makes its requests with the browser's built-in fetch instead") before rendering. **The calling skill emits it as its own chat message and then fires a lean `AskUserQuestion` that points at it** (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering) — the block is a render, not a `question` value: pasted into `question` it is a wall of text in a narrow prompt, which is what leaves a user resolving a conflict they did not read. The skill wires the options (typically: "The project rules are right — refresh the snapshot", "The snapshot is right — update the rules", "Abort").
 
 ## Conflict-resolution flow (the canonical skill pattern)
 
@@ -105,4 +106,4 @@ The hard-conflict block is **plain text** intended for embedding into `AskUserQu
 
 - **No automatic detection.** This is deliberate — see §"What this helper does".
 - **Single-subject only.** One conflict per call. Multi-subject conflicts get separate notices.
-- **No threading with the AUQ tool.** The helper FORMATS text; wiring it into `AskUserQuestion` is the calling skill's job.
+- **No threading with the AUQ tool.** The helper FORMATS text; rendering it to chat and wiring the lean `AskUserQuestion` after it is the calling skill's job.
