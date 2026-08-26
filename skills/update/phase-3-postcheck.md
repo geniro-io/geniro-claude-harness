@@ -71,5 +71,11 @@ This writes `update_available: false` to the cache with the new installed versio
 
 Only when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already exists, overwrite it from `$PLUGIN_PATH/hooks/geniro-statusline.js`. Its absence means the user never ran `/geniro:setup` or has no `statusLine` settings entry — creating the file there would install a statusline they never asked for. Claude Code accepts a `statusLine` command only from user or project settings, so the plugin's own bundled `settings.json` cannot activate the statusline directly — the user-config copy this step refreshes is what makes it live. Record the outcome for the final report's `Statusline` line.
 
+### Step 5 — Re-point the Cursor CLI skill links (conditional)
+
+Only when `$HOME/.cursor/skills/` already holds `geniro-*` symlinks, re-run `bash "$PLUGIN_PATH/scripts/install-cursor-skills.sh"`. Their absence means the user never opted into that workaround, and creating them here would install skills into a Cursor profile they never asked to touch.
+
+The script normally links to a path with no version in it — a checkout, or the marketplace checkout — and those links need nothing after an update, so this step is usually a no-op. It earns its place in the case that is left: links that do carry a version (no marketplace checkout was available when they were made) resolve to the old plugin after an update, or to nothing once that version is cleaned up. Re-running re-points them. Record the outcome for the final report's `Cursor CLI skills` line.
+
 Transition to Phase 4.
 

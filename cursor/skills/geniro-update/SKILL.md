@@ -65,7 +65,8 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 - [ ] `phase-3-postcheck.md` §User-content survival check ran; any non-empty diff was surfaced via AUQ and resolved
 - [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` invoked against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit for the rest of the session, in the run meant to clear it
 - [ ] `phase-3-postcheck.md` §Refresh statusline stable copy (conditional) ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
-- [ ] The final report's `Update cache` and `Statusline` lines reflect the actual cache-refresh / statusline-refresh outcome, not an assumed one
+- [ ] `phase-3-postcheck.md` §Re-point the Cursor CLI skill links (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
+- [ ] The final report's `Update cache`, `Statusline`, and `Cursor CLI skills` lines reflect the actual outcome of each refresh, not an assumed one
 
 ## Budgets — quality-first
 
@@ -77,7 +78,7 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 |---|---|---|
 | `pre-check` | `Read`, `Bash` (`cat`, `grep`, `find`, `shasum`/`sha256sum`, `stat`, `python3 -c "json.load"`, plus the one sanctioned write: the `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content baseline snapshot redirected into `/tmp`), `Glob`, `AskQuestion` | `Write`, `Edit`, any mutating `Bash` outside that snapshot write, `Agent`, all `mcp__*` |
 | `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
-| `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh), `Glob`, `AskQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
+| `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh, the Cursor link script), `Glob`, `AskQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
 | `migration` | `Read`, `AskQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
@@ -123,7 +124,7 @@ Steps: `phase-2-update.md`. Run the marketplace + plugin update with exponential
 
 ## Phase 3 — post-check
 
-Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), re-take the user-content snapshot and diff it against the Phase 1 baseline (AUQ on any change), refresh the update cache, and refresh the statusline copy when one already exists. Exit when both AUQ-gated checks have resolved and the cache/statusline outcomes are recorded for the final report.
+Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), re-take the user-content snapshot and diff it against the Phase 1 baseline (AUQ on any change), refresh the update cache, refresh the statusline copy when one already exists, and re-point the Cursor CLI skill links when those already exist. Exit when both AUQ-gated checks have resolved and the cache / statusline / Cursor-link outcomes are recorded for the final report.
 
 ## Phase 4 — migration
 
