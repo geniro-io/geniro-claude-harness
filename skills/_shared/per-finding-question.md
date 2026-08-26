@@ -1,6 +1,6 @@
 # Per-finding AskUserQuestion rendering
 
-Canonical shape for every `AskUserQuestion` call that surfaces a code-review finding (or a set of findings) to the user. The user must understand the finding fully at the moment of decision — what the code does, what the concern is, why it matters, and what each option means — without having seen the reviewer agents' output. The finding body is rendered to a chat message first (§ Message-first rendering); the `AskUserQuestion` itself stays lean. A bare `label` + 1-line `description`, or a finding body crammed into the truncating `preview` side-box, is not enough.
+Canonical shape for every `AskUserQuestion` call that surfaces a code-review finding (or a set of findings) to the user. The user must understand the finding fully at the moment of decision — what the software does, what the concern is, why it matters, and what each option means — without having seen the reviewer agents' output, and without needing to read code to follow it: the explanation is layered plain-first, technical-second per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers. The finding body is rendered to a chat message first (§ Message-first rendering); the `AskUserQuestion` itself stays lean. A bare `label` + 1-line `description`, or a finding body crammed into the truncating `preview` side-box, is not enough.
 
 This file is the single source of truth for the core contract. Skills cite specific sections — the body schema lives only here. The concrete finding-gate shapes — the single-finding AUQ shape, the challenge option, the mandatory pre-fire scrub, the visual map, and the source-field maps — live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`; Read that file when a gate is about to fire on a concrete finding or investigation result. A run that reaches no finding gate never loads it.
 
@@ -31,18 +31,20 @@ Every gate under this contract follows a two-step shape — **render the finding
 
    **In one sentence:** <what this decision settles>
 
-   <lead sentence(s), conversational: what the code does now and what the concern is — name the function / file / behavior in words; expand any shorthand the reviewer used>
+   <lead sentence(s), conversational: what the software does now and what the concern is, in ordinary words — describe the behavior rather than naming the function that implements it; expand any shorthand the reviewer used>
 
-   **Why it matters:** <concrete impact: what breaks or degrades, who is affected, under what condition> (evidence: `path:lines`)
+   **Why it matters:** <concrete impact in plain words: what breaks or degrades, who is affected, under what condition>
 
-   <the visual — shape per the visual map in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`; when code itself is the clearest visual, a 2-5 line evidence snippet>
+   **Technical detail:** <the evidence — `path:lines`, the symbol / class / config names, the command or error string>
+
+   <the visual — shape per the visual map in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`; when code itself is the clearest visual, a 2-5 line evidence snippet. A visual naming symbols belongs under the technical block; a plain-language one (risk mini-table, `☐` checklist) stays above it>
 
    **Options:**
-   - **<Option A>** — <consequence>
-   - **<Option B>** — <consequence>
+   - **<Option A>** — <consequence in plain words>
+   - **<Option B>** — <consequence in plain words>
    ```
 
-   The tracker, opener, digest, per-unit visual, and heading icons are defined canonically in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language; this template is their finding-gate instantiation.
+   The tracker, opener, digest, technical block, per-unit visual, and heading icons are defined canonically in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language, and the plain-then-technical split they follow in that file's §Two explanation layers; this template is their finding-gate instantiation.
 
 2. **Then fire a LEAN `AskUserQuestion`.** The `question` restates the plain-English title and points at the chat explanation; each option is a short selector with a one-line `description`. Leave `preview` empty or use it for a one-line recap — never as the rendering surface.
 
@@ -50,7 +52,7 @@ Every gate under this contract follows a two-step shape — **render the finding
 
 **Turn-completion rule.** The inverse failure is forbidden too: once the chat block is emitted, the `AskUserQuestion` is the immediate next action. Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
-**Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a reviewer phrase like "relies on the implicit entity-default @Filter at the 3 call sites" must be spelled out — which code paths, what the default does, why the reliance is in question — never echoed verbatim into the question. No term may appear in the `question` or any option that was not explained in the chat block first.
+**Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a reviewer phrase like "relies on the implicit entity-default @Filter at the 3 call sites" must be spelled out — what the code does today, what goes wrong because of it, and who notices — in the plain layer, with the annotation's name and the three call sites' `path:lines` in the technical block below it. Never echo the reviewer's phrasing verbatim into the question. No term may appear in the `question` or any option that was not explained in the chat block first, and a term whose only explanation is in the technical block has not been explained for the plain layer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers).
 
 Why this shape: the `preview` side-box cannot carry a finding body — the reason is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. The body lives in the chat message; the lean question captures only the decision.
 

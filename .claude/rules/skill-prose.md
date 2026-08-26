@@ -145,6 +145,10 @@ Both dimensions must pass:
 - **No untranslated identifiers.** `T2` / `FIX-NOW` / `phase: triage` restated inline or dropped.
 - **No assumed hidden context.** The string explains the situation it is about. A review gate asking *"How should we handle the implicit entity-default @Filter at the 3 call sites?"* fails even though every word is plain English — the user was never shown what that code does, why it is a concern, or what the options mean. For decisions carrying finding or investigation context, render the self-contained explanation to a chat message first, then fire a lean question, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering.
 
+### Explanations are layered, plain before technical
+
+Any explanation a skill renders before a decision splits into a plain layer and a `**Technical detail:**` block, in that order — the shape, the two properties that keep the layers honest, and when to omit the technical block are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers. Authoring consequence: when a render template in a skill or reference enumerates its slots, the slot list names both layers and puts the cites in the second, so a run instantiating the template does not merge them back. A slot list ending at `**Why it matters:** … (evidence: path:lines)` is the shape this rule replaces.
+
 Applies to everything the orchestrator surfaces: chat narration, todo-list labels, `AskUserQuestion` `header` / `question` / `description` / option `label` / `preview`, status echoes, final report sections, and errors surfaced to chat (not the state-file `## Errors` body section — that is a structured artifact for downstream consumers).
 
 ### Translation tables

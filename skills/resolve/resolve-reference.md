@@ -104,8 +104,8 @@ Two rules keep this from becoming a way to avoid work: a `decline` is only ever 
 The chat message that precedes it (§Message-first rendering in the same file) is the rendering surface, and it carries all three groups, in this order:
 
 1. **Applying without asking** — one line per `fix`: the comment, the file, the correction. Short; these need no decision, only visibility.
-2. **Needs your call** — one block per `ask`: what the reviewer asked, what the code does now, what changes for a caller if it is applied, and what happens if it is not. This is the block the gate is answerable from, so consequence goes here, not classification.
-3. **Declining** — one line per `decline`: the comment, the reason, and the evidence in a clause. The user is answerable for a push-back posted under their PR, so they see it before it is drafted.
+2. **Needs your call** — one block per `ask`, in the two layers of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers: first, in ordinary words, what the reviewer asked, how the software behaves today, what changes for whoever depends on it if the change is applied, and what happens if it is not; then a `**Technical detail:**` line with the file, the symbol, and the cite. This is the block the gate is answerable from, so consequence goes in the plain layer, never classification and never only a cite.
+3. **Declining** — one line per `decline`: the comment and the reason in plain words, with the evidence cite in a trailing clause. The user is answerable for a push-back posted under their PR, so they see it before it is drafted.
 
 **The single-item gate — one call per ambiguous item.** Shape per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate. Options are the item's competing readings plus two standing aids:
 

@@ -18,7 +18,7 @@ If any check fails:
 1. Write findings to state.md `## Open Questions` body as a structured list (one bullet per failed check, with `fix_hint`).
 2. Re-author the failing sections (orchestrator-side: model re-reads its own draft + validator findings + `fix_hint`s, and rewrites only the failing sections).
 3. Re-run validator. **Max 3 auto-revision rounds.**
-4. If round 3 still fails → fire `AskUserQuestion` with header "Spec checks not passing":
+4. If round 3 still fails → render the failures to chat, then fire `AskUserQuestion` with header "Spec checks not passing". The render is a self-contained message per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the two layers of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers: one plain sentence per still-failing check saying what the spec is missing or contradicting and what an implementer would get wrong because of it, then a `**Technical detail:**` block naming the check and the spec section it fired on. "Accept as-is" without that render asks the user to waive checks they were never shown; the check names alone do not tell them what they are waiving. Options:
  - **Accept as-is** — proceed to Phase 8 with the failed checks documented in `## Open Questions`; user has final say.
  - **Re-revise** — kick a fresh round-1 cycle (rare; usually indicates schema misunderstanding).
  - **Abort** — run the §9.2 transient cleanup (`clean_task_transients`, `loop-phase-9-handoff.md`) and walk `loop-definition-of-done.md` §Abort-path subset, then write terminal `aborted` + `## Termination reason: phase-7-validator-hard-fail`.

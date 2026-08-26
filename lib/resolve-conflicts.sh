@@ -137,7 +137,14 @@ hard_conflict_block() {
   _rc_parse_args "$@" || return $?
 
   printf 'Conflict that needs your decision: %s\n\n' "$_RC_SUBJECT"
-  printf 'The layers disagree and precedence (project rules > project snapshot > past learnings) alone cannot resolve this — your project rule contradicts current project-snapshot reality. Which is intent?\n\n'
+  printf 'A rule you set for this project and the current state of your codebase point in opposite directions, and the usual order — project rules first, then the project snapshot, then past learnings — cannot settle it, because the rule contradicts what the code looks like today. Which one is your intent?\n\n'
+
+  # Sources go under their own heading: the sentence above is what the user
+  # decides from, and a path list running straight into it makes them read
+  # file names to reach the question.
+  if [ -n "$_RC_L4" ] || [ -n "$_RC_L3" ] || [ -n "$_RC_L2" ]; then
+    printf 'Technical detail:\n'
+  fi
 
   if [ -n "$_RC_L4" ]; then
     printf '  - Your project rules'

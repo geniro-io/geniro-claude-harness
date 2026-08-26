@@ -157,7 +157,8 @@ Draft each candidate as `target / file / change / why`, then walk them in descen
 - **Opener** — one sentence naming the candidate, e.g. `**Rule 1 of 2** — a testing rule this run exemplifies.`
 - **What I'd write** — the candidate's `change` (the `WHEN <condition> → <action>` body) shown verbatim in a fenced block, exactly as it would land in the file. The rule text itself, not a paraphrase of it.
 - **Where** — the routed `target` + `file` in plain English, e.g. "appends to your project's API-testing rules (`.claude/rules/api-testing.md`)". Name the file and what kind of rule store it is.
-- **Why** — the candidate's durable value followed by its Evidence citation from the §Candidate bar, both expanded to plain English, so the user judges the incident behind the proposal rather than the proposal alone. Frame a `Dedupe: UPDATE <file:line>` verdict as amending the existing rule at that location, not adding a sibling.
+- **Why** — the candidate's durable value in plain words: what went wrong without this rule and what having it would have changed, so the user judges the incident behind the proposal rather than the proposal alone.
+- **Technical detail** — the Evidence citation from the §Candidate bar, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers. Frame a `Dedupe: UPDATE <file:line>` verdict as amending the existing rule at that location, not adding a sibling.
 - **A visual** — the smallest aid that shows the rule's effect (the rule rendered as it will read in the file, or a before/after of the behavior it guards).
 
 Then the lean question (header `Rule N of M`, or just `Rule N` when only one candidate remains), options:
