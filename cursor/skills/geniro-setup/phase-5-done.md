@@ -17,7 +17,7 @@ Detected:
 Stack: node/npm + jest tests + ESLint
 Default branch: main (auto-detected)
 
-Cursor CLI: linked 14 skills into ~/.cursor/skills/   (only when §3.7 ran)
+Cursor: installed 14 skills, 7 subagents, and the safety hooks into ~/.cursor/   (only when §3.7 ran)
 
 Next:
 • Commit: git add CLAUDE.md
