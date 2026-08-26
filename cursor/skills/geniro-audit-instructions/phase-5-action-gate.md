@@ -19,12 +19,13 @@ Walk the whole-surface proposals one at a time. Per proposal, render the explana
 
 The render carries the four things the finding had to establish, plus what the user is left with:
 
-- **What it is and where it lives** — the file or section named in plain terms, with its path.
+- **What it is** — the rule or section named in plain terms, described by what it tells an agent to do.
 - **The case it exists for, and how often that case arises here** — the reason someone wrote it, not a guess at their intent.
-- **What it costs** — its word count and whether that is paid every session or only when its scope attaches.
+- **What it costs** — whether it is paid every session or only when its scope attaches.
 - **What covers that ground afterwards** — the other surface carrying the same rule, or a plain statement that nothing will and no run will report it.
 - **Whether it stands alone** — or only holds together with another proposal in this set, which the user has to decide as one.
 - **What a session looks like once it is gone** — the observable difference, so the decision is about agent behavior rather than about a file.
+- **Technical detail** — the file path, the section heading, and the word count, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers.
 
 Options: "Keep it" / "Delete it" / "Shrink it instead" / "Explain further". Mark whichever of keep-or-delete the evidence actually supports as `(Recommended)`, per that helper's §Recommended-label policy — a gate that recommends deletion by default spends the user's attention to obtain a signature, which is the same net-negative shape the surface-level-subtraction check exists to find. "Shrink it instead" is the honest middle when the cost is real but the ground is still needed; it converts the finding into a line-level one that re-enters the fix path as an edit.
 
