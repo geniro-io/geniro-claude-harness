@@ -66,8 +66,8 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 - [ ] `phase-3-postcheck.md` §User-content survival check ran; any non-empty diff was surfaced via AUQ and resolved
 - [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` invoked against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit for the rest of the session, in the run meant to clear it
 - [ ] `phase-3-postcheck.md` §Refresh statusline stable copy (conditional) ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
-- [ ] `phase-3-postcheck.md` §Re-point the Cursor CLI skill links (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
-- [ ] The final report's `Update cache`, `Statusline`, and `Cursor CLI skills` lines reflect the actual outcome of each refresh, not an assumed one
+- [ ] `phase-3-postcheck.md` §Re-point the Cursor profile install (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
+- [ ] The final report's `Update cache`, `Statusline`, and `Cursor profile` lines reflect the actual outcome of each refresh, not an assumed one
 
 ## Budgets — quality-first
 
@@ -125,7 +125,7 @@ Steps: `phase-2-update.md`. Run the marketplace + plugin update with exponential
 
 ## Phase 3 — post-check
 
-Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), re-take the user-content snapshot and diff it against the Phase 1 baseline (AUQ on any change), refresh the update cache, refresh the statusline copy when one already exists, and re-point the Cursor CLI skill links when those already exist. Exit when both AUQ-gated checks have resolved and the cache / statusline / Cursor-link outcomes are recorded for the final report.
+Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), re-take the user-content snapshot and diff it against the Phase 1 baseline (AUQ on any change), refresh the update cache, refresh the statusline copy when one already exists, and re-point the Cursor profile install when that already exists. Exit when both AUQ-gated checks have resolved and the cache / statusline / Cursor-install outcomes are recorded for the final report.
 
 ## Phase 4 — migration
 
