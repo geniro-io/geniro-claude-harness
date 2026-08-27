@@ -67,7 +67,7 @@ Implement supplies these pieces:
 //   OR (first.validation === 'refuted' && f.seen_in >= 2)
 ```
 
-Every reviewer/verifier prompt re-asserts the read-only contract (no file writes or edits, no git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn by default, or pass `model="<tier>"` at every spawn — including inside this workflow — when the run carries `--subagent-model` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Subagent model tiering); that is the user's own election for the run, not the cheaper-tier shortcut the workflow mitigation guards against.
+Every reviewer/verifier prompt re-asserts the read-only contract (no file writes or edits, no git/gh; the orchestrator owns every `atomic_state_write` and all fixes), per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §6 — the workflow finds and verifies, the orchestrator fixes. OMIT `model=` at every spawn by default, or pass `model="<tier>"` at every spawn — including inside this workflow — when the run carries `--subagent-model` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering); that is the user's own election for the run, not the cheaper-tier shortcut the workflow mitigation guards against.
 
 ## 7. Fail-safe
 
