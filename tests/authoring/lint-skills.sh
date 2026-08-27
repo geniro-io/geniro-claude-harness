@@ -393,17 +393,28 @@ WHOLEFILE_WORDS=5000
 AGENT_WHOLEFILE_WORDS=2500
 
 
-# Name the last H2 that still fits inside the front-load budget, so the warning says
-# WHICH sections stop being re-attached rather than just that the file is big.
+# The host re-attaches a TRUNCATED skill body after a compaction, and it cuts by
+# CHARACTERS, not words: measured at exactly 20,000 in a live session, landing
+# mid-sentence with a truncation marker in place of the rest. FRONTLOAD_WORDS is the
+# authoring budget; this is the runtime one. They rank files differently, because
+# characters-per-word swings several-fold with how much of a body is tables and
+# fenced blocks — the word proxy named a boundary for 3 of the 12 shipped skills
+# that actually lose sections.
+REATTACH_CHARS=20000
+
+# Name the last H2 that still fits inside the re-attach window and how many fall past
+# it, so the warning says WHICH sections stop being re-attached, not just that the
+# file is big. Output: "<last surviving H2>|<count lost>", empty when nothing is lost.
 frontload_cut() {
-  awk -v lim="$FRONTLOAD_WORDS" '
-    /^## / { last = $0 }
-    { w += NF; if (w > lim && !done) { print last; done = 1 } }
+  awk -v lim="$REATTACH_CHARS" '
+    /^## / { if (c >= lim) lost++; else last = $0 }
+    { c += length($0) + 1 }
+    END { if (lost > 0) printf "%s|%d\n", last, lost }
   ' "$1"
 }
 
 check_skill_sizes() {
-  local f n r base cut
+  local f n r base cut chars lost pct
   for f in "$@"; do
     [ -f "$f" ] || continue
     r=$(rel "$f")
@@ -428,9 +439,15 @@ check_skill_sizes() {
     # ran, so a file oversize-but-stable at its recorded baseline never learned its own
     # boundary (skills/implement/SKILL.md, skills/investigate/SKILL.md,
     # .claude/skills/improve-template/SKILL.md all sat in that blind spot).
-    if [ "$n" -gt "$FRONTLOAD_WORDS" ]; then
+    chars=$(wc -c < "$f" | tr -d ' ')
+    if [ "$chars" -gt "$REATTACH_CHARS" ]; then
       cut=$(frontload_cut "$f")
-      [ -n "$cut" ] && report_warn "$r: compaction boundary (~$FRONTLOAD_WORDS words) falls at \"$cut\" — sections after it are dropped once the session compacts"
+      if [ -n "$cut" ]; then
+        lost=${cut##*|}
+        cut=${cut%|*}
+        pct=$(( (chars - REATTACH_CHARS) * 100 / chars ))
+        report_warn "$r: compaction re-attaches only the first $REATTACH_CHARS chars — last surviving section is \"$cut\"; $lost after it ($pct% of the file) are dropped once the session compacts"
+      fi
     fi
   done
 }

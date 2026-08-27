@@ -16,6 +16,8 @@ Canonical rule for how far a user's approval reaches. Referenced from `${CLAUDE_
 
 **Measure each outward action against its own approval, never against accumulated trust.** Approval does not compound across a session — three granted gates do not make the fourth implicit.
 
+**Outward means it leaves this machine or becomes visible to someone else** — a push, a pull request, a posted comment, a tracker transition, a deploy. A local commit is none of those: it reaches nobody and stays revertible in-tree, so it is the run's own bookkeeping and needs no gate. Gate the push that would publish those commits instead. Counting the commit as outward turns "I have an uncommitted diff" into a standing reason to hand the run back after every green check.
+
 **Reversibility is not the test — authorship is.** A gate exists because the choice is the user's, not because the action would be hard to undo. A small blast radius is an argument for asking briefly, never for not asking.
 
 ## Invocation-scoped approval (`/geniro:actions run`)

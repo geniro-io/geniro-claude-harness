@@ -14,14 +14,9 @@ context: main
 - State machine — `phase:` enum, terminal states, termination reasons
 - Loop invariants (canonical, plus 8-10, and the inbound handoff gate)
 - Anti-rationalization
-- Budgets — quality-first framing
-- Subagent model tiering
-- ACI per-phase tool surface
-- State persistence
-- Memory I/O
 - PHASE 1 / PHASE 2 / PHASE 3
-- Modifier handling
 - Task execution entry
+- Operational contracts — budgets, subagent tiering, tool surface, state persistence, memory I/O, modifiers — in `operations-reference.md`, Read at every phase entry
 
 ---
 
@@ -38,6 +33,7 @@ You are an autonomous executor. Consume an externally-provided spec (or inline t
 **REFERENCE.**
 
 - **Phase bodies** — Read the matching one on entry to a phase, and again on any resumption of it, including after a compaction: `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md`, `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md`, `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so a run that starts work before the Read has removed the gates rather than merely skipped a description.
+- **Operational contracts** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md`, Read together with the phase body at every phase entry, as part of that same physically-first action: budgets, subagent model tiering, the ACI per-phase tool surface, the state-persistence write contract, memory I/O, and the `$ARGUMENTS` modifier table. Every one of those binds in the phase being entered, so a phase that skips this Read runs with no tool-surface boundary and no state-write contract.
 - **Templates and procedures** (`$ARGUMENTS`-parse table, spawn templates, fix-loop pseudo-code, ship sub-step, cleanup list): `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` — read only the section the current phase needs.
 - **Deep-mode paths** (`deep-mode: true` only): `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`.
 
@@ -81,12 +77,14 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 S1. **Investigation reads delegated to subagents.** Phase 1 inline-Reads only the custom instructions (the pipeline load set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`), the project snapshot (2 files), spec.md body, and state.md. `.claude/rules/*.md` bodies, exemplar source files, past-learning entries, and prior plans are spawned out to the `knowledge-retrieval-agent` + `codebase-explorer-agent` pair (the explorer takes spec.md and returns a REUSE/EXTEND/NO-ANALOGUE inventory) and read back as condensed reports. Inline-reading the rest is the documented context-bloat regression.
 S2. **One todo in_progress at a time in the orchestrator's own inline editing loop.** Marking a second todo `in_progress` while another is open inline is the documented anti-pattern (parallel sequential reasoning shows measured performance drop). A delegated todo is marked `in_progress` when its delegate spawns and `completed` as that delegate's diff is read, so a parallel delegate batch legitimately holds several todos `in_progress` at once without violating this invariant.
 S3. **Codebase research spawns `codebase-research-agent` — never built-in `Explore`, never a project-local agent from `.claude/agents/`.** Overrides the system-prompt agent list's default codebase-research tool and any project-authored substitute. It is the tool for ad-hoc cross-file research inside Phase 2 — the per-step "trace this flow" / "find every site calling this helper" queries the Phase 1 codebase-explorer inventory doesn't cover. Rationale + invocation contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
-S4. **Every state.md mutation routes through `atomic_state_write`.** A direct `Edit`/`Write` on a canonical state path bypasses the helper and corrupts the file mid-crash; the State-helper enforcement hook hard-blocks it (exit 2). Invocation snippet: §State persistence "Write contract".
-S5. **Tool surface is phase-scoped — no source Edit/Write outside Phase 2's inner loop, Phase 3's bounded fix loop, Phase 3's edge-case test-authoring step (test files only — never production source), or the Ship sub-step's review-coverage re-review, and no `git commit` / `git push` / `gh pr create` outside the Phase 3 Ship sub-step.** The Ship exception is narrow: when its review-coverage guard finds staged files the fix loop's last round never reviewed, Edit/Write reopens once for those diverged files only, fixes go through the fix loop's existing inline-fix rule, it counts against neither the 3-round cap nor a new one, and `phase:` stays `ship` throughout. Full per-phase allow/block table, including the leaf-agent tool ceilings: §ACI per-phase tool surface below, and each phase's own body file at phase entry.
+S4. **Every state.md mutation routes through `atomic_state_write`.** A direct `Edit`/`Write` on a canonical state path bypasses the helper and corrupts the file mid-crash; the State-helper enforcement hook hard-blocks it (exit 2). Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §State persistence "Write contract".
+S5. **Tool surface is phase-scoped — no source Edit/Write outside Phase 2's inner loop, Phase 3's bounded fix loop, Phase 3's edge-case test-authoring step (test files only — never production source), or the Ship sub-step's review-coverage re-review, and no `git commit` / `git push` / `gh pr create` outside the Phase 3 Ship sub-step.** The Ship exception is narrow: when its review-coverage guard finds staged files the fix loop's last round never reviewed, Edit/Write reopens once for those diverged files only, fixes go through the fix loop's existing inline-fix rule, it counts against neither the 3-round cap nor a new one, and `phase:` stays `ship` throughout. Full per-phase allow/block table, including the leaf-agent tool ceilings: `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §ACI per-phase tool surface, and each phase's own body file at phase entry.
 
 **Inbound handoff gate.** A `/geniro:review`, `/geniro:debug`, or `/geniro:resolve` handoff for the current branch — `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` and its `from-debug-` / `from-resolve-` siblings — gates Phase 1 exit: every `open_questions[]` entry carrying `status: unresolved` must be resolved with the user and round-tripped back into the producer's file before the run transitions to `phase: implement`. Full contract, schema, and procedure: `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 12.
 
-**Turn-completion check.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Turn-completion check at every gate: the render is followed immediately by its lean `AskQuestion` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard).
+**Turn boundaries.** A turn ends in exactly three places: on a fired `AskQuestion`, on reaching a terminal `phase:` state, or when the user asked something and is owed the answer. Everywhere else the next action follows in the same turn, with a tool call — between todos, after a green test run, after a commit or a state write, at a phase transition, and when a subagent's result lands. A status report, a checkpoint summary, and a list of what remains are continuations, not endings: write one where it helps the user follow along, then take the next action in that same turn. A decision that needs the user is asked through `AskQuestion` in the turn that raises it, its render and its question inside that one turn (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard) — a question left in prose, or announced for a later message, leaves the run waiting on an answer the user was never asked for. Reversibility is not a routing test: a deviation from a rule this run loaded is a gate however cheap it is to undo.
+
+**Compaction.** The host re-attaches only the first ~20,000 characters of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-Read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
 **Side-effect — `## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into that body section — shape in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling". Routine Read/Edit/Bash on local files need no logging: the tool_result return is sufficient.
 
@@ -103,7 +101,7 @@ S5. **Tool surface is phase-scoped — no source Edit/Write outside Phase 2's in
 | "/geniro:implement should ask user before each Edit — safety first." | Phase 2 is the execution phase, and pre-approval lives upstream: the spec.md /geniro:plan emitted IS the pre-approval. Per-Edit AUQs defeat the spec-driven autonomy this skill is designed for. |
 | "Phase 2 should fan out subagents — parallel backend/frontend agents, or one subagent per todo — to save wall-time or keep context lean." | Fan-out of COUPLED work is the documented anti-pattern: parallel agents editing tightly-interdependent code (shared contracts, types, imports) produce style drift, duplicated implementations, and contradictions lint/compile cannot catch. The sanctioned form is the partition the orchestrator computes — todo groups with disjoint file sets and no shared in-flux type, contract, or import, delegated in parallel — never a split by role or by todo count; everything coupled stays with the one orchestrator, which reads every delegate's diff before accepting it. |
 | "Skip TodoWrite — it's overhead, the orchestrator knows the spec already." / "Mark all todos in_progress at start so the orchestrator can interleave work." | TodoWrite gives the user real-time per-unit progress visibility; without it Phase 2 is a black box until tests run, so it is not optional. Marking the whole list `in_progress` destroys that visibility just as thoroughly — it reports everything as started and nothing as finished. Loop invariant S2 binds in the orchestrator's own inline loop: mark the next todo `in_progress` only after the current one completes. |
-| "Pass `model=\"sonnet\"` at every spawn site for predictable cost." / "The run carries `--subagent-model opus`, so the test-runner goes to Opus too." | Plugin agents declare their tier in frontmatter (`model: inherit`, except the two mechanical carve-outs — `test-runner-agent` and `knowledge-retrieval-agent` — which declare `model: sonnet`), so OMIT `model=` at their spawn sites and let the frontmatter govern. A tier passed on a Phase 1 researcher or a Phase 3 reviewer defeats the user's session-level `/model` choice — those spawns decide things. Non-judgment sites are the opposite case and go the other way: `sonnet` is their ceiling, the orchestrator sizes below it when the workload is visibly smaller, and `--subagent-model` caps them rather than raising them — a flag naming a stronger tier buys deeper judgment, and a test re-run has none to deepen. §Subagent model tiering below; band and rationale in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Sizing a non-judgment spawn. |
+| "Pass `model=\"sonnet\"` at every spawn site for predictable cost." / "The run carries `--subagent-model opus`, so the test-runner goes to Opus too." | Plugin agents declare their tier in frontmatter (`model: inherit`, except the two mechanical carve-outs — `test-runner-agent` and `knowledge-retrieval-agent` — which declare `model: sonnet`), so OMIT `model=` at their spawn sites and let the frontmatter govern. A tier passed on a Phase 1 researcher or a Phase 3 reviewer defeats the user's session-level `/model` choice — those spawns decide things. Non-judgment sites are the opposite case and go the other way: `sonnet` is their ceiling, the orchestrator sizes below it when the workload is visibly smaller, and `--subagent-model` caps them rather than raising them — a flag naming a stronger tier buys deeper judgment, and a test re-run has none to deepen. `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering; band and rationale in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Sizing a non-judgment spawn. |
 | "Re-run tests after each file Edit to catch regressions early." | Single end-of-Phase-2 test run via `test-runner-agent`. Per-file test runs explode wall-time on slow suites and burn turns inside the runner agent (one invocation per spawn). |
 | "/geniro:implement should self-fix indefinitely until reviews clean." | Phase 3 fix loop is bounded per §Loop invariants (invariant 5). Past the round cap, escalate via AUQ — never silently loop. "Kick it until it passes" is a catalogued anti-pattern; entry past the cap is forbidden. |
 | "Skip the ship-mode AUQ — the diff is small / this is a debug-handoff follow-up / user already approved upstream / user can `git reset` afterward." | Pushing a private feature branch with no open PR is draft-grade (auto); everything else is commit-grade and AUQ-gated — full taxonomy (PR creation, default/shared/protected-branch pushes, the handoff-reached open-PR case) in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" Step 4. The AUQ fires regardless of diff size, handoff origin, or which Phase 2 path reached Ship. The only bypass is the 4 inline modifiers (`don't push`, `draft only`, `ready-for-review`, `stop after review`) parsed from `$ARGUMENTS` — a bare "open PR"/"with PR" with no draft-vs-ready qualifier is NOT one. |
@@ -115,98 +113,6 @@ S5. **Tool surface is phase-scoped — no source Edit/Write outside Phase 2's in
 | "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it never writes files or tests you did not create. A change inside an in-flight delegate's declared file set is this run's own work, not a halt signal; one landing outside it is a concurrent external process. Committing from a working tree another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Tree changed" AUQ (Phase 2 guard) instead of rationalizing the mutation away. |
 | "The task is clear from `$ARGUMENTS` — I'll get oriented with a quick `git status` and start, and pick up the phase file as I go." / "Resuming into `phase: implement` — Phase 1 already loaded the custom instructions, so Phase 2 can skip its own load." | Phase 1's body is where Step 0's workspace decision tree and the project-instruction load live, and both are ordered BEFORE any inspection of the tree. Starting with an ad-hoc probe collects none of Step 0a's signals (`CURRENT_BRANCH`, `IN_WORKTREE`, `PROTECTED_BRANCH`), so the decision tree cannot be evaluated even in principle, and the run silently takes an action no branch of that tree authorizes. Read the phase body first and echo it, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`. The same drift resurfaces at Phase 2 entry on a resume: that Phase 1 load lived in a context the resume does not carry forward, whether the resume followed a compaction or a fresh session reading `phase: implement` from state.md. Phase 2 is the only code-writing phase, so entering it without current project rules means the edits it makes go unreviewed against them until Phase 3 — too late to shape how they were written. `phase-2-implement.md` refreshes the custom instructions on every entry for exactly this reason. |
 | "This mid-phase decision isn't one of the gates SKILL.md or a phase file enumerates — I'll ask directly in chat." | Every user-facing choice in this skill routes through the `AskQuestion` tool (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule); this skill's gates live across the Steps in `phase-1-analyze.md`, `phase-2-implement.md`, and `phase-3-ship.md`, and that set is not the complete one — a plain-text question leaves nothing for a resumed session to restore. |
-
----
-
-## Budgets — quality-first framing
-
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — quality-first (canonical). This skill's own gates:
-
-**Quality gates (escalate to user, do not abort):**
-
-| Gate | Cap | Where | Past threshold |
-|---|---|---|---|
-| Fix-loop retries per phase | 3 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. Fires early (before 3) when the loop is not converging — early-escalation triggers in `phase-2-implement.md` §Step 6, reused by the Phase 3 loop. |
-| Edge-case authored tests | 10 per run | Phase 3 edge-case test-authoring step (`implement-reference.md` §"Phase 3: Edge-case test authoring") | Stop authoring; surface the tests kept so far |
-| Edge-case consecutive discards | 5 consecutive | Phase 3 edge-case test-authoring step (same reference) | Stop hypothesis generation; surface partial |
-
-**Architecture constraint (design intent, not budget):** the Phase 1 knowledge-retrieval + codebase-explorer pair is a fixed spawn set, not size-scaled (skip conditions per the anti-rationalization row above; store-empty gate at `phase-1-analyze.md` Step 7). The Phase 3 Round 1 reviewer grid scales by `change_scope` — the tier-to-dimension mapping is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`; the resolved set is always announced to the user and recorded in `spawn_dims_declared[]` before firing, plus any custom dimensions from `.geniro/instructions/review-extra/` (path-filtered and capped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6).
-
----
-
-## Subagent model tiering
-
-Plugin agents declare their tier in frontmatter (`model: inherit`, except `test-runner-agent` and `knowledge-retrieval-agent`, both `model: sonnet`) — OMIT `model=` at every judgment-grade spawn site so it governs. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host; on a spawn that fails to start or returns empty, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder and empty-result fallback, then cache the resolved rung for the session.
-
-**The three non-judgment spawns — `test-runner-agent`, `knowledge-retrieval-agent`, the Phase 2 code-delegate — take `sonnet` as a ceiling, not a fixed value.** Pass a cheaper tier, with a one-clause reason, where the workload is visibly smaller than the ceiling assumes: a suite re-run after a one-line fix, a delegate slice that is a mechanical rename across its named files. Take the ceiling while the size is still unknown — the run's first test spawn against an unfamiliar suite. One tier per parallel batch, set by its largest member, so delegates spawned together keep a shared cache prefix. Conditions and the haiku caveat: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Sizing a non-judgment spawn.
-
-**`--subagent-model <tier>` pins the judgment spawns for this run and caps the rest.** When `$ARGUMENTS` carries the flag, pass `model="<tier>"` at every judgment-grade spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the `codebase-research-agent` side-query spawns of loop invariant S3, the spec-challenge verifiers, the library-reuse-audit web-research spawn — including inside a deep-mode Workflow fan-out. The three non-judgment spawns take it only when it names a tier cheaper than theirs: the flag buys reasoning depth, and none of the three reasons. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. Persisted to state.md frontmatter `subagent-model:` at Phase 1 Step 4 (§State persistence above) so a compaction before Phase 2 or Phase 3 does not silently revert every spawn back to inherit.
-
----
-
-## ACI per-phase tool surface
-
-| Phase | Allowed | Blocked |
-|---|---|---|
-| **Phase 1 (Analyze) — orchestrator** | Read / Grep / Glob / Bash (`git status`, `gh pr view`, `git worktree add`, `git checkout -b`, and the Step 0 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`); Agent spawns for `knowledge-retrieval-agent` + `codebase-explorer-agent`, the read-only spec-claim verifiers of the spec-challenge gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md`), and one `general-purpose` web-research spawn (WebSearch + WebFetch) for the library-reuse audit; Workflow (`deep-mode: true` only); AskQuestion. Model per §Subagent model tiering | Edit / Write on source code; `gh pr create`; commit; Phase 3 agent types |
-| **Phase 2 (Implement) inner loop** | Read / Grep / Glob / Edit / Write / Bash (`verify:` commands and targeted single-test runs — full-suite runs go through `test-runner-agent`); `test-runner-agent` spawn at end-of-phase; bounded code-delegate spawns (`general-purpose`, disjoint file sets, model per §Subagent model tiering — `sonnet` by default) per the delegation rule in `phase-2-implement.md` §Step 3 and the spawn template in `implement-reference.md` §"Phase 2: Code-delegate spawn template"; AskQuestion | `git push`, `gh pr create`, `gh pr comment`, Phase 3 agent types |
-| **Phase 3 (Self-review) — orchestrator** | Read / Grep / Glob / Edit / Write (bounded fix loop; the edge-case test-authoring step, test files only) / Bash (`test-runner-agent` re-spawn per fix round, `query_learnings`); Agent spawns for the reviewer-agent batch and `finding-verifier-agent` (CRITICAL/HIGH cold-verify) — these are the "Phase 3 agent types" the Phase 1 and Phase 2 rows block; Workflow (`deep-mode: true` only); AskQuestion | `git push`, `gh pr create`, commit (those live in the Ship sub-step) |
-| **Every spawned subagent** (knowledge-retrieval, codebase-explorer, test-runner, reviewer, finding-verifier, Phase 2 code delegate) | Exactly its own `agents/<name>.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one; the code delegate has no such file — its ceiling is the spawn template's constraints block instead (`implement-reference.md` §"Phase 2: Code-delegate spawn template") | Agent (all are leaf agents — no nesting); git mutation; destructive Bash; Edit / Write beyond the agent's declared surface; the read-only agents write only their own OUTPUT_PATH |
-| **Phase 3 Ship sub-step** | `git commit`, `git push`, `gh pr create` — each gated by the push-grade doctrine (§Anti-rationalization, ship-mode row); `gh api` thread reply + `resolveReviewThread` (resolve-handoff only — action-gated, after the push, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` write side); Edit/Write, scoped to the review-coverage guard's re-review of diverged files only (invariant S5); AskQuestion | External commits before AUQ resolution |
-
-The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
-
----
-
-## State persistence
-
-**Task directory**:
-
-```
-.geniro/planning/<task-slug>/
-```
-
-Where `<task-slug>` is derived from $ARGUMENTS / spec.md filename / git branch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`. Created at start of Phase 1.
-
-**State.md frontmatter:**
-
-```yaml
----
-tier: T1.5
-producer: implement
-schema-version: 1
-branch: <git-branch>
-worktree: <git-rev-parse-show-toplevel>
-timestamp: <ISO-8601 UTC>
-phase: <state-machine-enum>
-status: in-progress
-non-resumable-actions: [] # appended after each git push / gh pr create / posted comment
-approvals: [] # appended after each one-time AUQ resolution
-deep-mode: <true|false>   # set by the --deep flag (Phase 1 parse); missing reads as false
-subagent-model: <tier>    # set by --subagent-model (Phase 1 Step 1 parse); missing reads as inherit
----
-```
-
-When `deep-mode: true`, Phase 1 (spec fact-check) and Phase 3 (self-review) run their deeper paths per `${CLAUDE_PLUGIN_ROOT}/skills/implement/deep-mode-reference.md`. Activation follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §2 — the `--deep` flag pre-resolves it, else the Step 0 depth question asks, else (auto-continue / resume paths, where that question never fires) depth is flag-only. The resolved depth is persisted once, in Phase 1.
-
-`subagent-model` has no chooser question — it is flag-only, parsed at Phase 1 Step 1 and persisted at Step 4 alongside `deep-mode` so a compaction before Phase 2 or Phase 3 fires does not silently revert every spawn back to inherit.
-
-**Write contract.** Route every state.md mutation through `atomic_state_write` — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash; the State-helper enforcement hook hard-blocks such a direct write (exit 2). Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
-
----
-
-## Memory I/O
-
-Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in this table — its decision picks the worktree the rest of Phase 1 inspects, so a snapshot or drift check run first inspects the wrong tree.
-
-| Phase | Calls |
-|---|---|
-| **Phase 1 entry** | `load-custom-instructions` (`MODE: refresh`) → `load-semantic` → the `knowledge-retrieval-agent` + `codebase-explorer-agent` spawn pair (knowledge slot gated by the Step 7 store-empty check), read back from `<task-dir>/.kr-out.md` and `<task-dir>/.ce-out.md` → `query-learnings` |
-| **Phase 2** | Entry: `load-custom-instructions` (`MODE: refresh`) — every entry, including a resume, since Phase 1's load does not carry forward. Its other loads are the per-Edit `.claude/rules/*.md` JIT reads (cache scope: Phase 2) |
-| **Phase 3** | Entry: `load-custom-instructions` (`MODE: refresh`) + `load-custom-reviewers` (round 1 only). Fix loop: `query-learnings` per round. Ship sub-step: `emit-learning`, `update-semantic`, and the `non-resumable-actions[]` write via `atomic_state_write` |
-| **Any phase** | `resolve-conflicts` when the layers disagree — a soft conflict prints the notice and continues on the precedence-winning value; a hard conflict (a custom-instruction rule contradicts project reality) halts and asks. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` |
-
-Each helper's arguments, echo contract, and failure semantics live with the step that calls it. Two rules span all of them — "Custom-instruction load is mandatory in full at every phase entry" and "A declared memory backend redirects every learnings read", both in §Loop invariants above.
 
 ---
 
@@ -225,15 +131,6 @@ State.md `phase: implement` on entry — the execution phase. **On entry, Read `
 ## PHASE 3: SELF-REVIEW + SHIP
 
 State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md`** — it carries the Steps and the Ship sub-step, and `implement-reference.md`'s `§PHASE 3 …` citations resolve there. Exit: a terminal state, reached only after the ship report and the pre-terminal check.
-
----
-
-## Modifier handling (semantic, deterministic)
-
-Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministically. Two tables own the rows AND their semantics at the point of use — consult them there, never a restated copy:
-
-- **Workspace and run-behavior modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 0b "Inline modifier overrides" (also owns the conflicting-modifiers rule and its soft notice).
-- **Ship-mode modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Inline modifiers from $ARGUMENTS".
 
 ---
 
