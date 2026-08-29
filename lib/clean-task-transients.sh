@@ -31,12 +31,15 @@ clean_task_transients() {
   local task_dir="${1:-}"
   [ -n "$task_dir" ] || return 0
   [ -d "$task_dir" ] || return 0
+  # playwright-verify.png is the pre-2026-08 name of ui-verify.png — still swept
+  # so a task dir written before the walkthrough went tool-agnostic cleans fully.
   rm -f \
     "$task_dir"/.kr-out.md \
     "$task_dir"/.ce-out.md \
     "$task_dir"/.tr-out.md \
     "$task_dir"/.spec-challenge-out.md \
     "$task_dir"/notes.md \
+    "$task_dir"/ui-verify.png \
     "$task_dir"/playwright-verify.png \
     2>/dev/null
   # .research-*.md covers .research-out.md, /geniro:plan's per-facet

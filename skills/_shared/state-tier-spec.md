@@ -61,7 +61,7 @@ Transients left behind by an interrupted run are swept by the `/geniro:update` m
 | `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
 | `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
 | `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
-| `.geniro/planning/<task-dir>/playwright-verify.png` | Pre-Ship Visual Verification screenshot |
+| `.geniro/planning/<task-dir>/ui-verify.png` | Pre-Ship Visual Verification screenshot |
 
 These files carry no frontmatter and never pass through `validate_state_file`. They are cleaned mechanically via targeted `rm -f` before every terminal `phase:` write of the owning run (Ship and all other terminal transitions); leftovers from interrupted runs are swept by the `/geniro:update` migration walk.
 
