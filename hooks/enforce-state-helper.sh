@@ -249,7 +249,7 @@ matches_state_path() {
   #     output already follows, and no canonical state file uses it — state.md,
   #     spec.md, milestone-N.md, from-<producer>-<branch>.md and learnings.jsonl
   #     are all undotted, so the rule cannot swallow a durable file.
-  if grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.[^/]+$|/notes\.md$|/playwright-verify\.png$' <<< "$p"; then
+  if grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.[^/]+$|/notes\.md$|/ui-verify\.png$|/playwright-verify\.png$' <<< "$p"; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.
