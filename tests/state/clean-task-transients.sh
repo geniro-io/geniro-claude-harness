@@ -42,6 +42,8 @@ seed_task_dir() {
   : > "$d/.research-backend.md"          # per-facet
   : > "$d/.research-critique-approach-a.md"  # Phase 4 critique
   : > "$d/notes.md"
+  : > "$d/ui-verify.png"           # superseded name, still swept
+  : > "$d/playwright-verify.png"   # legacy name, still swept
   # T1.5 durables (must survive)
   printf 'spec\n'      > "$d/spec.md"
   printf 'state\n'     > "$d/state.md"
@@ -59,6 +61,7 @@ leftover=$(find "$t1" -maxdepth 1 \( \
   -name '.kr-out.md' -o -name '.ce-out.md' -o -name '.tr-out.md' \
   -o -name '.spec-challenge-out.md' \
   -o -name '.research-*.md' -o -name 'notes.md' \
+  -o -name 'ui-verify.png' -o -name 'playwright-verify.png' \
   \) 2>/dev/null)
 if [ -z "$leftover" ]; then
   pass "clean_task_transients — removes all T1 transients (incl. per-facet + critique)"

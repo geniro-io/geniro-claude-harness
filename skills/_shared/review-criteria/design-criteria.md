@@ -60,7 +60,7 @@ Visual and interaction quality for UI changes: tokens, spacing, typography, stat
 - Light grays on white (`text-gray-400` on `bg-white` is borderline; `text-gray-300` fails)
 - Placeholder and disabled-state colors that vanish against their surface
 
-**How to detect:** resolve class pairs to hex values and compute contrast. When Playwright MCP is available, read computed styles directly.
+**How to detect:** resolve class pairs to hex values and compute contrast. When the session can drive a browser, read computed styles directly.
 **Red flag:** any low-contrast pair, especially placeholder and disabled colors.
 
 ### 8. Keyboard and accessibility polish

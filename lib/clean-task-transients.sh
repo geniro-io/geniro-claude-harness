@@ -33,12 +33,17 @@ clean_task_transients() {
   local task_dir="${1:-}"
   [ -n "$task_dir" ] || return 0
   [ -d "$task_dir" ] || return 0
+  # ui-verify.png and playwright-verify.png are the single-screenshot names the
+  # ship walkthrough used before the before/after pair; no run writes either now,
+  # and both stay listed so a task dir written by an older one still cleans fully.
   rm -f \
     "$task_dir"/.kr-out.md \
     "$task_dir"/.ce-out.md \
     "$task_dir"/.tr-out.md \
     "$task_dir"/.spec-challenge-out.md \
     "$task_dir"/notes.md \
+    "$task_dir"/ui-verify.png \
+    "$task_dir"/playwright-verify.png \
     2>/dev/null
   # .research-*.md covers .research-out.md, /geniro:plan's per-facet
   # .research-<facet>.md, and the Phase 4 .research-critique-*.md critiques.
