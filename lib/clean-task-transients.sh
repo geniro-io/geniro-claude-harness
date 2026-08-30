@@ -18,6 +18,8 @@
 # Deliberately does NOT rm -rf the task-dir: the T1.5 durables must survive so
 # /geniro:review, /geniro:debug, /geniro:refactor, and Adjustment Routing can
 # read spec.md / state.md / plan-*.md / milestone-*.md after the producer exits.
+# visual-*.png (the before/after visual evidence pair) is durable for the same
+# reason — the user reads the proof after Ship, not during the run.
 #
 # Usage:
 #   source "$_script_dir/clean-task-transients.sh"
@@ -37,7 +39,6 @@ clean_task_transients() {
     "$task_dir"/.tr-out.md \
     "$task_dir"/.spec-challenge-out.md \
     "$task_dir"/notes.md \
-    "$task_dir"/playwright-verify.png \
     2>/dev/null
   # .research-*.md covers .research-out.md, /geniro:plan's per-facet
   # .research-<facet>.md, and the Phase 4 .research-critique-*.md critiques.

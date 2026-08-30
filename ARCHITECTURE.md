@@ -320,7 +320,7 @@ Some skills unlock extra capability when a companion MCP server is present, and 
 
 | MCP | Used by | Enables | Install |
 |-----|---------|---------|---------|
-| **Playwright** (`mcp__plugin_playwright_playwright__*`) | `/geniro:implement` Phase 3 Ship sub-step, Pre-Ship Visual Verification | Screenshot loop at 375/768/1440, console and network sanity checks, keyboard-nav verification, smoke-test of the shipped change | Install the `playwright` marketplace plugin alongside this one. The `plugin_playwright_playwright__*` prefix is what Claude Code exposes when Playwright arrives from a sibling plugin. Absent it, the visual loop and smoke-test are skipped automatically. |
+| **Playwright** (`mcp__plugin_playwright_playwright__*`) | `/geniro:implement` Phase 2 Step 2.5 (pre-change visual baseline) and Phase 3 Ship sub-step (Pre-Ship Visual Verification) | A before/after evidence pair — the pre-change surface shot before the first edit, re-shot at the same route and viewport at Ship and rendered into the ship report as durable `visual-*.png` artifacts — plus the screenshot loop at 375/768/1440, console and network sanity checks, keyboard-nav verification, smoke-test of the shipped change | Install the `playwright` marketplace plugin alongside this one. The `plugin_playwright_playwright__*` prefix is what Claude Code exposes when Playwright arrives from a sibling plugin. Absent it, the visual loop and smoke-test are skipped automatically. |
 
 A companion MCP is never declared in this plugin's manifest — the user installs it as a sibling plugin. To see what is reachable in a given environment, look for the tool prefix in the agent's tool list at runtime.
 
