@@ -237,8 +237,12 @@ matches_state_path() {
   #                    of the file being edited to a sibling backup, restored
   #                    via `mv` or removed via `rm -f` on every exit path —
   #                    not a canonical CRUD target another consumer reads
+  #   *.png       — image artifacts (the /geniro:implement visual-*.png evidence
+  #                 pair) are written by the browser-automation capability, and
+  #                 atomic_state_write emits text, so the helper cannot produce
+  #                 one; no canonical state file is an image
   #   T1 ephemeral scratch — any DOT-PREFIXED basename under .geniro/, plus the
-  #     one undotted convention (notes.md) and the verification screenshot.
+  #     one undotted convention (notes.md).
   #     Deliberately a rule, not a roster: the named T1 outputs (.kr-out.md,
   #     .ce-out.md, .tr-out.md, .research-out.md, .spec-challenge-out.md,
   #     .research-<facet>.md) are a fixed set only for the agents that ship
@@ -249,7 +253,7 @@ matches_state_path() {
   #     output already follows, and no canonical state file uses it — state.md,
   #     spec.md, milestone-N.md, from-<producer>-<branch>.md and learnings.jsonl
   #     are all undotted, so the rule cannot swallow a durable file.
-  if grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.[^/]+$|/notes\.md$|/ui-verify\.png$|/playwright-verify\.png$' <<< "$p"; then
+  if grep -qE '\.lock$|/\.fingerprint\.json$|\.tmp(\.[^/]+)?$|\.swp$|~$|\.pre-edit\.bak$|/\.[^/]+$|/notes\.md$|\.png$' <<< "$p"; then
     return 1
   fi
   # T1, T2, T3 directories under .geniro/.
