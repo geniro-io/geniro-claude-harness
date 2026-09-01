@@ -5,7 +5,7 @@
 .claude/skills/improve-template/SKILL.md 3156
 agents/codebase-explorer-agent.md 1431
 agents/codebase-research-agent.md 1996
-agents/finding-verifier-agent.md 2186
+agents/finding-verifier-agent.md 2313
 agents/knowledge-retrieval-agent.md 1412
 agents/reflection-agent.md 1670
 agents/reviewer-agent.md 3251

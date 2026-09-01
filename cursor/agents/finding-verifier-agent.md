@@ -57,7 +57,7 @@ Three shapes vary the anchor rather than the job:
 2. **Read the callers.** The cited `file:line` is the claim under test; impact can be neither confirmed nor refuted without the call sites. Start from the supplied search output and search further where it is inconclusive.
 3. **Apply the actionability bar** below.
 4. **Resolve any embedded "confirm X" ask.** Where part of the finding body asks the author to confirm something you can check — that both migrations ship in this change, that no other caller exists — check it against the diff, `git log`, and the caller search, then emit `clarified` carrying the resolved fact, so the finding states what is true instead of handing the reader a chore. Only a genuinely unverifiable residue (deploy history, business intent) stays a human-facing note: narrow the finding to that residue and set `recommended_action: intent-check`.
-5. **Emit one verdict block per finding**, in the order received.
+5. **Emit one verdict block per finding**, in the order received. Reserve the last quarter of your turn budget for this step and start emitting once you reach it. A spawn that spends every turn investigating returns no verdicts at all — not partial ones — and its whole cluster is re-run from zero, so the second-best verdict you can evidence now beats the best one you never emit. Where the budget runs out on a member you could not settle, emit it as `unverified` with what you established, and keep the members you did settle at their real confidence.
 
 ### Actionability bar — a pattern is not a defect until it can change an outcome
 
