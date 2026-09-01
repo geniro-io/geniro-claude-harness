@@ -61,7 +61,6 @@ Transients left behind by an interrupted run are swept by the `/geniro:update` m
 | `.geniro/planning/<task-dir>/.research-<facet>.md` | /plan Phase 1 per-facet research |
 | `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
 | `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
-| `.geniro/planning/<task-dir>/playwright-verify.png` | Pre-Ship Visual Verification screenshot |
 
 These files carry no frontmatter and never pass through `validate_state_file`. They are cleaned mechanically via targeted `rm -f` before every terminal `phase:` write of the owning run (Ship and all other terminal transitions); leftovers from interrupted runs are swept by the `/geniro:update` migration walk.
 
@@ -69,9 +68,11 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 
 | Path root | Layout | Producer category |
 |---|---|---|
-| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
+| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md` + `visual-*.png`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
 | `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate`, `/geniro:resolve`, `/geniro:audit-instructions` |
 | `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — `/geniro:setup` |
+
+**Binary companion artifacts inside a task-dir.** `<task-dir>/visual-*.png` — the `/geniro:implement` before/after visual evidence pair, written by whichever browser tool the run drove rather than by `atomic_state_write`, which produces text. They carry no frontmatter and never pass through `validate_state_file`. They are durable, not scratch: the pair is the run's proof that a UI change does what it claims, and the user reads it after Ship, when writing the PR description or comparing against the next run.
 
 **Frontmatter-less companion artifact inside a T1.5 skill dir.** `/geniro:audit-instructions` persists dated reports at `.geniro/state/audit-instructions/report-<date>.md` — directly under the skill dir, outside any `<slug>/` subdir. No frontmatter, never passed through `validate_state_file`, written via `atomic_state_write` like every `.geniro/state/` path; it deliberately survives slug cleanup so the next run reads the latest report as its do-not-flag input.
 

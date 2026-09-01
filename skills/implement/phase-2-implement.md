@@ -4,7 +4,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 ## Contents
 
-- Steps 1-6 — read spec source, todo-list decomposition + file-set partition, sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
+- Steps 1-6 — read spec source, todo-list decomposition + file-set partition, pre-change visual baseline (2.5), sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
 - State.md update on phase exit · the `## Phase 2 Completion` sentinel · past-learning emit on retry exit
 - Loop visualization
 
@@ -34,6 +34,8 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
    A library adopted at the Phase 1 build-vs-buy library-reuse audit (`approvals[]` category `library_adoption`) also becomes a todo here: add it through the package manager (not by editing a lockfile — lockfile writes stay hook-protected) and integrate it in place of the hand-written component.
 
    **Partition the todos by file set.** Name each todo's file set from the Codebase-Explorer "Likely-Touched Files" inventory and the spec, then form delegate groups: a group may bundle several todos whose file sets are pairwise disjoint from each other and from every other group's, and that together share no in-flux type, contract, or import with any other group. A todo whose file set overlaps another todo's, or that shares in-flux type/contract/import with work outside its own group, joins the single coupled group instead, edited inline. This partition is the orchestrator's own call, recorded against the todos (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §"What this category does NOT cover"). Fewer than 2 disjoint groups is the common case, not a shortfall: the single group stays inline unless it is itself a decided mechanical slice (Step 3).
+
+2.5. **Capture the pre-change visual baseline — before the first edit.** Runs when the predicted affected files include a UI file and the session can drive a browser; procedure and the fail-open rule in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Pre-change visual baseline". It shoots the surface as it looks today and records the route, viewport and image path to state.md `## Visual Baseline`, so the Ship step can re-shoot the same frame and show the user a real before/after pair. This is the last moment a truthful "before" exists — step 3's first edit ends it.
 
 3. **Work through todos sequentially — one in_progress at a time** (Loop invariant S2):
    ```

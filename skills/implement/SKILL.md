@@ -29,7 +29,7 @@ You are an autonomous executor. Consume an externally-provided spec (or inline t
 **Phases:**
 
 1. **Analyze (Phase 1)** — workspace setup; spec source (spec.md / plan.md / DESIGN_DOC frontmatter, else inline-task fallback); custom-instruction + project-snapshot loads; the knowledge-retrieval + codebase-explorer spawn pair; past learnings; the handoff open-questions gate; a spec fact-check before any edit.
-2. **Implement (Phase 2)** — sequential todo-list decomposition (1-15 todos, one `in_progress` at a time inline); per-todo edit batch, disjoint-file-set todo groups delegated in parallel by default, coupled work inline; one end-of-phase suite run via `test-runner-agent`; bounded 3-retry fix loop → escalate-AUQ.
+2. **Implement (Phase 2)** — sequential todo-list decomposition (1-15 todos, one `in_progress` at a time inline); a pre-change screenshot of any UI surface in scope, captured before the first edit as the "before" half of the ship report's evidence pair; per-todo edit batch, disjoint-file-set todo groups delegated in parallel by default, coupled work inline; one end-of-phase suite run via `test-runner-agent`; bounded 3-retry fix loop → escalate-AUQ.
 3. **Self-review + Ship (Phase 3)** — parallel reviewer-agents, spawned for the `change_scope`-scaled grid (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`) plus any custom dimensions; an inline edge-case test-authoring pass (attacker-mindset hypotheses, F→P-verified failing tests); a cold `finding-verifier-agent` verdict on every CRITICAL/HIGH before the fix loop consumes it; bounded 3-round fix loop; the pre-ship minor-findings and test-quality gates; then the ship sub-step (visual verification, commit, ship-mode AUQ, learnings + snapshot writes, cleanup).
 
 **REFERENCE.**
