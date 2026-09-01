@@ -50,7 +50,7 @@ The Workflow tool returns its result to the orchestrator and the orchestrator re
 
 ## 3. Precision layer — Phase 4.2: signal-gated majority verification
 
-When `deep-mode: true`, every §4.1 survivor (CRITICAL / HIGH / MEDIUM — no tier-scaling, unchanged) is verified inside a `Workflow(...)`, but the vote count is **gated by signal** — one verifier on the clear majority, the full 3-vote majority only on contested or high-stakes findings:
+When `deep-mode: true`, every §4.1 survivor needing a cold code re-read (CRITICAL / HIGH / MEDIUM — no tier-scaling, unchanged; the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §1 inline-decidable carve-out applies here too, and settles those the same way) is verified inside a `Workflow(...)`, but the vote count is **gated by signal** — one verifier on the clear majority, the full 3-vote majority only on contested or high-stakes findings:
 
 - **First vote (always).** Run ONE independent verifier on the finding — the degenerate one-finding cluster input (the finding's body + cited slice + caller grep + sibling tests per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2), NOT any other verifier's output (independence is load-bearing). It emits the standard structured result (`validation: confirmed | refuted | clarified`, `recommended_action`, `confidence`, `evidence`) as raw JSON text.
 - **Escalate to 3** (run 2 more independent verifiers, then majority) when ANY of:

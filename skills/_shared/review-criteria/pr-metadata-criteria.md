@@ -145,7 +145,7 @@ The handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.m
 
 **Red flag:** PR body claims `<behavior X>` is `<unchanged | fast-path | removed>`; the current diff (or the inter-round diff) shows `<behavior X>` was actually `<changed | reinstated | added>` in response to a prior round of review.
 
-**Severity:** MEDIUM — drift undermines reviewer trust but rarely changes correctness of the code itself. Elevate to HIGH when the drifted claim is load-bearing for understanding the diff's semantic impact (e.g., "fast path is unchanged" was true round 1, false round 2 — round-3 reviewers reading the body get a wrong mental model).
+**Severity:** LOW, like every finding this dim emits (§Severity tagging). Drift undermines reviewer trust but does not change the code's correctness — and where the drifted claim hides a real semantic change ("fast path is unchanged" was true round 1, false round 2), that change is a `regressions` finding anchored at the code, which carries the severity this one does not.
 
 ## Common false positives
 
@@ -167,11 +167,13 @@ The detection signals above (`isDraft`, `author.login`, `labels`, plus title and
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
-This dim's ceiling is HIGH — that file's §1 CRITICAL inclusion list admits no PR-prose class, and its §6 forbids a per-dim file widening it. A misrepresentation that reads as severe is the §1 HIGH "intent source contradicts the diff" case, so it lands at HIGH here.
+**This dim emits LOW and nothing else.** Its entire subject is the prose the PR author wrote, and §6 of the canonical file puts documentation and PR-description findings at LOW in every criteria file — lifting one above LOW is how a paper cut reaches the PR surface past the shared gate.
 
-- **HIGH** — PR title misrepresents the diff (title says "refactor", diff adds new feature); PR description claims behavior X is unchanged while the diff demonstrably changes X; missing test-plan section when test files are modified; missing screenshots when UI files changed; missing breaking-change note when an exported API signature changed.
-- **MEDIUM** — Missing REQUIRED field per repo's PR template (e.g., the template demands a `## Risk` section and the body omits it), including a body left empty when CONTRIBUTING.md requires one. The field must be in a documented template, not inferred. Scope mismatch where the diff covers a materially different feature than the title claims (e.g., title "fix bug" but diff adds 200 lines of new feature code).
-- **LOW** — PR description verbosity suggestions ("add the linked Linear ticket", "include a short rationale", "mention the sunset checklist"); commit-message-format suggestions; optional-field additions; title-format polish (capitalization, prefix conventions); convention drift on non-required fields.
+That is not a coverage cut, because the substantive half of the strongest case is owned diff-side and keeps its severity there. A body claiming behavior X is unchanged while the diff changes X is TWO findings: the description defect (this dim, LOW) and the behavior change outside stated intent (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §Severity tagging — HIGH when an intent source exists, which is the §1 HIGH inclusion this dim previously borrowed). The regressions finding anchors at the changed code, so it clears admission, reaches the verifier, and lands on the PR; this dim's finding is the accompanying note that the description needs fixing too.
+
+- **LOW** — every finding this dim emits: missing or empty test plan, screenshots, why-clause, breaking-change note, acceptance criteria, or ticket link; title format, convention prefix, imperative-verb polish; description verbosity and rationale suggestions; scope mismatch between description and diff; a description claim the diff contradicts, the §11 cross-round drift case included.
+
+LOW sits below the Phase 4.1 admission gate, so these land in `## Deferred — sub-threshold` and reach the user through the deferred table the Action gate renders — visible, off the PR by default, promotable by a user pick. That disposition is the intended one for a prose finding, never a reason to score one higher so it clears the bar.
 
 Do not emit findings for repos that demonstrably do not follow a given convention (modal-pattern detection rules in checks #2 and #9 must show the repo uses the convention before flagging deviations).
 

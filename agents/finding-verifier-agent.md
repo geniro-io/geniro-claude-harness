@@ -4,10 +4,12 @@ description: "Independent verifier for an already-raised finding. Use when a run
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
 # A cluster carries at most three findings, each needing a re-read of the cited
-# lines plus a caller or reachability check before its verdict block. 60 is
-# roughly triple that workload, so the emit turns are never the ones the cap
-# lands on.
-maxTurns: 60
+# lines plus a caller or reachability check before its verdict block. On a large
+# or heavily-called file that search widens fast, so the cap sits well above the
+# nominal workload: the emit turns are the last ones, and a cap sized to the
+# estimate truncates exactly there — losing every verdict the spawn had earned
+# and forcing the whole cluster to be re-run from zero.
+maxTurns: 90
 ---
 
 # Finding verifier agent — independent verdict on an already-raised finding
@@ -59,7 +61,7 @@ Three shapes vary the anchor rather than the job:
 2. **Read the callers.** The cited `file:line` is the claim under test; impact can be neither confirmed nor refuted without the call sites. Start from the supplied search output and search further where it is inconclusive.
 3. **Apply the actionability bar** below.
 4. **Resolve any embedded "confirm X" ask.** Where part of the finding body asks the author to confirm something you can check — that both migrations ship in this change, that no other caller exists — check it against the diff, `git log`, and the caller search, then emit `clarified` carrying the resolved fact, so the finding states what is true instead of handing the reader a chore. Only a genuinely unverifiable residue (deploy history, business intent) stays a human-facing note: narrow the finding to that residue and set `recommended_action: intent-check`.
-5. **Emit one verdict block per finding**, in the order received.
+5. **Emit one verdict block per finding**, in the order received. Reserve the last quarter of your turn budget for this step and start emitting once you reach it. A spawn that spends every turn investigating returns no verdicts at all — not partial ones — and its whole cluster is re-run from zero, so the second-best verdict you can evidence now beats the best one you never emit. Where the budget runs out on a member you could not settle, emit it as `unverified` with what you established, and keep the members you did settle at their real confidence.
 
 ### Actionability bar — a pattern is not a defect until it can change an outcome
 

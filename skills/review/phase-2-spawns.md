@@ -110,6 +110,8 @@ After the parallel batch returns, read each reviewer's report for its `Context l
 
 The Phase 4 §4.0b completeness check reads `spawn_dims_count` against the `fired=` count on the `[Phase 2 spawn batch fired]` entry written at batch-fire time (Step 2.3.2 above) — the only durable record of it: §2.2 persists the declaration (intent), so without that entry a compaction-resume into `phase: stratify` has no actual to compare against and the over-fire / under-fire branch cannot evaluate at all.
 
+**Drain the batch in one turn — do not narrate its arrivals.** Wait for every reviewer and report once, when the last one is in. A running batch is not new information, and a progress turn spent on it ("7 of 11 back, waiting on the remaining four") re-reads this orchestrator's whole accumulated context — by Phase 2 already carrying the diff, the triage, and every composed spawn prompt — to say what the completion line below says anyway. The §2.7 build verification is the one thing worth a turn here, because it does not depend on the batch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`).
+
 Narrate completion before transitioning to Phase 3:
 
 > All <N> reviewers returned. Aggregating findings.
