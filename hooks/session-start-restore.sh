@@ -703,10 +703,12 @@ BLOCK1B=""
 if [ -n "$active_skill" ]; then
   BLOCK1B="Standing rules for this in-flight task (re-asserted because compaction
 drops them while keeping file pointers):
-- State files under .geniro/ are written through the atomic-write helper
-  (atomic_state_write / atomic_state_append, called from Bash) — never a direct
-  Edit or Write, and never shell redirection (> / >> / tee). A hook now blocks
-  both routes, so reach for the helper.
+- State files under .geniro/ are written through the atomic-write helpers,
+  called from Bash: atomic_state_write / atomic_state_write_cmd for a whole
+  file, atomic_state_edit / atomic_state_set_field to change part of one that
+  exists, atomic_state_append for JSONL. A hook blocks a direct Edit or Write.
+  It does NOT see shell redirection (> / >> / tee) — that route is undetected,
+  so routing it through a helper is on you.
 - Every outward-facing action — git push (including pushing to a feature branch
   that has an open PR), opening a pull request, posting a PR comment, posting a
   tracker comment — needs its own explicit approval in THIS session, or a

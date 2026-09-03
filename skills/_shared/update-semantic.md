@@ -22,7 +22,8 @@ Exit codes:
 - `64` — bad / missing flags.
 - `68` — append content exceeds the append helper's per-call byte ceiling (`GENIRO_APPEND_MAX_BYTES`, single-sourced in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`).
 - `69` — append IO failure.
-- `70` — `awk` failed during `--replace` (a real runtime error, distinct from a clean no-match which is rc=0).
+- `70` — the content for the write was never produced: `awk` failed during `--replace`, or an `--append` line came back empty (propagated from `atomic_state_append`). Distinct from a clean no-match, which is rc=0.
+- `65` — could not create the parent directory (propagated from `atomic_state_append`).
 - `71` — atomic write of replacement failed (also returned if `mktemp` fails while staging a `--replace`).
 
 ## MODE contract
@@ -48,7 +49,7 @@ context-resident state, so re-invoking after a SessionStart event is always safe
 - **Match by line-prefix.** The first line in the target file whose content starts (`index($0, p) == 1`) with the given prefix string is replaced wholesale with the new line. Subsequent matches are not touched.
 - **No-match is a no-op.** Helper returns 0 and emits a stderr notice. This is deliberate — replace is "tell me about this entry if it exists" semantics; failing on absence would force callers to pre-check.
 - **Missing file is also a no-op.** Same reasoning.
-- **The atomic rename uses `atomic_state_write`**. On a partial-write / power-loss the original file survives.
+- **`--replace` commits with its own `mktemp` + `mv -f`, not `atomic_state_write`.** The helper installs a process-global INT/TERM trap that would clobber this function's lock trap, so the rename is open-coded; the fsync-of-parent-directory step is traded away with it. On a partial write the original file still survives — the rename is atomic either way.
 
 ## Examples
 

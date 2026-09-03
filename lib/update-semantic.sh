@@ -192,7 +192,9 @@ update_semantic() {
       # last-byte-is-newline guard against no-trailing-newline corruption,
       # (b) the POSIX-atomic append for writes ≤ PIPE_BUF, and (c) fsync.
       # atomic_state_append's own rc semantics propagate verbatim:
-      # rc=68 oversized, rc=69 append IO failure.
+      # rc=68 oversized, rc=69 append IO failure, rc=70 nothing to append
+      # (redact_secrets returned empty — a silent 0 there would report a
+      # snapshot update that never reached disk).
       local ap_rc
       printf '%s' "$arg1" | atomic_state_append "$target_path"
       ap_rc=$?
@@ -240,7 +242,7 @@ update_semantic() {
           # entry — traps are process-global, not function-scoped — and its
           # handler also exits directly, which would override ours mid-write
           # and then clear back to default disposition on return
-          # (`trap - INT TERM` at atomic-state-write.sh:109), leaving
+          # (the `trap - INT TERM` on each of atomic_state_write's return paths), leaving
           # $lock_path signal-unprotected for the remainder of this
           # function. A signal landing in that window orphans the lock for
           # the reclaim TTL. archive-stale.sh:220-232 and

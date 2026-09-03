@@ -40,6 +40,7 @@ echo '<json-object>' | emit_learning
 - `65` — could not create the `.geniro/knowledge/` parent directory (propagated from `atomic_state_append`).
 - `68` — serialized entry exceeds the append helper's per-line byte ceiling (`GENIRO_APPEND_MAX_BYTES`; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`) — POSIX atomic-append guarantee lost.
 - `69` — append write failed (disk full / permission denied; propagated from `atomic_state_append`).
+- `70` — nothing was recorded because the entry came back empty: either stdin was empty, or the serialized line was. The caller contract echoes "Recorded learning:" on rc 0, so this path must not report success.
 
 ## Caller contract — make the write visible and non-trailing
 

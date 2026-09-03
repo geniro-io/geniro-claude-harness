@@ -228,7 +228,7 @@ update_fingerprint() {
     local ts_only
     ts_only=$(jq -nc --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{captured_at:$ts, files:{}}')
     printf '%s\n' "$ts_only" | atomic_state_write "$fp"
-    return 0
+    return $?
   fi
 
   local kv_pairs

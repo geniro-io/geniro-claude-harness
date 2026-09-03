@@ -68,7 +68,12 @@ emit_learning() {
   input="$(cat)"
 
   if [ -z "$input" ]; then
-    return 0
+    # rc 70, not 0: stdin here is a serializer's output, and a serializer that
+    # emitted nothing must not read as "learning recorded" — the caller contract
+    # echoes "Recorded learning:" on rc 0. Same contract atomic_state_append
+    # enforces one layer down, which this early return would otherwise bypass.
+    echo "emit_learning: stdin was empty; nothing recorded" >&2
+    return 70
   fi
 
   if ! printf '%s' "$input" | jq -e . >/dev/null 2>&1; then
@@ -269,7 +274,7 @@ emit_learning() {
   # is GENIRO_APPEND_MAX_BYTES itself (content bytes only, not the PIPE_BUF byte
   # count) — atomic_state_append reserves the remaining bytes for its own
   # newline framing, so total bytes written stay within PIPE_BUF (4096 on
-  # Linux, only 512 on macOS — see atomic-state-write.md §Constraints).
+  # Linux, only 512 on macOS — see atomic-state-write.md §`atomic_state_append <target>`).
   local line_bytes
   line_bytes=$(printf '%s' "$line" | wc -c | tr -d ' ')
   if [ "$line_bytes" -gt "$GENIRO_APPEND_MAX_BYTES" ]; then
