@@ -53,7 +53,7 @@ Claude Code wires `hooks/hooks.json` (PreToolUse guards, SessionStart restore). 
 
 | Lost hook | Self-enforce |
 |---|---|
-| State-helper enforcement | Write `.geniro/` state paths only via the `atomic-state-write` helpers — `atomic_state_write` / `atomic_state_write_cmd` for whole files, `atomic_state_edit` / `atomic_state_set_field` for in-place changes, `atomic_state_append` for JSONL — never direct Edit/Write/redirection. |
+| State-helper enforcement | Write `.geniro/` state paths only via the `atomic-state-write` helpers — `atomic_state_write` / `atomic_state_write_cmd` for whole files, `atomic_state_edit` / `atomic_state_set_field` for in-place changes, `atomic_state_append_section` / `atomic_state_append_list_item` for appends, `atomic_state_append` for JSONL — never direct Edit/Write/redirection. |
 | Destructive-git guard | Do not run force-push, `reset --hard`, `branch -D`, `clean -fd`, mass-discard checkout/restore, or remote-branch deletion unless the user explicitly asked for that exact operation. |
 | `.geniro/` deletion guard | No bulk `rm -rf .geniro/` or `git add -f` on `.geniro/` paths; delete only specific files you created. |
 | File protection | Do not write `.env*`, `*.key`, `*.pem`, credentials, or lock files. |

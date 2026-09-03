@@ -168,7 +168,7 @@ No CLI flag grammar. The orchestrator parses `$ARGUMENTS` semantically at Phase 
 
 **Workflow-integration plumbing.** Workflow files (`.geniro/workflow/*.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A). Glob both `./.geniro/workflow/*.md` (cwd-local — uncommitted local edits win) and `<PRIMARY_ROOT>/.geniro/workflow/*.md` (primary fallback) to find all available tracker integrations. If files exist with argument-detection patterns (e.g., Linear issue IDs, GitHub URLs), apply their patterns FIRST — they may inject extra context (issue body, status transition) before the semantic-parse table above runs. Integrations are non-blocking: if a workflow's backend (e.g., MCP) is unavailable, log a warning and proceed without.
 
-**Approvals-persistence protocol:** before firing the disambiguation AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: disambiguate_arguments` matching the current $ARGUMENTS shape. If found, use the prior `picked` value and skip the AUQ. If not found, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_write` before proceeding.
+**Approvals-persistence protocol:** before firing the disambiguation AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: disambiguate_arguments` matching the current $ARGUMENTS shape. If found, use the prior `picked` value and skip the AUQ. If not found, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_append_list_item` before proceeding.
 
 ---
 
@@ -309,18 +309,32 @@ On missing/empty OUTPUT_PATH file OR a spawn error: one silent retry. Second fai
 
 ## Phase 1: Handoff round-trip write
 
-Step 12 sub-step 6 patches ONE `open_questions[]` entry in the producer's handoff and re-emits everything else unchanged. `atomic_state_write` is a full-file overwrite, not a merge: supply the producer's ENTIRE original content, with that entry's `status` + `resolution` sub-fields as the only delta. A surgical patch, not a rewrite.
+Step 12 sub-step 6 patches ONE `open_questions[]` entry in the producer's handoff. Use `atomic_state_edit`, anchored on the lines of that entry as they were read in sub-step 3 — the run already has them, because it rendered the question from them.
 
-The frontmatter key set varies by producer, so re-emit whichever keys the file you read actually carries — this inventory is illustrative, not exhaustive:
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
+atomic_state_edit "$HANDOFF" \
+  "    status: unresolved" \
+  "    status: resolved
+    resolution:
+      picked: \"$PICKED\"
+      at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+      asked_in_phase: phase-1-step-12
+      resolved_by: implement"
+```
 
-| Producer | Keys beyond the common set |
-|---|---|
-| `review` | `pr-ref`, `pr-body`, `resolved-threads-snapshot`, `linear-task-ref`, `linear-parent-ref`, `report_status` (sub-step 3 reads this back) |
-| `debug` | `geniro_kind`, `geniro_schema_version`, `mode`, `authored_tests[]` (sub-step 9 reads this back — drop it and the F→P-test extraction finds nothing) |
+The anchor must be unique. With several entries still `unresolved`, `status: unresolved` alone matches more than one and the helper refuses (rc 72) rather than picking one — extend the anchor upward through the entry's `id:` line so it names the entry you mean:
 
-Common to all producers: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `timestamp`, `worktree`, `approvals`, `non-resumable-actions`, and the other `open_questions[]` entries. Re-emit every body section (review's `## Findings`, debug's `## Debug Findings`, …) unchanged too — dropping one silently truncates producer state a downstream re-review reads back. Within the resolved entry, every field other than `status` and `resolution` stays as written — do not work from a remembered list of field names, because an entry may carry any of the optional fields the canonical set declares (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2), and the write is a full-file overwrite, so an unnamed one is simply dropped.
+```bash
+atomic_state_edit "$HANDOFF" \
+  "  - id: q2" \
+  "  - id: q2
+    resolution_marker: pending"   # then anchor the status line inside that entry
+```
 
-Canonical schema for all of it: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
+Every other key, entry and body section is left exactly as the producer wrote it, because the write touches only the anchored span. That is what protects the fields a later step reads back — review's `report_status`, debug's `authored_tests[]`, both `## Findings` bodies — without anyone having to enumerate them.
+
+Canonical schema: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
 ---
 
@@ -334,7 +348,7 @@ Runs only when BOTH hold: the Phase 1 predicted affected-files list contains a U
 
 2. **Capture.** Full-page screenshot to `<task-dir>/visual-before.png`. When the spec's change is one the user will judge at more than one width, capture the breakpoints too, as `visual-before-<width>.png`.
 
-3. **Persist what Ship has to replay.** Write state.md `## Visual Baseline` via `atomic_state_write` — the exact URL, the viewport size, the image path, and the dev-server PID when this run started the server. Ship re-shoots at that same URL and viewport, because two frames of different routes or widths compare nothing; and the PID is how Ship's cleanup knows to stop a server this phase started.
+3. **Persist what Ship has to replay.** Write state.md `## Visual Baseline` via `atomic_state_append_section --create` — the exact URL, the viewport size, the image path, and the dev-server PID when this run started the server. Ship re-shoots at that same URL and viewport, because two frames of different routes or widths compare nothing; and the PID is how Ship's cleanup knows to stop a server this phase started.
 
 **Fail open, and record the reason.** This step produces evidence, not a gate — an unreachable surface (auth wall, feature flag, a server that never answers) must not stall the code the run exists to write, and it must not be asked about before a single edit is made. Skip it, and write the reason into `## Visual Baseline` in place of the path (`image: none — dev server never answered on :3000`). A route that does not exist yet is a legitimate baseline, recorded as such (`image: none — new surface, no prior state`): what makes the record dishonest is silence, not absence.
 
@@ -453,7 +467,7 @@ else:
 
 **Evidence requirement.** The Verdict block from `.tr-out.md` (Command / Exit code / Summary) attaches as the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — enforced in consumption via that file's forbidden-phrase list (`"all tests pass"`, `"validation complete"`, `"ready to ship"`).
 
-**Tool log persistence.** Every `test-runner-agent` spawn outcome (Verdict + log-file path) is persisted to state.md `## Tool log` via `atomic_state_write`. Routine Read/Edit/Bash on local files do NOT need logging.
+**Tool log persistence.** Every `test-runner-agent` spawn outcome (Verdict + log-file path) is appended to state.md `## Tool log` via `atomic_state_append_section`. Routine Read/Edit/Bash on local files do NOT need logging.
 
 **Termination-reason on escalate-abort.** If the user picks "abort" at retry exhaust, write a `## Termination reason` body line: `repeated-failure: phase-2 retry-limit (<N> failing Phase 2 checks)` — source-neutral, since the escalation covers both a failing test suite AND a failing/refused spec `verify:` acceptance check.
 
@@ -517,7 +531,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 - **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
 - **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Checks failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason.
 - **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly.
-- **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and persist the outcome to state.md `## Tool log` via `atomic_state_write`.
+- **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and append the outcome to state.md `## Tool log` via `atomic_state_append_section`.
 
 ---
 
@@ -599,7 +613,7 @@ An in-phase orchestrator step, not a spawn — Phase 2 already authorizes source
 
 **Zero authored tests is a valid, expected outcome.** Nothing here requires production to have a bug; report "edge-case tests: none found" rather than manufacturing a marginal test to fill the slot.
 
-**Persist as each test resolves.** Record every kept test into state.md `## Authored Tests` (the column set canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`## Authored Tests` body table, shared with `/geniro:debug` Adversarial Mode) via `atomic_state_write`, as it resolves rather than batched at round end. This is what lets a compaction mid-loop recover the step's outcome instead of re-running it, and what the Bounded fix loop's exit condition and the Ship report's edge-case line (§"Commit + Push + PR" Step 9) read — both consume the persisted record, never working memory.
+**Persist as each test resolves.** Record every kept test into state.md `## Authored Tests` (the column set canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`## Authored Tests` body table, shared with `/geniro:debug` Adversarial Mode) via `atomic_state_append_section --create`, as it resolves rather than batched at round end. This is what lets a compaction mid-loop recover the step's outcome instead of re-running it, and what the Bounded fix loop's exit condition and the Ship report's edge-case line (§"Commit + Push + PR" Step 9) read — both consume the persisted record, never working memory.
 
 **Round 2+.** A test still failing after Round 1 fixes stays live into Round 2's fix consideration — re-run it via the round's `test-runner-agent` spawn rather than re-authoring it. Once every authored test passes, this step does not re-run for the remainder of the loop.
 
@@ -659,7 +673,7 @@ else:
 
 **Round N+1 only re-spawns dimensions that flagged an actionable finding.** Dimensions that reported nothing actionable in round N — clean, or minor-only — are NOT re-spawned: bounds cost and avoids re-litigating clean code. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache. An authored edge-case test that still fails is re-checked via the round's `test-runner-agent` spawn, not re-authored.
 
-**Minor and out-of-scope findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving MINOR + OUT-OF-SCOPE findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_write`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix · a `pre-existing` marker on out-of-scope entries. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory. NITs never persist here — they were fixed in-round. A loop that exits with zero survivors still writes the section, carrying the sentinel `none — the fix loop converged with no minor findings left`: it is what distinguishes a clean convergence from a loop whose persist step never ran, and both consumers read that difference (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel). The same `atomic_state_write` call also sets frontmatter `reviewed_file_set: [<path>, ...]` — the CHANGED_FILES the final round's reviewer-agents actually received — which Ship's commit-time review-coverage guard (§"Commit + Push + PR" Step 2) diffs against what is about to be staged.
+**Minor and out-of-scope findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving MINOR + OUT-OF-SCOPE findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_append_section --create`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix · a `pre-existing` marker on out-of-scope entries. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory. NITs never persist here — they were fixed in-round. A loop that exits with zero survivors still writes the section, carrying the sentinel `none — the fix loop converged with no minor findings left`: it is what distinguishes a clean convergence from a loop whose persist step never ran, and both consumers read that difference (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel). Alongside it, `atomic_state_set_field` sets frontmatter `reviewed_file_set: [<path>, ...]` — the CHANGED_FILES the final round's reviewer-agents actually received — which Ship's commit-time review-coverage guard (§"Commit + Push + PR" Step 2) diffs against what is about to be staged.
 
 **Authored edge-case tests are treated identically to a reviewer-dimension finding for fix purposes:**
 - Each authored failing test counts as a HIGH finding.
@@ -718,7 +732,7 @@ The `(Recommended)` marker follows `per-finding-question.md` §Recommended-label
 
 **Leave branch** — entries stay in `## Deferred Findings` and feed the ship report's Deferred bullet. This is ordinary deferral, NOT an overridden gate: the ship-mode AUQ's "Disclose overridden gates" stack does not apply to it.
 
-**Persist the pick** to state.md `approvals[]` with `category: minor_findings_disposition` via `atomic_state_write`. Before firing, check `approvals[]` for a prior `minor_findings_disposition` entry and re-apply it instead of re-asking — the same check-before-fire-on-resume protocol as `ship_mode`.
+**Persist the pick** to state.md `approvals[]` with `category: minor_findings_disposition` via `atomic_state_append_list_item`. Before firing, check `approvals[]` for a prior `minor_findings_disposition` entry and re-apply it instead of re-asking — the same check-before-fire-on-resume protocol as `ship_mode`.
 
 **Empty answer** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions: re-ask through the tool; never auto-default to any option, including the leave-listed path. Only a repeated empty-answer loop falls back to a plain-text question in chat.
 
@@ -807,7 +821,7 @@ The user can always type a custom response via "Other":
 - **"Review diff"** (via Other) → show diff via `git diff origin/HEAD...HEAD`, loop back to ship-mode AUQ.
 - **"Don't push"** (via Other; semantically equivalent to the "don't push" inline modifier below) → commit stays local, no push. State.md → `phase: ship-committed-only` (terminal). The Phase 3 commit (step 2) has already executed at this point — this option only suppresses this step's push, not the upstream commit.
 
-**Approvals-persistence protocol (step 4):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /geniro:review or /geniro:debug handoff (re-resolve per this step's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_write` before executing the chosen action.
+**Approvals-persistence protocol (step 4):** before firing the ship-mode AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: ship_mode`. If found, use prior `picked` value and skip the AUQ (typical compaction-resume: user already picked in the original flow) — except when the persisted pick is "Just push (no PR)" and the live target is the default or a shared/protected branch, OR a feature branch with an open PR reached via a /geniro:review or /geniro:debug handoff (re-resolve per this step's two-case check): a private-no-PR push approval does not carry to a visible push, so surface the confirm before executing rather than replaying the persisted pick. If not found, fire AUQ → on pick, append to `approvals[]` via `atomic_state_append_list_item` before executing the chosen action.
 
 **Record a rejection signal.** AFTER appending to `approvals[]`, source `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` and invoke:
 
@@ -819,7 +833,7 @@ emit_rejection_if_signal \
 
 `<branch>` = current git branch (or `global` if not detectable). Recommended label is whichever ship-mode option carries the `(Recommended)` suffix — "Open draft PR" by default. Helper detects rejection signals and emits L2 entry — acceptance is a no-op.
 
-**Step 5 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_write`. Entry schema `{action, completed-at, <action-specific-fields>}`, where `action` is a literal from the enum in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum (`git-push`, `pr-created`, `pr-comment-posted`), and `completed-at` comes from `$(date -u +%Y-%m-%dT%H:%M:%SZ)` in the same write call, never model-supplied (`atomic-state-write.md` §Timestamp sourcing). Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
+**Step 5 — Non-resumable-actions update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` array via `atomic_state_append_list_item`. Entry schema `{action, completed-at, <action-specific-fields>}`, where `action` is a literal from the enum in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum (`git-push`, `pr-created`, `pr-comment-posted`), and `completed-at` comes from `$(date -u +%Y-%m-%dT%H:%M:%SZ)` in the same write call, never model-supplied (`atomic-state-write.md` §Timestamp sourcing). Write occurs AFTER the side-effect succeeds — atomic, so partial-write corruption is impossible mid-crash.
 
 **Step 9 — Emit the ship report.** After the chosen ship action completes (push / PR create / commit-only) and its side-effect is recorded (step 5), emit a ship report to chat — a human-readable summary of what shipped, carrying the Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. This is the run's final deliverable; the terminal `phase:` transition fires only AFTER this report is emitted — a bare status echo ("opened draft PR") is not a ship report and leaves the user without the Evidence Block the report contract requires. The report covers:
 

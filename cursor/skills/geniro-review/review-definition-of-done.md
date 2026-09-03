@@ -13,7 +13,7 @@ Per-phase mechanics live in the phase files; this is the final contract check, a
 - [ ] The admission gate was applied per its canonical rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) — not a single confidence threshold.
 - [ ] Every kept finding carries a severity (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1), a decision type, and a `[NEW]` / `[PRE-EXISTING]` tag.
 - [ ] The needs-your-decision gate fired for every such finding at any severity, and all are resolved or wontfix BEFORE the handoff is offered or anything is posted (§7.0 Pre-Post guard).
-- [ ] `phase:` was stamped via `atomic_state_write` on ENTRY to each phase (invariant S3), so both declarations existed before the gates reading them.
+- [ ] `phase:` was stamped via `atomic_state_set_field` on ENTRY to each phase (invariant S3), so both declarations existed before the gates reading them.
 - [ ] All three pre-pass checks (lint / schema / secret) ran to a recorded outcome — `findings`, `clean`, or `error` — declared in `mechanical_prepass_attempted`, and §4.0a confirmed it.
 - [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
 - [ ] `report_status: draft→final` flipped on this pass once the decision gates cleared — including on a clean review with no gates to fire; on a Post, `[POSTED-TO-PR]` markers persisted.

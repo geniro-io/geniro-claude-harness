@@ -190,7 +190,7 @@ A §4.1 survivor can reach Phase 5 with no verdict two ways: the spawn fails —
 - `Validation: unverified`, `Verification-confidence: 1`, `Recommended-action` mirroring the finding's original Decision Type, `Verification-evidence:` naming the cause verbatim — `"verifier did not run — spawn failed after retry"` for a tooling failure, `"verifier not spawned — orchestrator elected to skip verification"` for a deliberate skip.
 - The finding stays kept — fail-open, mirroring the Phase 1.5 mechanical pre-pass doctrine: neither cause deletes a finding the reviewers already paid for.
 - It is excluded from any PR post set and surfaced under `## Caveats`: "N findings could not be independently verified — the verifier never ran for them; they are kept in the report but will not be posted to the PR."
-- Write a state.md `## Errors` entry via `atomic_state_write`: `phase: stratify`, `error: verifier-spawn-failed` (or `verifier-spawn-skipped` for a deliberate skip), plus the affected finding IDs.
+- Append a state.md `## Errors` entry via `atomic_state_append_section`: `phase: stratify`, `error: verifier-spawn-failed` (or `verifier-spawn-skipped` for a deliberate skip), plus the affected finding IDs.
 
 Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for a verifier spawn — the orchestrator holds the full reviewer bundle, which is exactly the anchoring context the §2 isolation contract forbids, so an inline self-check would be an anchored confirmation, not a verification. `unverified` states the truth instead: this finding was never independently checked, and the evidence string says why.
 

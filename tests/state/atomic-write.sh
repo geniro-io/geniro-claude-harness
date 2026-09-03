@@ -879,6 +879,241 @@ else
   fail "NUL file: set_field rc=$rc_s edit rc=$rc_e, bytes $before_bytes -> $after_bytes"
 fi
 
+# ---------------------------------------------------------------------------
+# atomic_state_append_section / atomic_state_append_list_item
+# ---------------------------------------------------------------------------
+
+mk_state() {
+  printf -- '---\ntier: T1.5\nphase: explore\napprovals: []\nnon-resumable-actions: []\n---\n\n## Inputs\n- task: x\n\n## Tool log\n\n## Errors\n' > "$1"
+}
+
+# Entries land at the END of the section. Anchoring on the heading instead would
+# insert each new entry above the older ones and invert the log.
+target="$TMPDIR/sec1.md"
+mk_state "$target"
+atomic_state_append_section "$target" "## Tool log" "- first"
+atomic_state_append_section "$target" "## Tool log" "- second"
+rc=$?
+got=$(awk '/^## Tool log$/{f=1;next} /^## /{f=0} f && /^- /{printf "%s|", $0}' "$target")
+if [ "$rc" -eq 0 ] && [ "$got" = "- first|- second|" ]; then
+  pass "append_section — entries append in order, not prepend"
+else
+  fail "append_section — order wrong: rc=$rc got='$got'"
+fi
+
+# The blank line separating the section from the next heading survives.
+if [ "$(grep -c '^$' "$target")" -ge 2 ] && grep -qx '## Errors' "$target"; then
+  pass "append_section — section separation preserved"
+else
+  fail "append_section — blank-line separation lost:
+$(cat "$target")"
+fi
+
+# A neighbouring section is untouched.
+target="$TMPDIR/sec2.md"
+mk_state "$target"
+atomic_state_append_section "$target" "## Errors" "- boom"
+toolog_entries=$(awk '/^## Tool log$/{f=1;next} /^## /{f=0} f && /^- /{c++} END{print c+0}' "$target")
+if grep -qxF -- '- boom' "$target" && [ "$toolog_entries" -eq 0 ]; then
+  pass "append_section — writes only the named section"
+else
+  fail "append_section — leaked into another section:
+$(cat "$target")"
+fi
+
+# The last section in the file ends at EOF, not at a heading.
+target="$TMPDIR/sec3.md"
+mk_state "$target"
+atomic_state_append_section "$target" "## Errors" "- at eof"
+if [ "$(tail -1 "$target")" = "- at eof" ]; then
+  pass "append_section — the final section appends at end of file"
+else
+  fail "append_section — EOF section: last line is '$(tail -1 "$target")'"
+fi
+
+# An absent heading changes nothing.
+target="$TMPDIR/sec4.md"
+mk_state "$target"
+before="$(cat "$target")"
+atomic_state_append_section "$target" "## Nonexistent" "- x" 2>/dev/null
+rc=$?
+if [ "$rc" -eq 77 ] && [ "$(cat "$target")" = "$before" ]; then
+  pass "append_section — unknown heading → rc 77, file unchanged"
+else
+  fail "append_section — unknown heading: rc=$rc (want 77)"
+fi
+
+# A duplicated heading has no single end to append to.
+target="$TMPDIR/sec5.md"
+printf -- '---\ntier: T1\n---\n\n## Errors\n\n## Errors\n' > "$target"
+before="$(cat "$target")"
+atomic_state_append_section "$target" "## Errors" "- x" 2>/dev/null
+rc=$?
+if [ "$rc" -eq 78 ] && [ "$(cat "$target")" = "$before" ]; then
+  pass "append_section — duplicated heading → rc 78, file unchanged"
+else
+  fail "append_section — duplicated heading: rc=$rc (want 78)"
+fi
+
+# A deeper subheading does NOT end the section; a sibling one does.
+target="$TMPDIR/sec6.md"
+printf -- '---\ntier: T1\n---\n\n## Log\n- a\n\n### Detail\n- b\n\n## Next\n' > "$target"
+atomic_state_append_section "$target" "## Log" "- c"
+if [ "$(grep -n '^- c$' "$target" | cut -d: -f1)" -gt "$(grep -n '^### Detail$' "$target" | cut -d: -f1)" ] \
+   && [ "$(grep -n '^- c$' "$target" | cut -d: -f1)" -lt "$(grep -n '^## Next$' "$target" | cut -d: -f1)" ]; then
+  pass "append_section — a deeper subheading stays inside the section"
+else
+  fail "append_section — heading levels mishandled:
+$(cat "$target")"
+fi
+
+# A section a run creates on demand is only created with an explicit --create;
+# without it a typo would grow a second, near-identical section nothing reads.
+target="$TMPDIR/sec7.md"
+mk_state "$target"
+before="$(cat "$target")"
+atomic_state_append_section "$target" "## Deferred Findings" "- F3" 2>/dev/null
+rc=$?
+if [ "$rc" -eq 77 ] && [ "$(cat "$target")" = "$before" ]; then
+  pass "append_section — a missing section is not created without --create"
+else
+  fail "append_section — implicit create: rc=$rc (want 77)"
+fi
+
+atomic_state_append_section "$target" "## Deferred Findings" "- F3" --create
+rc1=$?
+atomic_state_append_section "$target" "## Deferred Findings" "- F7" --create
+rc2=$?
+entries=$(awk '/^## Deferred Findings$/{f=1;next} /^## /{f=0} f && /^- /{printf "%s|", $0}' "$target")
+if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$entries" = "- F3|- F7|" ] \
+   && [ "$(awk '$0 == "## Deferred Findings" {c++} END {print c+0}' "$target")" -eq 1 ]; then
+  pass "append_section — --create adds the section once, then appends into it"
+else
+  fail "append_section --create: rc=$rc1/$rc2 entries='$entries'"
+fi
+
+# --create must not disturb the sections already present.
+if grep -qxF -- '## Tool log' "$target" && grep -qxF -- '## Errors' "$target"; then
+  pass "append_section — --create leaves the existing sections intact"
+else
+  fail "append_section — --create damaged the document:
+$(cat "$target")"
+fi
+
+# --- atomic_state_append_list_item -----------------------------------------
+
+# An empty inline list becomes a block list carrying the item, indented for YAML.
+target="$TMPDIR/li1.md"
+mk_state "$target"
+atomic_state_append_list_item "$target" approvals 'category: deep_mode
+picked: "Standard"'
+rc=$?
+if [ "$rc" -eq 0 ] \
+  && grep -qxF -- 'approvals:' "$target" \
+  && grep -qxF -- '  - category: deep_mode' "$target" \
+  && grep -qxF -- '    picked: "Standard"' "$target"; then
+  pass "append_list_item — an empty [] list becomes a block list, item indented"
+else
+  fail "append_list_item — first item: rc=$rc
+$(cat "$target")"
+fi
+
+# A second item appends after the first, and the neighbouring key is untouched.
+atomic_state_append_list_item "$target" approvals 'category: approach
+picked: "B"'
+first=$(grep -n '  - category: deep_mode' "$target" | cut -d: -f1)
+second=$(grep -n '  - category: approach' "$target" | cut -d: -f1)
+if [ "$second" -gt "$first" ] && grep -qxF -- 'non-resumable-actions: []' "$target"; then
+  pass "append_list_item — appends after existing items, sibling key untouched"
+else
+  fail "append_list_item — second item:
+$(cat "$target")"
+fi
+
+# The frontmatter still closes correctly and the body is intact.
+fences=$(awk '$0 == "---" {c++} END {print c+0}' "$target")
+if [ "$fences" -eq 2 ] && grep -qxF -- '## Tool log' "$target"; then
+  pass "append_list_item — frontmatter fence and body survive"
+else
+  fail "append_list_item — structure broken:
+$(cat "$target")"
+fi
+
+# A single-line item is legal too.
+target="$TMPDIR/li2.md"
+mk_state "$target"
+atomic_state_append_list_item "$target" non-resumable-actions 'pushed feature/x at 2026-09-03T10:00:00Z'
+if grep -qxF -- '  - pushed feature/x at 2026-09-03T10:00:00Z' "$target"; then
+  pass "append_list_item — a single-line item is written verbatim"
+else
+  fail "append_list_item — single-line item:
+$(cat "$target")"
+fi
+
+# A key holding a scalar must not be silently turned into a list.
+target="$TMPDIR/li3.md"
+mk_state "$target"
+before="$(cat "$target")"
+atomic_state_append_list_item "$target" phase 'category: x' 2>/dev/null
+rc=$?
+if [ "$rc" -eq 79 ] && [ "$(cat "$target")" = "$before" ]; then
+  pass "append_list_item — a scalar key → rc 79, file unchanged"
+else
+  fail "append_list_item — scalar key: rc=$rc (want 79)"
+fi
+
+# An absent key changes nothing.
+target="$TMPDIR/li4.md"
+mk_state "$target"
+before="$(cat "$target")"
+atomic_state_append_list_item "$target" nosuchkey 'x: 1' 2>/dev/null
+rc=$?
+if [ "$rc" -eq 74 ] && [ "$(cat "$target")" = "$before" ]; then
+  pass "append_list_item — absent key → rc 74, file unchanged"
+else
+  fail "append_list_item — absent key: rc=$rc (want 74)"
+fi
+
+# A same-named key in the BODY is not a frontmatter list.
+target="$TMPDIR/li5.md"
+printf -- '---\ntier: T1\n---\n\napprovals: []\n' > "$target"
+before="$(cat "$target")"
+atomic_state_append_list_item "$target" approvals 'x: 1' 2>/dev/null
+rc=$?
+if [ "$rc" -eq 74 ] && [ "$(cat "$target")" = "$before" ]; then
+  pass "append_list_item — a body key of the same name is not touched (rc 74)"
+else
+  fail "append_list_item — body key: rc=$rc (want 74)"
+fi
+
+# Missing arguments are caller errors, like every sibling function.
+atomic_state_append_section "$TMPDIR/li5.md" "## X" "" 2>/dev/null
+rc_s=$?
+atomic_state_append_list_item "$TMPDIR/li5.md" "k" "" 2>/dev/null
+rc_l=$?
+if [ "$rc_s" -eq 64 ] && [ "$rc_l" -eq 64 ]; then
+  pass "append_section / append_list_item — empty payload → rc 64"
+else
+  fail "empty payload: section rc=$rc_s list rc=$rc_l (both want 64)"
+fi
+
+# The result of both primitives still passes the state-file validator.
+target="$TMPDIR/li6.md"
+printf -- '---\ntier: T1.5\nproducer: plan\nschema-version: 1\nbranch: main\ntimestamp: 2026-09-03T10:00:00Z\nphase: explore\nstatus: in-progress\nnon-resumable-actions: []\napprovals: []\n---\n\n## Tool log\n' > "$target"
+# shellcheck disable=SC1091
+source "$REPO_ROOT/lib/validate-state-file.sh"
+atomic_state_append_list_item "$target" approvals 'category: c
+picked: "P"'
+atomic_state_append_section "$target" "## Tool log" "- entry"
+validate_state_file "$target" >/dev/null 2>&1
+rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass "append_section / append_list_item — the result validates clean"
+else
+  fail "validator rejected the result: rc=$rc
+$(cat "$target")"
+fi
+
 # --- Scale -----------------------------------------------------------------
 
 # The editors were quadratic: 21 s for one 200 KB replacement, past the default
@@ -902,7 +1137,7 @@ echo "Tests failed: $TESTS_FAILED"
 
 # An expected total: deleting a case would otherwise report a smaller green run.
 # Update this number in the same commit that adds or removes a case.
-EXPECTED_TESTS=65
+EXPECTED_TESTS=84
 if [ "$TESTS_RUN" -ne "$EXPECTED_TESTS" ]; then
   echo "FAIL: expected $EXPECTED_TESTS assertions, ran $TESTS_RUN — a case was added or dropped without updating EXPECTED_TESTS" >&2
   exit 1

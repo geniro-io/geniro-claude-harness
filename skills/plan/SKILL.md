@@ -123,7 +123,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 **Compaction.** The host re-attaches only the first ~20,000 characters of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
-`## Tool log` schema (selective logging): entry shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract; each entry is written via `atomic_state_write`. AUQ calls do NOT need logging — `approvals[]` is the structured record.
+`## Tool log` schema (selective logging): entry shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract; each entry is appended via `atomic_state_append_section`. AUQ calls do NOT need logging — `approvals[]` is the structured record.
 
 ---
 
@@ -189,7 +189,7 @@ The visual-artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/
 
 When `deep-mode: true`, Phase 4 runs its deeper path and Phase 7.5 — which fires on every run regardless of `deep-mode` — runs its 3-verifier majority claim verification instead of a single pass, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it.
 
-**Write contract.** Every state.md AND spec.md mutation goes through `atomic_state_write` from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` (invariant #3) — the only working write path for both artifacts.
+**Write contract.** Every state.md AND spec.md mutation goes through the `atomic-state-write` helpers from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` (invariant #3) — the only working write path for both artifacts.
 
 **Validation before resume.** When Phase 0 detects a pre-existing state.md (resume path), pre-flight via `validate_state_file` (`${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh`); on failure, open the recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
 
@@ -221,7 +221,7 @@ Call signatures live in each site's phase file (spine §Phase files).
 
 **Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` (L4) · the project snapshot via `load_semantic` (L3) · past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (`mcp__linear__get_issue`, etc.), only when `$ARGUMENTS` carries a tracker URL/ID.
 
-**Writes:** every state.md and spec.md mutation is T1.5 through `atomic_state_write` (invariant #3). The state.md body-section index — the base sections, the phase that owns each optional one, and the `approvals[]` entry every gate writes — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. L2 emits are conditional, and each supplies its own `trust` at its emit site.
+**Writes:** every state.md and spec.md mutation is T1.5 through the `atomic-state-write` helpers (invariant #3) — `atomic_state_set_field` for one frontmatter field, `atomic_state_append_section` / `atomic_state_append_list_item` for an entry, `atomic_state_write` for a whole file. The state.md body-section index — the base sections, the phase that owns each optional one, and the `approvals[]` entry every gate writes — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. L2 emits are conditional, and each supplies its own `trust` at its emit site.
 
 **Cross-layer conflict surfacing:** when L4/L3/L2 reads disagree, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol — soft conflict prints notice and continues; hard conflict halts with AUQ.
 

@@ -51,7 +51,7 @@ This §7.0 check is the fail-closed second line of defense for ALL FOUR invarian
 2. Build four filter lists: (a) `open_questions[]` entries with `status: unresolved`; (b) findings with `Decision Type: PRODUCT-DECISION` AND `step0_status: pending`; (c) findings with `Severity: CRITICAL | HIGH | MEDIUM` AND (`Validation: refuted` OR `Validation:` set to a value outside the `confirmed | refuted | clarified | unverified` enum — `unverified` is legal and handled per-finding at §7.1, never a whole-phase abort); (d) frontmatter `report_status` explicitly set to `draft` (missing reads as `final` — not a violation).
 3. If any of the four lists is non-empty:
    - Surface a one-line chat warning naming the count of each non-empty list (e.g., `"Can't post yet: 2 open questions still need your answer + 1 finding needs a decision from you + 1 finding the verifier couldn't confirm."`) and the first 1-2 affected items.
-   - Append a `## Errors` entry to state.md via `atomic_state_write` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, the pending finding IDs, AND the refuted/invalid finding IDs.
+   - Append a `## Errors` entry to state.md via `atomic_state_append_section` with `phase: action-gate`, `error: post-drill-aborted-on-unresolved-ambiguity`, the unresolved question IDs, the pending finding IDs, AND the refuted/invalid finding IDs.
    - Re-fire the §2.5 Pre-gate for any unresolved `open_questions[]` entries (if list (a) non-empty).
    - Re-fire the §3 Step 0 per-finding gate for any `step0_status: pending` PRODUCT-DECISION findings (if list (b) non-empty).
    - For list (c) refuted/invalid findings: do NOT auto-resolve. Refuted findings must be moved to `## Filtered` (with `reason: verifier-refuted`) by re-running Phase 4.2's filter pass — surface a chat instruction: `"Re-run /geniro:review to re-verify these findings, or manually take the refuted finding(s) out of the report."` Then abort Phase 6 entirely (terminal state `aborted`, `## Termination reason: producer-schema-violation: refuted-finding-in-handoff`) — the user re-runs /geniro:review rather than racing a manual edit against a pending Post.
@@ -159,11 +159,11 @@ Each comment object:
 
 ```yaml
 non-resumable-actions:
-- action: pr-review-comment-batch
-completed-at: <live clock read — $(date -u +%Y-%m-%dT%H:%M:%SZ) interpolated in the same write call, never a model-supplied or rounded value; atomic-state-write.md §Timestamp sourcing>
-pr-ref: <owner>/<repo>#<num>
-finding-count: <N>
-comment-ids: [<id1>, <id2>,...]
+  - action: pr-review-comment-batch
+    completed-at: <live clock read — $(date -u +%Y-%m-%dT%H:%M:%SZ) interpolated in the same write call, never a model-supplied or rounded value; atomic-state-write.md §Timestamp sourcing>
+    pr-ref: <owner>/<repo>#<num>
+    finding-count: <N>
+    comment-ids: [<id1>, <id2>,...]
 ```
 
 ### 7.5 PR-comment body content rules (hard)
@@ -233,7 +233,7 @@ consequence: post-aborted-no-state-mutation
 
 Fires when an in-session re-check (a user challenge, later analysis) overturns or re-grades a finding carrying `[POSTED-TO-PR]`.
 
-**State reconciliation — mandatory and immediate, never a conditional chat offer.** Via `atomic_state_write`, move the finding to `## Filtered` with `reason: overturned-after-post` (or, for a re-grade, annotate the new grade on its line). Preserve the original severity so the user can re-elevate, and keep the `posted-to-pr: <url>` reference on the line so the external comment stays traceable.
+**State reconciliation — mandatory and immediate, never a conditional chat offer.** Lift the finding's block with `atomic_state_edit` and land it under `## Filtered` with `atomic_state_append_section`, carrying `reason: overturned-after-post` (or, for a re-grade, annotate the new grade on its line). Preserve the original severity so the user can re-elevate, and keep the `posted-to-pr: <url>` reference on the line so the external comment stays traceable.
 
 **PR-side write — gated.** Editing, replying to, or deleting the posted comment is an external effect: offer it through its own one-question gate. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Recommended-label policy, the withdraw/downgrade option must NOT carry "(Recommended)" unless the overturn is itself verifier-confirmed. AFTER the PR-side write succeeds, append a `non-resumable-actions[]` entry (`action: pr-comment-amended`, `pr-ref`, `comment-id`, `kind: edit|reply|delete`, `completed-at` a live clock read interpolated in the same write call — full schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §`non-resumable-actions[]` action enum) — write after the side-effect succeeds, consistent with §7.4 and implement/SKILL.md.
 

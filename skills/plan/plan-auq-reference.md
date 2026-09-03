@@ -37,7 +37,7 @@ Three further body sections are optional, each written by the phase that populat
 
 ### `approvals[]` entry shape — every gate below writes this
 
-Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_write`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array" — six required fields, `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`, plus three optional ones, `why` / `evidence` / `result`:
+Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_append_list_item`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array" — six required fields, `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`, plus three optional ones, `why` / `evidence` / `result`:
 
 ```yaml
 approvals:

@@ -196,6 +196,6 @@ That Read comes before any step of the sub-command and carries a one-line echo, 
 
 ## Cross-references
 
-- PERSISTENT (CRUD) — `.geniro/actions/` tier; write via `atomic_state_write` with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
+- PERSISTENT (CRUD) — `.geniro/actions/` tier; write via the `atomic-state-write` helpers with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 - L2 emit triggers — `discovery` emit on external-send actions (Phase 4.4)
 - `.gitignore` re-include — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md`, applied at Phase 3 Step 2 so `.geniro/actions/` stays committed

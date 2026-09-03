@@ -258,7 +258,7 @@ state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial
 
 ## Task execution entry / state recovery
 
-State file: `.geniro/state/debug/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules). On entry, glob for it; if present, validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before acting on it, then route per the helper's § Consumer contract and resume from the persisted `phase:` value. No state file found → fresh run, proceed to Phase 0. Write each phase transition through `atomic_state_write`; a terminal phase (§ State machine) is final.
+State file: `.geniro/state/debug/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules). On entry, glob for it; if present, validate via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before acting on it, then route per the helper's § Consumer contract and resume from the persisted `phase:` value. No state file found → fresh run, proceed to Phase 0. Write each phase transition through `atomic_state_set_field`; a terminal phase (§ State machine) is final.
 
 ---
 
