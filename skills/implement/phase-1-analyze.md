@@ -6,7 +6,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 - Phase 1 entry — resolve `PRIMARY_ROOT`
 - Step 0 — Workspace setup (0a detect · 0b decide · 0c setup questions · 0d approvals · 0e execute · 0f edge cases · 0g spec `launch_config`)
-- Steps 1-13 (after Step 0 settles) — parse, spec source, task slug, prior-work scan (Step 4.5), memory loads, the knowledge-retrieval + codebase-explorer spawns (Step 7 — knowledge slot gated on a non-empty memory store), library-reuse audit, handoff open-questions gate (Step 12), spec challenge (Step 12.5)
+- Steps 1-13 (after Step 0 settles) — parse, spec source, task slug, prior-work scan (Step 4.5), memory loads, the knowledge-retrieval + codebase-explorer spawns (Step 7 — knowledge slot gated on a non-empty memory store), library-reuse audit, handoff open-questions gate (Step 12), spec challenge (Step 12.5), custom post-analyze steps (Step 12.6)
 - Big-task notice
 
 ---
@@ -219,12 +219,16 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
 
    /geniro:implement is the consumer; the contract per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 forbids proceeding with code edits while any `unresolved` entry remains. A consumer that ships anyway violates the contract — the producer surfaced the ambiguity precisely so it gets resolved BEFORE code changes.
 
-12.5. **Spec challenge — fact-check the spec against the current code before editing.** The last gate before code edits begin.
+12.5. **Spec challenge — fact-check the spec against the current code before editing.** The last plugin-defined gate before code edits begin.
 
    - **Spec-driven mode only.** Run this step only when Step 2 resolved a real spec.md / plan.md / DESIGN_DOC. SKIP it in inline-task fallback mode — there is no written spec to fact-check, so emit a one-line note ("No spec file — skipping the spec fact-check") and proceed to step 13.
    - **Invoke the helper.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: implement, SPEC_PATH: \<resolved spec path>, TASK_DIR: \<task-dir>, EFFORT_TIER: \<the codebase-explorer change_scope>, DEEP: \<true when state.md deep-mode: true, else false>. Verdict handling — the skip-when-clean advisory and, on `defects-found`, the message-first render (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering) followed by the lean AskUserQuestion — is owned by that file's §8, which holds the option set verbatim; read it there rather than from a second copy here. One option applies a bounded fact correction to the spec in place, so this step may write the spec via `atomic_state_write` — facts only, never the approach, and the corrected claims re-enter the helper per its §8.5.
    - **Persist the pick.** Record the user's choice in state.md frontmatter `approvals[]` with `category: spec_challenge`, `picked: <chosen option>`, `at: <ISO-8601 UTC>` for compaction-resume idempotency.
    - **Fail-open.** If the helper or any verifier spawn fails, write a line to state.md `## Errors`, emit a one-line notice to the user, and proceed to step 13 — a fact-check failure does not hard-block the run.
+
+12.6. **Custom post-analyze steps.** Execute any user-authored post-analyze steps from the L4 `implement.md` instruction file (`.geniro/instructions/implement.md`) loaded at Step 5. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-analyze anchor is `### After analyze` (`analyze` is the Phase 1 enum value; the spec, the handoffs and the codebase map are all resolved by now, and no production file has been edited yet). Run any subsection anchored to the end of `analyze`, treating each bullet as an imperative to execute in order and honoring any `AskUserQuestion` the user's step prescribes.
+
+   This is the generic extension point for project-specific work that must precede code edits — most often the product question an inline-task run never had a spec to answer. Step 2's inline-task fallback walks a one-line request straight to implementation, so a project that wants a discovery stage, a flag / analytics decision, or a measurement plan on that path anchors it here and records the outcome into the state.md `## Inline Plan` Step 13 writes. The plugin stays tool-agnostic: the procedure lives entirely in the project's instruction file, not in this phase. Run it before Step 13 so whatever it settles lands in that write; without this step a loaded `### After analyze` block has no execution anchor and is silently dropped once Phase 2 begins (the same failure mode Phase 3's `### After ship` step prevents). Skip silently when no such subsection is loaded.
 
 13. **State.md write.** `atomic_state_write` with `phase: analyze` body sections populated. Leave `phase:` at `analyze` here — Phase 2 entry owns the advance to `implement`, so the file names the phase actually completed if the run stops between the two, and the transition has exactly one site that performs it rather than two that each read as if the other did.
 

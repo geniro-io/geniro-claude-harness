@@ -101,6 +101,9 @@ What to NOT flag:
 
 ## Additional Steps
 
+### After analyze
+- (example: "When this run has no spec and the work is feature-shaped, run the project's product-discovery stage and record the approved direction into the inline plan before any code is written")
+
 ### After ship
 - (example: "Post a summary to #eng-ships and open a follow-up issue for any deferred TODO")
 
@@ -188,7 +191,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 - **Use one of the legal anchors** from §5 — `validate` rejects anything else, including a real phase name that just has no read site
 - **Keep steps actionable** — each step describes a concrete action
 - **Limit to 2-3 steps per phase** — too many slow down workflow and dilute attention
-- **The legal anchors:** `After ship` (implement, post-ship follow-up), `After verify` (refactor wrap-up), `After user-approve` (plan, post-approval)
+- **The legal anchors:** `After explore` (plan, post-research and pre-grill), `After user-approve` (plan, post-approval), `After analyze` (implement, pre-code), `After ship` (implement, post-ship follow-up), `After verify` (refactor wrap-up)
 - **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after any skill creates a new worktree and before subagent fan-out
 
 ### Constraint writing
@@ -230,7 +233,9 @@ An `Additional Steps` subsection must name a phase that a skill actually reads c
 
 | Scope | Legal anchor | Execution site |
 |---|---|---|
+| `implement` | `After analyze` (pre-code — e.g. the product-discovery conversation an inline-task run has no spec to answer) | `implement/phase-1-analyze.md` Step 12.6 |
 | `implement` | `After ship` | `implement/phase-3-ship.md` §8.2 / `implement-reference.md` §Custom post-ship steps |
+| `plan` | `After explore` (post-research, pre-grill — e.g. a discovery stage the approaches must be sized against) | `plan/loop-phase-1-explore.md` §1.5 "Custom post-explore steps" |
 | `plan` | `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) | `plan/loop-phase-8-user-approval.md` §8.6 |
 | `refactor` | `After verify` | `refactor/phase-3-verify.md` §3.6 |
 | `global` | `After worktree-setup` (cross-skill; fires once, in the orchestrator, right after any skill creates a new worktree) | branch-freshness §3.1 and review triage |

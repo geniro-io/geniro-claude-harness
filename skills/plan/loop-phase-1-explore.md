@@ -9,7 +9,7 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 - 1.2 Effort-tier-scaled research spawns
 - 1.3 Echo contract (in the spine)
 - 1.4 Workflow refs fetch (tracker linkage)
-- 1.5 Transition to Phase 2
+- 1.5 Transition to Phase 2 (drain · synthesis · prior-work scan · custom post-explore steps · transition)
 
 State.md `phase: explore` during this phase.
 
@@ -88,6 +88,10 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
 Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring.
 
 **Prior-work scan.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` against the topic this run is about to plan — already named by `$ARGUMENTS` or the resolved tracker ref, so it sits inside the read-only carve-out `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §Forbidden discovery moves draws around an already-named target, not the target-invention it forbids. On a hit, §4 owns the gate shape; persist the pick under `category: prior_work_scan` via `atomic_state_write` and fold it into the summary above so it reaches Phase 4 approach design before any approach is proposed.
+
+**Custom post-explore steps.** Execute any user-authored post-explore steps from the L4 `plan.md` instruction file (`.geniro/instructions/plan.md`) loaded at §1.1. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-explore anchor is `### After explore` (`explore` is the Phase 1 enum value, and the research is drained and synthesized above, so the step runs against a mapped codebase and before any question, approach, or spec section exists). Run any subsection anchored to the end of `explore`, treating each bullet as an imperative to execute in order and honoring any `AskUserQuestion` the user's step prescribes.
+
+This is the generic extension point for project-specific work that has to happen BEFORE the plan takes shape — a product-discovery stage from the project's own workflow, a data pull the approaches must be sized against, an intake the project runs on every feature. The plugin stays tool-agnostic: the procedure lives entirely in the project's instruction file, not in this loop. It runs before the transition write below so a step that changes what the plan is about still reaches Phase 3's questions and Phase 4's approaches; without this step a loaded `### After explore` block has no execution anchor and is silently dropped once the next phase begins (the same failure mode Phase 8.6's `### After user-approve` step prevents). Skip silently when no such subsection is loaded.
 
 **Transition.** Resolve the Trivial skip below before evaluating the §2.1 UI trigger, then write the `phase:` of the phase actually being entered — Trivial skip → Phase 4; UI trigger matches → Phase 2; neither → Phase 3 (each phase's enum is in the spine §Phase files table). Leaving `phase:` on a phase this step just decided to skip sends a compaction-resume back into it.
 

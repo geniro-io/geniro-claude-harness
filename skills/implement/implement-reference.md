@@ -957,6 +957,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Spec source resolved — either a spec.md / plan.md / DESIGN_DOC frontmatter file was loaded, OR inline-task mode wrote a `## Inline Plan` to state.md.
 - [ ] Resume path only — a state.md that already existed when Phase 1 resolved the task slug was pre-flighted through `validate_state_file` before its `phase:` was trusted, and a failed validation opened the recovery question. A fresh task-dir writes its own state.md and has nothing to pre-flight, so this row is satisfied by having no pre-existing file.
 - [ ] Phase 1 ran the build-vs-buy library-reuse audit on NO-ANALOGUE components (skip trivial); any library adoption was user-confirmed via the gate.
+- [ ] Custom post-analyze steps executed — any `### After analyze` subsection in the loaded `.geniro/instructions/implement.md` ran before the Phase 1 state write, or none was loaded (`phase-1-analyze.md` Step 12.6).
 - [ ] Phase 2 ended on green tests (or accepted-failures noted in state.md `## Accepted Failures`).
 - [ ] Every delegated todo's diff was read before it was marked completed, and every delegate-authored path is in `CHANGED_FILES`.
 - [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
