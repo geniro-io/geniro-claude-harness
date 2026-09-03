@@ -22,4 +22,4 @@ The helper preserves the durable artifacts (`spec.md`, `state.md`, `plan-*.md`, 
 
 ### 9.3 Terminal transition
 
-Write state.md `phase: done` via `atomic_state_write`. SessionStart recovery treats it as completed; a session crashing between the §8.4 transition and the print resumes at `phase: handoff` and re-runs the print + cleanup + done write.
+Write state.md `phase: done` via `atomic_state_set_field`. SessionStart recovery treats it as completed; a session crashing between the §8.4 transition and the print resumes at `phase: handoff` and re-runs the print + cleanup + done write.

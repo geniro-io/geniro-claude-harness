@@ -3,7 +3,7 @@
 ## Contents
 
 - §When to use — tier → helper table
-- §API — the five functions, their signatures + exit codes
+- §API — the seven functions, their signatures + exit codes
 - §Timestamp sourcing — time-bearing fields come from a live clock read
 - §Changing part of an existing file — edit in place, don't regenerate
 - §Caller-side mtime check — optimistic-concurrency for T3 CRUD files
@@ -33,6 +33,9 @@
 | Change a known span of body text in a file that already exists | `atomic_state_edit` |
 | Write a whole file whose content a *program* produces (a transform, a serializer, a renderer) | `atomic_state_write_cmd` |
 | Write a whole file whose content is written literally in the call (heredoc) | `atomic_state_write` |
+| Append an entry to a body section (`## Tool log`, `## Errors`, `## Phase log`) | `atomic_state_append_section` |
+| Append an item to a frontmatter YAML list (`approvals`, `non-resumable-actions`) | `atomic_state_append_list_item` |
+| Update fields inside ONE item of a frontmatter list (an `open_questions[]` entry) | `atomic_state_edit`, anchored on that entry's own lines |
 | Append one JSONL record | `atomic_state_append` |
 | Read state | `Read` tool directly — no helper |
 
@@ -157,6 +160,52 @@ atomic_state_set_field ".geniro/planning/dark-mode/state.md" timestamp "$(date -
 | 66 / 67 | As `atomic_state_write` |
 | 73 | Target does not exist or is unreadable |
 | 74 | No closed leading `---` block, or the field is not in it — nothing changed |
+
+### `atomic_state_append_section <target> <heading> <text>`
+
+Appends `<text>` at the END of the body section introduced by the exact heading line, keeping the blank line that separates the section from the next heading. The section runs to the next heading of the same or a higher level, so a `###` subheading stays inside it.
+
+The heading is the wrong anchor for a plain `atomic_state_edit`: matching on `## Tool log` inserts each new entry ABOVE the older ones and inverts a log that later steps read in order. This helper finds the section's end instead.
+
+```bash
+atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Tool log" \
+  "- [$(date -u +%H:%M:%SZ)] test-runner: 42 passed, 0 failed"
+```
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 64 | Target path, heading, or text missing |
+| 66 / 67 | As `atomic_state_write` |
+| 73 | Target does not exist, is unreadable, or holds a byte the editors cannot round-trip |
+| 77 | Heading not found — nothing changed |
+| 78 | Heading appears more than once, so the section has no single end — nothing changed |
+
+### `atomic_state_append_list_item <target> <key> <item>`
+
+Appends one item to the YAML list under frontmatter `<key>`. Pass `<item>` the way the schema shows it — without the leading `- ` and without indentation; the helper indents it (`  - ` on the first line, four spaces on the rest). An empty `key: []` becomes a block list; an existing block list gains the item after its last line. A key holding any other scalar is refused rather than converted.
+
+This is the shape `atomic_state_set_field` cannot write: `approvals[]` entries are multi-line mappings, and a `set_field` value must be one line.
+
+```bash
+atomic_state_append_list_item ".geniro/planning/dark-mode/state.md" approvals \
+  "category: approach_choice
+prompt: \"Which approach?\"
+picked: \"B — extend the existing resolver\"
+at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+asked_in_phase: propose"
+```
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 64 | Target path, key, or item missing |
+| 66 / 67 | As `atomic_state_write` |
+| 73 | Target does not exist, is unreadable, or holds a byte the editors cannot round-trip |
+| 74 | No closed leading `---` block, or the key is not in it — nothing changed |
+| 79 | The key holds a scalar, not a list — nothing changed |
+
+**Updating fields inside one existing item** — an `open_questions[]` entry moving to `status: resolved`, say — has no primitive of its own: use `atomic_state_edit` with that entry's own lines as the anchor. The run has already read the entry to render its question, so the exact text is in hand, and the exactly-once rule then guarantees the write lands on the entry that was read and no other.
 
 ### `atomic_state_append <target>`
 

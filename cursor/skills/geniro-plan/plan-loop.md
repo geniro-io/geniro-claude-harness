@@ -50,7 +50,7 @@ The Phase 4, Phase 5, and Phase 8 gate messages render in the shared visual lang
 
 Cross-phase: Phase 1 research spawns, the Phase 3 grill's on-demand research spawns, the Phase 4 stress-test critics, and the Phase 6 spec write all append an entry of this shape, so it lives in the spine rather than in one phase's file.
 
-Each Phase 1 research spawn writes a structured entry to state.md `## Tool log` via `atomic_state_write`:
+Each Phase 1 research spawn appends a structured entry to state.md `## Tool log` via `atomic_state_append_section`:
 
 ```yaml
 ## Tool log
@@ -152,7 +152,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Terminal states
 
-`done` and `aborted`. Every transition into either one first runs the §9.2 transient cleanup (`clean_task_transients` against the planning task-dir, in `loop-phase-9-handoff.md`) and only then writes the terminal `phase:` via `atomic_state_write` — a terminal write that skips the cleanup leaves this run's scratch behind, where it resurfaces as a recurring `/geniro:update` migration-walk warning. An `aborted` write also carries a `## Termination reason` body line naming what cancelled it. The cancel paths are §0.4, §3.1, §5.2, §7.3, and §8.3; each owes the same cleanup-then-write, plus a walk of `loop-definition-of-done.md` §Abort-path subset first — none of the five reaches Phase 9, where the full Definition of Done is otherwise walked. §3.1 is the one that is not a cancel: the grill concluded the work does not need building, so its `## Termination reason` records a reached decision and the user hears it as one.
+`done` and `aborted`. Every transition into either one first runs the §9.2 transient cleanup (`clean_task_transients` against the planning task-dir, in `loop-phase-9-handoff.md`) and only then writes the terminal `phase:` via `atomic_state_set_field` — a terminal write that skips the cleanup leaves this run's scratch behind, where it resurfaces as a recurring `/geniro:update` migration-walk warning. An `aborted` write also carries a `## Termination reason` body line naming what cancelled it. The cancel paths are §0.4, §3.1, §5.2, §7.3, and §8.3; each owes the same cleanup-then-write, plus a walk of `loop-definition-of-done.md` §Abort-path subset first — none of the five reaches Phase 9, where the full Definition of Done is otherwise walked. §3.1 is the one that is not a cancel: the grill concluded the work does not need building, so its `## Termination reason` records a reached decision and the user hears it as one.
 
 ## Definition of Done
 

@@ -42,7 +42,7 @@ When `--deep` is absent, ask the planning-depth question (Standard / Deep) once 
 
 ### 3.3 Persistence
 
-Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_write`. Append the `approvals[]` entry for each answer before rendering the next question — so a context reset mid-sequence preserves every answer already given. Entry shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1; category `clarify_<dim>`.
+Each answered question → append entry to state.md frontmatter `approvals[]` via `atomic_state_append_list_item`. Append the `approvals[]` entry for each answer before rendering the next question — so a context reset mid-sequence preserves every answer already given. Entry shape in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1; category `clarify_<dim>`.
 
 On compaction-resume, the SessionStart re-injector renders `approvals[]` and the model re-reads it to skip already-answered questions.
 
@@ -57,7 +57,7 @@ At a checkpoint, render a running summary to a chat message — resolved decisio
 - **Wrap up now** — stop; remaining open branches become stated assumptions.
 - **Skip remaining branches with stated assumptions** — same as wrap-up, but name the skipped branches explicitly in the Assumptions section for /geniro:implement to verify.
 
-Persist each checkpoint decision to `approvals[]` category `grill_checkpoint` via `atomic_state_write` before continuing.
+Persist each checkpoint decision to `approvals[]` category `grill_checkpoint` via `atomic_state_append_list_item` before continuing.
 
 **Termination** fires when all branches resolve, the user picks Wrap up / Skip, or no spec-shaping question remains. On termination, render a closing summary — resolved decisions, deferred work, and any unaddressed risks — and hold it in context: it feeds Phase 4 approach generation and seeds Phase 5 sections (Steps / Validation / Done Condition).
 

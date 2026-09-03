@@ -58,7 +58,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`. This skill has e
 
 ## State persistence
 
-After completing each phase, write a checkpoint to `.geniro/state/analyze-thread/<slug>/state.md` (compute `<slug>` per `skills/_shared/within-skill-state-handoff.md` § Slug rules — base it on the analyzed thread, never the project name; §Task execution entry gives the single- and batch-mode forms). Use `atomic_state_write` per `skills/_shared/atomic-state-write.md` — direct Edit/Write to state paths trips the `enforce-state-helper` hook.
+After completing each phase, write a checkpoint to `.geniro/state/analyze-thread/<slug>/state.md` (compute `<slug>` per `skills/_shared/within-skill-state-handoff.md` § Slug rules — base it on the analyzed thread, never the project name; §Task execution entry gives the single- and batch-mode forms). Use `atomic_state_write` per `skills/_shared/atomic-state-write.md` — direct Edit/Write to state paths trips the `enforce-state-helper` hook. The first checkpoint creates the file; every later one advances `phase:` with `atomic_state_set_field` and appends its log line with `atomic_state_append_section` — re-rendering the whole file each phase is what lets an untouched field carry forward at a stale value.
 
 The full T1.5 frontmatter opens on line 1 per the helper § Producer contract. Plain-text `Branch:` / `Worktree:` / `Timestamp:` header lines push the `---` fence off line 1 and fail `validate_state_file` with exit 2 — the validator that §Task execution entry runs before every resume, so a checkpoint written that way is one this skill cannot read back.
 

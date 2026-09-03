@@ -290,7 +290,7 @@ Phase 1 (Scientific Mode) sub-step referenced from `${CLAUDE_PLUGIN_ROOT}/skills
 - **Test it as a hypothesis** — form a hypothesis that the PR's change fixes the bug and test it against the feedback loop like any other hypothesis (§1.5).
 - **Ignore — keep investigating** — discard the match and proceed to §1.4.
 
-Persist the pick to state.md frontmatter `approvals[]` category `existing_fix_pr` via `atomic_state_write`, so the session-start restore re-applies it across a compaction or resume. The matched PR itself rides to the consumer in the findings body above, not a new handoff field.
+Persist the pick to state.md frontmatter `approvals[]` category `existing_fix_pr` via `atomic_state_append_list_item`, so the session-start restore re-applies it across a compaction or resume. The matched PR itself rides to the consumer in the findings body above, not a new handoff field.
 
 ---
 

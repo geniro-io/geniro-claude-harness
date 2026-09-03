@@ -36,7 +36,7 @@ From the Phase 3 `tests`-dimension output (and the tests that Phase 3's own inli
 
 ## Persistence — state.md `## Test Quality Audit`
 
-The consumer (`/geniro:implement` Phase 3 Step 5) persists this gate's outcome to state.md `## Test Quality Audit` via `atomic_state_write` on every run, including the skipped and unavailable ones — so the Ship pre-terminal check (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §"Emit the ship report, then transition") reads a written record instead of this turn's narration. Four states share the one section:
+The consumer (`/geniro:implement` Phase 3 Step 5) persists this gate's outcome to state.md `## Test Quality Audit` via `atomic_state_append_section --create` on every run, including the skipped and unavailable ones — so the Ship pre-terminal check (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §"Emit the ship report, then transition") reads a written record instead of this turn's narration. Four states share the one section:
 
 - **Ran, clean or all auto-fixed** — the sentinel `none — the test-quality gate ran and found no issues`, or a one-line found/fixed summary.
 - **Ran, open findings** — the disposition the user picked (tighten all / the picked subset / ship as-is) and what remains open.

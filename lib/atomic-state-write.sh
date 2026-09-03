@@ -16,6 +16,8 @@
 #   atomic_state_write_cmd <target> <cmd...> — same, but commits ONLY if the producer exits 0
 #   atomic_state_edit <target> <old> <new>   — literal exactly-once replace, atomic commit
 #   atomic_state_set_field <target> <k> <v>  — set one frontmatter field, atomic commit
+#   atomic_state_append_section <t> <h> <x>  — append an entry to the end of a body section
+#   atomic_state_append_list_item <t> <k> <i> — append an item to a frontmatter YAML list
 #   atomic_state_append <target>             — POSIX O_APPEND for ≤4KB lines (T3 append-only / JSONL)
 #
 # Why the editors exist: atomic_state_write is a writer, not an editor, so changing
@@ -454,6 +456,232 @@ atomic_state_set_field() {
     fi
 
     _atomic_state_commit atomic_state_set_field "$tmp" "$target" "$dir"
+    exit $?
+  )
+}
+
+# atomic_state_append_section <target> <heading> <text> [--create]
+#
+# Appends <text> at the END of the body section introduced by the exact heading
+# line <heading> (for example `## Tool log`), keeping the section's own trailing
+# blank lines between the new entry and the next heading. The section ends at the
+# next heading of the same or a higher level, or at end of file.
+#
+# This exists because the natural anchor for an append — the heading itself — is
+# wrong the moment the section is non-empty: anchoring on `## Tool log` inserts
+# the newest entry ABOVE the older ones and inverts a log that downstream steps
+# parse in order.
+#
+# <heading> must appear exactly once (rc 78 otherwise): a document with two
+# `## Errors` headings has no single end to append to.
+#
+# A missing heading is rc 77, NOT a silent create — a typo would otherwise grow a
+# second, near-identical section that nothing reads. Sections a run creates on
+# demand (`## Deferred Findings`, `## Visual Baseline`, `## Authored Tests` — the
+# ones no state.md template declares up front) pass `--create`, which appends the
+# heading at end of file on the first call and behaves normally after that.
+atomic_state_append_section() {
+  local target="${1:-}" heading="${2:-}" text="${3:-}" create=0
+  [ "${4:-}" = "--create" ] && create=1
+  if [ -z "$target" ] || [ -z "$heading" ]; then
+    echo "atomic_state_append_section: target path and heading required" >&2
+    return 64
+  fi
+  if [ -z "$text" ]; then
+    echo "atomic_state_append_section: text required; nothing appended to $target" >&2
+    return 64
+  fi
+  if [ ! -f "$target" ] || [ ! -r "$target" ]; then
+    echo "atomic_state_append_section: $target does not exist or is unreadable" >&2
+    return 73
+  fi
+  if _atomic_state_binary_unsafe "$target"; then
+    echo "atomic_state_append_section: $target contains a NUL or 0x04 byte, which this helper cannot round-trip" >&2
+    return 73
+  fi
+  (
+    dir="$(_atomic_state_prepare_dir "$target")" || {
+      echo "atomic_state_append_section: failed to mkdir $(dirname "$target")" >&2
+      exit 65
+    }
+    tmp="$(_atomic_state_mktemp "$target")"
+    if [ -z "$tmp" ]; then
+      echo "atomic_state_append_section: failed to create tmp beside $target" >&2
+      exit 66
+    fi
+    trap 'rm -f "$tmp"; exit 130' INT
+    trap 'rm -f "$tmp"; exit 143' TERM
+    trap 'rm -f "$tmp"; exit 129' HUP
+
+    ends_nl=1
+    if [ -s "$target" ] && [ -n "$(tail -c 1 "$target" 2>/dev/null)" ]; then
+      ends_nl=0
+    fi
+
+    ASW_HEADING="$heading" ASW_TEXT="$text" ASW_ENDS_NL="$ends_nl" ASW_CREATE="$create" awk '
+      function hlevel(s,   n) { n = 0; while (substr(s, n + 1, 1) == "#") { n++ }; return n }
+      function out(s) { if (started) { printf "\n" } printf "%s", s; started = 1 }
+      function flush_blanks(   i) { for (i = 1; i <= nblank; i++) { out("") } ; nblank = 0 }
+      BEGIN {
+        h = ENVIRON["ASW_HEADING"]; t = ENVIRON["ASW_TEXT"]
+        ends_nl = ENVIRON["ASW_ENDS_NL"]
+        create = ENVIRON["ASW_CREATE"]
+        hits = 0; insec = 0; done = 0; nblank = 0; started = 0; lvl = 0
+      }
+      {
+        line = $0
+        if (line == h) {
+          hits++
+          if (hits == 1) { insec = 1; lvl = hlevel(line) }
+          flush_blanks(); out(line); next
+        }
+        if (insec && !done && hlevel(line) > 0 && hlevel(line) <= lvl) {
+          # Next sibling heading: the entry goes above the blank run that
+          # separates this section from it.
+          out(t); done = 1; insec = 0
+          flush_blanks(); out(line); next
+        }
+        if (insec && line == "") { nblank++; next }
+        flush_blanks(); out(line)
+      }
+      END {
+        if (insec && !done) { out(t); done = 1 }
+        flush_blanks()
+        if (hits == 0 && create == "1") {
+          out(""); out(h); out(t); hits = 1
+        }
+        if (ends_nl == "1") { printf "\n" }
+        if (hits == 0) { exit 77 }
+        if (hits > 1)  { exit 78 }
+      }
+    ' "$target" > "$tmp"
+    arc=$?
+
+    if [ "$arc" -ne 0 ]; then
+      rm -f "$tmp"
+      case "$arc" in
+        77) echo "atomic_state_append_section: heading '$heading' not found in $target; nothing changed (pass --create to add the section)" >&2 ;;
+        78) echo "atomic_state_append_section: heading '$heading' appears more than once in $target; nothing changed" >&2 ;;
+        *)  echo "atomic_state_append_section: rewrite of $target failed (awk rc $arc)" >&2 ;;
+      esac
+      exit "$arc"
+    fi
+
+    _atomic_state_commit atomic_state_append_section "$tmp" "$target" "$dir"
+    exit $?
+  )
+}
+
+# atomic_state_append_list_item <target> <key> <item>
+#
+# Appends one item to the YAML list under frontmatter <key>, inside the leading
+# `---` block only. <item> is the item's content WITHOUT the leading `- ` and
+# WITHOUT indentation; the helper indents it (`  - ` on the first line, four
+# spaces on the rest), so a caller writes the entry the way the schema shows it
+# rather than counting spaces.
+#
+# Both list shapes are handled: an empty `key: []` becomes a block list, and an
+# existing block list gains the item after its last line. A key holding any other
+# scalar is refused (rc 79) rather than turned into a list.
+#
+# This is the shape `atomic_state_set_field` cannot write — `approvals[]`,
+# `non-resumable-actions[]`, `workflow_refs[]` are multi-line mappings, and a
+# set_field value must be a single line.
+atomic_state_append_list_item() {
+  local target="${1:-}" key="${2:-}" item="${3:-}"
+  if [ -z "$target" ] || [ -z "$key" ]; then
+    echo "atomic_state_append_list_item: target path and key required" >&2
+    return 64
+  fi
+  if [ -z "$item" ]; then
+    echo "atomic_state_append_list_item: item required; nothing appended to $target" >&2
+    return 64
+  fi
+  if [ ! -f "$target" ] || [ ! -r "$target" ]; then
+    echo "atomic_state_append_list_item: $target does not exist or is unreadable" >&2
+    return 73
+  fi
+  if _atomic_state_binary_unsafe "$target"; then
+    echo "atomic_state_append_list_item: $target contains a NUL or 0x04 byte, which this helper cannot round-trip" >&2
+    return 73
+  fi
+  (
+    dir="$(_atomic_state_prepare_dir "$target")" || {
+      echo "atomic_state_append_list_item: failed to mkdir $(dirname "$target")" >&2
+      exit 65
+    }
+    tmp="$(_atomic_state_mktemp "$target")"
+    if [ -z "$tmp" ]; then
+      echo "atomic_state_append_list_item: failed to create tmp beside $target" >&2
+      exit 66
+    fi
+    trap 'rm -f "$tmp"; exit 130' INT
+    trap 'rm -f "$tmp"; exit 143' TERM
+    trap 'rm -f "$tmp"; exit 129' HUP
+
+    ends_nl=1
+    if [ -s "$target" ] && [ -n "$(tail -c 1 "$target" 2>/dev/null)" ]; then
+      ends_nl=0
+    fi
+
+    ASW_KEY="$key" ASW_ITEM="$item" ASW_ENDS_NL="$ends_nl" awk '
+      function out(s) { if (started) { printf "\n" } printf "%s", s; started = 1 }
+      function emit_item(   n, i, parts) {
+        n = split(item, parts, "\n")
+        for (i = 1; i <= n; i++) {
+          if (i == 1) { out("  - " parts[i]) } else { out("    " parts[i]) }
+        }
+      }
+      BEGIN {
+        k = ENVIRON["ASW_KEY"]; item = ENVIRON["ASW_ITEM"]
+        ends_nl = ENVIRON["ASW_ENDS_NL"]
+        fence = 0; state = 0; started = 0; bad = 0
+        # state 0 = key not seen, 1 = inside the key block, 2 = written
+      }
+      {
+        line = $0
+        if (line == "---") {
+          if (fence == 0 && NR == 1)   { fence = 1; out(line); next }
+          else if (fence == 1) {
+            if (state == 1) { emit_item(); state = 2 }
+            fence = 2; out(line); next
+          }
+        }
+        if (fence == 1 && state == 0 && substr(line, 1, length(k) + 1) == k ":") {
+          rest = substr(line, length(k) + 2)
+          sub(/^[ \t]+/, "", rest)
+          if (rest == "[]") { out(k ":"); state = 1; next }        # empty inline list
+          if (rest == "")   { out(line);  state = 1; next }        # block list follows
+          bad = 1; out(line); next                                  # a scalar — refuse
+        }
+        if (state == 1) {
+          # The block ends at the first line that is not indented under the key.
+          if (line ~ /^[ \t]/) { out(line); next }
+          emit_item(); state = 2; out(line); next
+        }
+        out(line)
+      }
+      END {
+        if (state == 1) { emit_item(); state = 2 }
+        if (ends_nl == "1") { printf "\n" }
+        if (bad)        { exit 79 }
+        if (fence != 2) { exit 2 }
+        if (state != 2) { exit 3 }
+      }
+    ' "$target" > "$tmp"
+    arc=$?
+
+    if [ "$arc" -ne 0 ]; then
+      rm -f "$tmp"
+      case "$arc" in
+        2)  echo "atomic_state_append_list_item: $target has no closed leading '---' frontmatter block; nothing changed" >&2; exit 74 ;;
+        3)  echo "atomic_state_append_list_item: key '$key' not present in the frontmatter of $target; nothing changed" >&2; exit 74 ;;
+        79) echo "atomic_state_append_list_item: '$key' holds a scalar, not a list; nothing changed" >&2; exit 79 ;;
+        *)  echo "atomic_state_append_list_item: rewrite of $target failed (awk rc $arc)" >&2; exit "$arc" ;;
+      esac
+    fi
+
+    _atomic_state_commit atomic_state_append_list_item "$tmp" "$target" "$dir"
     exit $?
   )
 }

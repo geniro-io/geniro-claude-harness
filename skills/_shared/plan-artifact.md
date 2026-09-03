@@ -12,7 +12,7 @@ Owns the full lifecycle of an opt-in "visual plan artifact" for `/geniro:plan` �
 - Before-gate update — mirroring the pending decision onto the Current decision panel before a gate fires
 - Re-sync on revision — re-running the before-gate refresh when a gate is re-presented after a revise, so the page never shows a stale plan
 - Content layers — the rich page outline (the heart of the page), including the Current decision panel and the data layer
-- URL persistence — saving the captured URL into state via `atomic_state_write`
+- URL persistence — saving the captured URL into state via `atomic_state_set_field`
 - Unavailable / skip handling — one notice, then continue
 - Caller contract — what callers provide and receive, with the verbatim invocation strings
 - Anti-rationalization — common wrong turns and the correct move
@@ -219,29 +219,15 @@ Only sections with real content appear; a plan with no data change drops the who
 
 ## URL persistence
 
-Save the captured `claude.ai` URL into state.md frontmatter so a later session re-targets the same page. There is no partial-field helper — `atomic_state_write` re-writes the whole file, so the caller reads the current state.md, sets the artifact fields, and writes the whole frontmatter back. The pattern, run by the caller after the create step returns a URL:
+Save the captured `claude.ai` URL into state.md frontmatter so a later session re-targets the same page. Set the three artifact fields in place — the rest of the file is not rewritten, so no other field can carry forward at a stale value. The pattern, run by the caller after the create step returns a URL:
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
+S=".geniro/planning/<task-dir>/state.md"
 
-atomic_state_write ".geniro/planning/<task-dir>/state.md" <<EOF
----
-tier: T1.5
-producer: plan
-schema-version: 1
-branch: <git-branch>
-timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-phase: <current-phase>
-status: in-progress
-non-resumable-actions: []
-artifact_mode: true
-artifact_status: live
-artifact_url: "<captured claude.ai url>"
-approvals: [<existing entries preserved>]
----
-
-<existing state.md body preserved verbatim>
-EOF
+atomic_state_set_field "$S" artifact_status live
+atomic_state_set_field "$S" artifact_url "<captured claude.ai url>"
+atomic_state_set_field "$S" timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
 Carry the rest of the frontmatter and the whole body through unchanged — the only fields this write touches are `artifact_status` (now `live`) and `artifact_url` (the captured link). Use a fresh `date -u` read in the same Bash call for `timestamp`; never a copied literal.

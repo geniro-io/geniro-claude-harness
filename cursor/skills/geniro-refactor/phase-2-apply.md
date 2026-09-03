@@ -44,7 +44,7 @@ For each step N in `## Plan steps` where `status: pending`:
 - SKIPPED if N > 1 AND `last_post_check == PASS` (no edits intervene between sequential transformations — the previous step's post-check already validated the same baseline)
 - When required: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check step <N>" "<test_cmd_affected>"`. On fail: stop and report (broken baseline).
 3. **Apply change** (Edit tool, surgical, scope-bounded to step's `files_affected`).
-4. **Post-condition check**: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Post-check step <N>" "<test_cmd_affected>"`. Persist result to state.md `## Plan steps` row as `last_post_check: PASS|FAIL` (atomic_state_write).
+4. **Post-condition check**: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Post-check step <N>" "<test_cmd_affected>"`. Persist result to state.md `## Plan steps` row as `last_post_check: PASS|FAIL` (`atomic_state_edit`, anchored on that row's own line).
 5. **Result handling**:
 - **PASS**: mark `status: complete`, `attempts: <N>`, `last_post_check: PASS`. Continue to next step.
 - **FAIL**: enter Blocked Step Protocol (below).
@@ -53,7 +53,7 @@ For each step N in `## Plan steps` where `status: pending`:
 
 A catastrophic Edit failure (filesystem error, unreadable target) is the one exit from this loop — retrying a transformation against a tree the tool cannot write leaves the working tree half-applied. Render the failure to chat first (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering), then fire the lean AUQ header "Edit failed": "Revert all changes" (Recommended) / "Show me the diff first" / "Keep changes for debugging" — same three options as the §2.4 Regression escalation below. On "Revert all changes", `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). state.md → `phase: reverted` (terminal).
 
-State.md `## Plan steps` body schema captures per-step status (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Refactoring Plan schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step via `atomic_state_write`.
+State.md `## Plan steps` body schema captures per-step status (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Refactoring Plan schema): `step` / `smell` / `impact` / `risk` / `consumers` / `transformation` / `before` / `after` / `test_strategy` / `files_affected` / `rollback` / `status` / `attempts` / `last_post_check`. Orchestrator updates the row after each step with `atomic_state_edit`, anchored on that step's own `status:` line — the surrounding rows and every other field of the same row stay as written.
 
 ### 2.3 Session-level cap + escalation gate
 

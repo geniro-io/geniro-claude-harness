@@ -34,7 +34,7 @@ Debug-specific layers of the opt-in `--deep` quality mode. The cross-skill contr
 
 An empty answer is an upstream tool bug, not a Standard pick: re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions ("never auto-default on an empty answer") rather than defaulting.
 
-**Persistence.** At the Phase 0 frontmatter initialization (the earliest `atomic_state_write`), write `deep-mode: <true|false>` to state.md frontmatter and append `{category: deep_mode_choice, picked: <deep|standard>, at: <ISO-8601 UTC>}` to `approvals[]`. A missing `deep-mode` field reads as false. The session-start restore re-applies the saved choice from `approvals[]` on resume — which is why the resume path skips the chooser. When false (default), Phase 1.4 and Phase 2.4 run their standard single-pass paths and deep mode adds zero overhead.
+**Persistence.** At the Phase 0 frontmatter initialization (the earliest `atomic_state_write`), write `deep-mode: <true|false>` to state.md frontmatter and append `an `approvals[]` entry with `category: deep_mode_choice`, `picked: <deep|standard>` and `at: <ISO-8601 UTC>` (block shape, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1.5 optional `approvals` array)` to `approvals[]`. A missing `deep-mode` field reads as false. The session-start restore re-applies the saved choice from `approvals[]` on resume — which is why the resume path skips the chooser. When false (default), Phase 1.4 and Phase 2.4 run their standard single-pass paths and deep mode adds zero overhead.
 
 ## 2. Recall — Phase 1.4 hypothesis fan-out
 

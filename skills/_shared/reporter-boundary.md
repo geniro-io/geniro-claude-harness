@@ -9,7 +9,7 @@ Consumers: `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:inves
 - The four invariants that bind identically inside a Workflow run
   - 1. Reporter boundary — findings, not changes (why `allowed-tools` doesn't enforce it)
   - 2. Canonical action gate — the documented options are an allowlist
-  - 3. State writes via `atomic_state_write`
+  - 3. State writes via the atomic-state-write helpers
   - 4. Verify what's verifiable; surface only genuine decisions
 - Why this binds — the wrapper-as-authority failure mode
 - Anti-rationalization
@@ -37,7 +37,7 @@ Routing findings to `/geniro:implement` hands off work to fix, not authority to 
 
 ### 3. State writes via atomic_state_write
 
-Every `.geniro/` state and handoff write goes through `atomic_state_write` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`), never a raw `Edit` / `Write`, even inside a workflow step. Raw writes trip the `enforce-state-helper` hook and lose atomicity on a mid-crash.
+Every `.geniro/` state and handoff write goes through the `atomic-state-write` helpers (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`), never a raw `Edit` / `Write`, even inside a workflow step. Raw writes trip the `enforce-state-helper` hook and lose atomicity on a mid-crash.
 
 ### 4. Verify what's verifiable; surface only genuine decisions
 

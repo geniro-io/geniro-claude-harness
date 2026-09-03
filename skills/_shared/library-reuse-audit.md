@@ -114,7 +114,7 @@ Options:
 - **Adopt `<library>`** (one option per surviving candidate) — replace the hand-written code with the library at Phase 2.
 - **Explain further** — a reading aid that renders a deeper walkthrough; writes no decision.
 
-Persist the pick to state.md `approvals[]` with `category: library_adoption`, `picked: <choice>`, `at: <ISO-8601 UTC>` via `atomic_state_write`, so a compaction-resume re-applies it without re-asking. When the user declines (keeps hand-written, or picks a non-recommended path), emit `user_rejected_suggestion` to past learnings via `emit_rejection_if_signal()` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.md`.
+Persist the pick to state.md `approvals[]` with `category: library_adoption`, `picked: <choice>`, `at: <ISO-8601 UTC>` via `atomic_state_append_list_item`, so a compaction-resume re-applies it without re-asking. When the user declines (keeps hand-written, or picks a non-recommended path), emit `user_rejected_suggestion` to past learnings via `emit_rejection_if_signal()` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.md`.
 
 Skip the gate silently when no candidate survives Step 3 — ask nothing when there is nothing to adopt.
 

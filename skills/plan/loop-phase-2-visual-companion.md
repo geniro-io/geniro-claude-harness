@@ -24,7 +24,7 @@ Caller contract (this skill's side):
 
 ### 2.3 Persistence — exit condition
 
-Phase 2 does not transition away from `phase: visual-companion` until `## UI Preview` is written to state.md via `atomic_state_write`, in whichever form matches the exit actually taken:
+Phase 2 does not transition away from `phase: visual-companion` until `## UI Preview` is written to state.md via `atomic_state_append_section --create`, in whichever form matches the exit actually taken:
 
 - **Approved (→ Phase 3).**
 ```markdown

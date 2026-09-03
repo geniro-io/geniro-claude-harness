@@ -78,7 +78,7 @@ User: /geniro:plan implement session storage
 User picks: Postgres
 
 -> approvals[] writer appends:
-   {category: approach_choice, picked: Postgres, recommended: Redis, ...}
+   an `approvals[]` entry with `category: approach_choice`, `picked: Postgres`, `recommended: Redis`, ...
 
 -> emit_rejection_if_signal /geniro:plan global approach_choice \
     "Redis" "Postgres" "Redis"

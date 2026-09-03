@@ -18,7 +18,7 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 Fires FIRST in Phase 3 — before the findings summary, before the escalation AUQ — whenever state.md frontmatter `open_questions[]` carries any entry with `status: unresolved`. Open questions surface ambiguity that downstream consumers (typically /geniro:implement) need resolved before applying a fix; resolving them here means the escalation AUQ chooses between a known-shape target rather than between paths that still gate on ambiguity.
 
-**Procedure.** Run the canonical resolve-open-questions procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 — read and filter the unresolved set, render each entry message-first before its own lean `AskQuestion` (Always-WAIT), write the resolution back in place via `atomic_state_write`, mirror it into the body `## Resolved Questions`, chain a second call rather than batching when one entry's options exceed the AUQ cap, and re-read the frontmatter afterwards to confirm every entry sits in `{resolved, wontfix}` before §3.1 runs. Its Wontfix path binds here unchanged. The entry fields and the `resolution` sub-fields are `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
+**Procedure.** Run the canonical resolve-open-questions procedure in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 — read and filter the unresolved set, render each entry message-first before its own lean `AskQuestion` (Always-WAIT), write the resolution back in place via `atomic_state_edit`, anchored on that entry's own lines, mirror it into the body `## Resolved Questions`, chain a second call rather than batching when one entry's options exceed the AUQ cap, and re-read the frontmatter afterwards to confirm every entry sits in `{resolved, wontfix}` before §3.1 runs. Its Wontfix path binds here unchanged. The entry fields and the `resolution` sub-fields are `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2.
 
 Debug's instantiation of that procedure:
 
@@ -125,7 +125,7 @@ Cleanup is best-effort — if a command fails silently, that's fine.
 
 ### 3.5 Atomic non-resumable updates
 
-After each side-effect that cannot be replayed safely (none in baseline — debug performs no `git push` / `gh pr create`), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_write`.
+After each side-effect that cannot be replayed safely (none in baseline — debug performs no `git push` / `gh pr create`), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_append_list_item`.
 
 The empty baseline is intentional: debug ships proposals, not commits. If a future user-customization introduces side-effects (e.g. a `.geniro/actions/post-finding-to-slack.md` invocation), THAT action becomes a non-resumable entry — not the standard ship flow.
 

@@ -194,7 +194,7 @@ Each pattern is scoped to applicable file extensions — Python's `pickle.loads`
 
 **Event:** PreToolUse `Edit|Write|MultiEdit|NotebookEdit`. **Block exit:** `exit 2`.
 
-Blocks direct `Edit` / `Write` / `MultiEdit` calls against canonical state paths and suggests routing through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (`atomic_state_write` for plain files, `atomic_state_append` for JSONL) — direct calls truncate-and-rewrite, so a reader during the window sees a partial file. Protected prefixes: `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/` (plus `.geniro/.geniro-state.json`).
+Blocks direct `Edit` / `Write` / `MultiEdit` calls against canonical state paths and suggests routing through `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (`atomic_state_set_field` / `atomic_state_edit` to change part of a file, `atomic_state_append_section` / `atomic_state_append_list_item` to add an entry, `atomic_state_write` / `atomic_state_write_cmd` for a whole file, `atomic_state_append` for JSONL) — direct calls truncate-and-rewrite, so a reader during the window sees a partial file. Protected prefixes: `.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/` (plus `.geniro/.geniro-state.json`).
 
 **A block is not a file-write denial:** the path stays writable — only this direct route is closed. The stderr message says so explicitly and names the required helper call, so a blocked run should route through it rather than reporting the file as unwritable or drafting a manual patch for the user to apply.
 

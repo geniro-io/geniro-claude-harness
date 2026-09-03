@@ -6,7 +6,7 @@ Consolidated reference of design decisions that govern how skills, hooks, helper
 
 ## State Files (M1)
 
-Every state write uses the `atomic-state-write` helpers (tmp + fsync + rename + fsync-dir); enforced by PreToolUse hook. Whole-file writes go through `atomic_state_write` / `atomic_state_write_cmd`, in-place changes through `atomic_state_edit` / `atomic_state_set_field`, JSONL through `atomic_state_append`.
+Every state write uses the `atomic-state-write` helpers (tmp + fsync + rename + fsync-dir); enforced by PreToolUse hook. Whole-file writes go through `atomic_state_write` / `atomic_state_write_cmd`; in-place changes through `atomic_state_edit` / `atomic_state_set_field`; appends through `atomic_state_append_section` (a body section), `atomic_state_append_list_item` (a frontmatter YAML list) and `atomic_state_append` (JSONL).
 
 **Four tiers:**
 

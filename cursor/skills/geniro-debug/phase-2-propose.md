@@ -24,7 +24,7 @@ If the confirmed root cause has more than one valid fix path with real trade-off
 - `question` text: plain-English root-cause title + `path:lines`
 - options: one per fix path — `label` (1-5 words, path name) + `description` (one-line trade-off); `preview` stays empty or a one-line recap
 
-**Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entry with `category: multi_path_fix` and matching `root_cause` (use root-cause text as the disambiguator). If found, use prior `picked` value. If not, fire AUQ → on user pick, append entry to `approvals[]` via `atomic_state_write`.
+**Approvals-persistence:** before firing, check state.md frontmatter `approvals[]` for prior entry with `category: multi_path_fix` and matching `root_cause` (use root-cause text as the disambiguator). If found, use prior `picked` value. If not, fire AUQ → on user pick, append entry to `approvals[]` via `atomic_state_append_list_item`.
 
 **Re-ask trigger:** if the root cause changes (second-pass investigation overturns the prior root cause), the prior `approvals[]` entry is stale — clear it and re-fire. The session-start restore re-surfaces this from `approvals[]` on resume.
 

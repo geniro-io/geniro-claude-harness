@@ -13,7 +13,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
 ## PHASE 3: SELF-REVIEW + SHIP
 
-**Advance state.md to `phase: self-review` as this phase's first write**, via `atomic_state_write` — same contract as the Phase 2 entry write: the helper re-emits every field the write leaves alone, so the phase advances only when a write advances it, and a resume routes on the value it finds.
+**Advance state.md to `phase: self-review` as this phase's first write** — `atomic_state_set_field "$S" phase self-review`, the same contract as the Phase 2 entry write: the phase advances only when a write advances it, and a resume routes on the value it finds.
 
 Phase 2's exit and this entry are one continuous stretch: the phase-body read, the `phase:` advance, and Step 1's spawn all follow in the turn that ended Phase 2. Nothing about a green suite is a handoff point, and the run does not wait to be told to review its own work.
 
@@ -65,7 +65,7 @@ Phase 2's exit and this entry are one continuous stretch: the phase-body read, t
 
 ### Ship sub-step
 
-**Advance state.md to `phase: ship`** via `atomic_state_write` before step 0 — same re-emit contract as the phase entries above.
+**Advance state.md to `phase: ship`** via `atomic_state_set_field "$S" phase ship` before step 0 — same contract as the phase entries above.
 
 0. **Reconcile the diff against the spec's requirements.** Spec-driven runs only; skip with a one-line note in inline-task mode. Walk section 6 (Steps) and every clause the spec states in mandatory language — "must", "regardless of", named symbols a step says to contain or change — and for each, point at the hunk in `git diff` that satisfies it. A requirement with no hunk is unbuilt, whatever the task list says.
 
@@ -84,7 +84,7 @@ Phase 2's exit and this entry are one continuous stretch: the phase-body read, t
 
    Triggers: `type=convention` when the Phase 3 architecture or code-quality reviewer reported ≥3 instances of the same pattern; `type=decision` when spec.md records a non-trivial approach choice with `## Considered Alternatives` (inline-task path — /geniro:plan emits decisions directly when it owns the upstream step). A clean single-pass change with neither emits nothing. Default trust = `verified`, because Phase 3 findings are test-validated on entry. After a successful emit, echo `Recorded learning: <summary>` to the user, and surface the promotion suggestion only for `convention` type. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Extract Learnings" plus the visibility + ordering rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
 4. **Ship-mode AUQ.** Fire it per `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" Step 4 — the canonical copy of the push-grade taxonomy (which pushes are draft-grade vs the commit-grade ones that surface an explicit confirm), the three advisory annotations riding the question text (Done-Condition check, overridden-gate disclosure, spec-staleness advisory), the verbatim option-label allowlist ("Open draft PR (Recommended)" always appears as its own option), the approvals-persistence + rejection-signal protocol, and the inline-modifier / `launch_config.ship_mode` overrides. Read that section before building the AUQ; no push or `gh pr create` fires outside its gates.
-5. **Atomic `non-resumable-actions[]` update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_write`, written AFTER the side-effect succeeds. Entry schema, action enum, and timestamp sourcing: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" Step 5.
+5. **Atomic `non-resumable-actions[]` update.** After each side-effect that cannot be replayed safely (`git push`, `gh pr create`, posted PR comment), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_append_list_item`, written AFTER the side-effect succeeds. Entry schema, action enum, and timestamp sourcing: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Commit + Push + PR" Step 5.
 6. (reserved — held open on purpose. Steps 7-9 below are cited by literal number from `implement-reference.md` §"Commit + Push + PR" and from this file's own pre-terminal checks, so closing the gap by renumbering would misroute them. PR review threads are `/geniro:resolve`'s own to close.)
 7. **Update project snapshot.** Fires when Phase 2 added a new module — a bounded single-line append, the only project-snapshot write this skill makes:
 

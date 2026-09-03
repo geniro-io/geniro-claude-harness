@@ -55,8 +55,8 @@ After mode is resolved (IDEA or DESIGN_DOC):
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
 3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `deep-mode: <true|false>` from the `--deep` flag in §0.1 (false when absent); plus `artifact_mode: true` and `artifact_status: pending` written together when artifact mode is on (the `--artifact` flag was present OR the §0.2.5 opt-in answered Yes), both omitted otherwise; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
-4. **Transition.** Set `phase: explore` via `atomic_state_write` and proceed to Phase 1.
+4. **Transition.** Set `phase: explore` via `atomic_state_set_field` and proceed to Phase 1.
 
 ### 0.4 Cancel handling
 
-If state.md already created when user cancels (e.g., deep cancel via Other): write `phase: aborted` + `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_write` before exit.
+If state.md already created when user cancels (e.g., deep cancel via Other): append `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_append_section`, THEN set `phase: aborted` via `atomic_state_set_field`, before exit. Reason first: a crash between the two then leaves a run that still reads as in-progress rather than one marked aborted with no reason recorded.

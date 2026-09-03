@@ -312,7 +312,10 @@ $prefix:   Spec: skills/_shared/atomic-state-write.md"
     body="$body
 $prefix:   Changing part of an existing file? Don't regenerate it — edit in place, still atomically:
 $prefix:     atomic_state_set_field \"$path\" phase user-approve   # one frontmatter field
-$prefix:     atomic_state_edit \"$path\" \"<exact old text>\" \"<new text>\"  # literal, must match once"
+$prefix:     atomic_state_edit \"$path\" \"<exact old text>\" \"<new text>\"  # literal, must match once
+$prefix:   Adding an entry?
+$prefix:     atomic_state_append_section \"$path\" \"## Tool log\" \"<entry>\"   # end of a body section
+$prefix:     atomic_state_append_list_item \"$path\" approvals \"<entry>\"      # a frontmatter YAML list"
   fi
 
   local layout_hint=""

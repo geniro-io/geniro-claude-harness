@@ -31,6 +31,8 @@ EOF
 
 **Changing part of a file that already exists** — `atomic_state_set_field "<path>" phase ship` for a frontmatter field, `atomic_state_edit "<path>" "<old>" "<new>"` for a span of body text. Same atomic commit, without regenerating the file: a regeneration re-writes every field the transform didn't touch at its old value, and that stale value validates clean.
 
+**Adding an entry** — `atomic_state_append_section "<path>" "## Tool log" "<entry>"` appends at the END of a body section (the heading is the wrong anchor for an edit: it inserts above the older entries and inverts the log; pass `--create` for a section the run creates on demand). `atomic_state_append_list_item "<path>" approvals "<entry>"` appends an item to a frontmatter YAML list — the multi-line mapping shape `set_field` cannot write.
+
 **Content produced by a program** — `atomic_state_write_cmd "<path>" <cmd>`, which commits only if the producer exits 0. In `producer | atomic_state_write` the pipeline's rc is the helper's, so a producer that dies mid-stream lands a truncated payload at rc 0. Reserve the heredoc form above for content written literally in the call.
 
 **Why.** The helper does tmp + fsync + rename; a direct write truncates-and-rewrites, so a reader hitting that window sees a partial file.

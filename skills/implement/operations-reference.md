@@ -91,7 +91,7 @@ When `deep-mode: true`, Phase 1 (spec fact-check) and Phase 3 (self-review) run 
 
 `subagent-model` has no chooser question — it is flag-only, parsed at Phase 1 Step 1 and persisted at Step 4 alongside `deep-mode` so a compaction before Phase 2 or Phase 3 fires does not silently revert every spawn back to inherit.
 
-**Write contract.** Route every state.md mutation through `atomic_state_write` — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash; the State-helper enforcement hook hard-blocks such a direct write (exit 2). Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
+**Write contract.** Route every state.md mutation through the `atomic-state-write` helpers — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash; the State-helper enforcement hook hard-blocks such a direct write (exit 2). Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
 
 ---
 

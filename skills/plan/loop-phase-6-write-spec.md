@@ -38,7 +38,7 @@ atomic_state_write ".geniro/planning/<slug>/spec.md" <<'EOF'
 EOF
 ```
 
-After writing spec.md, append a `## Tool log` entry to state.md via `atomic_state_write`:
+After writing spec.md, append a `## Tool log` entry to state.md via `atomic_state_append_section`:
 
 ```yaml
 - ts: 2026-05-17T11:08:00Z

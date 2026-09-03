@@ -61,7 +61,7 @@ Procedure:
 - **No match** — the term may be new domain vocabulary; note it in the answer and proceed without challenge.
 - **Exact match** — the user's term aligns with the glossary; proceed.
 - **Mismatch** — the user's term appears in the glossary but the question's usage suggests a different meaning (e.g., user says "workspace" meaning "browser tab" but glossary defines "workspace" as "tenant container"). Fire the gate.
-4. **If mismatch found:** write `phase: classify-escalated` to state.md via `atomic_state_write` first — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of silently re-running Phase 1 from scratch — then use `AskQuestion` with header "Glossary" before spawning Phase 2 agents:
+4. **If mismatch found:** write `phase: classify-escalated` to state.md via `atomic_state_set_field` first — a compaction while the question is outstanding then resumes as "task was paused — your previous options:" instead of silently re-running Phase 1 from scratch — then use `AskQuestion` with header "Glossary" before spawning Phase 2 agents:
 - **Question**: "Your CLAUDE.md defines `<term>` as `<glossary definition>`. Your question seems to use `<term>` as `<inferred usage>`. Which one should I investigate?"
 - **Options**: "Use the glossary definition" / "Use my new meaning (and note the divergence in the answer)" / "Both — these are genuinely different concepts that share a name (please pick disambiguating names)"
 5. Record the resolution in the answer's Sources section so the synthesized answer carries the disambiguation forward.
