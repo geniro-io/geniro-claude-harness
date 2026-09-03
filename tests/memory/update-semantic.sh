@@ -313,7 +313,7 @@ fi
 # T1 finding #12: the --replace commit used to call
 # `atomic_state_write "$target_path" < "$tmp"` by REDIRECTION, so it ran in
 # THIS shell. atomic_state_write installs its own INT/TERM trap
-# (atomic-state-write.sh:72-73), and bash traps are process-global, not
+# (atomic_state_write installs them per call), and bash traps are process-global, not
 # function-scoped — so its trap clobbered update_semantic's own
 # lock-releasing trap (set earlier in this file, around the case statement)
 # for the duration of the call. A TERM landing during the commit fired

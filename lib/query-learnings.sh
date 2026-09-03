@@ -339,7 +339,7 @@ record_access() {
   # intentional here — this is a best-effort counter bump, not a primary
   # write path.
   # Hostname suffix (not just $$) prevents an NFS-shared .geniro/ from letting
-  # two hosts race to the SAME tmp name — atomic-state-write.sh:52-54 adds it
+  # two hosts race to the SAME tmp name — _atomic_state_tmp_name adds it
   # for the identical reason; this rewrite's own PID-only name was invisible
   # to that guard (2026-08-23 audit T4-31). Sanitized the same way: anything
   # outside [A-Za-z0-9.-] becomes `_` so a path-breaking hostname can't turn

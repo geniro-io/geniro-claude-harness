@@ -336,10 +336,10 @@ set +e
 printf '' | emit_learning
 rc=$?
 set -e
-if [ "$rc" -eq 0 ] && [ "$(log_line_count)" -eq 0 ]; then
-  pass "empty stdin is no-op (rc=0, no log file change)"
+if [ "$rc" -eq 70 ] && [ "$(log_line_count)" -eq 0 ]; then
+  pass "empty stdin reports rc 70 and writes nothing"
 else
-  fail "empty stdin should be no-op; rc=$rc lines=$(log_line_count)"
+  fail "empty stdin should report rc=70 with no write; rc=$rc lines=$(log_line_count)"
 fi
 
 # Injection rejection — override phrasing in summary → rc=64, nothing written.

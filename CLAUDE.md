@@ -29,6 +29,10 @@ atomic_state_write "<path>" <<'EOF'
 EOF
 ```
 
+**Changing part of a file that already exists** — `atomic_state_set_field "<path>" phase ship` for a frontmatter field, `atomic_state_edit "<path>" "<old>" "<new>"` for a span of body text. Same atomic commit, without regenerating the file: a regeneration re-writes every field the transform didn't touch at its old value, and that stale value validates clean.
+
+**Content produced by a program** — `atomic_state_write_cmd "<path>" <cmd>`, which commits only if the producer exits 0. In `producer | atomic_state_write` the pipeline's rc is the helper's, so a producer that dies mid-stream lands a truncated payload at rc 0. Reserve the heredoc form above for content written literally in the call.
+
 **Why.** The helper does tmp + fsync + rename; a direct write truncates-and-rewrites, so a reader hitting that window sees a partial file.
 
 **What enforces it.** The `enforce-state-helper` PreToolUse hook hard-blocks `Edit`/`Write`/`MultiEdit`/`NotebookEdit` on a state path — it reads `file_path`, a declared target it cannot misread. Its exemptions are encoded in the hook (dot-prefixed T1 scratch, `.geniro/state/tdd/`); a path it blocks is a path that needs the helper, not one that needs a workaround.

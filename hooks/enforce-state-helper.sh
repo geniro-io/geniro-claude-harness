@@ -305,6 +305,16 @@ $prefix:     ...content...
 $prefix:     EOF
 $prefix:   Spec: skills/_shared/atomic-state-write.md"
 
+  # A blocked Edit is usually a small change, and regenerating the whole file to
+  # land it is what re-writes untouched fields at stale values. Point those at
+  # the editors so the surgical shape stays surgical.
+  if [ "$helper" = "atomic_state_write" ]; then
+    body="$body
+$prefix:   Changing part of an existing file? Don't regenerate it — edit in place, still atomically:
+$prefix:     atomic_state_set_field \"$path\" phase user-approve   # one frontmatter field
+$prefix:     atomic_state_edit \"$path\" \"<exact old text>\" \"<new text>\"  # literal, must match once"
+  fi
+
   local layout_hint=""
   if non_canonical_state_layout "$path"; then
     layout_hint="$prefix:   This path under .geniro/state/ matches no canonical layout (state/<skill>/<slug>/state.md, the state/setup/state.md singleton, state/handoff/from-<producer>-<branch>.md, or state/tdd/state-<slug>.md) — ad-hoc files there are invisible to the validator and session-restore."
