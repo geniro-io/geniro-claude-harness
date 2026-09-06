@@ -10,6 +10,35 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### Deep mode is removed — `--deep` and everything it gated are gone
+
+Deep mode was an opt-in quality mode on `/geniro:plan`, `/geniro:implement`, `/geniro:review`, and `/geniro:debug` — a 3x generative pass plus majority-vote verification, at 3-5x the token cost, for a run willing to pay it. It is now a pure removal: nothing from the deep path was promoted into the default path, which behaves exactly as the non-deep path always did.
+
+What's gone:
+
+- The `--deep` flag and its `argument-hint` entry on all four skills, and the Standard/Deep depth chooser each skill folded into its early setup question.
+- `skills/_shared/deep-mode.md` (the canonical cross-skill contract) and the four `skills/{plan,review,implement,debug}/deep-mode-reference.md` files.
+- The spec frontmatter `launch_config.deep_mode` key — `/geniro:plan` no longer writes it and `/geniro:implement` no longer reads it.
+- The `deep-mode: <true|false>` state and handoff frontmatter field, and the `deep_mode_choice` `approvals[]` category, on all four skills.
+
+`/geniro:review`'s round ≥2 re-review gate keeps asking scope and steering; only the depth question is gone, so the gate now fires two questions where it used to fire three. `/geniro:resolve` never exposed `--deep`, but it read the same shared tier concept to decide how many verifiers vote on a contested fix or a decline; that ruling — one verifier by default, escalating to a 3-vote majority only when the call is contested or high-stakes — is unchanged and is now stated directly in its own skill rather than by citing the deleted shared file.
+
+**Action required:** Remove `--deep` from any saved command aliases, actions, or `.geniro/instructions/*.md` rules that invoke these four skills — the flag is now inert (read as ordinary argument text) rather than an error. Drop a lingering `deep_mode:` key from a spec's `launch_config` block, a `deep-mode:` line from a task's `state.md` or handoff frontmatter, and any `approvals[]` entry carrying `category: deep_mode_choice` — none of them are read by anything anymore, and leaving them in place is cosmetic debt rather than a broken run (an unrecognized `launch_config` key is never flagged by the spec validator, which only checks its own known key list).
+
+**Auto-detect:**
+
+```bash
+grep -rlE '^[[:space:]]*deep_mode:[[:space:]]*(true|false)\b' .geniro/planning 2>/dev/null
+grep -rlE '^deep-mode:[[:space:]]*(true|false)\b' .geniro/state .geniro/planning 2>/dev/null
+grep -rlE 'category:[[:space:]]*deep_mode_choice' .geniro/state .geniro/planning 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — these are stale keys in the user's own spec/state/handoff files, not plugin content: delete the `deep_mode:` line from any `launch_config` block, delete the `deep-mode:` line from state.md/handoff frontmatter, and drop any `approvals[]` entry whose `category` is `deep_mode_choice`. Skippable — every one of them is inert once found, not a source of a broken run.
+
+**Severity:** LOW — losing an opt-in quality flag is not data loss, and a spec carrying a stale `deep_mode` key still validates clean (the Phase 7 `launch_config_consistency` check only requires its own current key list; it never fails on an extra, unrecognized one). Everyone else sees only the narrower flag surface on the four skills.
+
+---
+
 ### `/geniro:resolve` fixes the comments itself; the resolve handoff is gone
 
 `/geniro:resolve` was a read-only producer: it triaged an open PR's review comments into a
@@ -343,7 +372,7 @@ The "Update Docs" Ship sub-step is removed from `/geniro:implement` — a run no
 
 ### `/geniro:plan` Phase 7.5 spec-challenge fires on every plan
 
-The pre-approval spec-challenge — which re-verifies the spec's cited claims against live code and red-teams the approach before the human approval gate — runs on every plan, at every effort tier. It previously ran only on Big-tier or `--deep` runs, which left the fact-check off for most plans and pushed the first real claim verification into `/geniro:implement`, after the plan was already approved. `--deep` still raises verification from one verifier per claim to three with a majority vote. The pass no longer generates competing alternative approaches in either mode — approach search belongs to Phase 4, which runs earlier with the user in the loop.
+The pre-approval spec-challenge — which re-verifies the spec's cited claims against live code and red-teams the approach before the human approval gate — runs on every plan, at every effort tier. It previously ran only on Big-tier or `--deep` runs, which left the fact-check off for most plans and pushed the first real claim verification into `/geniro:implement`, after the plan was already approved. The pass no longer generates competing alternative approaches in either mode — approach search belongs to Phase 4, which runs earlier with the user in the loop.
 
 **Action required:** None. Expect one extra verification pass per plan, its cost scaled to the spec's own claim count.
 

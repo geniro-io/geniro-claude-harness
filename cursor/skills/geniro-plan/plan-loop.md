@@ -71,7 +71,7 @@ Phase 7 validator (check `source_materials`) requires ≥1 Agent entry with `sta
 
 ## Spawn contract
 
-Cross-phase, binding every subagent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, the Phase 4 stress-test critics, and the deep-mode generators/critics.
+Cross-phase, binding every subagent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, and the Phase 4 stress-test critics.
 
 Subagent model selection: follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Judgment-grade spawns OMIT `model=`. Spawn with `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host (`geniro:` is Claude Code's plugin namespace; no other host has one); on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session.
 
@@ -122,7 +122,7 @@ The table is the phase order. Any phase may branch to the `aborted` terminal on 
 
 ## Phase 4 — Approaches
 
-`phase: approaches`. Steps in `loop-phase-4-approaches.md`: the deep-mode branch · §4.1 approach generation · §4.2 independent stress-test · §4.2.5 build-vs-buy library reuse · §4.3 present approaches (message-first) · §4.4 persistence.
+`phase: approaches`. Steps in `loop-phase-4-approaches.md`: §4.1 approach generation · §4.2 independent stress-test · §4.2.5 build-vs-buy library reuse · §4.3 present approaches (message-first) · §4.4 persistence.
 
 ## Phase 5 — Section approval
 

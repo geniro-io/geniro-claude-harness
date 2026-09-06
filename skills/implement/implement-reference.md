@@ -41,7 +41,7 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 | `REVIEW_HANDOFF` / `DEBUG_HANDOFF` | The matching `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<CURRENT_BRANCH>.md` file exists. |
 | `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
 | `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`). Empty list when field absent. |
-| `SPEC_LAUNCH_CONFIG` | If spec.md present at resolved task slug: parse the optional `launch_config:` frontmatter block (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — `workspace` / `deep_mode` / `branch_freshness` / `ship_mode`, plus the optional `tracker_status` (present only when the spec had a linked tracker ticket). Empty when the block is absent, on an inline-task run with no spec, or on a pre-`m5-v4` spec that omits it. |
+| `SPEC_LAUNCH_CONFIG` | If spec.md present at resolved task slug: parse the optional `launch_config:` frontmatter block (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — `workspace` / `branch_freshness` / `ship_mode`, plus the optional `tracker_status` (present only when the spec had a linked tracker ticket). Empty when the block is absent, on an inline-task run with no spec, or on a pre-`m5-v4` spec that omits it. |
 | `BRANCH_FORMAT_RULE` | Read `global.md` directly here at Step 0a from the resolved instructions base dir: when `$GENIRO_INSTRUCTIONS_DIR` (or `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR`) is set and is a directory, read `<that-dir>/global.md` (expand a leading `~` to `$HOME`); otherwise read `<PRIMARY_ROOT>/.geniro/instructions/global.md`. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 re-Reads the same file with the full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. |
 | `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. |
 | `CONCURRENT_ACTIVITY` | `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. |
@@ -82,19 +82,6 @@ options:
     description: "Slug becomes <type>/no-ticket-<desc>. The branch is created with the placeholder and renameable later via 'git branch -m'."
   - label: "Cancel — I'll get a ticket first"
     description: "Terminal. No git mutation. The run exits so a ticket can be created first, then /geniro:implement re-invoked."
-```
-
-### Question 3 — implement depth
-
-```
-header: "Run depth"
-question: "How deep should the implementation analysis go?"
-multiSelect: false
-options:
-  - label: "Standard"
-    description: "One spec fact-check pass and one self-review pass."
-  - label: "Deep — 3× fact-check + multi-angle self-review"
-    description: "3× spec fact-check before editing plus a multi-angle self-review with verification escalated only where the call is contested; higher quality at higher token cost."
 ```
 
 ---
@@ -146,7 +133,6 @@ A choice a spec `launch_config` pre-answered (0g) carries the same shape plus `s
 | `launch_config` field | Pre-answers |
 |---|---|
 | `workspace` | The 0b/0c workspace question. |
-| `deep_mode` | The Step 0c Question 3 depth chooser (persisted at Step 4 like any depth pick). |
 | `branch_freshness` | The strategy used when the branch is behind the default branch. |
 | `ship_mode` | The Phase 3 Ship-mode AUQ (via the matching sanctioned Ship modifier). |
 | `tracker_status` | The Step 0c Question 2 workflow-status question ("Move to In Progress?"). |
@@ -631,11 +617,10 @@ while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Lo
 
   collect findings (reviewer dim outputs +
                     list of authored failing edge-case tests on disk)
-  cold-verify (standard mode): each newly collected CRITICAL/HIGH gets one
+  cold-verify: each newly collected CRITICAL/HIGH gets one
                     finding-verifier-agent verdict per phase-3-ship.md Step 2 —
                     refuted findings leave the fix set, clarified ones are
-                    amended; skip when none; --deep's signal-gated
-                    verification replaces this
+                    amended; skip when none
   partition (scope before severity — findings carry [NEW|PRE-EXISTING] tags):
     OUT-OF-SCOPE = any finding tagged PRE-EXISTING, at ANY severity — it concerns
                  code this change did not introduce, so fixing it silently expands

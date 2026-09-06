@@ -75,7 +75,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 **Compaction.** The host re-attaches only the first ~20,000 characters of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
-`## Tool log` schema: typical run produces 0-3 entries (stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped. **Deep mode** (opt-in, default off): `--deep` (or the Phase 0 Debug-depth chooser when `--deep` is absent) deepens Phase 1 hypothesis generation (3× fan-out + dedup) and Phase 2 fix/reproduction verification (3 verifiers, majority vote) per `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — higher quality at higher token cost, no change to gates or the no-ship boundary.
+`## Tool log` schema: typical run produces 0-3 entries (stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped.
 
 ---
 
@@ -156,13 +156,13 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 **Phase 1 (Investigate):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / WebSearch / WebFetch (§1.5 external-dependency hypothesis, tiers 2-3) / AskQuestion.
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
-- Allowed subagent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block). `Workflow(...)` for the deep-mode hypothesis fan-out (§1.4, `deep-mode: true` only).
+- Allowed subagent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block).
 - Explicitly blocked: production-source writes and edits, `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.
 
 **Phase 2 (Propose):**
 - Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs) / AskQuestion.
 - Allowed: Edit / Write for reproduction test authoring + experimental monkey-patches.
-- Allowed: `Workflow(...)` for the deep-mode 3-verifier majority vote (§2.4, `deep-mode: true` only). No subagent spawns.
+- No subagent spawns.
 - Explicitly blocked: production-source writes and edits outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
@@ -209,7 +209,7 @@ No L3/L2-read rows fire — diff-scoped work receives its diff pre-inlined, so a
 
 ## State file schema
 
-T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `deep_mode_choice`, `existing_fix_pr`, `debug_workspace_setup` for `approvals[]`; `deep-mode: <true|false>` — set by the `--deep` flag or the Phase 0 Debug-depth chooser, missing reads as false) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
+T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `existing_fix_pr`, `debug_workspace_setup` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
 
 `open_questions[]` entries carry `status: unresolved | resolved | wontfix`; an `unresolved` entry blocks the Phase 3 escalation until the §3.0 pre-gate clears it.
 
@@ -264,6 +264,5 @@ State file: `.geniro/state/debug/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram, state/handoff schemas, infrastructure + isolation reference, stall taxonomy, adversarial templates, worked examples, open-PR scan, emit payload shapes (§1-9; see its own Contents).
-- `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` — depth question (§1), hypothesis fan-out (§2), 3-verifier majority vote (§3).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes.

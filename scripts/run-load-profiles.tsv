@@ -13,7 +13,7 @@
 # script contributes only the arithmetic; it holds no numbers of its own.
 #
 # R1 — the floor. Six always-fire dimensions plus the broad-trigger `optimizations`
-#      conditional, no spec, no PR, no deep mode, no verifiers, no custom
+#      conditional, no spec, no PR, no verifiers, no custom
 #      reviewers. No other conditional is triggered.
 # R2 — the ceiling for built-in dimensions. All ten fire (six always-fire
 #      dimensions plus the broad-trigger `optimizations` conditional, and design,
@@ -26,10 +26,9 @@
 # outside this repo, so its words cannot be measured here. R2 therefore pins the
 # ten built-ins and says so, rather than inventing a row.
 #
-# Excluded from both profiles, deliberately: the deep-mode paths (both
-# profiles are single-pass), memory-backend.md (loaded only when a project
-# declares a backend), and spawn-agent.md / model-tiering.md — phase-2-
-# spawns.md gates the spawn-agent.md Read behind a not-found error or an
+# Excluded from both profiles, deliberately: memory-backend.md (loaded only
+# when a project declares a backend), and spawn-agent.md / model-tiering.md —
+# phase-2-spawns.md gates the spawn-agent.md Read behind a not-found error or an
 # empty spawn result, and model-tiering.md is cited, not Read, at every
 # review call site; neither is paid for on the happy path this floor/ceiling
 # pair measures. /geniro:review authors no tests of its own (any confirming

@@ -8,7 +8,6 @@
 - Step 0.1 — Entry-time working-tree baseline
 - Step 0.2 — Workspace
 - Step 0.3 — Branch freshness
-- Step 0.4 — Deep-mode activation
 - $ARGUMENTS routing
 - Anchored verify-keyword signals
 - Approvals-persistence protocol
@@ -37,7 +36,7 @@ state.md `phase: mode-detect`. **Step 0 — Load custom instructions.** Apply `$
    ⇒ Fire the workspace question (Mode INSPECT-HERE).
 ```
 
-Rule 3 fires `AskQuestion` (header `"Workspace"`) with options from the catalogue in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §2, applied per that file's §4 Mode INSPECT-HERE. This call fires here, at Step 0.2 — per the ordering contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §6 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §1, before Step 0.3's freshness gate and Step 0.4's deep-mode routing, not after. When `$ARGUMENTS` is empty, the same call also carries Mode and, if still unresolved, Debug depth (Step 0.4's table decides which) — one round-trip beats three, and the branch on this path falls back to the short-SHA slug (Workspace slug, below), since no description exists yet.
+Rule 3 fires `AskQuestion` (header `"Workspace"`) with options from the catalogue in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §2, applied per that file's §4 Mode INSPECT-HERE. This call fires here, at Step 0.2 — per the ordering contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §6 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §1, before Step 0.3's freshness gate, not after. When `$ARGUMENTS` is empty, the same call also carries Mode — one round-trip beats two, and the branch on this path falls back to the short-SHA slug (Workspace slug, below), since no description exists yet.
 
 - **"Debug here on '<branch>'"** (`current-branch`) — investigate in place; the reproduction test and any tagged debug logging land on `<branch>`.
 - **"Isolated worktree at this commit"** (`worktree`) — cut at `HEAD` into `.claude/worktrees/debug-<desc-slug>/` (bound in Workspace slug, below), then enter the worktree, leaving the current checkout on its branch. A worktree checks out that branch fresh, so any uncommitted work stays behind in the current checkout — and that work is often the very thing being debugged.
@@ -45,7 +44,7 @@ Rule 3 fires `AskQuestion` (header `"Workspace"`) with options from the catalogu
 
 Recommend exactly one label per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §5: the worktree when `baseline-dirty-paths` is empty, the new branch when it is dirty — the option descriptions above already say why; the recommendation rule doesn't repeat it.
 
-`$ARGUMENTS` modifiers `current-branch` / `here` (the current-branch pick), `worktree` (the worktree pick), and `new-branch` (the new-branch pick) pre-answer this question and suppress it, matching the modifier set the other consumers accept. Strip a matched modifier before the mode-detect routing below, the same way Step 0.4 strips `--deep`.
+`$ARGUMENTS` modifiers `current-branch` / `here` (the current-branch pick), `worktree` (the worktree pick), and `new-branch` (the new-branch pick) pre-answer this question and suppress it, matching the modifier set the other consumers accept. Strip a matched modifier before the mode-detect routing below, so it never leaks into the Scientific-vs-Adversarial decision.
 
 **Workspace slug.** The worktree and new-branch picks name their branch `debug-<desc-slug>`, `<desc-slug>` derived — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`'s slug source order and normalization — from the bug description just collected (the Mode answer, or `$ARGUMENTS` when it already carries one), falling back to `debug-<short-sha>` when no description is available yet. Honor a project branch-name format the way `/geniro:implement` does: read `.geniro/instructions/global.md` for a `BRANCH_FORMAT_RULE` now — the one targeted read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §6 allows ahead of the pick — and compose it around the slug per `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §Phase 1: Step 0a signal detection, `BRANCH_FORMAT_RULE` row. This workspace slug is distinct from the branch-derived slug that names `.geniro/state/debug/<slug>/` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules) — that one is recomputed from whichever branch results, after this action lands.
 
@@ -53,22 +52,11 @@ Persist once, at the end of this step (rules 2-3; rule 1 skips — its state.md 
 
 **Step 0.3 — Branch freshness.** On a fresh run (skip on compaction-resume), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` — debug creates at `HEAD` when it creates at all (Step 0.2's worktree and new-branch picks both cut from `HEAD`, never the default-branch tip), so Mode FRESH-BASE never applies here; offer to update the branch before the investigation starts when it is behind the default branch. Skipped silently when the branch is already current.
 
-**Step 0.4 — Deep-mode activation.** Semantic-parse `$ARGUMENTS` for `--deep` / `deep` / `deep mode` and strip the token before the mode-detect routing below (so it never leaks into the Scientific-vs-Adversarial decision). `--deep` deepens Scientific Mode only; in Adversarial Mode it is accepted and recorded but currently deepens no stage. Then resolve whether the "Debug depth" question fires, and where:
-
-| Condition | Debug-depth question |
-|---|---|
-| `--deep` present, or compaction-resume | Skipped — the flag pre-resolves Deep; resume re-applies the persisted `approvals[]` choice |
-| Empty `$ARGUMENTS` | Joins the Mode call (plus Workspace, when Step 0.2 rule 3 also fires) — one `AskQuestion` call, per the `$ARGUMENTS` routing table below |
-| Non-empty `$ARGUMENTS`, Step 0.2 rule 3 fired | Joins that same Workspace call |
-| Otherwise (common path) | Standalone "Debug depth" question here, before Phase 1.1 memory load |
-
-Every row stays inside the 4-question `AskQuestion` cap. The question shape (header "Debug depth", Standard / Deep options, no `(Recommended)`, empty answer re-asks rather than defaulting) and persistence (`deep-mode: <true|false>` + `approvals[]` category `deep_mode_choice` at the earliest `atomic_state_write`) are spelled out in `${CLAUDE_PLUGIN_ROOT}/skills/debug/deep-mode-reference.md` §1.
-
 $ARGUMENTS routing:
 
 | $ARGUMENTS shape | Mode | Transition |
 |---|---|---|
-| empty | ONE `AskQuestion` call (fired at Step 0.2) carrying: Mode (header "Mode" — 4 options: "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)"; first 3 → Scientific, fourth → Adversarial) + Workspace (when Step 0.2 rule 3 also fires) + Debug depth (when Step 0.4's table above hasn't already resolved it) — up to 3 questions, one round-trip. | `mode-detect` → `investigate` OR `adversarial-mode-detect` |
+| empty | ONE `AskQuestion` call (fired at Step 0.2) carrying: Mode (header "Mode" — 4 options: "Describe the symptoms" / "Paste error message" / "Point to a failing test" / "Verify last changes (adversarial)"; first 3 → Scientific, fourth → Adversarial) + Workspace (when Step 0.2 rule 3 also fires) — up to 2 questions, one round-trip. | `mode-detect` → `investigate` OR `adversarial-mode-detect` |
 | matches anchored verify-keyword signals (table below) | Adversarial Mode | `adversarial-mode-detect` |
 | otherwise | Scientific Mode | `mode-detect` → `investigate` |
 

@@ -28,7 +28,7 @@ A run that reaches the end with no deferred-decision block and no pre-answers to
 A choice the user made before the run started is answered, not deferred. Two channels carry one, and only these two:
 
 - `launch_config:` in the spec's frontmatter (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — the designed pre-answer surface for exactly this situation.
-- The launch modifiers parsed from `$ARGUMENTS` (workspace / ship / `freshness:` / `--deep`), per the skill's own modifier table.
+- The launch modifiers parsed from `$ARGUMENTS` (workspace / ship / `freshness:`), per the skill's own modifier table.
 
 Record a pre-answered gate in `approvals[]` the way an interactive run would, noting its source. The doctrine boundary in `launch-config-schema.md` binds unchanged here: a pre-answer covers setup, and cannot pre-authorize a Tier 2 gate.
 
@@ -36,7 +36,7 @@ Record a pre-answered gate in `approvals[]` the way an interactive run would, no
 
 ## Tier 1 — setup gates take the most reversible option
 
-Setup gates choose between paths that differ in convenience, not in what they risk: the workspace choice, the depth chooser, the branch-freshness strategy, the ship mode, the tracker kickoff status. With no pre-answer, take the option the skill marks `(Recommended)` when one exists, and otherwise the option that is easiest to undo — the narrower scope, the reversible write, the branch you can delete.
+Setup gates choose between paths that differ in convenience, not in what they risk: the workspace choice, the branch-freshness strategy, the ship mode, the tracker kickoff status. With no pre-answer, take the option the skill marks `(Recommended)` when one exists, and otherwise the option that is easiest to undo — the narrower scope, the reversible write, the branch you can delete.
 
 Persist each to `approvals[]` with `source: non-interactive-default`, so a later interactive resume can tell a defaulted choice from one the user actually made.
 

@@ -83,7 +83,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 | Gate | Rule |
 |---|---|
-| Verifier fan-out | One fresh `finding-verifier-agent` per `decline` and per contested `fix` (#3) — never on an uncontested fix. Items citing the same file share one spawn, at the cluster cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4. Tier (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`) sets the vote count: 1 by default; 3 on Big for a contested call only, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Fire the whole batch in one assistant turn |
+| Verifier fan-out | One fresh `finding-verifier-agent` per `decline` and per contested `fix` (#3) — never on an uncontested fix. Items citing the same file share one spawn, at the cluster cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4. Tier (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`) sets the vote count: 1 by default; 3 on Big for a contested call only, aggregated by majority so a single hallucinated vote cannot flip the disposition. Fire the whole batch in one assistant turn |
 | Test run | One `test-runner-agent` run after the fixes are applied, plus at most one re-run after fixing what it caught; a second failure escalates to the user rather than looping |
 | User gates | Two by default — the Phase 2 decision gate and the Phase 3 ship gate. An item with two plausible readings adds its own single-item gate; nothing else asks |
 | Rounds | Single pass. A re-run on the same PR picks up only threads still unresolved (#7) |

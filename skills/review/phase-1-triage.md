@@ -18,9 +18,9 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 
 ## Phase 1 — Triage & context collect
 
-State.md `phase: triage`. Every step below is specified in full — inputs, decision trees, fail-open rules, gate wording — in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`, which is the single home of the Phase 1 contract. Read it on entry to this phase — before any step below, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, exactly as this file itself was. The list here is the running order and nothing more, so a step's rule is never stated in two places to drift apart; the corollary is that every Phase 1 gate — the workspace-approval decision tree, the round-3 escalation, the re-review scope and depth questions — exists only in that reference, and a run that stops at this file has the running order with none of the gates.
+State.md `phase: triage`. Every step below is specified in full — inputs, decision trees, fail-open rules, gate wording — in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`, which is the single home of the Phase 1 contract. Read it on entry to this phase — before any step below, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, exactly as this file itself was. The list here is the running order and nothing more, so a step's rule is never stated in two places to drift apart; the corollary is that every Phase 1 gate — the workspace-approval decision tree, the round-3 escalation, the re-review scope question — exists only in that reference, and a run that stops at this file has the running order with none of the gates.
 
-**Flags & presets:** `--deep`, `--plan <path>`, `--subagent-model <tier>`, and the workspace modifiers are cataloged with the cross-skill flag set in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+**Flags & presets:** `--plan <path>`, `--subagent-model <tier>`, and the workspace modifiers are cataloged with the cross-skill flag set in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
 
 Run these in order (`§` anchors are sections of the triage reference):
 
@@ -31,14 +31,13 @@ Run these in order (`§` anchors are sections of the triage reference):
 5. **Fetch the linked issue** — workflow-file detection, tracker-ID match, spec-frontmatter ref merge, and the `LINEAR CONTEXT:` block · §3.5.
 6. **Scout sibling pull requests** (PR ref only) — scored, capped, and inlined as `PEER-PR CONTEXT:` · `phase-1-pr-reference.md` §4.
 7. **Load the custom instructions** · §6.
-8. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope + depth question on a fresh second-or-later round · §7.
+8. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope question on a fresh second-or-later round · §7.
 9. **Load the plan context** · §8.
 10. **Stratify by risk** — sets `risk-tier: standard | high`, which scales three downstream knobs · §9.
 11. **Load the memory layers** — project snapshot, past learnings, conflict resolution · §10.
-12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape; runs before the depth question so the reviewer count is known at ask time · §12.
-13. **Ask how deep to review** — Standard / Deep, unless a `--deep` flag, the step-8 gate, or a compaction-resume already settled it this run · §11 + `${CLAUDE_PLUGIN_ROOT}/skills/review/deep-mode-reference.md`.
+12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape · §12.
 
-Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, plus `deep-mode` (from the depth pick or the `--deep` parse) when that step ran, and `subagent-model` (from the step-2 flag parse; missing reads as `inherit`); `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
+Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, and `subagent-model` (from the step-2 flag parse; missing reads as `inherit`); `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
 Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr diff` / `gh pr view` / `mcp__linear__*` reads). For codebase-research side queries inside this phase (e.g., locating a pattern across the wider repo when scoring peer-PR overlap), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 

@@ -573,7 +573,7 @@ _vps_check_launch_config() {
     _vps_emit launch_config_consistency skip "No launch_config block — its absence is the default and never fails a spec." ""
     return
   fi
-  for key in workspace deep_mode branch_freshness ship_mode tracker_status; do
+  for key in workspace branch_freshness ship_mode tracker_status; do
     value="$(_vps_block_value "$fm" launch_config "$key")"
     if [ -z "$value" ]; then
       # tracker_status is key-presence-guarded: written only for a spec with a
@@ -584,7 +584,6 @@ _vps_check_launch_config() {
     fi
     case "$key:$value" in
       workspace:new-branch|workspace:current-branch|workspace:worktree|workspace:here) ;;
-      deep_mode:true|deep_mode:false) ;;
       branch_freshness:merge|branch_freshness:rebase|branch_freshness:skip) ;;
       ship_mode:commit-no-push|ship_mode:draft-pr|ship_mode:ready-for-review|ship_mode:stop-after-review) ;;
       tracker_status:move-to-in-progress|tracker_status:leave-unchanged) ;;

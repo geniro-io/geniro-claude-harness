@@ -132,7 +132,7 @@ What the measurements support:
 - **Agreement is not the stronger alternative it appears to be.** Agreement among model outputs predicts correctness only weakly, and agreement between *correlated* samplers actively misleads: samplers sharing a prompt, a rubric, or a model reinforce their common errors instead of checking each other. Two dimensions sharing a rubric section are correlated by construction — the mirror-gap check is deliberately carried by both `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §1.6 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 — so their agreeing is expected, not evidence.
 - **Neither substitutes for reading the code.** The Phase 4.2 verifier re-reads the cited slice, and that is the step separating a real defect from a plausible description of one.
 
-Implication: do not tune a confidence threshold, and do not add one back. The percentage is a report field the user reads beside the finding; `convergence_count` still feeds deep mode's escalation predicate and the Phase 5.3 recurring-pitfall signal. The §5 gate reads neither.
+Implication: do not tune a confidence threshold, and do not add one back. The percentage is a report field the user reads beside the finding; `convergence_count` still feeds the Phase 5.3 recurring-pitfall signal. The §5 gate reads neither.
 
 Confidence scoring guidance (still emit, advisory):
 
@@ -163,7 +163,7 @@ ELSE DEFER to ## Deferred — sub-threshold (state.md body; off the PR and the f
 
 **Why admission stops at severity and citation.** Every signal that tried to estimate whether a finding was *correct* — the reviewer's self-rated confidence, cross-dimension agreement — is too weak to carry the decision (§4), so the gate stops asking that question. It asks the two it can answer: how bad is this if real (severity, scored against §1's inclusion and exclusion lists rather than self-rated), and does the finding cite code that can be re-read (the Evidence-Block check, mechanical at §4.1 entry). Whether the defect is real is the Phase 4.2 verifier's question, and it reads the code to answer it.
 
-The two signals that left the gate are not lost, only no longer load-bearing at admission: a criteria-file pre-resolved marker (e.g. the regressions signal-table) marks findings that score HIGH and are now admitted by severity anyway, and `convergence_count` still feeds deep mode's escalation predicate and the Phase 5.3 recurring-pitfall signal.
+The two signals that left the gate are not lost, only no longer load-bearing at admission: a criteria-file pre-resolved marker (e.g. the regressions signal-table) marks findings that score HIGH and are now admitted by severity anyway, and `convergence_count` still feeds the Phase 5.3 recurring-pitfall signal.
 
 Admission constraint for MEDIUM: a MEDIUM finding requires the Evidence-Block. A MEDIUM admitted with nothing to re-read reaches the verifier with no slice to read and the user with no anchor, so it drops to `## Deferred — sub-threshold` instead. At CRITICAL / HIGH that same thin citation is admitted rather than dropped — losing a high-severity defect costs more — and the Phase 4.2 verifier supplies the missing quote, which makes the Evidence Block requirement (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`) a post-verification invariant rather than an admission-time one.
 

@@ -43,13 +43,13 @@ Each answered gate appends one entry to state.md frontmatter `approvals[]` via `
 
 ```yaml
 approvals:
-  - category: deep_mode_choice
-    prompt: "How deep should the planning go?"
-    options: ["Standard", "Deep — wider search + 3-vote verify"]
-    picked: "Standard"
+  - category: approach_choice
+    prompt: "Which approach do you want to pursue?"
+    options: ["Service-layer fan-out", "In-process Promise.all"]
+    picked: "Service-layer fan-out"
     at: 2026-05-17T10:50:00Z
-    asked_in_phase: clarify
-    why: "Two of the three open decisions were already settled by the explore pass, so the extra verification passes had little left to contest."
+    asked_in_phase: approaches
+    why: "The in-process option risks running out of memory on large customers; the service-layer fan-out keeps memory flat at the cost of one more moving part to run."
 ```
 
 Record `why` on a gate whose answer a later reader could not reconstruct from `picked` alone — a scope call, a tier hold, a pick made against the recommendation. Add `evidence` when the reason rests on something checkable, and `result` once the pick has been acted on. Omit all three where the pick speaks for itself; a `why` that paraphrases `picked` is noise the reader still pays for.
@@ -60,7 +60,7 @@ The sections below name only their `category` slug and the phase they are asked 
 
 ## 1b. Artifact opt-in question (Phase 0, asked once when `--artifact` is absent)
 
-Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Mirrors the shape of the §2a planning-depth question — its own single-question AUQ, no `(Recommended)` marker (the page is a richer surface, not a safer plan). This section owns the question text and both option labels — use them verbatim:
+Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Its own single-question AUQ, no `(Recommended)` marker (the page is a richer surface, not a safer plan). This section owns the question text and both option labels — use them verbatim:
 
 ```yaml
 - header: "Visual plan"
@@ -127,24 +127,6 @@ After the user answers, persist it (below), then render the next question's fram
 
 Each answered question → one `approvals[]` entry (§1 entry shape) with category `clarify_<dim>` (e.g. `clarify_auth_method`), `asked_in_phase: clarify`.
 
-### 2a. Planning-depth question (asked once at grill wrap-up when `--deep` is absent)
-
-When `$ARGUMENTS` does not carry `--deep`, ask a planning-depth question once at grill wrap-up (§2b termination) — its own single-question AUQ, after the substance is settled. It never depends on a clarifying answer, so it goes last by convention (a mode question). This depth question is exempt from the §2b checkpoint cadence — it is a mode question, not a clarification, and never triggers a wrap-up. When `--deep` is present, depth is already Deep — skip this question. No `(Recommended)` marker: Deep is costlier, not safer.
-
-```yaml
-- header: "Plan depth"
-  question: "How deep should the planning go?"
-  options:
-    - label: "Standard"
-      description: "Single-pass approach search and a single verification pass over the spec's cited claims."
-    - label: "Deep — wider search + 3-vote verify"
-      description: "A judge-panel approach search plus 3x verification of the spec's cited claims with majority vote; higher quality at higher token cost."
-```
-
-Empty answer → re-ask, never auto-default, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. Phase 3 is skipped on Trivial tasks, so depth there stays flag-only.
-
-Persist the pick to state.md frontmatter `deep-mode: <true|false>` and append an `approvals[]` entry (§1 entry shape) with category `deep_mode_choice`, `asked_in_phase: clarify`.
-
 ### 2b. Checkpoint gate and termination summary
 
 The checkpoint trigger is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4. At a checkpoint, render a running summary to a chat message FIRST, then fire ONE lean AUQ.
@@ -183,7 +165,7 @@ options:
 
 Persist each checkpoint decision to `approvals[]` (§1 entry shape) with category `grill_checkpoint`, `asked_in_phase: clarify`.
 
-**Termination** rules are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4 (closing summary → the §2a planning-depth question when `--deep` is absent → Phase 4).
+**Termination** rules are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4 (closing summary → Phase 4).
 
 ---
 
@@ -391,7 +373,7 @@ What each pick then does — the lifecycle flip, the commit, the revision-round 
 
 ## 5b. Phase 8 launch-config AUQ — pre-define implement settings (opt-in)
 
-Fires at the very end of planning — Phase 8, AFTER the user approves the spec (§5 above) and BEFORE the §8.4 git commit. Replaced by the flag-driven build in §8.3.5 when launch modifiers (workspace / `freshness:` / ship) are present in `$ARGUMENTS`; this interactive gate fires only when no launch modifier was passed. `--deep` alone does not replace it. It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
+Fires at the very end of planning — Phase 8, AFTER the user approves the spec (§5 above) and BEFORE the §8.4 git commit. Replaced by the flag-driven build in §8.3.5 when launch modifiers (workspace / `freshness:` / ship) are present in `$ARGUMENTS`; this interactive gate fires only when no launch modifier was passed. It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
 
 Two steps: a gate question, then (only on "Yes") a batched capture.
 
@@ -404,7 +386,7 @@ header: "Setup"
 question: "Pre-define the implementation settings now, so /implement can run on its own?"
 options:
   - label: "Yes — set them now"
-    description: "Pick the workspace, depth, branch handling, and ship mode here; /implement skips those questions and runs on its own."
+    description: "Pick the workspace, branch handling, and ship mode here; /implement skips those questions and runs on its own."
   - label: "No — /implement will ask when it runs"
     description: "Leave the settings unset; /implement asks them interactively at start, exactly as it does today."
 ```
@@ -413,7 +395,7 @@ On "No" → write no `launch_config:` block; persist the declined gate answer to
 
 ### Step 2 — batched capture (only on "Yes")
 
-A batched capture. The four always-present settings (workspace / depth / branch handling / ship mode) fill ONE AUQ call — the 4-question-per-call tool cap. When the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty), a fifth setting — the kickoff tracker-status pre-answer — chains into a SECOND AUQ call rather than displacing one of the four: chain, never drop. With no linked tracker ticket, only the first four-question call fires. Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, Standard (`deep_mode: false`), `rebase`, `draft-pr`, and (when offered) `move-to-in-progress`.
+A batched capture. The three always-present settings (workspace / branch handling / ship mode), plus — when the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty) — the kickoff tracker-status setting, all fit inside the 4-question-per-call tool cap and fire together in ONE AUQ call; with no linked tracker ticket only the three always-present questions fire. Should a future setting ever push the call past that cap, chain the overflow into a second AUQ call rather than dropping it. Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, `rebase`, `draft-pr`, and (when offered) `move-to-in-progress`.
 
 ```yaml
 questions:
@@ -428,13 +410,6 @@ questions:
         description: "Cut a separate worktree so the current checkout is untouched."
       - label: "Here"
         description: "Work in the current directory as-is, no branch change."
-  - header: "Run depth"
-    question: "How deep should the implementation review go?"
-    options:
-      - label: "Standard"                     # Recommended → deep_mode: false
-        description: "Single self-review pass; standard cost."
-      - label: "Deep"
-        description: "Multi-angle self-review plus a pre-edit fact-check; higher quality, higher cost."
   - header: "Branch sync"
     question: "If the branch is behind the default branch, how should /implement catch it up?"
     options:
@@ -455,13 +430,7 @@ questions:
         description: "Commit locally; don't push or open a PR."
       - label: "Stop after review"
         description: "Stop before any commit or push."
-```
-
-**Chained second call — only when a tracker ticket is linked** (`workflow_refs[]` non-empty). Fire a SECOND `AskQuestion` immediately after the first resolves, carrying the single tracker-status question — never appended to the first call:
-
-```yaml
-questions:
-  - header: "Task status"
+  - header: "Task status"                    # only when a tracker ticket is linked
     question: "When /geniro:implement starts, move the linked tracker task to In Progress?"
     options:
       - label: "Yes — move to In Progress"        # Recommended → tracker_status: move-to-in-progress
@@ -470,7 +439,7 @@ questions:
         description: "/geniro:implement won't change the tracker status at kickoff."
 ```
 
-Map the picks to the `launch_config:` block values (`workspace` / `deep_mode` / `branch_freshness` / `ship_mode`, plus `tracker_status` when the chained tracker-status call fired) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"The block". Omit `tracker_status` from the block when no tracker ticket was linked (the chained call did not fire). Hold the block for the §8.4 spec rewrite.
+Map the picks to the `launch_config:` block values (`workspace` / `branch_freshness` / `ship_mode`, plus `tracker_status` when the tracker-status question fired) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"The block". Omit `tracker_status` from the block when no tracker ticket was linked (the question did not fire). Hold the block for the §8.4 spec rewrite.
 
 ### Step 3 — persistence
 
@@ -484,7 +453,6 @@ approvals:
     picked: "Yes — set them now"
     launch_config:
       workspace: new-branch
-      deep_mode: false
       branch_freshness: rebase
       ship_mode: draft-pr
       tracker_status: move-to-in-progress   # present only when a tracker ticket was linked

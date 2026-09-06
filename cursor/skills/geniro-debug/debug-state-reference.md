@@ -72,8 +72,7 @@ timestamp: <ISO-8601 UTC>
 phase: <enum per State Machine above>
 status: <in-progress|done|failed>
 non-resumable-actions: []
-approvals: []                         # categories: branch_freshness, disambiguate_mode, multi_path_fix, verification_stalled, deep_mode_choice, existing_fix_pr, debug_workspace_setup
-deep-mode: <true|false>               # optional, set by the --deep flag or the Phase 0 Debug-depth chooser; missing reads as false
+approvals: []                         # categories: branch_freshness, disambiguate_mode, multi_path_fix, verification_stalled, existing_fix_pr, debug_workspace_setup
 baseline-dirty-paths: []              # git status --porcelain changed-path list captured at Phase 0 entry (Step 0.1), before this run touches anything; consumed by Phase 3 §3.1's working-tree check, Scientific Mode only — Adversarial Mode's ship path never reads it
 geniro_kind: debug-state
 geniro_schema_version: m7-v1
@@ -125,7 +124,6 @@ geniro_schema_version: m7-v2
 mode: scientific
 phase: ship
 status: done
-deep-mode: <true|false>               # propagated from state.md; producer→consumer in lockstep; missing reads as false
 approvals: []
 non-resumable-actions: []
 authored_tests: []                    # entry fields: id, path, intent, mode, f_to_p_status,
@@ -146,7 +144,7 @@ The `authored_tests[]` frontmatter array is the machine-readable source of truth
 
 ### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
 
-Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`. Same schema as from-debug-<branch>.md with `mode: adversarial` and `phase: adversarial-ship` discriminators; the `deep-mode: <true|false>` field propagates here too (producer→consumer in lockstep; missing reads as false). Body: A6 Adversarial Findings template + body sections.
+Path: `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md`. Same schema as from-debug-<branch>.md with `mode: adversarial` and `phase: adversarial-ship` discriminators. Body: A6 Adversarial Findings template + body sections.
 
 ---
 
@@ -203,7 +201,7 @@ When /geniro:debug stalls (the stall gate fires — threshold defined in `${CLAU
 
 Frontmatter for `from-debug-adversarial-<branch>.md`, written directly via `atomic_state_write` at A4 step 4 (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) — a direct Edit/Write to any `.geniro/state/` path is hard-blocked by the state-helper enforcement hook, so write it with `source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"` then `atomic_state_write "<path>" <<'EOF' … EOF`.
 
-Emit the complete T2 frontmatter, not only the test array. Field semantics are canonical at this file's §2 above — read it rather than guessing a field's shape. Required keys: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `worktree`, `timestamp`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `deep-mode`, `approvals`, `non-resumable-actions`, `authored_tests`, `open_questions`. Values this mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `schema-version: 1`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `non-resumable-actions: []` (this pass makes no persisted-AUQ pick and completes no non-resumable action), `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `branch` / `worktree` = state.md frontmatter `branch:` / `worktree:`, the Phase 0-recorded workspace; `timestamp` = a live clock read at write time. Omitting `branch`/`worktree` routes the consumer into the degraded fallback (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C), which drops the relocation suggestion the tests need to be found by.
+Emit the complete T2 frontmatter, not only the test array. Field semantics are canonical at this file's §2 above — read it rather than guessing a field's shape. Required keys: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `worktree`, `timestamp`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `authored_tests`, `open_questions`. Values this mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `schema-version: 1`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `non-resumable-actions: []` (this pass makes no persisted-AUQ pick and completes no non-resumable action), `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `branch` / `worktree` = state.md frontmatter `branch:` / `worktree:`, the Phase 0-recorded workspace; `timestamp` = a live clock read at write time. Omitting `branch`/`worktree` routes the consumer into the degraded fallback (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C), which drops the relocation suggestion the tests need to be found by.
 
 `authored_tests: [...]` carries one entry per RED test kept after the A4 step 3 flake check — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree. Entry schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § Producer-specific extensions; the values this mode fixes are `mode: adversarial` (matching the top-level `mode:` discriminator), `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring the A6 Confidence column, `path` resolved against `git rev-parse --show-toplevel`.
 
