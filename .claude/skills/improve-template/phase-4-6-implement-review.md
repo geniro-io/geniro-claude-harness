@@ -27,6 +27,8 @@ Group approved findings into implementation units:
 - **Single file changes:** One agent per file
 - **Cross-file changes:** One agent per logical group (same module/feature)
 
+Group so that no two agents own the same file — they run concurrently in one shared checkout, and two agents editing one file interleave into a diff neither of them wrote. Name each unit's owned paths in its prompt, and name the paths it must leave to its siblings.
+
 ### Step 2: Spawn implementation agents in ONE response (all Agent() calls in the same assistant turn, NOT one per turn)
 
 Pre-inline the current file content each agent needs (from Phase 1 codebase research).
@@ -53,6 +55,13 @@ Apply the following approved changes:
 - Match the change to exactly what was approved — extra scope here ships unreviewed
 - Touch only the lines the approved change requires, leaving surrounding code as found
 - Let the diff explain itself; skip comments narrating the change — those go stale the moment the code moves again
+- **The working tree is shared.** Sibling agents edit this same checkout at the same time. Run no git
+  command that rewrites the tree — no `stash`, no `reset`, no `clean`, no `checkout`/`restore` of a path,
+  no branch switch. A single `git stash` resets every sibling's uncommitted work to HEAD at once and
+  recovery is manual. To check whether a failure is pre-existing, read the file at the base commit with
+  `git show <sha>:<path>` — never by reverting the tree. Confirm your own edits landed with
+  `git diff -- <your paths>` rather than trusting a tool's success message; if one was reverted underneath
+  you, re-apply it and report it.
 - **Edit-in-place principle:** When fixing or improving an instruction, rewrite the
   original instruction to be explicit about the correct behavior. NEVER add separate
   notes, exceptions, caveats, or conditions below/after the original. Adding
