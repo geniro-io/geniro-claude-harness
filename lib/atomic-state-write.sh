@@ -136,7 +136,7 @@ _atomic_state_commit() {
   # this helper never silently narrows or widens a state file's permissions.
   if [ -e "$target" ]; then
     local mode
-    mode="$(stat -f '%Lp' "$target" 2>/dev/null || stat -c '%a' "$target" 2>/dev/null || echo '')"
+    mode="$(stat -c '%a' "$target" 2>/dev/null || stat -f '%Lp' "$target" 2>/dev/null || echo '')"
     [ -n "$mode" ] && chmod "$mode" "$tmp" 2>/dev/null
   else
     local um

@@ -814,17 +814,26 @@ fi
 
 # --- Permissions and identity ---------------------------------------------
 
-# A deliberately restricted state file must not be widened by an edit.
-target="$TMPDIR/perm.md"
-printf -- '---\nphase: a\n---\n' > "$target"
-chmod 600 "$target"
-atomic_state_set_field "$target" "phase" "Z"
-mode=$(stat -f '%Lp' "$target" 2>/dev/null || stat -c '%a' "$target" 2>/dev/null)
-if [ "$mode" = "600" ]; then
-  pass "editors — the target's permissions are carried across the rewrite"
-else
-  fail "editors — mode changed to $mode (want 600)"
-fi
+# GNU first, then BSD: on GNU `-f` is --file-system, so probing BSD-first there
+# prints filesystem status for the target instead of its mode.
+mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null; }
+
+# A state file's mode survives an edit unchanged — in both directions. The tmp
+# mktemp hands over is 0600, so a 600 target agrees with an unset mode by
+# accident; only a target that is NOT 600 shows whether the mode was carried.
+for want_mode in 600 644 640; do
+  target="$TMPDIR/perm-$want_mode.md"
+  printf -- '---\nphase: a\n---\n' > "$target"
+  chmod "$want_mode" "$target"
+  atomic_state_set_field "$target" "phase" "Z"
+  mode=$(mode_of "$target")
+  if [ "$mode" = "$want_mode" ]; then
+    pass "editors — a $want_mode target keeps its mode across the rewrite"
+  else
+    fail "editors — a $want_mode target became $mode"
+  fi
+done
+target="$TMPDIR/perm-600.md"
 
 # A rename failure must name the function the caller actually called.
 target="$TMPDIR/msg.md"
@@ -1137,7 +1146,7 @@ echo "Tests failed: $TESTS_FAILED"
 
 # An expected total: deleting a case would otherwise report a smaller green run.
 # Update this number in the same commit that adds or removes a case.
-EXPECTED_TESTS=84
+EXPECTED_TESTS=86
 if [ "$TESTS_RUN" -ne "$EXPECTED_TESTS" ]; then
   echo "FAIL: expected $EXPECTED_TESTS assertions, ran $TESTS_RUN — a case was added or dropped without updating EXPECTED_TESTS" >&2
   exit 1
