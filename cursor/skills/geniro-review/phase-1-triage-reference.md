@@ -20,6 +20,7 @@ State.md `phase: triage` during this phase.
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
 - §9 Step 0.7 — Risk-tier stratification
 - §10 Step 0.8 — Memory layer load
+- §11 reserved — the review-depth question is removed; the re-review gate asks scope + steering under §7
 - §12 Size triage
 
 ---

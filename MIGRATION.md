@@ -21,15 +21,15 @@ What's gone:
 - The spec frontmatter `launch_config.deep_mode` key — `/geniro:plan` no longer writes it and `/geniro:implement` no longer reads it.
 - The `deep-mode: <true|false>` state and handoff frontmatter field, and the `deep_mode_choice` `approvals[]` category, on all four skills.
 
-`/geniro:review`'s round ≥2 re-review gate keeps asking two questions, not one — scope stays, and steering (the free-text `--focus` note for the round) takes depth's place rather than dropping out. `/geniro:resolve` never exposed `--deep`, but it read the same shared tier concept to decide how many verifiers vote on a contested fix or a decline; that ruling — one verifier by default, escalating to a 3-vote majority only when the call is contested or high-stakes — is unchanged and is now stated directly in its own skill rather than by citing the deleted shared file.
+`/geniro:review`'s round ≥2 re-review gate keeps asking scope and steering; only the depth question is gone, so the gate now fires two questions where it used to fire three. `/geniro:resolve` never exposed `--deep`, but it read the same shared tier concept to decide how many verifiers vote on a contested fix or a decline; that ruling — one verifier by default, escalating to a 3-vote majority only when the call is contested or high-stakes — is unchanged and is now stated directly in its own skill rather than by citing the deleted shared file.
 
 **Action required:** Remove `--deep` from any saved command aliases, actions, or `.geniro/instructions/*.md` rules that invoke these four skills — the flag is now inert (read as ordinary argument text) rather than an error. Drop a lingering `deep_mode:` key from a spec's `launch_config` block, a `deep-mode:` line from a task's `state.md` or handoff frontmatter, and any `approvals[]` entry carrying `category: deep_mode_choice` — none of them are read by anything anymore, and leaving them in place is cosmetic debt rather than a broken run (an unrecognized `launch_config` key is never flagged by the spec validator, which only checks its own known key list).
 
 **Auto-detect:**
 
 ```bash
-grep -rlE '^[[:space:]]*deep_mode:[[:space:]]*(true|false)[[:space:]]*$' .geniro/planning 2>/dev/null
-grep -rlE '^deep-mode:[[:space:]]*(true|false)[[:space:]]*$' .geniro/state .geniro/planning 2>/dev/null
+grep -rlE '^[[:space:]]*deep_mode:[[:space:]]*(true|false)\b' .geniro/planning 2>/dev/null
+grep -rlE '^deep-mode:[[:space:]]*(true|false)\b' .geniro/state .geniro/planning 2>/dev/null
 grep -rlE 'category:[[:space:]]*deep_mode_choice' .geniro/state .geniro/planning 2>/dev/null
 ```
 

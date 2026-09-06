@@ -47,7 +47,7 @@ approvals:
     picked: "Service-layer fan-out"
     at: 2026-05-17T10:50:00Z
     asked_in_phase: approaches
-    why: "The in-process option risks running out of memory on large customers; the queue-based option keeps memory flat at the cost of one more moving part to run."
+    why: "The in-process option risks running out of memory on large customers; the service-layer fan-out keeps memory flat at the cost of one more moving part to run."
 ```
 
 Record `why` on a gate whose answer a later reader could not reconstruct from `picked` alone — a scope call, a tier hold, a pick made against the recommendation. Add `evidence` when the reason rests on something checkable, and `result` once the pick has been acted on. Omit all three where the pick speaks for itself; a `why` that paraphrases `picked` is noise the reader still pays for.
@@ -58,7 +58,7 @@ The sections below name only their `category` slug and the phase they are asked 
 
 ## 1b. Artifact opt-in question (Phase 0, asked once when `--artifact` is absent)
 
-Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Mirrors the shape of the §2a planning-depth question — its own single-question AUQ, no `(Recommended)` marker (the page is a richer surface, not a safer plan). This section owns the question text and both option labels — use them verbatim:
+Fires at the very start of planning (Phase 0) — after the mode resolves, before exploration begins — so the page can be built up from the first phase. When the `--artifact` flag was present in the run's arguments, skip this question: the flag is the opt-in. Its own single-question AUQ, no `(Recommended)` marker (the page is a richer surface, not a safer plan). This section owns the question text and both option labels — use them verbatim:
 
 ```yaml
 - header: "Visual plan"

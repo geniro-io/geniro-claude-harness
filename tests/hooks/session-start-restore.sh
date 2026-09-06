@@ -512,10 +512,10 @@ approvals:
     why: "the branch already had an open PR reviewers were watching"
     evidence: "gh pr view reported state OPEN"
     result: "PR 412 updated, no new PR created"
-  - category: ship_mode
-    picked: "Standard"
+  - category: rereview_scope_choice
+    picked: "Re-review the whole PR"
     at: 2026-05-19T14:05:00Z
-    asked_in_phase: analyze
+    asked_in_phase: triage
     why: ""
 ---
 
@@ -543,7 +543,7 @@ grep -qE 'why:[[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: an empty why rendered a bare label" \
   || pass "Block 5d: an empty-string why renders nothing"
 
-grep -q '\[ship_mode\] User picked: "Standard"' <<<"$ac" \
+grep -q '\[rereview_scope_choice\] User picked: "Re-review the whole PR"' <<<"$ac" \
   && pass "Block 5d: an entry with only the required fields still renders" \
   || fail "Block 5d: entry with empty optional field stopped rendering"
 
@@ -575,10 +575,10 @@ approvals:
     at: 2026-05-19T14:00:00Z
     asked_in_phase: ship
     why: "  "
-  - category: ship_mode
-    picked: "Standard"
+  - category: rereview_scope_choice
+    picked: "Re-review the whole PR"
     at: 2026-05-19T14:05:00Z
-    asked_in_phase: analyze
+    asked_in_phase: triage
     why: null
   - category: minor_findings
     picked: "fix now"

@@ -49,8 +49,6 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 
 `argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]"`
 
-Standard runs one reviewer pass per dimension — N reviewers for this diff (computed at ask time).
-
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
 | `--plan <path>` | a spec path | Supplies the spec so the specification-compliance reviewer can check the diff against it. This is a context input, not a question pre-set. | No question — adds spec context to the reviewers. |
