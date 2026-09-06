@@ -70,7 +70,6 @@ approval_required_for: # advisory: step_anchors flagged for a user-approval paus
 tools_required: ["pnpm", "docker", "gh"] # CLI tools the implementer needs in env — goal-state end
 launch_config: # optional, SEPARATE block (NOT goal-state) — present only when the user pre-defined /geniro:implement settings at plan time (m5-v4). Absent block = /geniro:implement asks its Step 0 setup questions interactively.
   workspace: new-branch # new-branch | current-branch | worktree | here
-  deep_mode: false # true | false
   branch_freshness: rebase # merge | rebase | skip
   ship_mode: draft-pr # commit-no-push | draft-pr | ready-for-review | stop-after-review
   tracker_status: move-to-in-progress # OPTIONAL even within the block: move-to-in-progress | leave-unchanged — written only when the spec has a linked tracker ticket (workflow_refs[]); pre-answers /geniro:implement's kickoff "Move to In Progress?" question

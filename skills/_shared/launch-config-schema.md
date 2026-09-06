@@ -16,7 +16,7 @@ Single source of truth for the optional `launch_config:` block in spec.md frontm
 
 `launch_config:` is opt-in and spec-driven only. It captures `/geniro:implement`'s launch settings at plan time so `/implement` runs without re-asking. Three rules govern when it is read:
 
-- **Opt-in.** The block is written when the user explicitly pre-defines implement settings at the end of planning OR by passing launch modifiers (workspace / ship / `freshness:`) to `/plan`. A user who declines (and passes no launch modifiers) gets no block, and planning proceeds unchanged. `--deep` governs `/plan`'s own analysis depth, not `/implement`'s — passing it alone is not consent to pre-fill implement settings, and does not by itself suppress the end-of-plan opt-in question.
+- **Opt-in.** The block is written when the user explicitly pre-defines implement settings at the end of planning OR by passing launch modifiers (workspace / ship / `freshness:`) to `/plan`. A user who declines (and passes no launch modifiers) gets no block, and planning proceeds unchanged.
 - **Spec-driven only.** An inline-task `/implement` run (no spec.md) has nothing to pre-define — there is no frontmatter to carry the block, so the launch questions fire interactively as they do today.
 - **Absent = ask interactively.** When `launch_config:` is absent from a spec, `/implement` asks its Step 0 setup questions exactly as it does now. The block is purely additive: removing it changes nothing about today's behavior.
 
@@ -25,7 +25,6 @@ Single source of truth for the optional `launch_config:` block in spec.md frontm
 ```yaml
 launch_config:                 # optional; present only when the user pre-defined implement settings at plan time
   workspace: new-branch        # new-branch | current-branch | worktree | here
-  deep_mode: false             # true | false
   branch_freshness: rebase     # merge | rebase | skip
   ship_mode: draft-pr          # commit-no-push | draft-pr | ready-for-review | stop-after-review
   tracker_status: move-to-in-progress  # move-to-in-progress | leave-unchanged; OPTIONAL even within the block — written only when the spec has a linked tracker ticket (workflow_refs[] non-empty)
@@ -36,7 +35,6 @@ Each key pre-answers exactly one existing `/implement` setup question:
 | Key | Enum | Pre-answers |
 |---|---|---|
 | `workspace` | `new-branch` \| `current-branch` \| `worktree` \| `here` | `/implement` Step 0 workspace question (the same choices the `new-branch` / `current-branch` / `worktree` / `here` `$ARGUMENTS` modifiers select). |
-| `deep_mode` | `true` \| `false` | The Standard/Deep depth chooser; `true` is equivalent to passing `--deep`. |
 | `branch_freshness` | `merge` \| `rebase` \| `skip` | The strategy when the branch is behind the default branch. |
 | `ship_mode` | `commit-no-push` \| `draft-pr` \| `ready-for-review` \| `stop-after-review` | The Ship-gate behavior — maps to the four sanctioned Ship modifiers. |
 | `tracker_status` | `move-to-in-progress` \| `leave-unchanged` | `/geniro:implement` Step 0 workflow-status question ("Move to In Progress?"). Written only when the spec carries a linked tracker ticket (`workflow_refs[]` non-empty). |
@@ -46,10 +44,6 @@ Each key pre-answers exactly one existing `/implement` setup question:
 ### `workspace`
 
 Pre-answers the Step 0 workspace question. The four values match the existing `$ARGUMENTS` workspace modifiers: `new-branch` (cut a fresh branch), `current-branch` (work in place), `worktree` (cut a worktree), `here` (work in the current directory as-is). It pre-answers the question that would otherwise fire; it does NOT override an active auto-continue or resume signal. When `/implement` detects a prior-task continuation (smart auto-continue), that signal wins — the user is already mid-task, and a plan-time workspace pre-set is not a directive to abandon the in-flight workspace.
-
-### `deep_mode`
-
-Pre-answers the Standard/Deep depth chooser. `true` runs the deeper mode (multi-angle self-review plus the pre-edit fact-check, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md`) — equivalent to `--deep`. `false` runs standard depth. The chooser does not fire when this key is present.
 
 ### `branch_freshness`
 
@@ -94,14 +88,14 @@ Bump `geniro_schema_version` to `m5-v4` when `launch_config` is present. Backwar
 
 ## Producer / consumer contract
 
-**Producer — `/geniro:plan`.** `/plan` populates the block from EITHER the end-of-plan opt-in answer OR the launch modifiers (workspace / ship / `freshness:`) passed in `$ARGUMENTS`; both persist to state.md `approvals[]` under category `launch_config` (the modifier-sourced entry notes its source was `$ARGUMENTS`). `--deep` on its own is not a launch modifier for this trigger — the `deep_mode` field is still populated from it whenever the block is written for another reason, but `--deep` alone does not write the block or skip the opt-in question. The `launch_config` block is written into spec.md frontmatter inside the SAME approval-time full-spec `atomic_state_write` rewrite that flips `lifecycle: draft` → `lifecycle: approved`, so it commits atomically with the approved spec — there is no window where an approved spec exists without its pre-set, or a pre-set exists against a not-yet-approved spec. `/plan` does not act on the values; it only records them for `/implement`. When the spec carries a linked tracker ticket, the block also carries `tracker_status` (the kickoff move-to-In-Progress pre-answer); with no linked ticket the key is omitted.
+**Producer — `/geniro:plan`.** `/plan` populates the block from EITHER the end-of-plan opt-in answer OR the launch modifiers (workspace / ship / `freshness:`) passed in `$ARGUMENTS`; both persist to state.md `approvals[]` under category `launch_config` (the modifier-sourced entry notes its source was `$ARGUMENTS`). The `launch_config` block is written into spec.md frontmatter inside the SAME approval-time full-spec `atomic_state_write` rewrite that flips `lifecycle: draft` → `lifecycle: approved`, so it commits atomically with the approved spec — there is no window where an approved spec exists without its pre-set, or a pre-set exists against a not-yet-approved spec. `/plan` does not act on the values; it only records them for `/implement`. When the spec carries a linked tracker ticket, the block also carries `tracker_status` (the kickoff move-to-In-Progress pre-answer); with no linked ticket the key is omitted.
 
-**Consumer — `/geniro:implement`.** When `launch_config` is present, Step 0 applies it and records the equivalent `approvals[]` entries (`deep_mode_choice`, `ship_mode`, the workspace choice, and — when `tracker_status` is set — `implement_workflow_status`), each noting the source is the spec's `launch_config`, and skips the corresponding setup questions. The recorded source matters for the session-restore and compaction paths — a restored run must distinguish a choice the user made interactively this session from one carried in from the plan. Every safety gate listed under the doctrine boundary continues to fire on its own trigger; the recorded pre-sets cover setup only.
+**Consumer — `/geniro:implement`.** When `launch_config` is present, Step 0 applies it and records the equivalent `approvals[]` entries (`ship_mode`, the workspace choice, and — when `tracker_status` is set — `implement_workflow_status`), each noting the source is the spec's `launch_config`, and skips the corresponding setup questions. The recorded source matters for the session-restore and compaction paths — a restored run must distinguish a choice the user made interactively this session from one carried in from the plan. Every safety gate listed under the doctrine boundary continues to fire on its own trigger; the recorded pre-sets cover setup only.
 
 ## Validator contract
 
 A shape-only check mirrors the `workflow_refs_consistency` check in `${CLAUDE_PLUGIN_ROOT}/skills/plan/validator-checks.md`:
 
-- **When present:** verify each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `deep_mode` ∈ {`true`, `false`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}; and, when the optional `tracker_status` key is present, `tracker_status` ∈ {`move-to-in-progress`, `leave-unchanged`} (key-presence-guarded — its absence inside a present block is valid, since it is written only when the spec had a linked tracker ticket). An out-of-enum value returns `fail` — the block is structurally broken.
+- **When present:** verify each key's value is within its enum — `workspace` ∈ {`new-branch`, `current-branch`, `worktree`, `here`}; `branch_freshness` ∈ {`merge`, `rebase`, `skip`}; `ship_mode` ∈ {`commit-no-push`, `draft-pr`, `ready-for-review`, `stop-after-review`}; and, when the optional `tracker_status` key is present, `tracker_status` ∈ {`move-to-in-progress`, `leave-unchanged`} (key-presence-guarded — its absence inside a present block is valid, since it is written only when the spec had a linked tracker ticket). An out-of-enum value returns `fail` — the block is structurally broken.
 - **When absent:** skip the check entirely. Older specs without the block stay valid.
 - **Guard by `geniro_schema_version`:** the check runs only when `launch_config:` is present (which implies `m5-v4`); it never fires on a spec that omits the block, so a legacy `m5-v1` / `m5-v2` / `m5-v3` spec is never failed for not carrying it.

@@ -130,7 +130,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 13. `launch_config_consistency`
 
-*Scripted.* Skipped entirely when `launch_config:` is absent — older specs without the block stay valid, mirroring the `m5-v1` skip above, and its absence is the default (`/geniro:implement` then asks its Step 0 setup questions interactively). When present, each of the four core keys (`workspace` / `deep_mode` / `branch_freshness` / `ship_mode`) is set to one of its enum values, case-sensitively, and the optional `tracker_status` is checked only when the key is there. Shape-only; nothing is executed. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
+*Scripted.* Skipped entirely when `launch_config:` is absent — older specs without the block stay valid, mirroring the `m5-v1` skip above, and its absence is the default (`/geniro:implement` then asks its Step 0 setup questions interactively). When present, each of the three core keys (`workspace` / `branch_freshness` / `ship_mode`) is set to one of its enum values, case-sensitively, and the optional `tracker_status` is checked only when the key is there. Shape-only; nothing is executed. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
 
 **Ordering note:** the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so this check's present-branch fires on RE-validation of an existing spec — a later /geniro:plan run over the same task-dir. The write-time enum assertion lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md`, §8.4's launch-config enum assertion.
 

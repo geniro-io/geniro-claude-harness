@@ -57,7 +57,6 @@ reset_spec() {
   TOOLS_FIELD='tools_required: ["pnpm", "gh"]'
   LAUNCH='launch_config:
   workspace: new-branch
-  deep_mode: false
   branch_freshness: rebase
   ship_mode: draft-pr
   tracker_status: move-to-in-progress'
@@ -434,28 +433,24 @@ expect_status lc-absent.md launch_config_consistency skip "an absent launch_conf
 
 reset_spec; LAUNCH='launch_config:
   workspace: new-branch
-  deep_mode: false
   branch_freshness: rebase
   ship_mode: yolo-push
   tracker_status: move-to-in-progress'; mk_spec lc-enum.md
 expect_status lc-enum.md launch_config_consistency fail "ship_mode outside its enum"
 
 reset_spec; LAUNCH='launch_config:
-  deep_mode: false
   branch_freshness: rebase
   ship_mode: draft-pr'; mk_spec lc-missing.md
 expect_status lc-missing.md launch_config_consistency fail "a missing core key"
 
 reset_spec; LAUNCH='launch_config:
   workspace: worktree
-  deep_mode: true
   branch_freshness: skip
   ship_mode: stop-after-review'; mk_spec lc-notracker.md
 expect_status lc-notracker.md launch_config_consistency pass "tracker_status is optional within the block"
 
 reset_spec; LAUNCH='launch_config:
   workspace: New-Branch
-  deep_mode: false
   branch_freshness: rebase
   ship_mode: draft-pr'; mk_spec lc-case.md
 expect_status lc-case.md launch_config_consistency fail "enum membership is case-sensitive"

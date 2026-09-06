@@ -28,7 +28,7 @@ An adversarial verification pass, invoked per the calling skill's contract, that
 
 Caller invokes:
 
-> Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: <plan|implement>`, `SPEC_PATH: <path to spec.md>`, `TASK_DIR: <planning task-dir>`, `EFFORT_TIER: <caller scope signal>`, `DEEP: <true|false>`.
+> Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with `MODE: <plan|implement>`, `SPEC_PATH: <path to spec.md>`, `TASK_DIR: <planning task-dir>`, `EFFORT_TIER: <caller scope signal>`.
 
 | Slot | Meaning |
 |---|---|
@@ -37,7 +37,6 @@ Caller invokes:
 | `TASK_DIR` | The caller's task-dir; scratch output lands at `<TASK_DIR>/.spec-challenge-out.md`. |
 | `EFFORT_TIER` | Informational only — the caller's native scope signal (`/geniro:plan`: spec frontmatter `effort_tier`; `/geniro:implement`: codebase-explorer `change_scope`; both `trivial\|small\|medium\|big`). Calibrates the synthesis judge's risk tolerance — never an internal gate; whether the pass runs at all is the caller's contract. |
 | `SCOPE` | `full` (default, absent reads as full) or `changed-only`. `changed-only` restricts Stages A and B to claims that are new or altered since the last pass over this spec. Stages D and E still run over the whole spec, because a new claim can invalidate an old step. This is the mode every re-entry after a spec edit uses (§8 Re-entry); it exists so that re-checking a revised spec costs a fraction of the first pass instead of the whole of it. |
-| `DEEP` | `true` when the calling skill is in deep mode (`deep-mode: true`), else `false` / absent. When `true`, Stage B (§4) runs each cited claim through 3 independent verifiers with majority aggregation instead of 1 — the precision layer per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` §3. Orthogonal to `MODE`; raises verification reliability, not the claim set. Missing reads as `false`. |
 
 **Once invoked, no internal tier skip.** The helper never decides to skip itself — the invocation decision was already made by the caller's contract, and re-deciding it here would silently undo a skill-level decision. Cost stays bounded by the spec's own cited-claim set (§3): every claim is verified, with same-file claims clustered into shared verifier spawns (§4 Spawn batch), so spawn count scales sub-linearly with claim count and never with sentence count. The judge reads `EFFORT_TIER` to calibrate how hard a borderline red-team risk should weigh, never whether a stage runs.
 
@@ -125,18 +124,6 @@ Compose the verifier prompt for `${CLAUDE_PLUGIN_ROOT}/agents/finding-verifier-a
 Spawn via the runtime-degradation ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:finding-verifier-agent` under Claude Code → bare `finding-verifier-agent`, the entry rung everywhere else → general-purpose-with-body). OMIT `model=` by default so verifiers inherit the orchestrator's tier, or pass `model="<tier>"` when the calling skill's run carries `--subagent-model` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`). Send ALL verifier spawns in ONE assistant response — separate turns serialize execution and double wall-time; the parallel-spawn invariant applies here exactly as in `/geniro:review` Phase 4.2.
 
 Aggregate: any `refuted` claim is a defect; `clarified` is a soft defect (the spec's framing needs a fix); `confirmed` claims pass. A claim that no source — code or declared — could confirm is recorded as unverified/unconfirmed (handled by the existing disposition, never silently accepted as fact). Record each result in the scratch report beside its claim entry (source location, kind, literal fact, verdict) — this is the record §8.5's re-entry diffs against, so the verdict lands on the same entry the claim was extracted into, not a separate log.
-
-### Deep mode — 3× verify + majority (`DEEP: true`)
-
-When the caller passes `DEEP: true`, each cited claim gets **3 independent verifiers**, run inside an internal `Workflow(...)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/deep-mode.md` (observe its §4 mandatory mitigations — raw JSON not schema, re-assert the read-only contract in every prompt, its model-tier rule, path constants outside template literals). Clustering applies to the single-pass batch only — deep mode verifies each claim individually, mirroring `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §4's deep-mode rule. Each verifier receives the identical isolated input a single-pass verifier gets for that claim (the claim + cited slice + caller grep + sibling tests); independence is load-bearing, so a verifier never sees the others' votes. Aggregate per claim by majority:
-
-- Tally the three dispositions across the parseable votes.
-- ≥2 `refuted` → the claim is a **hard defect** (`refuted`).
-- else ≥2 `clarified` → the claim is a **soft defect** (`clarified`) — the spec's framing needs a fix. Single-pass treats any `clarified` as a soft defect, so a `clarified` majority must surface one too: collapsing it into a pass would make deep mode WEAKER than single-pass, which the floor invariant (deep-mode.md §5) forbids.
-- else → the claim **passes** (`confirmed`).
-- A verifier whose raw output won't parse **abstains** — counts toward neither side; the ≥2 thresholds are over the parseable votes. If <2 parseable votes remain (≥2 abstained), quorum fails → run ONE fresh single-pass verifier for that claim and take its verdict (deep-mode.md §5 ladder).
-
-The verdict feeds §7 exactly as the single-pass result does — deep mode changes the vote count, not the downstream handling. If the workflow errors or agent registration fails, fail-safe to the single-pass batch above and note `Deep mode couldn't run the extra spec-check passes — fell back to a single pass.` in the scratch report (deep-mode.md §5).
 
 ## 5. Stage C — the approach is not re-opened here
 

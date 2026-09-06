@@ -16,11 +16,10 @@ Each row names a flag or modifier, the values it accepts, what it sets, and how 
 
 ## /geniro:plan
 
-`argument-hint: "<topic-string-or-design-doc-path> [--deep] [--artifact]"`
+`argument-hint: "<topic-string-or-design-doc-path> [--artifact]"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
-| `--deep` | present / absent | Deepens the approach search (wider candidate set) and adds majority-vote verification of the spec's cited claims. Higher quality, higher cost. | The Standard/Deep depth question (asked at the Phase 3 clarify wrap-up). |
 | `--artifact` | present / absent | Turns on the live, auto-updating visual plan artifact published to a private page as the plan develops. | The artifact opt-in question. |
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Pre-fills the spec's `launch_config` workspace setting so `/geniro:implement` runs hands-free without asking where to land its edits (`no-worktree` and `here` both map to the `here` enum value). | `/implement`'s workspace setup question (deferred — applied when `/implement` consumes the spec). |
 | `don't push` / `no push` / `commit only` / `draft only` / `ready-for-review` / `stop after review` | one value | Pre-fills the spec's `launch_config` ship setting (commit-no-push / draft PR / ready-for-review PR / stop before commit). | `/implement`'s ship-mode question (deferred). |
@@ -30,12 +29,11 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 
 ## /geniro:implement
 
-`argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--deep]"`
+`argument-hint: "[task description | spec.md path | empty to resume | 'continue']"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
 | `new-branch` / `current-branch` / `worktree` / `no-worktree` (`here`) | one value | Forces the workspace path — cut a fresh branch, work in place on the current branch, cut a worktree, or run in the current directory. | The Step 0 workspace question. |
-| `--deep` | present / absent | Deepens two phases — a multi-angle self-review with verification escalated only where the call is contested, and a 3× fact-check of the spec's cited claims before the first edit. | The Standard/Deep depth question (folded into the Step 0 workspace question). |
 | `--no-adversarial` | present / absent | Skips the inline edge-case test authoring step in Phase 3 self-review. | No question — drops the extra authoring step from the review round. |
 | `don't push` / `no push` / `commit only` | one value | Commit succeeds, no push. | The ship-mode question. |
 | `draft only` / `draft PR` / `open draft` | one value | Push and open a draft PR. | The ship-mode question. |
@@ -45,15 +43,16 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 
 A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the ship-mode question — it routes through the gate so the safe draft default stays visible.
 
-**Spec `launch_config` block (spec-driven runs).** When `/geniro:plan` wrote a `launch_config` block into the spec, `/implement` reads it at Step 0 and applies workspace / deep_mode / branch_freshness / ship_mode (and, when the spec has a linked tracker ticket, tracker_status) at once, skipping each corresponding setup question. The block is the cross-skill contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`. An inline-task run (no spec) has no block, so the setup questions fire interactively.
+**Spec `launch_config` block (spec-driven runs).** When `/geniro:plan` wrote a `launch_config` block into the spec, `/implement` reads it at Step 0 and applies workspace / branch_freshness / ship_mode (and, when the spec has a linked tracker ticket, tracker_status) at once, skipping each corresponding setup question. The block is the cross-skill contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`. An inline-task run (no spec) has no block, so the setup questions fire interactively.
 
 ## /geniro:review
 
-`argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--deep]"`
+`argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]"`
+
+Standard runs one reviewer pass per dimension — N reviewers for this diff (computed at ask time).
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
-| `--deep` | present / absent | Reviews each check from several angles and majority-verifies findings where the call is contested. Higher quality, higher cost. Without it, Standard runs one reviewer pass per dimension — N reviewers for this diff (computed at ask time). | The Phase 1 review-depth question (its own AUQ; folded into the re-review gate on round ≥2). |
 | `--plan <path>` | a spec path | Supplies the spec so the specification-compliance reviewer can check the diff against it. This is a context input, not a question pre-set. | No question — adds spec context to the reviewers. |
 | `--focus <text>` | free text | Pre-fills this run's steering note for reviewers — extra attention on a path, or a "stop flagging X" instruction. A "stop flagging" match still reaches the report; once verified, the orchestrator moves it to the filtered section instead of erasing it (a CRITICAL is exempt and stays kept). | The re-review gate's steering question (round ≥2 only — round 1 has no gate to skip). |
 | `worktree` / `no-worktree` / `here` / `current-branch` / `new-branch` | one value | Forces the workspace path the review inspects. | The Step 0 workspace question. |
@@ -69,4 +68,4 @@ These gates fire on a real triggering event regardless of any flag, modifier, or
 - **Spec-challenge-on-drift** — a refuted cited claim or a blocking feasibility risk found by the pre-edit fact-check stops for the user.
 - **Shared-branch / open-PR ship** — a push to a shared or default branch, or one updating an open PR reached via a handoff, is commit-grade and still gates even under a ship-mode pre-set.
 - **Real merge / rebase conflict** — a clean fast-forward applies the pre-set freshness strategy silently, but an actual conflict surfaces interactively; a strategy pre-set is consent to attempt, not to resolve unseen conflicts.
-- **`/review` re-review gate** — on a re-run, the scope, depth, and steering decisions are always re-asked, never silently inherited.
+- **`/review` re-review gate** — on a re-run, the scope and steering decisions are always re-asked, never silently inherited.

@@ -6,7 +6,6 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 
 ## Contents
 
-- Deep-mode branch
 - 4.1 Approach generation
 - 4.2 Independent stress-test (adversarial weighing)
 - 4.2.5 Build-vs-buy library reuse (per approach)
@@ -14,8 +13,6 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 - 4.4 Persistence
 
 State.md `phase: approaches` during this phase.
-
-**Deep-mode branch (`deep-mode: true`).** Do NOT run the single-pass §4.1 synthesis + tier-scaled §4.2 critics below. Instead run the judge-panel approach search (3-4 diverse-lens generators → dedup → rank) and the 3× feasibility critics with majority vote, both inside an internal `Workflow(...)`, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md` §2-3. Fold the top 2-3 ranked candidates into the §4.3 chat message + AUQ exactly as standard mode does. Fail-safe to the single-pass path below if the workflow errors (deep-mode-reference §6). Everything below describes the standard single-pass path.
 
 ### 4.1 Approach generation
 

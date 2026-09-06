@@ -77,14 +77,13 @@ Both are already handled by the spawn contract, which every codebase-work spawn 
 | `Agent(subagent_type=...)` | Use the host's subagent/task-delegation facility with the agent's **bare** name (`reviewer-agent`) — this is the form Cursor and every other non-Claude-Code host registers, and the `geniro:` prefix a skill body may show alongside it is Claude Code's plugin namespace, which resolves nowhere else. Enter the ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at rung 2 accordingly; spending a parallel batch on rung 1 here costs one dead spawn per agent and a wasted turn to learn what this row already told you. Where the host registers none of the plugin's agents but ships generic ones (`explore`, `reviewer`, `tester`), delegate to the nearest generic and carry the plugin agent's contract in the spawn prompt — its scope, its evidence standard, and its Output Format — so what comes back is still the contracted artifact; the isolation is what the spawn buys, and a generic agent provides it. If the host has no delegation facility at all, run the agent's contract inline: read `agents/<name>.md`, strip frontmatter, follow its body against its input slots, and treat its Output Format as the result. Parallel fan-outs then run sequentially — correctness is unchanged, only wall-time. |
 | `model="sonnet"` at a spawn site | `haiku`/`sonnet`/`opus` are Claude Code model ids and no other roster carries them, so translate the intent per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Runtime resolution — under Cursor a mechanical or execution spawn passes `auto`, which is that host's own version of the sizing the Claude Code orchestrator does itself. Judgment-grade spawns still omit the argument entirely, in every host. Never substitute a pinned model id of your own choosing. |
 | `TodoWrite` | Resolve by name before concluding absence: hosts that omit `TodoWrite` — Claude Code's own SDK and desktop hosts among them — usually carry the same capability as a task-list tool under another name (`TaskCreate` / `TaskUpdate` / `TaskList`). Use it under the same discipline, one item in progress at a time. Only where no such tool exists under any name, keep the numbered list in the state.md body and echo each transition in chat as it happens — the per-unit progress visibility is what the tool buys, and a list posted once at the start does not provide it. |
-| `Workflow` | Use the documented single-pass fallback at each deep-mode call site. |
 | `EnterWorktree` / `ExitWorktree` | `git worktree add` / `remove` via Bash, per the skill's existing Bash path. |
 | `Artifact` | Skip, per the artifact helper's skip notice. |
 | `WebSearch` / `WebFetch` | The host's web-search/fetch capability. |
 
 ## Arguments
 
-`$ARGUMENTS` is Claude Code slash-command substitution. In other runtimes, treat everything the user wrote after naming the skill as `$ARGUMENTS`, including flags like `--deep`.
+`$ARGUMENTS` is Claude Code slash-command substitution. In other runtimes, treat everything the user wrote after naming the skill as `$ARGUMENTS`, including flags like `--focus`.
 
 ## Session restore without the SessionStart hook
 

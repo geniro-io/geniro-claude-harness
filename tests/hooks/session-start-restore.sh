@@ -512,7 +512,7 @@ approvals:
     why: "the branch already had an open PR reviewers were watching"
     evidence: "gh pr view reported state OPEN"
     result: "PR 412 updated, no new PR created"
-  - category: deep_mode_choice
+  - category: ship_mode
     picked: "Standard"
     at: 2026-05-19T14:05:00Z
     asked_in_phase: analyze
@@ -543,7 +543,7 @@ grep -qE 'why:[[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: an empty why rendered a bare label" \
   || pass "Block 5d: an empty-string why renders nothing"
 
-grep -q '\[deep_mode_choice\] User picked: "Standard"' <<<"$ac" \
+grep -q '\[ship_mode\] User picked: "Standard"' <<<"$ac" \
   && pass "Block 5d: an entry with only the required fields still renders" \
   || fail "Block 5d: entry with empty optional field stopped rendering"
 
@@ -575,7 +575,7 @@ approvals:
     at: 2026-05-19T14:00:00Z
     asked_in_phase: ship
     why: "  "
-  - category: deep_mode_choice
+  - category: ship_mode
     picked: "Standard"
     at: 2026-05-19T14:05:00Z
     asked_in_phase: analyze

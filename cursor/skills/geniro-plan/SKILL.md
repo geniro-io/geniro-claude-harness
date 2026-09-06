@@ -1,6 +1,6 @@
 ---
 name: geniro-plan
-description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → grill (decision-tree clarification) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly. Optional --deep deepens the analysis — a wider approach search plus a 3-vote majority verification of the spec's cited claims (higher quality, higher cost). Optional --artifact builds a live, auto-updating visual artifact of the plan as it develops."
+description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → grill (decision-tree clarification) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly. Optional --artifact builds a live, auto-updating visual artifact of the plan as it develops."
 context: main
 ---
 <!-- Generated from skills/plan/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
@@ -36,7 +36,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` can consum
 
 The HARD-GATE in `plan-loop.md` prevents any implementation invocation until Phase 8 user-approve returns "Approve".
 
-**Flags & presets:** `--deep`, `--artifact`, and the launch modifiers (workspace / ship / `freshness:`) that pre-fill the spec's `launch_config` are cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+**Flags & presets:** `--artifact` and the launch modifiers (workspace / ship / `freshness:`) that pre-fill the spec's `launch_config` are cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
 
 ---
 
@@ -177,7 +177,6 @@ non-resumable-actions: []
 approvals: []
 task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
-deep-mode: <true|false>          # optional, set by the --deep flag (Phase 0); missing reads as false
 artifact_mode: true              # optional, present only when the user opted into the visual artifact (Phase 0 question or --artifact)
 artifact_status: pending|live|unavailable  # optional, present only in artifact mode — publish lifecycle state
 artifact_url: "<url>"            # optional, present once the page is published live
@@ -186,7 +185,7 @@ artifact_url: "<url>"            # optional, present once the page is published 
 
 The visual-artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; the captured `claude.ai` URL persists in state.md so a later session re-targets the same page instead of publishing a duplicate.
 
-When `deep-mode: true`, Phase 4 runs its deeper path and Phase 7.5 — which fires on every run regardless of `deep-mode` — runs its 3-verifier majority claim verification instead of a single pass, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/deep-mode-reference.md`; persist the activation to `approvals[]` category `deep_mode_choice` so a resume re-applies it.
+Phase 7.5 fires on every run, at every effort tier — it is not conditional on anything set upstream.
 
 **Write contract.** Every state.md AND spec.md mutation goes through the `atomic-state-write` helpers from `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` (invariant #3) — the only working write path for both artifacts.
 
@@ -201,16 +200,16 @@ When `deep-mode: true`, Phase 4 runs its deeper path and Phase 7.5 — which fir
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
 | Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / AskQuestion / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskQuestion / atomic_state_write (state.md `## UI Preview`) / native `Artifact` calls + scratchpad `Write`† | Edit / Write outside state.md and the artifact scratchpad |
-| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / Workflow (Phase 4 approach panel + critics, `deep-mode: true` only) / native `Artifact` calls + scratchpad `Write`† | Edit / mutating Bash |
+| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / native `Artifact` calls + scratchpad `Write`† | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) / native `Artifact` call + scratchpad `Write`† | Edit / direct Write outside the artifact scratchpad / mutating Bash |
 | Phase 7 (Validate) | Read / AskQuestion / atomic_state_write (state.md `## Open Questions`; spec.md re-author of failing sections only, §7.3 step 2) | All other mutations |
-| Phase 7.5 (Spec challenge) | Read / Grep / Glob / Bash (read-only) / AskQuestion / Agent (claim-verifier spawn) / Workflow (3× claim verify, `deep-mode: true` only) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
+| Phase 7.5 (Spec challenge) | Read / Grep / Glob / Bash (read-only) / AskQuestion / Agent (claim-verifier spawn) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
 | Phase 8 (User approve) | AskQuestion / Bash (`git add`, `git commit` only) / atomic_state_write / native `Artifact` calls + scratchpad `Write`† | Edit / general-purpose Bash |
 | Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
 
 †Artifact mode only — the update/before-gate/finalize calls at each phase's own gate sites, plus a write to the session-scratchpad HTML file; exact call sites are `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`'s table, not repeated per-row here.
 
-Every subagent and workflow spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, a category-4 execution spawn whose `sonnet` is a ceiling the orchestrator may size below, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
+Every subagent spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, a category-4 execution spawn whose `sonnet` is a ceiling the orchestrator may size below, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
 
 ---
 
