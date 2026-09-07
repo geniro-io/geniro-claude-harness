@@ -32,7 +32,7 @@ Every explanation a gate carries — the reasoning behind a recommendation, what
 
 1. **The plain layer (always present).** What is going on and what it means for the user, in ordinary words, grounded in a concrete instance of the situation. Write it for someone who has never opened this codebase: say what the code does rather than naming the function that does it, and show the consequence rather than the mechanism — "a user exporting *all records* gets a smaller file than they asked for", not "`buildQuery()` appends a WHERE clause". Identifiers of every kind — file paths, symbol, class and type names, config keys, commands, error strings — belong to the layer below, not here.
 
-2. **The technical layer (only where there is something to cite).** A `**Technical detail:**` block after the plain layer and before the options, carrying what a reader checking the claim needs: the `path:lines` cites, the symbol / class / config names, the command or error string, and any code-shaped visual.
+2. **The technical layer (only where there is something to cite).** A `**Technical detail:**` block after the plain layer and before the options, carrying what a reader checking the claim needs: the `path:lines` cites, the symbol / class / config names, the command or error string, and any code-shaped visual. **When the deciding input is a quantity or current-state claim, the block also carries its provenance** — the figure or fact re-derived by a method different from whatever first produced it, per the rules canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §3 items 5-6: verify a quantity by re-deriving it rather than re-reading the citation next to it, and a current-state claim by resolving it against the repo and the declared data sources. Where no second method exists, carry an explicit `unverified` label instead. Re-reading the same derivation is not a second method, and spawning a verifier just for this render is not what the rule asks for — reach for whatever independent check the calling skill already has to hand.
 
 Two properties make the split work, and a render that breaks either has merged the layers again:
 
@@ -77,7 +77,8 @@ their archived records — silently, with no error to notice and nothing to
 re-run.
 
 **Technical detail:** `src/export/query.ts:41-48` — `buildQuery()` appends
-`WHERE archived = false` to every export query, with no caller-side opt-out.
+`WHERE archived = false` to every export query. A grep of all 12 call sites
+found none passing a bypass flag, confirming no caller-side opt-out exists.
 
 request ──▸ buildQuery() ──▸ WHERE archived=false ──▸ archived rows dropped
 

@@ -141,7 +141,7 @@ _atomic_state_commit() {
   else
     local um
     um="$(umask)"
-    chmod "$(printf '%03o' $(( 0666 & ~0$um )))" "$tmp" 2>/dev/null
+    chmod "$(printf '%03o' $(( 8#666 & ~8#$um )))" "$tmp" 2>/dev/null
   fi
 
   _atomic_state_sync_file "$tmp"
