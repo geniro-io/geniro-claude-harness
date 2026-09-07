@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 # Smoke test for lib/instruction-counts.sh — the Rules/Constraints/Data
-# Sources bullet counter that skills/_shared/load-custom-instructions.md's
+# Sources/Additional-Steps counter that skills/_shared/load-custom-instructions.md's
 # echo contract quotes instead of a model-counted tally.
 #
-# Pins: exact counting on a mixed fixture (top-level bullets only — nested
-# sub-bullets and fenced-code-block content excluded); a non-empty path that
-# is missing or unreadable returns $_GIC_UNREADABLE (65) with no stdout,
-# distinguishing "could not read the file" from "read it, found nothing";
-# no path at all and a readable file with none of the three sections both
-# still yield "0 0 0" at rc 0 — that's a real, present-but-empty result, not
-# an error; and parity between the sourced-function call and the direct
-# `bash lib/instruction-counts.sh <path>` invocation, for both the success
-# and the error path.
+# Pins for count_instruction_sections: exact counting on a mixed fixture
+# (top-level bullets only — nested sub-bullets and fenced-code-block content
+# excluded); a non-empty path that is missing or unreadable returns
+# $_GIC_UNREADABLE (65) with no stdout, distinguishing "could not read the
+# file" from "read it, found nothing"; no path at all and a readable file
+# with none of the three sections both still yield "0 0 0" at rc 0 — that's
+# a real, present-but-empty result, not an error; and parity between the
+# sourced-function call and the direct `bash lib/instruction-counts.sh
+# <path>` invocation, for both the success and the error path.
+#
+# Pins for count_additional_steps: scoped to `## Additional Steps` only (a
+# same-named `### After` heading elsewhere in the file must not count);
+# fence-aware; matches both `After` and `Before` case-insensitively and
+# names each match verbatim; same no-path / missing-path contract as
+# count_instruction_sections.
 #
 # Run: bash tests/memory/instruction-counts.sh
 
@@ -194,6 +200,69 @@ if bash -c "set -e; source '$LIB'; source '$LIB'; count_instruction_sections '$f
   pass "double-sourcing lib/instruction-counts.sh under set -e does not crash"
 else
   fail "double-sourcing lib/instruction-counts.sh under set -e crashed"
+fi
+
+# --- 10. count_additional_steps: scoped to ## Additional Steps, fence-aware,
+# case-insensitive on After/Before, canonical + non-canonical case, a fenced
+# decoy, and an ### After outside the section that must not count.
+steps_fixture="$TMPDIR_BASE/steps.md"
+cat > "$steps_fixture" <<'EOF'
+# Custom Instructions
+
+### After ship
+- outside ## Additional Steps entirely — must not count
+
+## Additional Steps
+### After ship
+- a normal step
+
+### before Ship
+- non-canonical case AND the Before form — must still be matched and named
+
+```
+## Additional Steps
+### After fenced-decoy
+```
+
+### After analyze
+- another normal step
+
+## Constraints
+- a constraint
+EOF
+expect_steps() {
+  local file="$1" expected="$2" label="$3"
+  local got
+  got="$(count_additional_steps "$file")"
+  if [ "$got" = "$expected" ]; then
+    pass "$label"
+  else
+    fail "$label — expected '$expected', got '$got'"
+  fi
+}
+expect_steps "$steps_fixture" "$(printf '3\nAfter ship\nbefore Ship\nAfter analyze')" \
+  "count_additional_steps: 3 matched (outside-section + fenced decoys excluded, non-canonical case + Before form both named)"
+
+# --- 11. count_additional_steps: file with no ## Additional Steps section → "0".
+expect_steps "$zero_rules" "0" \
+  "count_additional_steps: file with no Additional Steps section → 0"
+
+# --- 12. count_additional_steps: empty argument → "0" rc 0.
+got_empty="$(count_additional_steps "")"
+rc_empty=$?
+if [ "$got_empty" = "0" ] && [ "$rc_empty" -eq 0 ]; then
+  pass "count_additional_steps: empty path argument → 0, rc 0"
+else
+  fail "count_additional_steps: empty path argument — expected '0' rc 0, got '$got_empty' rc $rc_empty"
+fi
+
+# --- 13. count_additional_steps: missing path → rc $_GIC_UNREADABLE, no stdout.
+got_missing="$(count_additional_steps "$TMPDIR_BASE/does-not-exist.md")"
+rc_missing=$?
+if [ "$rc_missing" -eq "$_GIC_UNREADABLE" ] && [ -z "$got_missing" ]; then
+  pass "count_additional_steps: missing file → rc $_GIC_UNREADABLE, no output"
+else
+  fail "count_additional_steps: missing file — expected empty output and rc $_GIC_UNREADABLE, got '$got_missing' rc $rc_missing"
 fi
 
 echo

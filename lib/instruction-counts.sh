@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Counts top-level ## Rules / ## Constraints / ## Data Sources bullets in a
-# custom-instruction file.
+# Counts top-level ## Rules / ## Constraints / ## Data Sources bullets, and
+# ## Additional Steps subsections, in a custom-instruction file.
 #
 # Spec: skills/_shared/load-custom-instructions.md §Echo contract — the load
 # echo quotes this helper's output instead of a model-counted tally, so a
@@ -28,6 +28,22 @@
 # and anything inside a fenced ``` code block are excluded — both are common
 # in a hand-edited instructions file (an explanatory sub-point, a pasted
 # example) and neither is a rule/constraint/source entry itself.
+#
+# API: count_additional_steps <path>
+#   Prints the count of `### After <phase>` / `### Before <phase>` subsections
+#   found directly under a top-level `## Additional Steps` heading as its
+#   first line, then one line per matched subsection's literal heading text
+#   (verbatim, as authored) in the order encountered. Matching is scoped to
+#   that one section, fence-aware like count_instruction_sections above, and
+#   case-insensitive on the `After`/`Before` prefix — a hand-edited file may
+#   write `### after ship` and validate normalizes the case at authoring time
+#   (skills/instructions/instructions-authoring-reference.md §5). `Before` is
+#   matched and named too even though no skill reads that prefix (same §5):
+#   the point of this helper is making that dead subsection visible in the
+#   echo instead of silently uncounted, identical to a file with no block at
+#   all. Same path/rc contract as count_instruction_sections: no path prints
+#   "0" at rc 0; a non-empty path that is missing or unreadable prints
+#   nothing and returns $_GIC_UNREADABLE.
 
 # Guarded so a second `source` in the same shell doesn't trip `readonly
 # variable` — every peer helper in lib/ carries this guard.
@@ -78,6 +94,50 @@ count_instruction_sections() {
       }
     }
     END { printf "%d %d %d\n", rules, constraints, sources }
+  ' "$file"
+}
+
+count_additional_steps() {
+  local file="${1:-}"
+
+  if [ -z "$file" ]; then
+    echo "0"
+    return 0
+  fi
+
+  if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+    echo "count_additional_steps: $file — not a readable file" >&2
+    return "$_GIC_UNREADABLE"
+  fi
+
+  awk '
+    BEGIN { in_section = 0; fence = 0; n = 0 }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      if (line ~ /^```/) { fence = !fence; next }
+      if (fence) { next }
+      if (line ~ /^## /) {
+        heading = line
+        sub(/^## /, "", heading)
+        gsub(/[ \t]+$/, "", heading)
+        in_section = (tolower(heading) == "additional steps")
+        next
+      }
+      if (in_section && line ~ /^### /) {
+        heading = line
+        sub(/^### /, "", heading)
+        gsub(/[ \t]+$/, "", heading)
+        if (tolower(heading) ~ /^(after|before)[ \t]/) {
+          n++
+          names[n] = heading
+        }
+      }
+    }
+    END {
+      print n
+      for (i = 1; i <= n; i++) print names[i]
+    }
   ' "$file"
 }
 

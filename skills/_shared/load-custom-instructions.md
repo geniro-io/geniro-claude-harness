@@ -6,7 +6,7 @@
 - §When to invoke — initial-load / refresh modes
 - §Caller contract — SKILL_SLUG / LOAD_TIER / MODE parameters
 - §Procedure — load set, external-dir override, primary-worktree fallback, per-file reads
-- §Echo contract — the one-line-per-file proof of read (incl. external-dir success + bad-pointer caveat)
+- §Echo contract — the one-line-per-file proof of read (incl. additional-step anchor naming, external-dir success + bad-pointer caveat)
 - §Mid-pipeline refresh — phase-boundary re-read
 - §Producer contract — instruction-file schema the loader applies
 - §Anti-rationalization
@@ -61,7 +61,7 @@ For each file in the load set, in order:
 1. Call the **Read** tool on the file:
  - **External dir active (`EXTERNAL_DIR` non-empty):** Read `<EXTERNAL_DIR>/<file>` (flat layout per the base-dir resolution above — no fallback in external mode; step 2a does not apply).
  - **In-repo (no external dir):** Read `.geniro/instructions/<file>` (cwd-relative) — the cwd-first / `PRIMARY_ROOT`-fallback behavior. A configured-but-missing external dir already failed open (the probe emitted the caveat), so the loop runs here in in-repo mode.
-2. **If Read succeeds:** run `${CLAUDE_PLUGIN_ROOT}/lib/instruction-counts.sh` in a shell call against the exact path the Read just opened — `<EXTERNAL_DIR>/<file>` in external-dir mode, `.geniro/instructions/<file>` in-repo — for its N/M/D echo counts. The helper returns a nonzero exit when it cannot open that path (a stale variable, a race since the Read succeeded); treat that as a step 3a load failure rather than echoing a zero count — a zero is a real result for a file with no bullets under a section, and echoing one for a path the helper never actually read reports a confident wrong number instead of a visible failure. On a zero exit, record its `## Data Sources` entries (each source's label and what it confirms, when the section is present); record its `## Additional Steps` subsections (each named after a phase boundary); record its `## Verification Surface` entries (per check, the covers and does-not-cover clauses, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `memory.md` only). Skip step 2a.
+2. **If Read succeeds:** in one shell call, source `${CLAUDE_PLUGIN_ROOT}/lib/instruction-counts.sh` against the exact path the Read just opened — `<EXTERNAL_DIR>/<file>` in external-dir mode, `.geniro/instructions/<file>` in-repo — and call `count_instruction_sections` (N/M/D) and `count_additional_steps` (A + each literal anchor name, scoped to `## Additional Steps`, fence-aware, matching `After`/`Before` case-insensitively). Either function's nonzero exit means it could not open that path (a stale variable, a race since the Read succeeded); treat that as a step 3a load failure rather than echoing a zero count — a zero is a real result for a file with no bullets under a section, and echoing one for a path never actually opened reports a confident wrong number instead of a visible failure. On a zero exit, record its `## Data Sources` entries (each source's label and what it confirms, when the section is present); record its `## Additional Steps` subsections from `count_additional_steps`'s anchor list, each naming the phase boundary it fires at; record its `## Verification Surface` entries (per check, the covers and does-not-cover clauses, when the section is present); record its `## Memory Backend` block (the per-layer `mode`/`write`/`read` entries, when present — `memory.md` only). Skip step 2a.
 2a. **If Read errors with file-not-found AND no external dir is active AND `PRIMARY_ROOT` differs from cwd:** retry the Read against the absolute path `<PRIMARY_ROOT>/.geniro/instructions/<file>`. If the second Read succeeds, run the helper against that same `<PRIMARY_ROOT>/.geniro/instructions/<file>` path and record the rest as in step 2, AND remember that the fallback fired (the §Echo contract emits a distinct line). If the second Read also fails with file-not-found, fall through to step 3.
 3. **If file is still not found** (cwd missing AND fallback missing or unavailable): treat as a silent skip — no error, no warning, just the missing-file echo line.
 3a. **If a Read errors with any other error** (permission denied, path-is-a-directory, encoding error) **or step 2's counting helper exits nonzero on a Read that did succeed:** echo `Failed to load <filename>: <one-line-error-summary> — skipping.` and continue. Do not halt the consumer skill.
@@ -76,13 +76,13 @@ For each file in the load set, in order:
 
 ## Echo contract
 
-After each Read attempt (or sequence of attempts including the primary-worktree fallback), print exactly one line to the user — non-negotiable. The echo is the user-visible proof that the Read fired, and its `<N>`/`<M>`/`<D>` counts are `lib/instruction-counts.sh`'s output for the exact path that Read opened, never tallied by eye — a silent Read is indistinguishable from a skipped one, and a miscounted echo is indistinguishable from a correct one.
+After each Read attempt (or sequence of attempts including the primary-worktree fallback), print exactly one line to the user — non-negotiable. The echo is the user-visible proof that the Read fired, and its `<N>`/`<M>`/`<D>`/`<A>` counts and anchor names are `lib/instruction-counts.sh`'s output for the exact path that Read opened — none tallied by eye, a silent Read is indistinguishable from a skipped one, and a miscounted echo is indistinguishable from a correct one.
 
 Four success/skip formats plus one caveat:
 
-- **On Read success (cwd):** `Loaded <filename> (<N> rules, <M> constraints[, <D> data sources]).`
-- **On Read success (primary-worktree fallback fired):** `Loaded <filename> from primary worktree (<N> rules, <M> constraints[, <D> data sources]).` — signals to the user that cwd is stale relative to the main worktree's checkout.
-- **On Read success (external instructions dir active):** `Loaded <filename> from external instructions dir (<N> rules, <M> constraints[, <D> data sources]).` — signals the file came from the configured external base dir, not the repo.
+- **On Read success (cwd):** `Loaded <filename> (<N> rules, <M> constraints[, <A> additional step(s): <anchor1>[, <anchor2>...]][, <D> data sources]).`
+- **On Read success (primary-worktree fallback fired):** `Loaded <filename> from primary worktree (<N> rules, <M> constraints[, <A> additional step(s): <anchor1>[, ...]][, <D> data sources]).` — signals to the user that cwd is stale relative to the main worktree's checkout.
+- **On Read success (external instructions dir active):** `Loaded <filename> from external instructions dir (<N> rules, <M> constraints[, <A> additional step(s): <anchor1>[, ...]][, <D> data sources]).` — signals the file came from the configured external base dir, not the repo.
 - **On file-not-found (both cwd and fallback, or fallback unavailable):** `No <filename> found — skipping.`
 - **Bad-pointer caveat (emitted once, by the base-dir probe, before the in-repo fallback loop runs):** `External instructions dir <path> not found — using in-repo instructions.`
 
@@ -91,6 +91,8 @@ Examples (verbatim):
 ```
 Loaded global.md (3 rules, 2 constraints).
 Loaded global.md (3 rules, 2 constraints, 2 data sources).
+Loaded implement.md (2 rules, 1 constraint, 1 additional step: After ship).
+Loaded plan.md (1 rule, 0 constraints, 2 additional steps: After explore, After user-approve).
 Loaded implement.md from primary worktree (2 rules, 1 constraint).
 Loaded code-style.md from external instructions dir (4 rules, 1 constraint).
 Loaded memory.md (memory backend: learnings → mirror).
@@ -99,7 +101,7 @@ No code-style.md found — skipping.
 No memory.md found — skipping.
 ```
 
-If a file has zero rules or zero constraints, still emit the line with the literal `0` count. Do NOT abbreviate to `Loaded global.md.` — always include the rules + constraints parenthetical. Append `, <D> data sources` to the parenthetical only when the file carries a `## Data Sources` block (it is optional, unlike rules/constraints — omit the clause entirely when the block is absent).
+If a file has zero rules or zero constraints, still emit the line with the literal `0` count. Do NOT abbreviate to `Loaded global.md.` — always include the rules + constraints parenthetical. Append `, <D> data sources` to the parenthetical only when the file carries a `## Data Sources` block (it is optional, unlike rules/constraints — omit the clause entirely when the block is absent). Append `, <A> additional step(s): <anchor1>[, <anchor2>...]` the same way, only when `count_additional_steps` matched ≥1 subsection — each name is the literal heading text as authored, so a `### Before <phase>` block (parsed but never read) is exactly as visible at load time as an `### After <phase>` one, and a phase name no skill actually reads (an authoring typo, or a dropped phase) reads as unfamiliar the moment it's echoed rather than staying invisible until the boundary it names never fires.
 
 **`memory.md` is the exception to the rules/constraints parenthetical** — it carries the `## Memory Backend` block, not rules or constraints, so its success echo names the routed layer + mode instead: `Loaded memory.md (memory backend: <layer> → <mode>).` (the fallback / external-dir variants apply identically). When `memory.md` exists but declares no `## Memory Backend` block, echo `Loaded memory.md (no memory backend declared).`; when absent, `No memory.md found — skipping.`
 
@@ -167,12 +169,13 @@ Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantic
 | "This skill doesn't write code, so `code-style.md` doesn't apply — skip it even though `LOAD_TIER: pipeline`." | The `LOAD_TIER` field is the contract — `rules-only` consumers don't request `code-style.md` and the helper handles it. Do not make ad-hoc skip decisions per turn. |
 | "I'll batch the Reads into a Glob to save a tool call." | Glob doesn't ingest content. The Read content is what applies — Glob alone won't trigger application. |
 | "The file doesn't exist on this project — error out." | File-not-found is the silent-skip case. Print the "No `<name>` found — skipping." echo and continue. |
-| "The counting helper failed but the Read succeeded — I'll echo 0 rules, 0 constraints and move on." | A nonzero exit from `lib/instruction-counts.sh` means it couldn't open the path Read just opened, not that the file has no bullets. Echoing zero counts there reports a confident wrong number as the user's only evidence the file loaded — worse than the by-eye miscount this helper replaced. Route it through the step 3a failure echo instead. |
+| "The counting helper failed but the Read succeeded — I'll echo 0 rules, 0 constraints and move on." | A nonzero exit from either `lib/instruction-counts.sh` function means it couldn't open the path Read just opened, not that the file has no bullets. Echoing zero counts there reports a confident wrong number as the user's only evidence the file loaded — worse than the by-eye miscount this helper replaced. Route it through the step 3a failure echo instead. |
 | "The echo line is informational; I can drop it if the project has no instructions." | Then the user can't distinguish a missing file from a skipped Read. Always echo, even on skip. |
 | "Refresh wording from old code says 'since Phase 1' — I'll keep it." | Some skills (debug) have no Phase 1. "Since the previous load" is the canonical anchor-free wording — update on contact. |
 | "Cwd Read returned file-not-found — skip straight to the missing-file echo." | The user may have authored instructions on the main worktree's branch while the current cwd is a stale feature branch or a linked worktree. Always try the `PRIMARY_ROOT` fallback before echoing `No <filename> found` — that's the durability contract. |
 | "I'll always read from `PRIMARY_ROOT` directly and skip the cwd Read." | A cwd copy can be a committed branch-local copy — the default `.gitignore` negates `instructions/`, so instruction files may be tracked and legitimately diverge per branch. Cwd-first respects that divergence; primary-only reads lose it. The fallback fires ONLY when cwd misses. |
 | "An external instructions dir is set, so I'll merge it with the cwd `.geniro/instructions/` too." | The external dir is an explicit override, not a merge. When it's active and valid, read only from it — the cwd and primary-worktree fallbacks are skipped. Merging would resurrect stale in-repo rules the user meant to replace. |
+| "Additional Steps isn't a bullet count like Rules/Constraints — I'll just say `Loaded X.` without naming the anchors." | The anchor name is the point: in two real sessions a block loaded fine and the phase boundary it named never fired it — no error at either end. A `### Before <phase>` block is the same gap in its most invisible form (parsed, echoed nowhere, indistinguishable from no block at all). Naming every matched subsection in the echo is the only place any of this becomes visible before the run reaches — or silently never reaches — it. |
 | "The configured external dir path doesn't exist, so I'll just load nothing and move on." | A bad pointer must be visible, not silent. Emit the `External instructions dir <path> not found — using in-repo instructions.` caveat and fall back to the in-repo default — silently loading zero rules hides a typo'd path. |
 
 ## Definition of Done
@@ -182,3 +185,4 @@ Consumer SKILL.md files must not duplicate this Rules/Steps/Constraints semantic
 - [ ] When cwd Read returns file-not-found AND `PRIMARY_ROOT` differs from cwd, a fallback Read against `<PRIMARY_ROOT>/.geniro/instructions/<file>` is attempted before the "No `<name>` found" echo
 - [ ] Every Read emits exactly one echo line per §Echo contract (cwd success / primary-worktree success / not-found)
 - [ ] A nonzero exit from the counting helper on a path Read just opened is echoed as a step 3a load failure, never as a zero-count success
+- [ ] A file carrying a `## Additional Steps` block echoes its count and every matched subsection's literal name (`### After <phase>` or `### Before <phase>`); a file with none omits the clause rather than echoing a zero

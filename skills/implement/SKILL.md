@@ -139,13 +139,11 @@ State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step. **On
 
 0. **Check for existing state.md.** Glob `<task-slug>/state.md`:
 - **No state.md** → fresh run. Proceed to Phase 1.
-- **state.md exists, phase in non-terminal set** → resume from `phase:` value. The SessionStart hook re-injects context.
-- **state.md exists, phase in terminal set** → task complete. Surface terminal state to user; if `$ARGUMENTS` carries new task description, derive new slug, fresh run.
+- **state.md exists, phase reads as terminal** → task complete, surfaced to user (or, when `$ARGUMENTS` carries a new task description, derive a new slug and start fresh) — nothing further reads the file.
+- **state.md exists, phase reads as non-terminal (or unreadable)** → validate it first via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before trusting it for resume; on failure, open the recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency). On pass, resume from `phase:` — the SessionStart hook re-injects context.
 
-1. **Validate state.md if found.** Pre-flight the resume path via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`; on failure, open the recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency).
+1. **Todo-list checklist.** Add: Analyze / Implement / Self-review-and-Ship. Mark Analyze in_progress; update each as it completes.
 
-2. **Todo-list checklist.** Add: Analyze / Implement / Self-review-and-Ship. Mark Analyze in_progress; update each as it completes.
-
-3. **Begin Phase 1.**
+2. **Begin Phase 1.**
 
 ---

@@ -19,6 +19,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 TESTS_RUN=0
 TESTS_FAILED=0
+TESTS_SKIPPED=0
 
 pass() {
   TESTS_RUN=$((TESTS_RUN + 1))
@@ -29,6 +30,15 @@ fail() {
   TESTS_RUN=$((TESTS_RUN + 1))
   TESTS_FAILED=$((TESTS_FAILED + 1))
   echo "FAIL: $1" >&2
+}
+
+# A guard this host cannot run. Counts toward TESTS_RUN so the EXPECTED_TESTS
+# assertion stays stable, but never reads as a pass: a green line for a check
+# that did not execute is what lets an unrun guard look like a working one.
+skip() {
+  TESTS_RUN=$((TESTS_RUN + 1))
+  TESTS_SKIPPED=$((TESTS_SKIPPED + 1))
+  echo "SKIP: $1"
 }
 
 # ---------------------------------------------------------------------------
@@ -835,6 +845,40 @@ for want_mode in 600 644 640; do
 done
 target="$TMPDIR/perm-600.md"
 
+# A NEW file gets the mode a plain `>` redirection would have produced. mktemp
+# hands the helper a 0600 tmp, so it computes `0666 & ~umask` itself — and that
+# arithmetic has to be octal in every shell that SOURCES this helper, not only in
+# the bash this suite runs under. Expected modes are hardcoded rather than
+# recomputed with the same expression the helper uses, so the assertion cannot
+# agree with a broken formula by sharing it.
+for pair in "022 644" "077 600" "002 664"; do
+  set -- $pair
+  ( umask "$1"; printf 'x\n' | atomic_state_write "$TMPDIR/newmode-$1.md" ) >/dev/null 2>&1
+  mode=$(mode_of "$TMPDIR/newmode-$1.md")
+  if [ "$mode" = "$2" ]; then
+    pass "new file — umask $1 yields mode $2"
+  else
+    fail "new file — umask $1 yielded $mode, want $2"
+  fi
+done
+
+# The same path under zsh. zsh does not read a leading-zero literal as octal, so
+# `$((0666))` there is decimal 666 and the computed mode came out 1210 — a state
+# file carrying no read bit at all. It is created successfully, so nothing fails
+# at write time; the next run's resume finds the file and cannot read it. Only a
+# zsh-sourced write reaches that branch, which is why bash-only coverage missed it.
+if command -v zsh >/dev/null 2>&1; then
+  zsh -c "umask 022; source '$REPO_ROOT/lib/atomic-state-write.sh'; printf 'x\n' | atomic_state_write '$TMPDIR/newmode-zsh.md'" >/dev/null 2>&1
+  mode=$(mode_of "$TMPDIR/newmode-zsh.md")
+  if [ "$mode" = "644" ] && [ -r "$TMPDIR/newmode-zsh.md" ]; then
+    pass "new file — a zsh-sourced write yields a readable 644"
+  else
+    fail "new file — zsh-sourced write yielded $mode, want 644 (readable)"
+  fi
+else
+  skip "new file — zsh-sourced mode check (no zsh on this host)"
+fi
+
 # A rename failure must name the function the caller actually called.
 target="$TMPDIR/msg.md"
 printf -- '---\nphase: a\n---\n' > "$target"
@@ -1143,10 +1187,11 @@ fi
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"
+[ "$TESTS_SKIPPED" -gt 0 ] && echo "Tests skipped: $TESTS_SKIPPED (guards this host could not run)"
 
 # An expected total: deleting a case would otherwise report a smaller green run.
 # Update this number in the same commit that adds or removes a case.
-EXPECTED_TESTS=86
+EXPECTED_TESTS=90
 if [ "$TESTS_RUN" -ne "$EXPECTED_TESTS" ]; then
   echo "FAIL: expected $EXPECTED_TESTS assertions, ran $TESTS_RUN — a case was added or dropped without updating EXPECTED_TESTS" >&2
   exit 1

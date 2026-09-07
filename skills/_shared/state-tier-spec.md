@@ -147,18 +147,21 @@ approvals:
     picked: <chosen option>
     at: <ISO-8601 UTC>
     asked_in_phase: <phase name>
+    classes_shown: [<action-class>, ...]  # optional, outward gates only — see below
     why: <what made this the answer>            # optional
     evidence: <file:line, quote, or command output>   # optional
     result: <what acting on the pick produced>  # optional
 ```
 
-**The last three fields are optional, and they change what the record is for.** The first six let a resumed session replay a decision. They do not let it check whether the decision still holds — `picked:` alone cannot distinguish a choice that is still right from one whose premise moved. So:
+**`classes_shown` is optional, and applies only to an outward gate** — one authorizing an action class from the `non-resumable-actions[]` action enum below (§`non-resumable-actions[]` action enum); a non-outward gate (`approach_choice`, `section_objective`) neither writes it nor is checked against it. Where it applies, list every class the question, its options, or the blast-radius render actually named, as an inline flow sequence (`classes_shown: [git-push, pr-created]`) — a block sequence hits the restore hook's `_fm_block_list_to_jsonl` `in_list` branch and flushes the entry early, so any later `why`/`result` surfaces on a phantom `- [?] User picked: "?"` entry in the resume block instead of on the approval it belongs to. Write it in the same call that records `picked`. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md` diffs a later outward action's class against this list when present; **absent or empty falls back to the gate's own question and options text — it does not mean the approval covers nothing.**
+
+**The last three fields are optional too, and change what the record is for.** The first six let a resumed session replay a decision; they do not let it check whether the decision still holds — `picked:` alone cannot distinguish a choice that is still right from one whose premise moved. So:
 
 - `why` — the reason this was the answer at the time, in one sentence. A later reader re-reads the reason, not just the outcome.
 - `evidence` — the ground truth the reason rested on: a `file:line`, a literal quote, or a command's output. This is what makes the entry falsifiable; a `why` with no `evidence` is an assertion.
 - `result` — what happened when the pick was acted on. Written after the action, so it commonly lands in a later write than the rest of the entry. Its absence on a resumed run is a signal in itself: the decision was recorded but its consequence was not, which is where an interrupted run left off.
 
-Omit any of the three when there is nothing real to put in it. An empty `why` is better than a restatement of `picked`, and a fabricated `evidence` is worse than none — see the provenance rule below, which governs all nine fields.
+Omit any of the three when there is nothing real to put in it. An empty `why` is better than a restatement of `picked`, and a fabricated `evidence` is worse than none — see the provenance rule below, which governs all ten fields.
 
 **Provenance — every entry records a real decision.** Write an `approvals[]` entry only for a question actually asked and answered in a run (the AUQ's resolved answer), or as an explicitly-labeled inheritance of a prior recorded entry (e.g. `picked: "<value>" (carried from round 1)`). Never synthesize an entry for a question that was not asked: `approvals[]` is the compaction-safe record of user decisions, so a fabricated entry makes a later session auto-skip a gate against a decision the user never made — the exact failure this field exists to prevent. An inherited entry carries the inherited VALUE unchanged; recording a different value under an inheritance label is fabrication, not inheritance.
 

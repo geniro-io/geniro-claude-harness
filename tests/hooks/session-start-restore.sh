@@ -12,6 +12,7 @@
 #   - Block 5b errors (resolved-filter).
 #   - Block 5c open questions (resolved-filter).
 #   - Block 5d approvals (no filter).
+#   - Block 5d `classes_shown` (renders inline-flow value; absent renders nothing).
 #   - Empty-list cases (no false Block emissions).
 
 set -uo pipefail
@@ -642,6 +643,57 @@ ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 grep -qE 'why:[[:space:]]*[|>][[:space:]]*$' <<<"$ac" \
   && fail "Block 5d: a block-scalar why rendered the YAML marker as the reason ('why: |') and dropped the two lines under it — the block must carry the reason or say nothing, never a marker standing in for one" \
   || pass "Block 5d: a block-scalar why does not render its YAML marker as the reason"
+
+# ---------------------------------------------------------------------------
+# 12d. Block 5d — `classes_shown` renders when present (inline flow only); an
+#      entry that carries none renders exactly as it did before the field
+#      existed — no empty label, no placeholder.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: ship
+status: in-progress
+non-resumable-actions: []
+approvals:
+  - category: ship_mode
+    picked: "open PR"
+    at: 2026-05-19T14:00:00Z
+    asked_in_phase: ship
+    classes_shown: [git-push, pr-created]
+  - category: rereview_scope_choice
+    picked: "Re-review the whole PR"
+    at: 2026-05-19T14:05:00Z
+    asked_in_phase: triage
+---
+
+body
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+grep -q 'classes_shown: \[git-push, pr-created\]' <<<"$ac" \
+  && pass "Block 5d: classes_shown renders when recorded (inline flow)" \
+  || fail "Block 5d: classes_shown not rendered — 'ac=$ac'"
+
+grep -q '\[rereview_scope_choice\] User picked: "Re-review the whole PR"' <<<"$ac" \
+  && pass "Block 5d: an entry with no classes_shown still renders" \
+  || fail "Block 5d: entry without classes_shown stopped rendering"
+
+# The second entry carries no `classes_shown` at all — the label must appear
+# exactly once (for the entry that carries it), never as a stray placeholder
+# on the entry that doesn't.
+_cs_count=$(grep -o 'classes_shown:' <<<"$ac" | wc -l | tr -d ' ')
+[ "$_cs_count" = "1" ] \
+  && pass "Block 5d: classes_shown label appears exactly once (no placeholder on the other entry)" \
+  || fail "Block 5d: expected exactly one classes_shown: label, got $_cs_count"
 
 # ---------------------------------------------------------------------------
 # 13. No false positives — empty state.md body produces no 5b/5c/5d blocks

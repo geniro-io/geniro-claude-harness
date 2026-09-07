@@ -338,6 +338,28 @@ The `require-evidence-on-completion.sh` Stop hook — which scanned the last ass
 
 ---
 
+### `approvals[]` gains an optional `classes_shown` field
+
+T1.5 `state.md` and T2 handoff `approvals[]` entries admit a new field, `classes_shown: [<action-class>, ...]`, drawn from the same enum as `non-resumable-actions[].action` (`git-push`, `pr-created`, `pr-comment-posted`, `pr-review-comment-batch`, `pr-comment-amended`, `git-commit`, `slack-notify-sent`, `release-tagged`). It records which action classes an outward-facing approval gate actually named in its question, options, or blast-radius render — the boundary a later action gets checked against. `hooks/session-start-restore.sh`'s Block 5d renderer surfaces it alongside `why` and `result` when the producer recorded it; an entry that lacks the field renders exactly as it did before this change, with no empty label or placeholder.
+
+The field must be written as an inline flow sequence (`classes_shown: [git-push, pr-created]`), never a YAML block sequence. The restore hook's frontmatter block-list parser treats any line starting with whitespace + `-` + a space as the start of the next `approvals[]` entry, so a block-style `classes_shown:` list is misread as a second, phantom entry — the real entry flushes early (any `why`/`result` written after it lands on the phantom instead) and the approvals count inflates by one, whatever the class count.
+
+**Action required:** None. Every `approvals[]` entry written before today lacks the field and keeps resuming unchanged; a producer opts in per-entry by adding it in inline flow form.
+
+**Auto-detect:**
+
+```bash
+grep -rlE '^[[:space:]]*classes_shown:[[:space:]]*$' .geniro/planning .geniro/state 2>/dev/null
+```
+
+(A hit is a `classes_shown` written as a YAML block sequence — the one shape this hook cannot parse. Empty output means every occurrence on disk, if any, is already inline.)
+
+**Auto-fix:** Manual-only — rewrite the flagged block sequence as a single inline flow line (`classes_shown: [<same items>]`).
+
+**Severity:** LOW — additive optional field; an install with no `classes_shown` anywhere is unaffected, and existing entries validate and render unchanged.
+
+---
+
 ## v2.78.0
 
 ### Automatic post-task improvement suggestions removed — run `/geniro:reflect` instead

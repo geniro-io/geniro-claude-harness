@@ -39,7 +39,7 @@ Three further body sections are optional, each written by the phase that populat
 
 ### `approvals[]` entry shape — every gate below writes this
 
-Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_append_list_item`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array" — six required fields, `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`, plus three optional ones, `why` / `evidence` / `result`:
+Each answered gate appends one entry to state.md frontmatter `approvals[]` via `atomic_state_append_list_item`. The shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array" — six required fields, `category` / `prompt` (the verbatim question) / `options` (the labels offered) / `picked` / `at` (ISO-8601 UTC) / `asked_in_phase`, plus four optional ones, `why` / `evidence` / `result` / `classes_shown`. The last is written only by a gate authorizing an outward action class — none of `/geniro:plan`'s gates do, so plan's `approvals[]` entries never carry it:
 
 ```yaml
 approvals:
@@ -54,7 +54,7 @@ approvals:
 
 Record `why` on a gate whose answer a later reader could not reconstruct from `picked` alone — a scope call, a tier hold, a pick made against the recommendation. Add `evidence` when the reason rests on something checkable, and `result` once the pick has been acted on. Omit all three where the pick speaks for itself; a `why` that paraphrases `picked` is noise the reader still pays for.
 
-The sections below name only their `category` slug and the phase they are asked in; §5b adds a nested `launch_config:` sub-block, the one gate whose entry carries a field beyond the nine. Write the entry before rendering the next question, so a context reset mid-sequence preserves every answer already given.
+The sections below name only their `category` slug and the phase they are asked in; §5b adds a nested `launch_config:` sub-block, the one gate whose entry carries a field beyond the ten. Write the entry before rendering the next question, so a context reset mid-sequence preserves every answer already given.
 
 ---
 
