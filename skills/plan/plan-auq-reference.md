@@ -163,7 +163,21 @@ options:
 
 Persist each checkpoint decision to `approvals[]` (§1 entry shape) with category `grill_checkpoint`, `asked_in_phase: clarify`.
 
-**Termination** rules are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4 (closing summary → Phase 4).
+**Termination** rules are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4 (closing summary → exit gate → Phase 4). The exit gate fires after the closing summary when the tree exhausted on its own — never after a user's Wrap up / Skip pick at a checkpoint:
+
+```yaml
+header: "Grill exit"
+question: "I'm out of questions that would change the spec. Start building the plan, or keep grilling?"
+options:
+  - label: "Start building the plan (Recommended)"
+    description: "Move to approaches; anything left open goes into the spec as a stated assumption."
+  - label: "Keep grilling — go deeper"
+    description: "A second pass over failure handling, operations, migration, and the scope edges I assumed."
+  - label: "Keep grilling — I'll name the area"
+    description: "Say what to dig into and I'll build the branch from it."
+```
+
+On the third pick the follow-up is an ordinary §2 grill question — `header: "Grill area"`, options built from the closed branches and the second-pass angles, the user free to name their own — and its answer opens the branch. Persist the exit pick to `approvals[]` with category `grill_checkpoint`, `asked_in_phase: clarify`, same as a checkpoint.
 
 ---
 
