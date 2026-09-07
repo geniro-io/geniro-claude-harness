@@ -76,7 +76,7 @@ Tier-scaled research spawns, memory refresh, `workflow_refs` fetch
 UI preview: a rendered mockup on the plan page in artifact mode, a text description otherwise
 
 ## Phase 3 — Grill (decision-tree clarification)
-Uncapped, checkpoint-bounded decision-tree clarification
+Uncapped decision-tree clarification — checkpoint-bounded, and the exit is the user's call
 
 ## Phase 4 — Approaches
 2-3 stress-tested, one lean AUQ, Recommended first
@@ -134,7 +134,7 @@ Do NOT reintroduce these anti-patterns. Loop-level rows (commit timing, message-
 | Your reasoning | Why it's wrong |
 |---|---|
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /geniro:implement when the rendered UI doesn't match). |
-| "Re-cap Phase 3 at ~5 questions, OR just grill forever without pausing." | Phase 3 is an uncapped decision-tree grill, bounded by the checkpoint gate — summarize-and-continue every ~6 questions or when a branch resolves (the Phase 3 checkpoint gate). Re-imposing a flat cap drops the relentless property the grill exists to provide; skipping the checkpoint drops the user's off-ramp. Keep both: no fixed cap, always a checkpoint. |
+| "Re-cap Phase 3 at ~5 questions, grill forever without pausing, OR walk into Phase 4 the moment the tree looks resolved." | Phase 3 is an uncapped decision-tree grill bounded by two gates, and each of the three drops one. Re-imposing a flat cap drops the relentless property the grill exists to provide. Skipping the §3.4 checkpoint (every ~6 questions or when a branch resolves) drops the user's off-ramp. Exiting on an exhausted tree without the §3.4 exit gate drops the user's on-ramp — exhaustion is the model's read of a tree the model built, and it reads that way after two questions as easily as after twenty, so keep-grilling stays live even with nothing on the frontier. |
 | "spec.md's fixed section schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
 
@@ -149,12 +149,13 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
 | Phase 3 grill checkpoint | the checkpoint trigger per §3.4 — no fixed question cap | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
+| Phase 3 grill exit | none — fires whenever the tree exhausts | §3.4 | Render closing summary → AUQ: Start building / Keep grilling deeper / Keep grilling on a named area. Keep-grilling reopens the walk and the gate re-fires at the next termination. Skipped when a checkpoint Wrap up / Skip pick ended the grill. |
 | Phase 5 per-cluster revision rounds | §5.2 owns the count | §5.2 | Cluster AUQ re-fires without Revise — approve-as-rendered / explain-further / cancel; an unresolved change carries to the Phase 8 gate. |
 | Phase 7 → Phase 6 auto-revision rounds | §7.3 owns the count | §7.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | §8.3 owns the count | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2 | invariant #4 | Truncation with marker, not abort. |
 
-**Question cadence:** Phase 3 uncapped; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
+**Question cadence:** Phase 3 uncapped, plus one exit gate per termination; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
 
 ---
 
