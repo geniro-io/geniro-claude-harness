@@ -82,6 +82,8 @@ approvals: [] # appended after each one-time AUQ resolution
 subagent-model: <tier>    # set by --subagent-model (Phase 1 Step 1 parse); missing reads as inherit
 spawn_dims_declared: []   # Phase 3 Round 1 declare-before-fire list — resolved reviewer grid + custom:<slug> entries (phase-3-ship.md Step 1)
 spawn_dims_count: <int>   # count of spawn_dims_declared[], written alongside it in the same atomic_state_write
+todos_declared: []        # Phase 2 decomposition declare-before-edit list — one short slug per authored todo (phase-2-implement.md Step 2)
+todos_declared_count: <int>  # count of todos_declared[], set alongside it; the Ship pre-terminal check reads both
 reviewed_file_set: []     # CHANGED_FILES the final fix-loop round's reviewer-agents actually received (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
 ---
 ```

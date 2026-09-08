@@ -20,15 +20,15 @@ Phase detail and schemas for `/geniro:resolve`. The skill body (`SKILL.md`) hold
 The read side of `pr-threads.md` (§2 threads, §3 checks) returns raw GraphQL / `gh pr checks` JSON. Phase 1 normalizes it into one item list. Each item:
 
 ```yaml
-- item_id: r1                  # stable local anchor (r = review-comment, c = ci-check)
-  source: review-comment       # review-comment | ci-check
-  thread_id: <PRRT_…|null>     # review-comment: the thread node id; ci-check: null
-  comment_id: <numeric|null>   # review-comment: top comment databaseId; ci-check: null
-  author: <login|null>         # review-comment author; ci-check: null
+- item_id: r1                  # stable local anchor (r = review-comment, p = pr-comment, v = review-body, c = ci-check)
+  source: review-comment       # review-comment | pr-comment | review-body | ci-check
+  thread_id: <PRRT_…|null>     # review-comment: the thread node id; pr-comment/review-body/ci-check: null (no thread)
+  comment_id: <numeric|null>   # review-comment: top comment databaseId (the reply anchor); pr-comment/review-body/ci-check: null (no resolvable anchor)
+  author: <login|null>         # review-comment / pr-comment / review-body author; ci-check: null
   is_bot: <bool>               # coderabbitai[bot] / greptile-apps[bot] / … → true
-  path: <file|null>            # cited file; ci-check: annotation path if any, else null
-  line: <int|null>
-  body: |                      # review-comment: the thread conversation; ci-check: check output
+  path: <file|null>            # cited file; pr-comment/review-body: null (not attached to the diff); ci-check: annotation path if any, else null
+  line: <int|null>             # cited line; pr-comment/review-body: null (not attached to the diff); ci-check: null
+  body: |                      # review-comment: the thread conversation; pr-comment: the comment; review-body: the review's summary text; ci-check: check output
     <verbatim text>
   verdict:                     # Phase 2: fix | ask | answer-only | decline
   reason:                      # Phase 2, decline only: wrong-claim | over-engineering | out-of-scope | regression-risk | too-large
@@ -40,8 +40,10 @@ The read side of `pr-threads.md` (§2 threads, §3 checks) returns raw GraphQL /
 Build rules:
 - Collapse a multi-comment thread to ONE item — concatenate the comment bodies into `body`, keep the FIRST comment's `databaseId` as `comment_id` (the reply anchor) and the thread `id` as `thread_id`.
 - Drop threads with `isResolved == true` (idempotency).
-- A `CHANGES_REQUESTED` formal review with no inline thread becomes an item with `thread_id: null` — it cannot be replied to or resolved through the API, so it can still produce a fix, but its outcome reaches the user through the final report rather than the PR.
+- A conversation-tab comment (`pr-comment`) becomes an item that can produce a fix and a line in the final report — it carries no thread and no file position, so it never gets a reply and is never resolved through the API.
+- A formal review's body becomes a `review-body` item with `thread_id: null` only for what its own inline threads do not already carry — a review whose body merely summarizes threads that are themselves items adds nothing and is not a separate item. This holds whatever the review's state: an approving review can carry substantive body text and open new inline threads in the same submission, and a commenting review carries a body while changing no merge status, so gating this on one state alone drops the others. A body that clears the bar cannot be replied to or resolved through the API, so it can still produce a fix, but its outcome reaches the user through the final report rather than the PR.
 - Group items by `path` so one read of a file in Phase 2 serves every item citing it; CI items with `path: null` form their own group.
+- Phase 1 records a `feedback-snapshot` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §2.5) alongside the inventory, because Phase 3 re-reads the PR before any outward action and set-diffs against it.
 
 ## 1.5 Workspace sync: local checkout → PR head (Phase 1)
 
@@ -76,8 +78,8 @@ Per item, after reading the cited code and attempting a repro. The filter is the
 |---|---|---|
 | `fix` | The comment names a real, reachable issue in the current head, and the correction is behavior-preserving: it makes the code do what its own tests, spec and callers already expect | Applied in Phase 3 without asking. Reply names what changed; thread resolves once the fix is pushed |
 | `ask` | The correction is real and worth making, but it changes something a caller could depend on — an API shape, a default, error semantics, a data format, ordering, a deliberate performance trade-off. Also: any item you cannot confidently place on either side of that line | Goes to the decision gate. Picked → applied like a `fix`. Unpicked → nothing applied, nothing posted, reported to the user |
-| `answer-only` | The comment asks a question that needs a reply but no code change | Reply posted; thread stays open unless the answer settles it |
-| `decline` | The ask fails the worth-doing bar below | Evidence-backed push-back reply; thread stays open; no code change |
+| `answer-only` | The comment asks a question that needs a reply but no code change | A `review-comment` item gets a reply; its thread stays open unless the answer settles it. A `pr-comment` or `review-body` item has no thread to reply into — the answer goes into the final report instead |
+| `decline` | The ask fails the worth-doing bar below | No code change. A `review-comment` item gets an evidence-backed push-back reply and its thread stays open — accepting the push-back is the reviewer's call. A `pr-comment` or `review-body` item has no thread to reply into, so its push-back and the evidence behind it go into the final report |
 
 **The worth-doing bar.** A `decline` always carries one `reason`, and the reason is what the push-back argues:
 
@@ -89,7 +91,7 @@ Per item, after reading the cited code and attempting a repro. The filter is the
 | `regression-risk` | Making the change would break behavior something depends on | The dependent — a test that pins it, a caller that relies on it, a documented contract |
 | `too-large` | The ask is real and in scope but is its own piece of work, not a review-round fix | What the change would actually touch, so the user can size the separate work |
 
-Two rules keep this from becoming a way to avoid work: a `decline` is only ever assigned with evidence you can quote, and every `decline` is re-checked by a fresh `finding-verifier-agent` before its reply is drafted (SKILL.md §Loop invariants #3). A verifier that refutes the decline re-opens the item as `fix` or `ask`. "I would rather not" is not a reason on this table.
+Two rules keep this from becoming a way to avoid work: a `decline` is only ever assigned with evidence you can quote, and every `decline` is re-checked by a fresh `finding-verifier-agent` as part of being assigned `decline`, reply or no reply (SKILL.md §Loop invariants #3). A verifier that refutes the decline re-opens the item as `fix` or `ask`. "I would rather not" is not a reason on this table.
 
 **Reproduce before you commit to a verdict.**
 - A bug claim → construct a concrete failing case or name the exact trigger path. A claim that cannot be reproduced is evidence for `decline` / `wrong-claim`.
@@ -140,7 +142,7 @@ options:
   - "Leave it in the working tree"                   -> nothing; the diff is the deliverable
 ```
 
-When nothing was applied — every item declined, answered, or left unpicked — there is no commit to make and the gate narrows to the replies alone: "Post the <R> replies to PR #<num>?" / "Post nothing". A run with no fixes and no replies skips the gate and goes straight to the report; there is nothing to authorize.
+When nothing was applied — every item declined, answered, or left unpicked — there is no commit to make and the gate narrows to the replies alone: "Post the <R> replies to PR #<num>?" / "Post nothing". A run whose fetch ran and found nothing outstanding takes this narrowed path straight to the report — there is nothing to authorize; a run whose fetch failed or never ran does not, and resolves the unknown — by retrying the read or asking — before any outward action runs (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §6).
 
 Annotate the question text with anything the user needs to weigh: a test failure that survived the retry, a pre-existing failure the run did not cause, a fix whose files did not make it into the commit. The gate's answer governs every outward action in the chain — a later step never carries out something it stopped short of.
 
@@ -153,10 +155,11 @@ Printed to chat at the end of every run, including one that shipped nothing:
 
 **Fixed (<N>)** — <one line each: comment author, what changed, path>
 **Declined (<M>)** — <one line each: comment author, reason, the evidence in a clause>
-**Answered (<A>)** — <one line each: comment author, the `answer-only` reply, path:line>
+**Answered (<A>)** — <one line each: comment author, the answer, and path:line when the item has one — noting when it was posted as a reply versus, for a comment with no thread, recorded here only>
 **Left for you (<K>)** — <the `ask` items not picked, and any item whose fix did not land>
 **Tests** — <verdict, or "no test command documented in the project's instructions">
 **On the PR** — <what was pushed, how many replies posted, how many threads resolved, and anything skipped after a failed write>
+**Checked as of** — <the commit this run read the PR at, and how long ago the last read happened, e.g. "commit a1b2c3d, 4 minutes before this report">
 ```
 
 Every item in the inventory appears in exactly one of the first four sections — a run that silently drops an item is a run whose triage the user cannot check.

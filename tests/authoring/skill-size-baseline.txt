@@ -20,7 +20,7 @@ skills/onboard/SKILL.md 3165
 skills/plan/SKILL.md 3457
 skills/refactor/SKILL.md 3715
 skills/reflect/SKILL.md 3050
-skills/resolve/SKILL.md 3678
+skills/resolve/SKILL.md 3491
 skills/review/SKILL.md 3958
 skills/setup/SKILL.md 2622
 skills/update/SKILL.md 1887
