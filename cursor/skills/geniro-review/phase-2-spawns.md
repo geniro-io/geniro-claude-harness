@@ -9,7 +9,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to 
 - Phase 2 — LLM reviewer spawns
   - 2.1 Dimension grid (built-in dimensions + N custom)
   - 2.2 Pre-spawn declaration (state.md write before parallel batch)
-  - 2.3 Spawn invocation (2.3.1 spawn echo · 2.3.2 fire the batch · criteria files)
+  - 2.3 Spawn invocation (2.3.1 spawn echo · 2.3.2 fire the batch + optional brief co-fire · criteria files)
   - 2.4 reserved
   - 2.5 UI-file detection rule (design dim trigger)
   - 2.6 Spec-compliance detection rule
@@ -83,7 +83,11 @@ SKILL.md's Definition of done makes a dropped echo detectable.
 
 **Step 2.3.2 — Fire the batch.**
 
-Fire the parallel batch — single message with N parallel spawns, one per dimension, plus an `atomic_state_append_section` append of `## Tool log` entry `[Phase 2 spawn batch fired] fired=<count of Agent reviewer spawns issued>`, welded like the §2.3.1 spawn echo into that SAME response so the fired count can never be dropped independently of the batch it records. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn. Each spawn:
+Fire the parallel batch — single message with N parallel spawns, one per dimension, plus an `atomic_state_append_section` append of `## Tool log` entry `[Phase 2 spawn batch fired] fired=<count of Agent reviewer spawns issued>`, welded like the §2.3.1 spawn echo into that SAME response so the fired count can never be dropped independently of the batch it records. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn.
+
+**Brief co-fire (optional).** When `brief:` is not `off`, fire the brief spawn in this SAME response, alongside the batch — one more parallel `Agent(...)` call, never a separate turn before or after, and never a reviewer spawn: it is not counted in the `fired=` total the batch-fire entry records above (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Caller contract). The co-fire is safe because the two are mutually independent — neither consumes the other's output — which is the condition `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` sets on firing agents together. The boundary that shape does NOT cross: the reviewer batch itself still never backgrounds, because its output feeds the next gate — the brief joining the response changes nothing about that. `subagent_type="general-purpose"`, OMIT `model=` (inherits, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`); call and prompt slots: `review-brief.md` §Spawn template. Isolation invariant (same file, §Isolation invariant): the brief never enters any reviewer's or verifier's input.
+
+Each spawn:
 
 - `subagent_type: "geniro:reviewer-agent"` under Claude Code, bare `subagent_type: "reviewer-agent"` under any other host (`geniro:` is Claude Code's plugin namespace) — on a spawn that fails to start or returns empty, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, per the deferred-read rule in SKILL.md §Subagent model tiering.
 - Model per `SKILL.md` §Subagent model tiering — OMIT `model=` by default (reviewer-agent declares `model: inherit`; a custom reviewer's own declared tier passes through verbatim), or pass `model="<tier>"` when the run carries `--subagent-model`.
@@ -110,7 +114,7 @@ After the parallel batch returns, read each reviewer's report for its `Context l
 
 The Phase 4 §4.0b completeness check reads `spawn_dims_count` against the `fired=` count on the `[Phase 2 spawn batch fired]` entry written at batch-fire time (Step 2.3.2 above) — the only durable record of it: §2.2 persists the declaration (intent), so without that entry a compaction-resume into `phase: stratify` has no actual to compare against and the over-fire / under-fire branch cannot evaluate at all.
 
-**Drain the batch in one turn — do not narrate its arrivals.** Wait for every reviewer and report once, when the last one is in. A running batch is not new information, and a progress turn spent on it ("7 of 11 back, waiting on the remaining four") re-reads this orchestrator's whole accumulated context — by Phase 2 already carrying the diff, the triage, and every composed spawn prompt — to say what the completion line below says anyway. The §2.7 build verification is the one thing worth a turn here, because it does not depend on the batch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`).
+**Drain the batch in one turn — do not narrate its arrivals.** Wait for every reviewer and report once, when the last one is in. A running batch is not new information, and a progress turn spent on it ("7 of 11 back, waiting on the remaining four") re-reads this orchestrator's whole accumulated context — by Phase 2 already carrying the diff, the triage, and every composed spawn prompt — to say what the completion line below says anyway. The §2.7 build verification is the one thing worth a turn here, because it does not depend on the batch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`) — the brief, when requested, is already running from the co-fire above and is not re-fired at this drain.
 
 Narrate completion before transitioning to Phase 3:
 
@@ -126,6 +130,8 @@ Surface any `status: failed` entries by their plain-English dim name (e.g., "PR 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/pr-metadata-criteria.md` (conditional)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` (conditional per §2.6)
 - Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (capped there, per project)
+
+**Brief drain and materialization.** When `brief:` is not `off`, its result returns with the batch — drain and materialize it here, at the end of Phase 2, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Caller contract and §Medium selection, and surface where it landed to the user exactly once, in plain language — a link or a path, never an internal phase name or state-file term. The orchestrator reading the drained result is what materializing requires; what must never happen is the brief entering a spawn prompt — any reviewer's, or any later verifier's.
 
 ### 2.5 UI-file detection rule (design dim trigger)
 

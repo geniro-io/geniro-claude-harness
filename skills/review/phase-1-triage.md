@@ -20,12 +20,12 @@ Phase bodies for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry t
 
 State.md `phase: triage`. Every step below is specified in full — inputs, decision trees, fail-open rules, gate wording — in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md`, which is the single home of the Phase 1 contract. Read it on entry to this phase — before any step below, echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, exactly as this file itself was. The list here is the running order and nothing more, so a step's rule is never stated in two places to drift apart; the corollary is that every Phase 1 gate — the workspace-approval decision tree, the round-3 escalation, the re-review scope question — exists only in that reference, and a run that stops at this file has the running order with none of the gates.
 
-**Flags & presets:** `--plan <path>`, `--subagent-model <tier>`, and the workspace modifiers are cataloged with the cross-skill flag set in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+**Flags & presets:** `--plan <path>`, `--subagent-model <tier>`, `--brief` / `--no-brief`, and the workspace modifiers are cataloged with the cross-skill flag set in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
 
 Run these in order (`§` anchors are sections of the triage reference):
 
 1. **Set up the workspace** — settle which working tree the rest of the phase inspects, before anything reads the repo · §0.
-2. **Parse the input** — strip `--focus <text>` and `--subagent-model <tier>` first, then resolve the review-target shape from the remaining `$ARGUMENTS`. When it resolves to a PR ref, also Read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` — it carries the whole PR-side contract (thread-state fetch, existing-review ingest, metadata fetch, peer-PR scout) and no other input shape loads it · §1.
+2. **Parse the input** — strip `--focus <text>`, `--subagent-model <tier>`, and `--brief` / `--no-brief` first, then resolve the review-target shape from the remaining `$ARGUMENTS`. When it resolves to a PR ref, also Read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` — it carries the whole PR-side contract (thread-state fetch, existing-review ingest, metadata fetch, peer-PR scout) and no other input shape loads it · §1.
 3. **Resolve the scope** — the reviewed file set, the scope-exclusion note, and the sanity gate that aborts an unresolvable ref or an empty diff before any reviewer spawns · §2 + §2.1.
 4. **Fetch the pull-request metadata** (PR ref only) — diff, base/head refs, title/body, head SHA, URL, draft state, author, labels · `phase-1-pr-reference.md` §3.
 5. **Fetch the linked issue** — workflow-file detection, tracker-ID match, spec-frontmatter ref merge, and the `LINEAR CONTEXT:` block · §3.5.
@@ -36,8 +36,9 @@ Run these in order (`§` anchors are sections of the triage reference):
 10. **Stratify by risk** — sets `risk-tier: standard | high`, which scales three downstream knobs · §9.
 11. **Load the memory layers** — project snapshot, past learnings, conflict resolution · §10.
 12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape · §12.
+13. **Brief opt-in** — ask whether to produce the orientation brief, and in which form · §13.
 
-Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, and `subagent-model` (from the step-2 flag parse; missing reads as `inherit`); `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
+Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, `subagent-model` (from the step-2 flag parse; missing reads as `inherit`), and `brief` (from step 13); `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
 Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr diff` / `gh pr view` / `mcp__linear__*` reads). For codebase-research side queries inside this phase (e.g., locating a pattern across the wider repo when scoring peer-PR overlap), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
