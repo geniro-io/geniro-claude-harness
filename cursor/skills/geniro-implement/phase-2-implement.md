@@ -31,7 +31,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
    - 3-10 todos for Medium scope
    - up to 15 todos for Big scope (unless already split into milestones)
 
-   All todos initially `status: pending`. Mark the FIRST todo `in_progress` before any edit.
+   All todos initially `status: pending`. Persist the authored set to state.md — `todos_declared: [<slug>, ...]` + `todos_declared_count`, one short slug per todo, through two `atomic_state_set_field` calls against the fields Phase 1 seeded — the same declare-before-fire moment `spawn_dims_declared` uses ahead of the Phase 3 reviewer batch (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §Step 1). Mark the FIRST todo `in_progress` before any edit.
 
    A library adopted at the Phase 1 build-vs-buy library-reuse audit (`approvals[]` category `library_adoption`) also becomes a todo here: add it through the package manager (not by editing a lockfile — lockfile writes stay hook-protected) and integrate it in place of the hand-written component.
 
