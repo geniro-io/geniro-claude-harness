@@ -18,6 +18,8 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 
 `validate` accepts `<scope>` arg (validate one file) or no arg (validate all). Read-only; never mutates.
 
+Scan `"$PRIMARY_ROOT"/.geniro/instructions/` and its `review-extra/` subdirectory for the set to check, and read each target at that same prefix — Phase 1 Step 0.5 resolved it. Validating cwd from a linked worktree grades a different file set than the one `create`/`edit` write and every skill's fallback loads, and an empty worktree directory reports a clean run over rules never checked.
+
 **flag:** `--max-lines N` overrides the default 300-LOC threshold (Step 2). Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
 
 ### Step 2 — Lint rule set
@@ -93,7 +95,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference
 
 ### Step 4 — Count caps (review-extra)
 
-Both thresholds live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 — the runtime enforcer, which is what actually aborts a review past the cap and which states that other files cite it rather than restating the figures. Read that section for the two numbers, then count the files in `.geniro/instructions/review-extra/` and report against them:
+Both thresholds live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 — the runtime enforcer, which is what actually aborts a review past the cap and which states that other files cite it rather than restating the figures. Read that section for the two numbers, then count the files in `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/` and report against them:
 
 - Past the soft-warn band: `⚠ Count {N} exceeds the sweet spot — consider consolidating overlapping reviewers.`
 - Past the hard cap: `✗ Count {N} exceeds the hard cap — the loader will refuse to load all reviewers.`

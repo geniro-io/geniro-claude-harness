@@ -11,6 +11,7 @@ For `review-extra`, follow the slug-bearing flow in `${CLAUDE_PLUGIN_ROOT}/skill
 ### Step 1 — Check for existing file
 
 ```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh"; PRIMARY_ROOT="$(_geniro_repo_root)"
 cat "$PRIMARY_ROOT"/.geniro/instructions/<scope>.md 2>/dev/null
 ```
 
@@ -19,6 +20,7 @@ If file exists: AUQ "File exists — overwrite, edit instead, or cancel?". Branc
 ### Step 2 — Ensure directory exists
 
 ```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh"; PRIMARY_ROOT="$(_geniro_repo_root)"
 mkdir -p "$PRIMARY_ROOT"/.geniro/instructions
 mkdir -p "$PRIMARY_ROOT"/.geniro/instructions/review-extra # if scope == review-extra
 ```
@@ -44,7 +46,7 @@ Apply the writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instr
 
 ### Step 6 — Confirm
 
-Print:
+Print (per `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` Step 0.5: when the main repo checkout is not the current working tree, name the resolved absolute path instead and append the survives-this-worktree clause):
 
 ```
 Created `.geniro/instructions/<scope>.md`
