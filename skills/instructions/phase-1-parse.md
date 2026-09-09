@@ -6,7 +6,15 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on ent
 
 **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Echo contract requires one observable line.
 
-**Step 0.5 — Locate the instructions directory.** Compute `PRIMARY_ROOT` via the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, re-running it in every Bash call that uses the variable (Mode A owns the recompute-per-call rule); every `.geniro/instructions/...` path in the rest of this skill is prefixed `"$PRIMARY_ROOT"/`. Instruction files are cross-session content — a cwd-relative write from a linked worktree is lost when the worktree is removed. When `PRIMARY_ROOT` is not `.`: create/edit/delete success lines show the resolved absolute path, create/edit lines append `— written to the main repo checkout so it survives this worktree's removal.`, and if a same-named file exists at the cwd-local `.geniro/instructions/` path with different content, print one notice after create/edit: `Note: this worktree has its own copy of <file>, which takes precedence here when rules load.` Notice only — no question, no block.
+**Step 0.5 — Locate the instructions directory.** Open every Bash call that touches an instruction path with the resolver, and prefix every `.geniro/instructions/...` path in the rest of this skill — read, scan, write, delete — with `"$PRIMARY_ROOT"/`:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh"; PRIMARY_ROOT="$(_geniro_repo_root)"
+```
+
+`_geniro_repo_root` returns the main checkout's absolute path even when the session sits in a linked worktree; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` carries the why — instruction files are cross-session content, and a cwd-relative write from a linked worktree dies with `git worktree remove`. Resolve it per call rather than once: shell state does not persist between Bash calls, and an unset `"$PRIMARY_ROOT"/.geniro/...` expands to a root-anchored `/.geniro/...` that silently scans an empty directory and writes nowhere. Tool-call paths (a `Read` target, an `atomic_state_write` target) take the resolved absolute path the same way.
+
+When `PRIMARY_ROOT` is not the current working tree: create/edit/delete success lines show the resolved absolute path, create/edit lines append `— written to the main repo checkout so it survives this worktree's removal.`, and if a same-named file exists at the cwd-local `.geniro/instructions/` path with different content, print one notice after create/edit: `Note: this worktree has its own copy of <file>, which takes precedence here when rules load.` Notice only — no question, no block.
 
 ## Mode detection
 

@@ -149,6 +149,7 @@ pr-bot-comments-snapshot: [<path:line entries|null>]         # read by §7.1 ded
 pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3
 prior-round-summary: <text|null>                       # written/read across re-run rounds (§7)
 steering-note: <text|none>                             # this round's free-text steering from the user, or none (§7 step 5)
+brief: <artifact|file|off|pending>                     # this run's brief opt-in from the Phase 1 question, persisted before the Phase 2 batch — state-tier-spec.md /geniro:review producer fields (missing reads as off; `pending` is Phase-1-internal and never survives its exit)
 spawn_dims_declared: [<dim-slug>, ...]   # producer-run: the dimension set declared before the Phase 2 batch fired
 spawn_dims_count: <int>                  # producer-run: length of spawn_dims_declared
 custom_reviewers: []                     # producer-run: discovered custom review dimensions (short spawn-spec scalars, never criteria bodies)
@@ -166,6 +167,7 @@ open_questions: []                    # always present; may be empty []. Entry s
 
 ## Summary
 - Branch: <branch>
+- Brief: <Artifact URL or file path, or "none" when `brief: off`>
 - Scope: <N files reviewed of <T> changed in the PR>; when N < T (commonly a stacked PR) also "<M> files excluded — owned by ancestor PR #<n> (<K> review threads, <U> unresolved); reviewed there, not missed" (omit the clause when the review covered the whole PR). Naming the ancestor and its thread counts is what distinguishes a deliberately narrowed scope from a review that silently skipped files
 - Round: <N>
 - Steering: <this round's applied text, or "none">

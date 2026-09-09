@@ -54,12 +54,12 @@ A delimiter alone does not prove where a pasted payload ends — the payload can
 
 | Label | Content class | Producing site |
 |---|---|---|
-| `PR-BODY` | PR free text — title, body, commit messages, and label names | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3 |
-| `TRACKER` | Tracker-ticket free text — title, description, acceptance criteria, labels | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §3.5.2 |
+| `PR-BODY` | PR free text — title, body, commit messages, and label names | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
+| `TRACKER` | Tracker-ticket free text — title, description, acceptance criteria, labels | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §3.5.2; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
 | `PEER-PR` | Sibling-PR titles and diff excerpts from the peer-PR scout | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §4, fenced on inline at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3 |
 | `PR-COMMENTS` | Inline PR review-thread comment bodies, bot and human | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §1.1 |
 | `FORMAL-REVIEWS` | Top-level PR formal-review bodies | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §1.1 |
-| `DIFF` | A git diff body | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md`; `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` |
+| `DIFF` | A git diff body | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md`; `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md`; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
 | `PRE-PASS` | Mechanical pre-pass findings/candidates — matched-pattern hits that can embed repo or diff text verbatim | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` |
 | `PLAN` | Spec / plan / design-doc content, structured or prose | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` |
 | `PRIOR-ROUND` | Prior-round CRITICAL/HIGH findings carried into a re-review | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` |
@@ -72,7 +72,7 @@ A delimiter alone does not prove where a pasted payload ends — the payload can
 | `CITED-CODE` | The code slice a finding or claim cites | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4 |
 | `CALLER-GREP` | 1-hop caller-grep output | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4 |
 | `TEST-GREP` | Sibling-test grep output | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4 |
-| `CHANGED-FILES` | `git diff --name-only` output | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4 |
+| `CHANGED-FILES` | `git diff --name-only` output | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
 | `GIT-LOG` | `git log` output for a cited path | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 |
 | `DATA-SOURCE` | External declared-source fetch result | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 |
 

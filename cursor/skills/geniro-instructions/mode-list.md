@@ -9,9 +9,12 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 ### Step 1 — Scan directory
 
 ```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh"; PRIMARY_ROOT="$(_geniro_repo_root)"
 ls -la "$PRIMARY_ROOT"/.geniro/instructions/ 2>/dev/null
 ls -la "$PRIMARY_ROOT"/.geniro/instructions/review-extra/ 2>/dev/null
 ```
+
+A listing that comes back empty from a linked worktree means the main checkout has no instruction files — not that this worktree lacks a copy. The resolver already looked there.
 
 ### Step 2 — Present results
 
