@@ -36,9 +36,10 @@ Run these in order (`§` anchors are sections of the triage reference):
 10. **Stratify by risk** — sets `risk-tier: standard | high`, which scales three downstream knobs · §9.
 11. **Load the memory layers** — project snapshot, past learnings, conflict resolution · §10.
 12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape · §12.
-13. **Brief opt-in** — ask whether to produce the orientation brief, and in which form · §13.
 
-Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, `subagent-model` (from the step-2 flag parse; missing reads as `inherit`), and `brief` (from step 13); `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
+Phase 1 asks nothing about the optional orientation brief: that question belongs to Phase 2, fired in the same response as the reviewer batch so the fan-out never waits on an answer (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3.2).
+
+Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, and `subagent-model` (from the step-2 flag parse; missing reads as `inherit`), plus `brief` when that same parse found `--brief` / `--no-brief` (absent otherwise — Phase 2 resolves it); `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
 Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr diff` / `gh pr view` / `mcp__linear__*` reads). For codebase-research side queries inside this phase (e.g., locating a pattern across the wider repo when scoring peer-PR overlap), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 

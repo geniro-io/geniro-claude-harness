@@ -9,7 +9,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`. Read on entry to 
 - Phase 2 — LLM reviewer spawns
   - 2.1 Dimension grid (built-in dimensions + N custom)
   - 2.2 Pre-spawn declaration (state.md write before parallel batch)
-  - 2.3 Spawn invocation (2.3.1 spawn echo · 2.3.2 fire the batch + optional brief co-fire · criteria files)
+  - 2.3 Spawn invocation (2.3.1 spawn echo · 2.3.2 fire the batch + the optional brief opt-in and its post-drain spawn · criteria files)
   - 2.4 reserved
   - 2.5 UI-file detection rule (design dim trigger)
   - 2.6 Spec-compliance detection rule
@@ -85,9 +85,15 @@ SKILL.md's Definition of done makes a dropped echo detectable.
 
 Fire the parallel batch — single message with N parallel spawns, one per dimension, plus an `atomic_state_append_section` append of `## Tool log` entry `[Phase 2 spawn batch fired] fired=<count of Agent reviewer spawns issued>`, welded like the §2.3.1 spawn echo into that SAME response so the fired count can never be dropped independently of the batch it records. N = `spawn_dims_count`, in Standard AND Batched payload mode — file grouping structures what each agent reads (triage reference §12), never how many agents spawn.
 
-**Brief co-fire (optional).** When `brief:` is not `off`, fire the brief spawn in this SAME response, alongside the batch — one more parallel `Agent(...)` call, never a separate turn before or after, and never a reviewer spawn: it is not counted in the `fired=` total the batch-fire entry records above (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Caller contract). The co-fire is safe because the two are mutually independent — neither consumes the other's output — which is the condition `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` sets on firing agents together. The boundary that shape does NOT cross: the reviewer batch itself still never backgrounds, because its output feeds the next gate — the brief joining the response changes nothing about that. `subagent_type="general-purpose"`, OMIT `model=` (inherits, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`); call and prompt slots: `review-brief.md` §Spawn template. Isolation invariant (same file, §Isolation invariant): the brief never enters any reviewer's or verifier's input.
+**Brief opt-in (optional) — asked in this SAME response, never in a turn before it.** The offer of the orientation brief (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`) rides along with the batch fire, after the spawn calls: the reviewers are already launched when the question renders, so the user's reading time overlaps their compute. Asked a turn earlier, it delays every reviewer by however long the user takes to answer — the wait the brief exists to fill, spent instead on the question offering it.
 
-Each spawn:
+1. `brief: off` is already persisted (`--no-brief`, triage reference §1) — ask nothing.
+2. The diff is under the size threshold (triage reference §12) — persist `brief: off` and ask nothing: a change that reads in one pass has nothing to orient a reader to. A persisted `brief: pending` overrides this suppression (an explicit flag outranks an inferred signal) and falls through to step 3.
+3. Otherwise fire ONE `AskQuestion`, resolving the medium per `review-brief.md` §Medium selection — both media plus declining where the host can publish an Artifact; a bare yes/no where it cannot, since only the file medium exists and a single-answer choice is a wasted turn. A persisted `brief: pending` pre-answers the accept: ask only which medium, or, with no medium to choose, ask nothing and persist `file`.
+4. Plain English throughout — no phase, tier, or internal identifier in the question or its options. State the cost (nothing in wall-clock — the reviewers are already running) and what it is not (not a review, not a verdict).
+5. Persist `brief: artifact|file|off` to state.md frontmatter (field: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`) when the answer lands, before the brief spawn below fires.
+
+Each reviewer spawn:
 
 - `subagent_type: "geniro:reviewer-agent"` under Claude Code, bare `subagent_type: "reviewer-agent"` under any other host (`geniro:` is Claude Code's plugin namespace) — on a spawn that fails to start or returns empty, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, per the deferred-read rule in SKILL.md §Subagent model tiering.
 - Model per `SKILL.md` §Subagent model tiering — OMIT `model=` by default (reviewer-agent declares `model: inherit`; a custom reviewer's own declared tier passes through verbatim), or pass `model="<tier>"` when the run carries `--subagent-model`.
@@ -114,7 +120,7 @@ After the parallel batch returns, read each reviewer's report for its `Context l
 
 The Phase 4 §4.0b completeness check reads `spawn_dims_count` against the `fired=` count on the `[Phase 2 spawn batch fired]` entry written at batch-fire time (Step 2.3.2 above) — the only durable record of it: §2.2 persists the declaration (intent), so without that entry a compaction-resume into `phase: stratify` has no actual to compare against and the over-fire / under-fire branch cannot evaluate at all.
 
-**Drain the batch in one turn — do not narrate its arrivals.** Wait for every reviewer and report once, when the last one is in. A running batch is not new information, and a progress turn spent on it ("7 of 11 back, waiting on the remaining four") re-reads this orchestrator's whole accumulated context — by Phase 2 already carrying the diff, the triage, and every composed spawn prompt — to say what the completion line below says anyway. The §2.7 build verification is the one thing worth a turn here, because it does not depend on the batch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`) — the brief, when requested, is already running from the co-fire above and is not re-fired at this drain.
+**Drain the batch in one turn — do not narrate its arrivals.** Wait for every reviewer and report once, when the last one is in. A running batch is not new information, and a progress turn spent on it ("7 of 11 back, waiting on the remaining four") re-reads this orchestrator's whole accumulated context — by Phase 2 already carrying the diff, the triage, and every composed spawn prompt — to say what the completion line below says anyway. The §2.7 build verification is the one thing worth a turn here, because it does not depend on the batch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`).
 
 Narrate completion before transitioning to Phase 3:
 
@@ -131,7 +137,7 @@ Surface any `status: failed` entries by their plain-English dim name (e.g., "PR 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` (conditional per §2.6)
 - Custom reviewer criteria from spawn-specs returned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (capped there, per project)
 
-**Brief drain and materialization.** When `brief:` is not `off`, its result returns with the batch — drain and materialize it here, at the end of Phase 2, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Caller contract and §Medium selection, and surface where it landed to the user exactly once, in plain language — a link or a path, never an internal phase name or state-file term. The orchestrator reading the drained result is what materializing requires; what must never happen is the brief entering a spawn prompt — any reviewer's, or any later verifier's.
+**Brief spawn and materialization.** When the opt-in resolved `brief:` to `artifact` or `file`, fire the brief spawn in the same response as the completion narration above — `subagent_type="general-purpose"`, `run_in_background: true`, OMIT `model=`; call and prompt slots: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template. It backgrounds because no gate consumes it: the brief feeds the user, not the pipeline, so Phase 3's aggregation and Phase 4's verifier batch run alongside it rather than behind it, and the three anchors `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` §The contract puts on a backgrounded spawn — visible spawn, drain before the dependent step, unconditional echo — all apply. Drain and materialize it per `review-brief.md` §Medium selection as soon as it returns, by the end of Phase 4 at the latest: Phase 5 revokes the write and publish grant materializing needs (`SKILL.md` §ACI per-phase tool surface). Surface where it landed exactly once, in plain language — a link or a path, never an internal phase name or state-file term. Reading the drained result is what materializing requires; what must never happen is the brief entering a spawn prompt — any reviewer's, or any later verifier's (`review-brief.md` §Isolation invariant).
 
 ### 2.5 UI-file detection rule (design dim trigger)
 
