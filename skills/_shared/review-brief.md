@@ -1,6 +1,8 @@
 # Review brief
 
-`/geniro:review` blocks for several minutes while its dimension reviewers, and then its finding verifiers, run as parallel batches. This module defines an optional companion deliverable produced inside that wait: a short brief that orients the human on the change under review — why it exists, what it structurally does, where it concentrates, how it is verified, and what is still open — so there is something useful to read while the review runs. It is a reading aid, not an extra pass over the diff, and it renders no verdict.
+`/geniro:review` blocks for several minutes while its dimension reviewers run as one parallel batch. This module defines an optional companion deliverable produced inside that same window: a short brief that orients the human on the change under review — why it exists, what it structurally does, where it concentrates, how it is verified, and what is still open — so there is something useful to read while the reviewers work. It is a reading aid, not an extra pass over the diff, and it renders no verdict.
+
+It orients a reader *ahead of* the findings, so it is worth only as much as the lead time it keeps: a brief that arrives once the reader has worked through the report has spent the run's tokens telling them what they just read.
 
 ## Contents
 
@@ -9,7 +11,7 @@
 - Isolation invariant — the brief never reaches a reviewer or verifier
 - Medium selection — Artifact or a markdown file, and how the run picks
 - Spawn template — the `Agent(...)` call and its prompt slots
-- Caller contract — what the calling skill provides and does with the result
+- Caller contract — when the opt-in resolves, when the spawn fires, and when the result is materialized
 
 ## Content contract
 
@@ -39,7 +41,7 @@ This is a required section of the brief's output on every run. When nothing was 
 
 The brief never enters a reviewer's or a verifier's input, at any phase, and no later phase feeds it into one. This file is the canonical statement of that rule; other files reference it here rather than restating it.
 
-The reviewers' independence from each other is what makes their findings worth aggregating, and the framing bias described in §Content contract is exactly what breaks that independence if a reassuring or judgment-laden brief leaks into a reviewer's context — the same collapse in detection, seeded across every dimension at once instead of costing one human reader their own read. The pipeline holds this invariant by construction for the reviewer batch: the brief is not spawned until that batch has returned, so no reviewer prompt could carry it. It holds by discipline, not construction, for every later verifier spawn — the Phase 4.2 per-finding verifier may fire while the brief is still in flight, and the Phase 6 "Challenge this finding" spawn fires long after it landed; nothing about the flow's shape keeps it out of either prompt, so the brief is simply never composed into one. State the rule anyway, because the risk is a later edit — a verification pass, or the report synthesis that quietly starts reading the brief once it exists as a file or a URL sitting right there in state.
+The reviewers' independence from each other is what makes their findings worth aggregating, and the framing bias described in §Content contract is exactly what breaks that independence if a reassuring or judgment-laden brief leaks into a reviewer's context — the same collapse in detection, seeded across every dimension at once instead of costing one human reader their own read. The pipeline holds this invariant by construction for the reviewer batch: the brief is spawned alongside it, never ahead of it, so every reviewer prompt is already composed and fired before the brief's first word exists. It holds by discipline, not construction, for every later verifier spawn — the Phase 4.2 per-finding verifier and the Phase 6 "Challenge this finding" spawn both fire after the brief has landed; nothing about the flow's shape keeps it out of their prompts, so the brief is simply never composed into one. State the rule anyway, because the risk is a later edit — a verification pass, or the report synthesis that quietly starts reading the brief once it exists as a file or a URL sitting right there in state.
 
 ## Medium selection
 
@@ -91,8 +93,14 @@ The prompt carries five slots. `TARGET` is the diff itself, or whatever it resol
 
 ## Caller contract
 
-**The opt-in is asked in the same assistant response that fires the reviewer batch, never in a turn before it.** Ordering is the whole of it: the offer is worth making only because the brief is free in wall-clock, and a question standing ahead of the fan-out spends the user's answering time postponing the very wait the brief exists to fill. Asked alongside the batch, the reviewers are already computing while the user reads the question.
+**The opt-in resolves BEFORE the response that fires the reviewer batch; the brief spawns INSIDE that response; the caller materializes it the moment the batch returns.** Those three points are the contract, and the spawn's is the one that decides whether the brief is worth producing at all.
 
-Once the answer lands, the caller provides the five slots above and fires this spawn `run_in_background: true`, then carries on with the review. Nothing downstream gates on the brief — it feeds the user, not the pipeline — which is precisely the case `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` sanctions for a backgrounded spawn, its three anchors (visible spawn, drain before the dependent step, unconditional echo) applying unchanged. The reviewer batch stays synchronous and blocking: its output IS the next gate's input, the case that file's hard boundaries reserve for exactly that shape.
+The spawn can only overlap a wait it starts inside of. A question asked in the batch's own response cannot be read back until that response completes — which is after the last reviewer has returned — so an opt-in asked there postpones the spawn past the entire window it exists to fill. Measured once that way on a 57-minute review of a 16-file PR: reviewers returned at 12:04 and their findings printed immediately; the brief spawned at 12:05:30, published at 12:11, and the aggregation step that should have followed the batch stood still for those seven minutes. The brief cost the run time instead of hiding inside it, and reached its reader after every finding it was meant to precede.
 
-The drain deadline is the last point at which the caller can still write or publish — a brief still in flight past that point has nowhere to land. Once drained, the caller materializes it per §Medium selection and surfaces where it landed to the user exactly once, in plain language — a link or a path, never an internal phase name or state-file term.
+None of the five slots above carries the answer — the medium decides only how the caller materializes the returned markdown, never a word of what the agent writes — so the spawn never needed the answer for its prompt. It needs only to be *fireable* in the batch's response, which means the answer has to be in hand before that response starts.
+
+**Ask it where it is free.** Any question the calling skill already fires ahead of the fan-out carries this offer as one more question in the same call, and then the answer costs nothing at all. With no such question to join, the offer stands alone immediately before the fan-out: seconds of answering time against the minutes of fan-out the brief then overlaps — the trade the measurement above settles.
+
+The caller provides the five slots and fires this spawn in the same assistant response as the reviewer batch — one more parallel spawn alongside them, not backgrounded and not a separate turn. This borrows the co-fire mechanics of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` Shape B — mutually independent agents in one response, neither consuming the other's output — without Shape B's own precondition that both feed the same downstream gate: the reviewers feed the next gate, the brief feeds the user, not a gate at all. Co-firing collapses the wait to the slower of the two, and puts the brief in the caller's hands at the same moment the reviewers' output is. The reviewer batch itself still never backgrounds — its output IS the next gate's input, the case that file's hard boundaries reserve for a synchronous same-response spawn — and adding the brief alongside it does not change that.
+
+**Materialize at the batch's return, ahead of the work that consumes the findings.** In that same response the caller writes or publishes it per §Medium selection and surfaces where it landed exactly once, in plain language — a link or a path, never an internal phase name or state-file term. Deferring this to a later phase costs the reader exactly what the late spawn cost them, one phase at a time, and the last moment it is possible at all is the phase that revokes the write and publish grant.

@@ -149,7 +149,7 @@ pr-bot-comments-snapshot: [<path:line entries|null>]         # read by §7.1 ded
 pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3
 prior-round-summary: <text|null>                       # written/read across re-run rounds (§7)
 steering-note: <text|none>                             # this round's free-text steering from the user, or none (§7 step 5)
-brief: <artifact|file|off|pending>                     # this run's brief opt-in, asked in the response that fires the Phase 2 reviewer batch — state-tier-spec.md /geniro:review producer fields (missing reads as off; `pending` is a `--brief` pre-answer awaiting its medium, resolved before the brief spawns)
+brief: <artifact|file|off|pending>                     # this run's brief opt-in, settled at the last step of Phase 1 so the brief co-fires with the Phase 2 batch — state-tier-spec.md /geniro:review producer fields (missing reads as off; `pending` is a `--brief` pre-answer awaiting its medium)
 spawn_dims_declared: [<dim-slug>, ...]   # producer-run: the dimension set declared before the Phase 2 batch fired
 spawn_dims_count: <int>                  # producer-run: length of spawn_dims_declared
 custom_reviewers: []                     # producer-run: discovered custom review dimensions (short spawn-spec scalars, never criteria bodies)

@@ -22,7 +22,7 @@ State.md `phase: triage` during this phase.
 - §10 Step 0.8 — Memory layer load
 - §11 reserved — the review-depth question is removed; the re-review gate asks scope + steering under §7
 - §12 Size triage
-- §13 reserved — the brief opt-in lives in Phase 2, fired in the same response as the reviewer batch (`phase-2-spawns.md` §2.3.2), so no question delays the fan-out
+- §13 Brief opt-in — resolved here so the brief can co-fire with the Phase 2 batch
 
 ---
 
@@ -202,7 +202,7 @@ After Step 0 settles, every subsequent Phase 1 step and downstream phases run fr
 
 **`--subagent-model <tier>` extraction (same point as `--focus`).** Strip it from `$ARGUMENTS` too, before target-shape detection. Persist `subagent-model: <tier>` to state.md frontmatter now — missing reads as `inherit` — so a compaction between this step and the Phase 2 spawn batch does not silently revert every reviewer back to the frontmatter default. Values and the fallback routes for an inexpressible tier: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`.
 
-**`--brief` / `--no-brief` extraction (same point).** Strip whichever is present from `$ARGUMENTS` too, before target-shape detection — present/absent, no value; both present, last occurrence wins (§0b's modifier convention). Persist the result to state.md frontmatter right now, the same point `--subagent-model` above persists and for the same reason: a compaction anywhere between here and the Phase 2 batch would otherwise silently drop the pre-answer before the opt-in reads it back. `--no-brief` persists `brief: off` (field: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`), closing the question outright. `--brief` persists `brief: pending` — an accepted opt-in still awaiting the medium pick, which `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3.2 reads back and resolves to `artifact` / `file` / `off` in the response that fires the reviewer batch.
+**`--brief` / `--no-brief` extraction (same point).** Strip whichever is present from `$ARGUMENTS` too, before target-shape detection — present/absent, no value; both present, last occurrence wins (§0b's modifier convention). Persist the result to state.md frontmatter right now, the same point `--subagent-model` above persists and for the same reason: a compaction across steps 2-12 would otherwise silently drop the pre-answer before §13 ever reads it back. `--no-brief` persists `brief: off` (field: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`), closing the question outright. `--brief` persists `brief: pending` — an accepted opt-in still awaiting the medium pick, a transient value §13 reads back and resolves to `artifact` / `file` / `off` before Phase 2 fires.
 
 The pre-step resolves the review target from the remaining `$ARGUMENTS`:
 
@@ -417,4 +417,19 @@ Done inline by orchestrator (read each diff hunk, classify) — no subagent.
 
 The same threshold controls how each reviewer reads the diff — Standard vs Batched **payload** (under it → Standard; over it → Batched). In Batched payload mode the orchestrator organizes the SAME full diff into ~5-file groups (canonical home for the group size, cited from every other site — grouped by subsystem/directory) and orders the groups highest-risk first and last — mid-prompt attention is measurably weakest, so the middle slots carry the lowest-risk groups. Every reviewer still receives ALL groups in its one spawn, as a structured reading order with an instruction to work group-by-group. Batched mode changes how a dimension's single agent reads the diff — it never multiplies spawns: total reviewer spawns = the declared dimension count (`spawn_dims_count`), identical in Standard and Batched mode. When narrating groups to the user, render them in plain English by content ("file group 2 of 5 — queue + service"), never as internal labels like `B2` or `b2/5`.
 
-This threshold also decides whether the Phase 2 brief opt-in fires at all: under it the change reads in one pass, so there is nothing to orient a reader to (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3.2).
+This threshold also decides whether the §13 brief opt-in fires at all: under it the change reads in one pass, so there is nothing to orient a reader to.
+
+---
+
+## 13. Brief opt-in
+
+Resolved in Phase 1, because the brief co-fires with the Phase 2 reviewer batch and a spawn cannot ride in a response whose answer is not yet in hand — the whole of why the answer is collected here rather than alongside the fan-out is in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Caller contract.
+
+1. `--no-brief` (§1) already persisted `brief: off`; nothing further to do here.
+2. Diff stays under the §12 size threshold — the same boundary that splits Standard vs Batched payload: the change reads directly in one pass, so persist `brief: off` with no question — asking would spend a turn orienting a reader to a diff they already hold at a glance. A persisted `brief: pending` (§1) overrides this suppression — an explicit modifier outranks an inferred signal, the same precedence §0b's workspace modifiers hold — and falls through to step 3.
+3. Otherwise, resolve the medium and fire the opt-in per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Medium selection:
+   - Host carries the Artifact capability: fire one `AskQuestion` offering both media from that section plus declining. A persisted `brief: pending` pre-answers accept — ask only which medium.
+   - Host lacks it: only the file medium exists, so ask yes/no only, no medium sub-question (a single-answer choice is a wasted turn, per §Medium selection). A persisted `brief: pending` skips even that — persist the file medium directly.
+4. **Ride along with a question this phase already fires, whenever one is still ahead.** The round-3 escalation and the re-review scope + steering questions (§7) both fire with the diff already resolved, so the step-2 signal is computable there even though §12 formalizes the classification later — append the brief offer to that same `AskQuestion` call and this step costs the user nothing beyond the reading. The §0b workspace decision is the one that never carries it: it fires before any diff exists, so step 2 cannot be evaluated yet. With no question left to join, fire this one alone, as the last step of Phase 1.
+5. Plain English throughout — no phase, tier, or internal identifier in the question or its option labels. State the cost (nothing in wall-clock — it runs alongside the reviewers) and what it is not (not a review, not a verdict).
+6. Persist `brief: artifact|file|off` to state.md frontmatter (field: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`) before Phase 2 fires.
