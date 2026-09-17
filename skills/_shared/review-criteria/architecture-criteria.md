@@ -73,7 +73,7 @@ Trigger condition, finding shape, and the `Options:` block are canonical at `${C
 
 ### 8. Testability of the production code
 
-> **Boundary with tests-criteria.md:** this section owns whether the PRODUCTION code can be tested — the seams. Judgments about the tests themselves (coverage gaps, brittle assertions tied to implementation, mocking discipline, critical-path coverage) are owned by the `tests` dimension at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`, which runs in parallel in both `/geniro:review` and `/geniro:implement` Phase 3. Emitting them here reports the same defect twice under a dimension that cannot act on it. Anchor every finding here at the production symbol whose shape is the problem, never at a test file.
+> **Boundary with tests-criteria.md:** this section owns whether the PRODUCTION code can be tested — the seams. Judgments about the tests themselves (coverage gaps, brittle assertions tied to implementation, mocking discipline, critical-path coverage, redundancy / over-layered tests) are owned by the `tests` dimension at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`, which runs in parallel in both `/geniro:review` and `/geniro:implement` Phase 3. Emitting them here reports the same defect twice under a dimension that cannot act on it. Anchor every finding here at the production symbol whose shape is the problem, never at a test file.
 
 - Code shaped so it cannot be exercised without heavy mocking — a high mock count is the symptom, and the finding names the seam that forces it, not the mocks
 - Test-context setup that is difficult or impossible to construct (hidden construction, hardcoded dependencies)

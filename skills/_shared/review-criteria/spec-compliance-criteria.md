@@ -110,17 +110,18 @@ A migration file in the diff performs data writes (INSERT / UPDATE / DELETE / da
 
 ### 4. Tests for stated acceptance criteria
 
-The PR body or plan lists numbered acceptance criteria ("AC1: …", "AC2: …", bulleted "must …" / "should …" / "the system will …"); the diff's test files contain no assertion that references each AC's behavior.
+The PR body or plan lists numbered acceptance criteria ("AC1: …", "AC2: …", bulleted "must …" / "should …" / "the system will …"); no test, new or confirmed pre-existing, covers the AC's behavior.
 
 **schema cite:** section 9 (Validation). Acceptance criteria are owned by this section.
 
 **How to detect:**
 - Extract AC text from PLAN CONTEXT: explicit "## Acceptance criteria" / "## ACs" sections, numbered "AC1/AC2/…" lists, bulleted "must …" / "should …" lines under a feature heading.
 - For each AC, derive 2–4 keyword anchors from its text (verbs, entity names, error conditions).
-- Grep the diff's test files (`**/*.{test,spec}.*`, `**/__tests__/**`, `tests/**`) for the keyword anchors.
-- Flag any AC whose keyword anchors appear in no test file.
+- Grep the diff's test files (`**/*.{test,spec}.*`, `**/__tests__/**`, `tests/**`) for the keyword anchors; when none match, grep the existing test suite for the same anchors.
+- A keyword match is a lead, not coverage, and is scoped to the matching case, not its file — an old case sitting in a file the diff otherwise edits is still unchanged. A match inside a case the diff ADDS or MODIFIES counts once reading that case's assertion confirms it checks the AC; a match inside an unchanged case counts only when the AC restates behavior the diff keeps (not introduces or changes) AND reading that case's assertion confirms it — cite it (`file:line`) as a dimension-summary note, not a finding.
+- Flag an AC with no new/modified test and no confirmed pre-existing match.
 
-**Red flag:** an AC is enumerated in the plan; no test in the diff references its behavior.
+**Red flag:** an AC introduces or changes behavior with no new/modified test covering it, or restates kept behavior with no confirmed match — new, modified, or pre-existing — anywhere in the suite.
 
 ### 5. Feature-flag wiring when plan mentions one
 

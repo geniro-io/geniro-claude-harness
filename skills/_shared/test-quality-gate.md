@@ -8,7 +8,7 @@ Consumer: `/geniro:implement` (Phase 3, after the fix loop converges, before Shi
 
 ## Relationship to the tests reviewer dimension (no new agent)
 
-This gate spawns no agent. The audit is already performed by the fresh `tests` reviewer dimension that Phase 3 spawns — a fresh isolated context, anchoring-free, reading `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`, which carries the test-honesty checks: claimed-vs-asserted scope, spec-coverage traceability, redundancy among new tests, and scenery tests flagged for removal. The gate is the surfacing-and-decision layer on top of that reviewer's output: it selects the test-honesty findings and presents them as a deliberate decision. A second agent re-reading the same diff would double the cost for no new signal — the value this gate adds is visibility and a user decision, not a second audit.
+This gate spawns no agent. The audit is already performed by the fresh `tests` reviewer dimension that Phase 3 spawns — a fresh isolated context, anchoring-free, reading `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md`, which carries the test-honesty checks: claimed-vs-asserted scope, spec-coverage traceability, redundancy against sibling or existing tests, loose assertions in place of exact values, and scenery tests flagged for removal. The gate is the surfacing-and-decision layer on top of that reviewer's output: it selects the test-honesty findings and presents them as a deliberate decision. A second agent re-reading the same diff would double the cost for no new signal — the value this gate adds is visibility and a user decision, not a second audit.
 
 ## When it applies
 
@@ -18,15 +18,15 @@ This gate spawns no agent. The audit is already performed by the fresh `tests` r
 
 ## What it surfaces
 
-From the Phase 3 `tests`-dimension output (and the tests that Phase 3's own inline edge-case authoring step wrote), select the test-honesty findings — those flagged for claimed-vs-asserted mismatch, spec-coverage gap, weak/zero assertions (the Deletion Test), redundancy among new tests, or a scenery test recommended for removal (presentational detail, framework behavior, duplicated coverage). Partition them:
+From the Phase 3 `tests`-dimension output (and the tests that Phase 3's own inline edge-case authoring step wrote), select the test-honesty findings — those flagged for claimed-vs-asserted mismatch, spec-coverage gap, zero assertions (the Deletion Test), loose assertions in place of exact values, redundancy against sibling or existing tests, or a scenery test recommended for removal (presentational detail, framework behavior, duplicated coverage). Partition them:
 
 - **Found and already fixed** — test-quality findings the bounded fix loop resolved this run. They need no decision; list them for visibility so the user sees the audit ran and what it changed.
 - **Open** — test-quality findings not auto-resolved (a judgment call the loop left standing, or one it did not fix). These carry the decision.
 
 ## Gate behavior
 
-- **Zero found (audit clean).** No question. Record one plain-English confirmation line in the ship report, e.g. `Audited the N tests this run added/changed against the spec — no coverage gaps or weak assertions.` Visible confirmation, no forced click.
-- **Found, all auto-fixed, none open.** No question. Record the confirmation line plus a one-line summary of what was tightened, e.g. `Audited N added/changed tests; tightened M weak or over-claiming assertions (listed in the review summary).`
+- **Zero found (audit clean).** No question. Record one plain-English confirmation line in the ship report, e.g. `Audited the N tests this run added/changed against the spec — no coverage gaps or loose assertions.` Visible confirmation, no forced click.
+- **Found, all auto-fixed, none open.** No question. Record the confirmation line plus a one-line summary of what was tightened, e.g. `Audited N added/changed tests; tightened M loose assertions (listed in the review summary).`
 - **Open findings exist.** Render the open findings message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering" — decision-queue tracker when there are two or more, a one-sentence opener, a conversational per-finding digest that expands the reviewer shorthand into plain English, a `**Technical detail:**` block per finding carrying the file:line evidence cite and the test names (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers), and a visual per finding — as a self-contained chat block. Then fire ONE lean AskUserQuestion (header: `Test quality`):
   - **Tighten all** — apply the recommended assertion/coverage fixes for every open finding (re-enter the inline fix sub-loop; re-run the suite after).
   - **Let me pick** — present the open findings for selection; fix the chosen ones.
@@ -49,4 +49,5 @@ A bare or absent section is none of the four: per `${CLAUDE_PLUGIN_ROOT}/skills/
 
 - **Advisory, never a hard block.** The gate opens a decision; it does not gate Ship on its own. A user who picks "Ship as-is" ships. It never overrides the Ship-mode question or the test-suite-green requirement.
 - **Orchestrator owns judgment.** The tests reviewer returns evidence (file:line, assertion shape, the claimed-vs-asserted gap); the orchestrator decides which findings are real and what the fix is. A reviewer claim that a test "under-asserts" is checked against the test body before it becomes an open finding.
+- **A pre-existing test is reported, never removed.** "Tighten all" and a picked fix apply assertion or coverage tightening only — a pre-existing case flagged redundant stays in the diff. Pruning a pre-existing case is a Phase 2 authoring-time call (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §13), never something this gate's fixes perform.
 - **Plain English at the surface.** Every rendered finding and every option label passes the fresh-user test — no `tests-criteria.md` section numbers, no severity tokens, no "claimed-vs-asserted" jargon in the user-facing string; describe the gap ("the test is named for two checks but asserts only one").

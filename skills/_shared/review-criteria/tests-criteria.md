@@ -7,7 +7,7 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 ## Contents
 
 - Test design philosophy (canonical)
-- What to check
+- What to look for
 - Common false positives
 - Litmus test (the deletion test)
 - Tests of the scenery — never author, flag for removal
@@ -20,7 +20,7 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 
 ## Test design philosophy (canonical)
 
-This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), by `/geniro:implement` Phase 3's inline edge-case test authoring step and `/geniro:debug` Adversarial Mode's inline F→P test authoring, and by the `/geniro:debug` reproduction-test author. Write the test according to these principles; review the test against them.
+This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), by `/geniro:implement` Phase 2 test authoring (inline and delegated), and by `/geniro:implement` Phase 3's inline edge-case test authoring step. Write the test according to these principles; review the test against them.
 
 ### 1. Tests describe behavior, not implementation
 
@@ -88,205 +88,63 @@ Every newly-authored test must demonstrate red-then-green at least once before b
 
 A test that passes the first time you run it (without any production change) is testing something that already works — either it's redundant with existing coverage OR it's not actually exercising the new behavior. Investigate before committing. This rule applies to:
 - New tests authored during `/geniro:implement` Phase 2
-- Reproduction tests authored during `/geniro:debug` Phase 2
-- F→P tests authored during `/geniro:implement` Phase 3's inline edge-case authoring step and `/geniro:debug` Adversarial Mode
+- F→P tests authored during `/geniro:implement` Phase 3's inline edge-case authoring step
 
-`/geniro:implement` Phase 3's inline edge-case authoring and `/geniro:debug` Adversarial Mode both enforce F→P with 3-run determinism checks; each deletes a test that passes on current code.
+`/geniro:implement` Phase 3's inline edge-case authoring enforces F→P with 3-run determinism checks and deletes a test that passes on current code.
 
-## What to check
+### 8. Coverage is behaviors pinned, not tests written
 
-### 8. Coverage Gaps
-- Missing tests for new/modified code paths
-- No tests for error conditions
-- Missing happy-path tests
-- Untested edge cases and boundary conditions
-- No tests for async/concurrent scenarios
+A test earns its place by a regression only it catches. Before authoring a case, name the single-line revert (or mutation) of the change that would turn this case — and no other kept case — red. When every revert it catches already reddens a kept test, the behavior is already pinned; the new case adds maintenance cost, not coverage.
 
-**How to detect:**
-```bash
-# Does any test file reference the changed file's basename? Search by pathspec — a fixed
-# tests/<same-name> layout holds in almost no repo and reports every file as untested there.
-b=$(basename file.js .js)
-git grep -ln "$b" -- '*test*' '*spec*' || echo "No test references: $b"
-# Look for test skips
-grep -n "skip\|xit\|xdescribe\|pending" test_file.js
-# Count assertions per test
-grep -c "expect\|assert\|should" test_file.js
-```
+Judge overlap by the reverts a test catches, never by the lines it executes or the outcome it asserts — two tests walking the same lines can still pin different guards (see §Test deletions in the diff's cause-path doctrine). Every changed branch still earns its one pinning test.
 
-**Red flags:**
-- New code with no corresponding tests
-- Modified functions without updated tests
-- Skipped tests in main branch
-- Single assertion per test file
-- Tests only covering success cases
+### 9. One behavior, one layer
 
-### 9. Missing Edge Cases
-- Null/undefined input handling
-- Empty collections (arrays, objects, strings)
-- Boundary values (0, -1, max_int, min_int)
-- Negative/invalid inputs
-- Very large inputs
-- Concurrent/race condition scenarios
-- State transitions edge cases
+Pin each behavior at the cheapest layer whose public surface still catches its regression. A behavior an integration test already pins gets no unit test re-asserting it through mocks; a journey an end-to-end test already covers gets no component test mirroring it — the second layer doubles the edits every future change to that behavior needs, without narrowing what can break.
 
-**How to detect:**
-- Look at function parameters: are all edge cases tested?
-- Check test names: do they mention edge cases?
-- Count test cases per function (1-2 tests is likely insufficient)
-- Look for parameterized/table-driven tests covering ranges
-- Check for timeout/async race condition tests
+When the project declares what each of its checks covers, pick the layer from that declaration (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md`).
 
-**Red flags:**
-- Only positive/happy-path tests
-- No tests for `null`, `undefined`, `0`, `""`, `[]`
-- No tests for concurrent calls
-- Missing tests for error states
-- No tests for state transitions
+### 10. Input-only variations are one table
 
-### 10. Test Quality & Maintainability
-- Brittle tests tied to implementation details
-- Missing test documentation
-- Unclear test purposes (vague test names)
-- Difficult to understand test setup
-- Flaky tests (non-deterministic)
-- Heavy use of mocks/stubs (indicates design issues)
+Cases that differ only in input and expected value are rows of one parameterized test (`it.each`, `pytest.mark.parametrize`, a table-driven loop) — extending coverage is then a new row, not a new block. Keep a separate case only when the arrange or the assertion genuinely differs; branching inside a table body hides which row checks what. Each row's identifier prints on failure, per §6.
 
-**How to detect:**
-```bash
-# Find vague test names (whole-word vague markers; not a bare "test" which re-matches every test_ name)
-grep -n "test_.*\|it\s*(\s*'[^']*should.*\|fit\|fdescribe" test_file.js | grep -wiE "do|work|works|pass|stuff|thing"
-# Find mocked dependencies
-grep -n "jest.mock\|sinon.stub\|mock\|spy" test_file.js
-```
+### 11. Shared arrange lives in a builder
 
-**Red flags:**
-- Test names: "test1", "shouldWork", "test_function"
-- Thread-local labels in test names: "Bug A/B/C", "Hypothesis 1/2", "Test 1", "Case X", "Issue #N from this run", "regression from review run", "found by review-gate", "confirmed by this <skill> run" — these are specific but meaningless once the originating conversation ends; same red flag for comments inside the test
-- Setup takes more lines than the actual test
-- Many mocks/stubs per test (indicates tight coupling)
-- Tests that fail intermittently
-- Comments like "this is fragile" or "fix this test"
+Build the shared shape once — a factory or builder with valid defaults, or shared setup — and have each case override only the field it exercises, so the case reads as the one thing that differs. Keep the values a case's assertion depends on visible in the case itself; a test whose inputs hide in shared setup can't be read on its own. Copied setup blocks make up the bulk of most test diffs.
 
-### 11. Async/Promise Testing
-- Missing async/await in async tests
-- Unhandled promise rejections in tests
-- Not testing error cases in async code
-- Missing timeout handling in async tests
-- Race conditions in test execution
-- Missing stream/event-based async patterns
-- Callback-style async not converted to promise tests
+### 12. Assertions pin exact values
 
-**How to detect:**
-```bash
-# Async test declarations — read each hit's body for a missing await
-grep -nE "(it|test|describe)\(.*async" test_file.js
-# Promise tests without .catch
-grep -n "\.then\|\.catch" test_file.js | grep -v "\.catch("
-# Tests with real timers
-grep -n "setTimeout\|setInterval" test_file.js | grep -v "jest.useFakeTimers\|sinon.useFakeTimers"
-# Find callback-style async without promise wrappers
-grep -n "callback\|cb(" test_file.js | grep -v "promisify\|async\|await"
-```
-For event-emitter / stream sources, take the emitter names from the changed file and run them through the coverage probe in §8 — a per-emitter test lookup is the same "is this referenced by any test" question.
+Assert the value the behavior produces, not merely that a value exists. A loose matcher stays green on a wrong-but-present value, which the Litmus test cannot catch, because it only proves the test fails once the logic is gone.
 
-**Red flags:**
-- Async test functions without `await`
-- `.then` without `.catch` handling
-- No timeout handling in async tests
-- Tests that pass sometimes but fail others
-- Missing error case tests for promises
-- Event emitter / stream code with no corresponding test
-- Callback-based async tested without done or promisification
+Replace each with an exact check or a deterministic signal:
+- a sole `toBeDefined()` / `toBeTruthy()` / `!== undefined`
+- `expect.any(X)` where the value is pinnable
+- `toHaveLength(N)` or a lone `toContain` with no check of which items
+- a bare `toThrow()` with no error type or message
+- a golden-file or snapshot assertion added purely to capture current behavior
+- a sleep-based wait where a deterministic signal (fake timers, a seeded RNG) would do
 
-### 12. Integration Testing
-- No integration tests for critical paths
-- Integration tests only testing happy paths
-- No database/service integration tests
-- Missing end-to-end scenario tests
-- Integration tests too brittle or slow
+### 13. Prune redundancy in the test files you touch
 
-**How to detect:**
-- Look for test directory structure: are integration tests separate?
-- Check if tests hit actual services or are mocked
-- Find slow tests (might be integration)
-- Look for setup/teardown of actual resources
-- Check for database/API integration tests
+Scope: authoring the paired test during `/geniro:implement` Phase 2. Every other reader of this doctrine flags a redundant test instead — never deletes one outside this step.
 
-**Red flags:**
-- All tests are unit tests (no integration coverage)
-- Integration tests skipped or disabled
-- Critical APIs not tested with real backend
-- Database operations only tested in isolation
-- Missing end-to-end scenarios
+When a change edits a test file:
+- **Delete** a pre-existing case only when a kept case activates the same guard or branch as the pre-existing case and asserts the same outcome — true redundancy, not mere similarity.
+- **Fold** a run of near-identical pre-existing cases the change extends into one parameterized table (§10) instead of deleting them — each case survives as a row.
 
-### 13. Test Organization & Structure
-- Tests grouped by file (not by functionality)
-- No clear test suite organization
-- Mixed unit and integration tests
-- No setup/teardown or fixtures
-- Inconsistent test structure across codebase
+Each deletion passes §Test deletions in the diff first — its cause path must stay pinned by a surviving test. Record each deletion with the surviving test that pins it, and each folded case with the row it became; a reviewer reads a deleted test as a coverage regression until shown otherwise. Test files the change does not otherwise edit stay untouched — this is cleanup in passing, not a suite refactor.
 
-**How to detect:**
-```bash
-# Where the repo keeps tests — unit and integration separated, or interleaved with source
-git ls-files | grep -iE '(^|/)(tests?|spec|__tests__)/|\.(test|spec)\.' | head -20
-# Look for setup/teardown
-grep -n "beforeEach\|afterEach\|setUp\|tearDown" test_file.js
-# Count test suites
-grep -c "describe\|TestCase\|class.*Test" test_file.js
-# Look for fixtures or test data
-grep -n "fixture\|TestData\|MOCK_" test_file.js
-```
+## What to look for
 
-**Red flags:**
-- Test directory mirrors source structure but nothing else
-- No clear organization of test suites
-- `beforeEach` has massive setup (100+ lines)
-- Inconsistent test patterns across files
-- Tests importing from many different modules
+Judge coverage per behavior the diff changed, not by test count, a coverage percentage, or the presence of every test layer.
 
-### 14. Mocking & Dependencies
-- Over-mocking that defeats testing purpose
-- Missing real integration tests (everything mocked)
-- Mock objects not verifying behavior
-- Mocks out of sync with real implementation
-- Test doubles not matching real API
-
-**How to detect:**
-- Count mocks per test (more than 3-4 is a smell)
-- Look for "happy-path-only" mocks
-- Check if behavior verification exists
-- Find tests that only mock everything
-- Verify mocks match real interface
-
-**Red flags:**
-- Every dependency mocked
-- Mocks that accept any arguments
-- No assertion on mock calls/behavior
-- Mocks with different API than real object
-- Hard to understand what's being tested vs mocked
-
-### 15. Critical Path Testing
-- Core business logic not thoroughly tested
-- Authentication/authorization paths undertested
-- Payment/transaction logic not well covered
-- Error recovery paths not tested
-- User input validation paths not covered
-
-**How to detect:**
-- Identify critical paths in code
-- Count test cases for each critical path
-- Check if all branches in critical code are tested
-- Look for error handling tests in critical functions
-- Verify authorization checks are tested
-
-**Red flags:**
-- Payment logic with no failure-scenario or boundary tests (only happy-path coverage)
-- Auth code with no failure scenario tests
-- Critical functions with 1-2 tests
-- No tests for recovery from failure states
-- Permission/authorization gaps in tests
+- **A new or changed behavior — its main path included — with no test that reddens on revert** — the gap that matters.
+- **A test that cannot fail, or passes a wrong implementation** — §Litmus test and §12 Assertions pin exact values.
+- **Async correctness inside the test itself** — a missing `await`, an unhandled rejection, or a real timer/sleep standing in for a deterministic signal makes the test vacuous or flaky. Nondeterminism from execution order, wall-clock time, or environment is the same defect.
+- **Tests coupled to implementation** — §1–§4 above.
+- **Redundancy and over-testing** — a case that duplicates coverage another case already provides, at any layer or granularity: §8–§11 and §Redundancy.
+- **A skipped, disabled, or focused test the diff adds or leaves in** (`.skip`, `xit`, `xdescribe`, `pending`, `.only`, `fit`, `fdescribe`) — silently drops coverage without looking like a deletion.
+- **A test double whose shape diverges from the real collaborator** — a mock exposing an API, data shape, or error the real interface doesn't, certifying a path production never runs.
 
 ## Common false positives
 
@@ -300,10 +158,8 @@ grep -n "fixture\|TestData\|MOCK_" test_file.js
 - Real integration tests can use real services
 - Check if mix of unit and integration tests exists
 
-3. **Pragmatic testing** — Perfect test coverage is diminishing returns
-- 80% coverage is often sufficient
-- Testing all branches can be overkill
-- Check what coverage threshold is for project
+3. **Coverage is behavioral, not a percentage** — Judge coverage per behavior the diff changed, not against a coverage-percentage target
+- A behavior whose test reddens on revert is covered, whatever the percentage
 
 4. **Framework defaults** — Some frameworks handle testing automatically
 - Rails/Django provide built-in test runners
@@ -319,6 +175,12 @@ grep -n "fixture\|TestData\|MOCK_" test_file.js
 - Parameterized tests cover many cases concisely
 - One "test" function might test many inputs
 - Count test cases, not test functions
+
+7. **Input the changed code doesn't branch on** — A hypothetical edge input (null, empty, max value) the changed code does not branch on needs no test
+- Trace whether the changed lines actually contain a conditional on that input
+- An untouched null-check elsewhere in the file is not this diff's gap
+
+8. **Behavior already pinned elsewhere** — whether a match counts as confirmed coverage, and what it doesn't, is §Spec-coverage traceability's confirmation gate
 
 ## Litmus test (the deletion test)
 
@@ -348,13 +210,13 @@ A test earns its maintenance cost only by pinning behavior someone could regress
 - **Presentational details**: CSS class names, inline styles, static markup structure, exact copy strings (unless the copy IS the spec'd behavior — e.g. a legally-required disclosure).
 - **The framework or library itself**: that React renders a component, that the router routes, that the ORM maps a column — the dependency's own suite covers that.
 - **Trivial wiring**: getters/setters with no logic, constant re-exports, pass-through calls.
-- **Duplicates of existing suite coverage**: a new test whose cause path AND outcome are already pinned by a surviving test at the same seam — the same pairwise rule as §Redundancy among newly-authored tests, extended to the existing suite. The F→P invariant's first-run-green signal usually exposes these.
+- **Duplicates of existing suite coverage**: a new test whose every catchable revert already reddens a surviving test at any layer (§Redundancy). The F→P invariant's first-run-green signal usually exposes these.
 
 Never author such a test. When the diff ADDS one, flag it with an explicit removal recommendation — deleting a scenery test is a quality improvement, not a coverage loss (confirm with the Deletion Test / cause-path comparison first). Severity LOW; raise to MEDIUM when the scenery test is the ONLY test on a spec-required behavior, because then the real finding is the coverage gap it masks.
 
 ## Assertion completeness & spec coverage
 
-The Deletion Test above catches a test that asserts *nothing real*. This section catches the subtler failures: a test whose expected value *is derived the way the implementation derives it*, a test that asserts *less than it claims*, a behavior the spec required that *no test covers*, and *two new tests that pin the same thing*. Run these checks on every newly-authored or modified test.
+The Deletion Test above catches a test that asserts *nothing real*. This section catches the subtler failures: a test whose expected value *is derived the way the implementation derives it*, a test that asserts *less than it claims*, a behavior the spec required that *no test covers*, and *a new test that pins the same thing an existing test already does*. Run these checks on every newly-authored or modified test.
 
 ### Independent expected values
 
@@ -381,24 +243,26 @@ A test's name, description, and comments are a promise about what it verifies. W
 
 ### Spec-coverage traceability
 
-The coverage checks in §8 look for tests of changed *code paths*. This check looks for tests of *required behaviors* — the gap a code-path scan misses, because the spec can require a behavior the diff never branched on.
+§What to look for scans for tests of changed *code paths*. This check looks for tests of *required behaviors* — the gap a code-path scan misses, because the spec can require a behavior the diff never branched on.
 
-When a spec / plan is in context (spec.md section 9 Validation criteria, section 2 In-Scope behaviors, or the section-11 Done Condition; or a PR/plan acceptance-criteria list), map each enumerated behavior to a covering test. Apply the keyword-anchor traceability mechanism from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §"4. Tests for stated acceptance criteria" (derive 2–4 anchors per criterion, grep the run's test files, flag any criterion whose anchors appear in no test) — scoped to the tests authored or changed in this run.
+When a spec / plan is in context (spec.md section 9 Validation criteria, section 2 In-Scope behaviors, or the section-11 Done Condition; or a PR/plan acceptance-criteria list), map each enumerated behavior to a covering test — scoped to the whole suite, not only the tests this run touched. Apply the keyword-anchor traceability mechanism, confirmation gate included, from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §"4. Tests for stated acceptance criteria".
 
-- Flag any spec-enumerated behavior with no covering assertion. Severity tracks the criterion's blast radius (critical-path behavior → HIGH; routine → MEDIUM).
+- A keyword match is a lead, not coverage, and is scoped to the case it lands in, not the file — an unchanged case still counts as unchanged when it sits in a file the diff otherwise edits. Cite a confirmed match (per §4's gate) as a dimension-summary note (`file:line`) — no finding exists for a covered criterion. Behavior the diff introduces or changes needs a new or modified test; flag it when none exists.
+- Severity tracks the criterion's blast radius (critical-path behavior → HIGH; routine → MEDIUM).
 - When no spec/plan is in context (inline-task runs), this check is a silent no-op — there is no enumerated behavior set to map against.
 - A section-11 outcome clause naming a production measurement and a window ("the dashboard metric shows p95 under 400ms, one week after rollout") is not a behavior a test can cover — drop it from the mapping instead of flagging it uncovered. Its enabling artifact stays in scope: where the clause depends on instrumentation the run added, the test for that emission is mappable and missing it is a finding. Same line `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` §10 draws.
 
-**Red flag:** a behavior the spec lists as in-scope or as a Done-Condition / acceptance criterion, with no test in the diff that references it.
+**Red flag:** a behavior the spec lists as in-scope or as a Done-Condition / acceptance criterion, with no test — new, modified, or a confirmed pre-existing match — anywhere in the suite that covers it.
 
-### Redundancy among newly-authored tests
+### Redundancy
 
-The Inverse Deletion Test below guards *deleted* tests from silent coverage loss. The forward complement: two tests *added in the same run* that pin the same cause path AND the same outcome are redundant — the second adds maintenance cost without adding coverage.
+The Inverse Deletion Test below guards *deleted* tests from silent coverage loss. This check guards the opposite direction: a new or changed test that pins a cause path some other test — a sibling this run adds, or a pre-existing test at any layer — already pins. The added test then costs maintenance without adding coverage.
 
-- Compare new tests pairwise by cause path (the Arrange setup + the branch/guard the Act activates), not by assertion shape alone — the same outcome via different cause paths is NOT redundant (see the Inverse Deletion Test's cause-path doctrine below).
-- Flag as redundant only when cause path AND outcome both match. Recommend consolidating into one test; never silently delete — the author may have intended a parameterized case.
+- Compare each new or changed test against (a) sibling tests this run adds, and (b) the existing suite at any layer covering the same behavior — search test files of every layer by the behavior's anchors (entity, endpoint, function names), not only the file the diff touched.
+- Redundant means every revert / cause path the test catches is already caught by another test. Outcome match or line overlap alone is not redundancy — the same cause-path doctrine as the Inverse Deletion Test below applies.
+- A new test duplicating a sibling is dropped or folded in as a table row (§10); two new duplicates consolidate into one. A new test duplicating a PRE-EXISTING one is a different call — never a deletion from review: drop the new test, or flag the pre-existing one for a follow-up (§13 owns actually pruning it, and only when the diff already touches that file); a pre-existing duplicate in an untouched file is out of scope for this check.
 
-**Red flag:** two new tests with identical Arrange shape, the same activated branch, and the same assertion — one is a copy that drifted.
+**Red flag:** a new test with the same Arrange shape, the same activated branch, and the same assertion as a sibling or existing test — one is a copy that drifted.
 
 ## Test deletions in the diff (inverse deletion test)
 
@@ -432,7 +296,7 @@ Same outcome (`null`). Two different cause paths. Deleting either test as "dupli
 5. **Flag as a finding if any deleted test's cause path is not pinned by a surviving test**:
 - **HIGH** when the cause path protects a critical-path behavior (auth, payments, data writes, defense-in-depth guards against operational anomalies like DLQ replay / stale timestamps / partial-commit retries).
 - **MEDIUM** when the cause path covers a non-critical-path branch the surviving tests miss.
-- **LOW** when the deleted test was genuinely redundant (cause-path AND outcome match a surviving test) — note as informational confirmation.
+- Not a finding when a surviving test's cause path AND outcome match the deleted test — record a one-line dimension-summary note naming the surviving test.
 
 ### Anti-rationalization
 
@@ -453,13 +317,14 @@ This is the inverse of mutation testing: instead of mutating the code to see wha
 
 - [ ] Litmus test: deleting core logic would cause test failure
 - [ ] Every spec-required behavior (section 9 / Done Condition / acceptance criteria) has a covering test
+- [ ] No new test duplicates a revert an existing or sibling test already catches
 
 ## Severity guidelines
 
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
-- **HIGH**: No tests for critical business logic; no error-handling tests on payment/auth/data-write paths; assertions test the wrong thing (false confidence) on a critical path; a test gap on a critical-path or high-blast-radius behavior — auth, payments, data writes/migrations, security validators, public API contracts, irreversible operations. Or: a test exists but its assertions are too weak to catch the regression it was added to prevent (deletion-test failure on critical code). This dim's ceiling is HIGH — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1's CRITICAL inclusion list has no coverage-gap class, and §2 caps a missing-test finding at MEDIUM/LOW; a critical-path coverage gap is this dim's own HIGH escalation, not a widening into CRITICAL.
-- **MEDIUM**: Routine coverage gap on modified code (new util, new helper, new branch); missing edge-case test for non-critical-path code; weak assertions on non-critical code; integration-test placement or organization issue; missing boundary test that wouldn't cause production impact
-- **LOW**: Style of tests, naming, organization, or minor coverage improvement on glue/wiring code
+- **HIGH**: No tests for critical business logic; no error-handling tests on payment/auth/data-write paths; assertions test the wrong thing (false confidence) on a critical path; a test gap on a critical-path or high-blast-radius behavior — auth, payments, data writes/migrations, security validators, public API contracts, irreversible operations. Or: a test exists but its assertions are too loose to catch the regression it was added to prevent (deletion-test failure on critical code). This dim's ceiling is HIGH — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1's CRITICAL inclusion list has no coverage-gap class, and §2 caps a missing-test finding at MEDIUM/LOW; a critical-path coverage gap is this dim's own HIGH escalation, not a widening into CRITICAL.
+- **MEDIUM**: a changed branch / guard / fallback on non-critical-path code that no test pins; loose assertions on non-critical code
+- **LOW**: Style of tests, naming, organization, or minor coverage improvement on glue/wiring code; redundant, over-layered, or copy-pasted tests the diff adds
 
-**Calibration rule:** When in doubt between HIGH and MEDIUM, default to MEDIUM. HIGH requires a specific blast-radius justification in the finding's "Why this matters" line. Routine "missing test for new function" findings are MEDIUM unless that function is in a critical path.
+**Calibration rule:** When in doubt between HIGH and MEDIUM, default to MEDIUM. HIGH requires a specific blast-radius justification in the finding's "Why this matters" line. Routine "missing test for new behavior" findings are MEDIUM unless that behavior sits on a critical path.
