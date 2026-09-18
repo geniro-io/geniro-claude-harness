@@ -184,7 +184,7 @@ For all attempt re-runs below, use the same test command selection as Step 2 / S
 1. **Attempt 1**: Analyze failure, fix the issue, re-run tests.
 2. **Attempt 2**: Try a different approach to the same transformation, re-run tests.
 3. **Attempt 3**: Try one more variation, re-run tests.
-4. **After 3 failures**: **REVERT** the step entirely using Edit (undo all changes from this step), mark the step as **BLOCKED** in state.md, and **CONTINUE to the next step**.
+4. **After 3 failures**: **REVERT** the step entirely (undo all changes from this step), mark the step as **BLOCKED** in state.md, and **CONTINUE to the next step**.
 
 Do NOT stop the entire refactoring session because one step is blocked. Blocked steps are reported at the end for user attention.
 
