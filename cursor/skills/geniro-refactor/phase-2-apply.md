@@ -38,12 +38,12 @@ The orchestrator executes the approved plan inline, one step at a time — no su
 
 For each step N in `## Plan steps` where `status: pending`:
 
-1. **Re-read the target files** (Read tool) — capture current state of files affected by step N.
+1. **Re-read the target files** — capture current state of files affected by step N.
 2. **Pre-condition check** (orchestrator applies skip predicate per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Step Execution Protocol, step 2):
 - REQUIRED if N == 1, OR `last_post_check == unset|REVERTED`, OR external edits intervened
 - SKIPPED if N > 1 AND `last_post_check == PASS` (no edits intervene between sequential transformations — the previous step's post-check already validated the same baseline)
 - When required: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Pre-check step <N>" "<test_cmd_affected>"`. On fail: stop and report (broken baseline).
-3. **Apply change** (Edit tool, surgical, scope-bounded to step's `files_affected`).
+3. **Apply change** (surgical, scope-bounded to step's `files_affected`).
 4. **Post-condition check**: `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Post-check step <N>" "<test_cmd_affected>"`. Persist result to state.md `## Plan steps` row as `last_post_check: PASS|FAIL` (`atomic_state_edit`, anchored on that row's own line).
 5. **Result handling**:
 - **PASS**: mark `status: complete`, `attempts: <N>`, `last_post_check: PASS`. Continue to next step.
