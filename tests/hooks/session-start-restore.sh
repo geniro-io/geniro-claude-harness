@@ -1356,6 +1356,40 @@ grep -q "Active task detected" <<<"$ac" \
   || fail "Tier-1 exact slug match should not be staleness-gated"
 
 # ---------------------------------------------------------------------------
+# Linked worktree outside the project — .geniro/ lives only in the main checkout
+# ---------------------------------------------------------------------------
+# .geniro/ is gitignored, so a worktree never carries it. A session with no
+# skill running never reads the loader, so the re-read list must already name
+# the main checkout's copy, not a cwd path that does not exist there.
+main="$(mktemp -d "$TMPDIR_BASE/main.XXXXXXXXXX")"
+cd "$main" || exit 1
+git init -q
+git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+mkdir -p .geniro/instructions
+echo '# Custom Instructions' > .geniro/instructions/global.md
+main_top="$(git rev-parse --show-toplevel)"
+wt="$TMPDIR_BASE/wt-outside"
+git worktree add -q "$wt" -b wt-outside 2>/dev/null
+
+ac=$(run_hook startup "$wt" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -qF -- "- $main_top/.geniro/instructions/global.md" <<<"$ac" \
+  && pass "worktree: instruction present only in main is listed at its main-checkout path" \
+  || fail "worktree: global.md should resolve to $main_top/.geniro/instructions/global.md"
+grep -qF "linked git worktree" <<<"$ac" \
+  && pass "worktree: context says .geniro/ lives in the main checkout" \
+  || fail "worktree: context should name the main checkout as .geniro/'s home"
+grep -qF -- "- .geniro/instructions/code-style.md" <<<"$ac" \
+  && pass "worktree: file absent everywhere keeps its relative path" \
+  || fail "worktree: absent code-style.md should stay relative"
+
+ac=$(run_hook startup "$main" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -qF -- "- .geniro/instructions/global.md" <<<"$ac" && ! grep -qF "linked git worktree" <<<"$ac"; then
+  pass "main checkout: cwd copy stays relative, no worktree note"
+else
+  fail "main checkout: expected a relative global.md and no worktree note"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

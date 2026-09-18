@@ -129,6 +129,14 @@ find_safety_json() {
     fi
     dir=$(dirname "$dir")
   done
+  # .geniro/ is gitignored, so a linked worktree never carries safety.json, and
+  # one checked out outside the repo never walks up to it — fall back to the
+  # main checkout. Only a linked worktree prints its common dir as an absolute
+  # `<main>/.git`; the main checkout (already walked) and bare hubs skip this.
+  dir=$(git rev-parse --git-common-dir 2>/dev/null) || return 1
+  case "$dir" in
+    /*/.git) [ -f "${dir%/.git}/.geniro/safety.json" ] && { echo "${dir%/.git}/.geniro/safety.json"; return 0; } ;;
+  esac
   return 1
 }
 
@@ -706,9 +714,28 @@ esac
 
 BLOCK1="$_prefix
 SKILL.md instructions and conversation nuance may have been lost — re-read these
-files before continuing (the .geniro/instructions/* entries route through the
-canonical loader, NOT direct cwd Reads; CLAUDE.md, .geniro/planning/_FEATURES.md,
-spec/plan files remain direct Reads):"
+files before continuing. Each path is already resolved: the working tree's copy
+when it has one, else the main checkout's. Inside a skill run the
+.geniro/instructions/* entries go through the canonical loader; everything else
+is a direct Read:"
+
+# .geniro/ is gitignored, so a linked worktree — a Geniro session worktree under
+# the app's data dir, or one under .claude/worktrees/ — does not carry it. A
+# session with no skill running never reads the loader, so without this line it
+# looks under its own cwd, finds nothing, and concludes the project has no
+# instructions. Only a linked worktree prints its common dir as an absolute
+# `<main>/.git` (the same test as find_safety_json).
+case "$(git rev-parse --git-common-dir 2>/dev/null || true)" in
+  /*/.git)
+    if [ -d "$GENIRO_ROOT/.geniro" ]; then
+      BLOCK1="This session runs in a linked git worktree. .geniro/ is gitignored, so the
+worktree does not carry it: this project's .geniro/ (instructions, actions,
+workflow, knowledge, planning) lives in the main checkout at $GENIRO_ROOT/.geniro/.
+Look there for any .geniro/ file before concluding it does not exist.
+$BLOCK1"
+    fi
+    ;;
+esac
 
 # When custom instructions resolve to an external directory (set via
 # GENIRO_INSTRUCTIONS_DIR or the plugin's instructions_dir option), the loader
@@ -743,17 +770,36 @@ drops them while keeping file pointers):
   plan looks like it wants one to, re-read that skill's SKILL.md before acting."
 fi
 
+# The path a Read should open for a .geniro/ file, in the loaders' order: the
+# working tree's copy when it exists (a branch may carry its own), else the main
+# checkout's. Neither → the relative path, unchanged.
+_geniro_read_path() {  # <.geniro/... relative path>
+  if [ ! -f "$1" ] && [ -f "$GENIRO_ROOT/$1" ]; then
+    printf '%s' "$GENIRO_ROOT/$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+# An external instructions dir is an override, not a fallback: read it flat.
+_geniro_instr_path() {  # <file name>
+  if [ "$INSTR_DIR" != "$GENIRO_ROOT/.geniro/instructions" ]; then
+    printf '%s' "$INSTR_DIR/$1"
+  else
+    _geniro_read_path ".geniro/instructions/$1"
+  fi
+}
+
 # Block 2 — suggested files. State.md pointer is suppressed when validation
 # failed (Block 3). Spec.md and plan.md remain pointers.
 BLOCK2="- CLAUDE.md
-- .geniro/planning/_FEATURES.md
-- .geniro/instructions/global.md            (loader-routed, MODE: refresh)
-- .geniro/instructions/memory.md            (loader-routed, MODE: refresh)
-- .geniro/instructions/code-style.md        (loader-routed, MODE: refresh)"
+- $(_geniro_read_path .geniro/planning/_FEATURES.md)
+- $(_geniro_instr_path global.md)            (loader-routed, MODE: refresh)
+- $(_geniro_instr_path memory.md)            (loader-routed, MODE: refresh)
+- $(_geniro_instr_path code-style.md)        (loader-routed, MODE: refresh)"
 
 if [ -n "$active_skill" ]; then
   BLOCK2="$BLOCK2
-- .geniro/instructions/$active_skill.md (loader-routed, MODE: refresh)"
+- $(_geniro_instr_path "$active_skill.md") (loader-routed, MODE: refresh)"
 fi
 
 if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then

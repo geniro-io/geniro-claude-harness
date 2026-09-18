@@ -93,7 +93,7 @@ On block the message now names **what to do instead** — regenerate the lock fi
 
 Implementation: case-insensitive pattern match via lowercase conversion; exit 2 to block (fail-safe).
 
-**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message names the pattern ID and tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist). Pattern IDs: `write-git-internal`, `write-lockfile`, `write-cert-key`, `write-credentials`, `write-tfstate`, `write-vault`.
+**Per-project allowlist:** walks up from cwd (then, from a linked worktree, the main checkout) looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message names the pattern ID and tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist). Pattern IDs: `write-git-internal`, `write-lockfile`, `write-cert-key`, `write-credentials`, `write-tfstate`, `write-vault`.
 
 **Degraded mode (no jq):** the hook cannot parse tool input, so it first scans the raw payload for the highest-signal protected names (`*.pem`, `*.key`, `credentials.*`, `secrets.*`) and exits 2 on a hit. Only a clean scan falls open, and it falls open loudly — a `systemMessage` names the guard as inactive.
 
@@ -109,7 +109,7 @@ Blocks destructive git operations by pattern ID: `force-push`, `force-push-with-
 
 **Still open:** a command word produced by a substitution rather than an assignment (`$(echo git) push --force`). Nothing in a guard evaluates anything, so the output of an arbitrary command is not resolvable — and a guess would block on whatever the substitution happened to look like.
 
-**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist).
+**Per-project allowlist:** walks up from cwd (then, from a linked worktree, the main checkout) looking for `.geniro/safety.json` and reads `allow_patterns[]` to opt out of specific pattern IDs. On block, the error message tells the user the exact `safety.json` snippet to add (or how to create the file if it doesn't exist).
 
 **Degraded mode (no jq):** the guard cannot parse the command out of the tool JSON, so it first scans the raw payload for the highest-signal destructive tokens (`--force` / `--force-with-lease`, `reset --hard`, `filter-branch`) and exits 2 on a hit. Only a clean scan falls open, loudly, with a `systemMessage` naming the guard as inactive. The scan is coarse by design — it also matches a token inside a quoted string — accepted for a rarely-hit path where blocking a real force-push matters more than a false positive on prose.
 
@@ -132,7 +132,7 @@ Prevents bulk deletion of `.geniro/`, which holds user-authored persistent state
 
 **Variable indirection is resolved** by the same shared pass as `block-dangerous-git.sh` — see that guard's entry above, including what remains open.
 
-**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]`. On block, the error message names the pattern ID and the exact `safety.json` snippet to add.
+**Per-project allowlist:** walks up from cwd (then, from a linked worktree, the main checkout) looking for `.geniro/safety.json` and reads `allow_patterns[]`. On block, the error message names the pattern ID and the exact `safety.json` snippet to add.
 
 **Degraded mode (no jq):** the guard cannot parse the command out of the tool JSON, so it first scans the raw payload for a recursive `rm` naming `.geniro` and exits 2 on a hit. Only a clean scan falls open, loudly, with a `systemMessage` naming the guard as inactive. Coarse by design (it also matches the token inside a quoted string), on the same trade-off as the git guard.
 
@@ -144,8 +144,8 @@ Wired as `SessionStart` with `matcher: "compact|resume|startup"` (Anthropic-cano
 
 Emits an `additionalContext` block-set:
 
-- Per-source prefix (compact / resume / startup).
-- Suggested files (L4 instructions set — `global.md` / `memory.md` / `code-style.md` / per-skill — routed through `load-custom-instructions.md` MODE: refresh; CLAUDE.md, `_FEATURES.md`, state.md, spec.md, plan.md as direct Reads).
+- Per-source prefix (compact / resume / startup). From a linked worktree it also names the main checkout as `.geniro/`'s home — the worktree never carries the gitignored `.geniro/`, and a session with no skill running never reads the loader, so without the line it searches its own cwd and reports the project's instructions missing.
+- Suggested files (L4 instructions set — `global.md` / `memory.md` / `code-style.md` / per-skill — routed through `load-custom-instructions.md` MODE: refresh; CLAUDE.md, `_FEATURES.md`, state.md, spec.md, plan.md as direct Reads). `.geniro/` paths are pre-resolved in the loader's order — the working tree's copy, else the main checkout's absolute path; an external instructions dir is listed flat.
 - Validation-failure recovery directive (when `validate_state_file` reports a structural error).
 - Helper-missing notice (when the validator binary itself is absent).
 - Structured non-resumable-actions warning per state.md frontmatter (`git-push`, `pr-created`, `pr-comment-posted`, `pr-comment-amended`, `pr-review-comment-batch`, `git-commit`, `slack-notify-sent`, `release-tagged`, unknown-action fallback).
@@ -180,7 +180,7 @@ Each pattern is scoped to applicable file extensions — Python's `pickle.loads`
 | `sec-xss-sink` | `.innerHTML=`, `dangerouslySetInnerHTML`, `document.write(` | `.js`, `.jsx`, `.ts`, `.tsx`, `.html`, `.mjs`, `.cjs`, `.vue`, `.svelte` |
 | `sec-weak-crypto` | `createHash('md5'\|'sha1')`, `hashlib.md5/sha1` | `.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`, `.cjs` · `.py`, `.pyw`, `.pyx`, `.pyi` |
 
-**Per-project bypass:** walks up from cwd looking for `.geniro/safety.json` and reads `allow_patterns[]`. Adding any pattern ID disables that pattern entire project-wide:
+**Per-project bypass:** walks up from cwd (then, from a linked worktree, the main checkout) looking for `.geniro/safety.json` and reads `allow_patterns[]`. Adding any pattern ID disables that pattern entire project-wide:
 
 ```json
 {"allow_patterns": ["sec-eval-exec", "sec-xss-sink"]}
@@ -212,7 +212,7 @@ Shell-side atomicity is now a prose contract (`CLAUDE.md` §State Files) rather 
 
 This guard shares the directory-targeted extraction gap documented above under `file-protection.sh` (`tar -C <dir>`, `unzip -d <dir>`): both write through it (measured rc 0) for the same reason — the vectors above resolve a FILE operand, not a directory an archive member lands in. Here that gap has a sharper blast radius than elsewhere: `tar -xf x.tar -C .geniro` can land a `safety.json` write and self-grant a bypass on every other guard in one command, the exact self-grant this pattern ID exists to close. Same accepted trade-off as `file-protection.sh`, not a separate defect.
 
-**Per-project allowlist:** walks up from cwd looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `enforce-state-helper` skips the block, and `safety-json-edit` skips the safety.json guard above. When jq is missing the hook still runs a coarse raw-text scan of the payload first and blocks on a canonical state path or on `.geniro/safety.json`; only after that scan finds nothing does it emit a `systemMessage` and allow. The scan needs no jq, so the guard degrades rather than disappearing.
+**Per-project allowlist:** walks up from cwd (then, from a linked worktree, the main checkout) looking for `.geniro/safety.json` `allow_patterns[]`; pattern ID `enforce-state-helper` skips the block, and `safety-json-edit` skips the safety.json guard above. When jq is missing the hook still runs a coarse raw-text scan of the payload first and blocks on a canonical state path or on `.geniro/safety.json`; only after that scan finds nothing does it emit a `systemMessage` and allow. The scan needs no jq, so the guard degrades rather than disappearing.
 
 ### geniro-check-update.js
 

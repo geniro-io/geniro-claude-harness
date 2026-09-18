@@ -743,6 +743,14 @@ find_safety_json() {
     fi
     dir=$(dirname "$dir")
   done
+  # .geniro/ is gitignored, so a linked worktree never carries safety.json, and
+  # one checked out outside the repo never walks up to it — fall back to the
+  # main checkout. Only a linked worktree prints its common dir as an absolute
+  # `<main>/.git`; the main checkout (already walked) and bare hubs skip this.
+  dir=$(git rev-parse --git-common-dir 2>/dev/null) || return 1
+  case "$dir" in
+    /*/.git) [ -f "${dir%/.git}/.geniro/safety.json" ] && { echo "${dir%/.git}/.geniro/safety.json"; return 0; } ;;
+  esac
   return 1
 }
 

@@ -312,6 +312,32 @@ cross_grant_check "enforce-state-helper" "safety-json-edit" \
 cross_grant_check "safety-json-edit" "enforce-state-helper" \
   "granting safety-json-edit does NOT also bypass enforce-state-helper"
 
+# --- linked worktree outside the project -------------------------------------
+# .geniro/ is gitignored, so a worktree never carries safety.json, and one
+# checked out outside the project never walks up to it: each guard falls back
+# to the main checkout's copy. One ID per guard — the fallback lives in each
+# guard's own find_safety_json; the per-ID dispatch after it is covered above.
+git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init 2>/dev/null
+WT="$TMPDIR_BASE/wt"
+git worktree add -q "$WT" -b sjc-wt 2>/dev/null
+cd "$WT" || exit 1
+for pid in force-push rm-geniro-tree write-lockfile enforce-state-helper sec-pickle; do
+  grep -qx -- "$pid" <<<"$GUARDS" || continue
+  for class in absent exact; do
+    rm -f "$PROJ/.geniro/safety.json"
+    [ "$class" = exact ] && safety_json exact "$pid" > "$PROJ/.geniro/safety.json"
+    want=$(verdict_for "$class")
+    result=$(probe_for_id "$pid")
+    hook="${result%% *}"
+    got="${result##* }"
+    if [ "$got" = "$want" ]; then
+      pass "$hook [$pid] [worktree-$class]: $(describe "$class") from a linked worktree"
+    else
+      fail "$hook [$pid] [worktree-$class]: $(describe "$class") from a linked worktree (expected exit=$want, got exit=$got)"
+    fi
+  done
+done
+
 cd "$ORIGINAL_PWD" || exit 1
 
 echo
