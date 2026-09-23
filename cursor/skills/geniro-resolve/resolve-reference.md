@@ -28,10 +28,12 @@ The read side of `pr-threads.md` (§2 threads, §3 checks) returns raw GraphQL /
   is_bot: <bool>               # coderabbitai[bot] / greptile-apps[bot] / … → true
   path: <file|null>            # cited file; pr-comment/review-body: null (not attached to the diff); ci-check: annotation path if any, else null
   line: <int|null>             # cited line; pr-comment/review-body: null (not attached to the diff); ci-check: null
+  is_outdated: <bool|null>     # review-comment: the thread's isOutdated (its cited path/line has since moved); pr-comment/review-body/ci-check: null (no diff position)
   body: |                      # review-comment: the thread conversation; pr-comment: the comment; review-body: the review's summary text; ci-check: check output
     <verbatim text>
   verdict:                     # Phase 2: fix | ask | answer-only | decline
   reason:                      # Phase 2, decline only: wrong-claim | over-engineering | out-of-scope | regression-risk | too-large
+  addressed_by: <sha|null>     # Phase 2, is_outdated fix only: the earlier commit already on the PR head that addressed the concern — Phase 3 resolves on this evidence instead of the pushed-diff check
   picked:                      # Phase 2, ask only: true once the user picks it, false when left unpicked
   reply_draft:                 # Phase 3 (review-comment only)
   files_touched:               # Phase 3 (applied items) — what the reply names and the resolve gate checks
@@ -40,6 +42,7 @@ The read side of `pr-threads.md` (§2 threads, §3 checks) returns raw GraphQL /
 Build rules:
 - Collapse a multi-comment thread to ONE item — concatenate the comment bodies into `body`, keep the FIRST comment's `databaseId` as `comment_id` (the reply anchor) and the thread `id` as `thread_id`.
 - Drop threads with `isResolved == true` (idempotency).
+- Carry the thread's `isOutdated` into `is_outdated` — Phase 2 Step 1 routes on it before falling back to the normal rubric, and records the addressing commit in `addressed_by` when it finds one.
 - A conversation-tab comment (`pr-comment`) becomes an item that can produce a fix and a line in the final report — it carries no thread and no file position, so it never gets a reply and is never resolved through the API.
 - A formal review's body becomes a `review-body` item with `thread_id: null` only for what its own inline threads do not already carry — a review whose body merely summarizes threads that are themselves items adds nothing and is not a separate item. This holds whatever the review's state: an approving review can carry substantive body text and open new inline threads in the same submission, and a commenting review carries a body while changing no merge status, so gating this on one state alone drops the others. A body that clears the bar cannot be replied to or resolved through the API, so it can still produce a fix, but its outcome reaches the user through the final report rather than the PR.
 - Group items by `path` so one read of a file in Phase 2 serves every item citing it; CI items with `path: null` form their own group.
@@ -142,7 +145,7 @@ options:
   - "Leave it in the working tree"                   -> nothing; the diff is the deliverable
 ```
 
-When nothing was applied — every item declined, answered, or left unpicked — there is no commit to make and the gate narrows to the replies alone: "Post the <R> replies to PR #<num>?" / "Post nothing". A run whose fetch ran and found nothing outstanding takes this narrowed path straight to the report — there is nothing to authorize; a run whose fetch failed or never ran does not, and resolves the unknown — by retrying the read or asking — before any outward action runs (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §6).
+When nothing was applied — every item declined, answered, left unpicked, or already addressed on the PR head (`addressed_by`) — there is no commit to make and the gate narrows to the replies alone: "Post the <R> replies to PR #<num>?" / "Post nothing", naming in the question the <K> already-addressed threads that posting will also resolve. A run whose fetch ran and found nothing outstanding takes this narrowed path straight to the report — there is nothing to authorize; a run whose fetch failed or never ran does not, and resolves the unknown — by retrying the read or asking — before any outward action runs (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §6).
 
 Annotate the question text with anything the user needs to weigh: a test failure that survived the retry, a pre-existing failure the run did not cause, a fix whose files did not make it into the commit. The gate's answer governs every outward action in the chain — a later step never carries out something it stopped short of.
 
@@ -158,7 +161,7 @@ Printed to chat at the end of every run, including one that shipped nothing:
 **Answered (<A>)** — <one line each: comment author, the answer, and path:line when the item has one — noting when it was posted as a reply versus, for a comment with no thread, recorded here only>
 **Left for you (<K>)** — <the `ask` items not picked, and any item whose fix did not land>
 **Tests** — <verdict, or "no test command documented in the project's instructions">
-**On the PR** — <what was pushed, how many replies posted, how many threads resolved, and anything skipped after a failed write>
+**On the PR** — <what was pushed and how many replies posted; then, from the end-of-run check (Phase 3 §7), one line per thread this run handled naming its final state — resolved, left open for the reviewer, or a resolve that still failed and why. An unresolved thread blocks the merge under "require conversation resolution before merging" whichever reason it's open for; outdated is not closed. Anything skipped after a failed write appears here too>
 **Checked as of** — <the commit this run read the PR at, and how long ago the last read happened, e.g. "commit a1b2c3d, 4 minutes before this report">
 ```
 

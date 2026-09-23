@@ -137,7 +137,7 @@ status: <in-progress|done|failed>
 report_status: <draft|final>          # whole-report lifecycle — see state-tier-spec.md /geniro:review producer fields (missing reads as final)
 round: <int>
 risk-tier: <standard|high>
-pr-ref: <owner/repo#num|null>
+pr-ref: <owner/repo#num|none>          # this run's own ref; a bare commit-range review (no PR target) writes none
 pr-url: <https://...|null>
 pr-head-sha: <40-char SHA|null>
 pr-body: <verbatim body|null>
@@ -415,7 +415,7 @@ AskUserQuestion(
 )
 ```
 
-After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim (e.g., `Run: /geniro:implement .geniro/state/handoff/from-review-<branch>.md`) — the user runs the slash command themselves; the orchestrator never auto-invokes /geniro:implement.
+After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim, with the handoff's absolute path (e.g., `Run: /geniro:implement <PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`, `<PRIMARY_ROOT>` resolved per §2.6) — the user runs the slash command themselves; the orchestrator never auto-invokes /geniro:implement.
 
 **Post-option presence.** "Post Draft PR review" is present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag) AND not kept off the PR (`post-disposition: off-pr`) AND not resolved to need no action (`post-disposition: no-action`) — an all-LOW review still presents it. Omit it only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]`, OR every remaining finding is `post-disposition: off-pr` or `no-action`. Posting is an external write to a public surface — this gate is mandatory before ANY review posting: fire it and wait; never auto-post (even a draft), never publish, never substitute a chat-text "submit it yourself" line for the pick. Picking it IS the approval; the post creates a PENDING draft the user submits themselves (per §7.4). The Action gate is mutually exclusive — user chooses ONE path.
 

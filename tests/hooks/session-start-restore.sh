@@ -443,6 +443,56 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 11b. Block 5c — an entry whose question text is missing, empty, or
+#      whitespace-only is dropped entirely, not rendered as a bare "?". The
+#      body-YAML parser turns ANY bullet containing a colon into an entry, so
+#      a foreign/unrelated bullet with no `question:` key at all must also be
+#      filtered — not just an explicit `question: ""`.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+
+## Open Questions
+- ts: 2026-05-19T10:30:00Z
+  asked_in_phase: analyze
+  question: ""
+  resolved: false
+- ts: 2026-05-19T10:31:00Z
+  asked_in_phase: analyze
+  question: "   "
+  resolved: false
+- ts: 2026-05-19T10:32:00Z
+  asked_in_phase: analyze
+  resolved: false
+EOF
+
+out=$(run_hook compact "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+
+if grep -q "PENDING QUESTIONS" <<<"$ac"; then
+  fail "Block 5c: header fired for entries with no real question text"
+else
+  pass "Block 5c: header suppressed when every entry has no question text"
+fi
+
+if grep -qE '^\s*-\s*"\?"\s*$' <<<"$ac"; then
+  fail "Block 5c: a bare \"?\" bullet was surfaced (empty/missing question text)"
+else
+  pass "Block 5c: no bare \"?\" bullet surfaced"
+fi
+
+# ---------------------------------------------------------------------------
 # 12. Block 5d — Approvals (no filter)
 # ---------------------------------------------------------------------------
 
@@ -1354,6 +1404,195 @@ ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
 grep -q "Active task detected" <<<"$ac" \
   && pass "Tier-1 exact slug match resumes even when stale (never gated)" \
   || fail "Tier-1 exact slug match should not be staleness-gated"
+
+# ---------------------------------------------------------------------------
+# 23. Tier-2 `worktree:` gate — a branch match alone is too weak a signal once
+#     more than one run shares the branch name (a shared `main`, or an
+#     unrelated run's topic-slug). When a candidate also records a non-empty
+#     `worktree:` that still exists on disk, it must equal the CURRENT
+#     session's worktree top level (compared as real paths) to match; a
+#     candidate with no `worktree:` field, or one whose recorded worktree no
+#     longer exists, keeps the branch-only behavior.
+# ---------------------------------------------------------------------------
+
+# 23a. Branch matches, but the candidate's `worktree:` names a DIFFERENT,
+#      still-LIVE worktree → must NOT be surfaced (this is the field bug
+#      report: an unrelated run's open question leaking into an unrelated
+#      session). `other_wt` is a real `git worktree add` registration, not a
+#      bare directory — a bare directory would also fail
+#      validate-state-file.sh's own independent "is this worktree still in
+#      `git worktree list`" check, which would suppress Block 5c for that
+#      unrelated reason and let this assertion pass even without the gate
+#      fix under test being present.
+sandbox="$TMPDIR_BASE/wtgate-a-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q \
+  && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init \
+  && git checkout -q -b "shared-branch" 2>/dev/null || exit 1
+other_wt="$TMPDIR_BASE/wtgate-a-other-$$"
+git worktree add -q "$other_wt" -b "wtgate-a-other-branch" 2>/dev/null || exit 1
+other_wt_real="$(cd "$other_wt" && git rev-parse --show-toplevel)"
+mkdir -p .geniro/planning/foreign-run
+cat > .geniro/planning/foreign-run/state.md <<EOF
+---
+tier: T1
+producer: investigate
+schema-version: 1
+branch: shared-branch
+worktree: $other_wt_real
+timestamp: 2026-05-19T15:00:00Z
+phase: present
+status: in-progress
+non-resumable-actions: []
+---
+
+## Open Questions
+- ts: 2026-05-19T10:30:00Z
+  asked_in_phase: present
+  question: "unrelated question from another worktree"
+  resolved: false
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -q "Active task detected" <<<"$ac"; then
+  fail "worktree gate: branch match with a DIFFERENT recorded worktree should not surface"
+else
+  pass "worktree gate: branch match with a different recorded worktree suppressed"
+fi
+if grep -q "unrelated question from another worktree" <<<"$ac"; then
+  fail "worktree gate: a foreign worktree's open question leaked through"
+else
+  pass "worktree gate: foreign worktree's content does not leak"
+fi
+
+# 23b. Branch AND worktree both match (worktree recorded as this session's
+#      own `git rev-parse --show-toplevel`) → surfaced.
+sandbox="$TMPDIR_BASE/wtgate-b-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "shared-branch2" 2>/dev/null || exit 1
+this_wt="$(git rev-parse --show-toplevel)"
+mkdir -p .geniro/planning/own-run
+cat > .geniro/planning/own-run/state.md <<EOF
+---
+tier: T1
+producer: investigate
+schema-version: 1
+branch: shared-branch2
+worktree: $this_wt
+timestamp: 2026-05-19T15:00:00Z
+phase: present
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" \
+  && pass "worktree gate: branch AND worktree match → surfaced" \
+  || fail "worktree gate: matching branch+worktree should surface"
+
+# 23c. Branch matches, candidate has NO `worktree:` field at all → today's
+#      branch-only behavior is unchanged.
+sandbox="$TMPDIR_BASE/wtgate-c-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "shared-branch3" 2>/dev/null || exit 1
+mkdir -p .geniro/planning/legacy-run
+cat > .geniro/planning/legacy-run/state.md <<'EOF'
+---
+tier: T1
+producer: plan
+schema-version: 1
+branch: shared-branch3
+timestamp: 2026-05-19T15:00:00Z
+phase: clarify
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" \
+  && pass "worktree gate: no worktree: field keeps today's branch-only match" \
+  || fail "worktree gate: candidate without worktree: field should still surface"
+
+# 23d. Linked worktree — the hook also scans the main checkout's state from
+#      inside a linked worktree (.geniro/ is gitignored, so a linked worktree
+#      never carries its own). A run recorded in the main checkout with
+#      `worktree:` set to the LINKED worktree's own path must still restore
+#      when the session resumes from that same worktree.
+main2="$(mktemp -d "$TMPDIR_BASE/main2.XXXXXXXXXX")"
+cd "$main2" || exit 1
+git init -q
+git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+wt2="$TMPDIR_BASE/wt2-linked"
+git worktree add -q "$wt2" -b wt2-branch 2>/dev/null
+wt2_top="$(cd "$wt2" && git rev-parse --show-toplevel)"
+mkdir -p "$main2/.geniro/state/investigate/wt2-branch"
+cat > "$main2/.geniro/state/investigate/wt2-branch/state.md" <<EOF
+---
+tier: T1
+producer: investigate
+schema-version: 1
+branch: wt2-branch
+worktree: $wt2_top
+timestamp: 2026-05-19T15:00:00Z
+phase: present
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+
+out=$(run_hook startup "$wt2")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+grep -q "Active task detected" <<<"$ac" \
+  && pass "worktree gate: a run recorded in the main checkout still restores from its own linked worktree" \
+  || fail "worktree gate: linked-worktree run should still resume from that worktree"
+
+# 23e. Branch matches, but the candidate's recorded `worktree:` path no
+#      longer exists on disk at all (the worktree was removed, not just
+#      differs) → treated as a mismatch, same as an existing-but-different
+#      worktree, and skipped — NOT surfaced. validate-state-file.sh
+#      independently rejects a state file whose recorded worktree isn't in
+#      `git worktree list`, so letting this candidate through would only
+#      trade a silent skip for a "FAILED VALIDATION" notice, never a resume.
+sandbox="$TMPDIR_BASE/wtgate-e-$$"
+mkdir -p "$sandbox" && cd "$sandbox" && git init -q && git checkout -q -b "shared-branch4" 2>/dev/null || exit 1
+gone_wt="$TMPDIR_BASE/wtgate-e-gone-$$"
+mkdir -p .geniro/planning/gone-run
+cat > .geniro/planning/gone-run/state.md <<EOF
+---
+tier: T1
+producer: investigate
+schema-version: 1
+branch: shared-branch4
+worktree: $gone_wt
+timestamp: 2026-05-19T15:00:00Z
+phase: present
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -q "Active task detected" <<<"$ac"; then
+  fail "worktree gate: recorded worktree no longer exists should NOT surface"
+else
+  pass "worktree gate: recorded worktree no longer exists → treated as mismatch, not surfaced"
+fi
+if grep -q "FAILED VALIDATION" <<<"$ac"; then
+  fail "worktree gate: a vanished recorded worktree should be skipped before validation, not surfaced as a failed-validation notice"
+else
+  pass "worktree gate: no FAILED VALIDATION notice for a candidate skipped by the worktree gate"
+fi
 
 # ---------------------------------------------------------------------------
 # Linked worktree outside the project — .geniro/ lives only in the main checkout

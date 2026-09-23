@@ -26,12 +26,12 @@ State.md `phase: llm-spawn`.
 | # | Dimension | Spawn rule (always-fire or conditional) |
 |---|---|---|
 | 1 | bugs | In the always-fire set at every size tier — see the scaling table below |
-| 2 | security | In the always-fire set at every tier except Smallest — see the scaling table below |
-| 3 | architecture | In the always-fire set at Medium/Large, or whenever `risk-tier:high` forces the full grid — see the scaling table below |
+| 2 | security | In the always-fire set at every size tier — see the scaling table below |
+| 3 | architecture | In the always-fire set at or over the size boundary, or whenever `risk-tier:high` forces the full grid — see the scaling table below |
 | 4 | tests | In the always-fire set at every size tier — see the scaling table below |
 | 5 | optimizations | Fires when any changed file has an executable surface. Skipped only when EVERY changed file is documentation or a generated lockfile (see §2.9) — a diff with no executable surface has no hot path for its rubric to bind on. Own trigger, independent of the size-tier scaling below |
-| 6 | conventions | In the always-fire set at every tier except Smallest — see the scaling table below. Owns three concern classes: per-file style rubrics (`guidelines-criteria.md`), repo-modal patterns via sibling sampling (`conventions-criteria.md`), and authored-rule citations (`rules-compliance-criteria.md`). When the repo contains authored rule files (see §2.8 rules-file detection), the detected file list is pre-inlined into this dim's prompt and each violation cites the exact rule; when none exist, the dim runs with no authored-rule input (the other two classes unchanged) |
-| 7 | regressions | In the always-fire set at Medium/Large, or whenever `risk-tier:high` forces the full grid — see the scaling table below. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` |
+| 6 | conventions | In the always-fire set at every size tier — see the scaling table below. Owns three concern classes: per-file style rubrics (`guidelines-criteria.md`), repo-modal patterns via sibling sampling (`conventions-criteria.md`), and authored-rule citations (`rules-compliance-criteria.md`). When the repo contains authored rule files (see §2.8 rules-file detection), the detected file list is pre-inlined into this dim's prompt and each violation cites the exact rule; when none exist, the dim runs with no authored-rule input (the other two classes unchanged) |
+| 7 | regressions | In the always-fire set at or over the size boundary, or whenever `risk-tier:high` forces the full grid — see the scaling table below. Catches unintended deletes + behavior changes outside stated intent (PR body / spec.md / commit msg). 4 signals: deleted-symbol caller-blast, intent-vs-behavior over-reach, test-coverage delta, parallel-path symmetry (mirror-gap). Criteria: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` |
 | 8 | design | Fires when UI globs match changed files (see §2.5 UI-file detection rule). Own trigger, independent of the size-tier scaling below |
 | 9 | pr-metadata | Fires when `pr-ref:` is non-none. Own trigger, independent of the size-tier scaling below |
 | 10 | spec-compliance | Fires when PLAN CONTEXT is non-none AND (`pr-ref:` non-none OR risk-tier:high). Own trigger, independent of the size-tier scaling below |
@@ -41,7 +41,7 @@ State.md `phase: llm-spawn`.
 
 **Spawn-batch size.** Phase 2 spawns a reviewer-agent for every row whose trigger fires — trimming the set beyond what the scaling table resolves silently drops a coverage dimension the user expects:
 
-- The always-fire rows fire per the size/risk-tier-scaled set resolved above — narrower on a small diff, all six of bugs/security/architecture/tests/conventions/regressions at Medium/Large or whenever `risk-tier:high`.
+- The always-fire rows fire per the size/risk-tier-scaled set resolved above — narrower on a small diff, all six of bugs/security/architecture/tests/conventions/regressions at or over the size boundary or whenever `risk-tier:high`.
 - The conditional rows (optimizations, design, pr-metadata, spec-compliance) fire when their own Spawn-rule column trigger is satisfied, independent of the size-tier scaling.
 - N custom rows fire per the spawn-specs already discovered in Phase 1.5 §1.5.4 — the state.md frontmatter `custom_reviewers` entries whose `paths_matched` is `true` (zero discovery work at Phase 2 entry; that count is N).
 

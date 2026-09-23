@@ -20,13 +20,15 @@
 #   - every other frontmatter field copied verbatim except three Claude-only
 #     fields Cursor's Agent Skills spec does not recognize (allowed-tools,
 #     model, argument-hint), which are dropped; the body copied verbatim
-#     except AskUserQuestion -> AskQuestion (Cursor's tool name for it) —
-#     both call sites below carry the full rationale. Output is prefixed
-#     with a generated-file marker.
+#     except AskUserQuestion -> AskQuestion (Cursor's tool name for it) and
+#     subagent_type="general-purpose" -> subagent_type="generalPurpose"
+#     (Cursor's spelling of the generic agent type) — both call sites below
+#     carry the full rationale. Output is prefixed with a generated-file
+#     marker.
 #
 # Sibling files (skills/<slug>/phase-*.md, *-reference.md, templates, and any
 # subdirectory) ARE copied alongside the SKILL.md, verbatim but for the same
-# AskUserQuestion -> AskQuestion translation and a generated-file marker.
+# two translations and a generated-file marker.
 #
 # They were deliberately left out until 2026-08, on the reasoning that every
 # intra-skill reference already resolves through the fully-qualified
@@ -38,7 +40,7 @@
 # the phase bodies holding the gates, the reference file holding the ship
 # contract — is one unreachable hop away, and the observed failure is not a
 # stalled run but a confident one that reconstructs the flow from the host
-# project's own rules. Shipping the siblings makes rung 3 of
+# project's own rules. Shipping the siblings makes rung 2 of
 # `runtime-portability.md` §Plugin-root resolution ("a sibling copy of the
 # target file beside this one") satisfiable per-file, with no root resolution
 # needed. skills/_shared/ and agents/ are NOT copied: they are cross-cutting,
@@ -109,7 +111,17 @@ for dir in "$REPO_ROOT"/skills/*/; do
   # are left as-is and handled instead by the name-mapping rule in
   # skills/_shared/runtime-portability.md, which every skill's preamble
   # already points readers at.
-  body="$(awk 'c<2 && /^---$/{c++; next} c>=2' "$src" | sed 's/AskUserQuestion/AskQuestion/g')"
+  #
+  # Same reasoning covers the second substitution: Cursor's Task tool takes
+  # a closed set of agent types and spells the generic one `generalPurpose`,
+  # not `general-purpose`. A skill body spawning `subagent_type="general-
+  # purpose"` verbatim sends Cursor a type it rejects. The `subagent_type=`
+  # / `subagent_type:` prefix is what makes this safe to blind-sed — bare
+  # "general-purpose" is ordinary English prose ("a general-purpose spawn")
+  # all over these bodies, but the prefixed form only ever appears as actual
+  # call syntax (or as a backtick-quoted description of that same call
+  # syntax, which should read the translated value too).
+  body="$(awk 'c<2 && /^---$/{c++; next} c>=2' "$src" | sed -e 's/AskUserQuestion/AskQuestion/g' -e 's/subagent_type="general-purpose"/subagent_type="generalPurpose"/g' -e 's/subagent_type: general-purpose/subagent_type: generalPurpose/g')"
 
   # Content-integrity guard: a regression in the fence-consumption awk above
   # would corrupt every body-level "---" (a horizontal rule, or a fence inside
@@ -156,11 +168,11 @@ for dir in "$REPO_ROOT"/skills/*/; do
     case "$sib" in
       *.md)
         if [ "$(head -n 1 "$sib")" = "---" ]; then
-          sed 's/AskUserQuestion/AskQuestion/g' "$sib" > "$dest"
+          sed -e 's/AskUserQuestion/AskQuestion/g' -e 's/subagent_type="general-purpose"/subagent_type="generalPurpose"/g' -e 's/subagent_type: general-purpose/subagent_type: generalPurpose/g' "$sib" > "$dest"
         else
           {
             printf -- '<!-- Generated from skills/%s/%s by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->\n\n' "$name" "$rel"
-            sed 's/AskUserQuestion/AskQuestion/g' "$sib"
+            sed -e 's/AskUserQuestion/AskQuestion/g' -e 's/subagent_type="general-purpose"/subagent_type="generalPurpose"/g' -e 's/subagent_type: general-purpose/subagent_type: generalPurpose/g' "$sib"
           } > "$dest"
         fi
         ;;

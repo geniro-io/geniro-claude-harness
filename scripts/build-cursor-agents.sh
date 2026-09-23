@@ -129,7 +129,7 @@ for src in "$REPO_ROOT"/agents/*.md; do
     printf 'readonly: %s\n' "$(readonly_for "$name")"
     printf -- '---\n'
     printf '<!-- Generated from agents/%s by scripts/build-cursor-agents.sh. Edit the source and re-run; do not edit this copy. -->\n\n' "$base"
-    printf '> Runtime note: `${CLAUDE_PLUGIN_ROOT}` below means the plugin root — the ancestor directory of this file containing `.claude-plugin/plugin.json`. Resolve it and export it as `CLAUDE_PLUGIN_ROOT` before sourcing any `lib/*.sh` helper.\n'
+    printf '> Runtime note: `${CLAUDE_PLUGIN_ROOT}` below means the plugin root — the ancestor directory of the real path of this file (symlinks followed) containing `.claude-plugin/plugin.json`. Resolve it and export it as `CLAUDE_PLUGIN_ROOT` before sourcing any `lib/*.sh` helper.\n'
     printf '%s\n' "$body"
   } > "$OUT_DIR/$base"
 done

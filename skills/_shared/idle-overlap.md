@@ -30,7 +30,7 @@ Overlap is safe ONLY when the branches are provably independent, not merely like
 
 - **Never overlap past a code-edit gate.** A gate that must resolve before code changes (the /implement open-questions gate, the spec-challenge gate) may fire *earlier* via Shape A, but its resolution still blocks the transition to editing — the backgrounded work must not slip past the Edit boundary unresolved.
 - **Never background an Always-WAIT safety gate** (library-adoption, runaway-scope, shared-branch ship, spec-challenge-on-drift). These stay synchronous.
-- **Never background a reviewer/verifier batch whose output IS the next gate's input.** Eligibility excludes it — its output feeds the gate, so it stays a same-response blocking parallel spawn; the only overlap available there is seconds of prep against a minute of compute, which is not worth the drain complexity.
+- **Never background a reviewer/verifier batch whose output IS the next gate's input — and on a host that backgrounds a spawn without being asked, wait for it anyway** (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` §Subagent spawns may return before they finish). Eligibility excludes it — its output feeds the gate, so it stays a same-response blocking parallel spawn; the only overlap available there is seconds of prep against a minute of compute, which is not worth the drain complexity.
 - **Respect the one-in-progress todo invariant.** A backgrounded agent overlapping a sequential-decomposition phase must not spawn parallel edit-todos.
 
 ## Anti-rationalization
