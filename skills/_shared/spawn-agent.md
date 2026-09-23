@@ -30,9 +30,9 @@ Where the host does list what it accepts, that list is the ground truth — when
 
 **Every spawn site for a custom plugin agent uses the runtime-detect-and-degrade ladder below.** A skill's instructions name a custom plugin agent by its identity — written bare (`reviewer-agent`) or already prefixed (`geniro:reviewer-agent`), both appear across skill files — but neither spelling is a literal call string. The orchestrator reads it as "the agent named X" and applies the ladder at call time regardless of which form the skill wrote. Skill files are NOT rewritten when this ladder changes.
 
-**`model=` is omitted at every rung, with two exceptions.** The agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`), and at rung 3 `general-purpose`'s own inherit-from-parent default does the same job. The first exception is a user-authored custom reviewer that declares an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass `model={user-declared-value}` verbatim, at whichever rung resolves. The second is a non-judgment site (`model-tiering.md` §The rule, categories 2-4) — it passes a tier, `sonnet` by default or the cheaper one that file's §Sizing a non-judgment spawn picked for this workload, unchanged across every rung. A tier anywhere else defeats the user's session-level `/model` choice.
+**`model=` is omitted at every rung, with two exceptions.** The agent's frontmatter `model:` governs (rationale + carve-outs: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`), and at rung 3 the host general-purpose type's own inherit-from-parent default does the same job. The first exception is a user-authored custom reviewer that declares an explicit tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter — pass `model={user-declared-value}` verbatim, at whichever rung resolves. The second is a non-judgment site (`model-tiering.md` §The rule, categories 2-4) — it passes a tier, `sonnet` by default or the cheaper one that file's §Sizing a non-judgment spawn picked for this workload, unchanged across every rung. A tier anywhere else defeats the user's session-level `/model` choice.
 
-**Where the ladder starts is a host question, decided before the first call.** `geniro:` is the namespace Claude Code prefixes onto a marketplace-installed plugin's agents; no other host has a plugin namespace, so under any other host rung 1 is not a form that might work — it is a form that provably cannot, and trying it burns the whole batch. Under Claude Code, enter at rung 1. Under any other host — Cursor, or any runtime where you had to resolve `${CLAUDE_PLUGIN_ROOT}` yourself per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — **skip rung 1 and enter at rung 2**. This is the one part of the ladder you decide rather than discover; everything below is still driven by what the calls return.
+**Where the ladder starts is a host question, decided before the first call.** `geniro:` is the namespace Claude Code prefixes onto a marketplace-installed plugin's agents; no other host has a plugin namespace, so under any other host rung 1 is not a form that might work — it is a form that provably cannot, and trying it burns the whole batch. Decide from one concrete signal: `CLAUDECODE` present in the environment means Claude Code — enter at rung 1. `CLAUDECODE` absent means another host — Cursor or otherwise — skip rung 1 and enter at rung 2. This is the one part of the ladder you decide rather than discover; everything below is still driven by what the calls return.
 
 When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
@@ -40,11 +40,11 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
 2. **On any failure to start the agent at rung 1** — `Agent type 'geniro:<agent>' not found`, `Couldn't start`, or whatever else this host says when a subagent never begins — re-attempt with the bare name: `Agent(subagent_type="<agent>", ...)`. This is the form registered in vendored / harness installs (agents copied to `.claude/agents/geniro-*.md` with their YAML `name:` unchanged) and in Cursor (`cursor/agents/*.md`), and it is where non-Claude-Code hosts enter. Judge by whether the agent started, not by whether the wording matched a string in this file.
 
-3. **If the bare-name attempt also fails to start**, re-attempt as:
+3. **If the bare-name attempt also fails to start**, re-attempt with the host's own general-purpose agent type — `general-purpose` on Claude Code, `generalPurpose` on Cursor (its Task tool accepts a closed set of agent types built at session start; a name outside that set is rejected, not routed to a fallback):
 
    ```
    Agent(
-     subagent_type="general-purpose",
+     subagent_type=<host's general-purpose type>,
      prompt=<<contents of ${CLAUDE_PLUGIN_ROOT}/agents/<agent-name>.md, body only — strip YAML frontmatter>> + "\n\n---\n\n" + <original prompt>
    )
    ```
@@ -74,7 +74,7 @@ That asymmetry is why the entry rung is decided rather than discovered. The cost
 
 ## Worked example
 
-Rungs 1 and 2 are the skill's own `Agent(...)` call with `subagent_type` swapped for that rung's form (`geniro:reviewer-agent`, then bare `reviewer-agent`); nothing else about the call changes. Rung 3 is the only shape worth rendering — the `general-purpose` prompt is the agent body, a `---` separator, then the original prompt unchanged:
+Rungs 1 and 2 are the skill's own `Agent(...)` call with `subagent_type` swapped for that rung's form (`geniro:reviewer-agent`, then bare `reviewer-agent`); nothing else about the call changes. Rung 3 is the only shape worth rendering — the host's general-purpose prompt is the agent body, a `---` separator, then the original prompt unchanged:
 
 ```
 <<body of ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md, frontmatter stripped>>

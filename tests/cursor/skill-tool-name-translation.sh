@@ -30,6 +30,11 @@
 #     their own, and instructions-authoring-reference.md documents a scaffold.
 #     None of them is a Cursor skill manifest, and stripping those lines
 #     would corrupt the very content they exist to carry.
+#   - subagent_type="general-purpose" (and the colon-form
+#     subagent_type: general-purpose) appear zero times anywhere under a
+#     freshly generated cursor/skills/. Cursor's Task tool accepts a closed
+#     set of agent types and spells the generic one `generalPurpose`; a
+#     spawn call left as `general-purpose` sends Cursor a type it rejects.
 #
 # Deliberately NOT asserted: absence of Bash / Edit / Agent. Those are
 # ordinary English words in running prose ("via Bash", "an Edit target",
@@ -72,6 +77,23 @@ if grep -rq 'AskQuestion' "$TMP" 2>/dev/null; then
   pass "AskQuestion (the translated name) is present in the generated output"
 else
   fail "AskQuestion never appears in generated output — the substitution may not be running at all"
+fi
+
+# --- subagent_type="general-purpose" (Claude Code's spawn call syntax) must
+#     never survive into a generated Cursor skill ---
+HITS="$(grep -rl -e 'subagent_type="general-purpose"' -e 'subagent_type: general-purpose' "$TMP" 2>/dev/null || true)"
+if [ -z "$HITS" ]; then
+  pass "no generated Cursor skill says subagent_type=\"general-purpose\" (Cursor's type is generalPurpose)"
+else
+  fail "subagent_type=\"general-purpose\" leaked into generated Cursor skill(s): $HITS — $REGEN_HINT"
+fi
+
+# --- and the translated form actually shows up, so this isn't just "the
+#     string never occurs in these skills" passing vacuously ---
+if grep -rq 'subagent_type="generalPurpose"' "$TMP" 2>/dev/null; then
+  pass "subagent_type=\"generalPurpose\" (the translated form) is present in the generated output"
+else
+  fail "subagent_type=\"generalPurpose\" never appears in generated output — the substitution may not be running at all"
 fi
 
 # --- the three Claude-only frontmatter fields must be dropped from every

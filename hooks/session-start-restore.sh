@@ -296,6 +296,20 @@ _state_candidates() {
 # Frontmatter `branch:` extraction shares _fm_scalar_quick (defined with the
 # terminal-candidate filter above) — one parse shape for branch/phase/status.
 
+# Portable real-path resolver — macOS bash 3.2 ships neither `realpath` nor
+# `readlink -f`. Used only to compare a candidate's recorded `worktree:`
+# against the current session's, since the same directory can otherwise
+# differ by a symlink hop (e.g. macOS /tmp -> /private/tmp) and false-negative
+# a genuine match. Called unconditionally on whatever `worktree:` recorded,
+# including a path that no longer exists on disk: `cd` into a missing
+# directory fails, and the failure branch prints nothing rather than the raw
+# path, so the result is empty — never equal to the current session's
+# non-empty resolved worktree path — and the comparison below safely treats
+# a missing recorded worktree as a mismatch instead of an accidental match.
+_geniro_realpath() {
+  ( cd "$1" 2>/dev/null && pwd -P ) || printf ''
+}
+
 if [ -z "$state_file" ]; then
   # Default 14 days: long enough to survive a normal work gap (a long weekend,
   # a week of vacation, review-cycle lag on someone else's PR) without wrongly
@@ -307,11 +321,47 @@ if [ -z "$state_file" ]; then
   _now_epoch=$(date +%s 2>/dev/null || echo 0)
   _stale_cutoff_secs=$(( _resume_stale_days * 86400 ))
 
+  # Current session's worktree top level, resolved once — reused for every
+  # candidate's `worktree:` comparison below. Computed here (not above, where
+  # Tier 1 already ran) so an exact slug/path match never pays for a
+  # `git rev-parse` it doesn't need. Empty when not inside a git repo
+  # (candidates carrying `worktree:` then cannot match, same as an
+  # unresolvable candidate path).
+  _cur_worktree_top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  _cur_worktree_real=""
+  [ -n "$_cur_worktree_top" ] && _cur_worktree_real="$(_geniro_realpath "$_cur_worktree_top")"
+
   while IFS= read -r _candidate; do
     [ -z "$_candidate" ] && continue
     _fm_branch="$(_fm_scalar_quick "$_candidate" branch)"
     if [ -n "$_fm_branch" ] && [ "$_fm_branch" = "$branch" ] \
        && ! _is_terminal_candidate "$_candidate"; then
+      # Worktree gate — a branch match alone is too weak a signal once more
+      # than one run shares the branch name (a shared `main`, or an
+      # investigate topic-slug); when the candidate also recorded a
+      # `worktree:` field, require it to name THIS session's worktree too.
+      # A candidate with no `worktree:` field predates the field or never
+      # needed it — keep the branch-only match for it. Compared as real
+      # paths (not string-equal) so a symlink hop in either path can't
+      # false-negative a genuine match; this also covers the case where the
+      # hook is scanning the main checkout's state from inside a linked
+      # worktree — the recorded `worktree:` there IS the linked worktree.
+      #
+      # A recorded `worktree:` that no longer exists on disk is treated the
+      # same as one that exists but names a different directory — both are a
+      # mismatch, and the candidate is skipped. validate-state-file.sh
+      # independently rejects a state file whose recorded worktree isn't in
+      # `git worktree list` (Step 7), so letting a vanished-worktree candidate
+      # through here would only trade a silent skip for a "FAILED VALIDATION"
+      # notice on the next turn — never a resume.
+      _fm_worktree="$(_fm_scalar_quick "$_candidate" worktree)"
+      if [ -n "$_fm_worktree" ]; then
+        _fm_worktree_real="$(_geniro_realpath "$_fm_worktree")"
+        if [ -z "$_cur_worktree_real" ] || [ -z "$_fm_worktree_real" ] || [ "$_fm_worktree_real" != "$_cur_worktree_real" ]; then
+          continue
+        fi
+      fi
+
       # Staleness gate — skip a branch-matched candidate untouched past the
       # cutoff so an abandoned task on a long-lived branch (typically a /plan
       # left on `main`) stops resurfacing. Fail-open: a failed `date`/`stat`
@@ -565,10 +615,18 @@ _render_errors_block() {
 }
 
 # Render `## Open Questions` body section into Block 5c bullets.
+# Selection filter: a resolved entry is dropped (existing rule), and so is an
+# entry whose `question` text is missing, empty, or whitespace-only — jq's
+# `//` only catches an absent/null key, not `question: ""`, and the body-YAML
+# parser turns any bullet with a colon into an entry even when it carries no
+# `question:` field at all. Trimming and gating here (not `// "?"` at render
+# time) keeps the rendered list exactly what a "PENDING QUESTIONS" header
+# promises — no bare "?" for a foreign or keyless bullet.
 _render_open_questions_block() {
   jq -rR 'fromjson? // empty
-    | if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") then empty
-    else "  - \"\(.question // "?")\""
+    | ((.question // "") | tostring | gsub("^[[:space:]]+|[[:space:]]+$"; "")) as $q
+    | if (.resolved == "true") or (.status == "resolved") or (.status == "wontfix") or ($q == "") then empty
+    else "  - \"\($q)\""
     end
   ' 2>/dev/null
 }

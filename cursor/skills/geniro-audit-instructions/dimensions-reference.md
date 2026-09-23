@@ -60,7 +60,7 @@ Read at Phase 0 alongside the rubric sections.
 Pasted by the orchestrator at Phase 2. Every slot is filled before the spawn — a reviewer that has to discover its own rubric will invent one.
 
 ```
-Agent(subagent_type="general-purpose", prompt="""
+Agent(subagent_type="generalPurpose", prompt="""
 ## Task: AI-instruction audit — dimension D<N> (<name>)
 
 You are one reviewer in a multi-dimension audit of this repo's AI-assistant

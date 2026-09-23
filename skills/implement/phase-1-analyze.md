@@ -105,7 +105,7 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
 
-The full cross-skill catalog of modifiers and the spec `launch_config` block (workspace / ship / depth / freshness / tracker_status) lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`.
+The full cross-skill catalog of modifiers lives in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`; the spec `launch_config` block (workspace / branch_freshness / ship_mode / tracker_status) is defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
 
 #### 0c — Setup questions
 
@@ -227,7 +227,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
 
    This is the generic extension point for project-specific work that must precede code edits — most often the product question an inline-task run never had a spec to answer. Step 2's inline-task fallback walks a one-line request straight to implementation, so a project that wants a discovery stage, a flag / analytics decision, or a measurement plan on that path anchors it here and records the outcome into the state.md `## Inline Plan` Step 13 writes. The plugin stays tool-agnostic: the procedure lives entirely in the project's instruction file, not in this phase. Run it before Step 13 so whatever it settles lands in that write; without this step a loaded `### After analyze` block has no execution anchor and is silently dropped once Phase 2 begins (the same failure mode Phase 3's `### After ship` step prevents). Skip silently when no such subsection is loaded.
 
-13. **State.md write.** `atomic_state_write` with `phase: analyze` body sections populated. Leave `phase:` at `analyze` here — Phase 2 entry owns the advance to `implement`, so the file names the phase actually completed if the run stops between the two, and the transition has exactly one site that performs it rather than two that each read as if the other did.
+13. **State.md write.** `atomic_state_write` with `phase: analyze` body sections populated, plus a `Round cap: <N>` body line when $ARGUMENTS stated a self-review round limit lower than the Phase 3 default of 3 — Phase 3's fix loop reads it back instead of re-parsing $ARGUMENTS after a compaction. Leave `phase:` at `analyze` here — Phase 2 entry owns the advance to `implement`, so the file names the phase actually completed if the run stops between the two, and the transition has exactly one site that performs it rather than two that each read as if the other did.
 
 **Workflow plumbing.** Workflow integrations (`.geniro/workflow/*.md`) apply their argument-detection patterns BEFORE the semantic-parse table. Non-blocking — log warning if integration backend unavailable.
 

@@ -37,7 +37,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Fix-loop retries per phase | 3 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. Fires early (before 3) when the loop is not converging — early-escalation triggers in `phase-2-implement.md` §Step 6, reused by the Phase 3 loop. |
+| Fix-loop retries per phase | 3 — Phase 3 lower when the task input states a limit | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. Fires early (before the cap) when the loop is not converging — early-escalation triggers in `phase-2-implement.md` §Step 6, reused by the Phase 3 loop. |
 | Edge-case authored tests | 10 per run | Phase 3 edge-case test-authoring step (`implement-reference.md` §"Phase 3: Edge-case test authoring") | Stop authoring; surface the tests kept so far |
 | Edge-case consecutive discards | 5 consecutive | Phase 3 edge-case test-authoring step (same reference) | Stop hypothesis generation; surface partial |
 
@@ -84,7 +84,7 @@ spawn_dims_declared: []   # Phase 3 Round 1 declare-before-fire list — resolve
 spawn_dims_count: <int>   # count of spawn_dims_declared[], written alongside it in the same atomic_state_write
 todos_declared: []        # Phase 2 decomposition declare-before-edit list — one short slug per authored todo (phase-2-implement.md Step 2)
 todos_declared_count: <int>  # count of todos_declared[], set alongside it; the Ship pre-terminal check reads both
-reviewed_file_set: []     # CHANGED_FILES the final fix-loop round's reviewer-agents actually received (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
+reviewed_file_set: []     # union of every fix-loop round's CHANGED FILES (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
 ---
 ```
 

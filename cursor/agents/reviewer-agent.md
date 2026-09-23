@@ -6,7 +6,7 @@ readonly: true
 ---
 <!-- Generated from agents/reviewer-agent.md by scripts/build-cursor-agents.sh. Edit the source and re-run; do not edit this copy. -->
 
-> Runtime note: `${CLAUDE_PLUGIN_ROOT}` below means the plugin root — the ancestor directory of this file containing `.claude-plugin/plugin.json`. Resolve it and export it as `CLAUDE_PLUGIN_ROOT` before sourcing any `lib/*.sh` helper.
+> Runtime note: `${CLAUDE_PLUGIN_ROOT}` below means the plugin root — the ancestor directory of the real path of this file (symlinks followed) containing `.claude-plugin/plugin.json`. Resolve it and export it as `CLAUDE_PLUGIN_ROOT` before sourcing any `lib/*.sh` helper.
 
 # Reviewer agent — single-dimension focused reviewer
 

@@ -346,7 +346,7 @@ Runs only when BOTH hold: the Phase 1 predicted affected-files list contains a U
 
 ## Phase 2: Code-delegate spawn template
 
-Applies when Phase 2 Step 3's delegation rule (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 3) selects a group for delegation. Spawn `subagent_type="general-purpose"` — no plugin agent owns this shape, and no `agents/*.md` file carries production-source write authority. Pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, since the slice, its file set, and its paired test are already decided, so the delegate only applies them. That is the ceiling: a group whose edits are fully determined (a rename across the named files, a mechanical signature update) takes a cheaper tier, one tier for the whole batch (same file, §Sizing a non-judgment spawn). The template below shows the ceiling form. The delegate runs in the SAME worktree as the orchestrator; the disjoint file-set allowlist is the isolation mechanism, not `isolation: worktree`.
+Applies when Phase 2 Step 3's delegation rule (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 3) selects a group for delegation. Spawn `subagent_type="generalPurpose"` — no plugin agent owns this shape, and no `agents/*.md` file carries production-source write authority. Pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, since the slice, its file set, and its paired test are already decided, so the delegate only applies them. That is the ceiling: a group whose edits are fully determined (a rename across the named files, a mechanical signature update) takes a cheaper tier, one tier for the whole batch (same file, §Sizing a non-judgment spawn). The template below shows the ceiling form. The delegate runs in the SAME worktree as the orchestrator; the disjoint file-set allowlist is the isolation mechanism, not `isolation: worktree`.
 
 **Pre-spawn ownership assert.** The orchestrator computes the file-set partition into disjoint delegate groups at Phase 2 Step 2 (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 2) — a delegate never discovers its own file set. Before any delegate fires, verify: every todo in the delegated set appears in exactly one delegate's allowlist; every file those todos touch falls inside exactly one allowlist; anything with no owner is echoed to the user and assigned before spawning.
 
@@ -364,7 +364,7 @@ The orchestrator pre-resolves these slots per delegate:
 | `PROJECT SEARCH POLICY` | Verbatim `global.md` search rules, or `none declared` — governs every lookup the delegate makes, not just the first |
 
 ```
-Agent(subagent_type="general-purpose", model="sonnet", description="Implementing: <todo summary>", prompt="""
+Agent(subagent_type="generalPurpose", model="sonnet", description="Implementing: <todo summary>", prompt="""
 WORKTREE: [absolute path]
 TODO_SPEC_EXCERPT: [pre-inlined]
 ALLOWED_FILES: [newline-separated absolute paths — edit ONLY these]
@@ -405,14 +405,14 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 ## Phase 2: test-runner-agent spawn template
 
-Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), and ONCE per fix-loop retry. Model per `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering — OMIT `model=` on the end-of-phase run so the agent's frontmatter `model: sonnet` governs (a mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). A fix-loop re-spawn is the sizing case: the first run reported the suite's real shape, so a small suite or a narrowed command re-runs on a cheaper tier. Spawn `subagent_type="geniro:test-runner-agent"` under Claude Code, bare `subagent_type="test-runner-agent"` under any other host (fails-to-start or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form).
+Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), ONCE per fix-loop retry, and once more with the full command whenever the Phase 3 fix loop's final full-suite trigger fires (§"Phase 3: Bounded fix loop" "Final full-suite trigger"). Model per `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering — OMIT `model=` on the end-of-phase run so the agent's frontmatter `model: sonnet` governs (a mechanical run-and-parse carve-out per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`). A fix-loop re-spawn is the sizing case: the first run reported the suite's real shape, so it re-runs on a cheaper tier — smaller still on a Phase 3 fix round, which passes the related-tests command that same section defines rather than the full suite. Spawn `subagent_type="geniro:test-runner-agent"` under Claude Code, bare `subagent_type="test-runner-agent"` under any other host (fails-to-start or empty result → Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for the ladder + fallback, then cache the resolved form).
 
 The orchestrator pre-resolves these slots:
 
 | Slot | Source |
 |---|---|
 | `WORKTREE` | `git rev-parse --show-toplevel` |
-| `TEST_COMMAND` | Project's test command from CLAUDE.md "Essential Commands" (e.g., `pnpm --filter api test:unit`, `pytest tests/`, `go test ./...`) |
+| `TEST_COMMAND` | Project's test command from CLAUDE.md "Essential Commands" (e.g., `pnpm --filter api test:unit`, `pytest tests/`, `go test ./...`). A Phase 3 fix-round re-spawn instead passes the related-tests command §"Phase 3: Bounded fix loop" "Related-tests scoping" defines, with this command as its fallback. |
 | `CHANGED_FILES` | Paths this run edited — by the orchestrator directly or by a code delegate on its behalf (newline-separated) |
 | `OUTPUT_PATH` | `<task-dir>/.tr-out.md` (overwritten per retry) |
 | `MAX_FAILURES_REPORTED` | `15` (default) |
@@ -543,10 +543,10 @@ Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="
 WORKTREE: [from `git rev-parse --show-toplevel`]
 DIMENSION: bugs | security | architecture | tests | code-quality
 CRITERIA FILES: [one absolute path per line — this dimension's criteria file(s) from the reviewer dimensions table below. Read each one before reviewing.]
-CHANGED FILES: [newline-separated absolute paths this run edited — read each one to review it]
+CHANGED FILES: [round 1: newline-separated absolute paths this run edited — read each one to review it. round N+1: only the paths the preceding fix round edited.]
 DIFF CONTEXT:
 ---BEGIN UNTRUSTED DIFF---
-[paste `git diff <base>...HEAD` output where <base> resolves per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md rule 3]
+[`git diff $(git merge-base <base> HEAD) -- <paths>`, working tree included — nothing is committed before Ship, so there is no round sha to diff from; <base> resolves per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md rule 3, and diffing from the merge-base keeps the base branch's own later commits out. New untracked files show no hunk here; the reviewer reads them from CHANGED FILES. round 1: <paths> is this run's full edited-file set. round N+1: <paths> is only the preceding round's edited paths.]
 ---END UNTRUSTED DIFF---
 SPEC CONTEXT:
 ---BEGIN UNTRUSTED PLAN---
@@ -598,7 +598,7 @@ An in-phase orchestrator step, not a spawn — Phase 2 already authorizes source
 
 **Read the canonical test-design taxonomy first.** Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §"Test design philosophy" and §"Litmus test (the deletion test)" once before hypothesizing — the mocking-discipline tiers and the deletion-test litmus bind here exactly as they bind the `tests` reviewer dimension. Do not duplicate its content into this step's output.
 
-**Hypothesis generation.** Read the diff (`git diff <base>...HEAD`, `<base>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3) with an attacker mindset — what input, ordering, or state would break this specific change, attacking along boundary values, null/empty input, ordering and async races, and critical-path failure modes. Generate 5-12 hypotheses scaled to the size of the changed regions: a ceiling, not a floor — a one-file diff earns fewer hypotheses than a ten-file one, and there is no minimum to hit. **Stop rule:** 5 hypotheses in a row ending `discarded-cannot-repro` or `inconclusive` halts further hypothesis generation for this run — return what survived rather than grinding on a diff that has already yielded what it will.
+**Hypothesis generation.** Read the diff (`git diff $(git merge-base <base> HEAD)`, working tree included, `<base>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3) with an attacker mindset — what input, ordering, or state would break this specific change, attacking along boundary values, null/empty input, ordering and async races, and critical-path failure modes. Generate 5-12 hypotheses scaled to the size of the changed regions: a ceiling, not a floor — a one-file diff earns fewer hypotheses than a ten-file one, and there is no minimum to hit. **Stop rule:** 5 hypotheses in a row ending `discarded-cannot-repro` or `inconclusive` halts further hypothesis generation for this run — return what survived rather than grinding on a diff that has already yielded what it will.
 
 **F→P verification.** For each hypothesis worth a test, author it under the project's test directory and run it once before touching production code. A test that cannot be demonstrated RED on the current code is discarded — it isn't testing a real gap. **Hard cap: 10 authored tests per run** — at the cap, stop, note the overflow in the round summary, and let the fix loop (or a follow-up run) handle any hypothesis left over. A test that IS red for a confirmed bug survives into the round's findings as a HIGH (§"Phase 3: Bounded fix loop" ACTIONABLE definition) and is fixed in the same fix loop as the reviewer-agent findings; the next round's `test-runner-agent` run is what proves it GREEN. Authored test files stay on disk through Ship — they become part of the commit.
 
@@ -618,10 +618,11 @@ An in-phase orchestrator step, not a spawn — Phase 2 already authorizes source
 
 ```
 round = 1
-while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Loop invariants (invariant 5)
+while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Loop invariants (invariant 5); reads the
+                                                # `Round cap:` line Phase 1 wrote to state.md body when set, else 3
   round 1: spawn reviewer-agents (resolved grid) + N custom reviewers IN PARALLEL (one
            assistant response); run the edge-case test-authoring step inline (unless skipped)
-  round N+1: re-spawn only dims that flagged an ACTIONABLE finding in round N;
+  round N+1: re-spawn only dims whose round-N ACTIONABLE finding produced an edit;
              re-run any authored edge-case test that still fails (no re-authoring)
 
   collect findings (reviewer dim outputs +
@@ -650,6 +651,10 @@ while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Lo
                  lines this run authored)
 
   if no ACTIONABLE findings AND no authored edge-case tests THAT STILL FAIL:
+    apply this round's NITs inline, if any (same Edit-driven sub-loop as below —
+      the full-suite trigger next covers their verification, so no separate
+      test-runner-agent re-spawn is needed here)
+    apply the final full-suite trigger (§"Final full-suite trigger" below)
     break  # exit → minor-findings gate → test-quality gate → Ship sub-step
 
   apply ACTIONABLE fixes + NITs inline (single Edit-driven sub-loop, NO further
@@ -658,16 +663,21 @@ while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Lo
     does not require (speculative generality is itself a finding, not a fix); a
     recommendation that amounts to a redesign routes to the escalation AUQ, never
     the inline batch.
-  re-spawn test-runner-agent; if Verdict != ALL_GREEN, rollback to Phase 2
+  re-spawn test-runner-agent scoped to this round's fixed files (§"Related-tests
+    scoping" below); if Verdict != ALL_GREEN, rollback to Phase 2
   round += 1
 else:
   # round ROUND_CAP+1 would start — DO NOT enter
   escalate via AskQuestion
 ```
 
-**Round N+1 only re-spawns dimensions that flagged an actionable finding.** Dimensions that reported nothing actionable in round N — clean, or minor-only — are NOT re-spawned: bounds cost and avoids re-litigating clean code. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache. An authored edge-case test that still fails is re-checked via the round's `test-runner-agent` spawn, not re-authored.
+**Related-tests scoping.** A fix round's `test-runner-agent` re-spawn passes the project's related-tests command scoped to that round's fixed files — the runner's own related-tests mode when the project has one (e.g. `vitest related --run`, `jest --findRelatedTests`), else the test files beside those changed files. Fall back to the full `TEST_COMMAND` when the project has no such mode, the scoped selection comes back empty, or the round touched config, shared test setup, fixtures, or another file an import graph can't trace to its tests. A non-green scoped run gets the same rollback-to-Phase-2 handling as a non-green full run.
 
-**Minor and out-of-scope findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving MINOR + OUT-OF-SCOPE findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_append_section --create`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix · a `pre-existing` marker on out-of-scope entries. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory. NITs never persist here — they were fixed in-round. A loop that exits with zero survivors still writes the section, carrying the sentinel `none — the fix loop converged with no minor findings left`: it is what distinguishes a clean convergence from a loop whose persist step never ran, and both consumers read that difference (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel). Alongside it, `atomic_state_set_field` sets frontmatter `reviewed_file_set: [<path>, ...]` — the CHANGED_FILES the final round's reviewer-agents actually received — which Ship's commit-time review-coverage guard (§"Commit + Push + PR" Step 2) diffs against what is about to be staged.
+**Final full-suite trigger.** Whenever the fix loop exits — the clean break above, or the escalation AUQ resolving to "Accept findings and proceed to ship" — check whether the last test run was scoped rather than full, or any edit (a fix or a clean-exit nit) landed after it. If either, run `test-runner-agent` once more with the full `TEST_COMMAND` before Ship; a non-green result gets the same rollback-to-Phase-2 handling as a non-green fix-round run. That final full-suite Verdict is what the Ship sub-step's Test results line quotes. A loop whose last test run was full with no edit after it has nothing to supersede; the suite already known green stands.
+
+**Round N+1 only re-spawns dimensions whose round-N actionable finding produced an edit.** A dimension that reported nothing actionable in round N — clean, or minor-only — is NOT re-spawned, and neither is one whose finding was settled by a user decision with no resulting edit: bounds cost, avoids re-litigating settled code, and keeps round N+1's CHANGED FILES from coming back empty when it does fire. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache. An authored edge-case test that still fails is re-checked via the round's `test-runner-agent` spawn, not re-authored.
+
+**Minor and out-of-scope findings are collected, not chased.** They never block loop exit and never force a round. On loop exit — the clean break above OR the accepted-findings escalation path — dedupe the surviving MINOR + OUT-OF-SCOPE findings across rounds (drop any a later round's fixes incidentally resolved) and persist them to state.md under a `## Deferred Findings` body section via `atomic_state_append_section --create`, one bullet per finding: short title · severity · `path:lines` · one-line suggested fix · a `pre-existing` marker on out-of-scope entries. This persisted section is the minor-findings gate's compaction-safe input and the ship report's Deferred feeder — both read it from state.md, never from working memory. NITs never persist here — they were fixed in-round. A loop that exits with zero survivors still writes the section, carrying the sentinel `none — the fix loop converged with no minor findings left`: it is what distinguishes a clean convergence from a loop whose persist step never ran, and both consumers read that difference (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel). Alongside it, `atomic_state_set_field` sets frontmatter `reviewed_file_set: [<path>, ...]` — the union of every round's CHANGED FILES — which Ship's commit-time review-coverage guard (§"Commit + Push + PR" Step 2) diffs against what is about to be staged.
 
 **Authored edge-case tests are treated identically to a reviewer-dimension finding for fix purposes:**
 - Each authored failing test counts as a HIGH finding.
@@ -682,7 +692,7 @@ else:
 2. **Render the unresolved findings to chat first** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering — a separate, already-emitted chat message, so the user decides from explained findings rather than reviewer shorthand. With ≥2 unresolved findings, open the message with the decision-queue progress tracker (`✔` decided · `●` deciding now · `○` ahead — one stop per finding with a short plain-English tag). Each finding gets the visual-form block: the `### 🧭 Decision needed:` title, the `**In one sentence:**` opener, a conversational lead expanding what the software does and what the concern is in ordinary words, `**Why it matters:**` in plain words, a `**Technical detail:**` block carrying the evidence cite and the named symbols, and a visual per the same contract's §Finding-type visual map. The per-dimension findings summary lives in this render — never inside the question.
 3. Then fire the lean `AskQuestion` (header: `"Unresolved"`) with these options:
    - **A) Hand off to /geniro:debug** — state.md transitions to `phase: debug-handoff` (terminal). No handoff file is written: `/geniro:debug` opens its own investigation from `$ARGUMENTS` and reads no planning `state.md`, so state.md here is the run's audit trail, not a consumer-parsed handoff. Close by naming the unresolved findings in chat so the user can carry them into the `/geniro:debug` invocation.
-   - **B) Accept findings and proceed to ship** — state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
+   - **B) Accept findings and proceed to ship** — apply the final full-suite trigger (§"Final full-suite trigger" above) before transitioning; state.md adds `## Accepted Findings` body block recording the decision. Transitions to `phase: ship`. The architecture reviewer in future runs sees the accepted-findings list and may flag scope concerns.
    - **C) Abort** — state.md transitions to `phase: aborted` (terminal). Work uncommitted on disk for manual takeover.
 
    The Explain-further reading-aid option and the pre-fire scrub arrive via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate — apply that section; don't restate it here.
@@ -783,7 +793,7 @@ The steps below name capabilities — navigate, snapshot, console, network, resi
 
 **Step 2 — Commit.** Before staging, run `git branch --show-current` and verify the working tree is on the branch this run targeted (the Phase-1 Step-0 captured `CURRENT_BRANCH` / state.md `branch:` field). The session-start / state-snapshot branch field can go stale across compaction or an intervening branch switch — trust the live command, not the snapshot. On a mismatch, do NOT `git add` or `git commit`; fire an `AskQuestion` (header: "Branch check", question: "The working tree is on branch `<live>` but this run targeted `<expected>` — committing here would land the change on the wrong branch. How do you want to proceed?", options: "Move my commit to `<expected>` first" / "Commit on `<live>` anyway" / "Stop — let me sort the branch out").
 
-Once the branch is confirmed, run the review-coverage guard BEFORE staging, then the provenance guard after — canonical order, since the coverage guard's re-review branch below can grow CHANGED_FILES with more fixes, and staging first would leave those out of the commit. Diff CHANGED_FILES against frontmatter `reviewed_file_set` (the file list the Phase 3 fix loop's exit recorded — what the final round's reviewer-agents actually received; §"Phase 3: Bounded fix loop" above). Equal sets is the common case — nothing diverged, proceed. A file in CHANGED_FILES but absent from `reviewed_file_set` was edited after the round converged and never reviewed: the deferred spec step or reviewer-recommended follow-up implemented after Phase 3's own review closed, then shipped under its earlier clean result. Render the gap message-first (which files, and that they postdate the review) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then a lean `AskQuestion` (header: "Review gap"):
+Once the branch is confirmed, run the review-coverage guard BEFORE staging, then the provenance guard after — canonical order, since the coverage guard's re-review branch below can grow CHANGED_FILES with more fixes, and staging first would leave those out of the commit. Diff CHANGED_FILES against frontmatter `reviewed_file_set` (the file list the Phase 3 fix loop's exit recorded — the union of every round's CHANGED FILES; §"Phase 3: Bounded fix loop" above). Equal sets is the common case — nothing diverged, proceed. A file in CHANGED_FILES but absent from `reviewed_file_set` was edited after the round converged and never reviewed: the deferred spec step or reviewer-recommended follow-up implemented after Phase 3's own review closed, then shipped under its earlier clean result. Render the gap message-first (which files, and that they postdate the review) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then a lean `AskQuestion` (header: "Review gap"):
 - "Re-review before shipping (Recommended)" — a bounded, out-of-loop re-review, not a fix-loop round: it doesn't count against invariant 5's round cap and `phase:` stays `ship` throughout. Re-spawn the Step 1 built-in reviewer dimensions once, scoped to only the diverged files' diff, and apply any findings under Step 3's existing inline-fix rule (smallest fix at the cited site, no further agent spawns). The edit this performs is the Ship-sub-step allowance invariant S5 grants (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Loop invariants). Update `reviewed_file_set` to the new CHANGED_FILES on a clean result, then continue to staging.
 - "Ship anyway — disclose the gap" — append a `## Unreviewed Files` body block naming the diverged files, then proceed; the block rides Step 4's Ship-mode AUQ disclosure ("Disclose overridden gates" below) by name, so the user decides with the gap in view rather than reading the earlier round's clean result as coverage for files it never saw.
 
@@ -833,7 +843,7 @@ emit_rejection_if_signal \
 
 - **What shipped** — the files / scope changed (the CHANGED_FILES set), one line on the change.
 - **Commit + branch + PR** — commit SHA, branch name, and PR URL quoted verbatim from the actual tool output (`git rev-parse HEAD`, `git branch --show-current`, the `gh pr create` URL line) — never "git push succeeded" without the ref, per Loop invariant #6.
-- **Test results** — the Phase 2 / Phase 3 `test-runner-agent` Verdict block (Command / Exit code / Summary) quoted as the Evidence Block.
+- **Test results** — the full-suite `test-runner-agent` Verdict block (Command / Exit code / Summary) quoted as the Evidence Block: Phase 2's end-of-phase run, or the Phase 3 loop-exit run per the final full-suite trigger (§"Phase 3: Bounded fix loop" "Final full-suite trigger").
 - **Review outcome — one line per review dimension, named, with its own result.** Report every dimension in `spawn_dims_declared[]` by name with its found / fixed counts across the rounds ("bugs: 2 found, 2 fixed · security: clean · tests: 1 found, 1 deferred"), every dimension `phase-3-ship.md` Step 2's post-spawn check marked `not-run` by name with its reason, and the edge-case test-authoring step's own outcome by name — its found/fixed counts ("edge-case tests: 1 authored, 1 fixed"), "none found" on a clean pass, or its skip reason ("edge-case tests: skipped — the change was too small to warrant them"). A dimension is never omitted and never folded into a general "verified, not assumed" statement: `spawn_dims_declared[]` is what makes an omission checkable, and a run that skipped the review has no honest way to fill in the per-dimension form it names. Self-run formatting, template-rendering, syntax, and lint checks are evidence that the change is well-formed — the build claim — and never evidence for the review claim, which only the spawned reviewer dimensions and the edge-case test-authoring step produce. Name any `## Accepted Findings` / `## Accepted Failures` / `## Unreviewed Files` carried as known limitations.
 - **Todo completeness — every declared todo named.** State how many of the tasks this run set out to do were finished, and name every one that was not, with the reason it was dropped. A task that is neither finished nor named here as dropped is one this run left open and never disclosed — the report is where that gets said, not folded into "shipped."
 - **Visual evidence** — when the run captured a before/after pair, both images rendered inline per §"Pre-Ship Visual Verification" §Evidence, with their durable paths. When it did not, one line saying which half is missing and the reason `## Visual Baseline` recorded — a UI change shipped with no picture is a fact the user should read here, not infer from a silent section.
@@ -972,7 +982,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Every delegated todo's diff was read before it was marked completed, and every delegate-authored path is in `CHANGED_FILES`.
 - [ ] Every entry in `todos_declared[]` has a named outcome — completed, or dropped with a stated reason — checked before the terminal transition; an entry with neither is named in the ship report rather than passed over (Phase 3 Ship §"Emit the ship report, then transition").
 - [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
-- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — dims with actionable findings only); exited clean OR escalated.
+- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — dims whose findings produced an edit, scoped to that round's edited files); exited clean OR escalated.
 - [ ] Minor-findings gate fired after the fix loop converged, or skipped on `## Deferred Findings`'s `none — …` sentinel — disposition persisted to `approvals[]` as `minor_findings_disposition`.
 - [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] Custom post-ship steps executed — any `### After ship` subsection in the loaded `.geniro/instructions/implement.md` ran, or none was loaded (§"Custom post-ship steps").

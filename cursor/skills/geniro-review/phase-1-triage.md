@@ -31,13 +31,13 @@ Run these in order (`§` anchors are sections of the triage reference):
 3. **Resolve the scope** — the reviewed file set, the scope-exclusion note, and the sanity gate that aborts an unresolvable ref or an empty diff before any reviewer spawns · §2 + §2.1.
 4. **Fetch the pull-request metadata** (PR ref only) — diff, base/head refs, title/body, head SHA, URL, draft state, author, labels · `phase-1-pr-reference.md` §3.
 5. **Fetch the linked issue** — workflow-file detection, tracker-ID match, spec-frontmatter ref merge, and the `LINEAR CONTEXT:` block · §3.5.
-6. **Scout sibling pull requests** (PR ref only) — scored, capped, and inlined as `PEER-PR CONTEXT:` · `phase-1-pr-reference.md` §4.
+6. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope question on a fresh second-or-later round · §7.
 7. **Load the custom instructions** · §6.
-8. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope question on a fresh second-or-later round · §7.
+8. **Scout sibling pull requests** (PR ref only, round 1) — scored, capped, and inlined as `PEER-PR CONTEXT:`; skipped from round 2 on, the scout already ran · `phase-1-pr-reference.md` §4.
 9. **Load the plan context** · §8.
 10. **Stratify by risk** — sets `risk-tier: standard | high`, which scales three downstream knobs · §9.
 11. **Load the memory layers** — project snapshot, past learnings, conflict resolution · §10.
-12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape · §12.
+12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape, measured on the range actually under review · §12.
 13. **Settle the orientation-brief opt-in** — the last thing Phase 1 does, so Phase 2 can fire the brief alongside the reviewer batch instead of behind it; rides along with an earlier §7 question when one is still ahead · §13.
 
 Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, and `subagent-model` (from the step-2 flag parse; missing reads as `inherit`), plus `brief` resolved to `artifact` / `file` / `off` by step 13 — never still `pending`, which is the step-2 flag parse's transient value and nothing Phase 2 knows how to read; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
@@ -56,11 +56,11 @@ Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first
 
 ### 1.5.1 Check 1 — Lint
 
-Detect the project's own lint setup and run its lint command over the changed files through `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Lint" "<lint_cmd>"` — the same containment the Phase 2.7 build check mandates; a lint pass over a broken diff floods context exactly like a build. Capture failures as `{tool, file, line, rule, message}` tuples.
+Detect the project's own lint setup and invoke the linter directly against the changed-file list, not through a whole-project lint script — a package-wide `npm run lint` (or equivalent) lints files the diff never touched and can exhaust memory on a large repo. Run it through `source "${CLAUDE_PLUGIN_ROOT}/hooks/backpressure.sh" && run_silent "Lint" "<lint_cmd>"` — the same containment the Phase 2.7 build check mandates; a lint pass over a broken diff floods context exactly like a build. Capture failures as `{tool, file, line, rule, message}` tuples.
 
 ### 1.5.2 Check 2 — Schema
 
-Run whichever type / schema checks the diff's file types call for — compiler no-emit type check, JSON-Schema or OpenAPI validation, protobuf lint — through the same `run_silent` containment as check 1: a no-emit type check on a broken diff can emit thousands of lines. Capture failures in the same tuple shape.
+Run whichever type / schema checks the diff's file types call for — a compiler no-emit type check scoped to only the packages/projects containing changed files, JSON-Schema or OpenAPI validation, protobuf lint — through the same `run_silent` containment as check 1: a no-emit type check run repo-wide, or on a broken diff, can emit thousands of lines. Capture failures in the same tuple shape.
 
 ### 1.5.3 Check 3 — Secret scan
 
@@ -116,7 +116,7 @@ Each check records exactly one outcome. Continue to Phase 2 whatever it is (fail
 
 - **Check produced findings** → outcome `findings`.
 - **Check ran and found nothing** → outcome `clean`. A green lint or type-check is the common case on a healthy diff, and it is a result the §4.0a gate reads as a pass — not a gap.
-- **Check failed** (process exit nonzero with no output OR command not found) → outcome `error`; write `## Errors mechanical-prepass-<check_id>: command_unavailable_or_failed`.
+- **Check failed** (process exit nonzero with no output, a crash, an out-of-memory kill, or command not found) → outcome `error`; write `## Errors mechanical-prepass-<check_id>: command_unavailable_or_failed`. Record it and move on — a crashed or OOM-killed check is not retried at higher resource limits.
 - **Check not applicable** (no lint config detected for `lint`; no TS / schema / proto files in the diff for `schema`) → outcome `error`; write `## Errors mechanical-prepass-<check_id>: not_applicable`, so a deliberate skip stays distinguishable from never reaching the check — which is what the §4.0a gate detects.
 
 Secret scan is a pure-regex pass — it cannot fail or be not-applicable, so its outcome is `findings` or `clean`.

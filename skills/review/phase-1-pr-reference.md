@@ -94,7 +94,7 @@ If `gh` is unavailable or the PR cannot be fetched, report the error and stop �
 
 ## 4. Peer-PR scout
 
-**The PEER-PR CONTEXT slot value has exactly two legal sources** — (a) the literal result of running the scoring procedure below to completion, starting from the live `gh pr list` call, or (b) the literal fail-open string (`none — gh unavailable (fail-open)` / `none — no relevant open peer PRs`). A scout exists to DISCOVER open sibling PRs the orchestrator does not already know about; synthesizing the slot from PRs already mentioned in context (merged/closed PRs the run happened to reference, prior-round handoff content) is not a scout — it cannot surface an unknown open sibling, and it feeds reviewers a fabricated peer set. If `gh pr list` did not run this round, the only legal value is the fail-open string, never a hand-assembled block.
+**The PEER-PR CONTEXT slot value has exactly two legal sources** — (a) the literal result of running the scoring procedure below to completion, starting from the live `gh pr list` call, or (b) the literal fail-open string (`none — gh unavailable (fail-open)` / `none — no relevant open peer PRs` / `none — already scouted in round 1 (skipped this round)`). A scout exists to DISCOVER open sibling PRs the orchestrator does not already know about; synthesizing the slot from PRs already mentioned in context (merged/closed PRs the run happened to reference, prior-round handoff content) is not a scout — it cannot surface an unknown open sibling, and it feeds reviewers a fabricated peer set. If `gh pr list` did not run this round, the only legal value is the fail-open string, never a hand-assembled block.
 
 Mechanism:
 
