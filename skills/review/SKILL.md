@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Use when a comprehensive code review of pending changes (a diff, branch, or PR) is needed. Reporter workflow: triage, a cheap mechanical pre-pass, then parallel single-dimension reviewers (bugs, security, architecture, tests, regressions, conventions, and more, plus any custom ones) whose findings are filtered and individually verified, then persisted. Emits a handoff file at .geniro/state/handoff/from-review-<branch>.md; downstream consumers (/geniro:implement, or the user manually) apply the fixes and author any confirming tests — review never edits code itself, and asks before posting to a PR."
+description: "Use when a comprehensive code review of pending changes (a diff, branch, or PR) is needed. Reporter workflow: triage, a cheap mechanical pre-pass, then parallel single-dimension reviewers (bugs, security, architecture, tests, regressions, conventions, and more, plus any custom ones) whose findings are filtered and individually verified, then persisted. Emits a handoff file at .geniro/state/handoff/from-review-{branch}.md; downstream consumers (/geniro:implement, or the user manually) apply the fixes and author any confirming tests — review never edits code itself, and asks before posting to a PR."
 context: main
 model: inherit
 allowed-tools: [Read, Glob, Grep, Bash, Agent, AskUserQuestion, EnterWorktree, ExitWorktree, WebSearch, WebFetch, "mcp__*"]
@@ -51,7 +51,7 @@ State.md `phase:` enum transitions:
 └── aborted ── (round-limit / safety / tool-unavailable)
 ```
 
-**Terminal states:** `done`, `aborted`, `escalated` — SessionStart recovery treats all three as "review complete / cancelled". `done` includes a Phase 6 handoff line; `aborted` writes a `## Termination reason` body section; `escalated` (round-limit hand-off) surfaces its reason in `## Open Questions` instead (mapping: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9). Recovery rolls every **non-terminal** state back to phase-entry and re-runs from there — idempotent, because `approvals[]` makes the Phase 6 AUQ skip already-answered picks.
+**Terminal states:** `done`, `aborted`, `escalated`. `done` includes a Phase 6 handoff line; `aborted` writes a `## Termination reason` body section; `escalated` (round-limit hand-off) surfaces its reason in `## Open Questions` instead (mapping: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §9). A review resumes only when the user re-invokes `/geniro:review` — the SessionStart restore hook globs for files literally named `state.md`, and Phase 1-4 persist directly to `from-review-<branch>.md` (the same file the Phase 5 write turns into the T2 handoff — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"`/review`" producer note), so the hook never surfaces an in-flight or terminal review run. Re-invoking rolls every **non-terminal** state back to phase-entry and re-runs from there — idempotent, because `approvals[]` makes the Phase 6 AUQ skip already-answered picks.
 
 **After a compaction, re-Read the phase file for the phase `phase:` says you are resuming** — only this spine is re-attached, the Steps are gone, and reconstructing a phase from a summary's recollection is how a spawn batch or a gate gets skipped.
 
@@ -62,7 +62,7 @@ State.md `phase:` enum transitions:
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with review-specific bindings:
 
 - **Invariant #1 (one result per tool call)** — binds each Phase 2 parallel reviewer spawn; a dead one gets its `status: failed` entry in `## Tool log`.
-- **Invariant #2 (args validated)** — `$ARGUMENTS` flag parsing is semantic, no CLI grammar; a PR ref validates via `mcp__github__pull_request_read` or the GraphQL fallback.
+- **Invariant #2 (args validated)** — `$ARGUMENTS` flag parsing is semantic, no CLI grammar; a PR ref validates via a live GitHub lookup — MCP-preferred when registered, `gh`/GraphQL fallback otherwise (`phase-1-pr-reference.md` §1).
 - **Invariant #3 (permission before side-effect)** — the Phase 6 Action gate always fires and waits before any post to GitHub; never auto-post, never substitute a chat-text suggestion for it. The post creates a PENDING review that /geniro:review never submits, on every round — submitting is the user's own github.com action (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4). State.md writes go through `atomic_state_write`. Every user-facing choice routes through `AskUserQuestion` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions — Phase 1's workspace decision, round-N escalation, and re-review questions (`phase-1-triage-reference.md` §0b, §7), Phase 4's post-spawn verification gate (`phase-3-4-filter-stratify.md` §4.0), and Phase 6's gate chain (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §1-§5).
 - **Invariant #4 (bounded results)** — reviewer-agent output is capped per dimension by its own contract (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap); output schema per the same file's §Output Format.
 - **Invariant #5 (escalation gates)** — round-N ≥3 fires the Phase 1 round-N gate first (`phase-1-triage-reference.md` §7 step 4, two options: Continue / Escalate); Escalate exits terminal before Phase 6 is reached. A Continue pick lets the Phase 6 Round-N gate (`review-handoff.md` §5, Continue / Escalate / Abort) fire as its conditional follow-on.
@@ -77,7 +77,7 @@ S3. **Stamp `phase:` on entry, before the phase's work.** A checkpoint written o
 
 **Turn boundaries.** A turn ends in exactly three places: on a fired approval question, on reaching a terminal `phase:` state, or when the user asked something and is owed the answer. Everywhere else the next action follows in the same turn, with a tool call — between steps, after a check comes back green, after a state write, at a phase transition, and when a subagent's result lands. A status report, a checkpoint summary, and a list of what remains are continuations, not endings: write one where it helps the user follow along, then take the next action in that same turn. A decision that needs the user is asked as a real question in the turn that raises it, its render and the question inside that one turn (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard) — a question left in prose, or announced for a later message, leaves the run waiting on an answer the user was never asked for. Reversibility is not the test: a deviation from a rule this run loaded is a gate however cheap it is to undo.
 
-**Compaction.** The host re-attaches only the first ~20,000 characters of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
+**Compaction.** The host re-attaches only the first stretch of this file after a summary, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
 `## Tool log`: one entry per reviewer spawn, one per Phase 5.3 emit-learning, and one per PR-side-effect.
 
@@ -145,7 +145,7 @@ Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `f
 
 | Phase | Helper |
 |---|---|
-| Phase 1 entry | `load-custom-instructions` (read L4, `initial-load`) · `load-semantic` (read L3, `refresh`: `_project.md` + `_CODEBASE_MAP.md`, with drift check) · `query-learnings` (read L2: tags from changed-file paths, type bias `pitfall`, top-K default 5) · `resolve-conflicts` over the three |
+| Phase 1 entry | `load-custom-instructions` (read L4, `initial-load`) · `load-semantic` (read L3, `refresh`: `_project.md` + `_CODEBASE_MAP.md`, with drift check) · `query-learnings` (read L2: `--type pitfall --tag <changed-file-tag> --score-min 0 --limit 5` — top 5 by score, tagged from changed-file paths) · `resolve-conflicts` over the three |
 | Phase 2 entry | `load-custom-instructions` (read L4, `refresh`, same scope) — compaction may have dropped the rules |
 | Phase 5 entry | `load-custom-instructions` (read L4, `refresh`, same scope) — compaction may have dropped the rules |
 | Phase 5 · 6 | `atomic_state_write` (write T2) — handoff path, full body; then updated `approvals[]` |
@@ -165,7 +165,7 @@ Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `f
 
 ## Phase 2 — LLM reviewer spawns
 
-`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.3 and §2.5-§2.9 (§2.4 is reserved). Fire one `reviewer-agent` per triggered dimension as a single parallel batch, joined in that same response by the orientation-brief spawn when Phase 1 §13 accepted one — co-fired, so it lands with the reviewers and is materialized before Phase 3 rather than behind it (`phase-2-spawns.md` §2.3.2). Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
+`phase: llm-spawn` · Steps: `phase-2-spawns.md` §2.1-§2.3 and §2.5-§2.9. Fire one `reviewer-agent` per triggered dimension as a single parallel batch, joined in that same response by the orientation-brief spawn when Phase 1 §13 accepted one — co-fired, so it lands with the reviewers and is materialized before Phase 3 rather than behind it (`phase-2-spawns.md` §2.3.2). Exit when every declared dimension returned a structured result or a `status: failed` entry, with `spawn_dims_declared[]` + `spawn_dims_count` written BEFORE the batch fired.
 
 ## Phase 3 — Filter & aggregate
 
@@ -177,7 +177,7 @@ Spawn sites: `reviewer-agent` (every built-in and custom dimension, Phase 2), `f
 
 ## Phase 5 — Persist & emit
 
-`phase: persist` · Steps: `phase-5-6-emit-handoff.md` §5.0, §5.1 and §5.3-§5.5 (§5.2 is reserved), opening with **§5.0 repeat findings**. Exit when `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
+`phase: persist` · Steps: `phase-5-6-emit-handoff.md` §5.0, §5.1 and §5.3-§5.5, opening with **§5.0 repeat findings**. Exit when `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` exists via `atomic_state_write` with `report_status: draft` and structured `open_questions[]`, and the §5.3 convergence emits have run.
 
 ## Phase 6 — Action gate handoff
 

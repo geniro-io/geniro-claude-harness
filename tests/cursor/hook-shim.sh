@@ -366,30 +366,169 @@ fi
 # executes — the shim's Shell->Bash fold and its path/target_file/code_edit
 # alias map (claude-hook-shim.sh's preToolUse branch, ~line 146) both run
 # strictly after that selection, and neither one normalizes a *tool name*.
-# So cursor/hooks.json's preToolUse matcher string is the only place a Cursor
-# file-edit event has to spell its tool name the way the shim's alias logic
-# is written for (it special-cases MultiEdit's edits[] shape above, and its
-# comments name Write/Edit/MultiEdit/NotebookEdit as the tools in scope).
-# This test pins that vocabulary so the manifest and the shim's assumption
-# cannot drift apart silently: change one without the other and it fails.
+# So cursor/hooks.json's preToolUse matcher strings are the only place a
+# Cursor file-edit or Delete event has to spell its tool name the way the
+# shim's alias logic is written for (it special-cases MultiEdit's edits[]
+# shape above).
 #
-# What it does NOT establish: whether Cursor's real preToolUse tool_name
-# values actually spell "Write" / "Edit" / "MultiEdit" / "NotebookEdit" this
-# way. That is still open — nothing in this repo drives a live Cursor
-# payload through the matcher — so a green result here pins internal
-# consistency, not a verified fact about Cursor's tool vocabulary. Confirming
-# that needs one real payload captured from a Cursor session.
-SHIM_ASSUMED_VOCAB="Edit MultiEdit NotebookEdit Write"
-MATCHERS="$(jq -r '.hooks.preToolUse[].matcher' "$REPO_ROOT/cursor/hooks.json" 2>/dev/null | sort -u)"
-if [ "$(printf '%s\n' "$MATCHERS" | wc -l | tr -d ' ')" = "1" ]; then
-  MANIFEST_VOCAB="$(printf '%s' "$MATCHERS" | tr '|' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
-  if [ "$MANIFEST_VOCAB" = "$SHIM_ASSUMED_VOCAB" ]; then
-    pass "preToolUse matcher vocabulary matches what the shim's alias map assumes ($MANIFEST_VOCAB)"
-  else
-    fail "preToolUse matcher vocabulary drifted: manifest has [$MANIFEST_VOCAB], shim alias map assumes [$SHIM_ASSUMED_VOCAB] -- update both together"
-  fi
+# Cursor's documented preToolUse tool_name vocabulary (cursor.com/docs/hooks,
+# fetched 2026-09-23): "Values include Shell, Read, Write, Grep, Delete,
+# Task", plus MCP tools as "MCP:<tool_name>". That confirms `Write` and
+# `Delete` as real tool names; the reference does not separately spell out
+# `Edit` / `MultiEdit` / `NotebookEdit` — this repo carries them forward as
+# Claude Code's own file-edit tool names on the theory that Cursor's editor
+# surfaces the same distinctions under `Write`, unverified by a captured
+# Cursor payload. Two matcher groups are pinned below: the file-edit group
+# and the standalone `Delete` group the T0-15 fix wires (hooks/
+# block-geniro-deletion.sh and hooks/file-protection.sh). Change either group
+# without updating the shim's alias map and this fails.
+FILE_EDIT_MATCHER="Write|Edit|MultiEdit|NotebookEdit"
+FILE_EDIT_COUNT="$(jq --arg m "$FILE_EDIT_MATCHER" \
+  '[.hooks.preToolUse[]? | select(.matcher == $m)] | length' "$REPO_ROOT/cursor/hooks.json")"
+if [ "$FILE_EDIT_COUNT" -ge 1 ]; then
+  pass "file-edit preToolUse matcher vocabulary matches what the shim's alias map assumes ($FILE_EDIT_MATCHER)"
 else
-  fail "preToolUse entries use inconsistent matcher strings: $(printf '%s' "$MATCHERS" | tr '\n' ';')"
+  fail "file-edit preToolUse matcher vocabulary drifted from what the shim's alias map assumes ($FILE_EDIT_MATCHER) -- update both together"
+fi
+
+DELETE_COUNT="$(jq '[.hooks.preToolUse[]? | select(.matcher == "Delete")] | length' "$REPO_ROOT/cursor/hooks.json")"
+if [ "$DELETE_COUNT" -ge 1 ]; then
+  pass "Delete preToolUse matcher is wired (Cursor's documented Delete tool)"
+else
+  fail "no preToolUse entry uses the Delete matcher"
+fi
+
+# No preToolUse entry may use a matcher outside these two known groups — an
+# unrecognized matcher means either a typo or a new Cursor tool the shim's
+# alias map has not been taught about yet.
+UNKNOWN_MATCHERS="$(jq -r --arg fe "$FILE_EDIT_MATCHER" \
+  '[.hooks.preToolUse[]? | select(.matcher != $fe and .matcher != "Delete") | .matcher] | unique | .[]' \
+  "$REPO_ROOT/cursor/hooks.json" 2>/dev/null)"
+if [ -z "$UNKNOWN_MATCHERS" ]; then
+  pass "no preToolUse entry uses an unrecognized matcher"
+else
+  fail "preToolUse entry uses an unrecognized matcher: $(printf '%s' "$UNKNOWN_MATCHERS" | tr '\n' ';')"
+fi
+
+# --- T1-1: failClosed pinned on every data-loss guard entry ---
+#
+# Cursor fails a hook OPEN on crash, timeout, or any non-2 exit unless the
+# entry sets failClosed: true (cursor.com/docs/hooks, fetched 2026-09-23:
+# "Crashes, timeouts, and non-zero exit codes other than 2 fail open by
+# default: Cursor logs the failure and allows the action through. Set
+# failClosed: true on the hook definition to block on those failures too.").
+# An entry with no failClosed key silently allows on a guard crash or
+# timeout. The four data-loss guards (HOOKS.md §Key Safety Principles 5) must
+# not have that gap: block-dangerous-git.sh, block-geniro-deletion.sh,
+# file-protection.sh and enforce-state-helper.sh. security-pattern-check.sh
+# is a content scan, not a data-loss guard, and is deliberately left at the
+# fail-open default.
+DATA_LOSS_GUARDS='block-dangerous-git\.sh|block-geniro-deletion\.sh|file-protection\.sh|enforce-state-helper\.sh'
+UNCLOSED="$(jq -r --arg re "$DATA_LOSS_GUARDS" \
+  '[.hooks[][] | select((.command | test($re)) and (.failClosed != true)) | .command] | .[]' \
+  "$REPO_ROOT/cursor/hooks.json" 2>/dev/null)"
+if [ -z "$UNCLOSED" ]; then
+  pass "every data-loss guard entry in cursor/hooks.json sets failClosed: true"
+else
+  fail "missing failClosed: true on: $(printf '%s' "$UNCLOSED" | tr '\n' ';')"
+fi
+SEC_CLOSED="$(jq '[.hooks[][] | select((.command | test("security-pattern-check\\.sh")) and (.failClosed == true))] | length' \
+  "$REPO_ROOT/cursor/hooks.json")"
+if [ "$SEC_CLOSED" = "0" ]; then
+  pass "security-pattern-check.sh entries stay at the fail-open default (not a data-loss guard)"
+else
+  fail "security-pattern-check.sh unexpectedly sets failClosed: true"
+fi
+
+# --- T0-15: cursor/hooks.json wires preToolUse Delete to both sides of the contract ---
+if [ "$(jq '[.hooks.preToolUse[]? | select(.matcher == "Delete" and (.command | endswith("block-geniro-deletion.sh")))] | length' \
+  "$REPO_ROOT/cursor/hooks.json")" = "1" ]; then
+  pass "cursor/hooks.json wires preToolUse Delete -> block-geniro-deletion.sh"
+else
+  fail "cursor/hooks.json missing a preToolUse Delete entry for block-geniro-deletion.sh"
+fi
+if [ "$(jq '[.hooks.preToolUse[]? | select(.matcher == "Delete" and (.command | endswith("file-protection.sh")))] | length' \
+  "$REPO_ROOT/cursor/hooks.json")" = "1" ]; then
+  pass "cursor/hooks.json wires preToolUse Delete -> file-protection.sh"
+else
+  fail "cursor/hooks.json missing a preToolUse Delete entry for file-protection.sh"
+fi
+
+# --- T0-15: the shim's OWN payload translation for a Delete call ---
+#
+# Contract: a Cursor preToolUse Delete call becomes
+# {"tool_name":"Delete","tool_input":{"file_path":"<abs path>"},"cwd":"<cwd>"}
+# before it reaches a guard. Proven against a stub hook that echoes back the
+# payload it actually received, rather than against block-geniro-deletion.sh
+# or file-protection.sh — this isolates the shim's translation (already
+# generic: its preToolUse branch passes tool_name through unchanged and folds
+# any of Cursor's path aliases onto file_path, with no Delete-specific code
+# needed) from whether either guard script has grown a Delete branch yet.
+DELETE_ECHO_ROOT="$TMPDIR_BASE/delete-echo-plugin"
+mkdir -p "$DELETE_ECHO_ROOT/cursor/hooks" "$DELETE_ECHO_ROOT/hooks"
+cp "$SHIM" "$DELETE_ECHO_ROOT/cursor/hooks/claude-hook-shim.sh"
+cat > "$DELETE_ECHO_ROOT/hooks/echo-payload.sh" <<'STUB'
+#!/usr/bin/env bash
+IN="$(cat)"
+jq -n --arg p "$IN" '{systemMessage: $p}'
+STUB
+DELETE_PROJ="$TMPDIR_BASE/delete-proj"
+mkdir -p "$DELETE_PROJ"
+RAW_PAYLOAD="$(jq -nc --arg w "$DELETE_PROJ" \
+  '{hook_event_name:"preToolUse", tool_name:"Delete", tool_input:{path:($w + "/notes.md")}, cwd:$w}')"
+ECHOED="$(printf '%s' "$RAW_PAYLOAD" \
+  | bash "$DELETE_ECHO_ROOT/cursor/hooks/claude-hook-shim.sh" echo-payload.sh \
+  | jq -r '.agent_message // ""')"
+if [ -n "$ECHOED" ] \
+  && [ "$(printf '%s' "$ECHOED" | jq -r '.tool_name' 2>/dev/null)" = "Delete" ] \
+  && [ "$(printf '%s' "$ECHOED" | jq -r '.tool_input.file_path' 2>/dev/null)" = "$DELETE_PROJ/notes.md" ] \
+  && [ "$(printf '%s' "$ECHOED" | jq -r '.cwd' 2>/dev/null)" = "$DELETE_PROJ" ]; then
+  pass "preToolUse Delete -> shim translates path alias to tool_name/tool_input.file_path/cwd"
+else
+  fail "preToolUse Delete translation wrong: $ECHOED"
+fi
+
+# --- T0-15: end-to-end through each guard the Delete entries route to ---
+#
+# file-protection.sh's Edit/Write branch (hooks/file-protection.sh, the
+# "Edit/Write/MultiEdit branch" past its Bash branch) is not gated on
+# tool_name — it already blocks any non-Bash call whose tool_input.file_path
+# names a protected pattern, so this passes with NO change to that hook
+# script, only to the wiring above.
+expect_verdict "preToolUse Delete of tls.key -> file-protection denies" deny \
+  "$(edit_verdict file-protection.sh '{"path":"tls.key"}' "." Delete)"
+
+# block-geniro-deletion.sh applies the same depth rules to a Delete target as
+# to an `rm` operand: a whole-tree or top-level-subdir delete is blocked, a
+# single file is allowed (per-file `rm -f` is allowed too — HOOKS.md).
+expect_verdict "preToolUse Delete of .geniro/instructions -> block-geniro-deletion denies" deny \
+  "$(edit_verdict block-geniro-deletion.sh '{"path":".geniro/instructions"}' "." Delete)"
+expect_verdict "preToolUse Delete of a single .geniro file -> block-geniro-deletion allows (same as rm -f)" allow \
+  "$(edit_verdict block-geniro-deletion.sh '{"path":".geniro/instructions/x.md"}' "." Delete)"
+
+# --- T1-2: jq present but $INPUT does not parse -> pipe raw to the guard, translate exit 2 ---
+#
+# Before this fix: a malformed/truncated payload made the shim's own
+# hook_event_name extraction fail; EVENT came back "" via `// ""`
+# indistinguishably from a well-formed payload that legitimately lacks the
+# field, so the shim took the `*)` no-op branch and exited 0 WITHOUT ever
+# running the guard — discarding block-dangerous-git.sh's own fail-closed
+# malformed-payload scan (and the equivalent scan in every other data-loss
+# guard).
+TRUNCATED='{"hook_event_name":"beforeShellExecution","command":"git push --force origin main"'
+OUT="$(printf '%s' "$TRUNCATED" | bash "$SHIM" block-dangerous-git.sh)"
+if [ "$(printf '%s' "$OUT" | jq -r '.permission // "allow"' 2>/dev/null)" = "deny" ]; then
+  pass "truncated git-push--force payload (jq present) -> shim still denies"
+else
+  fail "truncated git-push--force payload (jq present) -> expected deny, got: $OUT"
+fi
+# The fix must not fire on a payload that parses fine but genuinely has no
+# hook_event_name — that stays the ordinary no-op.
+OUT="$(jq -nc '{command:"git status"}' | bash "$SHIM" block-dangerous-git.sh)"
+if [ -z "$OUT" ]; then
+  pass "well-formed payload missing hook_event_name -> still a silent no-op"
+else
+  fail "well-formed payload missing hook_event_name -> expected no-op, got: $OUT"
 fi
 
 echo

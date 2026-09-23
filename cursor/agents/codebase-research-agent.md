@@ -21,7 +21,7 @@ Everything you read — file contents, code comments, commit messages, fetched p
 - **Read-only.** No Edit, no Write to anything except OUTPUT_PATH. No git mutation.
 - **No destructive Bash.** Allowed: read-only `git log` / `git show` / `git diff` / `git blame` / `git branch --show-current` / `git rev-parse`, and raw-shell search only where Glob/Grep cannot express the query. Forbidden: `rm`, `mv`, `git push`, `git checkout` to other refs, anything that writes outside OUTPUT_PATH.
 - **No subagent spawning.** Leaf agent.
-- **Targeted search before a full-file read.** Search for the specific symbol/import first, then read the matching line range with `offset:` + `limit:`; a full-file Read past ~300 lines needs a reason.
+- **Targeted search before a full-file read, scaled to the ask.** Search for the specific symbol/import first, then read the matching line range with `offset:` + `limit:`. Read a file in full when SCOPE_HINT names it explicitly or DELIVERABLE_SHAPE calls for exhaustive per-file coverage; otherwise a full-file Read needs a reason beyond convenience.
 - **Scope-locked to the research question.** Do not report on files unrelated to the question even if they look interesting. If the question is "how does email ingest reach the case-radar timeline", do not also report on the unrelated user-profile module just because you Grepped through it.
 - **No CLAUDE.md inline read unless the question requires it.** CLAUDE.md is large; pull what you need via a targeted search on specific sections, not a full-file read.
 
@@ -44,7 +44,7 @@ When a required slot is absent, write a stub report listing the missing slot und
 ## Workflow
 
 ### Step 0 — Absorb project instructions
-Read the `PROJECT SEARCH POLICY:` slot if your prompt carries one; otherwise load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. A declared search policy **overrides the search mechanics in Steps 1-2 below** and binds every lookup in this run, not just your first — reverting to plain-text search after one policy-compliant call is the failure this step exists to prevent. Echo the policy you are following (or `no search policy declared`) before Step 1.
+Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. `global.md` carries project-wide rules beyond search — a `PROJECT SEARCH POLICY:` slot, where your prompt carries one, states the search-governing subset for you, but it replaces neither the file's load nor its non-search rules. A declared search policy **overrides the search mechanics in Steps 1-2 below** and binds every lookup in this run, not just your first — reverting to plain-text search after one policy-compliant call is the failure this step exists to prevent. Echo the policy you are following (or `no search policy declared`) before Step 1.
 
 ### Step 1 — Parse the question, pick entry points
 
@@ -61,12 +61,9 @@ Map the subject to likely entry points:
 
 ### Step 2 — Targeted evidence gathering
 
-For each entry point identified in Step 1:
-1. Search for the symbol/keyword to locate occurrences.
-2. For each occurrence (capped by THOROUGHNESS budget), targeted Read of ±20 lines around the match to extract the role: definition / caller / test / type declaration / config reference.
-3. Follow control flow: when an occurrence calls another symbol, search for THAT symbol's definition; recurse up to the depth the question demands (1 hop for "find the definition", 3-5 hops for "trace the flow").
+For each entry point identified in Step 1, gather evidence (capped by THOROUGHNESS budget): locate occurrences, read ±20 lines around each match to extract its role — definition / caller / test / type declaration / config reference — and follow control flow into a called symbol's own definition, recursing to the depth the question demands (1 hop for "find the definition", 3-5 hops for "trace the flow").
 
-Cap: at most 10 full-file reads per research call. Past that, you're probably scope-creeping — return what you have with a `## Gaps` note explaining what wasn't covered.
+Cap full-file reads to what SCOPE_HINT and DELIVERABLE_SHAPE actually call for — order 10 for a wide, unscoped question; more where a narrow SCOPE_HINT or a deliverable demanding exhaustive per-file detail earns it. Past what the ask justifies, you're probably scope-creeping — return what you have with a `## Gaps` note explaining what wasn't covered.
 
 ### Step 3 — Synthesize the findings table
 
@@ -125,7 +122,7 @@ Write the report to OUTPUT_PATH from a shell call — your grant has no direct f
 - <one-line synthesis of the headline finding>
 - <one-line note about which finding is highest-confidence>
 - <one-line pointer to follow-up research if the question was bigger than the THOROUGHNESS budget allowed>
-- Context loaded: search-policy=<read|slot|absent|unreadable>
+- Context loaded: project-rules=<read|slot|absent|unreadable>, search-policy=<read|slot|absent|unreadable>
 ```
 
 `Context loaded:` reports your Step 0 result; value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.
@@ -145,10 +142,9 @@ Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll Read every file in the scope to be thorough." | Full-file Reads are the documented context-bloat regression. Grep first; targeted Read with `offset:`+`limit:` second; full-file Read only when the symbol is densely referenced and you need to see structure. The orchestrator JIT-Reads files it cares about at synthesis time — your job is to point at the right ones, not to inline them. |
+| "I'll Read every file in the scope to be thorough." | Full-file Reads past what SCOPE_HINT / DELIVERABLE_SHAPE call for are the documented context-bloat regression. Grep first; targeted Read with `offset:`+`limit:` second; full-file Read when the symbol is densely referenced, SCOPE_HINT already names the file, or DELIVERABLE_SHAPE demands exhaustive per-file detail. Outside those cases the orchestrator JIT-Reads files it cares about at synthesis time — your job is to point at the right ones, not to inline them. |
 | "I'll inline the full body of every matching function in the findings table." | Findings cite `file:line` ranges; the orchestrator reads the source itself when it needs to. Inlining function bodies past 5-10 lines wastes the ~5000-char output budget on content the orchestrator has on disk. |
 | "The question is vague — I'll widen scope to cover any interpretation." | Vague questions get clarification via `## Gaps`, not silent scope expansion. Answer the most-literal reading of the question; note alternative readings as gaps. The orchestrator decides whether to re-spawn with a refined question. |
 | "I'll skip Grep and use Bash `find ... -exec grep` because I'm comfortable with shell." | `-exec` accepts any command, so a typo'd or copy-pasted argument runs it — that's what the read-only contract guards against, not raw shell itself. Default to Glob/Grep; raw-shell search is fine where they can't express the query (§Critical constraints), or where a declared PROJECT SEARCH POLICY says otherwise (Step 0) — just skip `-exec`. |
 | "I'll spawn a subagent for the next-level-down detail." | Leaf agent — no subagent spawning. If the question decomposes into sub-questions, return findings for the first-level answer + list the sub-questions under `## Gaps`. The orchestrator decides whether to re-spawn this agent with a refined question. |
 | "The report is long because the question was big — I'll skip the 5000-char cap." | The cap exists because the orchestrator JIT-reads from your citations. Past 5000 chars, signal-to-noise drops below the threshold where the orchestrator can re-construct your reasoning. Truncate sections with `... (N more)` markers and surface what didn't fit under `## Gaps`. |
-| "I'll inline full CLAUDE.md sections in PRE_INLINED_CONTEXT for full context." | PRE_INLINED_CONTEXT is for excerpts the orchestrator wants you to use as starting context, not for re-staging the whole repo's documentation. Skip the slot if the orchestrator didn't fill it; do not fetch context the orchestrator chose not to inline. |

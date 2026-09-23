@@ -21,7 +21,7 @@ At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 
 - **Custom instructions:** apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`.
 - **Project snapshot:** `source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh" && load_semantic`. Default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Fingerprint drift check fires; surface drift to user.
-- **Past learnings:** route the read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the file is empty under `mode: replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic to infer tags.
+- **Past learnings:** route the read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the file is empty under `mode: replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic to infer tags. Include any matching `type=user_rejected_suggestion AND tags includes 'approach_choice'` entry for the current topic in the results — display as "User previously rejected <suggestion> on <ts>" so Phase 4's approach AUQ (§4.3/§4.4) can re-rank or omit the previously-rejected approach.
 - **Cross-layer resolution:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
 
 ### 1.1b Branch freshness
@@ -45,7 +45,7 @@ When `$ARGUMENTS` carries a tracker reference, complete §1.4's tracker fetch + 
 
 ### 1.3 Echo contract
 
-Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract — it binds Phases 1, 4, and 6, so it lives in the spine.
+Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract — it binds Phases 1, 3, 4, and 6, so it lives in the spine.
 
 ### 1.4 Workflow refs fetch (tracker linkage)
 
@@ -53,7 +53,7 @@ If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub is
 
 **Detection:** existing workflow-plumbing already detects tracker references at Phase 1 entry. Workflow files (`.geniro/workflow/<kind>.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A) — try `./.geniro/workflow/<kind>.md` (cwd-local; uncommitted local edits win) first, on file-not-found retry against `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md`. Each file defines per-tracker patterns. When a match resolves to `kind=<linear|jira|github-issues|asana>` and `issue_id=<id>`:
 
-1. Fetch via the matching MCP (`mcp__linear__get_issue` for Linear, etc.). If MCP unregistered, log a `## Errors` entry and continue without persistence.
+1. Fetch via the MCP tool the matched workflow file names for `<kind>` — never hardcode a tracker API; a project may register any client under any tool name. If that MCP is unregistered, log a `## Errors` entry and continue without persistence.
 2. Append to state.md `## Workflow Refs` via `atomic_state_append_section --create`:
 
 ```yaml

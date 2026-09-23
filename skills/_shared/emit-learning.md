@@ -17,12 +17,12 @@
 
 **Status:** Authoritative for every append to `.geniro/knowledge/learnings.jsonl`.
 
-The canonical L2 entry schema is documented in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § "T3 — append-only (learnings sidecar)"; `ARCHITECTURE.md` § "Memory Layers" covers the four-layer taxonomy and lifecycle.
+The canonical L2 entry schema is documented in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § "T3 — append-only (learnings sidecar)".
 
 ## API
 
 ```bash
-source lib/emit-learning.sh
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 echo '<json-object>' | emit_learning
 ```
 
@@ -63,7 +63,7 @@ The bookkeeping types (`retry_failure_sequence`, `discarded_hypothesis`) accumul
 | `retry_failure_sequence` | 3 | `(producer, scope, phase)` |
 | `discarded_hypothesis` | 5 | `(producer, scope)` |
 
-**On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file through `atomic_state_write`, never a direct `Edit`/`Write`. The state-helper hook blocks those two routes, so an attempt at them fails the step rather than corrupting the log; appending first and pruning after leaves the window over-full for any reader that queries in between.
+**On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file per the JSONL locked-rewrite exception in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §When to use, never a direct `Edit`/`Write`. The state-helper hook blocks those two routes, so an attempt at them fails the step rather than corrupting the log; appending first and pruning after leaves the window over-full for any reader that queries in between.
 
 Hold the shared knowledge-rewrite lock across the read-modify-write — the same one the archival path and the access-counter bump take. A whole-file rewrite that skips it silently discards every append another session made between the read and the rename.
 

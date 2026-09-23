@@ -1,6 +1,6 @@
 ---
 name: geniro-debug
-description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-<branch>.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
+description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-{branch}.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
 context: main
 ---
 <!-- Generated from skills/debug/SKILL.md by scripts/build-cursor-skills.sh. Edit the source and re-run; do not edit this copy. -->
@@ -52,7 +52,7 @@ You investigate. You isolate. You propose. You do not apply the fix. Phase 3 han
 
 ## State machine
 
-state.md `phase:` enum: `mode-detect` → `investigate` → `propose` → `ship` → `done` (Scientific Mode happy path). Terminal states: `done`, `ship-summary-only`, `aborted`, `adversarial-aborted` (SessionStart recovery treats these as complete). Escalation states: `phase-1-escalated`, `phase-1-verification-stalled`, `phase-2-escalated` (recovery surfaces "task was paused — your previous options:" so user re-picks without losing context). Adversarial Mode runs a parallel chain (`adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship` → `done`).
+state.md `phase:` enum: `mode-detect` → `investigate` → `propose` → `ship` → `done` (Scientific Mode happy path). Terminal states: `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`, `adversarial-ship-summary-only` (SessionStart recovery treats these as complete). Escalation states: `phase-1-escalated`, `phase-1-verification-stalled`, `phase-2-escalated` (recovery surfaces "task was paused — your previous options:" so user re-picks without losing context). Adversarial Mode runs a parallel chain (`adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship` → `done` | `adversarial-ship-summary-only`).
 
 Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §1.
 
@@ -63,7 +63,7 @@ Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with debug-specific bindings:
 
 - **Invariant #3 (permission before side-effect)** — /geniro:debug performs NO `git push` / `gh pr create`; the no-ship boundary holds under a dynamic `Workflow(...)` or ultracode mode too, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-- **Invariant #4 (bounded results)** — Adversarial Mode's authored-test output is bounded by its own hard cap (10 authored tests per run) and hypothesis-generation stop rule (5 consecutive discards) — § Budgets below; finding schema per `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A6.
+- **Invariant #4 (bounded results)** — Adversarial Mode's authored-test output is bounded per `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A4 step 3, which owns the hard cap and the hypothesis-generation stop rule; finding schema per that file's §A6.
 - **Invariant #5 (escalation gates)** — stall gate (§1.7) + fix-fail gate (§2.5) escalate via AUQ; never fabricate a conclusion.
 - **Invariant #6 (grounded in observations)** — a hypothesis is **confirmed** only when its `Result:` field in `## Hypotheses` cites an artifact from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact. That standard also binds every fix-verification and reproduction-test capture: reasoning is correlation, and only reproduction with a captured artifact confirms causation.
 
@@ -73,7 +73,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 **Turn boundaries.** A turn ends in exactly three places: on a fired approval question, on reaching a terminal `phase:` state, or when the user asked something and is owed the answer. Everywhere else the next action follows in the same turn, with a tool call — between steps, after a check comes back green, after a state write, at a phase transition, and when a subagent's result lands. A status report, a checkpoint summary, and a list of what remains are continuations, not endings: write one where it helps the user follow along, then take the next action in that same turn. A decision that needs the user is asked as a real question in the turn that raises it, its render and the question inside that one turn (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard) — a question left in prose, or announced for a later message, leaves the run waiting on an answer the user was never asked for. Reversibility is not the test: a deviation from a rule this run loaded is a gate however cheap it is to undo.
 
-**Compaction.** The host re-attaches only the first ~20,000 characters of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
+**Compaction.** The host re-attaches only an initial slice of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
 `## Tool log` schema: typical run produces 0-3 entries (stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped.
 
@@ -111,8 +111,8 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 |---|---|---|---|
 | Inconclusive hypothesis tests | per §1.7 | stall gate | AUQ — diagnose-by-missing-component → user supplies missing or picks alternative |
 | Fix attempts failed verification | per §2.5 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
-| Adversarial mode authored tests | 10 per run | A4 step 3 (hypothesis-authoring loop) | Stop authoring; surface findings |
-| Adversarial mode consecutive discards | 5 consecutive | A4 step 3 (hypothesis-authoring loop) | Stop hypothesis generation; surface partial |
+| Adversarial mode authored tests | per A4 step 3 | A4 step 3 (hypothesis-authoring loop) | Stop authoring; surface findings |
+| Adversarial mode consecutive discards | per A4 step 3 | A4 step 3 (hypothesis-authoring loop) | Stop hypothesis generation; surface partial |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -150,20 +150,20 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 ## ACI per-phase tool surface
 
 **Phase 0 (Mode Detect):**
-- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.3 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; the Step 0.2 workspace commands `git worktree add` / `git checkout -b` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md`; plus `atomic_state_write` to persist the mode/depth/freshness/workspace pick) / AskQuestion (the mode/depth/freshness/workspace gates) / EnterWorktree (immediately after Step 0.2's `git worktree add`, so the run investigates inside the tree it just cut, not the protected checkout) / ExitWorktree. Under a runtime without these tools, substitute per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` §Tool substitutions.
+- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.3 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; the Step 0.2 workspace commands `git worktree add` / `git checkout -b` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md`; plus `atomic_state_write` to persist the mode/freshness/workspace pick) / AskQuestion (the mode/freshness/workspace gates) / EnterWorktree (immediately after Step 0.2's `git worktree add`, so the run investigates inside the tree it just cut, not the protected checkout) / ExitWorktree. Under a runtime without these tools, substitute per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` §Tool substitutions.
 - Explicitly blocked: any write or edit to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
 
 **Phase 1 (Investigate):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / WebSearch / WebFetch (§1.5 external-dependency hypothesis, tiers 2-3) / AskQuestion.
 - Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
 - Allowed subagent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block).
-- Explicitly blocked: production-source writes and edits, `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.
+- Explicitly blocked: production-source writes and edits that are not reverted before handoff — permitted only as the reverted experiments above (tagged debug logging, scratch files); `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.
 
 **Phase 2 (Propose):**
 - Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs) / AskQuestion.
 - Allowed: Edit / Write for reproduction test authoring + experimental monkey-patches.
 - No subagent spawns.
-- Explicitly blocked: production-source writes and edits outside the reproduction test file, `git commit`, `git push`, `gh pr create`.
+- Explicitly blocked: production-source writes and edits that are not reverted before escalation — permitted only via the §2.4 verification escape hatch, reverted before escalation; `git commit`, `git push`, `gh pr create`.
 
 **Phase 3 (Ship):**
 - Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup; the §3.1 working-tree check's read-only `git status --porcelain`, plus its blocker-path revert) / AskQuestion.
@@ -217,7 +217,7 @@ T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `
 
 ## Phase 0 — mode detection ($ARGUMENTS routing)
 
-state.md `phase: mode-detect`. Loads custom instructions, records the starting working-tree state, decides where the investigation runs, checks branch freshness, resolves debug depth, and routes `$ARGUMENTS` to Scientific Mode or Adversarial Mode.
+state.md `phase: mode-detect`. Loads custom instructions, records the starting working-tree state, decides where the investigation runs, checks branch freshness, and routes `$ARGUMENTS` to Scientific Mode or Adversarial Mode.
 
 **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`** — Steps, routing table, anchored verify-keyword signals. Exits when the mode is picked and persisted to `approvals[]`: Scientific → `phase: investigate`, Adversarial → `phase: adversarial-mode-detect`.
 
@@ -251,7 +251,7 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship`. Parallel to Scientific Mode; shared Phase 0 routes here on anchored verify-keyword signals (Phase 0 above).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A6 (purpose, diff resolution, skip conditions, RED-phase workflow, handoff persistence, findings template) and this mode's Definition of done. Exits when findings are surfaced, the `pitfall` learnings are recorded ahead of the A4 step 5 escalation AUQ, and that pick reaches this chain's terminal `phase: done` via Run `/geniro:implement` — the other two options fall outside the adversarial chain — or directly to terminal `phase: adversarial-aborted` when zero red tests survive the F→P and flake-check verification (A4 step 3) — a valid deliverable, not a failure.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A6 (purpose, diff resolution, skip conditions, RED-phase workflow, handoff persistence, findings template) and this mode's Definition of done. Exits when findings are surfaced, the `pitfall` learnings are recorded ahead of the A4 step 5 escalation AUQ, and that pick reaches this chain's terminal `phase: done` via Run `/geniro:implement` or `phase: adversarial-ship-summary-only` via Leave it to me — or directly to terminal `phase: adversarial-aborted` when zero red tests survive the F→P and flake-check verification (A4 step 3) — a valid deliverable, not a failure.
 
 ---
 

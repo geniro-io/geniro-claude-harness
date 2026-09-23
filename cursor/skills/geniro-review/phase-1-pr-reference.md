@@ -27,7 +27,7 @@ Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatena
 
 Persist the surviving entries to state.md frontmatter as `resolved-threads-snapshot:` (one `path:line` per already-resolved thread). The Phase 6 Post drill's already-on-PR dedup (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` §7.1) is its only consumer: it drops findings overlapping a review comment already on the PR, and reads `null` as "nothing to dedup against" rather than "no overlap found".
 
-**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): skip the snapshot (`resolved-threads-snapshot: null`), proceed with the review, and surface `PR review-thread fetch failed — reviewing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 / 4.3 fail-open).
+**Fail-open behavior.** If the fetch fails (no network, missing token scope, rate limit, pagination loop errored mid-stream): skip the snapshot (`resolved-threads-snapshot: null`), proceed with the review, and surface `PR review-thread fetch failed — reviewing without thread-state awareness` under `## Caveats` in the final report (mirrors Phase 1.5 / 4.2 fail-open).
 
 ### 1.1 Existing PR review ingest (formal reviews + inline bot comments)
 

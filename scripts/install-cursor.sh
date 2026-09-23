@@ -260,13 +260,26 @@ hooks_apply() {
 # commands are written "./cursor/hooks/..." for a plugin runtime that resolves
 # them against the plugin root. Nothing resolves a relative path at user level,
 # so each one is rewritten to an absolute path under the resolved source root.
+#
+# That absolute path is single-quoted, and only the path — the script's own
+# trailing argument (the hook basename, e.g. "block-dangerous-git.sh") stays a
+# bare word after it, so the profile-level command is still "'<script>'
+# <arg>". Unquoted, a source root containing a space (a checkout under
+# `~/My Projects/`, or a `CLAUDE_CONFIG_DIR` with one) splits the command on
+# that space and Cursor never finds the script at all. `$q` carries the
+# literal quote character in from bash (`--arg q "'"`) rather than being
+# spelled inside the jq program text itself, which stays inside ordinary
+# bash single quotes throughout.
 hooks_ours() {
   local src="$1/cursor/hooks.json"
   [ -f "$src" ] || { printf '{}\n'; return 0; }
   command -v jq >/dev/null 2>&1 || { printf '{}\n'; return 0; }
-  jq --arg root "$1" '
+  jq --arg root "$1" --arg q "'" '
     .hooks |= with_entries(
-      .value |= map(.command |= sub("^\\./"; $root + "/"))
+      .value |= map(.command |= sub(
+        "^\\./(?<rel>\\S+)(?<rest>(\\s.*)?)$";
+        "\($q)\($root)/\(.rel)\($q)\(.rest // "")"
+      ))
     )' "$src" 2>/dev/null || printf '{}\n'
 }
 

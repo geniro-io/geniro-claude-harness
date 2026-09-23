@@ -1,6 +1,6 @@
 # Actions — shared procedures
 
-The two procedures more than one sub-command uses. Read this file whenever a sub-command body points at a section here; a `list` run needs §Target resolution's Step 1 only, `create` and `edit` need §Validation gate, and `run` / `delete` / `validate` need both.
+The two procedures more than one sub-command uses. Read this file whenever a sub-command body points at a section here; a `list` run needs §Target resolution's Step 1 only, `run` and `delete` need the rest of §Target resolution, and `create` / `edit` / `validate` need §Target resolution plus §Validation gate.
 
 ## Contents
 

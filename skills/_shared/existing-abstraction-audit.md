@@ -1,6 +1,6 @@
 # Existing Abstraction Audit
 
-Canonical procedure for "before creating new code, check what already exists." Define ONCE here; reference from N consumers.
+Canonical procedure for "before creating new code, check what already exists."
 
 ## When to run
 

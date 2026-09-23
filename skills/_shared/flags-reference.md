@@ -29,7 +29,7 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 
 ## /geniro:implement
 
-`argument-hint: "[task description | spec.md path | empty to resume | 'continue']"`
+`argument-hint: "[task description | spec.md path | empty to resume | 'continue'] [--subagent-model <tier>]"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
@@ -47,7 +47,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 
 ## /geniro:review
 
-`argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>]"`
+`argument-hint: "[files, diff range, branch, or PR ref (#N, URL)] [--plan <path>] [--focus <text>] [--subagent-model <tier>] [--brief|--no-brief]"`
 
 | Flag / modifier | Values | What it sets | How it changes the questions |
 |---|---|---|---|
@@ -64,7 +64,7 @@ These gates fire on a real triggering event regardless of any flag, modifier, or
 
 - **New-dependency adoption** — adopting a new external library always asks before any dependency is added.
 - **Runaway-scope / budget escalation** — a diff that crosses the spec's declared file/line budget stops for the user.
-- **Handoff open-questions** — unresolved open questions from a prior review, debug, or resolve handoff gate before any edit.
+- **Handoff open-questions** — unresolved open questions from a prior review or debug handoff gate before any edit. Open PR comments route to `/geniro:resolve` instead, which triages and closes them itself rather than handing off an open-questions gate.
 - **Spec-challenge-on-drift** — a refuted cited claim or a blocking feasibility risk found by the pre-edit fact-check stops for the user.
 - **Shared-branch / open-PR ship** — a push to a shared or default branch, or one updating an open PR reached via a handoff, is commit-grade and still gates even under a ship-mode pre-set.
 - **Real merge / rebase conflict** — a clean fast-forward applies the pre-set freshness strategy silently, but an actual conflict surfaces interactively; a strategy pre-set is consent to attempt, not to resolve unseen conflicts.

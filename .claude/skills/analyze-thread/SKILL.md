@@ -4,13 +4,14 @@ description: "Use when post-hoc analyzing saved Claude conversation threads for 
 context: main
 model: inherit
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion]
-argument-hint: "[thread path(s) | thread count | empty = last 3 threads]"
+argument-hint: "[thread path(s) | thread count | empty = last few threads]"
 ---
 
 # /analyze-thread — post-hoc Claude thread failure analyzer
 
 ## Contents
 
+- Modifier handling
 - Phases
 - Subagent model tiering
 - State persistence
@@ -20,7 +21,6 @@ argument-hint: "[thread path(s) | thread count | empty = last 3 threads]"
 - ACI per-phase tool surface
 - Definition of done
 - Phase 1 (parse) · Phase 2 (detect) · Phase 3 (filter) · Phase 4 (present)
-- Modifier handling
 - Task execution entry / state recovery
 - REFERENCE
 
@@ -34,6 +34,18 @@ You are the orchestrator for analyzing a saved Claude conversation thread and su
 **Phase bodies.** This file is the spine — role, invariants, gates, phase map. **Read the phase's Steps on entry to that phase**, from `.claude/skills/analyze-thread/`: `phase-1-2-parse-detect.md` (Phases 1-2) · `phase-3-4-filter-present.md` (Phases 3-4). That Read is the phase's physically-first action and carries a one-line echo, per `skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (including the Phase 4 user gates and the handoff emit) and their helper call sites, so work started before the Read runs outside them.
 
 **After a compaction:** re-Read the phase file for whatever phase is running before continuing it — only the front-loaded prefix re-attaches, so a mid-phase summary can drop the Steps while leaving this spine intact. If which phase was running is also gone, re-invoke `/analyze-thread` with the same argument — the §State persistence checkpoint makes that a resume, not a re-run.
+
+---
+
+## Modifier handling
+
+| Modifier in `$ARGUMENTS` | Effect |
+|---|---|
+| `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses every judged check — including the judged coverage checks (`checks-reference.md` §4) that read whether a loaded rule actually changed anything. What survives is whether files loaded and phases ran, not whether their content took effect; say so when reporting coverage under this modifier. Pairs well with a large batch, where the judges dominate cost. |
+| `--no-handoff` | Phase 4 Steps 3-5 skipped; the findings report is printed, cleanup runs, and no handoff file is written. Useful when the user wants to read findings without committing to fix anything. |
+| `--strict` | Tighten Phase 3 filter: treat medium-confidence findings as TRUE-POSITIVE not UNCERTAIN (skips per-item AUQ, includes them by default). Use when running on a thread the user already trusts to be problematic. |
+| `--lenient` | Loosen Phase 3 filter: treat high-confidence judged findings as UNCERTAIN (forces AUQ). Use on threads where many findings are likely benign. |
+| `--format=jsonl` / `--format=markdown` | Skip Phase 1 Step 2 auto-detect and force the format. Use when sniffing misclassifies. |
 
 ---
 
@@ -116,7 +128,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 | "I'll read this repo's `skills/` and `.geniro/instructions/` to see what the run should have loaded" | The trace-is-the-declaration invariant. In a batch the threads come from every project on the machine, so this repo's rules describe a different project than the thread does. Even on a single-project run the files have moved on since the thread executed, so the diff reports your own later edits as failures of the run. The declarations are in the trace. |
 | "The trace shows no instruction load, so every declared file is a missing-load finding" | Check first whether the trace covers the turns where the load would have been. A compacted or mid-run thread cannot evidence a Step 0 that happened before its first recorded turn — that is `checks-reference.md` §8 degradation 1: keep the check, cap confidence at medium, and say the trace is partial. |
 | "Every phase in the skill body owes a finding when I can't see it run" | A conditional phase whose trigger never fired, and a run the user stopped early, both leave phases unentered without anything being skipped. K1 fires only on a phase stepped over while its successors ran. |
-| "That's 4 unloaded files and 6 unrun steps — 10 findings" | Coverage findings roll up per declaration site: one finding for the load site listing its four files, one for the phase listing its six steps. Per-item findings inflate a single systematic defect into a wall that trips the raw-findings cap §Budgets sets and buries every other check under it. |
+| "That's 4 unloaded files and 6 unrun steps — 10 findings" | Coverage findings roll up per declaration site: one finding for the load site listing every missing file, one for the phase listing every skipped step. Per-item findings inflate a single systematic defect into a wall that trips the raw-findings cap §Budgets sets and buries every other check under it. |
 | "This pick comes up mid-run and isn't one of Phase 4's two named gates — I'll ask in prose" | The per-finding UNCERTAIN gate and the final handoff-destination gate are this skill's gates, not the complete set — route every user-facing choice through `AskUserQuestion` (`skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule). |
 
 ---
@@ -167,18 +179,6 @@ The run-completion checklist is `.claude/skills/analyze-thread/analyze-thread-de
 ## PHASE 4: PRESENT (WAIT — user gates)
 
 `Steps: phase-3-4-filter-present.md §Phase 4` (Steps 1-6). Print the grouped findings + coverage table, gate every UNCERTAIN finding one at a time (message-first render, then a lean AUQ), fire the final handoff-destination gate, emit the handoff, then clean up. Exit when every UNCERTAIN finding has an answered gate, the handoff (if chosen) is written via `atomic_state_write`, and the slug's state directory is removed.
-
----
-
-## Modifier handling
-
-| Modifier in `$ARGUMENTS` | Effect |
-|---|---|
-| `--mechanical-only` | Skip Phase 2 Step 2 LLM-judge spawn; only mechanical checks run. Cheaper and faster but loses every judged check — including the judged coverage checks (`checks-reference.md` §4) that read whether a loaded rule actually changed anything. What survives is whether files loaded and phases ran, not whether their content took effect; say so when reporting coverage under this modifier. Pairs well with a large batch, where the judges dominate cost. |
-| `--no-handoff` | Phase 4 Steps 3-5 skipped; the findings report is printed, cleanup runs, and no handoff file is written. Useful when the user wants to read findings without committing to fix anything. |
-| `--strict` | Tighten Phase 3 filter: treat medium-confidence findings as TRUE-POSITIVE not UNCERTAIN (skips per-item AUQ, includes them by default). Use when running on a thread the user already trusts to be problematic. |
-| `--lenient` | Loosen Phase 3 filter: treat high-confidence judged findings as UNCERTAIN (forces AUQ). Use on threads where many findings are likely benign. |
-| `--format=jsonl` / `--format=markdown` | Skip Phase 1 Step 2 auto-detect and force the format. Use when sniffing misclassifies. |
 
 ---
 

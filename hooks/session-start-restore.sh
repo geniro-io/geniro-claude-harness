@@ -7,7 +7,7 @@
 #      `branch:` fallback (see skills/_shared/state-tier-spec.md Slug rule).
 #   3. Pre-flight validate via lib/validate-state-file.sh; if the helper
 #      itself is missing, degrade gracefully with Block 4 notice.
-#   4. Parse frontmatter — producer, spec-file, phase, non-resumable-actions[] count.
+#   4. Parse frontmatter — producer, phase, non-resumable-actions[] count.
 #   5. Assemble `additionalContext` from the ordered Block 1..6 set.
 #   6. Emit `systemMessage` (suppressed on cold startup with no active task).
 #
@@ -15,6 +15,20 @@
 # consumer-skill's exclusive responsibility — keeps the hook idempotent across re-runs.
 
 set -uo pipefail
+
+# Resolve the plugin root once, from this script's OWN location, before the
+# `cd "$HOOK_CWD"` a few lines down changes the working directory — every
+# `${CLAUDE_PLUGIN_ROOT:-...}` fallback below used to default to `.` (the
+# PROJECT this hook is running IN, not the plugin install) whenever
+# CLAUDE_PLUGIN_ROOT is unset. A project that happens to carry its own
+# lib/repo-root.sh (or any of the other lib names this file sources) then had
+# THAT file sourced instead of the plugin's own — the exact shadowing class
+# file-protection.sh's `_geniro_wv_helper` fallback already guards against
+# (see its comment there); mirrored here instead of `.`. Computed before the
+# cd so a relative BASH_SOURCE still resolves against the directory this
+# script was actually invoked from, not the project's cwd it is about to
+# switch into.
+_GENIRO_PLUGIN_ROOT_FALLBACK="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Announce inactivity if jq is missing, like every sibling hook. Without the
 # check this hook runs to completion, dies at the final `jq -n`, prints an empty
@@ -41,7 +55,7 @@ fi
 # worktree even when the orchestrator sits in a linked worktree; the helper
 # enforces that. If the helper is missing (vendored install without lib/),
 # fall back to a cwd-relative resolution to keep the hook running.
-_geniro_root_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/repo-root.sh"
+_geniro_root_helper="${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/repo-root.sh"
 if [ -f "$_geniro_root_helper" ]; then
   # shellcheck source=/dev/null
   source "$_geniro_root_helper" 2>/dev/null || true
@@ -66,7 +80,7 @@ fi
 # a bare `sha256sum` would fail silently and yield empty slug suffixes / hash
 # markers. Source the canonical helper, falling back to an inline definition
 # so the hook stays self-contained on vendored installs.
-_geniro_hash_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/hash.sh"
+_geniro_hash_helper="${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/hash.sh"
 if [ -f "$_geniro_hash_helper" ]; then
   # shellcheck source=/dev/null
   source "$_geniro_hash_helper" 2>/dev/null || true
@@ -79,7 +93,7 @@ fi
 # lib/archive-stale.sh and lib/query-learnings.sh, so the value is theirs — the
 # canonical helper carries it, with the same inline fallback as above for a
 # vendored install shipping hooks/ without lib/.
-_geniro_lock_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/lock-reclaim.sh"
+_geniro_lock_helper="${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/lock-reclaim.sh"
 if [ -f "$_geniro_lock_helper" ]; then
   # shellcheck source=/dev/null
   source "$_geniro_lock_helper" 2>/dev/null || true
@@ -97,7 +111,7 @@ fi
 # (a divergent form misses the producer's state file on every >60-char
 # branch). Inline fallback keeps the hook self-contained on a vendored install
 # without lib/.
-_geniro_slug_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/branch-slug.sh"
+_geniro_slug_helper="${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/branch-slug.sh"
 if [ -f "$_geniro_slug_helper" ]; then
   # shellcheck source=/dev/null
   source "$_geniro_slug_helper" 2>/dev/null || true
@@ -184,7 +198,7 @@ slug="$(_geniro_branch_slug "$branch")"
 # the phases that write them: `adr-documented` has no producer since /refactor's
 # ADR path was removed, and stays because dropping it would offer a completed
 # pre-upgrade run for resume. Retire a value only once no install can hold it.
-TERMINAL_PHASES="done aborted routed failed escalated ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted verify-summary-only reverted adr-documented map-truncated present-summary-only"
+TERMINAL_PHASES="done aborted routed failed escalated ship-committed-only self-review-only debug-handoff ship-summary-only adversarial-aborted adversarial-ship-summary-only verify-summary-only reverted adr-documented map-truncated present-summary-only"
 TERMINAL_STATUSES="done completed failed aborted routed"
 
 # Extract one scalar frontmatter value (line-anchored, between the first two
@@ -392,7 +406,7 @@ validation_status="not-applicable"  # values: pass | fail | skipped | not-applic
 validation_error=""
 
 if [ -n "$state_file" ]; then
-  _vsf_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/validate-state-file.sh"
+  _vsf_helper="${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/validate-state-file.sh"
   if [ ! -f "$_vsf_helper" ]; then
     validation_status="skipped"
   else
@@ -417,11 +431,10 @@ if [ -n "$state_file" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Frontmatter parse — producer, spec-file, phase, list counts
+# Frontmatter parse — producer, phase, list counts
 # ---------------------------------------------------------------------------
 
 active_skill=""
-spec_file=""
 phase=""
 status=""
 recorded_branch=""
@@ -694,7 +707,6 @@ _render_approvals_block() {
 
 if [ -n "$state_file" ] && [ -f "$state_file" ]; then
   active_skill="$(_fm_scalar "$state_file" producer)"
-  spec_file="$(_fm_scalar "$state_file" spec-file)"
   phase="$(_fm_scalar "$state_file" phase)"
   status="$(_fm_scalar "$state_file" status)"
   recorded_branch="$(_fm_scalar "$state_file" branch)"
@@ -727,7 +739,6 @@ if [ -n "$state_file" ]; then
     state_file=""
     task_dir=""
     active_skill=""
-    spec_file=""
     phase=""
     status=""
     recorded_branch=""
@@ -865,10 +876,9 @@ if [ -n "$state_file" ] && [ "$validation_status" != "fail" ]; then
 - $state_file"
 fi
 
-if [ -n "$spec_file" ]; then
-  BLOCK2="$BLOCK2
-- $spec_file"
-elif [ -n "$task_dir" ] && [ -f "$task_dir/spec.md" ]; then
+# No skill writes a `spec-file:` frontmatter key (T3-43, 2026-09-23 audit) —
+# spec.md is always found at its conventional path, never named explicitly.
+if [ -n "$task_dir" ] && [ -f "$task_dir/spec.md" ]; then
   BLOCK2="$BLOCK2
 - $task_dir/spec.md"
 fi
@@ -1050,7 +1060,7 @@ if [ -f "$_learnings_log" ]; then
         # GENIRO_ARCHIVE_LOCK_HELD=1 — this hook already holds the mkdir lock;
         # without the flag the helper's direct-invocation branch would see the
         # held lock and skip with rc=3.
-        _archive_output=$(GENIRO_ARCHIVE_LOCK_HELD=1 bash "${CLAUDE_PLUGIN_ROOT:-.}/lib/archive-stale.sh" 2>&1) || _archive_rc=$?
+        _archive_output=$(GENIRO_ARCHIVE_LOCK_HELD=1 bash "${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/archive-stale.sh" 2>&1) || _archive_rc=$?
 
         if [ "$_archive_rc" -le 1 ]; then
           # Update hash marker (capture POST-archive state) — only after a

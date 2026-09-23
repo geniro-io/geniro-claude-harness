@@ -32,7 +32,7 @@ A list of **spawn-specs** — one dict per surviving custom reviewer — with th
 
 - `slug` (string) — the reviewer's slug from frontmatter
 - `dimension-label` (string) — `custom:<slug>` — used as the DIMENSION value in the spawn prompt
-- `model` (string) — one of `haiku`, `sonnet`, `opus`, `auto`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; user-explicit values are honored as-is per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` user-authored carve-out. `auto` is the non-Claude-host selector from that file's §Runtime resolution — accepted here so a Cursor user can declare a tier at all)
+- `model` (string) — one of `haiku`, `sonnet`, `opus`, `fable`, `auto`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; user-explicit values are honored as-is per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` user-authored carve-out. `auto` is the non-Claude-host selector from that file's §Runtime resolution — accepted here so a Cursor user can declare a tier at all)
 - `criteria-content` (string) — the body of the .md file (everything after the closing `---` of the frontmatter)
 - `severity-default` (string or null) — one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, or null when unset
 - `requires-context` (string or null) — the verbatim `requires-context:` frontmatter directive (natural-language description of the live external data the reviewer needs the orchestrator to fetch), or null when unset
@@ -52,7 +52,7 @@ If `git` is unavailable or the project has only one worktree, the registry is ju
 
 ### Step 2: Glob the directory
 
-Use the Glob tool with pattern `.geniro/instructions/review-extra/*.md` (and the primary-worktree variant per Step 1). If the directory does not exist OR the glob returns zero files after the Step 1 dedup, the helper exits immediately with an empty spawn-spec list — this is the normal case for projects that have no custom reviewers.
+Match the pattern `.geniro/instructions/review-extra/*.md` (and the primary-worktree variant per Step 1). If the directory does not exist OR the glob returns zero files after the Step 1 dedup, the helper exits immediately with an empty spawn-spec list — this is the normal case for projects that have no custom reviewers.
 
 ### Step 3: Read and parse each file
 
@@ -72,7 +72,7 @@ A file is INVALID (skip it with a one-line warning, do NOT abort the helper) if 
 3. The `slug:` value matches a reserved dimension name (case-insensitive): the built-ins `bugs`, `security`, `architecture`, `tests`, `optimizations`, `conventions`, `regressions`, `design`, `pr-metadata`, `spec-compliance`, `code-quality`, plus the reserved names `guidelines` and `rules-compliance`.
 4. The `slug:` value does not match the regex `^[a-z][a-z0-9-]*$`.
 5. The `description:` field is missing OR empty.
-6. The `model:` field is present and is not in `{haiku, sonnet, opus, auto, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)
+6. The `model:` field is present and is not in `{haiku, sonnet, opus, fable, auto, inherit}`. (Explicit `model: inherit` is the canonical Anthropic-documented form and is equivalent to omitting the field entirely — both yield spec.model = `inherit`.)
 7. The `severity-default:` field is present and is not in `{CRITICAL, HIGH, MEDIUM, LOW}`.
 8. The `paths:` field is present and is not a non-empty list of non-empty strings.
 9. The body section (after the frontmatter) is empty OR contains fewer than 5 non-blank lines.
@@ -85,7 +85,7 @@ For each invalid file, print one diagnostic line: `Skipped custom reviewer <path
 For each VALID file:
 
 - If `paths:` is absent OR is the empty list, the reviewer fires on every run; carry it forward.
-- If `paths:` is set, build the union of changed-file paths from `CHANGED_FILES` (the same list the built-in reviewers receive). The reviewer fires only if at least one changed file matches at least one of the globs in `paths:`. Use Git-style fnmatch / bash-globstar semantics (`**` for arbitrary depth, `*` for arbitrary chars within a path segment, `{a,b}` for brace alternation, `?` for single char) — matches the conventions used by `.gitignore` and `.claude/rules/<scope>.md` `paths:` frontmatter. Silently drop the reviewer when no changed file matches — this is by design, not an error.
+- If `paths:` is set, build the union of changed-file paths from `CHANGED_FILES` (the same list the built-in reviewers receive). The reviewer fires only if at least one changed file matches at least one of the globs in `paths:`. Use Git-style fnmatch / bash-globstar semantics — matches the conventions used by `.gitignore` and `.claude/rules/<scope>.md` `paths:` frontmatter. Silently drop the reviewer when no changed file matches — this is by design, not an error.
 
 ### Step 6: Enforce caps
 
@@ -119,7 +119,7 @@ For each spec the helper returns, the consumer skill appends one spawn to its pa
 
 - When the run carries `--subagent-model` → PASS `model="<tier>"` verbatim, beating every case below including a custom reviewer's own declared `model:` — the flag is the user's own run-wide election (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`).
 - Otherwise, when `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument entirely. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit` directive.
-- Otherwise, when `spec.model ∈ {haiku, sonnet, opus}` (the user explicitly declared a tier in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. User-explicit override beats inherit.
+- Otherwise, when `spec.model ∈ {haiku, sonnet, opus, fable}` (the user explicitly declared a tier in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. User-explicit override beats inherit.
 - Otherwise, when `spec.model == "auto"` → PASS `model="auto"` under a host whose spawn facility takes it (Cursor); under Claude Code there is no such selector, so OMIT the argument and treat it as `inherit`. Either way the user's intent — "let the host pick" — is honored rather than silently replaced by a tier of ours.
 
 Inherit form (default — user did not declare `model:`):
@@ -129,7 +129,7 @@ Agent(subagent_type="geniro:reviewer-agent", prompt="""   # ladder rung 1 — Cl
 DIMENSION: {spec.dimension-label}
 CRITERIA: {spec.criteria-content}
 PROJECT SEARCH POLICY: [verbatim global.md rules governing how to search this codebase, or `none declared` — governs every lookup the reviewer makes, not just its first]
-CHANGED FILES: [list of files with their full content — same list the built-in reviewers receive]
+CHANGED FILES: [newline-separated absolute paths — same list the built-in reviewers receive, per the paths-not-bodies rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Required pre-inlined context]
 PROJECT CONTEXT: [stack, conventions from CLAUDE.md]
 WORKTREE: [from `git rev-parse --show-toplevel`]
 DIFF CONTEXT: [git diff summary]

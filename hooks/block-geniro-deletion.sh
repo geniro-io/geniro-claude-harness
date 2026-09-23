@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # block-geniro-deletion.sh
 # PreToolUse hook for Bash - prevents bulk deletion of .geniro/ contents.
+# Also runs on Cursor's file-tool `Delete` shape (no `command` field, a
+# `tool_input.file_path` instead — see the TOOL_NAME branch below), routed
+# here by the Cursor shim the same way Bash commands are.
 #
 # .geniro/ holds user-authored persistent state: instructions/, actions/,
 # workflow/, planning/FEATURES.md, planning/<task>/..., knowledge/learnings.jsonl,
@@ -40,17 +43,19 @@
 # Pattern IDs: rm-geniro-tree, rm-geniro-subdir, rm-geniro-state-subdir,
 #              find-geniro-delete, worktree-remove-with-state, git-add-force-geniro
 #
-# Known bypass (accepted, not closed): every span below requires the command
-# WORD itself (`rm`, `find`, `git`, …) to be a literal token — a word reached
-# through a variable (`C=rm; $C -rf .geniro/`) evades every matcher, because
-# none expand a shell variable before matching. Verified passing (rc=0) where
-# the literal spelling blocks. The same shape defeats block-dangerous-git.sh's
-# subcommand matchers too (see its header comment). Not closed: resolving an
-# arbitrary variable into the COMMAND-WORD position (not a quoted-literal
-# argument, which lib/write-vectors.sh's `_geniro_wv_resolve` already handles)
-# would need a second matching pass for every span in this file, and the shape
-# requires the attacker to have already planted an assignment earlier in the
-# same command.
+# Every matcher below requires the command WORD itself (`rm`, `find`, `git`,
+# …) to be a literal token adjacent to its arguments, so a word or operand
+# reached through a variable used to evade all of them. That is now closed
+# upstream rather than per pattern: lib/write-vectors.sh §F substitutes
+# assigned literals back into the text before any matcher runs, so the
+# command-word position, a flag, and a .geniro/ path operand are all covered
+# by one pass. `C=rm; $C -rf .geniro/` and `P=.geniro; rm -rf $P` both block.
+# Pinned in tests/hooks/obfuscation-matrix.sh.
+#
+# Still open, and deliberately so: a command word produced by a SUBSTITUTION
+# rather than an assignment (`$(echo rm) -rf .geniro/`) is not resolved,
+# because nothing here evaluates anything and guessing at the output of an
+# arbitrary command is not a guard's job.
 #
 # Fixed 2026-05-10 — segment-depth gates (rm-geniro-subdir, rm-geniro-state-subdir)
 # now evaluate each rm/find arg INDIVIDUALLY. Previously a single regex against
@@ -81,9 +86,40 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 INPUT=$(cat)
+# Cursor's file-tool vocabulary includes a `Delete` tool with no `command`
+# field at all (`{"tool_name":"Delete","tool_input":{"file_path":"<abs
+# path>"},"cwd":"<cwd>"}`, translated by the Cursor shim) — this hook was
+# wired only to Bash's `beforeShellExecution`, so a Cursor agent could delete
+# `.geniro/instructions/*.md` or any state file through the file tool with no
+# guard at all (2026-09-23 audit T0-15). TOOL_NAME routes that shape past the
+# empty-command fallback below to its own check, further down (after
+# check_delete_arg is defined).
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
+# macOS resolves a command word case-insensitively (`BASH -c …`, `Sh`, `PYTHON3`
+# run the real program), but every shell/interpreter roster this guard and
+# lib/write-vectors.sh match is spelled in canonical case. Fold those words to
+# their canonical spelling in the text scanned here, so a mixed-case spelling is
+# judged exactly like its lowercase twin (2026-09-23 audit T0-3). Only the
+# scanned copy changes; nothing is executed.
+COMMAND=$(printf '%s' "$COMMAND" | awk '
+  BEGIN {
+    n = split("sh bash zsh dash ksh ash fish csh tcsh xonsh nu elvish rc node bun bunx deno tsx perl ruby php lua tclsh Rscript awk gawk mawk", w, " ")
+    for (i = 1; i <= n; i++) canon[tolower(w[i])] = w[i]
+  }
+  {
+    out = ""; s = $0
+    while (match(s, /[A-Za-z][A-Za-z0-9_.]*/)) {
+      tok = substr(s, RSTART, RLENGTH); low = tolower(tok)
+      if (low in canon) tok = canon[low]
+      else if (low ~ /^python[0-9.]*$/) tok = low
+      out = out substr(s, 1, RSTART - 1) tok
+      s = substr(s, RSTART + RLENGTH)
+    }
+    print out s
+  }')
 
-if [ -z "$COMMAND" ]; then
+if [ -z "$COMMAND" ] && [ "$TOOL_NAME" != "Delete" ]; then
   # jq is present, but the command extracted empty — either tool_input.command
   # was genuinely absent, or the payload was malformed JSON the parse above
   # silently swallowed (`|| echo ""`). A malformed payload must not be a free
@@ -111,12 +147,24 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
     next
   }
   {
-    n = length($0); q = ""; pos = 0
+    # adepth tracks `$((...))`/`((...))` arithmetic nesting: a `<<` inside one
+    # is the left-shift OPERATOR (`echo $((1<<X))`), not a heredoc opener, and
+    # treating it as one made the awk drop every line up to a bogus tag as
+    # heredoc BODY — hiding a real command (e.g. a following `rm -rf .geniro`)
+    # from every matcher downstream, while bash itself runs that line for
+    # real. A `#` that starts a WORD (line-start, or preceded by whitespace or
+    # a separator) opens a comment for the rest of the line, and a `<<TAG`
+    # inside one (`# note <<EOF`) is text, not an operator — stop scanning at
+    # that point rather than risk reading a heredoc opener out of prose.
+    n = length($0); q = ""; pos = 0; adepth = 0
     for (i = 1; i <= n; i++) {
       c = substr($0, i, 1)
       if (q != "") { if (c == q) q = ""; continue }
       if (c == "\"" || c == "'\''") { q = c; continue }
-      if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+      if (c == "#" && (i == 1 || substr($0, i-1, 1) ~ /[ \t;&|(]/)) { break }
+      if (c == "(" && substr($0, i+1, 1) == "(") { adepth++; continue }
+      if (c == ")" && substr($0, i+1, 1) == ")") { if (adepth > 0) adepth--; continue }
+      if (adepth == 0 && c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
     }
     if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
       tag = substr($0, pos, RLENGTH)
@@ -147,7 +195,17 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
 # there, so edit both or neither — parity is enforced by
 # tests/hooks/write-vectors-fallback-parity.sh, not by markers on the canonical
 # side (lib/write-vectors.sh carries none).
-_geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+#
+# When CLAUDE_PLUGIN_ROOT is unset, default to THIS SCRIPT'S OWN location
+# rather than `.` (the project's cwd) — a vendored install ships hooks/ and
+# lib/ as siblings, so `<this-script's-dir>/../lib/write-vectors.sh` finds
+# the real helper regardless of where the hook runs FROM. `.` instead sourced
+# `./lib/write-vectors.sh` relative to the PROJECT being guarded: a project
+# that happens to carry its own `lib/write-vectors.sh` (even an unrelated one
+# that only coincidentally defines `_geniro_extract_inner_payloads` as a
+# no-op) silently won because `command -v` finds ITS definition first and the
+# inline fallbacks below never load (2026-09-23 audit T4-62g / D5b-23).
+_geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null
   source "$_geniro_wv_helper" 2>/dev/null || true
@@ -672,8 +730,17 @@ JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 # the strip stopping at the first space inside the quotes and leaking the
 # subcommand. Mirrors block-dangerous-git.sh (kept inline so this guard stays
 # self-contained for vendored installs).
+# `[gG][iI][tT]` (not a literal `git`): macOS PATH lookup resolves `GIT`/`Git`
+# exactly like `git`, and every OTHER command-word match in this file is
+# already case-folded (T0-3/T0-4) — but this strip matched lowercase `git`
+# only, so `Git -C . add -f .geniro/x` kept its `-C .` glued between the
+# command word and the subcommand and no matcher below ever saw them
+# adjacent (2026-09-23 audit T0-4). The replacement stays the literal
+# lowercase `git` on purpose: folding the STRIPPED text to a single spelling
+# means every downstream matcher inherits case-insensitivity for this
+# specific word for free, without needing its own `-i`.
 _op='("[^"]*"|'\''[^'\'']*'\''|[^[:space:]]+)'
-JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
+JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/[gG][iI][tT]([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
 
 # A BACKSLASH-ESCAPED separator (\| \; \&) is data, never a shell command
 # separator: it spells an alternation in a BRE pattern (`grep "a\|b"`) or
@@ -855,6 +922,86 @@ _geniro_normalize_path() {
   printf '%s' "$p"
 }
 
+# Does a glob ARGUMENT cover .geniro without spelling it literally (`find .
+# -path '*geniro*' -delete`, 2026-08-09 audit #9; also used below by
+# check_delete_arg's own whole-tree glob probe)? find matches -name/-iname
+# against the found entry's BASENAME and -path/-ipath against its full
+# traversed PATH, so a bare ".geniro" probes the -name shape and a path with a
+# leading segment probes -path; bash's own case/glob engine — the SAME engine
+# a real shell filename expansion would use — decides both, so no separate
+# fnmatch reimplementation is needed. Relocated above check_delete_arg (was
+# defined only near find_span_targets_geniro, further down the file) so
+# check_delete_arg can call it too — a bash function must be DEFINED before
+# the first line of the script that CALLS it runs, and check_delete_arg is
+# invoked from the RM_SPANS loop well before the file's original position for
+# this function (2026-09-23 audit T0-7).
+find_glob_covers_geniro() {
+  local pattern
+  # Case-fold before the bash case/glob match below, which is case-SENSITIVE by
+  # default — `-name .GENIRO*` would otherwise not read as covering `.geniro`
+  # (2026-08-23 audit T0-2/T0-3 class). Lowering the CANDIDATE pattern rather
+  # than the three fixed probes below is the conservative direction: it can
+  # only make this return true (block) more often, never less.
+  pattern="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  # Deliberate: the USER's pattern is the glob and the fixed names are the
+  # subjects — quoting $pattern would turn the glob match into a string compare.
+  # shellcheck disable=SC2194,SC2254
+  case ".geniro" in $pattern) return 0 ;; esac
+  # shellcheck disable=SC2194,SC2254
+  case "./.geniro" in $pattern) return 0 ;; esac
+  # shellcheck disable=SC2194,SC2254
+  case "a/.geniro/b" in $pattern) return 0 ;; esac
+  return 1
+}
+
+# Real (not fnmatch-pattern) brace expansion for ONE operand, restricted to a
+# single non-nested {a,b,...} group with no shell metacharacter inside it —
+# enough to resolve the two bypass shapes the audit reproduced (`.geniro{,}`,
+# `{.geniro,x}`) using ONLY parameter expansion and a comma-IFS word split,
+# never `eval`: a token this narrow cannot smuggle a command substitution or
+# an arbitrary glob through this function even though it never gets a chance
+# to run. Anything wider — nested braces, or a `$`/backtick inside the group —
+# returns failure so the caller fails CLOSED instead of guessing, per the
+# audit's fix note. A group with NO comma is not brace syntax bash would
+# actually expand (`.geniro{x}` stays the literal 8-character string), so it
+# is emitted unchanged rather than "expanded" into something bash never
+# produces (2026-09-23 audit T0-7).
+_geniro_brace_expand() {
+  local tok="${1:-}"
+  case "$tok" in
+    *'{'*)
+      case "$tok" in
+        *'{'*'{'*) return 1 ;;   # nested/second group — not handled, fail closed
+      esac
+      local pre="${tok%%\{*}" rest="${tok#*\{}" grp suf alt
+      case "$rest" in
+        *'}'*) grp="${rest%%\}*}"; suf="${rest#*\}}" ;;
+        *) return 1 ;;            # unterminated group — fail closed
+      esac
+      case "$grp$suf" in *'{'*|*'}'*|*'$'*|*'`'*) return 1 ;; esac
+      case "$grp" in
+        *,*) : ;;
+        *) printf '%s\n' "$tok"; return 0 ;;   # no comma — real bash does not expand this
+      esac
+      set -f
+      IFS=','
+      # shellcheck disable=SC2086
+      for alt in $grp; do
+        printf '%s\n' "${pre}${alt}${suf}"
+      done
+      unset IFS
+      set +f
+      # A leading or trailing comma spells an EMPTY alternative (`.geniro{,}`
+      # is prefix+"" and prefix+""); the word-split loop above never yields an
+      # empty field there on its own, so emit the bare prefix+suffix for each
+      # edge the group's text shows.
+      case "$grp" in ''|,*|*,) printf '%s\n' "${pre}${suf}" ;; esac
+      return 0
+      ;;
+    *) printf '%s\n' "$tok"; return 0 ;;
+  esac
+}
+
 # Evaluate ONE delete operand against the .geniro/ depth rules. `recursive` is 1
 # for a delete that removes a tree (`rm -r`, an interpreter rmtree) and 0 for a
 # per-file delete, which bulk-deletes only through a glob. Shared by the rm loop,
@@ -888,16 +1035,38 @@ check_delete_arg() {
   # (see _geniro_normalize_path above).
   stripped="$(_geniro_normalize_path "$arg")"
 
-  # A prefix-glob token expands to .geniro/ at execution time even though the
-  # literal token never spells the full name (`rm -rf .gen*`). Treat any glob
-  # whose literal prefix is a prefix of ".geniro" as a whole-tree delete.
+  # A prefix-glob OR brace-alternation token expands to .geniro/ at execution
+  # time even though the literal token never spells the full name (`rm -rf
+  # .gen*`, `rm -rf .geniro{,}`, `rm -rf {.geniro,x}`). A fixed list of seven
+  # literal prefix spellings caught only the `*`-suffixed shape and missed
+  # every other glob form (`.genir?`, `.geni[r]o`, `.?eniro`, `.[a-z]*`) and
+  # every brace form outright — bash performs BRACE expansion before glob
+  # expansion, so a `{...}` group must be resolved into its literal
+  # alternatives first (2026-09-23 audit T0-7). Brace-expand the token (a
+  # no-op if it carries no `{`), then test EVERY resulting word against
+  # ".geniro" with bash's own glob matcher (find_glob_covers_geniro) instead
+  # of a fixed spelling list. A word this scan cannot safely brace-expand
+  # fails CLOSED rather than falling through as harmless.
   glob_probe="${stripped#./}"
+  # shellcheck disable=SC1083
   case "$glob_probe" in
-    '.*'|'.g*'|'.ge*'|'.gen*'|'.geni*'|'.genir*'|'.geniro*')
-      if ! is_allowed "rm-geniro-tree"; then
-        block "rm-geniro-tree" "rm -rf $arg is a glob that expands to .geniro/ — the same loss as rm -rf .geniro/. Use \`rm -f <single-file>\` for individual deletes."
+    *[*?{[]*)
+      local _gp_variants _gp_rc _gp_variant _gp_hit=0
+      _gp_variants=$(_geniro_brace_expand "$glob_probe"); _gp_rc=$?
+      if [ "$_gp_rc" -ne 0 ]; then
+        _gp_hit=1
+      else
+        while IFS= read -r _gp_variant; do
+          [ -z "$_gp_variant" ] && continue
+          find_glob_covers_geniro "$_gp_variant" && _gp_hit=1
+        done <<< "$_gp_variants"
       fi
-      return 0
+      if [ "$_gp_hit" -eq 1 ]; then
+        if ! is_allowed "rm-geniro-tree"; then
+          block "rm-geniro-tree" "rm -rf $arg is a glob or brace pattern that expands to .geniro/ — the same loss as rm -rf .geniro/. Use \`rm -f <single-file>\` for individual deletes."
+        fi
+        return 0
+      fi
       ;;
   esac
 
@@ -983,6 +1152,26 @@ check_delete_arg() {
   return 0
 }
 
+# Cursor `Delete` file-tool branch (2026-09-23 audit T0-15): the shim routes
+# `{"tool_name":"Delete","tool_input":{"file_path":"<abs path>"},"cwd":"<cwd>"}`
+# here, with no `command` field at all — TOOL_NAME above already kept this
+# shape out of the empty-command jqless-style fallback. `file_path` is a
+# plain resolved path, not shell syntax, so none of the quote-scrub / shell-
+# indirection / cd-prefix machinery above applies; it runs through the SAME
+# depth rules as an `rm -rf` operand (check_delete_arg already tells a
+# single-file delete from a whole-tree / top-level-subdir / state-subdir one
+# via the same trailing-slash + extension heuristic, independent of the
+# `recursive` flag — recursive=1 here is the conservative choice for a tool
+# whose payload carries no rm-style -r/-f distinction at all) and calls
+# block() itself (exit 2) when the target is protected.
+if [ "$TOOL_NAME" = "Delete" ]; then
+  FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || echo "")
+  if [ -n "$FILE_PATH" ]; then
+    check_delete_arg "$FILE_PATH" 1
+  fi
+  exit 0
+fi
+
 # A `cd`/`pushd` INTO the guarded tree hides every later delete operand from
 # the spans below: `cd .geniro && rm -rf instructions` (or `pushd .geniro && …`)
 # spells no `.geniro` path at all, yet loses exactly what
@@ -994,6 +1183,27 @@ check_delete_arg() {
 # check_delete_arg_cd re-prefixes each relative OPERAND with it. The LAST such
 # `cd`/`pushd` wins, matching execution order.
 CD_PREFIX=$(_geniro_wv_cd_prefix "$PADDED" ".geniro")
+
+# `_geniro_wv_expand_assignments` (run earlier, building JOINED/PADDED) leaves
+# this sentinel in place of a variable reference it could not resolve to ONE
+# literal — never assigned a plain string, or assigned two different values
+# (`D=$(pwd)/.geniro; rm -rf $D`; `P=/tmp/x; P=.geniro; rm -rf $P`) — per its
+# contract (lib/write-vectors.sh §F). Every operand this file's matchers see
+# has, by this point, already been resolved to its literal text; one that
+# still carries the sentinel is one the resolver gave up on, not one this
+# guard gets to silently treat as an inert word — and until now nothing here
+# ever looked for it (2026-09-23 audit T0-9). Mirrors file-protection.sh's
+# handling of its own `_WV_SHELL_AMBIGUOUS` sentinel: fall back to every
+# ".geniro"-bearing token anywhere in the command (the same conservative scan
+# the unresolved interpreter-delete-target fallback above already uses) and
+# run the SAME depth rules on each, recursive=1 because a command that could
+# not be resolved is not one this guard can also gate by rm-vs-rmdir shape.
+if grep -qF 'GENIRO_WV_AMBIGUOUS_VAR' <<< "$PADDED"; then
+  while IFS= read -r _wv_amb_tok; do
+    [ -z "$_wv_amb_tok" ] && continue
+    check_delete_arg "$_wv_amb_tok" 1
+  done <<< "$(printf '%s' "$PADDED" | grep -oE "[^[:space:]\"'\`=(),;|&<>{}]+" 2>/dev/null | grep -iE '(^|/)\.geniro(/|$)' 2>/dev/null || true)"
+fi
 
 # `for <name> in <words>; do rm -rf $<name>; done` binds each WORD to <name>
 # across loop iterations — a binding shape `_geniro_wv_expand_assignments`
@@ -1086,7 +1296,13 @@ while IFS= read -r RM_SPAN; do
   # loop evaluates ONLY its glob args (it skips non-glob args), keeping
   # single-file deletes allowed.
   recursive=0
-  if grep -qE '[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]|[[:space:]]--recursive[[:space:]]' <<< " $RM_SPAN "; then
+  # `--r`/`--re`/.../`--recursive` are all unambiguous prefixes of GNU rm's
+  # only long option starting with `r` (2026-09-23 audit T0-5): `rm --rec -f
+  # .geniro` recurses exactly like `rm --recursive -f .geniro` does, but the
+  # exact-spelling `--recursive` alternative missed every abbreviation, so the
+  # span read as non-recursive and the per-arg gate below skipped the bare
+  # (non-glob) `.geniro` operand entirely.
+  if grep -qE '[[:space:]]-[a-zA-Z]*[rR][a-zA-Z]*[[:space:]]|[[:space:]]--r(e(c(u(r(s(i(v(e)?)?)?)?)?)?)?)?[[:space:]]' <<< " $RM_SPAN "; then
     recursive=1
   fi
 
@@ -1125,24 +1341,43 @@ done <<< "$RM_SPANS"
 #     files new content in is not a loss. The last operand is the destination;
 #     every earlier non-flag operand is a source and runs the same depth rules as
 #     an rm operand, so a 3+-segment task dir keeps its allowance.
+#
+#     Under GNU `-t DIR`/`--target-directory=DIR`, the destination is the
+#     FLAG'S operand, not the last positional one — every remaining operand is
+#     a SOURCE (`mv -t /tmp/trash .geniro` displaces .geniro exactly like `mv
+#     .geniro /tmp/trash` does), and "drop the last operand" silently dropped
+#     the real source and kept only the harmless `-t` value (2026-09-23 audit
+#     T0-10).
 # -i: same command-word case-fold as RM_SPANS above (T0-3).
 MV_SPANS=$(printf '%s' "$PADDED" | grep -oiE '(^|[\\|;&(/[:space:]])mv[[:space:]]+[^|;&]*' || true)
 while IFS= read -r MV_SPAN; do
   [ -z "$MV_SPAN" ] && continue
-  mv_operands=""
+  mv_operands="" mv_has_t=0 mv_skip_next=0
   set -f
   # shellcheck disable=SC2086
   for tok in $MV_SPAN; do
-    case "$tok" in mv|*/mv|-*) continue ;; esac
+    case "$tok" in mv|*/mv) continue ;; esac
+    if [ "$mv_skip_next" = "1" ]; then
+      mv_skip_next=0
+      continue
+    fi
+    case "$tok" in
+      -t|--target-directory) mv_has_t=1; mv_skip_next=1; continue ;;
+      --target-directory=*) mv_has_t=1; continue ;;
+      -t?*) mv_has_t=1; continue ;;   # appended form: -tDIR (DIR is not a source)
+      -*) continue ;;
+    esac
     mv_operands="${mv_operands}${tok} "
   done
   set +f
   mv_operands="${mv_operands% }"
-  # Drop the destination (last operand). A single-operand span is not a real mv.
-  case "$mv_operands" in
-    *" "*) mv_operands="${mv_operands% *}" ;;
-    *) mv_operands="" ;;
-  esac
+  if [ "$mv_has_t" != "1" ]; then
+    # Drop the destination (last operand). A single-operand span is not a real mv.
+    case "$mv_operands" in
+      *" "*) mv_operands="${mv_operands% *}" ;;
+      *) mv_operands="" ;;
+    esac
+  fi
   set -f
   # shellcheck disable=SC2086
   for tok in $mv_operands; do
@@ -1205,27 +1440,6 @@ if [ -n "$_id_targets" ] || [ "$_id_unresolved" = "1" ]; then
   fi
 fi
 
-# Does a find -path/-name/-ipath/-iname GLOB ARGUMENT cover .geniro without
-# spelling it literally (`find . -path '*geniro*' -delete`, 2026-08-09 audit
-# #9)? find matches -name/-iname against the found entry's BASENAME and
-# -path/-ipath against its full traversed PATH, so a bare ".geniro" probes the
-# -name shape and a path with a leading segment probes -path; bash's own
-# case/glob engine — the SAME engine a real shell filename expansion would
-# use — decides both, so no separate fnmatch reimplementation is needed.
-find_glob_covers_geniro() {
-  local pattern
-  # Case-fold before the bash case/glob match below, which is case-SENSITIVE by
-  # default — `-name .GENIRO*` would otherwise not read as covering `.geniro`
-  # (2026-08-23 audit T0-2/T0-3 class). Lowering the CANDIDATE pattern rather
-  # than the three fixed probes below is the conservative direction: it can
-  # only make this return true (block) more often, never less.
-  pattern="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
-  case ".geniro" in $pattern) return 0 ;; esac
-  case "./.geniro" in $pattern) return 0 ;; esac
-  case "a/.geniro/b" in $pattern) return 0 ;; esac
-  return 1
-}
-
 # A find SPAN "targets" .geniro either by spelling it literally anywhere in the
 # span (the existing check) or via a -path/-name/-ipath/-iname glob argument
 # that covers it (this is check_delete_arg's own prefix-glob probe, applied to
@@ -1262,15 +1476,41 @@ if ! is_allowed "find-geniro-delete"; then
   FIND_SPANS=$(printf '%s' "$PADDED" | grep -oiE '(^|[\\|;&(/[:space:]])find[[:space:]]+[^|;&]*' || true)
   while IFS= read -r FIND_SPAN; do
     [ -z "$FIND_SPAN" ] && continue
+
+    _find_has_delete=0 _find_has_exec=0
+    grep -qE -- '-delete' <<< "$FIND_SPAN" && _find_has_delete=1
+    grep -qE -- '-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv|rmdir)([[:space:]]|$)' <<< "$FIND_SPAN" && _find_has_exec=1
+    if [ "$_find_has_delete" -eq 0 ] && [ "$_find_has_exec" -eq 0 ]; then
+      continue
+    fi
+
+    # A `cd .geniro && find . -delete` spells no ".geniro" text in the span at
+    # all — the cd already put us there — and used to walk straight through
+    # the literal/-path/-name check below (2026-09-23 audit T0-8). Only for a
+    # SPAN ALREADY CONFIRMED DESTRUCTIVE (above), re-check find's START-PATH
+    # operand (the first non-flag token) with the SAME cd-prefix rm/mv/rmdir
+    # already get, through the same helper (check_delete_arg_cd), so it
+    # inherits the depth allowances and blocking messages those already have.
+    # `check_delete_arg_cd` itself calls `block()` and exits when the
+    # prefixed target is protected; it returns quietly (no-op) when
+    # CD_PREFIX is empty or the start path resolves outside .geniro/.
+    set -f
+    for _fp_tok in $FIND_SPAN; do
+      case "$_fp_tok" in find|*/find) continue ;; -*) break ;; esac
+      check_delete_arg_cd "$_fp_tok" 1 find
+      break
+    done
+    set +f
+
     find_span_targets_geniro "$FIND_SPAN" || continue
-    if grep -qE -- '-delete' <<< "$FIND_SPAN"; then
+    if [ "$_find_has_delete" -eq 1 ]; then
       block "find-geniro-delete" "find ... -delete on .geniro/ wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path, or pathlib.Path.unlink in Python) so each deletion is auditable."
     fi
     # The executed command is any of the loss family, not `rm` alone: `-exec mv` is
     # the displacement this guard's mv span already blocks directly,
     # unlink/shred/truncate destroy each matched file exactly as `rm` does, and
     # `rmdir` removes each matched (empty) directory node the same way.
-    if grep -qE -- '-exec(dir)?[[:space:]]+([^[:space:]]*/)?(rm|unlink|shred|truncate|mv|rmdir)([[:space:]]|$)' <<< "$FIND_SPAN"; then
+    if [ "$_find_has_exec" -eq 1 ]; then
       block "find-geniro-delete" "find ... -exec rm/mv/unlink/shred/truncate/rmdir on .geniro/ wipes or displaces user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
     fi
   done <<< "$FIND_SPANS"
@@ -1282,6 +1522,16 @@ if ! is_allowed "find-geniro-delete"; then
   # (T0-2/T0-3).
   if grep -qiE '\.geniro[^&;]*\|[[:space:]]*xargs([[:space:]]+(-[^[:space:]]+|\{\}))*[[:space:]]+([^[:space:]]*/)?rm([[:space:]]|$)' <<< "$PADDED"; then
     block "find-geniro-delete" "piping a .geniro/ path into \`xargs rm\` wipes user-authored content in bulk. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
+  fi
+  # Same cd-then-pipe gap as the find start-path above: `cd .geniro && ls |
+  # xargs rm -rf` names no ".geniro" text anywhere in the command (the xargs
+  # stdin comes from whatever `ls` lists in the directory the cd already
+  # entered), so the literal-path check just above never fires. When a cd
+  # into .geniro/ precedes ANY pipe into `xargs rm`, that is a bulk delete of
+  # whatever the cd'd directory lists, regardless of the producer's own text
+  # (2026-09-23 audit T0-8).
+  if [ -n "$CD_PREFIX" ] && grep -qiE '\|[[:space:]]*xargs([[:space:]]+(-[^[:space:]]+|\{\}))*[[:space:]]+([^[:space:]]*/)?rm([[:space:]]|$)' <<< "$PADDED"; then
+    block "find-geniro-delete" "a cd into .geniro/ (or a subdir of it) followed by a pipe into \`xargs rm\` bulk-deletes whatever that directory lists. Iterate file-by-file (\`rm -f\` per path) so each deletion is auditable."
   fi
 fi
 
@@ -1325,13 +1575,57 @@ done <<< "$RSYNC_SPANS"
 # Unresolvable target → block, unchanged. A path built from a variable or a
 # command substitution cannot be inspected, and this is a data-loss guard: the
 # fail-closed direction is the one that keeps state.
+#
+# Every removal gets its OWN check, anchored ONLY by a `cd`/`pushd` that runs
+# BEFORE it. `head -1` on the removal spans and `tail -1` on the cd spans used
+# to conflate "the first removal" with "the only removal" (a clean first
+# `git worktree remove` let a second, stateful one through unchecked) and "the
+# last cd anywhere in the command" with "the cd that actually preceded this
+# removal" (a `cd` running AFTER the removal anchored it anyway, resolving a
+# relative target against a directory the removal never ran in — 2026-09-23
+# audit T0-11). Fixed by walking the command as an ORDERED sequence of simple
+# statements — split on every top-level separator (`; & | && || ( )`, and a
+# real newline, which a per-line `grep` already treated as a boundary) — and
+# keeping a running "last cd seen SO FAR" that only reflects what has actually
+# executed by the time each removal is reached, mirroring real shell order.
+# -i on the match: the same case-fold class as T0-4 (macOS PATH lookup
+# resolves `GIT` exactly like `git`); `worktree`/`remove` themselves are real
+# git subcommand spellings, which git's own arg parser reads case-sensitively,
+# but folding them too costs nothing and keeps one matcher instead of two.
 if ! is_allowed "worktree-remove-with-state"; then
-  if grep -qE 'git[[:space:]]+worktree[[:space:]]+remove[[:space:]]' <<< "$PADDED"; then
-    _wt_span=$(printf '%s' "$PADDED" | grep -oE 'git[[:space:]]+worktree[[:space:]]+remove[^;&|]*' | head -1 || true)
+  _wt_last_cd=""
+  while IFS= read -r _wt_stmt; do
+    [ -z "$_wt_stmt" ] && continue
+
+    # A cd/pushd statement (its own FIRST token): remember its target as the
+    # anchor for every removal that comes after it, then move on — it names no
+    # removal itself.
+    set -f
+    # shellcheck disable=SC2086
+    _wt_first=1
+    _wt_is_cd=0
+    for _wt_tok in $_wt_stmt; do
+      if [ "$_wt_first" = "1" ]; then
+        _wt_first=0
+        case "$_wt_tok" in cd|pushd|*/cd|*/pushd) _wt_is_cd=1 ;; esac
+        [ "$_wt_is_cd" = "1" ] || break
+        continue
+      fi
+      case "$_wt_tok" in -*|+*) continue ;; esac
+      _wt_tok="${_wt_tok#\"}"; _wt_tok="${_wt_tok%\"}"
+      _wt_tok="${_wt_tok#\'}"; _wt_tok="${_wt_tok%\'}"
+      _wt_last_cd="$_wt_tok"
+      break
+    done
+    set +f
+    [ "$_wt_is_cd" = "1" ] && continue
+
+    grep -qiE '(^|[[:space:]])git[[:space:]]+worktree[[:space:]]+remove([[:space:]]|$)' <<< "$_wt_stmt" || continue
+
     _wt_target=""
     set -f
     # shellcheck disable=SC2086
-    for _wt_tok in ${_wt_span#*remove}; do
+    for _wt_tok in ${_wt_stmt#*[Rr][Ee][Mm][Oo][Vv][Ee]}; do
       case "$_wt_tok" in
         -*) continue ;;
         *) _wt_target="$_wt_tok"; break ;;
@@ -1342,34 +1636,22 @@ if ! is_allowed "worktree-remove-with-state"; then
     _wt_verdict="block"
     _wt_detail="the worktree path could not be resolved from the command"
     # A relative target is relative to where the command will RUN, not to where
-    # the hook runs. Resolve it against a leading `cd`/`pushd` when the command
-    # carries one — the common shape is `cd <abs> && git worktree remove
-    # <relative>`, and reading the relative path against the hook's own cwd
-    # would look at the wrong directory (or at nothing) and decide from that.
-    # A `cd` we cannot resolve leaves the target unresolvable, hence fail-closed.
-    _wt_base=""
-    _wt_cd=$(printf '%s' "$PADDED" | grep -oE '(^|[;&|(])[[:space:]]*(cd|pushd)[[:space:]]+[^;&|]+' | tail -1 || true)
-    if [ -n "$_wt_cd" ]; then
-      set -f
-      # shellcheck disable=SC2086
-      for _wt_tok in ${_wt_cd}; do
-        case "$_wt_tok" in cd|pushd|*/cd|*/pushd|-*|+*|';'|'&&'|'||') continue ;; esac
-        _wt_tok="${_wt_tok#\"}"; _wt_tok="${_wt_tok%\"}"
-        _wt_tok="${_wt_tok#\'}"; _wt_tok="${_wt_tok%\'}"
-        _wt_base="$_wt_tok"; break
-      done
-      set +f
-    fi
-    # _wt_anchored=1 means the resolved path is the one the command will act on,
-    # so "not found" genuinely means "nothing there". Without an anchor a
+    # the hook runs. Resolve it against the LAST cd/pushd that precedes THIS
+    # removal (tracked above) — the common shape is `cd <abs> && git worktree
+    # remove <relative>` — never a cd/pushd elsewhere in the command. A `cd` we
+    # cannot resolve, or none at all, leaves the target unresolvable, hence
+    # fail-closed.
+    #
+    # _wt_anchored=1 means the resolved path is the one the command will act
+    # on, so "not found" genuinely means "nothing there". Without an anchor a
     # missing directory only means it is missing from HERE.
     _wt_anchored=0
     case "$_wt_target" in
       /*) _wt_anchored=1 ;;                      # absolute — use as given
       *)
-        case "$_wt_base" in
-          '')  : ;;                              # no cd — hook cwd is a guess
-          /*)  _wt_target="${_wt_base%/}/$_wt_target"; _wt_anchored=1 ;;
+        case "$_wt_last_cd" in
+          '')  : ;;                              # no preceding cd — cannot anchor
+          /*)  _wt_target="${_wt_last_cd%/}/$_wt_target"; _wt_anchored=1 ;;
           *)   _wt_target='?unresolvable' ;;     # cd to a relative/variable dir
         esac ;;
     esac
@@ -1405,7 +1687,7 @@ $_wt_at_risk"
       block "worktree-remove-with-state" "git worktree remove destroys the gitignored .geniro/ in the worktree, and $_wt_detail.
 Route the state first — copy what is worth keeping to the primary worktree (_shared/primary-worktree.md), or delete it — then re-run the removal; this guard re-checks and lets a clean worktree through."
     fi
-  fi
+  done <<< "$(printf '%s\n' "$PADDED" | sed -E 's/(&&|\|\||[;&|()])/\n/g')"
 fi
 
 # 5. git add -f / --force on .geniro/ paths. Force-adding ignored files makes them
@@ -1430,7 +1712,12 @@ if ! is_allowed "git-add-force-geniro"; then
   ADD_SPANS=$(printf '%s' "$PADDED" | grep -oiE 'git[[:space:]]+(add|update-index)[[:space:]]+[^|;&]*' || true)
   while IFS= read -r ADD_SPAN; do
     [ -z "$ADD_SPAN" ] && continue
-    if grep -qE '(^|[[:space:]])(-[a-zA-Z]*f[a-zA-Z]*|--force)([[:space:]]|$)' <<< "$ADD_SPAN"; then
+    # `--force` is the only git-add/update-index long option starting with
+    # `f`, so getopt's unambiguous-prefix rule (2026-09-23 audit T0-5) accepts
+    # ANY non-empty prefix of it (`--f`, `--fo`, `--for`, `--forc`) as the same
+    # flag: `git add --forc .geniro/x` force-adds exactly like `--force` does,
+    # and the exact-spelling matcher let it straight through.
+    if grep -qE '(^|[[:space:]])(-[a-zA-Z]*f[a-zA-Z]*|--f(o(r(c(e)?)?)?)?)([[:space:]]|$)' <<< "$ADD_SPAN"; then
       # -i: fold `.geniro`/`.GENIRO` (T0-2).
       if grep -qiE '(/|[[:space:]"'"'"'])\.geniro(/|[[:space:]"'"'"';|&])' <<< "$ADD_SPAN"; then
         block "git-add-force-geniro" "git add -f (or the git update-index --add --force plumbing equivalent) on .geniro/ paths makes ignored files appear in the IDE's Source Control panel — one click of 'Discard All Changes' then deletes them. To track .geniro/ subdirs, negate them in .gitignore instead (e.g. \`!.geniro/actions/\` and \`!.geniro/actions/**\`)."

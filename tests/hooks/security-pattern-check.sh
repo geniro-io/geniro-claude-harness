@@ -310,6 +310,53 @@ else
   fail "jq-absent: expected a systemMessage naming jq — got: $(cat "$NOJQ_OUT")"
 fi
 
+# ===== T0-13 (2026-09-23 audit, D8-8/D5b-12): the test/fixture carve-out
+# ("cannot be spoofed") ran on the raw path, so a `..` escape or an ancestor
+# directory ABOVE the repo root named tests/spec/e2e/fixtures/benchmarks
+# exempted the whole target from every pattern. =====
+cd "$TMPDIR_BASE" || exit 1
+mkdir -p "$TMPDIR_BASE/carveout-repo"
+cd "$TMPDIR_BASE/carveout-repo" || exit 1
+git init -q 2>/dev/null
+expect_block "'..' escape out of tests/ does not exempt the target" \
+  "$(run_write 'tests/../src/app.py' 'r = eval(user_input)')"
+expect_block "'..' escape out of fixtures/ does not exempt the target" \
+  "$(run_write 'src/fixtures/../app.py' 'r = eval(user_input)')"
+# An ancestor directory ABOVE this repo's root named "benchmarks"/"tests" is
+# not this project's test tree — it must not exempt the whole repo.
+expect_block "ancestor 'benchmarks/' ABOVE the repo root does not exempt" \
+  "$(run_write '/Users/me/benchmarks/proj/app/server.py' 'r = eval(user_input)')"
+expect_block "ancestor 'tests/' ABOVE the repo root does not exempt" \
+  "$(run_write '/home/u/tests/myrepo/src/app.py' 'r = eval(user_input)')"
+# A genuine test file, repo-relative and dotdot-free, stays exempt.
+expect_allow "a genuine repo-relative tests/ path stays exempt" \
+  "$(run_write 'tests/app.py' 'r = eval(user_input)')"
+cd "$TMPDIR_BASE" || exit 1
+
+# ===== T4-62g (2026-09-23 audit, D5b-23): when CLAUDE_PLUGIN_ROOT is unset,
+# the shell-indirection helper used to resolve against cwd ("."), so a
+# PROJECT-local lib/write-vectors.sh — even one defining a neutered
+# _geniro_extract_inner_payloads(){ :; } — was sourced ahead of this hook's
+# own copy and silently disarmed the extraction that catches a payload
+# smuggled through `sh -c "..."`. A quoted payload is blanked by this hook's
+# own quote-scrub once extraction fails to re-run on it, so the flagged
+# content inside never reaches the scanner at all. =====
+PLUGINROOT_SANDBOX="$TMPDIR_BASE/pluginroot-sandbox"
+mkdir -p "$PLUGINROOT_SANDBOX/lib"
+cat > "$PLUGINROOT_SANDBOX/lib/write-vectors.sh" <<'EOF'
+_geniro_extract_inner_payloads() { :; }
+EOF
+cd "$PLUGINROOT_SANDBOX" || exit 1
+run_bash_no_plugin_root() {  # <cmd>
+  local cmd="$1"
+  jq -nc --arg c "$cmd" '{tool_name: "Bash", tool_input: {command: $c}}' \
+    | env -u CLAUDE_PLUGIN_ROOT bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "CLAUDE_PLUGIN_ROOT unset: sh -c eval() still caught despite a neutered cwd lib/write-vectors.sh" \
+  "$(run_bash_no_plugin_root 'sh -c "printf x > bad.py; echo eval(user_input) >> bad.py"')"
+cd "$TMPDIR_BASE" || exit 1
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

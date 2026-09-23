@@ -4,7 +4,6 @@
 
 - **Library:** `lib/validate-state-file.sh`
 - **Schema reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`
-- **Design rationale:** `ARCHITECTURE.md` §State Files
 - **Write helper:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
 
 ---
@@ -110,5 +109,5 @@ The `approvals:` array is checked only for key-presence (caller-side concern to 
 - **No semantic validation.** `producer: foo` is accepted regardless of whether `foo` is a real skill.
 - **No body schema check.** Body is free-form per per-skill conventions; `## Section` headers not enforced.
 - **No auto-repair.** Recovery is always user-driven via AUQ.
-- **No JSONL line validation.** JSONL files (`learnings.jsonl`) use line-by-line validation elsewhere — the JSONL itself has no frontmatter. An optional `<file>.meta.yaml` sidecar convention exists for carrying tier metadata, but no helper currently emits or reads it (canonical shape: `state-tier-spec.md` §T3 append-only); `emit-learning.sh` / `query-learnings.sh` operate directly on the JSONL.
+- **No JSONL line validation.** JSONL files (`learnings.jsonl`) use line-by-line validation elsewhere — the JSONL itself has no frontmatter and no sidecar file (`state-tier-spec.md` §T3 append-only); `emit-learning.sh` / `query-learnings.sh` operate directly on the JSONL.
 

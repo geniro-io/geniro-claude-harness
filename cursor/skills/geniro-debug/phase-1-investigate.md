@@ -52,7 +52,7 @@ A feedback loop is a fast (≤30s, ideally ≤5s), deterministic, captured signa
 - **Captured** — artifact satisfies Evidence Standard kind 1, 3, 4, or 5 (captured command output such as a failing assertion, log line, query result, or user-provided artifact — a run artifact, not the static file:line citation of kind 2). "I see it crash" is not a captured artifact.
 - **Red on the right bug** — exit loop construction only when you can name one command, already run at least once with its invocation and captured output recorded, whose failure IS the symptom the user described — not a nearby failure. The wrong bug yields the wrong fix. Reading code to build a theory before this command exists is the tell: stop and return to loop construction.
 
-If 10 minutes pass without a working feedback loop, do NOT proceed by guessing — `AskQuestion` with header "Repro signal" — paste log / run command / mark intermittent + investigate without loop.
+When repeated loop-construction attempts keep landing on a different failure signature each time, or produce no captured signal at all, do NOT proceed by guessing — `AskQuestion` with header "Repro signal" — paste log / run command / mark intermittent + investigate without loop.
 
 **Minimise.** Once the loop is red on the right bug, shrink the repro to the smallest scenario that still fails: cut inputs, config, data, and steps one at a time, re-running the loop after each cut. Done when every remaining element is load-bearing — removing any one turns the loop green. A minimal repro shrinks the §1.4 hypothesis space and converts into the §2.4 reproduction test with little rework.
 

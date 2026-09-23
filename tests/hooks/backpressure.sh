@@ -108,6 +108,31 @@ else
   fail "pipefail survival (T1-8) — rc=$rc out='$out'"
 fi
 
+# T4-62e: the FAILURE branch's own diagnostic filter pipe (grep -v | grep -v |
+# grep -v | head, :88-91) has the identical pipefail exposure as the T1-8
+# success-branch fix above, but on the failure path instead. A large output
+# (200000 lines, all plain numbers — none match any noise pattern) makes
+# `head -150` truncate and send SIGPIPE upstream; under `pipefail` that
+# reports as a nonzero pipe exit even though `head` itself succeeded. Under a
+# sourcing caller's `set -eo pipefail`, that nonzero would abort the whole
+# shell at the pipe statement — before `return $exit_code` ever runs — so the
+# function's real return value (3, from the wrapped command's own `exit 3`)
+# is lost and replaced by whatever aborted the shell.
+set +e
+out=$(bash -c '
+  set -eo pipefail
+  source "'"$REPO_ROOT"'/hooks/backpressure.sh"
+  run_silent "Big2" "seq 1 200000; exit 3" >/dev/null
+  echo "REACHED-NEXT-LINE"
+' 2>&1)
+rc=$?
+set -e
+if [ "$rc" -eq 3 ] && ! printf '%s' "$out" | grep -q 'REACHED-NEXT-LINE'; then
+  pass "failure branch survives a sourcing caller's set -eo pipefail — run_silent returns 3, not the filter pipe's incidental rc"
+else
+  fail "failure-branch pipefail survival (T4-62e) — rc=$rc out='$out'"
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

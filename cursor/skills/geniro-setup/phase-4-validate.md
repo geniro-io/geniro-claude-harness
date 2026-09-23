@@ -66,12 +66,11 @@ emit_learning <<'EOF'
 "trust": "verified",
 "mode": "init",
 "tags": ["setup", "stack", "bootstrap"],
-"summary": "bootstrap complete: node/npm/jest, ship_mode=open-PR-draft, full reviewer set",
+"summary": "bootstrap complete: node/npm/jest, tracker=linear",
 "ext": {
 "stack": "node/npm",
 "test_runner": "jest",
-"ship_mode_default": "open-pr-draft",
-"reviewer_set": "full",
+"tracker": "linear",
 "claude_md_loc": 45
 }
 }

@@ -31,10 +31,11 @@ You are the audit orchestrator. The target is every AI-assistant instruction fil
 5. **Phase 4 — Report.** Write `.geniro/state/audit-instructions/report-<YYYY-MM-DD>.md` (health summary → tier tables → per-dimension verdicts → highest-value fix) and render every finding in chat.
 6. **Phase 5 — Action gate.** AskUserQuestion: fix now / pick / report only. Approved fixes go to fix agents with disjoint file allowlists, then the mechanical battery re-runs to verify. Cleanup + commit offer.
 
-**Phase bodies — Read on entry to that phase.** Phases 0-3 run from this file. The last two carry their Steps in siblings, and this table is where a resumed run finds them: only a skill's front-loaded prefix survives compaction, so a pointer that lives beside its own phase section is gone exactly when a resume needs it.
+**Phase bodies — Read on entry to that phase.** Phases 0-2 run from this file. Phases 3-5 carry their Steps in siblings, and this table is where a resumed run finds them: only a skill's front-loaded prefix survives compaction, so a pointer that lives beside its own phase section is gone exactly when a resume needs it.
 
 | Phase | Body file |
 |---|---|
+| 3 — Merge, verify, filter | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-3-merge-verify.md` |
 | 4 — Report | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` |
 | 5 — Action gate | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` |
 
@@ -139,12 +140,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 3 — Merge, verify, filter
 
-1. **Merge** all reviewer tables + machine findings, plus the prior report's T0-T2 rows tagged "still open?" — carried so a re-detection miss can't silently close a safety or correctness finding; lower tiers resurface on their own. A carried row has no evidence quote, so step 2 re-reads its location for the issue itself — gone means fixed since. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
-2. **Verify** every non-machine finding: Read the cited `file:line` ±5 lines; the quoted evidence must appear there and the issue description must match what the file actually says. For a secret-exposure finding, confirm the credential shape exists at the location without copying the value anywhere. Quote absent or claim mischaracterizes the source → drop with a one-line note in the report's "Filtered" section.
-3. **Filter**: drop do-not-flag matches; drop any finding whose subject is heading case, tone, or phrasing that merely reads better — there is no cosmetic tier to hold it, per `dimensions-reference.md` §Severity tiers; collapse repeating patterns (e.g., the same stale command cited in six files) into ONE finding listing all locations.
-4. **Calibrate tiers** — reviewers over-rate their own dimension; re-check each T0/T1 against the reference §Severity tiers definitions (T0 requires an actual secret or unsafe directive, T1 an instruction an agent would actually follow into the wrong behavior). Weight by grounding: accuracy, reachability, and staleness findings rest on documented runtime mechanics; bloat and structure findings rest on vendor guidance with mixed measured evidence — when contested, calibrate the latter down, not up.
-5. **Cold-verify the critical tiers.** Every finding still T0 or T1 after calibration gets one independent verdict from a `finding-verifier-agent` spawn (ladder per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, OMIT `model=`); same-file findings cluster into one spawn. Input contract, cluster shape, and anti-sycophancy guards per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 / §4 / §6, treating the audit finding as the finding. For a secret-exposure finding the verifier reads the cited file itself and reports shape only — invariant S1 binds its verdict text too. Refuted → move to Filtered with the verdict reason; clarified → amend the row; skip the step when no T0/T1 survives. Step 2 catches fabricated citations; this step catches real quotes carrying wrong conclusions, on the two tiers a false positive costs most.
-6. Checkpoint: counts per tier, filtered count, verifier verdicts.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-3-merge-verify.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the merge, verify, filter, tier-calibration, and cold-verify steps. Read it again on any resumption of the phase, including after a compaction. Phase complete when every kept finding carries a verified evidence quote and a tier, and every finding still T0/T1 after calibration carries a cold-verify verdict.
 
 ## PHASE 4 — Report
 
@@ -175,7 +171,7 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` — surface inventory, dimension rubrics, severity tiers, output contract, do-not-flag list, spawn template, fix-round execution
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-4-report.md` / `phase-5-action-gate.md` — the Phase 4 and Phase 5 steps, read on phase entry
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-3-merge-verify.md` / `phase-4-report.md` / `phase-5-action-gate.md` — the Phase 3, Phase 4 and Phase 5 steps, read on phase entry
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-write helper API and exit codes

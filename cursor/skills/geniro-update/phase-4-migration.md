@@ -17,9 +17,9 @@ exit 0
 fi
 ```
 
-When MIGRATION.md is absent, there are no breaking changes to walk — skip the rest of Phase 4 and go straight to the Done — Final report below.
+When MIGRATION.md is absent, there are no breaking changes to walk — skip the rest of Phase 4 and go straight to Phase Done (`${CLAUDE_PLUGIN_ROOT}/skills/update/done-final-report.md`).
 
-Otherwise walk `$MIGRATION_FILE` — the copy just installed — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md`, Read before the walk starts and echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: the spine names the `N/A` guard but carries none of its mechanics, and the guard is what keeps an `Auto-detect:` value out of `bash -c`. The same applies to the `PRIMARY_ROOT` Mode A resolver this phase depends on — an unresolved `PRIMARY_ROOT` makes the tamper snapshot come back empty, which this skill then reports as "snapshot missing or empty", indistinguishable from a repo that never had user content: it parses the entries, runs each `Auto-detect:` behind its `N/A` guard, and classifies each entry as applicable or not. Log each not-affected entry as `skipped (not affected): <change-name>` and continue. This section owns the apply policy — what happens to an entry the helper classified as applicable.
+Otherwise walk `$MIGRATION_FILE` — the copy just installed — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md`, Read before the walk starts and echoed per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: the spine names the `N/A` guard but carries none of its mechanics, and the guard is what keeps an `Auto-detect:` value out of `bash -c`: it parses the entries, runs each `Auto-detect:` behind its `N/A` guard, and classifies each entry as applicable or not. Separately: an unresolved `PRIMARY_ROOT` — the Mode A resolver this phase also depends on — makes the tamper snapshot come back empty, which this skill then reports as "snapshot missing or empty", indistinguishable from a repo that never had user content. Log each not-affected entry as `skipped (not affected): <change-name>` and continue. This section owns the apply policy — what happens to an entry the helper classified as applicable.
 
 For each applicable entry: **live-task guard, then AUQ.**
 

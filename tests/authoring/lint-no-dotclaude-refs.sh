@@ -44,6 +44,20 @@ _dotclaude_refs() {
   grep -rnoE '\.claude/(skills|rules)/[A-Za-z0-9._/-]+\.(md|json|sh)' "$@" 2>/dev/null
 }
 
+# C4 (plugin-audit 2026-09-23, fix-plan §O / T2-4) — the DIRECTORY-form sibling
+# of the check above: `.claude/skills/<name>/` or `.claude/rules/<name>/` named
+# without a trailing filename (`skills/_shared/gate-rendering.md` names "this
+# repo's own `.claude/skills/find-threads/` tooling"). The file-form check's
+# `\.(md|json|sh)` requirement never reaches this shape, so it shipped
+# unnoticed. Same existence bar as above — `[ -d "$tok" ]`, not shape — so the
+# bare `.claude/rules/` / `.claude/skills/` mentions (no name segment; the `+`
+# quantifier below requires at least one character before the closing `/`)
+# and any name that merely LOOKS like this repo's own tree but isn't one stay
+# silent.
+_dotclaude_dir_refs() {
+  grep -rnoE '\.claude/(skills|rules)/[A-Za-z0-9._-]+/' "$@" 2>/dev/null
+}
+
 checked=0
 while IFS=: read -r f l tok; do
   [ -n "${tok:-}" ] || continue
@@ -53,8 +67,18 @@ while IFS=: read -r f l tok; do
   fi
 done < <(_dotclaude_refs skills agents)
 
+dir_checked=0
+while IFS=: read -r f l tok; do
+  [ -n "${tok:-}" ] || continue
+  dir_checked=$((dir_checked + 1))
+  tok="${tok%/}"
+  if [ -d "$tok" ]; then
+    report_fail "$f:$l cites $tok/ — that directory exists only in this repo's own dev tree, absent from every consumer install"
+  fi
+done < <(_dotclaude_dir_refs skills agents)
+
 if [ "$FAILS" -eq 0 ]; then
-  echo "OK: no shipped skills/** or agents/* file cites a real .claude/skills/ or .claude/rules/ path ($checked candidate reference(s) checked)"
+  echo "OK: no shipped skills/** or agents/* file cites a real .claude/skills/ or .claude/rules/ path ($checked file reference(s), $dir_checked directory reference(s) checked)"
 fi
 
 # --- self-test: red on a seeded existing-path citation, silent on the two ----
@@ -99,6 +123,38 @@ if [ "$n_clean" -eq 0 ]; then
   echo "OK: self-test — an illustrative example path and a glob do not false-positive"
 else
   report_fail "self-test — the illustrative-example / glob fixture false-positived ($n_clean hit(s))"
+fi
+
+# --- self-test (directory form, C4): red on a real subdirectory named bare, --
+# silent on a bare directory mention with no name segment --------------------
+cat > "$SELFTEST_DIR/skills/_shared/dir-violation.md" <<'EOF'
+This repo's own `.claude/skills/probe-only/` tooling does the thing.
+EOF
+cat > "$SELFTEST_DIR/skills/_shared/dir-clean.md" <<'EOF'
+Route a new rule to your project's `.claude/rules/` directory.
+This repo's own `.claude/skills/` maintenance skills apply the same logic.
+EOF
+
+n_dir_violation=$(cd "$SELFTEST_DIR" && _dotclaude_dir_refs skills | while IFS=: read -r f l tok; do
+  [ -n "${tok:-}" ] || continue
+  tok="${tok%/}"
+  [ -d "$tok" ] && echo hit
+done | grep -c . || true)
+if [ "$n_dir_violation" -ge 1 ]; then
+  echo "OK: self-test — a directory-form citation of a real .claude/skills/<name>/ path is detected"
+else
+  report_fail "self-test — seeded directory-form violation was NOT detected"
+fi
+
+n_dir_clean=$(cd "$SELFTEST_DIR" && _dotclaude_dir_refs skills | while IFS=: read -r f l tok; do
+  [ -n "${tok:-}" ] || continue
+  tok="${tok%/}"
+  case "$f" in (*dir-clean.md) [ -d "$tok" ] && echo hit ;; esac
+done | grep -c . || true)
+if [ "$n_dir_clean" -eq 0 ]; then
+  echo "OK: self-test — bare '.claude/rules/' and '.claude/skills/' mentions with no name segment do not false-positive"
+else
+  report_fail "self-test — the bare-directory-mention fixture false-positived ($n_dir_clean hit(s))"
 fi
 
 echo

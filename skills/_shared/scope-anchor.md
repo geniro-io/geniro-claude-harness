@@ -1,6 +1,6 @@
 # Scope anchor
 
-Canonical rule for what a skill operates on when the user does not explicitly name a target. Referenced from `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement`, `/geniro:onboard`, and `/geniro:investigate`. Define the rule here once; do not paste it into the calling skills.
+Canonical rule for what a skill operates on when the user does not explicitly name a target. Referenced from `/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement`, `/geniro:plan`, and `/geniro:investigate`. Define the rule here once; do not paste it into the calling skills.
 
 ## Contents
 

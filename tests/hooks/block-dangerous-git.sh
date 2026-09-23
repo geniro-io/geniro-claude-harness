@@ -277,6 +277,35 @@ expect_block "reset \$'--hard' (ANSI-C quote) blocked"  "$(run_cmd "git reset \$
 expect_block "clean \$'-fd' (ANSI-C quote) blocked"     "$(run_cmd "git clean \$'-fd'")"
 expect_block "\$'filter-branch' (ANSI-C quote) blocked" "$(run_cmd "git \$'filter-branch' --tree-filter true HEAD")"
 
+# ===== T1-3 (2026-09-23 audit, D5b-20/D8-11): stash-drop and
+# worktree-remove-force are two live hard-block rules with no test anywhere
+# for either the block or the allow path. =====
+expect_block "stash clear blocked"              "$(run_cmd 'git stash clear')"
+expect_block "stash drop blocked"                "$(run_cmd 'git stash drop')"
+expect_block "stash drop (named entry) blocked"  "$(run_cmd 'git stash drop stash@{2}')"
+expect_allow "stash pop allowed"                 "$(run_cmd 'git stash pop')"
+expect_allow "stash push allowed"                "$(run_cmd 'git stash push -m wip')"
+expect_allow "stash list allowed"                "$(run_cmd 'git stash list')"
+
+expect_block "worktree remove -f blocked"        "$(run_cmd 'git worktree remove -f /tmp/wt')"
+expect_block "worktree remove --force blocked"   "$(run_cmd 'git worktree remove --force /tmp/wt')"
+expect_allow "worktree remove (no force) allowed" "$(run_cmd 'git worktree remove /tmp/wt')"
+expect_allow "worktree add allowed"              "$(run_cmd 'git worktree add /tmp/wt2 feature')"
+
+# Per-project bypass, each pattern's own ID.
+mkdir -p "$TMPDIR_BASE/bypass-stash/.geniro"
+printf '%s\n' '{"allow_patterns":["stash-drop"]}' > "$TMPDIR_BASE/bypass-stash/.geniro/safety.json"
+cd "$TMPDIR_BASE/bypass-stash" || exit 1
+expect_allow "stash drop allowed via stash-drop bypass" "$(run_cmd 'git stash drop')"
+cd "$TMPDIR_BASE" || exit 1
+
+mkdir -p "$TMPDIR_BASE/bypass-wtrf/.geniro"
+printf '%s\n' '{"allow_patterns":["worktree-remove-force"]}' > "$TMPDIR_BASE/bypass-wtrf/.geniro/safety.json"
+cd "$TMPDIR_BASE/bypass-wtrf" || exit 1
+expect_allow "worktree remove --force allowed via worktree-remove-force bypass" \
+  "$(run_cmd 'git worktree remove --force /tmp/wt')"
+cd "$TMPDIR_BASE" || exit 1
+
 # ===== T0-3 / T4-6: newline must not mask a destructive sibling =====
 # Newlines used to be collapsed to spaces before span extraction, so a whole
 # multi-line script became ONE span and a leading dry-run flag masked the
@@ -317,6 +346,88 @@ expect_allow "trailing-comment force-push allowed" \
 # A real, unquoted, uncommented destructive command still blocks.
 expect_block "real force-push still blocks after comment-strip" \
   "$(run_cmd 'git push --force')"
+
+# ===== T0-4 (2026-09-23 audit, D5b-8/D8-4): the global-option strip matched a
+# literal lowercase `git` only, so an uppercase/mixed-case command word with a
+# global option between it and the subcommand kept them non-adjacent and no
+# subcommand matcher ever saw them together — even though the 2026-08-23 fix
+# already case-folded the subcommand matchers themselves. =====
+expect_block "GIT -C . push --force blocked (mixed-case + global option)" \
+  "$(run_cmd 'GIT -C . push --force origin main')"
+expect_block "Git --no-pager reset --hard blocked (mixed-case + global option)" \
+  "$(run_cmd 'Git --no-pager reset --hard HEAD~3')"
+expect_block "Git -c k=v reset --hard blocked (mixed-case + global option)" \
+  "$(run_cmd 'Git -c core.x=y reset --hard')"
+
+# ===== T0-5 (2026-09-23 audit, D5b-7): git (parse-options) accepts any
+# unambiguous prefix of a long option; every matcher above spells the option
+# in full, so an abbreviated spelling walked past all of them. =====
+expect_block "reset --har (abbreviated --hard) blocked"        "$(run_cmd 'git reset --har HEAD~1')"
+expect_block "push --forc (abbreviated --force) blocked"       "$(run_cmd 'git push --forc')"
+expect_block "push --force-w (abbreviated --force-with-lease) blocked" \
+  "$(run_cmd 'git push --force-w origin main')"
+expect_block "push --mirr (abbreviated --mirror) blocked"      "$(run_cmd 'git push --mirr origin')"
+expect_block "push --del (abbreviated --delete) blocked"       "$(run_cmd 'git push --del origin feature')"
+expect_block "branch --delete --forc (abbreviated --force) blocked" \
+  "$(run_cmd 'git branch --delete --forc x')"
+expect_block "clean --forc (abbreviated --force) blocked"      "$(run_cmd 'git clean --forc -d')"
+expect_block "checkout --forc (abbreviated --force) blocked"   "$(run_cmd 'git checkout --forc main')"
+# A longer real option sharing the same stem must stay untouched — the
+# expansion is bounded to the exact abbreviations above, not every token that
+# starts with "forc"/"force".
+expect_allow "push --force-if-includes (distinct real option) allowed" \
+  "$(run_cmd 'git push --force-if-includes origin main')"
+
+# ===== T0-6 (2026-09-23 audit, D5b-11): the heredoc scrub treated ANY
+# unquoted `<<` as a heredoc opener, including an arithmetic left-shift
+# (`$((1<<X))`, `((1<<X))`, a `let` operand) and a `<<` mentioned after a
+# word-initial `#` comment — dropping the following lines from the scrubbed
+# text bash still executes, hiding a real destructive command between the
+# fake opener and a line matching its "terminator". =====
+expect_block "arithmetic \$((1<<X)) does not hide a force-push on the next line" \
+  "$(run_cmd $'echo $((1<<X))\ngit push --force origin main\nX')"
+expect_block "arithmetic ((1<<X)) does not hide a force-push on the next line" \
+  "$(run_cmd $'((1<<X))\ngit push --force origin main\nX')"
+# The heredoc-opener regex requires the tag to START with a letter/underscore,
+# so a purely numeric shift amount (`1<<3`) never LOOKED like a heredoc tag to
+# begin with, on either version of the scrubber — `1<<Y` (a variable shift, an
+# equally ordinary `let` expression) is the faithful repro: "Y" IS a valid tag
+# shape, so without the fix it opens a fake heredoc that swallows the real
+# command up to the matching "Y" terminator line.
+expect_block "let X=1<<Y does not hide a force-push on the next line" \
+  "$(run_cmd $'let X=1<<Y\ngit push --force origin main\nY')"
+# A terminator line is required to make this a faithful repro too: without
+# one, even the unfixed scrubber's own end-of-input recovery (it flushes a
+# never-terminated heredoc's buffered lines at EOF) happens to print the
+# swallowed command back out, so the bug needs an actual matching "EOF" line
+# to manifest.
+expect_block "a <<EOF mentioned in a comment does not hide a force-push" \
+  "$(run_cmd $'echo hi # <<EOF is not a real heredoc\ngit push --force origin main\nEOF')"
+# A REAL heredoc body is still data, not a command — this must stay allowed.
+expect_allow "a genuine heredoc body mentioning force-push still allowed" \
+  "$(run_cmd $'cat <<EOF\ngit push --force origin main\nEOF')"
+
+# ===== T4-62g (2026-09-23 audit, D5b-23): when CLAUDE_PLUGIN_ROOT is unset,
+# the shell-indirection helper used to resolve against cwd ("."), so a
+# PROJECT-local lib/write-vectors.sh — even one defining a neutered
+# _geniro_extract_inner_payloads(){ :; } — was sourced ahead of this guard's
+# own copy and silently disarmed the `sh -c "<payload>"` re-scan: the outer
+# command's own quote-blanking pass erases the quoted payload as prose before
+# the destructive-git matchers ever see it, so extraction is the ONLY thing
+# that can still catch it. =====
+PLUGINROOT_SANDBOX="$TMPDIR_BASE/pluginroot-sandbox"
+mkdir -p "$PLUGINROOT_SANDBOX/lib"
+cat > "$PLUGINROOT_SANDBOX/lib/write-vectors.sh" <<'EOF'
+_geniro_extract_inner_payloads() { :; }
+EOF
+cd "$PLUGINROOT_SANDBOX" || exit 1
+run_cmd_no_plugin_root() {
+  jq -nc --arg c "$1" '{tool_input: {command: $c}}' | env -u CLAUDE_PLUGIN_ROOT bash "$HOOK" >/dev/null 2>&1
+  echo $?
+}
+expect_block "CLAUDE_PLUGIN_ROOT unset: sh -c force-push still caught despite a neutered cwd lib/write-vectors.sh" \
+  "$(run_cmd_no_plugin_root 'sh -c "git push --force origin main"')"
+cd "$TMPDIR_BASE" || exit 1
 
 echo
 echo "Tests run:    $TESTS_RUN"

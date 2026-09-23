@@ -56,10 +56,10 @@ When Step 0 found a `## Memory Backend` block for `learnings`, retrieve via the 
 
 ```bash
 source "<LIB_ROOT>/query-learnings.sh"
-query_learnings --tag <tag> --limit 5
+query_learnings --tag <tag> --score-min 0 --limit 5
 ```
 
-Aggregate the union of results. Keep the top 5 across all tags by composite score (recency × trust × access-count × recurrence — the helper returns this score per row). De-duplicate by `dedup_key` field. Drop entries with `trust: inferred` unless no higher-trust match exists. Drop entries marked `deprecated: true`.
+`--score-min 0` ranks by the helper's own score (recency × trust × access-count × recurrence) and returns the top 5 for that tag, highest-ranked first. Aggregate the union across tags, keeping the highest-ranked entries first when merging down to 5 overall. De-duplicate by `dedup_key` field. Drop entries with `trust: inferred` unless no higher-trust match exists. Drop entries marked `deprecated: true`.
 
 ### Step 2 — Project snapshots
 

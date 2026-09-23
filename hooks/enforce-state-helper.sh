@@ -40,6 +40,30 @@ set -euo pipefail
 # Consume stdin — REQUIRED first step for Claude Code hooks.
 INPUT=$(cat)
 
+# A `..` segment defeats every matcher below that looks for a `.geniro`-tier
+# prefix, because `_geniro_normalize_path` deliberately never resolves `..`
+# (see its own comment further down): `.geniro/x/../safety.json` case-folds
+# and slash-collapses to itself, still reading "x/../" between `.geniro/` and
+# `safety.json`, so neither is_safety_json_path nor matches_state_path — nor
+# this file's own jq-less raw-text scan below — ever see the two adjacent
+# (2026-09-23 audit T0-2/D5b-1/D8-3). That let a single Write reach
+# .geniro/safety.json itself, the file every other guard's allowlist is read
+# from. Checked as a single text-shape test (case-folded, "contains .geniro"
+# AND "contains a .. segment") rather than by resolving the path, mirroring
+# check_delete_arg's `*/../*` rejection in block-geniro-deletion.sh.
+_geniro_has_dotdot_escape() {
+  local s
+  s="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$s" in
+    *.geniro*)
+      case "/$s/" in
+        */../*) return 0 ;;
+      esac
+      ;;
+  esac
+  return 1
+}
+
 HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
 
@@ -76,7 +100,8 @@ if [ -z "$TOOL_NAME" ] && [ -z "$FILE_PATH" ]; then
   # -i: `.GENIRO`/`.Geniro` name the same inode as `.geniro` (T0-1's own
   # class) — this coarse scan runs precisely when structured parsing already
   # failed, so it must not ALSO miss a canonical path over case alone.
-  if grep -qiE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json|(^|/|[[:space:]])\.geniro/safety\.json' <<< "$RAW_TARGETS"; then
+  if grep -qiE '(^|/|[[:space:]])\.geniro/(state|planning|knowledge|instructions|actions|workflow)/|(^|/|[[:space:]])\.geniro/\.geniro-state\.json|(^|/|[[:space:]])\.geniro/safety\.json' <<< "$RAW_TARGETS" \
+     || _geniro_has_dotdot_escape "$RAW_TARGETS"; then
     if [ "$HAVE_JQ" = "1" ]; then
       echo "State-helper [enforce-state-helper] blocked [jqless-fallback]: the tool input names a canonical .geniro/ state path but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
     else
@@ -126,9 +151,10 @@ if [ -n "$SAFETY_FILE" ] && [ -f "$SAFETY_FILE" ]; then
   ALLOWED=$(jq -r '.allow_patterns[]? | select(type == "string" and (test("[[:space:]]") | not))' "$SAFETY_FILE" 2>/dev/null | tr '\n' ' ' || echo "")
 fi
 
-# The broad "enforce-state-helper" grant is applied per-branch, AFTER
-# check_safety_json_write has had a chance to run on the actual write
-# target(s) — see the Edit/Write and Bash branches below. It must NOT exit
+# The broad "enforce-state-helper" grant is applied AFTER check_safety_json_write
+# has had a chance to run on the actual write target — see the Edit/Write
+# branch below (this guard's only branch; the Bash branch was removed
+# 2026-08-13). It must NOT exit
 # here, before that path-specific check: .geniro/safety.json disables every
 # guard by pattern ID, so a write to IT stays gated on its own,
 # separately-grantable "safety-json-edit" pattern even when the broad grant is
@@ -142,8 +168,10 @@ fi
 # gate of its own rather than riding on matches_state_path's generic T1-T3
 # coverage (safety.json sits at .geniro/ top level, outside every guarded
 # prefix). Kept as a SEPARATE pattern ID from "enforce-state-helper" on
-# purpose: by the time this runs, the broad bypass above has already exited
-# if granted, so this is the narrower, independently-grantable route.
+# purpose: this check runs BEFORE the broad "enforce-state-helper" grant is
+# consulted (see the Edit/Write branch below), so holding that broad grant
+# alone can never skip it — the narrower, independently-grantable route is
+# the only way past this specific gate.
 # Legitimate user edits stay possible — allow_patterns is read from the
 # file's CURRENT content before this check runs, so a human adds
 # "safety-json-edit" to it directly (outside the agent, or after explicit
@@ -341,6 +369,23 @@ $prefix:     atomic_state_append_list_item \"$path\" approvals \"<entry>\"      
 # FILE_PATH was already extracted above (needed there for the malformed-payload check).
 if [ -z "$FILE_PATH" ]; then
   exit 0
+fi
+
+# Reject a `..`-bearing .geniro path BEFORE either matcher below gets a look —
+# see _geniro_has_dotdot_escape's own comment near the top of this file. Gated
+# on the narrower "safety-json-edit" ID, not the broad "enforce-state-helper"
+# one: a path this guard cannot safely classify (it might resolve to
+# .geniro/safety.json) is treated as though it named the single most
+# sensitive target it could resolve to, so holding only the broad grant does
+# not clear it.
+if _geniro_has_dotdot_escape "$FILE_PATH"; then
+  case " $ALLOWED " in
+    *" safety-json-edit "*) : ;;
+    *)
+      echo "State-helper [safety-json-edit] blocked: $FILE_PATH contains an unresolved '..' segment alongside .geniro/ — this guard does not resolve '..', so it cannot confirm the path is not .geniro/safety.json (the file every other guard reads its bypass list from). Rewrite the path without '..', or add \"safety-json-edit\" to allow_patterns in .geniro/safety.json." >&2
+      exit 2
+      ;;
+  esac
 fi
 
 check_safety_json_write "$FILE_PATH"

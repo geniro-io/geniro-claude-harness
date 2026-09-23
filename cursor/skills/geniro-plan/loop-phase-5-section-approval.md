@@ -8,7 +8,7 @@ State.md `phase: section-approve` during this phase.
 
 ## Contents
 
-- 5.1 Section template — the eleven sections and their order
+- 5.1 Section template — the required sections and their order
 - 5.2 Cluster approval — message-first render, one decision per cluster, per-section persistence, tier-scaling
 - 5.3 Milestone-mode
 

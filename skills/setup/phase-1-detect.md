@@ -78,7 +78,7 @@ skill_inventory:
 - {slug: implement, purpose: "Spec-driven implementation"}
 - {slug: plan, purpose: "Spec-first planning"}
 - {slug: review, purpose: "Multi-dim code review"}
-- {slug: resolve, purpose: "PR-feedback triage → fix plan"}
+- {slug: resolve, purpose: "Fixes and closes PR review feedback"}
 - {slug: debug, purpose: "Scientific-method investigation"}
 - {slug: refactor, purpose: "Zero-behavior-change restructuring"}
 - {slug: onboard, purpose: "Codebase mapping"}

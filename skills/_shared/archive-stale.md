@@ -5,7 +5,7 @@
 ## API
 
 ```bash
-source lib/archive-stale.sh
+source "${CLAUDE_PLUGIN_ROOT}/lib/archive-stale.sh"
 archive_stale_learnings [--dry-run]
 ```
 
@@ -28,12 +28,12 @@ An entry becomes a stale candidate iff:
 
 1. **Score below the staleness floor** — using the same scoring formula as `query-learnings --score-min` (canonical definition in query-learnings.md §Score formula).
 2. **Age past the staleness horizon** — measured from the entry's `ts` field.
-3. **access_count == 0** — entry has never been returned by a query that called `record_access`.
+3. **access_count == 0** — entry has never been returned by a query that called `record_access`. No shipped caller invokes `record_access` today — only `tests/memory/query-learnings.sh` exercises it directly — so every entry's `access_count` stays 0 in practice, and this criterion currently passes unconditionally rather than protecting frequently-accessed entries. The function itself is unchanged and ready for a real caller; wiring one is a separate, unshipped step.
 4. **not already deprecated** — `(.deprecated // false) == false`. Already-deprecated entries are skipped so re-runs report 0 candidates (idempotency).
 
 The floor and the horizon are literals in `lib/archive-stale.sh`'s jq filter, stated there with the reasoning behind each; the helper echoes both in its own output (below), so read the numbers from the run rather than from this page.
 
-The four-way AND ensures conservative bias — high-trust recent or frequently-accessed entries are protected even if individually old.
+The four-way AND is conservative by design — high-trust or recent entries are protected even if individually old — but the access axis (#3) is currently inert per the caveat above; the working protection today is recency + trust, not access frequency.
 
 ## Output
 
@@ -83,7 +83,7 @@ archive-stale: 0 stale candidates (no entries match <score / age / access_count 
 ## Caller conventions
 
 - User runs `./lib/archive-stale.sh --dry-run` first to preview, then real run.
-- SessionStart Block 5e auto-invokes `lib/archive-stale.sh` when `learnings.jsonl` exceeds the line-count threshold (`GENIRO_AUTO_ARCHIVE_THRESHOLD`, default single-sourced in `hooks/session-start-restore.sh`) AND the file hash changed since the last archive AND the mkdir-lock is acquired AND `memory.auto_archive_stale != false` in `.geniro/safety.json`. Hash-gating skips the run when nothing changed; the lock keeps concurrent tabs from doubling the work. Manual `--dry-run` is still the typical preview path.
+- The SessionStart hook's auto-archive step invokes `lib/archive-stale.sh` when `learnings.jsonl` exceeds the line-count threshold (`GENIRO_AUTO_ARCHIVE_THRESHOLD`, default single-sourced in `hooks/session-start-restore.sh`) AND the file hash changed since the last archive AND the mkdir-lock is acquired AND `memory.auto_archive_stale != false` in `.geniro/safety.json`. Hash-gating skips the run when nothing changed; the lock keeps concurrent tabs from doubling the work. Manual `--dry-run` is still the typical preview path.
 - **Manual runs are lock-safe against a SessionStart auto-archive.** A direct `./lib/archive-stale.sh` invocation acquires the same mkdir-lock itself, so if the hook holds it the manual run no-ops with rc=3 (re-run in a moment) rather than racing a mid-write. No lost update. The only unlocked path is a caller that *sources* the helper and calls `archive_stale_learnings()` directly — that caller owns locking itself (the function never auto-locks), which is why the hook sets `GENIRO_ARCHIVE_LOCK_HELD=1` after taking the lock.
 - Compatible with `query-learnings`: queries default to excluding `deprecated: true` entries; if user wants to see archived ones, pass `--include-deprecated`.
 

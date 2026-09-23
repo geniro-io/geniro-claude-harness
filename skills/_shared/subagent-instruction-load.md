@@ -20,7 +20,7 @@ You have Bash, so resolve the path yourself:
 2. Otherwise read `.geniro/instructions/<file>` from the current working directory.
 3. On file-not-found, retry `<PRIMARY_ROOT>/.geniro/instructions/<file>`, where `PRIMARY_ROOT` comes from the Mode A snippet in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — this mirrors the orchestrator's loader fallback so a stale-cwd linked worktree still sees the project's rules.
 
-The orchestrator may have pre-inlined a whole file's content as a labeled slot in your prompt — `PROJECT INSTRUCTIONS:` for `global.md`, `CODE-STYLE INSTRUCTIONS:` for `code-style.md`. A whole-file slot and the on-disk file are the same source (the file is authoritative, the slot is a context-saving copy), so when one is present, skip that file's read.
+The orchestrator may have pre-inlined `code-style.md`'s whole content as a `CODE-STYLE INSTRUCTIONS:` labeled slot in your prompt. A whole-file slot and the on-disk file are the same source (the file is authoritative, the slot is a context-saving copy), so when the slot is present, skip that file's read.
 
 `PROJECT SEARCH POLICY:` is different in kind and does NOT license skipping anything: it carries only the search-governing subset of `global.md`, so the rest of that file — every project-wide rule that is not about searching — has still not reached you. Read `global.md` as normal; the slot tells you which of its rules govern your lookups, not that you have seen it. A slot reading `none declared` is an answer rather than an omission: the project declared no search policy and your default search applies.
 

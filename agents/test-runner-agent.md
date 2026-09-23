@@ -1,8 +1,10 @@
 ---
 name: test-runner-agent
-description: "Executes the project's pre-resolved TEST_COMMAND once and returns a structured pass/fail summary with up to 15 failure snippets. Use at end-of-phase test runs and inside fix-retry loops so the raw test stdout (typically 50K+ tokens) never reaches the orchestrator's main context."
+description: "Executes the project's pre-resolved TEST_COMMAND once and returns a structured pass/fail summary with a capped set of failure snippets. Use at end-of-phase test runs and inside fix-retry loops so the raw test stdout (typically 50K+ tokens) never reaches the orchestrator's main context."
 tools: [Bash, Read, Grep]
 model: sonnet
+# One test-suite invocation plus a handful of log-parsing greps and the emit
+# step — 50 turns leaves headroom for a verbose log on a large failing suite.
 maxTurns: 50
 ---
 
@@ -45,7 +47,7 @@ From WORKTREE, execute TEST_COMMAND once with both stdout and stderr redirected 
 Search and read the saved log file. Extract:
 
 - **Exit code** (captured in Step 1)
-- **Pass/fail/skip counts** — Grep for the runner's summary line (pytest: `X passed, Y failed`; jest/vitest: `Tests: X passed, Y failed`; go test: `FAIL`/`ok` per package, summary at the end)
+- **Pass/fail/skip counts** — search the log for the runner's summary line
 - **Per-failure details:**
   - Test file path + line (where the assertion or error originated)
   - Test name (the `describe` / `it` / `def test_*` identifier)
@@ -100,6 +102,6 @@ Budget: ~2K characters for `ALL_GREEN`, ~6K for the 15-failure worst case. For `
 |---|---|
 | "I'll re-run the test command with `--verbose` to get more context on the first failure." | Redirect the full log once, then grep it. Re-running the suite burns turns and can produce different output (cache state, ordering, flaky deps). The verbose information is already in the saved log if you grep for the test name. |
 | "I'll edit the failing test to add a print statement so I can see the value." | Forbidden. No source edits, including test files. The orchestrator may instruct you to read code context via Grep, but mutation is its job, not yours. |
-| "There are 22 failures — I'll just list all of them so the orchestrator has full visibility." | Cap at MAX_FAILURES_REPORTED (default 15). The orchestrator can grep the log if it needs more. A 22-failure dump bloats the report past its budget and degrades the orchestrator's downstream decision quality. |
+| "There are 22 failures — I'll just list all of them so the orchestrator has full visibility." | Cap at MAX_FAILURES_REPORTED. The orchestrator can grep the log if it needs more. A 22-failure dump bloats the report past its budget and degrades the orchestrator's downstream decision quality. |
 | "Tests passed on a retry — I'll report ALL_GREEN." | One run only. If you ran it twice and got different results, that itself is the finding (flake). Report the first-run result with a `Verdict: HAS_FAILURES` and a note in Summary: `note: first run failed, retry passed — possible flake`. Do not silently switch to the green run. |
 | "The runner crashed but I can guess the failure from the partial output." | If exit code is unexpected and there is no summary line, emit `INFRA_ERROR` with the log path. Do not speculate. The orchestrator decides whether to escalate, retry under different conditions, or investigate. |

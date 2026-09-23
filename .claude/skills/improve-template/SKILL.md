@@ -42,7 +42,7 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 
 ## Subagent model tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`: research and review spawns OMIT `model=` so they inherit the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off on work that decides something; a skill-side hardcode there overrides that choice silently. Execution spawns pin `model="sonnet"` per category 4; the table below maps every spawn in this skill to its tier. For plugin-defined subagents (the agents under `agents/`), also follow the ladder in `skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
+Follow the canonical rule in `skills/_shared/model-tiering.md`: research and review spawns OMIT `model=` so they inherit the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off on work that decides something; a skill-side hardcode there overrides that choice silently. Execution spawns pin `model="sonnet"` per `model-tiering.md`'s execution-spawn category; the table below maps every spawn in this skill to its tier. For plugin-defined subagents (the agents under `agents/`), also follow the ladder in `skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
 
 **Skill-specific mapping:**
 
@@ -50,7 +50,7 @@ Follow the canonical rule in `skills/_shared/model-tiering.md`: research and rev
 |---|---|---|
 | Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | inherit (OMIT `model=`) | Reasoning-grade research runs at the tier the user chose for the session |
 | Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits the orchestrator's context; a spawn would only buy isolation this work doesn't need |
-| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `model="sonnet"` ceiling | Execution spawns per model-tiering.md category 4 — the user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
+| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `model="sonnet"` ceiling | Execution spawns per `model-tiering.md`'s execution-spawn category — the user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
 | Phase 5 review agent | inherit (OMIT `model=`) | Fresh reviewer judges at the same tier that authored the changes |
 | Create-skill Phase A duplicate-check + Phase B author agent | inherit (OMIT `model=`) | Semantic comparison and skill authoring are reasoning-grade — the author agent composes a skill from an interview, it does not transcribe one |
 
@@ -161,7 +161,7 @@ For obvious bug fixes. The user already showed what's broken.
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll implement this multi-file change directly" | Changes touching 3+ files or any logic go through implementation subagents. Orchestrator coordinates, agents edit. |
+| "I'll implement this multi-file change directly" | Anything past a 1-2 line unambiguous fix goes through an implementation subagent (invariant 4); the orchestrator coordinates, agents edit. |
 | "The research is clear enough, skip cross-referencing" | Phase 2 exists because Phase 1 agents have no context about each other's findings. Cross-referencing catches contradictions and duplicates. |
 | "The user will probably approve all, skip presenting" | Phase 3 is a WAIT gate. The user MUST see evidence and approve. No assumptions. |
 | "I'll reuse the implementation agent for review" | Fresh agents avoid anchoring bias. The reviewer must NOT have seen the implementation prompt. |
@@ -231,5 +231,5 @@ Steps: `create-skill-mode.md` (Phases A-D). Read it at the mode-detection branch
 
 ## Description-format validator (Phase 4 Step 3 extension)
 
-Steps: `phase-4-6-implement-review.md` §Description-format validator. The 6 format checks it adds to the Phase 4 validation gate apply to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
+Steps: `phase-4-6-implement-review.md` §Description-format validator. The format checks it adds to the Phase 4 validation gate apply to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
 

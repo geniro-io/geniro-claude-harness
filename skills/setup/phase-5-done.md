@@ -15,7 +15,7 @@ Detected:
 Stack: node/npm + jest tests + ESLint
 Default branch: main (auto-detected)
 
-Cursor: installed 14 skills, 7 subagents, and the safety hooks into ~/.cursor/   (only when §3.7 ran)
+Cursor: installed the Geniro skills, subagents, and safety hooks into ~/.cursor/   (only when §3.7 ran)
 
 Next:
 • Commit: git add CLAUDE.md
@@ -40,9 +40,4 @@ Run §5.3 state file cleanup next regardless of the pick — the Definition of d
 
 ### 5.3 State file cleanup
 
-Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`, then remove the now-empty `state/setup/` directory (ignore the failure when it is not empty) — unless `mode == re-run` AND the user opted for `accept-with-warnings` at round 4, in which case keep the state file instead, with `phase: done` and `## Open Questions` populated as a surface for the next re-run. Outside that one carve-out, this is the **only** Geniro state file deleted on success — the named exception recorded in §State file schema.
-
-### 5.4 Restart-session warning (re-run only, plugin-version delta)
-
-Fires only when `mode == re-run` AND the current `.claude-plugin/plugin.json` version differs from the `plugin_version:` recorded in the prior state file. Init runs write `plugin_version` fresh and never emit this. The warning text and the missing-field case are in `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` §5.4; Read the file here if this phase resumed after a compaction.
-
+Delete `<PRIMARY_ROOT>/.geniro/state/setup/state.md`, then remove the now-empty `state/setup/` directory (ignore the failure when it is not empty) — unless `mode == re-run` AND the user opted for `accept-with-warnings` at round 4, in which case keep the state file instead, with `phase: done` and `## Open Questions` populated as a surface for the next re-run. This is setup's own singleton-lifecycle deletion; the full per-layout lifecycle contract is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1.5.

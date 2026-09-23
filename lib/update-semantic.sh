@@ -168,8 +168,14 @@ update_semantic() {
   # so a stale O_EXCL lock can't wedge all future L3 writes. Bash RETURN traps
   # are NOT function-scoped by default — the trap self-clears (`trap - RETURN`)
   # on first fire so it cannot linger in the caller's shell and clobber a
-  # caller's own RETURN trap.
-  trap 'rm -f "$lock_path"; trap - RETURN' RETURN
+  # caller's own RETURN trap. It also clears INT/TERM (installed just below):
+  # those do NOT self-clear on a normal return, only when the signal itself
+  # fires, so without this a completed call left them installed in the
+  # CALLER's shell — this function is not run in a subshell — armed against
+  # $lock_path/$_us_inflight_tmp values that no longer apply, so the next
+  # Ctrl-C in that shell would run stale cleanup and exit it outright instead
+  # of behaving normally.
+  trap 'rm -f "$lock_path"; trap - INT TERM RETURN' RETURN
 
   # A SIGINT/SIGTERM mid-write would skip the RETURN trap and leave the lock (and
   # any in-flight mktemp) behind. Clean both on interrupt so the next write isn't
@@ -210,17 +216,40 @@ update_semantic() {
         # No file → no-op (replace can't match anything).
         rc=0
       else
-        local tmp rewritten
-        tmp=$(mktemp) || {
+        local tmp awk_rc
+        # Beside the target, not bare `mktemp` (which lands in a system tmp
+        # dir that can be a different filesystem from $planning) — so the
+        # commit below is a same-filesystem rename, not a cross-device
+        # copy+delete that would break the atomicity this helper exists for.
+        tmp="$(_atomic_state_mktemp "$target_path")"
+        if [ -z "$tmp" ]; then
           rm -f "$lock_path"
-          echo "update_semantic: mktemp failed" >&2
+          echo "update_semantic: failed to create tmp beside $target_path" >&2
           return 71
-        }
+        fi
         _us_inflight_tmp="$tmp"
+        # Both values reach awk through the environment, not `-v`: `-v` runs
+        # backslash escape-processing on its operand (the pitfall
+        # atomic-state-write.sh:317-318 documents and avoids), so a prefix or
+        # replacement containing `\t` or `C:\x` would be stored corrupted.
+        #
+        # `awk_rc=0` + `|| awk_rc=$?`, not a bare `awk_rc=$?` on the next
+        # line: this function runs directly in the caller's shell (no
+        # subshell), so an unprotected failing awk under a caller's `set -e`
+        # would abort that shell right here — skipping not just the tmp
+        # cleanup below but also the INT/TERM trap teardown and the final
+        # `rm -f "$lock_path"`, wedging every future L3 write at rc=11 until
+        # the stale-lock TTL expires. The first command of an OR-list is
+        # exempt from triggering errexit.
+        #
         # END exits 3 (not awk's own fatal-error code 2) for a clean no-match,
         # so a genuine awk runtime failure is not mistaken for "nothing matched".
-        rewritten=$(awk -v p="$arg1" -v r="$arg2" '
-          BEGIN { replaced = 0 }
+        awk_rc=0
+        US_REPL_PREFIX="$arg1" US_REPL_NEW="$arg2" awk '
+          BEGIN {
+            p = ENVIRON["US_REPL_PREFIX"]; r = ENVIRON["US_REPL_NEW"]
+            replaced = 0
+          }
           {
             if (!replaced && index($0, p) == 1) {
               print r
@@ -230,42 +259,41 @@ update_semantic() {
             }
           }
           END { exit (replaced ? 0 : 3) }
-        ' "$target_path" > "$tmp"; echo $?)
-        local awk_rc="$rewritten"
+        ' "$target_path" > "$tmp" || awk_rc=$?
         if [ "$awk_rc" -eq 0 ]; then
-          # Commit the rewrite.
+          # Commit the rewrite via the shared, trap-free commit path — it
+          # carries the target's own mode across (mktemp creates $tmp at
+          # 0600, so without this every replace would silently narrow the
+          # file's permissions), fsyncs the file and the directory, then does
+          # the atomic rename.
           #
-          # Deliberate carve-out from atomic_state_write (CLAUDE.md §State
-          # Files): the INT/TERM traps set above (:181-182) are keyed to
-          # THIS function's $lock_path and $_us_inflight_tmp and exit
-          # directly. atomic_state_write installs its own INT/TERM trap on
-          # entry — traps are process-global, not function-scoped — and its
-          # handler also exits directly, which would override ours mid-write
-          # and then clear back to default disposition on return
-          # (the `trap - INT TERM` on each of atomic_state_write's return paths), leaving
-          # $lock_path signal-unprotected for the remainder of this
-          # function. A signal landing in that window orphans the lock for
-          # the reclaim TTL. archive-stale.sh:220-232 and
-          # query-learnings.sh:330-340 carve out of the helper for this
-          # exact collision; this mirrors their shape. $tmp already holds
-          # the finished content (the awk write above), so the commit is a
-          # plain atomic rename — no second tmp file is needed. Only
-          # power-loss durability in the narrow post-rename window is
-          # traded away, same as the two sibling carve-outs.
-          if ! mv -f "$tmp" "$target_path"; then
+          # Deliberate carve-out from the PUBLIC atomic_state_write/-edit/etc
+          # entry points (CLAUDE.md §State Files), not from this shared
+          # PRIVATE commit helper: those install their OWN INT/TERM trap on
+          # entry — traps are process-global, not function-scoped — which
+          # would override the ones set above (:181-182), keyed to THIS
+          # function's $lock_path and $_us_inflight_tmp, and then clear back
+          # to default disposition on return, leaving $lock_path
+          # signal-unprotected for the remainder of this function. A signal
+          # landing in that window orphans the lock for the reclaim TTL.
+          # _atomic_state_commit itself installs no trap, so calling it
+          # directly carries none of that risk. archive-stale.sh:220-232 and
+          # query-learnings.sh:330-340 carve out of the public entry points
+          # for this exact collision; this mirrors their shape.
+          if ! _atomic_state_commit update_semantic "$tmp" "$target_path" "$planning"; then
             rc=71
-            echo "update_semantic: atomic write of replacement failed" >&2
           fi
         elif [ "$awk_rc" -eq 3 ]; then
           # No match — content unchanged. Surface a notice but don't error.
           echo "update_semantic: --replace prefix '$arg1' did not match any line in $target_md (no-op)" >&2
+          rm -f "$tmp"
         else
           # awk itself failed — do NOT commit the (possibly partial) tmp and do
           # NOT mistake the failure for a clean no-match.
           rc=70
           echo "update_semantic: awk failed during replace (rc=$awk_rc)" >&2
+          rm -f "$tmp"
         fi
-        rm -f "$tmp"
       fi
       ;;
   esac

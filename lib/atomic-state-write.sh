@@ -316,6 +316,15 @@ atomic_state_edit() {
 
     # Values reach awk through the environment, not `-v`: `-v` runs escape
     # processing, so an anchor containing a backslash would not match itself.
+    #
+    # `arc=0` + `|| arc=$?` (not a bare `arc=$?` on the next line): a plain
+    # sequential `cmd; arc=$?` is unprotected under a caller's `set -e` — this
+    # function body runs in a subshell that inherits errexit, and a nonzero
+    # awk exit on an unprotected command would abort the subshell right there,
+    # skipping both the `rm -f "$tmp"` cleanup below and this rc's diagnostic.
+    # An OR-list's first command is exempt from triggering errexit, so `||`
+    # lets awk's failure fall through to the handling below instead.
+    arc=0
     ASW_OLD="$old" ASW_NEW="$new" awk '
       BEGIN { RS = "\004"; o = ENVIRON["ASW_OLD"]; n = ENVIRON["ASW_NEW"] }
       {
@@ -338,8 +347,7 @@ atomic_state_edit() {
 
         printf "%s%s%s", substr($0, 1, i - 1), n, rest
       }
-    ' "$target" > "$tmp"
-    arc=$?
+    ' "$target" > "$tmp" || arc=$?
 
     if [ "$arc" -ne 0 ]; then
       rm -f "$tmp"
@@ -419,6 +427,10 @@ atomic_state_set_field() {
       ends_nl=0
     fi
 
+    # `arc=0` + `|| arc=$?`, not a bare `arc=$?` on the next line — see the
+    # comment at atomic_state_edit's awk call for why: this function body also
+    # runs in a subshell that inherits a caller's `set -e`.
+    arc=0
     ASW_FIELD="$field" ASW_VALUE="$value" ASW_ENDS_NL="$ends_nl" awk '
       BEGIN {
         f = ENVIRON["ASW_FIELD"]; v = ENVIRON["ASW_VALUE"]
@@ -442,8 +454,7 @@ atomic_state_set_field() {
         if (fence != 2) { exit 2 }
         if (found != 1) { exit 3 }
       }
-    ' "$target" > "$tmp"
-    arc=$?
+    ' "$target" > "$tmp" || arc=$?
 
     if [ "$arc" -ne 0 ]; then
       rm -f "$tmp"
@@ -518,19 +529,36 @@ atomic_state_append_section() {
       ends_nl=0
     fi
 
+    # `arc=0` + `|| arc=$?`, not a bare `arc=$?` on the next line — see the
+    # comment at atomic_state_edit's awk call for why: this function body also
+    # runs in a subshell that inherits a caller's `set -e`.
+    arc=0
     ASW_HEADING="$heading" ASW_TEXT="$text" ASW_ENDS_NL="$ends_nl" ASW_CREATE="$create" awk '
-      function hlevel(s,   n) { n = 0; while (substr(s, n + 1, 1) == "#") { n++ }; return n }
+      # A line counts as a heading only if it matches ATX heading shape
+      # (1-6 `#` then a space/tab or end of line) — NOT merely "starts with
+      # #": a shebang (`#!/usr/bin/env bash`) or a `#123 merged` changelog
+      # line starts with `#` but has no separating space/tab and must not
+      # count. `fence` (set by the caller loop below) additionally excludes
+      # anything between a ``` pair — a `# TODO` code comment DOES match the
+      # space-separated shape and would otherwise be indistinguishable from a
+      # real level-1 heading.
+      function hlevel(s,   n) {
+        if (fence) { return 0 }
+        if (s !~ /^#{1,6}([ \t]|$)/) { return 0 }
+        n = 0; while (substr(s, n + 1, 1) == "#") { n++ }; return n
+      }
       function out(s) { if (started) { printf "\n" } printf "%s", s; started = 1 }
       function flush_blanks(   i) { for (i = 1; i <= nblank; i++) { out("") } ; nblank = 0 }
       BEGIN {
         h = ENVIRON["ASW_HEADING"]; t = ENVIRON["ASW_TEXT"]
         ends_nl = ENVIRON["ASW_ENDS_NL"]
         create = ENVIRON["ASW_CREATE"]
-        hits = 0; insec = 0; done = 0; nblank = 0; started = 0; lvl = 0
+        hits = 0; insec = 0; done = 0; nblank = 0; started = 0; lvl = 0; fence = 0
       }
       {
         line = $0
-        if (line == h) {
+        if (line ~ /^```/) { fence = !fence }
+        if (!fence && line == h) {
           hits++
           if (hits == 1) { insec = 1; lvl = hlevel(line) }
           flush_blanks(); out(line); next
@@ -554,8 +582,7 @@ atomic_state_append_section() {
         if (hits == 0) { exit 77 }
         if (hits > 1)  { exit 78 }
       }
-    ' "$target" > "$tmp"
-    arc=$?
+    ' "$target" > "$tmp" || arc=$?
 
     if [ "$arc" -ne 0 ]; then
       rm -f "$tmp"
@@ -624,6 +651,10 @@ atomic_state_append_list_item() {
       ends_nl=0
     fi
 
+    # `arc=0` + `|| arc=$?`, not a bare `arc=$?` on the next line — see the
+    # comment at atomic_state_edit's awk call for why: this function body also
+    # runs in a subshell that inherits a caller's `set -e`.
+    arc=0
     ASW_KEY="$key" ASW_ITEM="$item" ASW_ENDS_NL="$ends_nl" awk '
       function out(s) { if (started) { printf "\n" } printf "%s", s; started = 1 }
       function emit_item(   n, i, parts) {
@@ -668,8 +699,7 @@ atomic_state_append_list_item() {
         if (fence != 2) { exit 2 }
         if (state != 2) { exit 3 }
       }
-    ' "$target" > "$tmp"
-    arc=$?
+    ' "$target" > "$tmp" || arc=$?
 
     if [ "$arc" -ne 0 ]; then
       rm -f "$tmp"

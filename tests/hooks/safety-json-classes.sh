@@ -69,7 +69,7 @@ git checkout -q -b sjc 2>/dev/null || true
 probe_for_id() {  # <pattern-id>
   local pid="$1" hook
   case "$pid" in
-    # --- block-dangerous-git.sh (10 IDs) ---
+    # --- block-dangerous-git.sh ---
     force-push)
       hook=block-dangerous-git.sh
       jq -nc '{tool_name:"Bash", tool_input:{command:"git push --force origin main"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
@@ -100,7 +100,13 @@ probe_for_id() {  # <pattern-id>
     filter-branch)
       hook=block-dangerous-git.sh
       jq -nc '{tool_name:"Bash", tool_input:{command:"git filter-branch --tree-filter true HEAD"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    # --- block-geniro-deletion.sh (6 IDs) ---
+    stash-drop)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git stash drop"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    worktree-remove-force)
+      hook=block-dangerous-git.sh
+      jq -nc '{tool_name:"Bash", tool_input:{command:"git worktree remove --force /tmp/wt"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
+    # --- block-geniro-deletion.sh ---
     rm-geniro-tree)
       hook=block-geniro-deletion.sh
       jq -nc '{tool_name:"Bash", tool_input:{command:"rm -rf .geniro/"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
@@ -119,7 +125,15 @@ probe_for_id() {  # <pattern-id>
     git-add-force-geniro)
       hook=block-geniro-deletion.sh
       jq -nc '{tool_name:"Bash", tool_input:{command:"git add -f .geniro/actions/foo.md"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    # --- file-protection.sh (7 IDs) ---
+    # --- file-protection.sh ---
+    # write-cert-key is ONE pattern ID gating BOTH *.key and *.pem (a single
+    # is_allowed "write-cert-key" call site in file-protection.sh covers both
+    # extensions) — a second `write-cert-key)` case arm here for server.pem
+    # was DEAD CODE (bash's `case` only ever reaches the first matching arm),
+    # so the .pem shape was silently never probed through this suite; it is
+    # covered instead by tests/hooks/file-protection.sh's own .pem block/
+    # bypass assertions, so removing the dead arm loses no coverage
+    # (2026-09-23 audit T1-3/D5b-20/D8-11).
     write-cert-key)
       hook=file-protection.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:"tls.key", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
@@ -129,9 +143,6 @@ probe_for_id() {  # <pattern-id>
     write-lockfile)
       hook=file-protection.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:"package-lock.json", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    write-cert-key)
-      hook=file-protection.sh
-      jq -nc '{tool_name:"Write", tool_input:{file_path:"server.pem", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
     write-credentials)
       hook=file-protection.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:"credentials.json", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
@@ -141,14 +152,14 @@ probe_for_id() {  # <pattern-id>
     write-vault)
       hook=file-protection.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:"config.vault", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    # --- enforce-state-helper.sh (2 IDs) ---
+    # --- enforce-state-helper.sh ---
     enforce-state-helper)
       hook=enforce-state-helper.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:".geniro/planning/task/state.md", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
     safety-json-edit)
       hook=enforce-state-helper.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:".geniro/safety.json", content:"x"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    # --- security-pattern-check.sh (8 IDs) ---
+    # --- security-pattern-check.sh ---
     sec-eval-exec)
       hook=security-pattern-check.sh
       jq -nc '{tool_name:"Write", tool_input:{file_path:"x.py", content:"r = eval(user_input)"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
@@ -184,7 +195,11 @@ probe_for_id() {  # <pattern-id>
   echo "$hook $rc"
 }
 
-# The full pattern-ID roster this guard set exposes (33 IDs across 5 guards).
+# The full pattern-ID roster this guard set exposes — one entry per
+# probe_for_id() case above (a count is deliberately not stated here: it is
+# correct today and stale on the next ID either file adds; the roster-
+# completeness check below is what actually keeps this list honest, by
+# failing when a hook's own is_allowed("<id>") literal has no match here).
 GUARDS="force-push
 force-push-with-lease
 push-delete
@@ -195,6 +210,8 @@ checkout-mass-discard
 restore-mass-discard
 update-ref-delete
 filter-branch
+stash-drop
+worktree-remove-force
 rm-geniro-tree
 rm-geniro-subdir
 rm-geniro-state-subdir
@@ -204,7 +221,6 @@ git-add-force-geniro
 write-cert-key
 write-git-internal
 write-lockfile
-write-cert-key
 write-credentials
 write-tfstate
 write-vault
@@ -218,6 +234,28 @@ sec-curl-pipe-sh
 sec-tls-bypass
 sec-xss-sink
 sec-weak-crypto"
+
+# --- roster completeness (2026-09-23 audit T1-3/D5b-20/D8-11) ---------------
+# GUARDS above is hand-maintained; a new is_allowed("<id>") call site with no
+# matching entry here stayed invisible until an audit found it by hand
+# (stash-drop and worktree-remove-force shipped in block-dangerous-git.sh
+# with no test for either, and no suite anywhere mentioned "stash" or
+# "worktree-remove-force"). Every guard that calls is_allowed with a LITERAL
+# id (block-dangerous-git.sh, block-geniro-deletion.sh, file-protection.sh)
+# must have that id somewhere in GUARDS — a missing one now fails the suite.
+# security-pattern-check.sh's sec-* ids are dispatched through a variable
+# (`is_allowed "$id"`) and enforce-state-helper.sh's two ids through an
+# inline `case " $ALLOWED "` rather than a literal is_allowed call, so this
+# grep cannot see either; both stay in GUARDS by hand.
+DERIVED_IDS=$(grep -ohE 'is_allowed "[a-z-]+"' "$HOOKS"/*.sh | sed -E 's/is_allowed "//; s/"$//' | sort -u)
+while IFS= read -r did; do
+  [ -z "$did" ] && continue
+  if grep -qx -- "$did" <<< "$GUARDS"; then
+    pass "roster completeness: is_allowed(\"$did\") is covered by GUARDS"
+  else
+    fail "roster completeness: is_allowed(\"$did\") has no entry in GUARDS — a new pattern ID shipped with no bypass test"
+  fi
+done <<< "$DERIVED_IDS"
 
 # The security scan is Perl-implemented and exits 0 when perl is absent, which
 # would read as "bypassed" for every class. Drop its IDs rather than report a

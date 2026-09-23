@@ -23,7 +23,6 @@ geniro_kind: setup-state
 geniro_schema_version: m10a-v1
 worktree: /absolute/path # cross-check on rehydration
 mode: init # init | re-run
-plugin_version: 2.21.1 # from .claude-plugin/plugin.json; the §5.4 restart-warning compares this against the current plugin.json version (missing on a pre-field state file → no delta computable → no warning)
 detected:
 stack: node/npm
 lang: node
@@ -57,13 +56,13 @@ validate_rounds: 1
 [14:02:00] Detect: read package.json (evidence #1), package-lock.json (#2),...
 [14:30:00] validate: spawn verification subagent → 0 drift items
 
-## Errors # Block 5b (only on failure)
+## Errors # only on failure
 (empty)
 
-## Open Questions # Block 5c (populated on accept-with-warnings)
+## Open Questions # populated on accept-with-warnings
 (empty)
 
-## Persisted approvals # Block 5d (renders frontmatter approvals[])
+## Persisted approvals # renders frontmatter approvals[]
 (empty — no preference questions in current /geniro:setup)
 
 ## Termination reason # only set on `failed`

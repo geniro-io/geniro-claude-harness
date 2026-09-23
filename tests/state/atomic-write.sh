@@ -1020,6 +1020,47 @@ else
 $(cat "$target")"
 fi
 
+# A fenced code block inside the section body must not be mistaken for
+# headings: a shebang line (`#!/usr/bin/env bash`, one leading `#` with no
+# following space/tab) and a fence-internal `# TODO` comment (one leading `#`
+# WITH a following space — indistinguishable from a real level-1 heading
+# unless the fence is tracked) must both be skipped, and so must a same-level
+# `#123 merged` line outside the fence (leading `#` with no following
+# space/tab). None of the three may end the section early; the new entry
+# lands at the actual end, right before the next real `## ` sibling heading.
+target="$TMPDIR/sec6b.md"
+cat > "$target" <<'BODY'
+---
+tier: T1
+---
+
+## Log
+- a
+
+```bash
+#!/usr/bin/env bash
+# TODO fix this
+echo hi
+```
+
+#123 merged automatically
+
+## Next
+- placeholder
+BODY
+atomic_state_append_section "$target" "## Log" "- c"
+rc=$?
+c_line=$(grep -n '^- c$' "$target" | cut -d: -f1)
+next_line=$(grep -n '^## Next$' "$target" | cut -d: -f1)
+merged_line=$(grep -n '^#123 merged automatically$' "$target" | cut -d: -f1)
+if [ "$rc" -eq 0 ] && [ -n "$c_line" ] && [ -n "$next_line" ] && [ -n "$merged_line" ] \
+   && [ "$c_line" -gt "$merged_line" ] && [ "$c_line" -lt "$next_line" ]; then
+  pass "append_section — fenced shebang/comment and a #NNN line do not end the section early"
+else
+  fail "append_section — heading detection fooled by fence/shebang/#NNN: rc=$rc
+$(cat "$target")"
+fi
+
 # A section a run creates on demand is only created with an explicit --create;
 # without it a typo would grow a second, near-identical section nothing reads.
 target="$TMPDIR/sec7.md"
@@ -1167,6 +1208,95 @@ else
 $(cat "$target")"
 fi
 
+# --- T4-62b: editors must stay correct when the CALLER runs under `set -e` --
+#
+# Each editor's body runs in a `( ... )` subshell that inherits errexit from
+# whatever shell sourced this file. `awk ... > "$tmp"; arc=$?` used to be a
+# bare sequential pair: a failing awk is an unprotected simple command under
+# `set -e`, so the subshell would exit right there, skipping BOTH the
+# `rm -f "$tmp"` cleanup (leaking the tmp file beside the target) and the
+# case-specific diagnostic/rc mapping below it. `arc=0; awk ... || arc=$?`
+# fixes this — the first command of an OR-list is exempt from errexit — and
+# each case below drives one editor to a real, documented failure rc while
+# the outer shell has `set -e` on, then checks both the rc AND that no
+# `<name>.tmp.*` file was left beside the target.
+
+# Each function call below is a PLAIN top-level statement inside the nested
+# `bash -c` — NOT wrapped in `cmd || rc=$?` — because wrapping the OUTER call
+# in `||` already exempts bash's errexit from the entire dynamic extent of
+# that call (its subshell included), which would pass even against the
+# unfixed code and defeat the point of the test. The nested script's own exit
+# status is read directly as $? in THIS (outer) shell, which has no `set -e`
+# of its own (see the file header) so reading it here cannot itself abort.
+
+# atomic_state_edit — anchor not found → rc 71.
+target="$TMPDIR/sete1.md"
+printf 'no matching text here\n' > "$target"
+REPO_ROOT="$REPO_ROOT" TARGET="$target" bash -c '
+  set -e
+  source "$REPO_ROOT/lib/atomic-state-write.sh"
+  atomic_state_edit "$TARGET" "MISSING_ANCHOR" "x"
+' 2>/dev/null
+rc=$?
+leftover=$(find "$TMPDIR" -maxdepth 1 -name 'sete1.md.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$rc" = "71" ] && [ "$leftover" = "0" ]; then
+  pass "atomic_state_edit under caller's set -e — rc=71 and tmp file cleaned up"
+else
+  fail "atomic_state_edit under caller's set -e — rc=$rc leftover=$leftover"
+fi
+
+# atomic_state_set_field — field not present in frontmatter → documented rc 74.
+# Under the unfixed code this doesn't just leak the tmp file: errexit aborts
+# the subshell AT the failing awk, before the case-block remaps the internal
+# awk exit code (3) to the documented contract rc (74) — so the caller sees
+# the wrong, undocumented rc 3.
+target="$TMPDIR/setf1.md"
+printf -- '---\ntier: T1\n---\n\nbody\n' > "$target"
+REPO_ROOT="$REPO_ROOT" TARGET="$target" bash -c '
+  set -e
+  source "$REPO_ROOT/lib/atomic-state-write.sh"
+  atomic_state_set_field "$TARGET" missing_field x
+' 2>/dev/null
+rc=$?
+leftover=$(find "$TMPDIR" -maxdepth 1 -name 'setf1.md.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$rc" = "74" ] && [ "$leftover" = "0" ]; then
+  pass "atomic_state_set_field under caller's set -e — rc=74 (not the raw internal 3) and tmp file cleaned up"
+else
+  fail "atomic_state_set_field under caller's set -e — rc=$rc leftover=$leftover"
+fi
+
+# atomic_state_append_section — unknown heading, no --create → rc 77.
+target="$TMPDIR/setsec1.md"
+printf -- '---\ntier: T1\n---\n\n## Tool log\n- a\n' > "$target"
+REPO_ROOT="$REPO_ROOT" TARGET="$target" bash -c '
+  set -e
+  source "$REPO_ROOT/lib/atomic-state-write.sh"
+  atomic_state_append_section "$TARGET" "## Nonexistent" "- x"
+' 2>/dev/null
+rc=$?
+leftover=$(find "$TMPDIR" -maxdepth 1 -name 'setsec1.md.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$rc" = "77" ] && [ "$leftover" = "0" ]; then
+  pass "atomic_state_append_section under caller's set -e — rc=77 and tmp file cleaned up"
+else
+  fail "atomic_state_append_section under caller's set -e — rc=$rc leftover=$leftover"
+fi
+
+# atomic_state_append_list_item — key holds a scalar, not a list → rc 79.
+target="$TMPDIR/setli1.md"
+printf -- '---\ntier: T1\nkey: scalar-value\n---\n\nbody\n' > "$target"
+REPO_ROOT="$REPO_ROOT" TARGET="$target" bash -c '
+  set -e
+  source "$REPO_ROOT/lib/atomic-state-write.sh"
+  atomic_state_append_list_item "$TARGET" key "item"
+' 2>/dev/null
+rc=$?
+leftover=$(find "$TMPDIR" -maxdepth 1 -name 'setli1.md.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$rc" = "79" ] && [ "$leftover" = "0" ]; then
+  pass "atomic_state_append_list_item under caller's set -e — rc=79 and tmp file cleaned up"
+else
+  fail "atomic_state_append_list_item under caller's set -e — rc=$rc leftover=$leftover"
+fi
+
 # --- Scale -----------------------------------------------------------------
 
 # The editors were quadratic: 21 s for one 200 KB replacement, past the default
@@ -1191,7 +1321,7 @@ echo "Tests failed: $TESTS_FAILED"
 
 # An expected total: deleting a case would otherwise report a smaller green run.
 # Update this number in the same commit that adds or removes a case.
-EXPECTED_TESTS=90
+EXPECTED_TESTS=95
 if [ "$TESTS_RUN" -ne "$EXPECTED_TESTS" ]; then
   echo "FAIL: expected $EXPECTED_TESTS assertions, ran $TESTS_RUN — a case was added or dropped without updating EXPECTED_TESTS" >&2
   exit 1

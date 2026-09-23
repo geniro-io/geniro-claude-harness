@@ -1,6 +1,6 @@
 # Data sources — cross-check load-bearing facts against project-declared sources
 
-Single source of truth for the data-source verification primitive. Skills cite this file; do NOT inline-paste the procedure.
+Single source of truth for the data-source verification primitive.
 
 Applied by any skill phase that establishes a load-bearing fact, to cross-check it against project-declared data sources. The principle: confirm every load-bearing fact against the maximum set of known sources — never assume. A fact today often comes from one source (a single tracker fetch, or code-only). This primitive widens that to every source the user has declared as confirmable, marks a fact no source can confirm as explicitly unconfirmed, and surfaces conflicts. Read-only, fail-open, bounded to load-bearing facts.
 
@@ -54,7 +54,7 @@ Every declared source passes the read-only screen in §4 before it runs. A sourc
 
 ### VERIFY (per load-bearing fact)
 
-Bound the input to LOAD-BEARING facts — the facts a downstream decision, verdict, or report depends on — NOT every sentence. This matches the always-on-verification doctrine: always-on is not unbounded; cost scales to the fact set, not to prose.
+Bound the input to LOAD-BEARING facts — the facts a downstream decision, verdict, or report depends on — NOT every sentence. Always-on is not unbounded; cost scales to the fact set, not to prose.
 
 For each load-bearing fact:
 

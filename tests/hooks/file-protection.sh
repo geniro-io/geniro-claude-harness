@@ -541,6 +541,105 @@ expect_allow "bash: \$VAR from a command substitution, unrelated to any protecte
 expect_allow "bash: \$VAR rebound but only ever READ, not written, allowed" \
   "$(run_bash 'F=a.txt; F=b.txt; cat "$F"')"
 
+
+# ===== T0-1: a shell write to .geniro/safety.json must block under
+# safety-json-edit — that file's allow_patterns disables every OTHER guard's
+# bypass by pattern ID, so a single Bash command must not be able to
+# self-grant one (the Edit/Write path is already gated by
+# enforce-state-helper.sh under this same ID; this is the shell-side gap the
+# 2026-08-13 Bash-branch removal opened). =====
+mkdir -p "$TMPDIR_BASE/proj-safety/.geniro"
+cd "$TMPDIR_BASE/proj-safety" || exit 1
+expect_block "bash: redirect into .geniro/safety.json blocked" \
+  "$(run_bash 'printf "{\"allow_patterns\":[\"rm-geniro-tree\"]}" > .geniro/safety.json')"
+expect_block "bash: cp onto .geniro/safety.json blocked" \
+  "$(run_bash 'cp fake.json .geniro/safety.json')"
+expect_block "bash: tee into .geniro/safety.json blocked" \
+  "$(run_bash 'echo x | tee .geniro/safety.json')"
+expect_block "bash: python3 open(.geniro/safety.json,'w') blocked" \
+  "$(run_bash "python3 -c \"open('.geniro/safety.json','w').write('x')\"")"
+expect_block "bash: uppercase-cased .GENIRO/SAFETY.JSON blocked (case-folded)" \
+  "$(run_bash 'echo x > .GENIRO/SAFETY.JSON')"
+expect_block "bash: a '..' traversal into .geniro/safety.json blocked" \
+  "$(run_bash 'echo x > .geniro/x/../safety.json')"
+expect_allow "bash: writing an unrelated .geniro file still allowed" \
+  "$(run_bash 'echo x > .geniro/notes.md')"
+cd "$TMPDIR_BASE" || exit 1
+
+# safety.json bypass applies to the new pattern too
+mkdir -p "$TMPDIR_BASE/proj-safety-bypass/.geniro"
+echo '{"allow_patterns": ["safety-json-edit"]}' > "$TMPDIR_BASE/proj-safety-bypass/.geniro/safety.json"
+cd "$TMPDIR_BASE/proj-safety-bypass" || exit 1
+expect_allow "bash: safety-json-edit bypass honored" \
+  "$(run_bash 'echo x > .geniro/safety.json')"
+cd "$TMPDIR_BASE" || exit 1
+
+# ===== T0-6: the heredoc scrub must not treat <</comment <</let << arithmetic
+# shifts as heredoc openers — each mistakenly opened a FAKE heredoc that
+# swallowed the REAL write on the next line as heredoc "body" (data), hiding
+# it from the redirect-target scan entirely. =====
+expect_block "bash: arithmetic \$((1<<X)) does not open a fake heredoc hiding a write" \
+  "$(run_bash $'echo $((1<<X))\necho k > tls.key\nX')"
+expect_block "bash: bare arithmetic command ((1<<X)) does not open a fake heredoc hiding a write" \
+  "$(run_bash $'((1<<X))\necho k > tls.key\nX')"
+expect_block "bash: unquoted let does not open a fake heredoc hiding a write" \
+  "$(run_bash $'let x=1<<Y\necho k > tls.key\nY')"
+expect_block "bash: a # comment naming <<EOF does not open a fake heredoc hiding a write" \
+  "$(run_bash $'# see docs <<EOF\necho k > tls.key\nEOF')"
+expect_block "bash: arithmetic decoy does not hide an interpreter write (vector 12) either" \
+  "$(run_bash $'echo $((1<<X))\npython3 -c "open(\'tls.key\',\'w\').write(\'K=v\')"\nX')"
+expect_block "bash: a real heredoc after a balanced arithmetic expression earlier in the line still blocks" \
+  "$(run_bash 'x=$((1+2)); cat <<EOF > tls.key
+K=v
+EOF')"
+
+# ===== T0-12: cp/mv -t DIR / --target-directory[=]DIR name the destination as
+# a FLAG OPERAND, not the last positional — the install/rsync arm already
+# handles this; cp/mv did not. An ln (with OR without -f) whose link path
+# lands under .git/ is a write: the harm is CREATING a git hook/config that
+# runs on the next commit, not clobbering an existing one. =====
+expect_block "bash: cp -t .git/hooks blocked"                 "$(run_bash 'cp -t .git/hooks pre-commit')"
+expect_block "bash: mv -t .git/hooks blocked"                 "$(run_bash 'mv -t .git/hooks pre-commit')"
+expect_block "bash: cp --target-directory=.git/hooks blocked" "$(run_bash 'cp --target-directory=.git/hooks pre-commit')"
+expect_block "bash: mv --target-directory=.git/hooks blocked" "$(run_bash 'mv --target-directory=.git/hooks pre-commit')"
+expect_block "bash: ln -s (no -f) into .git/hooks blocked"    "$(run_bash 'ln -s /tmp/evil.sh .git/hooks/pre-commit')"
+expect_block "bash: ln -sf into .git/hooks still blocked"     "$(run_bash 'ln -sf /tmp/evil.sh .git/hooks/pre-commit')"
+# Controls: -t/--target-directory onto a normal dir allows, and ln (no -f)
+# outside .git/ stays allowed (it cannot clobber an existing target anyway).
+expect_allow "bash: cp -t a normal dir allowed"                "$(run_bash 'cp -t build/ src.txt')"
+expect_allow "bash: mv --target-directory a normal dir allowed" "$(run_bash 'mv --target-directory=build/ src.txt')"
+expect_allow "bash: ln -s (no -f) outside .git/ allowed"       "$(run_bash 'ln -s real link')"
+
+# ===== T4-62a: the jq-less/malformed-payload coarse fail-closed scans must be
+# case-insensitive — HOOKS.md documents "File patterns are case-insensitive"
+# and these three fallback scans (jq absent, payload malformed, Bash command
+# malformed) were the one exception: TLS.KEY passed while tls.key blocked. =====
+expect_block "jqless: write to TLS.KEY (uppercase) still blocked"      "$(run_write_nojq /proj/TLS.KEY)"
+expect_block "jqless: bash redirect to SERVER.PEM (uppercase) blocked" "$(run_bash_nojq 'echo x > SERVER.PEM')"
+expect_block "jqless: CREDENTIALS.JSON (uppercase) blocked"            "$(run_write_nojq /proj/CREDENTIALS.JSON)"
+expect_block "malformed payload naming TLS.KEY (uppercase) still blocked" \
+  "$(run_raw '{"tool_name":"Bash","tool_input":{"command":"echo hi > TLS.KEY"')"
+expect_block "bash: command genuinely absent, raw scan catches uppercase TLS.KEY in another field" \
+  "$(jq -nc '{tool_name:"Bash", tool_input:{notebook_path:"TLS.KEY"}}' | bash "$HOOK" >/dev/null 2>&1; echo $?)"
+
+# ===== T4-62g: unset CLAUDE_PLUGIN_ROOT must default to the script's OWN
+# directory, not cwd's ./lib/write-vectors.sh — a PROJECT lib/write-vectors.sh
+# (the vendored-install fallback exists for) must not be able to disarm this
+# guard just because the caller forgot to export the variable. =====
+run_bash_noplugroot() {  # <command>
+  ( unset CLAUDE_PLUGIN_ROOT
+    jq -nc --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}' | bash "$HOOK" >/dev/null 2>&1 )
+  echo $?
+}
+mkdir -p "$TMPDIR_BASE/noplugroot/lib"
+cat > "$TMPDIR_BASE/noplugroot/lib/write-vectors.sh" <<'EOF'
+_geniro_extract_inner_payloads() { :; }
+EOF
+cd "$TMPDIR_BASE/noplugroot" || exit 1
+expect_block "no CLAUDE_PLUGIN_ROOT: sh -c redirect into tls.key still blocked (canonical lib used, not cwd's)" \
+  "$(run_bash_noplugroot 'sh -c "echo K=v > tls.key"')"
+cd "$TMPDIR_BASE" || exit 1
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

@@ -2,7 +2,7 @@
 
 Canonical RED→GREEN→REFACTOR procedure. Consumer: `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md` §A4. RED-phase workflow. This is an unenforced convention — no hook blocks an out-of-order edit; the discipline holds only because the orchestrator follows it.
 
-This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
+This file is the single source of truth.
 
 ## Contents
 
@@ -49,7 +49,7 @@ The TDD cycle persists its current phase in a slug-scoped state file so cycle pr
   mv -f "$tmp" "$state_file"
   ```
 
-- **Single-writer:** ONLY the orchestrator writes this file. Subagents never write it — a subagent writing concurrently could race the orchestrator's own write and leave `## phase` out of sync with what actually happened, misleading whoever reads it next. A spawn has no tool-withholding argument to enforce this at the call, so spawn sites restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Forbidden patterns, "Prohibited tools list".
+- **Single-writer:** ONLY the orchestrator writes this file. Subagents never write it — a subagent writing concurrently could race the orchestrator's own write and leave `## phase` out of sync with what actually happened, misleading whoever reads it next. A spawn has no tool-withholding argument to enforce this at the call, so spawn sites restate the constraint in-prompt per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` §Required pre-inlined context, "Prohibited tools list".
 
 ## RED phase
 

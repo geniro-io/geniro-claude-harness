@@ -6,7 +6,7 @@ Shared contracts for the audit-shaped skills — `/geniro:audit-instructions`. E
 
 Every audit-shaped skill runs under these. A consuming skill cites this section and then lists only the invariants its own domain adds.
 
-1. **No unverified finding ships.** A reviewer finding is admitted only after the orchestrator Reads the cited `file:line` and confirms the quoted evidence exists there — reviewers hallucinate locations, and one fabricated `path:line` poisons trust in the whole report.
+1. **No unverified finding ships.** A reviewer finding is admitted only after the orchestrator Reads the cited `file:line` (±5 lines — a reviewer's own line count is routinely off by a few lines even when the finding itself is real) and confirms the quoted evidence exists within that radius — reviewers hallucinate locations, and one fabricated `path:line` poisons trust in the whole report.
 2. **Report before fix.** Fixes happen only after the action gate — an audit that silently edits while scanning destroys the baseline its own findings cite.
 3. **Parallel spawns in one response.** Every reviewer spawn goes in the same assistant turn; sequential turns serialize the batch's wall-time.
 4. **The do-not-flag list is binding.** The consuming skill's endorsed-patterns list overrides any reviewer's instinct — re-flagging an endorsed pattern is the audit's own false-positive failure mode.

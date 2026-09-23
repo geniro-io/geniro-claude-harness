@@ -55,3 +55,6 @@ evals/loop/repos.local.json
 # staged from that repo, so a renamed path matches nothing. This repository is
 # public, so those tasks live here, beside repos.local.json, and never in git.
 evals/loop/modules/*/benchmarks.local/
+
+# Python bytecode caches (e.g. .claude/skills/find-threads/scan.py)
+__pycache__/

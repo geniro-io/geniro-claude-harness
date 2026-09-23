@@ -21,18 +21,18 @@ A `## Memory Backend` block authored in the dedicated `.geniro/instructions/memo
 
 ## 2. Block schema
 
-One entry per layer the project routes. v1 covers L2 (`learnings`); other layers are reserved.
+One entry per layer the project routes — `learnings` (L2) is the only layer this schema routes.
 
 ```markdown
 ## Memory Backend
 <!-- Route agent knowledge/memory through a custom backend. Default = built-in .geniro files. The `read` tool/command has to be read-only — a misdeclared one mutates on every recall. -->
-- layer: learnings          # learnings (L2). snapshot (L3) reserved — not yet routed
+- layer: learnings          # the only layer this schema routes
   mode: mirror              # mirror = write file AND backend; replace = backend only
   write: mcp tool `mcp__memory__upsert`     # store op for an emitted learning
   read:  mcp tool `mcp__memory__search`     # query op for retrieval
 ```
 
-- **layer** — `learnings` (L2) in v1.
+- **layer** — `learnings` (L2).
 - **mode** — `mirror` (keep the file as the durable mirror, also write the backend) | `replace` (backend is the store; skip the file write). Omitted → `mirror`.
 - **write / read** — one MCP tool name (`mcp__...`) or action name each. `write` performs the store on an `emit_learning`; `read` performs the query on a `query_learnings`.
 

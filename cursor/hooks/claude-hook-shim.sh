@@ -33,7 +33,7 @@
 # permission key — an informational notice must not vote on an action another
 # guard may deny. Any other failure fails open, matching the scripts' own
 # fail-open contract. That translation also runs when jq is missing, where the
-# three data-loss guards still block on their own coarse scan — see the
+# four data-loss guards still block on their own coarse scan — see the
 # jq-absent branch below.
 set -uo pipefail
 
@@ -88,10 +88,11 @@ if ! command -v jq >/dev/null 2>&1; then
     *'"hook_event_name"'*'"sessionStart"'*)
       printf '{"additional_context":"%s"}\n' "$NOTICE" ;;
     *'"hook_event_name"'*'"beforeShellExecution"'*|*'"hook_event_name"'*'"preToolUse"'*)
-      # Not every guard is inert without jq. The three data-loss guards
-      # (file-protection, block-dangerous-git, block-geniro-deletion) keep a
-      # coarse fail-CLOSED raw-text scan on their own jq-absent path and still
-      # exit 2 on a hit — HOOKS.md §Key Safety Principles 5. Emitting the
+      # Not every guard is inert without jq. The four data-loss guards
+      # (file-protection, block-dangerous-git, block-geniro-deletion,
+      # enforce-state-helper) keep a coarse fail-CLOSED raw-text scan on
+      # their own jq-absent path and still exit 2 on a hit — HOOKS.md §Key
+      # Safety Principles 5. Emitting the
       # notice without running the script discards that scan, so `rm -rf
       # .geniro` would proceed under Cursor while Claude Code blocks it. Run
       # the script and translate its block; the notice is for the rest.
@@ -128,7 +129,31 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // ""' 2>/dev/null || echo "")"
+EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // ""' 2>/dev/null)"
+EVENT_RC=$?
+
+# A malformed or truncated $INPUT makes the jq call above fail outright (a
+# non-zero exit), not merely return "" — a well-formed payload that
+# genuinely lacks hook_event_name still succeeds at rc 0 and reaches the
+# `*)` no-op below unchanged, so this check cannot be folded into the `||
+# echo ""` the way jq extraction is elsewhere in this file. Falling through
+# to that same no-op on a PARSE failure would exit 0 with no output,
+# discarding every guard's own fail-closed malformed-payload scan
+# (block-dangerous-git.sh, block-geniro-deletion.sh, file-protection.sh and
+# enforce-state-helper.sh each run one when their own jq extraction comes
+# back empty) — a truncated `git push --force` payload would then pass
+# through Cursor with no deny. Pipe $INPUT raw to the guard instead, exactly
+# as the jq-absent branch above does, and translate its exit 2 into a deny.
+if [ "$EVENT_RC" -ne 0 ]; then
+  printf '%s' "$INPUT" | bash "$SCRIPT" >/dev/null 2>"$STDERR_FILE"
+  MALFORMED_RC="${PIPESTATUS[1]}"
+  if [ "$MALFORMED_RC" -eq 2 ]; then
+    MALFORMED_MSG="$(cat "$STDERR_FILE" 2>/dev/null || true)"
+    jq -n --arg msg "$MALFORMED_MSG" \
+      '{permission: "deny", agent_message: (if $msg == "" then "Blocked by a Geniro guardrail." else $msg end)}'
+  fi
+  exit 0
+fi
 
 case "$EVENT" in
   beforeShellExecution)

@@ -894,6 +894,36 @@ grep -q "no in-flight task" <<<"$ac" \
   && pass "terminal phase=done: cold-startup phrasing fires" \
   || fail "terminal phase=done: cold-startup phrasing missing"
 
+# 15a-2. `adversarial-ship-summary-only` — /geniro:debug Adversarial Mode's
+#        "Leave it to me" terminal. A terminal value missing from TERMINAL_PHASES
+#        re-offers a finished run for resume.
+sandbox=$(new_sandbox)
+rm -rf "$sandbox/.geniro/planning/feature-x"   # drop the helper's seeded active task
+mkdir -p "$sandbox/.geniro/state/debug/feature-x"
+cat > "$sandbox/.geniro/state/debug/feature-x/state.md" <<'EOF'
+---
+tier: T1.5
+producer: debug
+schema-version: 1
+branch: feature/x
+timestamp: 2026-05-19T15:00:00Z
+phase: adversarial-ship-summary-only
+status: in-progress
+non-resumable-actions: []
+---
+
+## Tool log
+- summarized
+EOF
+
+out=$(run_hook startup "$sandbox")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -q "Active task detected" <<<"$ac"; then
+  fail "terminal phase=adversarial-ship-summary-only: should NOT be offered for resume"
+else
+  pass "terminal phase=adversarial-ship-summary-only: not offered for resume"
+fi
+
 # 15b. Terminal via `status: completed` drift (phase left at a working value).
 #      The real /implement state.md that triggered the bug carried
 #      `status: completed` — outside the documented in-progress|done|failed enum
@@ -1626,6 +1656,51 @@ if grep -qF -- "- .geniro/instructions/global.md" <<<"$ac" && ! grep -qF "linked
   pass "main checkout: cwd copy stays relative, no worktree note"
 else
   fail "main checkout: expected a relative global.md and no worktree note"
+fi
+
+# ---------------------------------------------------------------------------
+# T4-62g — CLAUDE_PLUGIN_ROOT unset must not fall back to the PROJECT cwd
+# ---------------------------------------------------------------------------
+#
+# Every `${CLAUDE_PLUGIN_ROOT:-...}` in this hook used to default to `.` when
+# the env var is unset — the CURRENT WORKING DIRECTORY at the point each line
+# runs, which by then is the project ($HOOK_CWD), not the plugin install. A
+# project that happens to carry its own lib/repo-root.sh would have THAT file
+# sourced instead of the plugin's own. Plant exactly such a decoy in the
+# sandbox and confirm the hook still restores normally using the REAL
+# plugin helper — not the decoy, and not degrading to the "Helpers not
+# installed" notice, which is what happens if the sourcing silently fails.
+sandbox="$TMPDIR_BASE/rootfallback-$$"
+mkdir -p "$sandbox/.geniro/planning/feature-shadow" "$sandbox/lib"
+cd "$sandbox" && git init -q && git checkout -q -b "feature/shadow" 2>/dev/null || exit 1
+cat > .geniro/planning/feature-shadow/state.md <<'EOF'
+---
+tier: T1
+producer: implement
+schema-version: 1
+branch: feature/shadow
+timestamp: 2026-05-19T15:00:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+# Decoy: if the hook's CLAUDE_PLUGIN_ROOT fallback ever resolves to `.` (the
+# project cwd) instead of this script's own location, THIS is what gets
+# sourced instead of the real lib/repo-root.sh.
+cat > lib/repo-root.sh <<EOF
+_geniro_repo_root() { echo "/SHADOWED-WRONG-ROOT-$$"; }
+EOF
+out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" | env -u CLAUDE_PLUGIN_ROOT bash "$HOOK")
+ac=$(echo "$out" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -q "instructions/implement.md" <<<"$ac" \
+   && ! grep -q "SHADOWED-WRONG-ROOT" <<<"$ac" \
+   && ! grep -q "Helpers not installed" <<<"$ac"; then
+  pass "CLAUDE_PLUGIN_ROOT unset — falls back to this script's own lib/, not the project's cwd or a decoy lib/ there"
+else
+  fail "CLAUDE_PLUGIN_ROOT-unset fallback: ac='$ac'"
 fi
 
 # ---------------------------------------------------------------------------

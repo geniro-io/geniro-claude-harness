@@ -25,6 +25,8 @@ The nearest prior load site is Phase 6 (§6.0), itself a refresh of Phase 1 (§1
 
 Phase 8 closes the loop with a final whole-spec approval. Apply the Gate presentation contract.
 
+**Re-entry check (crash/compaction resume).** Before rendering the summary or firing the gate, check `approvals[]` for a `final_approve` entry AND `non-resumable-actions[]` for a `git-commit` entry. When both are present, a prior pass of this phase already got the user's approval and already committed — it crashed or compacted before reaching the §8.6 `phase: handoff` write. Do NOT re-render §8.2's summary, re-fire its AUQ, or re-run §8.4's commit. Resume forward at whichever of §8.3.5 / §8.5 / §8.6 has not yet left its own record (the `launch_config` `approvals[]` entry, the `Recorded learning:` tool-log entry, the loaded `### After user-approve` execution) and continue to the §8.6 transition.
+
 ### 8.2 Shape — message-first
 
 **Artifact** — fire the before-gate update for this site (call-site table in `loop-artifact-call-sites.md`) before the final-approval AUQ.
@@ -75,15 +77,14 @@ On user picks "Approve":
  commit-sha: <sha>
  files: [".geniro/planning/<slug>/spec.md"]
  ```
-5. **Finalize the visual plan artifact** — fire the update for this site (call-site table in `loop-artifact-call-sites.md`).
-6. **Transition to Phase 9** (`phase: handoff`).
+5. **Finalize the visual plan artifact** — fire the update for this site (call-site table in `loop-artifact-call-sites.md`). §8.4 does not itself transition the phase — §8.6 writes `phase: handoff` once its own steps (and §8.5's) complete, so a crash between here and that write resumes at `phase: user-approve` rather than stranding the loop mid-approval; the §8.1 re-entry check covers that resume.
 
-If the commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), render the failure to chat first, then fire the lean AUQ header "Commit" — do NOT proceed to Phase 9 with a stale state:
+If the commit fails (pre-commit hook denial, working-tree-dirty conflict, etc.), render the failure to chat first, then fire the lean AUQ header "Commit" — do NOT proceed to §8.5 with a stale state:
 - **Retry the commit** (Recommended) — re-run step 3's `git commit`. state.md stays `phase: user-approve`.
-- **Save on disk, skip the commit** — leave spec.md uncommitted, same as the step 3 Ignored branch; record the failure as an `## Errors` entry. state.md → `phase: handoff`.
-- **Abort** — terminal `aborted` + `## Termination reason: commit-failed-at-phase-8`.
+- **Save on disk, skip the commit** — leave spec.md uncommitted, same as the step 3 Ignored branch; record the failure as an `## Errors` entry. state.md stays `phase: user-approve`; continue to §8.5.
+- **Abort** — run the §9.2 transient cleanup (`clean_task_transients`, `loop-phase-9-handoff.md`) and walk `loop-definition-of-done.md` §Abort-path subset, then write terminal `aborted` + `## Termination reason: commit-failed-at-phase-8`.
 
-An ignored task-dir is not a failure: it takes the step 3 Ignored branch and continues to Phase 9 normally.
+An ignored task-dir is not a failure: it takes the step 3 Ignored branch and continues to §8.5 normally.
 
 ### 8.5 Record a learning (conditional)
 
@@ -92,6 +93,7 @@ Decide the emit condition first, without loading any helper: Phase 4 had ≥2 di
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh"
 echo '{
+ "producer":"/geniro:plan",
  "type":"decision",
  "scope":"<task-area>",
  "summary":"approach: <name>",
@@ -108,3 +110,5 @@ Dedup + sanitization automatic. After a successful emit, echo `Recorded learning
 After §8.5, before Phase 9. Execute any user-authored post-approval steps from the L4 `plan.md` instruction file (`.geniro/instructions/plan.md`) loaded at this phase's own §8.0 refresh. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-approval anchor is `### After user-approve` (`user-approve` is the Phase 8 enum value, and the spec is committed at §8.4, so an `### After user-approve` subsection runs against an approved, committed spec). Run any subsection anchored to the end of `user-approve`, treating each bullet as an imperative to execute in order and honoring any `AskUserQuestion` the user's step prescribes.
 
 This is the generic extension point for project-specific post-plan work — e.g. duplicating the approved plan into a spec-driven-development tool's change format using the project's own tooling. The plugin stays tool-agnostic: the procedure lives entirely in the project's instruction file, not in this loop. Without this step a loaded `### After user-approve` block has no execution anchor and is silently dropped once Phase 9 runs (the same failure mode `/geniro:implement`'s `### After ship` step prevents). Skip silently when no such subsection is loaded.
+
+**Transition.** After the custom post-approval steps run (or are skipped when none are loaded), transition to Phase 9 via `atomic_state_set_field` (`phase: handoff`) — the last write of this phase, so both §8.5's learning emit and this step's own custom steps are guaranteed to have run before a resume could ever see `phase: handoff`.

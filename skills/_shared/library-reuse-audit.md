@@ -114,7 +114,7 @@ Options:
 - **Adopt `<library>`** (one option per surviving candidate) — replace the hand-written code with the library at Phase 2.
 - **Explain further** — a reading aid that renders a deeper walkthrough; writes no decision.
 
-Persist the pick to state.md `approvals[]` with `category: library_adoption`, `picked: <choice>`, `at: <ISO-8601 UTC>` via `atomic_state_append_list_item`, so a compaction-resume re-applies it without re-asking. When the user declines (keeps hand-written, or picks a non-recommended path), emit `user_rejected_suggestion` to past learnings via `emit_rejection_if_signal()` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.md`.
+Persist the pick to state.md `approvals[]` with `category: library_adoption`, `picked: <choice>`, `at: <ISO-8601 UTC>` via `atomic_state_append_list_item`, so a compaction-resume re-applies it without re-asking. Then call `emit_rejection_if_signal /geniro:implement <scope> library_adoption "<adopt-candidate-name>" "<picked>" "<adopt-candidate-name>"` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.md` — pass the adopt candidate itself as the `[recommended]` argument, never "Keep hand-written": "Keep hand-written" is the default option, never marked `(Recommended)` above, so passing it as `recommended` would make `picked == recommended` on the common path and the helper would silently no-op. With the adopt candidate as `recommended`, a "Keep hand-written" pick registers as `picked_non_recommended` and reaches L2 as `user_rejected_suggestion`.
 
 Skip the gate silently when no candidate survives Step 3 — ask nothing when there is nothing to adopt.
 

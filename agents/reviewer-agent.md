@@ -3,6 +3,9 @@ name: reviewer-agent
 description: "Single-dimension code reviewer. Use when /geniro:review Phase 2 or /geniro:implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check)."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
+# Full-file reads across every changed file, criteria absorption, a re-read
+# verification pass per candidate finding, and the emit step — 100 turns covers
+# a multi-file PR at the deepest single-dimension pass in the pipeline.
 maxTurns: 100
 ---
 
@@ -58,7 +61,7 @@ Read every criteria path your prompt names; criteria that arrived inline instead
 A `PROJECT SEARCH POLICY:` slot may also arrive, carrying the project's search-governing rules verbatim or `none declared`; Step 1.6 says how it binds. Three further optional slots may arrive in your input. Each carries a sentinel meaning "not applicable" — on the sentinel, or when the slot is absent, ignore it and review without that bias.
 
 - **PLAN CONTEXT** — sentinel `none`. Plan / spec / decision-log content. Scan it for decision markers (`D-XX`, `[D09]`, `Decision N:`) and note which changed code each one constrains; behavior matching a decision is intentional, not a defect. But the plan governs intent, not observed code reality: if the changed code gives direct evidence that a decision's premise is factually contradicted by the codebase, the decision may be stale — surface that as an `[INTENT-CHECK]` finding rather than suppressing it under "the plan said so."
-- **PRIOR-ROUND FINDINGS** — sentinel `none — first review`. One `path:lines — one-line description` entry per CRITICAL or HIGH finding a prior round raised on the same PR/diff. Group the entries by KIND of issue, then bias your Step 2 attention toward analogous gaps in the CURRENT diff — a race caught in one handler means looking for races in adjacent handlers; a missing migration rollback means checking every new migration. Do not re-flag the entries themselves: they are either already fixed (the diff shows it) or tracked by the orchestrator's idempotency contract. The slot is capped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` §4+§6, so a truncation marker `[…truncated…]` may appear.
+- **PRIOR-ROUND FINDINGS** — sentinel `none — first review`. One `path:lines — one-line description` entry per CRITICAL or HIGH finding a prior round raised on the same PR/diff. Group the entries by KIND of issue, then bias your Step 2 attention toward analogous gaps in the CURRENT diff — a race caught in one handler means looking for races in adjacent handlers; a missing migration rollback means checking every new migration. Do not re-flag the entries themselves: they are either already fixed (the diff shows it) or tracked by the orchestrator's idempotency contract. A truncation marker `[…truncated…]` may appear if the composed slot is long.
 - **USER STEERING** — sentinel `none`. Free text the user gave this round — extra attention on a path, or a "stop flagging X" instruction. Bias your Step 2 reading toward what it names; on a "stop flagging" match, report the finding exactly as you would without steering — find it, evidence it, emit it, noting the instruction on it. Additive attention only: never grounds to drop your dimension, skip a criteria check, or omit a finding. The admission gate and severity rubric (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5, §1) are the sole admission authorities; what happens afterward is the orchestrator's decision, not yours.
 
 ### Step 1.6: Absorb project instructions (if present)
@@ -79,13 +82,13 @@ For each candidate finding you rate 40 or above:
 3. **Adjust confidence** — increase if confirmed, decrease if ambiguous
 
 ### Step 4: Emit findings
-Emit every finding that still scores 40 or above after Step 3's adjustment, each carrying its `Confidence:` number. Score honestly rather than strategically — do not distort a number to move a finding past a perceived threshold in either direction (the blanket -10 in §Fallback strategy when no criteria reached you is calibration, not distortion). Admission is not yours to decide: the orchestrator runs a gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) on severity, evidence, and decision-type — a PRODUCT-DECISION finding reaches the user at any severity. Your confidence and cross-reviewer convergence are reported alongside the finding, not gating inputs, so there is nothing to gain by withholding a mid-scored finding. The 40 is a noise bound on report volume, not an admission threshold — below it your own read is that the finding is more likely a misread than a defect.
+Emit every finding that still scores 40 or above after Step 3's adjustment, each carrying its `Confidence:` number. Score honestly rather than strategically — do not distort a number to move a finding past a perceived threshold in either direction. Admission is not yours to decide: the orchestrator runs a gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) on severity, evidence, and decision-type — a PRODUCT-DECISION finding reaches the user at any severity. Your confidence and cross-reviewer convergence are reported alongside the finding, not gating inputs, so there is nothing to gain by withholding a mid-scored finding. The 40 is a noise bound on report volume, not an admission threshold — below it your own read is that the finding is more likely a misread than a defect.
 
 When a finding's behavior is explicitly addressed by a plan decision absorbed in Step 1.5, prefix the finding title with `[ALIGNS-WITH-PLAN-<marker>]` (behavior matches the decision — usually means downgrade or drop) or `[DIVERGES-FROM-PLAN-<marker>]` (behavior contradicts the decision — verify against spec), using the project's exact decision marker. Example: `[DIVERGES-FROM-PLAN-D-09] Backfill missing for existing timeline rows`.
 
 ## Confidence Scoring (advisory)
 
-Emit `Confidence: XX%` (0-100) on every finding — Step 4 carries the emit contract and what the number is used for. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, self-reported confidence is a weak predictor of correctness, not a useless one — strong enough to report alongside a finding, too weak to carry an admission decision alone, advisory rather than an admission filter. Read that same §4 before you score your first finding — it carries the score bands and the scoring adjustments that map evidence, systemic-ness, and nearby mitigations onto the number.
+Emit `Confidence: XX%` (0-100) on every finding — Step 4 carries the emit contract and what the number is used for. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §4, self-reported confidence is a weak predictor of correctness, not a useless one — strong enough to report alongside a finding, too weak to carry an admission decision alone, advisory rather than an admission filter. Read that same §4 before you score your first finding — it carries the score bands.
 
 ## Output Format
 
@@ -183,4 +186,3 @@ Each shape below either gets the finding dropped at the orchestrator's filter or
 If no criteria reach you at all — none named, or every named path unreadable:
 1. Apply general software engineering principles for your dimension
 2. Note in output: "Reviewed without project-specific criteria — using general best practices"
-3. Lower confidence by 10 for all findings (less certainty without project context)

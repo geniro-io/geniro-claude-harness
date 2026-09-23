@@ -38,7 +38,7 @@
 #   }
 #
 # Pattern IDs: write-git-internal, write-lockfile, write-cert-key,
-#              write-credentials, write-tfstate, write-vault
+#              write-credentials, write-tfstate, write-vault, safety-json-edit
 
 set -euo pipefail
 
@@ -55,7 +55,7 @@ if ! command -v jq >/dev/null 2>&1; then
   RAW_TARGETS=$(printf '%s' "$RAW" \
     | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
     | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-  if grep -qE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.' <<< "$RAW_TARGETS"; then
+  if grep -qiE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.' <<< "$RAW_TARGETS"; then
     echo "File protection blocked [jqless-fallback]: the tool input names a protected file (*.pem, *.key, credentials.*, secrets.*) and jq is unavailable, so only a coarse raw-text check ran. Install jq to restore full parsing and the .geniro/safety.json allowlist." >&2
     exit 2
   fi
@@ -83,7 +83,7 @@ if [ -z "$TOOL_NAME" ] && [ -z "$FILE_PATH" ]; then
   RAW_TARGETS=$(printf '%s' "$INPUT" \
     | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
     | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-  if grep -qE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.' <<< "$RAW_TARGETS"; then
+  if grep -qiE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.' <<< "$RAW_TARGETS"; then
     echo "File protection blocked [jqless-fallback]: the tool input names a protected file (*.pem, *.key, credentials.*, secrets.*) but the payload could not be parsed (tool_name and file_path both came back empty), so only a coarse raw-text check ran." >&2
     exit 2
   fi
@@ -150,6 +150,8 @@ remedy_for() {
       echo "Instead: let Terraform own the file — \`terraform apply\`, \`terraform import\`, or \`terraform state mv/rm\` for surgery. Hand-edited state diverges from the real infrastructure." ;;
     write-vault)
       echo "Instead: use \`ansible-vault edit\` / the vault CLI, which re-encrypts on write. A plain write leaves the file readable." ;;
+    safety-json-edit)
+      echo "Instead: .geniro/safety.json controls every guard's bypass list, so a shell write to it would let one command disarm them all. Edit it directly outside the agent, not through a command this guard inspects." ;;
     *) echo "" ;;
   esac
 }
@@ -192,6 +194,34 @@ check_protected_path() {
   local p="$1"
   local p_lower
   p_lower=$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')
+
+  # 0. .geniro/safety.json itself — this file's allow_patterns disables every
+  # OTHER guard by pattern ID, so a shell write to it is a one-command
+  # self-grant of every bypass this hook and its siblings ship. The
+  # Edit/Write/MultiEdit path is already gated by enforce-state-helper.sh
+  # under this same "safety-json-edit" pattern ID; this arm closes the
+  # shell-side gap the 2026-08-13 Bash-branch removal left open (T0-1).
+  # Checked first: every other pattern below is one bypass of one guard,
+  # while this one disarms all of them at once.
+  #
+  # Matched on the case-folded candidate (p_lower) — a case-insensitive
+  # filesystem, the macOS default, treats .GENIRO/SAFETY.JSON as the same
+  # inode as the lowercase spelling. A literal `..` segment sitting between
+  # `.geniro` and `safety.json` (`.geniro/x/../safety.json`) is REJECTED
+  # outright rather than resolved — the same "reject, don't resolve" rule
+  # check_delete_arg applies to a .geniro/../ escape in
+  # block-geniro-deletion.sh — so that spelling blocks exactly like the
+  # unobstructed `.geniro/safety.json` one, instead of walking past the
+  # anchored match below because the literal text between them isn't a bare
+  # `/`.
+  if ! is_allowed "safety-json-edit"; then
+    if grep -qE '(^|/)\.geniro/safety\.json$' <<< "$p_lower" \
+       || { grep -qE '(^|/)\.geniro(/|$)' <<< "$p_lower" \
+            && grep -qE '(^|/)\.\.(/|$)' <<< "$p_lower" \
+            && grep -qE '(^|/)safety\.json$' <<< "$p_lower"; }; then
+      block "safety-json-edit" ".geniro/safety.json (controls every guard's bypass list)" "$p"
+    fi
+  fi
 
   # 1. Git internals
   if ! is_allowed "write-git-internal"; then
@@ -254,7 +284,17 @@ check_protected_path() {
 # one-sided edit reopens the hole on that install, so edit both or neither —
 # parity is enforced by tests/hooks/write-vectors-fallback-parity.sh, not by
 # markers on the canonical side (lib/write-vectors.sh carries none).
-_geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+#
+# Default to THIS SCRIPT'S OWN directory, not the caller's cwd (T4-62g): when
+# CLAUDE_PLUGIN_ROOT is unset, `${CLAUDE_PLUGIN_ROOT:-.}` resolved against
+# `.` — the PROJECT the guard is running in, not the plugin install. A
+# project lib/write-vectors.sh defining a no-op
+# `_geniro_extract_inner_payloads(){ :; }` then won this guard's own
+# `command -v` fallback check and disarmed the shell-indirection channels for
+# every Bash-branch guard, from inside the very project this guard is meant
+# to protect. Both runtimes already export the variable (the Cursor shim sets
+# it explicitly), so this only changes behavior for a caller that forgot to.
+_geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null
   source "$_geniro_wv_helper" 2>/dev/null || true
@@ -927,6 +967,28 @@ fi
 if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: shell-side writes into protected paths ----
   COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
+  # macOS resolves a command word case-insensitively (`BASH -c …`, `Sh`, `PYTHON3`
+  # run the real program), but every shell/interpreter roster this guard and
+  # lib/write-vectors.sh match is spelled in canonical case. Fold those words to
+  # their canonical spelling in the text scanned here, so a mixed-case spelling is
+  # judged exactly like its lowercase twin (2026-09-23 audit T0-3). Only the
+  # scanned copy changes; nothing is executed.
+  COMMAND=$(printf '%s' "$COMMAND" | awk '
+    BEGIN {
+      n = split("sh bash zsh dash ksh ash fish csh tcsh xonsh nu elvish rc node bun bunx deno tsx perl ruby php lua tclsh Rscript awk gawk mawk", w, " ")
+      for (i = 1; i <= n; i++) canon[tolower(w[i])] = w[i]
+    }
+    {
+      out = ""; s = $0
+      while (match(s, /[A-Za-z][A-Za-z0-9_.]*/)) {
+        tok = substr(s, RSTART, RLENGTH); low = tolower(tok)
+        if (low in canon) tok = canon[low]
+        else if (low ~ /^python[0-9.]*$/) tok = low
+        out = out substr(s, 1, RSTART - 1) tok
+        s = substr(s, RSTART + RLENGTH)
+      }
+      print out s
+    }')
   if [ -z "$COMMAND" ]; then
     # jq is present, but the command extracted empty — either tool_input.command
     # was genuinely absent, or the payload was malformed JSON the parse above
@@ -937,7 +999,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     RAW_TARGETS=$(printf '%s' "$INPUT" \
       | grep -oE '"(file_path|notebook_path|command)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' \
       | sed -E 's/^"[a-z_]+"[[:space:]]*:[[:space:]]*"//; s/"$//' || true)
-    if grep -qE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.' <<< "$RAW_TARGETS"; then
+    if grep -qiE '\.pem($|[^A-Za-z0-9])|\.key($|[^A-Za-z0-9])|(^|/|[[:space:]])(credentials|secrets)\.' <<< "$RAW_TARGETS"; then
       echo "File protection blocked [jqless-fallback]: the tool input names a protected file (*.pem, *.key, credentials.*, secrets.*) but tool_input.command could not be parsed, so only a coarse raw-text check ran." >&2
       exit 2
     fi
@@ -956,12 +1018,39 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       next
     }
     {
-      n = length($0); q = ""; pos = 0
+      n = length($0); q = ""; pos = 0; dp = 0; word = ""; wstart = 0; in_let = 0
       for (i = 1; i <= n; i++) {
         c = substr($0, i, 1)
         if (q != "") { if (c == q) q = ""; continue }
         if (c == "\"" || c == "'\''") { q = c; continue }
-        if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+        # A `#` that opens a shell comment (start of line, or after
+        # whitespace/;/&/|/() — ends the line for heredoc-opener purposes:
+        # `# see docs <<EOF` names no real heredoc, it is prose after a
+        # comment marker, and reading it as one silently drops the next N
+        # lines as data this scrub never lets through to inspection (T0-6).
+        if (c == "#" && (i == 1 || index(" \t;&|(", substr($0, i - 1, 1)) > 0)) break
+        # `word` accumulates the current bareword so a completed "let" —
+        # only when it sits at a COMMAND-WORD position (start of line, or
+        # right after a separator) — can be recognized at the boundary that
+        # ends it (whitespace, `;`, `&`, `|`).
+        if (c ~ /[A-Za-z0-9_]/) {
+          if (word == "") wstart = i
+          word = word c
+        } else {
+          if (word == "let" && (wstart == 1 || index(" \t;&|(", substr($0, wstart - 1, 1)) > 0)) in_let = 1
+          if (c == ";" || c == "&" || c == "|") in_let = 0
+          word = ""
+        }
+        # `((` opens a level of arithmetic depth (the inner pair of `$((`, or
+        # a bare arithmetic command) and `))` closes one. `<<` found at depth
+        # > 0, or anywhere on an unquoted `let` statement, is the SHIFT
+        # operator, not a heredoc operator — `$((1<<X))` and `let x=1<<Y`
+        # must not be misread as `<<X`/`<<Y` heredoc openers, which would
+        # treat the following lines as heredoc DATA and drop a real write on
+        # one of them past this scrub uninspected (T0-6).
+        if (c == "(" && substr($0, i+1, 1) == "(") { dp++; i++; continue }
+        if (c == ")" && dp > 0 && substr($0, i+1, 1) == ")") { dp--; i++; continue }
+        if (dp == 0 && !in_let && c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
       }
       if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
         tag = substr($0, pos, RLENGTH)
@@ -1188,21 +1277,39 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     set +f
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(awk|gawk|mawk)[[:space:]]+[^|;&]*' || true)"
 
-  # 4) cp/mv: only the DESTINATION (last non-flag token) is a write — copying
-  #    FROM a protected file is a read and stays allowed.
+  # 4) cp/mv: only the DESTINATION is a write — copying FROM a protected file
+  #    is a read and stays allowed. Ordinarily the destination is the last
+  #    non-flag token, but GNU `-t DIR` / `--target-directory[=]DIR` names it
+  #    as a FLAG OPERAND instead — every remaining positional is then a
+  #    SOURCE, not a destination. Vector 8 (install/rsync) already handles
+  #    this shape; cp/mv did not, so `cp -t .git/hooks x` planted a git hook
+  #    past this guard (T0-12).
   while IFS= read -r span; do
     [ -z "$span" ] && continue
     span=$(_geniro_strip_redir_span "$span")
     [ -z "$span" ] && continue
     last=""
+    tgt_dir=""
+    take_dir=0
     set -f
     # shellcheck disable=SC2086
     for tok in $span; do
-      case "$tok" in cp|mv|*/cp|*/mv|-*) continue ;; esac
+      if [ "$take_dir" = "1" ]; then tgt_dir="$tok"; take_dir=0; continue; fi
+      case "$tok" in
+        cp|mv|*/cp|*/mv) continue ;;
+        -t|--target-directory) take_dir=1; continue ;;
+        --target-directory=*) tgt_dir="${tok#--target-directory=}"; continue ;;
+        -*) continue ;;
+      esac
       last="$tok"
     done
     set +f
-    case "$last" in ""|cp|mv|*/cp|*/mv) : ;; *) add_candidate "$last" ;; esac
+    if [ -n "$tgt_dir" ]; then
+      # cp/mv -t DIR form: DIR is the write target; trailing tokens are sources.
+      add_candidate "$tgt_dir"
+    else
+      case "$last" in ""|cp|mv|*/cp|*/mv) : ;; *) add_candidate "$last" ;; esac
+    fi
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(cp|mv)[[:space:]]+[^|;&]*' || true)"
 
   # 5) dd of=target
@@ -1279,14 +1386,19 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     fi
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])(install|rsync)[[:space:]]+[^|;&]*' || true)"
 
-  # 9) ln -f ... LINK — the LINK (last non-flag token) is created/overwritten
-  #    when -f/--force is present (without -f, ln refuses to clobber an existing
-  #    target). A symlink or hardlink over a protected path is a write.
+  # 9) ln ... LINK — the LINK (last non-flag token) is created/overwritten.
+  #    Gated on -f/--force in general: without it, ln refuses to clobber an
+  #    EXISTING target, so a symlink/hardlink over most protected paths is
+  #    only a write when -f is present. A link path landing under .git/ is
+  #    the one exception — checked case-insensitively, unconditional on -f
+  #    — because the harm there is CREATING a new git hook or config that
+  #    runs on the next commit, not clobbering an existing one: `ln -s
+  #    /tmp/evil.sh .git/hooks/pre-commit` plants a hook whether or not the
+  #    path already existed (T0-12).
   while IFS= read -r span; do
     [ -z "$span" ] && continue
     span=$(_geniro_strip_redir_span "$span")
     [ -z "$span" ] && continue
-    grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force' <<< "$span" || continue
     last=""
     set -f
     # shellcheck disable=SC2086
@@ -1295,7 +1407,16 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       last="$tok"
     done
     set +f
-    case "$last" in ""|ln|*/ln) : ;; *) add_candidate "$last" ;; esac
+    case "$last" in
+      ""|ln|*/ln) : ;;
+      *)
+        if grep -qiE '(^|/)\.git/' <<< "$last"; then
+          add_candidate "$last"
+        elif grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force' <<< "$span"; then
+          add_candidate "$last"
+        fi
+        ;;
+    esac
   done <<< "$(printf '%s' "$ONELINE" | grep -oE '(^|[\\|;&(/[:space:]])ln[[:space:]]+[^|;&]*' || true)"
 
   # 10) sponge / ed / ex / patch — ordinary in-place-edit tools with no
@@ -1400,12 +1521,30 @@ if [ "$TOOL_NAME" = "Bash" ]; then
       next
     }
     {
-      n = length($0); q = ""; pos = 0
+      n = length($0); q = ""; pos = 0; dp = 0; word = ""; wstart = 0; in_let = 0
       for (i = 1; i <= n; i++) {
         c = substr($0, i, 1)
         if (q != "") { if (c == q) q = ""; continue }
         if (c == "\"" || c == "'\''") { q = c; continue }
-        if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+        # Mirrors the SCRUBBED heredoc scrub above, verbatim (T0-6): a
+        # word-initial `#` comment, and `<<` inside `$((…))`/`((…))`/an
+        # unquoted `let` statement, must not be misread as a heredoc opener
+        # here either — this copy backs vector 12 (interpreter-mediated
+        # writes) independently of $SCRUBBED, so the same arithmetic/comment
+        # decoy that hides a redirect from vectors 1-11 would otherwise still
+        # hide an interpreter write from this one.
+        if (c == "#" && (i == 1 || index(" \t;&|(", substr($0, i - 1, 1)) > 0)) break
+        if (c ~ /[A-Za-z0-9_]/) {
+          if (word == "") wstart = i
+          word = word c
+        } else {
+          if (word == "let" && (wstart == 1 || index(" \t;&|(", substr($0, wstart - 1, 1)) > 0)) in_let = 1
+          if (c == ";" || c == "&" || c == "|") in_let = 0
+          word = ""
+        }
+        if (c == "(" && substr($0, i+1, 1) == "(") { dp++; i++; continue }
+        if (c == ")" && dp > 0 && substr($0, i+1, 1) == ")") { dp--; i++; continue }
+        if (dp == 0 && !in_let && c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
       }
       if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
         tag = substr($0, pos, RLENGTH)

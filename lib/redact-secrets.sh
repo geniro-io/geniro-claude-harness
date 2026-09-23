@@ -205,8 +205,24 @@ redact_secrets() {
   local sj
   sj=$(_red_safety_json)
   if [ -n "$sj" ]; then
-    local n r repl
-    while IFS=$'\t' read -r n r repl; do
+    local n r repl idx pcount
+    # Each field is fetched with its OWN `jq -r` call, one pattern at a time,
+    # rather than packed through `[.name,.regex,.replacement] | @tsv`. `@tsv`
+    # re-escapes backslashes (and tabs/newlines) so the TSV columns stay
+    # delimiter-safe — that doubles every `\` in a user's regex or
+    # replacement, so `\.` survives as `\\.` (an ERE for "backslash then any
+    # char", not a literal dot) and a `\1` backreference is mangled the same
+    # way; a configured pattern like `INT\.[A-Z0-9]{8}` then silently never
+    # matches. Plain `-r` raw-output on a single string filter prints the
+    # string's actual bytes with no such re-escaping.
+    pcount=$(jq -r '(.redaction.additional_patterns // []) | length' "$sj" 2>/dev/null)
+    case "$pcount" in ''|*[!0-9]*) pcount=0 ;; esac
+    idx=0
+    while [ "$idx" -lt "$pcount" ]; do
+      n=$(jq -r --argjson i "$idx" '.redaction.additional_patterns[$i].name // ""' "$sj" 2>/dev/null)
+      r=$(jq -r --argjson i "$idx" '.redaction.additional_patterns[$i].regex // ""' "$sj" 2>/dev/null)
+      repl=$(jq -r --argjson i "$idx" '.redaction.additional_patterns[$i].replacement // ""' "$sj" 2>/dev/null)
+      idx=$((idx + 1))
       [ -z "$n" ] && continue
       # Skip a user pattern whose regex is empty or whose regex/replacement
       # contains a control byte we use internally (\002 sed delimiter, \001
@@ -218,7 +234,7 @@ redact_secrets() {
       regexes+=("$r")
       replacements+=("$repl")
       multiline+=(0)
-    done < <(jq -r '.redaction.additional_patterns[]? | [.name, .regex, .replacement] | @tsv' "$sj" 2>/dev/null)
+    done
   fi
 
   # Iterate the parallel arrays by counter — `${!names[@]}` is bash-only

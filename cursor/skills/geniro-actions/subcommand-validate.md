@@ -20,7 +20,7 @@ Then add these validate-only rows:
 
 | Check | Severity |
 |---|---|
-| `description:` passes the three rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` — that file is the shared source for these rows and their severity | LOW |
+| `description:` passes the rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` — that file is the shared source for these rows and their severity | LOW |
 | `allowed-tools:` field present (if action mutates) | LOW |
 | No references to dropped skills in body | HIGH |
 

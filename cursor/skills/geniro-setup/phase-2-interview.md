@@ -25,7 +25,7 @@ Then `AskQuestion`: `Looks correct` / `Adjust some things`. If adjust, ask speci
 
 ### 2.3 Codebase confirmations (only if Detect was ambiguous)
 
-E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package manager?" Skip Batch 2 entirely if no ambiguity.
+E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package manager?" Skip this step entirely if no ambiguity.
 
 ### 2.4 Optional integrations — issue tracker
 

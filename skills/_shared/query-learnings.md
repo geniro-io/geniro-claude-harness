@@ -18,7 +18,7 @@
 ## API
 
 ```bash
-source lib/query-learnings.sh
+source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"
 query_learnings [flags] > matches.jsonl
 ```
 
@@ -33,8 +33,7 @@ The `record_access` function has its own exit-code table in the §`record_access
 ## MODE contract
 
 **No MODE parameter, compaction-immune** — every call is a fresh query against the on-disk L2 log,
-so re-querying after a SessionStart event is always safe (`/geniro:debug` Phase 2 does exactly that
-when its hypothesis thread depends on prior findings).
+so re-querying after a SessionStart event is always safe.
 
 ## Flags
 

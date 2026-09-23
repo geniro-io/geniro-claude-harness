@@ -91,7 +91,7 @@ Body sections:
 
 ## 3. Phase 3 reviewer-agent spawn template
 
-For Medium and Big: spawn a fresh reviewer-agent. The agent reads its own criteria — do NOT pre-read into orchestrator context. Pre-inline content the loader echoed: `code-style.md` content under `## Code-style instructions`. Omit when the loader echoed `No code-style.md found — skipping.` DIFF carries code under review — wrap it in a `DIFF` fence at the point it enters this prompt (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` §Untrusted-content fence), the same label `/geniro:review` and `/geniro:implement` use for a diff.
+For Medium and Big: spawn a fresh reviewer-agent. The agent reads its own criteria — do NOT pre-read into orchestrator context. Pre-inline content the loader echoed: `code-style.md` content under the `CODE-STYLE INSTRUCTIONS:` slot (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`). Omit when the loader echoed `No code-style.md found — skipping.` DIFF carries code under review — wrap it in a `DIFF` fence at the point it enters this prompt (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` §Untrusted-content fence), the same label `/geniro:review` and `/geniro:implement` use for a diff.
 
 ```
 Agent(subagent_type="reviewer-agent", prompt="""
@@ -108,7 +108,7 @@ PLAN-STEPS REPORT: [paste state.md `## Plan steps` rows with final status]
 PROJECT CONVENTIONS: [paste relevant conventions from CLAUDE.md]
 PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 
-## Code-style instructions
+CODE-STYLE INSTRUCTIONS:
 [content here]
 
 ## Focus Areas
@@ -130,4 +130,4 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """, description="Review: refactor diff")
 ```
 
-**Custom reviewers (Medium and Big only — same gate):** First, resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty. Then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored review dimensions in `.geniro/instructions/review-extra/`. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent",...)` to the SAME parallel batch as the independent reviewer above — same assistant response, parallel execution. The helper's `paths:` filter uses the refactor's changed-files list. Custom-reviewer findings flow through the same orchestrator disposition logic as independent-reviewer findings. If the helper aborts on hard-cap error, surface error + skip; do not proceed with review.
+**Custom reviewers (Medium and Big only — same gate):** First, resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty. Run that dual glob (cwd `.geniro/instructions/review-extra/*.md` + `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`) first: read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` when — and only when — it returns at least one file; skip both the Read and the custom-reviewer spawns otherwise, the common case with no `review-extra/` files. When it does return a file, apply that helper to discover user-authored review dimensions in `.geniro/instructions/review-extra/`. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent",...)` to the SAME parallel batch as the independent reviewer above — same assistant response, parallel execution. The helper's `paths:` filter uses the refactor's changed-files list. Custom-reviewer findings flow through the same orchestrator disposition logic as independent-reviewer findings. If the helper aborts on hard-cap error, surface error + skip; do not proceed with review.

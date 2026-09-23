@@ -42,7 +42,7 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 | `BRANCH_MATCHES_TASK_SLUG` | Derived-from-spec slug (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`) substring-matches `CURRENT_BRANCH` |
 | `SPEC_WORKFLOW_REFS` | If spec.md present at resolved task slug: parse `workflow_refs:` frontmatter list (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`). Empty list when field absent. |
 | `SPEC_LAUNCH_CONFIG` | If spec.md present at resolved task slug: parse the optional `launch_config:` frontmatter block (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`) — `workspace` / `branch_freshness` / `ship_mode`, plus the optional `tracker_status` (present only when the spec had a linked tracker ticket). Empty when the block is absent, on an inline-task run with no spec, or on a pre-`m5-v4` spec that omits it. |
-| `BRANCH_FORMAT_RULE` | Read `global.md` directly here at Step 0a from the resolved instructions base dir: when `$GENIRO_INSTRUCTIONS_DIR` (or `$CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_DIR`) is set and is a directory, read `<that-dir>/global.md` (expand a leading `~` to `$HOME`); otherwise read `<PRIMARY_ROOT>/.geniro/instructions/global.md`. Extract any branch-format directive present (regex pattern, required components such as `<type>/<ticket>-<desc>`, ticket-prefix requirement). Empty when file absent or no branch rule documented. The custom-instructions loader at Step 5 re-Reads the same file with the full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. |
+| `BRANCH_FORMAT_RULE` | Extracted at Step 0a from the resolved instructions base dir's `global.md` — detection mechanism and format shape canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md` §Branch-format-rule conformance. Empty when the file is absent or documents no branch rule. The custom-instructions loader at Step 5 re-Reads the same file with the full echo contract; this Step 0a read is a targeted extraction so Step 0c knows the format constraint before authorizing branch creation. |
 | `TICKET_ID_IN_SCOPE` | Set to the detected ticket ID when `$ARGUMENTS` contains a Linear URL / `<TEAM>-<N>` ID, OR spec.md frontmatter `workflow_refs[]` carries one, OR `CURRENT_BRANCH` already encodes one. Empty when none in scope. |
 | `CONCURRENT_ACTIVITY` | `git worktree list --porcelain` shows a peer worktree already on `CURRENT_BRANCH`, OR `git status --porcelain` at Step 0 entry shows changes this run did not author. |
 
@@ -52,9 +52,9 @@ The first four signals — `CURRENT_BRANCH`, `CURRENT_TOPLEVEL`, `IN_WORKTREE`, 
 
 Literal question shapes for the Step 0c workspace-setup AUQ. SKILL.md §PHASE 1 Step 0c owns when each fires; these are the verbatim templates.
 
-### Question 1 — workspace (rules 3/5/6)
+### Question 1 — workspace (the protected-branch, no-signal, and contested current-branch-continuing rules)
 
-This question instantiates the canonical option catalogue (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §2) under Mode WORK-BASE (§3), and its `(Recommended)` handling follows that helper's §5. The labels below therefore carry NO `(Recommended)` suffix: rule 3 and rule 6 flip the label depending on `CONCURRENT_ACTIVITY`, so a suffix baked in here would render the wrong option as Recommended on every run those rules govern. Append ` (Recommended)` at render time to the one label the fired rule names.
+This question instantiates the canonical option catalogue (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §2) under Mode WORK-BASE (§3), and its `(Recommended)` handling follows that helper's §5. The labels below therefore carry NO `(Recommended)` suffix: the current-branch-continuing rule (0b rule 3) and the no-signal rule (0b rule 6) flip the label depending on `CONCURRENT_ACTIVITY`, so a suffix baked in here would render the wrong option as Recommended on every run those rules govern. Append ` (Recommended)` at render time to the one label the fired rule names.
 
 ```
 header: "Workspace"
@@ -62,18 +62,18 @@ question: "Where should /geniro:implement land its edits?"
 multiSelect: false
 options:
   - label: "New feature branch"
-    description: "git checkout -b <derived-slug>. Slug source order: $ARGUMENTS / spec.title / suggested-branch / branch-naming.md fallback. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
+    description: "git checkout -b <derived-slug>. The slug is derived from what you typed, the spec's title, or a suggested name, in that order, falling back to a generated one. If your project defines a branch-name format (in .geniro/instructions/global.md), the slug must match it before the branch is created."
   - label: "Current branch"
     description: "Pre-flight only; no git mutation. Echo 'Continuing on <branch> at <toplevel>.'"
   - label: "Git worktree"
-    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then EnterWorktree. Isolated parallel work; instant rollback; the checkout you are in is left untouched. Same branch-name-format conformance as 'New feature branch'."
+    description: "git worktree add -b <slug> .claude/worktrees/<slug>, then switches your session into it. Isolated parallel work; instant rollback; the checkout you are in is left untouched. Same branch-name-format conformance as 'New feature branch'."
 ```
 
 ### No-ticket-ID sub-flow
 
 ```
 header: "Ticket ID"
-question: "Branch format requires a ticket prefix (per .geniro/instructions/global.md), but no ticket ID was detected in $ARGUMENTS, spec.md, or the current branch. How do you want to proceed?"
+question: "Branch format requires a ticket prefix (per .geniro/instructions/global.md), but no ticket ID was detected in what you typed, the spec, or the current branch. How do you want to proceed?"
 multiSelect: false
 options:
   - label: "Provide ticket ID inline"
@@ -81,7 +81,7 @@ options:
   - label: "Use placeholder slug"
     description: "Slug becomes <type>/no-ticket-<desc>. The branch is created with the placeholder and renameable later via 'git branch -m'."
   - label: "Cancel — I'll get a ticket first"
-    description: "Terminal. No git mutation. The run exits so a ticket can be created first, then /geniro:implement re-invoked."
+    description: "No git changes are made. The run ends so a ticket can be created first, then /geniro:implement re-invoked."
 ```
 
 ---
@@ -126,7 +126,7 @@ An outward gate — one authorizing an action from the `non-resumable-actions[]`
 | Workflow MCP unavailable when Question 2 fires | Question 2 still fires; "Yes" answer logs warning and proceeds without MCP call. Non-blocking. |
 | Workflow file present but `### On task start` section missing | Question 2 omitted silently. |
 | User picks "Other" with custom text on Question 1 | Treat as "Current branch" semantically; no git mutation; echo custom text into state.md `## Workspace decision` body block. |
-| Several handoffs for the current branch (any mix of review / debug) | Each satisfies rule 2 of 0b. Echo every matched signal in its plain-English form; behavior otherwise identical. |
+| Several handoffs for the current branch (any mix of review / debug) | Each satisfies the in-worktree continuing rule (0b rule 2). Echo every matched signal in its plain-English form; behavior otherwise identical. |
 | Stale handoff (older than the current work) | Still triggers rule 2. Emit soft notice: `"The <producer> handoff is N days old — re-run /geniro:<producer> if you want fresh findings."` |
 | `IN_WORKTREE == true` AND `PROTECTED_BRANCH == true` | Rule 4 fires (worktree-mismatch AUQ) — a worktree checked out on a protected branch is itself the anomaly to surface; rule 5 requires `IN_WORKTREE == false`. |
 
@@ -183,7 +183,7 @@ Default: spawn both agents BLOCKING and read their outputs at Step 8 — the com
 1. Spawn both agents `run_in_background: true` in ONE assistant response (same template + slots below; only the background flag changes).
 2. In that same turn, run Step 12 sub-steps 1-7 — read the handoff, persist its body, parse `open_questions[]`, filter to unresolved, fire the open-questions AUQ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §2.5 (message-first render, then a lean question), and persist each answer the moment it is picked: round-trip the producer handoff to `status: resolved` (sub-step 6) and append the `review_handoff_resolution` approval to state.md (sub-step 7). Persist in the pick-turn — never defer persistence across the Step 8 drain, where large agent outputs make compaction likely and an unpersisted pick is lost and re-asked (the blocking path persists immediately after each pick; the overlap must not widen that window). These sub-steps consume the handoff and the user's answers, never the agents' output, so they are provably independent.
 3. Drain at Step 8: before reading `.kr-out.md` / `.ce-out.md`, confirm both backgrounded agents returned (Read the output file, or resume by ID). This is the first step that consumes their output.
-4. After the drain, run Step 12 sub-steps 8-11 (authored-tests extraction, comment-resolutions, and the remaining bookkeeping) — the answer persistence (sub-steps 6-7) already fired in step 2.
+4. After the drain, run Step 12 sub-steps 8-10 (authored-tests extraction) — the answer persistence (sub-steps 6-7) already fired in step 2.
 
 Hard boundary: the overlap changes only WHEN the open-questions AUQ is asked, never the code-edit gate itself — every unresolved entry must still be resolved before `phase: implement`, exactly as in the blocking path.
 
@@ -359,6 +359,7 @@ The orchestrator pre-resolves these slots per delegate:
 | `EXEMPLAR_FILES` | 1-3 exemplar file paths, pre-inlined content, to mirror |
 | `PAIRED_TEST` | The test path this slice must make pass, and what it asserts |
 | `CODE_STYLE` | Pre-inlined code-style / conventions content relevant to `ALLOWED_FILES`, or omit when none applies |
+| `PROJECT RULES / CONSTRAINTS` | The loaded `global.md` + `implement.md` `## Rules` and `## Constraints` sections, verbatim — a delegate never self-loads either file, so this slot is the only way a project hard gate (e.g. "Database migrations must be backwards-compatible") reaches the code the delegate writes; omit when neither file carries either section |
 | `PROJECT SEARCH POLICY` | Verbatim `global.md` search rules, or `none declared` — governs every lookup the delegate makes, not just the first |
 
 ```
@@ -371,10 +372,12 @@ OTHER_DELEGATES_FILES: [newline-separated absolute paths other delegates own —
 EXEMPLAR_FILES: [pre-inlined content of 1-3 files to mirror]
 PAIRED_TEST: [path + what it asserts]
 CODE_STYLE: [pre-inlined code-style / conventions content, or omit this line when none applies]
+PROJECT RULES / CONSTRAINTS: [verbatim ## Rules + ## Constraints content from global.md and implement.md, or omit this line when neither file carries either section]
 PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
 
 Implement TODO_SPEC_EXCERPT against ALLOWED_FILES only — nothing beyond the slice. Match the
-surrounding files' conventions. When authoring or extending PAIRED_TEST, follow
+surrounding files' conventions and honor PROJECT RULES / CONSTRAINTS exactly as it would bind the
+orchestrator's own edits. When authoring or extending PAIRED_TEST, follow
 ${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md §"Test design philosophy",
 including its §13 pruning rule.
 Write comments only for what stays true of the code — how to use
@@ -413,7 +416,6 @@ The orchestrator pre-resolves these slots:
 | `TEST_COMMAND` | Project's test command from CLAUDE.md "Essential Commands" (e.g., `pnpm --filter api test:unit`, `pytest tests/`, `go test ./...`). A Phase 3 fix-round re-spawn instead passes the related-tests command §"Phase 3: Bounded fix loop" "Related-tests scoping" defines, with this command as its fallback. |
 | `CHANGED_FILES` | Paths this run edited — by the orchestrator directly or by a code delegate on its behalf (newline-separated) |
 | `OUTPUT_PATH` | `<task-dir>/.tr-out.md` (overwritten per retry) |
-| `MAX_FAILURES_REPORTED` | `15` (default) |
 
 ```
 Agent(subagent_type="test-runner-agent", description="Running the test suite", prompt="""
@@ -422,7 +424,6 @@ TEST_COMMAND: [exact command string]
 CHANGED_FILES: [newline-separated paths]
 
 OUTPUT_PATH: [absolute path under <task-dir>]
-MAX_FAILURES_REPORTED: 15
 
 Follow the procedure in your agent file §Workflow. Run TEST_COMMAND ONCE,
 save full stdout+stderr to a /tmp log via tee, parse the saved log (Grep), and
@@ -442,7 +443,7 @@ The Phase 2 fix loop uses the structured `test-runner-agent` output (NOT raw std
 
 ```
 retry = 1
-while retry ≤ 3:
+while retry ≤ RETRY_CAP:                       # cap canonical in SKILL.md §Loop invariants (invariant 5)
   read <task-dir>/.tr-out.md
   if Verdict == ALL_GREEN → run ALL section-9 verify: commands (spec-driven runs only);
                             on any verify failure/refusal → Step 6 escalation (one digest naming every failed/refused criterion)
@@ -521,7 +522,7 @@ A read-only acceptance check (`pnpm test`, `curl -fsS localhost:3000/healthz`, `
 
 
 - **Orchestrator runs it, not `test-runner-agent`.** The runner agent's single-command leaf contract is a deliberate safety boundary — its anti-rationalization forbids it orchestrating multiple commands. Phase 2 already grants the orchestrator Bash, so it runs the `verify:` strings directly.
-- **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing 3-retry fix loop already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
+- **Bounded single-shot.** Run each command once and report — not an iterate-to-green optimizer. The existing bounded fix loop (RETRY_CAP, `SKILL.md` §Loop invariants) already bounds convergence; a `verify:` failure surfaces to the user, it does not silently re-edit toward green.
 - **A failing `verify:` surfaces, never auto-resolves.** Feed it into the same Phase 2 check-failure escalation digest under its acceptance-check header (`"Acceptance check failed"`, or `"Checks failed"` when the suite also failed) — name the failed criterion's command in plain English, e.g. "the contract-test acceptance check the spec attached is still failing"; the user stays the ship decider. A safety hook blocking the command is an `INFRA_ERROR`, never a quiet skip — the user must see that the acceptance check could not run. A command refused by the side-effect screen above routes through the same escalation with its own plain-English reason.
 - **Spec-driven only.** The inline-task fallback (no spec → no section 9 `verify:`) has nothing to run and skips this step cleanly.
 - **Evidence.** Attach each command's Command / Exit code / Summary as an Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`, alongside the suite Verdict, and append the outcome to state.md `## Tool log` via `atomic_state_append_section`.
@@ -544,7 +545,7 @@ CRITERIA FILES: [one absolute path per line — this dimension's criteria file(s
 CHANGED FILES: [round 1: newline-separated absolute paths this run edited — read each one to review it. round N+1: only the paths the preceding fix round edited.]
 DIFF CONTEXT:
 ---BEGIN UNTRUSTED DIFF---
-[`git diff $(git merge-base <base> HEAD) -- <paths>`, working tree included — nothing is committed before Ship, so there is no round sha to diff from; <base> resolves per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md rule 3, and diffing from the merge-base keeps the base branch's own later commits out. New untracked files show no hunk here; the reviewer reads them from CHANGED FILES. round 1: <paths> is this run's full edited-file set. round N+1: <paths> is only the preceding round's edited paths.]
+[`git diff $(git merge-base <base> HEAD) -- <paths>`, working tree included — nothing is committed before Ship, so there is no round sha to diff from; <base> resolves per the base-branch resolution rule in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md §The rule, and diffing from the merge-base keeps the base branch's own later commits out. New untracked files show no hunk here; the reviewer reads them from CHANGED FILES. round 1: <paths> is this run's full edited-file set. round N+1: <paths> is only the preceding round's edited paths.]
 ---END UNTRUSTED DIFF---
 SPEC CONTEXT:
 ---BEGIN UNTRUSTED PLAN---
@@ -569,38 +570,36 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 | `tests` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` | Changed behaviors no test pins, F→P invariant, loose or brittle assertions, redundant or over-layered tests. **Pre-condition:** tests are green per Phase 2; this dim NEVER sees failing tests. |
 | `code-quality` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/optimizations-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/guidelines-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/conventions-criteria.md` + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/rules-compliance-criteria.md` | Idiomatic style, readability, comments noise, premature abstractions, simplification opportunities, and compliance with the repo's own authored rule files (the authored-rule-citation class conventions-criteria.md §1 hands off to rules-compliance-criteria.md). |
 
-**Code-style pre-inline slot (code-quality + architecture reviewers only):** if the Phase 1 / Phase 3-entry L4 loader echoed `Loaded code-style.md …`, pre-inline that content under a `## Code-style instructions` header per the reviewer-agent contract. If the loader echoed `No code-style.md found — skipping.`, omit the slot. Bugs / security / tests reviewers do NOT get the slot (code-style is orthogonal).
+**Code-style.md** is loaded by every reviewer spawn, not pre-inlined by the orchestrator — each reviewer-agent self-loads it per `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Step 1.6, applying a flagged violation only when it is style-adjacent to its own dimension.
 
 **Authored-rule-files slot (code-quality reviewer only):** pass an `AUTHORED RULE FILES:` slot — one absolute path per line to the repo's own rule files (`CLAUDE.md`, `.claude/rules/`, `.cursor/rules/`, `.cursorrules`, `AGENTS.md`, etc.), discovered via Glob before spawning, or the sentinel `none found` when the repo ships none. Always composed, never omitted — an absent slot and a repo with no rule files read identically to the reviewer, and rules-compliance-criteria.md §1 falls back to its own Glob only when the slot is missing entirely. Other dimensions do NOT get this slot.
 
-**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff. The `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` whitelist (`[Read, Glob, Grep, Bash, "mcp__*"]`) blocks Edit / Write / Agent outright — those tool names are absent from the grant. `Bash` itself is unrestricted by the whitelist, and the `mcp__*` grant is read-only *by prompt contract*, not by the whitelist: read-only Bash use and no mutating/external-network MCP calls are enforced by the inlined prompt instruction, per `${CLAUDE_PLUGIN_ROOT}/ARCHITECTURE.md` §Optional MCP companions.
+**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff. The `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` whitelist (`[Read, Glob, Grep, Bash, "mcp__*"]`) blocks Edit / Write / Agent outright — those tool names are absent from the grant. `Bash` itself is unrestricted by the whitelist, and the `mcp__*` grant is read-only *by prompt contract*, not by the whitelist: read-only Bash use and no mutating/external-network MCP calls are enforced by the inlined prompt instruction.
 
 **Parallel invocation:** every dimension in Round 1's resolved grid (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`) — or fewer, on round N+1 — spawns in ONE assistant response, multiple spawns in the same message. Serial invocation doubles wall-time and the spec's design intent is parallelism.
 
 ### Custom reviewer dimensions (`.geniro/instructions/review-extra/`)
 
-Round 1 only — before issuing the built-in spawns, first resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call (the helper's Step 1 dual-globs `.geniro/instructions/review-extra/*.md` against cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`, so in a linked worktree where `.geniro/instructions/` is gitignored and does not propagate on `git worktree add`, the main-worktree fallback is the only path that finds user-authored review-extra files), then apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to discover user-authored `review-extra/<slug>.md` files. The helper returns a list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its `paths:` filter against the changed-files list and enforcing its cap. Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the SAME parallel batch as the built-in dimensions (one assistant turn, one parallel batch — same rule as `/geniro:review` Phase llm-spawn and `/geniro:refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs), and each spec's `custom:<slug>` label to `spawn_dims_declared[]` alongside the built-ins (`phase-3-ship.md` Step 1, "Declare the set before firing").
+Round 1 only — before issuing the built-in spawns, first resolve `PRIMARY_ROOT` by running the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call, then glob `.geniro/instructions/review-extra/*.md` against BOTH cwd AND `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md` — in a linked worktree where `.geniro/instructions/` is gitignored and does not propagate on `git worktree add`, the main-worktree fallback is the only path that finds user-authored review-extra files. **Zero matches is the common case** — skip the rest of this section silently and proceed with the built-in dimensions, without reading `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`, since there is nothing for it to discover. On ≥1 match, apply that helper to discover and filter the candidate files: it returns a list of spawn-specs (slug, dimension-label `custom:<slug>`, model, criteria-content, severity-default, source-path) after applying its own `paths:` filter against the changed-files list and enforcing its cap — a helper call that filters every candidate back out to zero specs is the same silent no-op, one step later. Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the SAME parallel batch as the built-in dimensions (one assistant turn, one parallel batch — same rule as `/geniro:review` Phase llm-spawn and `/geniro:refactor` Phase verify per `_shared/load-custom-reviewers.md` §How consumers use the spawn-specs), and each spec's `custom:<slug>` label to `spawn_dims_declared[]` alongside the built-ins (`phase-3-ship.md` Step 1, "Declare the set before firing").
 
 Round N+1: re-fire a custom reviewer only if its prior round flagged a CRITICAL or HIGH finding — the re-fire threshold for custom dimensions (built-ins follow their own actionable-findings re-spawn rule). The custom reviewer's spawn-spec list is recomputed only on round 1; round N+1 reuses the round-1 spec cache.
-
-If `.geniro/instructions/review-extra/` does not exist OR the glob returns zero matches after path filtering, this section is a silent no-op — the round proceeds with the built-in dimensions.
 
 ---
 
 ## Phase 3: Edge-case test authoring
 
-An in-phase orchestrator step, not a spawn — Phase 2 already authorizes source mutation, so an orchestrator-authored test file in Phase 3 is symmetric to the code it just wrote, and editing test-file paths is already inside this phase's tool surface (`SKILL.md` §ACI, invariant S5). It runs alongside Round 1's reviewer-agent batch. SKIPPED on either of two conditions:
+An in-phase orchestrator step, not a spawn — Phase 2 already authorizes source mutation, so an orchestrator-authored test file in Phase 3 is symmetric to the code it just wrote, and editing test-file paths is already inside this phase's tool surface (`operations-reference.md` §ACI per-phase tool surface; `SKILL.md` §Loop invariants, invariant S5). It runs alongside Round 1's reviewer-agent batch. SKIPPED on either of two conditions:
 
 - Codebase-Explorer report `change_scope: trivial`, OR
 - `--no-adversarial` modifier present in `$ARGUMENTS`.
 
 **Read the canonical test-design taxonomy first.** Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §"Test design philosophy" and §"Litmus test (the deletion test)" once before hypothesizing — the mocking-discipline tiers and the deletion-test litmus bind here exactly as they bind the `tests` reviewer dimension. Do not duplicate its content into this step's output.
 
-**Hypothesis generation.** Read the diff (`git diff $(git merge-base <base> HEAD)`, working tree included, `<base>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3) with an attacker mindset — what input, ordering, or state would break this specific change, attacking along boundary values, null/empty input, ordering and async races, and critical-path failure modes. Generate 5-12 hypotheses scaled to the size of the changed regions: a ceiling, not a floor — a one-file diff earns fewer hypotheses than a ten-file one, and there is no minimum to hit. **Stop rule:** 5 hypotheses in a row ending `discarded-cannot-repro` or `inconclusive` halts further hypothesis generation for this run — return what survived rather than grinding on a diff that has already yielded what it will.
+**Hypothesis generation.** Read the diff (`git diff $(git merge-base <base> HEAD)`, working tree included, `<base>` per the base-branch resolution rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §The rule) with an attacker mindset — what input, ordering, or state would break this specific change, attacking along boundary values, null/empty input, ordering and async races, and critical-path failure modes. Generate 5-12 hypotheses scaled to the size of the changed regions: a ceiling, not a floor — a one-file diff earns fewer hypotheses than a ten-file one, and there is no minimum to hit. **Stop rule:** 5 hypotheses in a row ending `discarded-cannot-repro` or `inconclusive` halts further hypothesis generation for this run — return what survived rather than grinding on a diff that has already yielded what it will.
 
 **F→P verification.** For each hypothesis worth a test, author it under the project's test directory and run it once before touching production code. A test that cannot be demonstrated RED on the current code is discarded — it isn't testing a real gap. **Hard cap: 10 authored tests per run** — at the cap, stop, note the overflow in the round summary, and let the fix loop (or a follow-up run) handle any hypothesis left over. A test that IS red for a confirmed bug survives into the round's findings as a HIGH (§"Phase 3: Bounded fix loop" ACTIONABLE definition) and is fixed in the same fix loop as the reviewer-agent findings; the next round's `test-runner-agent` run is what proves it GREEN. Authored test files stay on disk through Ship — they become part of the commit.
 
-**Flake check (3-run determinism).** Once a round's kept RED tests are demonstrated, run them together in one filtered test-command invocation, repeated 3 times total, each run captured separately. A kept test's error signature must match across all 3 rounds; one that diverges is `inconclusive` — discard and delete it. A test observed red only once is not yet a finding — flaky failures train the next reader to re-run until green and mask a real regression once it starts failing for a new reason.
+**Flake check (3-run determinism).** Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flake-check.md` — same determinism procedure, run once a round's kept RED tests are demonstrated and before they enter `## Authored Tests`.
 
 **Weak-test anti-patterns (forbidden).** Never author a test that uses any pattern `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §12 lists. Reaching for one is a sign the underlying hypothesis is not strong enough — discard it instead of dressing it up.
 
@@ -617,7 +616,7 @@ An in-phase orchestrator step, not a spawn — Phase 2 already authorizes source
 ```
 round = 1
 while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Loop invariants (invariant 5); reads the
-                                                # `Round cap:` line Phase 1 wrote to state.md body when set, else 3
+                                                # `Round cap:` line Phase 1 wrote to state.md body when set, else the invariant's default
   round 1: spawn reviewer-agents (resolved grid) + N custom reviewers IN PARALLEL (one
            assistant response); run the edge-case test-authoring step inline (unless skipped)
   round N+1: re-spawn only dims whose round-N ACTIONABLE finding produced an edit;
@@ -730,7 +729,7 @@ options:
 
 The `(Recommended)` marker follows `per-finding-question.md` §Recommended-label policy — these findings are single-reviewer and unverified, so the conservative disposition carries the label. "Let me pick" runs the same contract's §Multi-select pick loop (≤4 findings per chained call).
 
-**Fix branch** ("Fix them all now", or the picked subset) — mirrors the test-quality gate's tighten-all: re-enter the inline fix sub-loop (Edit-driven, NO new agent spawns; not a review round, so the round-4 prohibition is untouched), then re-spawn `test-runner-agent`; a Verdict other than ALL_GREEN routes through the existing Phase 2 rollback rule. Move fixed entries out of `## Deferred Findings` via `atomic_state_edit` per removed entry (a partial change, never a whole-file rewrite); unfixed picks stay listed. A pre-existing test flagged as redundant is never deleted by this fix — pruning a pre-existing case is Phase 2 authoring's call alone (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §13).
+**Fix branch** ("Fix them all now", or the picked subset) — mirrors the test-quality gate's tighten-all: re-enter the inline fix sub-loop (Edit-driven, NO new agent spawns; not a review round, so the round-cap prohibition is untouched), then re-spawn `test-runner-agent`; a Verdict other than ALL_GREEN routes through the existing Phase 2 rollback rule. Move fixed entries out of `## Deferred Findings` via `atomic_state_edit` per removed entry (a partial change, never a whole-file rewrite); unfixed picks stay listed. A pre-existing test flagged as redundant is never deleted by this fix — pruning a pre-existing case is Phase 2 authoring's call alone (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §13).
 
 **Leave branch** — entries stay in `## Deferred Findings` and feed the ship report's Deferred bullet. This is ordinary deferral, NOT an overridden gate: the ship-mode AUQ's "Disclose overridden gates" stack does not apply to it.
 
@@ -792,14 +791,14 @@ The steps below name capabilities — navigate, snapshot, console, network, resi
 **Step 2 — Commit.** Before staging, run `git branch --show-current` and verify the working tree is on the branch this run targeted (the Phase-1 Step-0 captured `CURRENT_BRANCH` / state.md `branch:` field). The session-start / state-snapshot branch field can go stale across compaction or an intervening branch switch — trust the live command, not the snapshot. On a mismatch, do NOT `git add` or `git commit`; fire an `AskUserQuestion` (header: "Branch check", question: "The working tree is on branch `<live>` but this run targeted `<expected>` — committing here would land the change on the wrong branch. How do you want to proceed?", options: "Move my commit to `<expected>` first" / "Commit on `<live>` anyway" / "Stop — let me sort the branch out").
 
 Once the branch is confirmed, run the review-coverage guard BEFORE staging, then the provenance guard after — canonical order, since the coverage guard's re-review branch below can grow CHANGED_FILES with more fixes, and staging first would leave those out of the commit. Diff CHANGED_FILES against frontmatter `reviewed_file_set` (the file list the Phase 3 fix loop's exit recorded — the union of every round's CHANGED FILES; §"Phase 3: Bounded fix loop" above). Equal sets is the common case — nothing diverged, proceed. A file in CHANGED_FILES but absent from `reviewed_file_set` was edited after the round converged and never reviewed: the deferred spec step or reviewer-recommended follow-up implemented after Phase 3's own review closed, then shipped under its earlier clean result. Render the gap message-first (which files, and that they postdate the review) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then a lean `AskUserQuestion` (header: "Review gap"):
-- "Re-review before shipping (Recommended)" — a bounded, out-of-loop re-review, not a fix-loop round: it doesn't count against invariant 5's round cap and `phase:` stays `ship` throughout. Re-spawn the Step 1 built-in reviewer dimensions once, scoped to only the diverged files' diff, and apply any findings under Step 3's existing inline-fix rule (smallest fix at the cited site, no further agent spawns). The edit this performs is the Ship-sub-step allowance invariant S5 grants (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Loop invariants). Update `reviewed_file_set` to the new CHANGED_FILES on a clean result, then continue to staging.
+- "Re-review before shipping (Recommended)" — a bounded, out-of-loop re-review, not a fix-loop round: it doesn't count against invariant 5's round cap and `phase:` stays `ship` throughout. Re-spawn the Step 1 built-in reviewer dimensions once, scoped to only the diverged files' diff, and apply any findings under Step 3's existing inline-fix rule (smallest fix at the cited site, no further agent spawns). The edit this performs is the Ship-sub-step allowance invariant S5 grants (`${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Loop invariants). When this re-review applied any fix, re-run `test-runner-agent` once with the full `TEST_COMMAND` before continuing — an edit that lands after the fix loop's last full-suite run must not reach the commit untested; a non-green result gets the same rollback-to-Phase-2 handling as any other non-green run. Update `reviewed_file_set` to the new CHANGED_FILES on a clean result, then continue to staging.
 - "Ship anyway — disclose the gap" — append a `## Unreviewed Files` body block naming the diverged files, then proceed; the block rides Step 4's Ship-mode AUQ disclosure ("Disclose overridden gates" below) by name, so the user decides with the gap in view rather than reading the earlier round's clean result as coverage for files it never saw.
 
 Then stage only this run's (possibly grown) CHANGED_FILES set by name (`git add <paths>`, never `-A`/`.`), and only then run the provenance guard: diff `git status --porcelain` against CHANGED_FILES; any production file modified outside that set was authored by something other than this run — fire an `AskUserQuestion` (header: "Extra edits", options: "Include them — I authored them elsewhere" / "Exclude — commit only my files" / "Pause and review") rather than silently folding them into this run's commit.
 
 Then `git commit` with conventional message (e.g., `feat(auth): add OAuth login [ENG-123]`). Task ID inferred from spec.md / state.md metadata. If a workflow file specifies commit-message format (e.g., appending issue ID), follow that format. When state.md `## Pruned Tests` is non-empty, append its lines to the commit body — the record survives even on a ship mode that opens no PR.
 
-**Step 4 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` rule 3, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping — one instance of the general rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
+**Step 4 — Ship-mode AUQ.** Pushing a private feature branch that has no open PR is draft-grade (it becomes visible on remote but carries no review weight); PR creation is commit-grade. The AUQ gates the PR-creation decision. Two cases make a plain push itself commit-grade, so the "Just push (no PR)" path must surface an explicit confirm rather than auto-approving: (1) the target branch is the repository's default branch or a shared/protected branch (resolve the default via `git symbolic-ref refs/remotes/origin/HEAD`; if that errors — origin/HEAD unset, common in CI shallow clones — fall back to the base-branch resolution rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §The rule, which resolves the default from local `main`/`master`; or teammates are actively committing to it) — it lands on the shared line with no PR gate; (2) the feature branch already has an open PR (`gh pr view --json state --jq .state` returns `OPEN`) AND this run was entered via a /geniro:review or /geniro:debug handoff — the push updates a live PR (CI re-runs, reviewers see the new commits) and the user's only approval was the upstream "apply the findings" pick, which authorizes editing, not shipping — one instance of the general rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. In both cases, do not widen an upstream "implement the fixes" approval to authorize the push.
 
 **Three advisory annotations ride this AUQ's question text** — the Done-Condition check and the spec-staleness notice (both spec-driven runs only) and the overridden-gate disclosure. Each is skip-when-clean and prepends one plain-English line; any that fire stack into the same question text, and none of them changes the draft-vs-commit-grade push classification or the verbatim option-label allowlist.
 
@@ -815,7 +814,7 @@ Use `AskUserQuestion` (header: `"Ship mode"`). These three option labels are a c
 
 **Screen the body against state.md `## Spec Divergences` before posting.** Every number and behavioral claim the body carries gets checked against that section (written per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §8) — it holds the spec claims this run established were false. A figure the run disproved hours earlier reads as fresh and authoritative in a PR body, because the body is composed from the spec and the ship report rather than from the correction that happened in conversation between them. Use the measured value, or drop the claim. This bites hardest under a sentence asserting that everything quoted was measured: that sentence converts one stale number into a false accuracy claim on a public artifact.
 
-**Disclose overridden gates.** Before firing this AUQ, check state.md for a `## Accepted Failures` block (Phase 2 test-gate escalation), a `## Accepted Findings` block (Phase 3 review escalation), or a `## Unreviewed Files` block (the Step 2 review-coverage guard's ship-anyway pick). Any of the three means the working tree is NOT "fully validated" — prepend a one-line disclosure to the AUQ question text: the first two as "Note: N item(s) were accepted as known limitations (<one-line summary>) and remain unresolved. Ship anyway?"; `## Unreviewed Files` as "Note: N file(s) (<list>) were edited after Phase 3's review closed and never went through it. Ship anyway?" Never frame the ship decision as fully validated when a gate was overridden. The disclosure also covers failures the orchestrator believes are pre-existing or flaky — Phase 3 entry's green-light verification already routes that classification into the same `## Accepted Failures` acknowledgement rather than exempting it (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §"Green-light verification on entry"), and this disclosure is where it surfaces at ship time.
+**Disclose overridden gates.** Before firing this AUQ, check state.md for a `## Accepted Failures` block (Phase 2 test-gate escalation), a `## Accepted Findings` block (Phase 3 review escalation), or a `## Unreviewed Files` block (the Step 2 review-coverage guard's ship-anyway pick). Any of the three means the working tree is NOT "fully validated" — prepend a one-line disclosure to the AUQ question text: the first two as "Note: N item(s) were accepted as known limitations (<one-line summary>) and remain unresolved. Ship anyway?"; `## Unreviewed Files` as "Note: N file(s) (<list>) were edited after the self-review pass closed and never went through it. Ship anyway?" Never frame the ship decision as fully validated when a gate was overridden. The disclosure also covers failures the orchestrator believes are pre-existing or flaky — Phase 3 entry's green-light verification already routes that classification into the same `## Accepted Failures` acknowledgement rather than exempting it (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §"Green-light verification on entry"), and this disclosure is where it surfaces at ship time.
 
 **Spec-staleness advisory (spec-driven runs).** Before firing this AUQ, check whether a mid-run gate (an `AskUserQuestion` during Phase 2 or Phase 3) approved a material deviation from the spec's locked approach — a different storage shape, data model, algorithm, or scope than the spec's section 4 (Approach) / section 6 (Steps) describe. This is orchestrator judgment and skip-when-clean, matching the Done-Condition annotation's restraint: if the implementation followed the spec's approach, add nothing and proceed silently — the gate never fires with nothing to decide. When a deviation was approved, the saved spec.md now describes the abandoned approach while the shipped code does not — prepend one plain-English line to the AUQ's question text so the user sees the divergence before shipping: "The approved <deviation> differs from the spec's locked approach (<what the spec said>) — the saved spec.md no longer matches the shipped code. Re-run /geniro:plan to re-sync it, or keep the spec as a historical record. Ship anyway?" Never edit or rewrite spec.md from /geniro:implement: the spec.md is the user's approved upstream artifact authored by /geniro:plan, and rewriting it here would force a cross-producer schema lockstep (same reasoning as the spec fact-check's "Do not rewrite the spec" boundary) — the consumer only flags the staleness; the user or a fresh /geniro:plan run re-syncs it.
 
@@ -841,7 +840,7 @@ emit_rejection_if_signal \
 
 - **What shipped** — the files / scope changed (the CHANGED_FILES set), one line on the change.
 - **Commit + branch + PR** — commit SHA, branch name, and PR URL quoted verbatim from the actual tool output (`git rev-parse HEAD`, `git branch --show-current`, the `gh pr create` URL line) — never "git push succeeded" without the ref, per Loop invariant #6.
-- **Test results** — the full-suite `test-runner-agent` Verdict block (Command / Exit code / Summary) quoted as the Evidence Block: Phase 2's end-of-phase run, or the Phase 3 loop-exit run per the final full-suite trigger (§"Phase 3: Bounded fix loop" "Final full-suite trigger").
+- **Test results** — the full-suite `test-runner-agent` Verdict block (Command / Exit code / Summary) quoted as the Evidence Block, from the LAST full-suite run of this run: Phase 2's end-of-phase run, the Phase 3 loop-exit run per the final full-suite trigger (§"Phase 3: Bounded fix loop" "Final full-suite trigger"), or the Step 2 review-coverage re-review's full-suite run when that one fired — whichever ran most recently.
 - **Review outcome — one line per review dimension, named, with its own result.** Report every dimension in `spawn_dims_declared[]` by name with its found / fixed counts across the rounds ("bugs: 2 found, 2 fixed · security: clean · tests: 1 found, 1 deferred"), every dimension `phase-3-ship.md` Step 2's post-spawn check marked `not-run` by name with its reason, and the edge-case test-authoring step's own outcome by name — its found/fixed counts ("edge-case tests: 1 authored, 1 fixed"), "none found" on a clean pass, or its skip reason ("edge-case tests: skipped — the change was too small to warrant them"). A dimension is never omitted and never folded into a general "verified, not assumed" statement: `spawn_dims_declared[]` is what makes an omission checkable, and a run that skipped the review has no honest way to fill in the per-dimension form it names. Self-run formatting, template-rendering, syntax, and lint checks are evidence that the change is well-formed — the build claim — and never evidence for the review claim, which only the spawned reviewer dimensions and the edge-case test-authoring step produce. Name any `## Accepted Findings` / `## Accepted Failures` / `## Unreviewed Files` carried as known limitations.
 - **Todo completeness — every declared todo named.** State how many of the tasks this run set out to do were finished, and name every one that was not, with the reason it was dropped. A task that is neither finished nor named here as dropped is one this run left open and never disclosed — the report is where that gets said, not folded into "shipped."
 - **Visual evidence** — when the run captured a before/after pair, both images rendered inline per §"Pre-Ship Visual Verification" §Evidence, with their durable paths. When it did not, one line saying which half is missing and the reason `## Visual Baseline` recorded — a UI change shipped with no picture is a fact the user should read here, not infer from a silent section.
@@ -884,7 +883,7 @@ Learning capture is a Phase 3 ship sub-step (step 3 — after Commit, before the
 
 Scope hint follows reviewer dimension: dim=`code-quality` → suggest `code-style.md`; dim=`architecture` → suggest `global.md`; other → "appropriate scope". Suggestion fires ONLY for `convention` type — single-occurrence `decision` emits do NOT warrant promotion to a custom-instruction rule. The line is informational (no AUQ, no auto-edit) — user remains source-of-truth for custom-instruction curation.
 
-**Project-snapshot update site.** If Phase 2 added a new module / file, call `source "${CLAUDE_PLUGIN_ROOT}/lib/update-semantic.sh" && update_semantic --file codebase-map --append "..."` to append a bounded entry to `_CODEBASE_MAP.md`. Lock-guarded; rc=11 (lock held) is a recoverable "skip-and-defer" — caller may retry later or skip silently.
+**Project-snapshot update site.** If Phase 2 added a new module / file, call `source "${CLAUDE_PLUGIN_ROOT}/lib/update-semantic.sh" && update_semantic --file codebase-map --append "..."` to append a bounded entry to `_CODEBASE_MAP.md`. Lock-guarded; on rc=11 (lock held), queue the call and drain it at Ship completion per the helper's defer-and-retry contract (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.md` §"Caller patterns: handling rc=11") — never dropped.
 
 ---
 
@@ -933,7 +932,7 @@ After the rm, echo `Cleaned up transient working files from <task-dir>` — one 
 
 Downstream consumers (`/geniro:review`, `/geniro:debug`, `/geniro:refactor`, `/geniro:implement` Adjustment Routing) depend on these surviving Ship, and the user reaches for the visual pair after it — attaching it to the PR, or comparing it against the next run's. Do NOT `rm -rf <task-dir>` — durable artifacts (spec / state / plan / milestone files and the visual evidence) must survive Ship; clean only the targeted T1 scratch files.
 
-The `.geniro/` deletion guard hook allows targeted `rm -f` under `<task-dir>` (per-file deletions). Bulk `rm -rf .geniro/planning/<task-dir>/` is also allowed (deep path), but unused under the new contract.
+The `.geniro/` deletion guard hook allows targeted `rm -f` under `<task-dir>` (per-file deletions).
 
 Scratch this run created OUTSIDE the task directory — a throwaway script, a captured log — is removed by name, from the set this run actually wrote. Never sweep the user's tree by glob: a pattern like `debug-*` or `*.bak` matches files the user authored and did not ask you to touch. Ship stages by name, so a missed stray dirties the working tree without reaching a commit.
 
@@ -980,7 +979,7 @@ Used when ship-feedback arrives via PR comments or as a follow-up `$ARGUMENTS` i
 - [ ] Every delegated todo's diff was read before it was marked completed, and every delegate-authored path is in `CHANGED_FILES`.
 - [ ] Every entry in `todos_declared[]` has a named outcome — completed, or dropped with a stated reason — checked before the terminal transition; an entry with neither is named in the ship report rather than passed over (Phase 3 Ship §"Emit the ship report, then transition").
 - [ ] On a spec-driven run, each section 9 `verify:` command ran once after the suite went green; any failure was surfaced through the Phase 2 escalation digest (not silently skipped).
-- [ ] Phase 3 reviewer loop ran (round 1 — all dims; round N+1 — dims whose findings produced an edit, scoped to that round's edited files); exited clean OR escalated.
+- [ ] Phase 3 reviewer loop ran (round 1 — the resolved grid; round N+1 — dims whose findings produced an edit, scoped to that round's edited files); exited clean OR escalated.
 - [ ] Minor-findings gate fired after the fix loop converged, or skipped on `## Deferred Findings`'s `none — …` sentinel — disposition persisted to `approvals[]` as `minor_findings_disposition`.
 - [ ] Ship sub-step executed per the user's modifier or AUQ pick: commit-only OR push OR push+PR OR push+draft-PR OR self-review-only.
 - [ ] Custom post-ship steps executed — any `### After ship` subsection in the loaded `.geniro/instructions/implement.md` ran, or none was loaded (§"Custom post-ship steps").

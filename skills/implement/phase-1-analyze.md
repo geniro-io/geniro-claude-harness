@@ -169,7 +169,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
    ```bash
    source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh"
    load_semantic # default: _project.md + _CODEBASE_MAP.md
-   load_semantic --extras "_FEATURES.md" # if spec mentions feature backlog
+   load_semantic --extras "_FEATURES" # if spec mentions feature backlog
    ```
 
    `load_semantic` has no MODE flag — the Reads and the fingerprint drift check fire unconditionally; a mismatched `.fingerprint.json` surfaces a drift notification to the user.
@@ -196,7 +196,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
 
     Route per the memory-backend override in `operations-reference.md` §Memory I/O — a declared backend redirects this read to its own read tool, and under `mode: replace` the local file is empty. Tags are inferred from the task description (e.g. `react`, `auth`, `bug`) and may be primed by the knowledge-retrieval output; skip when the description is too generic. `query_learnings` has no MODE parameter — calls are idempotent.
 10. **Resolve cross-layer conflicts.** When the custom instructions, project snapshot, and past learnings disagree, follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md`: a **soft conflict** prints the `emit_conflict_notice` text and continues on the precedence-winning value; a **hard conflict** (a custom-instruction rule contradicts project reality) halts and calls `hard_conflict_block` + `AskUserQuestion` to surface it to the user.
-11. (reserved — held open on purpose, not a gap to close by renumbering. Several sites cite the next step by its literal number, `Step 12` — `SKILL.md` §"Inbound handoff gate", `implement-reference.md` §"Phase 1: Handoff round-trip write" and its neighbors, `phase-3-ship.md` Step 3's rollback note, and this file's own Contents block above — and shifting Step 12 down to 11 would silently misroute every one of them.)
+11. (reserved — held open on purpose, not a gap to close by renumbering. Several sites cite the next step by its literal number, `Step 12` — `SKILL.md` §"Inbound handoff gate", `implement-reference.md` §"Phase 1: Handoff round-trip write" and its neighbors, `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md`'s post-analyze anchor row (which cites `Step 12.6` from outside this skill), and this file's own Contents block above — and shifting Step 12 down to 11 would silently misroute every one of them.)
 12. **Persist review / debug handoffs AND gate on unresolved open questions.** When Step 7 backgrounded the agents, sub-steps 1-7 already ran during the knowledge-retrieval / codebase-explorer wait (per the reference §"Backgrounding when a handoff gate is pending", including its persist-in-the-pick-turn rule) — do NOT re-run them; run sub-steps 8-10 here. Otherwise run all sub-steps in order here. Either way the code-edit boundary is unchanged: every unresolved entry must be resolved before transitioning to `phase: implement`, regardless of when it was asked. For every `<PRIMARY_ROOT>/.geniro/state/handoff/from-<producer>-<branch>.md` that exists:
     1. Read the handoff file directly (or `cat` it in a shell call).
     2. Persist the body under state.md `## Inputs from <producer>` body section.

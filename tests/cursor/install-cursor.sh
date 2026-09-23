@@ -90,8 +90,11 @@ check "unknown top-level keys survive" \
 # user level, so every installed command must be absolute.
 check "no installed hook command is left relative" \
   "$(jq '[.hooks[][] | select(.command | startswith("./"))] | length' "$HOOKS_FILE")" "0"
+# The rewritten script path is single-quoted (T1-6 — protects a source root
+# containing a space), so the command starts with `'<repo-root>`, not the
+# bare root.
 check "hook commands point into this checkout" \
-  "$(jq --arg r "$REPO_ROOT" '[.hooks[][] | select(.command | startswith($r))] | length' "$HOOKS_FILE")" "$SRC_HOOKS"
+  "$(jq --arg r "'$REPO_ROOT" '[.hooks[][] | select(.command | startswith($r))] | length' "$HOOKS_FILE")" "$SRC_HOOKS"
 
 # --- idempotence ------------------------------------------------------------
 before_hooks="$(hook_count)"
@@ -235,6 +238,58 @@ check "falls back to the versioned path" \
   "$(readlink "$SKILLS_DIR/geniro-plan")" "$CACHE_ROOT/cursor/skills/geniro-plan"
 check "and warns that those links will dangle" \
   "$(printf '%s' "$out" | grep -c 'WARNING: running from a versioned')" "1"
+
+# --- T1-6: a source root containing a space still produces a working command ---
+# hooks_ours() rewrites "./cursor/hooks/..." to an absolute path; unquoted,
+# `/Users/John Doe/checkout/cursor/hooks/claude-hook-shim.sh` splits on the
+# space and none of the seven guards starts. Copy the real script and cursor/
+# tree into a root whose path contains a space and run it from there directly
+# (skipping the plugins/cache marketplace-resolution branch — SRC_ROOT stays
+# SELF_ROOT for a plain checkout).
+rm -rf "$FAKE_HOME/.cursor" "$FAKE_HOME/.claude"
+SPACE_ROOT="$FAKE_HOME/John Doe/checkout"
+mkdir -p "$SPACE_ROOT"
+cp -R "$REPO_ROOT/cursor" "$SPACE_ROOT/cursor"
+cp -R "$REPO_ROOT/scripts" "$SPACE_ROOT/scripts"
+
+HOME="$FAKE_HOME" bash "$SPACE_ROOT/scripts/install-cursor.sh" >/dev/null 2>&1; rc=$?
+check "install from a space-containing root exits 0" "$rc" "0"
+
+SPACE_CMD="$(jq -r '.hooks.beforeShellExecution[0].command' "$HOOKS_FILE")"
+check "the rewritten command is single-quoted around the space-containing path" \
+  "$(printf '%s' "$SPACE_CMD" | cut -c1)" "'"
+
+# Prove the quoting actually WORKS, not merely that a quote character is
+# present: run the stored command line the way a shell-based hook runner
+# would (`sh -c "$command"`). Fed empty stdin, the shim's own no-op path
+# (unknown/empty event) exits 0 with no output — if the space had split the
+# command instead, `sh` would report "No such file or directory" and a
+# non-zero rc.
+SPACE_RUN_RC_OUT="$(sh -c "$SPACE_CMD" < /dev/null 2>&1)"; SPACE_RUN_RC=$?
+check "the stored command resolves the space-containing shim path (rc 0, no output)" \
+  "$SPACE_RUN_RC:$SPACE_RUN_RC_OUT" "0:"
+
+# Idempotence over the space-containing root: no duplicate growth on re-run.
+before_space_hooks=$(jq '[.hooks[][]] | length' "$HOOKS_FILE")
+HOME="$FAKE_HOME" bash "$SPACE_ROOT/scripts/install-cursor.sh" >/dev/null 2>&1
+check "re-install from the space-containing root does not duplicate hook entries" \
+  "$(jq '[.hooks[][]] | length' "$HOOKS_FILE")" "$before_space_hooks"
+
+# SHIM_MARKER must still recognise an OLD unquoted entry (written by a prior
+# version of this script, or a plugin-runtime install that never quotes at
+# all) so a later install replaces it instead of duplicating it.
+cat > "$HOOKS_FILE" <<EOF
+{"version":1,"hooks":{"beforeShellExecution":[{"command":"$SPACE_ROOT/cursor/hooks/claude-hook-shim.sh block-dangerous-git.sh","timeout":10}]}}
+EOF
+HOME="$FAKE_HOME" bash "$SPACE_ROOT/scripts/install-cursor.sh" >/dev/null 2>&1
+check "an old UNQUOTED geniro entry is replaced, not duplicated, by the quoted form" \
+  "$(jq '[.hooks.beforeShellExecution[] | select(.command | test("claude-hook-shim"))] | length' "$HOOKS_FILE")" \
+  "$(jq '[.hooks.beforeShellExecution[]] | length' "$SPACE_ROOT/cursor/hooks.json")"
+
+# Uninstall still removes every entry of ours, quoted path included.
+HOME="$FAKE_HOME" bash "$SPACE_ROOT/scripts/install-cursor.sh" --uninstall >/dev/null 2>&1
+check "uninstall removes the quoted space-root entries too" \
+  "$(jq '[.hooks[][] | select(.command | test("claude-hook-shim"))] | length' "$HOOKS_FILE")" "0"
 
 echo "--------------------------------------------------------"
 echo "install-cursor: $pass passed, $fail failed"

@@ -130,6 +130,38 @@ else
   fail "first-match-only: content='$content'"
 fi
 
+# --replace prefix/replacement must survive intact through awk. `awk -v` runs
+# C-string escape-processing on its operand (`\t` becomes an actual tab,
+# `\\` collapses to one backslash); the fix passes both values through
+# ENVIRON instead, which does no such processing — the pitfall
+# atomic-state-write.sh:317-318 documents and avoids for atomic_state_edit.
+
+# A PREFIX containing a literal `\t` (backslash + t, two bytes — NOT a real
+# tab) must still match the line: under the old `-v` code the prefix arrives
+# as an actual tab character and no longer matches the file's literal text.
+new_sandbox
+printf '%s\n' '\t-oldline extra text' > .geniro/planning/_CODEBASE_MAP.md
+update_semantic --file codebase-map --replace '\t-oldline' 'replaced-line'
+got=$(cat .geniro/planning/_CODEBASE_MAP.md)
+if [ "$got" = 'replaced-line' ]; then
+  pass "replace — a prefix containing a literal \\t still matches (not turned into a real tab)"
+else
+  fail "replace — literal-\\t prefix: got '$got' want 'replaced-line'"
+fi
+
+# A REPLACEMENT containing a literal double backslash (`C:\\x`, as the
+# caller's raw bytes) must land with BOTH backslashes intact. Under the old
+# `-v` code `\\` collapses to a single backslash, silently changing the value.
+new_sandbox
+printf '%s\n' '- placeholder' > .geniro/planning/_CODEBASE_MAP.md
+update_semantic --file codebase-map --replace '- placeholder' 'path C:\\x'
+got=$(cat .geniro/planning/_CODEBASE_MAP.md)
+if [ "$got" = 'path C:\\x' ]; then
+  pass "replace — a replacement containing a literal double backslash (C:\\\\x) survives with both backslashes"
+else
+  fail "replace — double-backslash replacement: got '$got' want 'path C:\\\\x'"
+fi
+
 # ---------------------------------------------------------------------------
 # Flag validation
 # ---------------------------------------------------------------------------
@@ -364,6 +396,53 @@ elif [ ! -f .geniro/planning/.codebase-map.lock ]; then
 else
   rm -f .geniro/planning/.codebase-map.lock
   fail "TERM during --replace commit orphaned .codebase-map.lock"
+fi
+
+# ---------------------------------------------------------------------------
+# --replace preserves the target's existing file mode
+# ---------------------------------------------------------------------------
+#
+# The commit used to be a bare `mv -f "$tmp" "$target_path"` where $tmp came
+# from a plain `mktemp` (mode 0600, in a system tmp dir). A rewrite via
+# --replace would then silently NARROW the target's permissions to 0600 on
+# every call, whatever they were before. The fix commits through the shared
+# _atomic_state_commit path, which carries the target's own mode across.
+new_sandbox
+printf '%s\n' "- src/foo.ts — original" > .geniro/planning/_CODEBASE_MAP.md
+chmod 640 .geniro/planning/_CODEBASE_MAP.md
+update_semantic --file codebase-map --replace "- src/foo.ts" "- src/foo.ts — REPLACED"
+mode=$(stat -c '%a' .geniro/planning/_CODEBASE_MAP.md 2>/dev/null || stat -f '%Lp' .geniro/planning/_CODEBASE_MAP.md 2>/dev/null)
+if [ "$mode" = "640" ]; then
+  pass "replace preserves the target's existing file mode (640, not mktemp's default 0600)"
+else
+  fail "replace mode preservation: got mode '$mode', want 640"
+fi
+
+# ---------------------------------------------------------------------------
+# update_semantic must not leave INT/TERM traps installed in the caller's
+# shell after a normal return
+# ---------------------------------------------------------------------------
+#
+# This function runs directly in the shell that sourced it (no subshell), and
+# installs INT/TERM traps (keyed to $lock_path / $_us_inflight_tmp) so a
+# signal mid-write still releases the lock. Those traps do NOT self-clear
+# when the function returns normally — only when the signal itself fires —
+# so without the RETURN trap also clearing them, every completed call left
+# them armed in this test script's own shell: the next Ctrl-C here would run
+# stale cleanup referencing values from a finished call and exit outright.
+new_sandbox
+# Compare against the dispositions captured just before the call, not against
+# "no trap": a suite started in the background inherits SIGINT as ignored, and
+# `trap - INT` correctly restores that, so `trap -p INT` prints an ignore entry.
+int_before=$(trap -p INT)
+term_before=$(trap -p TERM)
+update_semantic --file codebase-map --append "- x"
+int_trap=$(trap -p INT)
+term_trap=$(trap -p TERM)
+if [ "$int_trap" = "$int_before" ] && [ "$term_trap" = "$term_before" ]; then
+  pass "update_semantic clears its INT/TERM traps in the caller's shell after a normal return"
+else
+  fail "update_semantic leaked a trap into the caller's shell — INT: '$int_trap' TERM: '$term_trap'"
 fi
 
 echo

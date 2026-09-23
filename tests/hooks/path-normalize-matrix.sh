@@ -161,6 +161,55 @@ cmdword_matrix "block-dangerous-git.sh [push --force command-word case]" \
   '{C} push --force' \
   git Git GIT gIt
 
+# ===== `..` axis (2026-09-23 audit T0-2/D5b-1/D8-3) =====
+# _geniro_normalize_path deliberately leaves `..` unresolved (see its own
+# comment in both hooks/enforce-state-helper.sh and
+# hooks/block-geniro-deletion.sh), so a `..` segment can carry the SHAPE of a
+# protected path while defeating the literal-adjacency regex that looks for
+# it — `.geniro/x/../safety.json` never spells `.geniro/safety.json`
+# contiguously. block-geniro-deletion.sh already rejects a bare `..` segment
+# outright in check_delete_arg (`*/../*`); this closes the same class in
+# enforce-state-helper.sh's safety.json and general state-path gates. Kept
+# separate from the SPELLINGS matrix above (rather than adding a `..` entry
+# there) because that matrix is shared with block-geniro-deletion.sh's own
+# "rm -rf" case — this axis is scoped to the two enforce-state-helper.sh
+# gates T0-2 actually fixed.
+dotdot_matrix() {  # <label> <hook-path> <segment> <payload-tmpl-with-{P}>
+  local label="$1" hook="$2" seg="$3" payload_tmpl="$4"
+  local spellings='
+plain|.geniro/{X}
+dotdot-middle|.geniro/zzz/../{X}
+dotdot-doubled|.geniro/a/b/../../{X}
+dotdot-leading|../.geniro/{X}
+'
+  local id path_tmpl path payload rc first_rc="" all_agree=1
+  while IFS='|' read -r id path_tmpl; do
+    [ -z "$id" ] && continue
+    path="${path_tmpl//\{X\}/$seg}"
+    payload="${payload_tmpl//\{P\}/$path}"
+    rc=$(run_guard "$hook" "$payload")
+    if [ -z "$first_rc" ]; then first_rc="$rc"; fi
+    if [ "$rc" = "$first_rc" ]; then
+      pass "$label [$id]: agrees with the plain spelling (rc=$rc), path=$path"
+    else
+      all_agree=0
+      fail "$label [$id]: DISAGREES with the plain spelling (plain=$first_rc, this=$rc), path=$path"
+    fi
+  done <<< "$spellings"
+  if [ "$first_rc" != "2" ]; then
+    all_agree=0
+    fail "$label: the plain spelling itself did not block (rc=$first_rc) — the matrix is vacuous without a real gate to close"
+  fi
+  [ "$all_agree" = "1" ] && pass "$label: every '..' spelling decided identically (rc=2)"
+}
+
+dotdot_matrix "enforce-state-helper.sh [safety.json write, dotdot axis]" \
+  "$REPO_ROOT/hooks/enforce-state-helper.sh" "safety.json" \
+  '{"tool_name":"Write","tool_input":{"file_path":"{P}","content":"x"}}'
+dotdot_matrix "enforce-state-helper.sh [state path write, dotdot axis]" \
+  "$REPO_ROOT/hooks/enforce-state-helper.sh" "planning/task/state.md" \
+  '{"tool_name":"Write","tool_input":{"file_path":"{P}","content":"x"}}'
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

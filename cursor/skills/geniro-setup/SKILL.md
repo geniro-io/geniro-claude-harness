@@ -86,7 +86,6 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
 - [ ] All user interactions used `AskQuestion`
-- [ ] If re-run mode + plugin-version delta: restart-session warning emitted
 
 ## Budgets — quality-first
 
@@ -106,7 +105,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | `interview` | `AskQuestion`, `Read` | `Write`, `Edit`, mutating `Bash` |
 | `generate` | `Read`, `Write`, `Edit`, `Bash` (mkdir, chmod, the §3.7 link script), `AskQuestion` | `mcp__github__*`, network egress (`curl`, `gh`, `git push`) |
 | `validate` | `Read`, `Bash` (read-only), `Agent` (verification subagent), `AskQuestion` | `Write`, `Edit` |
-| `done` (cleanup) | `Bash` (rm of state file), `AskQuestion` (the §5.2 map-the-codebase question), `Read` (the §5.4 compaction-resume re-read of `setup-rerun-reference.md`), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
+| `done` (cleanup) | `Bash` (rm of state file), `AskQuestion` (the §5.2 map-the-codebase question), inline invocation of `/geniro:onboard` on that question's "Map codebase now" pick | everything else |
 
 External sends are not part of `/geniro:setup` ACI. Users wire those via `/geniro:actions` if needed.
 
@@ -153,20 +152,20 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 
 ## Phase 5: Done
 
-`phase: done` · Steps: `phase-5-done.md` §5.1-§5.4. Print the final report, offer to map the codebase (skipped on re-run), delete the singleton state file (the one named exception to the T1.5 survives-past-ship rule — kept only when `phase-5-done.md` §5.3's full exception condition holds), and emit the restart-session warning on a re-run plugin-version delta. Exit when the state file is deleted (or deliberately kept per the exception) and the final report has been printed.
+`phase: done` · Steps: `phase-5-done.md` §5.1-§5.3. Print the final report, offer to map the codebase (skipped on re-run), and delete the singleton state file per the T1.5 singleton lifecycle in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` (kept only when `phase-5-done.md` §5.3's exception condition holds). Exit when the state file is deleted (or deliberately kept per the exception) and the final report has been printed.
 
 ## State file schema
 
-Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1.5 tier, with one deliberate, named exception to that tier's survives-past-ship rule: `/geniro:setup` deletes the file at Phase Done (§5.3). Bootstrap state describes a one-shot run that is over — no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. The exception is scoped to this one path; every other T1.5 file survives. Full frontmatter + body-section schema: `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-state-reference.md` — read it before every state write.
+Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1.5 tier: `/geniro:setup` deletes the file at Phase Done (§5.3), the deletion the tier model assigns a singleton-lifecycle skill — see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1.5 for the full per-layout lifecycle. Bootstrap state describes a one-shot run that is over — no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. Full frontmatter + body-section schema: `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-state-reference.md` — read it before every state write.
 
 ## Cross-references
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state-file tier definition (`/geniro:setup` writes a T1.5 durable file, deleted at Phase Done per the named exception in §State file schema) and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` — every re-run-only procedure (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules, §5.4 restart warning); an `init` run never reads it.
+- `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` — every re-run-only procedure (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules); an `init` run never reads it.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — the §3.0 re-run sweep's parse / auto-detect / classify / re-verify procedure, shared with `/geniro:update`'s per-entry walk.
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — §Excluded content (what must never reach CLAUDE.md, applied at §3.2 generation and at Validate) plus the contamination + template-residue check set the §4.1 verification subagent runs (single source for the per-language wrong-token table).
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/instruction-file-scaffolds.md` — the `plan.md` / `implement.md` scaffolds §3.3 writes before merging an OpenSpec block into a file that does not exist yet.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema with `trust:` field and emit trigger table; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 base schema and required fields, including the `trust:` evidence bar; the §4.3 `discovery` row conforms and matches the bootstrap trigger.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; the verification subagent's `sonnet` carve-out is stated in §Subagent model tiering (section merge runs orchestrator-inline, no separate model assignment).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` — the §3.5 `.gitignore` re-include procedure that keeps `.geniro/workflow/` and `.geniro/instructions/` committed.

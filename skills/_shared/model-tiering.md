@@ -8,7 +8,6 @@ Single source of truth for picking a `model=` when spawning subagents from any s
 - Sizing a non-judgment spawn — `sonnet` is the ceiling, the orchestrator picks below it
 - Runtime resolution — how each host spells these tiers
 - `--subagent-model` — user-elected run-wide override
-- Tier table — fallback for runtimes without an orchestrator
 - Escalation signals (tier-selection cues, read once up front)
 - Runtime escalation (Sonnet → Opus on failure)
 - Hard rules
@@ -45,7 +44,7 @@ The Agent tool's `model=` argument enum is `sonnet|opus|haiku|fable`; passing `m
    | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1: Spawn the UI description agent | a read-only spec→description transform, no file writes at all |
    | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/SKILL.md` §Phase 5 fix path | user-approved instruction-file findings into their assigned file allowlist |
 
-   This table lists only sites under `${CLAUDE_PLUGIN_ROOT}` — the shipped tree every consumer install carries. The plugin repo's own maintenance skills (`.claude/skills/`) apply the same category-4 logic at their own fix-agent spawns, but that tree never ships, so a shipped file names no path under it.
+   This table lists only sites under `${CLAUDE_PLUGIN_ROOT}` — the shipped tree every consumer install carries.
 
    **A ceiling, not a floor.** `sonnet` is what the site gets absent a reason to spend less, and never more — a session on a reasoning tier does not push that tier into transcription work. Below it, §Sizing applies: an execution spawn is the clearest case for it, since the orchestrator reads every delegate's diff against a named allowlist before accepting it.
 
@@ -69,7 +68,7 @@ This section is the whole lever. It does not reach across the decide-vs-apply li
 
 ## Runtime resolution — how each host spells these tiers
 
-`haiku` / `sonnet` / `opus` are Claude Code model ids, and `skills/` is shared by both runtimes (`ARCHITECTURE.md` §Dual-runtime port (Cursor)) — so a spawn site written above is read verbatim under Cursor, whose roster carries no `sonnet`. The tiers name INTENTS; each host spells them its own way:
+`haiku` / `sonnet` / `opus` are Claude Code model ids, and `skills/` is shared by both runtimes — so a spawn site written above is read verbatim under Cursor, whose roster carries no `sonnet`. The tiers name INTENTS; each host spells them its own way:
 
 | Intent | Claude Code | Cursor |
 |---|---|---|
@@ -99,16 +98,6 @@ This is not the paternalism the anti-rationalization table forbids below: that r
 **`effort`** (`low` / `medium` / `high` / `xhigh` / `max`), a Claude Code agent-frontmatter field, is a second cost lever independent of model choice — a tier and an effort level compose rather than substitute.
 
 **Caching consequence.** Model and effort are part of the prompt-cache key; sibling subagents that share agent type, model, effort, tool set, and working directory share a cache prefix. What that requires is uniformity **within a parallel batch**, not across the run — a mixed per-dimension reviewer fan-out forfeits the sharing, while a singleton test-runner spawn on its own tier costs nothing. §Sizing carries the same rule.
-
-## Tier table — fallback for runtimes without an orchestrator
-
-When a plugin subagent is invoked in a context without an interactive orchestrator parent (cloud-runner harness, batch evaluation, headless CI), the calling layer SHOULD pick a tier per the table below, resolved for its host per §Runtime resolution. This is **fallback**, not preference — interactive runs always inherit.
-
-| Task nature | Fallback model |
-|---|---|
-| Mechanical edit, template-based doc patching, rubric-based style review (the conventions dim's style-rubric checks), CLI orchestration, structured PASS/FAIL classification, dedup checks, observation extraction | `haiku` |
-| Code reasoning, implementation, bugs/security/architecture/tests/optimizations/conventions/design review, spec compliance, refactor with zero-behavior guarantee, parallel research with narrow focus | `sonnet` |
-| Architecture design, multi-file planning, deep hypothesis-driven debugging, threat modeling, novel-domain greenfield work | `opus` |
 
 ## Escalation signals (tier-selection cues, read once up front)
 

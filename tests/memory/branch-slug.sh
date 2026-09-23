@@ -64,16 +64,20 @@ eq "$(cd "$sb" && _geniro_branch_slug)" "feature-branch-name" "no-arg path deriv
 #     and truncation-boundary cases already pinned for the canonical form — a
 #     fallback edited in only one of its two homes (the shape the header above
 #     warns about) fails here.
-for hook in session-start-restore; do
-  FALLBACK=$(awk '
-    /^if ! command -v _geniro_branch_slug /{inb=1; next}
-    inb && /^fi$/{exit}
-    inb{print}
-  ' "$REPO_ROOT/hooks/$hook.sh")
-  if [ -z "$FALLBACK" ]; then
-    fail "hooks/$hook.sh carries an inline _geniro_branch_slug fallback"
-    continue
-  fi
+# SC2043: only session-start-restore.sh carries this inline fallback today
+# (verified: `grep -l _geniro_branch_slug hooks/*.sh` matches nothing else),
+# so this is a plain check, not a loop over a constant single-item list —
+# mirrors tests/memory/lock-reclaim.sh's own fallback-lockstep section, which
+# checks the same one hook the same way, without a loop.
+hook="session-start-restore"
+FALLBACK=$(awk '
+  /^if ! command -v _geniro_branch_slug /{inb=1; next}
+  inb && /^fi$/{exit}
+  inb{print}
+' "$REPO_ROOT/hooks/$hook.sh")
+if [ -z "$FALLBACK" ]; then
+  fail "hooks/$hook.sh carries an inline _geniro_branch_slug fallback"
+else
   pass "hooks/$hook.sh carries an inline _geniro_branch_slug fallback"
 
   for input in 'Feature/Foo' "$(printf 'a%.0s' {1..70})" "$(printf 'a%.0s' {1..59}) x"; do
@@ -82,7 +86,7 @@ for hook in session-start-restore; do
 _geniro_branch_slug \"\$1\"" _ "$input")"
     eq "$got" "$want" "hooks/$hook.sh fallback matches canonical for '$input'"
   done
-done
+fi
 
 echo
 echo "Tests run:    $TESTS_RUN"
