@@ -1,6 +1,6 @@
 # Approval scope — an approval reaches only what the user was shown
 
-Canonical rule for how far a user's approval reaches. Referenced from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`, `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`, `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`, and any skill that gates an outward or irreversible action. Define the rule here once; do not paste it into the calling skills.
+Canonical rule for how far a user's approval reaches. Referenced from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`, `/geniro:implement`, `/geniro:actions`, `/geniro:plan`, and any skill that gates an outward or irreversible action.
 
 ## The rule
 

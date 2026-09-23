@@ -87,11 +87,6 @@ The spec mentions a schema change but the diff has no migration file. The review
 
 **schema cite:** section 6 (Steps) — schema-change steps are enumerated here. Section 10 (Rollback-Recovery) — companion rollback step.
 
-**How to detect:**
-- Scan PLAN CONTEXT for: "migration", "schema change", "add column", "drop column", "rename column", "new table", "data backfill", "DDL", "alter table", or named schema-change patterns. In schema mode, look in section 6 step bodies + section 10.
-- Check `DIFF CONTEXT` for files under `migrations/`, `db/migrations/`, `prisma/migrations/`, `alembic/versions/`, `liquibase/`, or the project's migration directory (look at where prior migrations live).
-- If the plan mentions a schema change AND no migration file is present in the diff, flag.
-
 **Red flag:** plan mentions a schema or data-shape change; the diff has no migration file.
 
 ### 3. Rollback / down when migration touches data
@@ -129,12 +124,6 @@ The plan mentions a flag-gated rollout, but the diff has no flag-key references 
 
 **schema cite:** section 6 (Steps) — flag-wiring step. Section 8 (Approval Points) — flag-flip approval gate.
 
-**How to detect:**
-- Scan PLAN CONTEXT for: "feature flag", "toggle", "flag rollout", "ramp", "gating", "killswitch", "gradual rollout", a named flag key (UPPER_SNAKE_CASE constants are common).
-- Identify the project's flag client by sampling existing call sites: `featureFlags.is(...)`, `useFlag(...)`, `getVariation(...)`, `gb.isOn(...)`, `unleash.isEnabled(...)`, `launchdarkly.variation(...)`, `flag(...)`.
-- Grep the diff for the identified flag-client call shape AND for any flag-key string literal mentioned in the plan.
-- Flag when the plan mentions flag-gated rollout AND the diff has no flag client call AND no flag-key literal.
-
 **Red flag:** plan describes a flag-gated rollout; diff has no flag-evaluation wiring.
 
 ### 6. Documented deploy ordering when multi-write coordination changes
@@ -142,12 +131,6 @@ The plan mentions a flag-gated rollout, but the diff has no flag-key references 
 The plan describes a change that involves multiple writers — a live handler plus a reconcile job, a migration plus a backfill, an event projector plus a snapshot table, dual-write transitions — but the diff carries no documented deploy order (PR body deploy-steps list, runbook reference, JSDoc on the migration, or comments at the writer entry points).
 
 **schema cite:** section 6 (Steps) — deploy-step ordering. Section 5 (Risks) — coordination risks typically reside here.
-
-**How to detect:**
-- Scan PLAN CONTEXT for multi-writer signals: "reconcile", "backfill", "dual-write", "shadow write", "projector", "snapshot", "live handler + …", "event-driven … plus migration", "rollout in stages", "phase 1 / phase 2".
-- For matching plans, scan the PR body for a deploy-order heading: "## Deploy order", "## Rollout", "## Runbook", a numbered deploy-steps list, or a link to an external runbook.
-- Also scan the diff's migration files and writer entry points for JSDoc / leading comments that name the deploy step.
-- Flag when multi-writer coordination is named in the plan AND no deploy ordering is documented anywhere reachable.
 
 **Red flag:** multi-writer change named in the plan; no deploy order in PR body, runbook, or code comments.
 
@@ -157,12 +140,6 @@ The plan describes a value-semantic change — a column meaning shifts, a return
 
 **schema cite:** section 1 (Objective) — semantic shift typically named here. Section 9 (Validation) — boundary tests.
 
-**How to detect:**
-- Scan PLAN CONTEXT for semantic-shift markers: "from X to Y", "behavior changes to", "previously … now …", "fail-open → fail-closed", "default changes from", "now returns", "column meaning becomes".
-- For each named shift, scan the PR body for a Before/After section: `## Before` / `## After` headings, a markdown table with "Before" / "After" columns, or an explicit "## Behavior change" callout with old vs new.
-- Scan diff test files for assertions that name both the old and new behavior or assert the boundary condition at which the shift takes effect.
-- Flag when a semantic shift is named in the plan AND neither the PR body nor the tests document the boundary.
-
 **Red flag:** semantic shift named in the plan; no Before/After in the PR body and no boundary assertion in the tests.
 
 ### 8. Configuration / environment variable wiring when plan adds settings
@@ -171,12 +148,6 @@ The plan names a new configuration value, environment variable, or runtime setti
 
 **schema cite:** section 7 (Tools Required) — config / env vars / settings live alongside tool listings here. (Frontmatter `tools_required` field may also enumerate them.)
 
-**How to detect:**
-- Scan PLAN CONTEXT for: "config", "configuration", "environment variable", "env var", "setting", "tunable", "threshold", a named UPPER_SNAKE_CASE token that looks like an env var, or a "configurable via …" phrase.
-- For each named setting, check the diff for entries in: `.env.example` / `.env.sample`, the project's config schema file (Zod / Joi / Pydantic / Convict / Viper), a `config/*.{ts,js,py,yaml}` file, or a `settings.py` / `application.yml`.
-- Also scan the PR body for documentation of the new value: name, default, allowed range.
-- Flag when the plan names a new setting AND the diff has no config-surface entry AND the PR body does not document it.
-
 **Red flag:** plan names a new config or env var; diff has no config-surface entry and no documentation.
 
 ### 9. Observability for stated operational concerns
@@ -184,12 +155,6 @@ The plan names a new configuration value, environment variable, or runtime setti
 The plan names an operational concern that requires observability — a rollout to monitor, a failure mode to watch, an SLO to defend, an error budget to track — but the diff adds no metrics emission, no log statements at the relevant boundary, and no alert / dashboard reference. Operators cannot see whether the change is working in production.
 
 **schema cite:** section 9 (Validation) — observability requirements often live here. Section 5 (Risks) — risk-mitigation observability.
-
-**How to detect:**
-- Scan PLAN CONTEXT for observability triggers: "monitor", "alert", "SLO", "SLA", "error budget", "rollout watch", "metric", "dashboard", "we'll watch …", "track the rate of …", "log when …".
-- Identify the project's metric / logging clients by sampling existing call sites: `metrics.increment(...)`, `statsd.timing(...)`, `prometheus_client.Counter(...)`, `logger.info(...)`, `log.warn(...)`, `tracer.startSpan(...)`.
-- Grep the diff for the identified client shapes at the writer / handler entry points named in the plan.
-- Flag when the plan names an operational concern AND the diff has no metric, log, or trace emission at the relevant boundary.
 
 **Red flag:** plan names a monitoring or operational concern; diff has no observability emission at the named boundary.
 

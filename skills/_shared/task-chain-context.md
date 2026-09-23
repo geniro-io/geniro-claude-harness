@@ -1,6 +1,6 @@
 # Task chain context — assemble read-only related-task chain for research priming
 
-This file is the single source of truth. Skills cite this file; do NOT inline-paste the procedure.
+This file is the single source of truth.
 
 Applied by `/geniro:plan` Phase 1 explore and `/geniro:implement` Phase 1 analyze to assemble read-only related-task chain context.
 

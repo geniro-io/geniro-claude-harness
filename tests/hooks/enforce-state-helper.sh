@@ -237,6 +237,41 @@ expect_block "state path: /./ segment still blocks (Write)" \
 expect_block "state path: repeated-slash + /./ comb still blocks" \
   "$(rc_path '/proj/.geniro//./planning/t//state.md')"
 
+# ===== T0-2 (2026-09-23 audit, D5b-1/D8-3): a `..` segment defeats BOTH the
+# safety-json-edit gate and the general state-path gate, because
+# _geniro_normalize_path deliberately never resolves `..` — a spelling like
+# `.geniro/x/../safety.json` case-folds and slash-collapses to itself while
+# still reading "x/../" between `.geniro/` and `safety.json`, so neither
+# matcher ever sees the two adjacent. A single Write self-granted a bypass on
+# .geniro/safety.json this way. =====
+expect_block "safety.json: '..' segment blocks (Edit, no bypass)" \
+  "$(rc_path '/proj/.geniro/x/../safety.json')"
+expect_block "state path: '..' segment blocks (Write, no bypass)" \
+  "$(rc_path '/proj/.geniro/x/../planning/t/state.md')"
+
+# The sharpest repro: with ONLY the broad "enforce-state-helper" grant present
+# (not the narrower "safety-json-edit"), a `..`-laden path that could resolve
+# to .geniro/safety.json must still block — the broad grant alone must not be
+# enough to reach the file that turns off every other guard.
+mkdir -p "$TMPDIR_BASE/byp-broad-only/.geniro"
+echo '{"allow_patterns":["enforce-state-helper"]}' > "$TMPDIR_BASE/byp-broad-only/.geniro/safety.json"
+cd "$TMPDIR_BASE/byp-broad-only" || exit 1
+expect_block "safety.json: '..' segment still blocks under the broad enforce-state-helper grant alone" \
+  "$(rc_path '.geniro/state/../safety.json')"
+# The narrower "safety-json-edit" grant DOES clear it — the same escape hatch
+# the exact-spelling gate already honors. A segment that names no canonical
+# tier ("zzz", not "state") keeps this case isolated from matches_state_path's
+# OWN independent substring catch (".../state/../safety.json" would still
+# block under the general state-path gate even once the dotdot gate itself is
+# cleared, because "state/" sits immediately after "geniro/" there).
+cd "$TMPDIR_BASE" || exit 1
+mkdir -p "$TMPDIR_BASE/byp-sj-dotdot/.geniro"
+echo '{"allow_patterns":["safety-json-edit"]}' > "$TMPDIR_BASE/byp-sj-dotdot/.geniro/safety.json"
+cd "$TMPDIR_BASE/byp-sj-dotdot" || exit 1
+expect_allow "safety.json: '..' segment clears under the narrower safety-json-edit grant" \
+  "$(rc_path '.geniro/zzz/../safety.json')"
+cd "$TMPDIR_BASE" || exit 1
+
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

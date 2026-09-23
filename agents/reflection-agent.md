@@ -3,6 +3,9 @@ name: reflection-agent
 description: "Post-task improvement synthesizer. Spawned by /geniro:reflect (user-invoked, on-demand) to extract durable project-rule candidates from recent work — a diff, a finding set, or session extracts drawn from past transcripts or from the running session — routed to CLAUDE.md / .claude/rules/ / .geniro/instructions/ / ADR / Memory / learnings. Read-only; returns candidates that passed the candidate bar, which the user approves before any write. Never modifies files."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
+# Six steps — read the change, draft candidates, dedupe grep across three rule
+# sources, gate checks, decline filter, recurrence check — plus the emit step
+# fit inside 50 turns with headroom for a wide dedupe grep.
 maxTurns: 50
 ---
 
@@ -31,10 +34,9 @@ Bias toward **few, high-value candidates**. A task that taught nothing durable r
 
 The orchestrating skill passes you:
 
-1. **Mode** — `implement` | `refactor` | `review` | `reflect` (tells you what "the change" is and which scope the candidates target).
-2. **The change** — for `implement` / `refactor`: the diff summary + changed-file list. For `review`: the final kept findings + the diff they were raised against (so you can spot conventions the diff violated repeatedly). For `reflect` (spawned by `/geniro:reflect`): session extracts — the work-bearing moments a session recorded (commands run, corrections applied, gotchas hit), drawn from past transcripts or from the session running now — treated the same way, mining durable lessons from what the session did rather than from a single diff.
-3. **Project context** — stack + conventions, and the paths to scan for existing rules: `CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`. Read these yourself to dedupe.
-4. **Prior declines** (optional) — a list of `user_rejected_suggestion` summaries for this scope, pre-inlined by the orchestrator. When absent, you may re-query it — route that read per Step 0 (with a `## Memory Backend` block, the declared read tool for `user_rejected_suggestion` / `auq-rejection` / this scope; with no backend, in a shell call: `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --type user_rejected_suggestion --tag auq-rejection --scope <scope>`).
+1. **The change** — session extracts: the work-bearing moments a session recorded (commands run, corrections applied, gotchas hit), drawn from past transcripts or from the session running now. Depending on what the session did, the extracts may center on a diff summary + changed-file list or on a set of kept findings + the diff they were raised against — mine durable lessons from what actually happened rather than assuming a single diff shape.
+2. **Project context** — stack + conventions, and the paths to scan for existing rules: `CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`. Read these yourself to dedupe.
+3. **Prior declines** (optional) — a list of `user_rejected_suggestion` summaries for this scope, pre-inlined by the orchestrator. When absent, you may re-query it yourself — route per Step 0, using the exact call in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots.
 
 When a slot's value is the literal `none`, treat it as absent and proceed.
 
@@ -57,7 +59,7 @@ Grep the existing rule files (`CLAUDE.md`, `.claude/rules/*`, `.geniro/instructi
 
 ### Step 4 — Candidate bar
 
-Run the remaining gates and the significance floor per the §Candidate bar (cited below); Step 3 already supplied gate 4's verdict.
+Run the remaining gates and the significance floor per the §Candidate bar (cited below); Step 3 already supplied the Dedup verdict gate's result.
 
 ### Step 5 — Reject-aware filter
 
@@ -65,11 +67,11 @@ Drop any candidate matching a prior decline for this scope — the user already 
 
 ### Step 6 — Recurrence flag
 
-For a candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning carries `recurrence_count >= 3` (read it filtered by `dedup_key` — route per Step 0; with no backend, `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. Under `mode: replace` the file-based recurrence counter no-ops, so a recurrence count is available only if the backend tracks it — when neither the backend surfaces it nor a file count exists, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). The orchestrator routes recurrence-eligible candidates to the rule-capture offer instead of double-prompting.
+For a candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning carries `recurrence_count >= 3` (read it filtered by `dedup_key` — route per Step 0; with no backend, `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. Under `mode: replace` the file-based recurrence counter no-ops, so a recurrence count is available only if the backend tracks it — when neither the backend surfaces it nor a file count exists, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). Routing for a recurrence-eligible candidate is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Recurrence-eligible candidates.
 
 ## Output Format
 
-Return this exact structure (the orchestrator parses it). Emit the summary even when there are zero candidates. **At most 3 candidates** — on overflow keep the 3 highest-significance (same-significance ties keep the strongest Evidence) and count the rest under `over-cap` in the Dropped breakdown.
+Return this exact structure (the orchestrator parses it). Emit the summary even when there are zero candidates. **Respect the §Candidate bar cap** — on overflow keep the highest-significance candidates (same-significance ties keep the strongest Evidence) and count the rest under `over-cap` in the Dropped breakdown.
 
 ```
 ## Reflection — N improvement candidate(s)

@@ -40,13 +40,14 @@ investigate ── (§1.6 second refuted/clarified verifier round) ── phase-
                                                                                                   └── aborted (terminal)
 
 [entry] → adversarial-mode-detect ── adversarial-investigate ──┬── (A3 skip condition) ── adversarial-aborted (terminal)
-                                                                └── adversarial-ship ──┬── done
+                                                                └── adversarial-ship ──┬── done (Run /geniro:implement)
+                                                                                       ├── adversarial-ship-summary-only (terminal — Leave it to me)
                                                                                        └── adversarial-aborted (terminal — zero red tests after F→P + flake check)
 ```
 
 Each escalation edge leaves the phase whose gate writes it: `phase-1-escalated` from `investigate` (the stall gate), `phase-1-verification-stalled` from `investigate` (the §1.6 verification-stalled gate, on a second consecutive refuted/clarified verifier round), `phase-2-escalated` from `propose` (the fix-loop gate).
 
-**Terminal states:** `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`. The SessionStart recovery treats all four as "task complete — no resume needed".
+**Terminal states:** `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`, `adversarial-ship-summary-only`. The SessionStart recovery treats all five as "task complete — no resume needed".
 
 **Non-terminal states:** `mode-detect`, `investigate`, `propose`, `ship`, `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures gates skip already-answered).
 
@@ -162,15 +163,7 @@ When symptoms suggest the bug may not be in the code (timeouts, intermittent fai
 
 ## 4. Isolation techniques
 
-Once a hypothesis is confirmed, narrow down to exact code location.
-
-**Binary search:** Disable half the relevant code path, check if the bug reproduces. Narrow iteratively. O(log N) iterations. Use when the confirmed hypothesis points to a general region but exact line/branch is unclear.
-
-**Git bisect:** For regressions, walk the good→bad range to identify the commit that introduced the bug. Use when the bug was absent at a prior commit.
-
-**Profiling:** For performance bugs, use the language's profiler for quantitative data (timing, memory, allocation count). Code inspection cannot distinguish "slow because of N+1 query" from "slow because of N^2 allocation."
-
-**Pick the cheapest technique:** binary search if the region is large; git bisect if the regression boundary is known; profiling if the symptom is quantitative. Don't run all three.
+Don't run all three (binary search, git bisect, profiling) on the same hypothesis — pick the one the confirmed root cause calls for; which fits which case is in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` § Isolation techniques.
 
 ---
 

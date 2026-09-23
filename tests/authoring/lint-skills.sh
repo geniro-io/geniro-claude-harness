@@ -14,7 +14,12 @@
 #        $PLUGIN_PATH/<path> form (target must exist).
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
 #     4. Reference-graph inversion — a skills/<other-skill>/ path inside skills/_shared/.
+#     4b. Cross-skill reference-graph inversion — a skills/<a>/ file sourcing a
+#        runtime rule from a DIFFERENT skills/<b>/ body (b != a, b != _shared).
 #     5. Rootless agents/ or skills/ file references in skills/ or agents/.
+#     12. Anchor-ratchet stale-high baseline — the recorded dangling-anchor
+#        figure sits ABOVE the live count, silently re-permitting that many new
+#        dangling anchors before the growth-direction check (10) would ever fire.
 #   ADVISORY (warn only, exit 0 contribution) — guideline checks the maintainer
 #   reads but never auto-trims to satisfy (size targets are guidelines, not limits):
 #     6. SKILL.md word count vs the front-load budget and whole-file guideline,
@@ -23,6 +28,8 @@
 #     7. Anti-rationalization tables over the 15-row guideline.
 #     8. Decaying line-number cross-references (file.md:NNN).
 #     9. Normative sentences repeated across 3+ files (say it once, in one place).
+#     10. Section-anchor citations resolving to no heading — count ratchet
+#        (growth direction; see hard check 12 for the stale-high direction).
 #
 # Portability: pure POSIX-ish bash + BSD/GNU-portable grep (no -P / PCRE).
 # Cyrillic detection uses a byte-class match (UTF-8 lead bytes 0xD0/0xD1) so it
@@ -338,6 +345,42 @@ while IFS= read -r h; do
   inversions=$((inversions + 1))
 done <<< "$inv_hits"
 [ "$inversions" -eq 0 ] && echo "OK: no skills/_shared/ helper sources a rule from a skill body"
+
+# 4b. Skill-to-skill reference-graph inversion (C7, plugin-audit 2026-09-23,
+# fix-plan §O / T2-7) — the same AUTHORITY shape as check 4, extended from
+# "a _shared/ helper sources a rule from a skill body" to "a skill sources a
+# runtime rule from a DIFFERENT skill's own body". skill-structure.md §Reference
+# graph: SKILL.md may link to a sibling `*-reference.md` or to `_shared/`; it
+# may not pull runtime instructions from another skill's body, because that
+# skill has no reason to load a rule that lives somewhere its own consumers
+# never read. `skills/debug/adversarial-mode.md` cited implement-reference.md's
+# flake-check procedure this way; `skills/debug/phase-0-mode-detect.md` cited
+# implement-reference.md's BRANCH_FORMAT_RULE the same way.
+#
+# Self-citation (a skill citing its own sibling reference file) and citing
+# `_shared/` (the correct direction, already check 4's territory) are both
+# excluded — only `skills/<a>/...` citing `skills/<b>/...` with a != b and
+# b != _shared counts.
+cross_skill_inversions=0
+cs_hits=$(grep -rnoiE '(per|see|defined in|specified in|documented in|canonical in|authoritative in|owned by)[[:space:]]+`?(\$\{CLAUDE_PLUGIN_ROOT\}/)?skills/[A-Za-z0-9_-]+/' skills 2>/dev/null \
+  | awk -F: '{ m = $0; sub(/^[^:]*:[^:]*:/, "", m); print $1 ":" $2 ": " m }' \
+  | while IFS=: read -r f l rest; do
+      citer="${f#skills/}"; citer="${citer%%/*}"
+      [ "$citer" = "_shared" ] && continue
+      cited=$(printf '%s' "$rest" | grep -oE 'skills/[A-Za-z0-9_-]+/' | head -1)
+      cited="${cited#skills/}"; cited="${cited%/}"
+      [ -z "$cited" ] && continue
+      [ "$cited" = "_shared" ] && continue
+      [ "$cited" = "$citer" ] && continue
+      sed -n "${l}p" "$f" 2>/dev/null | grep -qiE '^[[:space:]]*[-*]?[[:space:]]*(consumers?:|referenced from)' && continue
+      printf '%s:%s:%s\n' "$f" "$l" "$rest"
+    done || true)
+while IFS= read -r h; do
+  [ -z "$h" ] && continue
+  report_fail "cross-skill reference-graph inversion: $h — a skill body sources a runtime rule from a DIFFERENT skill's own body; move the rule into skills/_shared/ and have both skills cite it downward"
+  cross_skill_inversions=$((cross_skill_inversions + 1))
+done <<< "$cs_hits"
+[ "$cross_skill_inversions" -eq 0 ] && echo "OK: no skill body sources a rule from a different skill's own body"
 
 # 5. Rootless agent/skill file references. A bare `agents/<name>.md` or
 # `skills/<x>/<y>.md` resolves against the CONSUMER's repo, where neither
@@ -662,6 +705,26 @@ elif [ "$anchor_now" -gt "$anchor_was" ]; then
   }'
 else
   echo "OK: no new dangling section anchors ($anchor_now vs recorded $anchor_was)"
+fi
+
+# 12. Anchor-ratchet STALE-HIGH baseline (C12, plugin-audit 2026-09-23, fix-plan
+#     §O / T4-62) — HARD, unlike check 10 above. Check 10's ratchet only ever
+#     compares "did the count grow" — it has no branch for the mirror direction,
+#     a recorded figure sitting ABOVE the live count. That is not merely stale:
+#     it silently re-permits that many new dangling anchors, because the "did
+#     it grow" test stays quiet right up until growth pushes the live count
+#     PAST the inflated baseline. A row recorded at 64 against a real count of
+#     60 hides four already-broken anchors from every run until a 5th happens
+#     to land. `lint-size-ratchet.sh` test 4 already enforces this exact
+#     direction for the SIZE baseline ("no recorded baseline row is above its
+#     file's true size"); this is that same invariant for the anchor baseline.
+#     Unlike the noisy resolver count itself (why check 10 stays advisory), a
+#     baseline sitting above a freshly-recomputed live count is a plain
+#     integer compare with no boundary-recovery ambiguity in it — decidable.
+if [ -n "$anchor_was" ] && [ "$anchor_was" -gt "$anchor_now" ]; then
+  report_fail "anchor-baseline.txt records $anchor_was dangling section anchor(s) but the live count is only $anchor_now — a stale-high baseline silently re-permits $((anchor_was - anchor_now)) new dangling anchor(s) before check 10's growth check would ever fire; run --accept-anchors to refresh it down to $anchor_now"
+elif [ -n "$anchor_was" ]; then
+  echo "OK: anchor-baseline.txt is not stale-high ($anchor_was recorded, $anchor_now live)"
 fi
 rm -f "$anchor_out"
 

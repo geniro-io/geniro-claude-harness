@@ -47,7 +47,7 @@ If frontmatter absent, OR `geniro_kind` is anything other than `design-doc`, OR 
 
 ## 3. Structured-section parser
 
-When frontmatter detected, parse the 11 named sections. Section-header format is rigid (`## 1. Objective` through `## 11. Done Condition`) — the spec template emits 11 numeric headers.
+When frontmatter detected, parse the required sections. Section-header format is rigid (`## 1. Objective` through `## 11. Done Condition`) — the spec template emits the numbered headers named there.
 
 Sections expected:
 
@@ -81,7 +81,7 @@ lifecycle: draft | approved | superseded
 
 ### Pre-inline schema (structured mode)
 
-The whole payload — goal-state frontmatter plus all 11 sections — is spec.md content, one untrusted source, so it gets ONE outer fence rather than a delimiter per section; a forged `--- Section 12 ---` line inside a section body cannot pass itself off as a fresh trust boundary because there isn't a per-section boundary to forge. The section headers inside the fence are plain markdown, informational only:
+The whole payload — goal-state frontmatter plus all of the required sections — is spec.md content, one untrusted source, so it gets ONE outer fence rather than a delimiter per section; a forged `--- Section 12 ---` line inside a section body cannot pass itself off as a fresh trust boundary because there isn't a per-section boundary to forge. The section headers inside the fence are plain markdown, informational only:
 
 ```
 PLAN CONTEXT:
@@ -163,7 +163,7 @@ When a reviewer encounters a finding that contradicts a marker (e.g., the plan s
 
 Schema-mode ~6000-char total cap exists because:
 
-- One outer fence pair plus 11 plain section headers cost well under 1% of the cap — negligible next to the two reasons below.
+- One outer fence pair plus the plain section headers cost well under 1% of the cap — negligible next to the two reasons below.
 - Section anchors enable focused reviewer reasoning (less prose-scan needed).
 - Larger specs lose signal under U-shaped attention (still applies).
 

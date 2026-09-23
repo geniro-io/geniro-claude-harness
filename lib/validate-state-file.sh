@@ -92,7 +92,7 @@ _vsf_extract_body() {
 # Check if key is present in frontmatter (case-sensitive, line-anchored).
 _vsf_fm_has_key() {
   local fm="$1" key="$2"
-  printf '%s\n' "$fm" | grep -qE "^${key}:"
+  grep -qE "^${key}:" <<< "$fm"
 }
 
 # Check if key is present AND its scalar value is non-empty.
@@ -245,9 +245,11 @@ validate_state_file() {
     wt="$(_vsf_fm_get_value "$fm" worktree)"
     # Graceful skip if not inside a git repo.
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      if ! git worktree list --porcelain 2>/dev/null \
-           | awk '/^worktree / {sub(/^worktree /, ""); print}' \
-           | grep -qxF "$wt"; then
+      # Here-string, not a pipe: under a caller's pipefail, `grep -q` exiting on the
+      # first match can SIGPIPE the producer and turn a found worktree into rc 141.
+      local _vsf_wts
+      _vsf_wts="$(git worktree list --porcelain 2>/dev/null | awk '/^worktree / {sub(/^worktree /, ""); print}')"
+      if ! grep -qxF "$wt" <<< "$_vsf_wts"; then
         echo "validate_state_file: $target — worktree path '$wt' not found in 'git worktree list' (worktree may have been removed)" >&2
         return "$_VSF_WORKTREE_NOT_FOUND"
       fi

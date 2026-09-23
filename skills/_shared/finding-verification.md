@@ -19,7 +19,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM, with no tier-s
 
 ## 1. When this fires
 
-After the Phase 4.1 multi-signal threshold gate — both its severity-gated Path A and its decision-type Path B, specified in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5, which owns the admission signals and their thresholds. Fires BEFORE Phase 5 stratification.
+After the Phase 4.1 multi-signal threshold gate — both its severity-gated Path A and its decision-type Path B, specified in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5, which owns the admission signals and their thresholds. Fires BEFORE Phase 5 persist.
 
 The verified set is every kept finding at CRITICAL / HIGH / MEDIUM, whichever path admitted it: a Path-B `PRODUCT-DECISION` at MEDIUM or higher verifies against its own `File: path:lines` anchor like any Path-A survivor, because the handoff schema makes the verification fields mandatory at those severities. LOW is the only severity that skips — a trade-off at LOW is not a defect-to-confirm, and it carries no verification fields downstream.
 
@@ -200,7 +200,7 @@ Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for a
 
 After all verifiers return, the orchestrator processes each finding's verdict block by the same rules:
 
-1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier` (or `not-actionable` when the verifier refuted on the §3.6 actionability bar — the defect was real but unreachable / no behavior delta). Do NOT propagate to Phase 5 stratify. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged. At CRITICAL and HIGH the demotion waits on the guard below.
+1. **`validation: refuted`** — move the finding to the report's `## Filtered` section with reason `refuted-by-verifier` (or `not-actionable` when the verifier refuted on the §3.6 actionability bar — the defect was real but unreachable / no behavior delta). Do NOT propagate to Phase 5. Do NOT include in the handoff `## Findings` body. This keeps refuted findings out of `open_questions[]` and leaves the consumer-side handoff resolution gate (read by /geniro:implement) unchanged. At CRITICAL and HIGH the demotion waits on the guard below.
 
    **High-stakes refutation guard — one vote never drops a CRITICAL or HIGH.** A `refuted` verdict at those severities does not demote the finding by itself. Collect every high-stakes refutation the first batch produced and fire one more independent verifier per finding — the degenerate one-finding cluster of §2, composed fresh from the code, never shown the first verdict, since a second reader handed the first refutation is anchoring rather than verifying — as ONE parallel batch, same invariant as the first. Demote only when the second verdict is also `refuted`. On `confirmed`, `clarified`, or a spawn failure the finding stays kept, carrying a `Verification-evidence` note that records the split (`2-vote: 1 refuted / 1 confirmed → kept`) so the disagreement reaches the reader rather than being averaged away.
 

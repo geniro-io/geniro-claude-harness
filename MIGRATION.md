@@ -10,6 +10,36 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### Hook guards close several bypass classes; Cursor gains `Delete` coverage and fail-closed; two stale behavior claims corrected
+
+A plugin-audit round closed a set of guard gaps that had reopened one hop from earlier fixes, and corrected two doc-only claims that had drifted from what the skills actually do. Nothing here is opt-in — every change either blocks a command that previously passed, or removes a claim that was never true.
+
+**Hook guards now also block:**
+
+- A shell write to `.geniro/safety.json` (`printf … >`, `cp`, an interpreter's `open(…, 'w')`) — previously the only guarded route was the `Edit`/`Write` one, so a single Bash command could self-grant every other bypass. New pattern ID `safety-json-edit` on `file-protection.sh`'s Bash branch, shared with `enforce-state-helper.sh`'s existing file-tool guard on the same path.
+- A `/../` segment inside a `.geniro`-bearing path in `enforce-state-helper.sh` and in `security-pattern-check.sh`'s test/fixture carve-out (previously exempted an ancestor directory literally named `tests`/`spec`/`e2e`/`fixtures`/`benchmarks` anywhere above the repo root, including via a `..` escape).
+- Mixed-case and option-abbreviated spellings of git and shell commands (`GIT push --force`, `git reset --har`, `BASH -c "..."`) that previously evaded the case-sensitive/full-spelling matchers.
+- Glob and brace forms of `.geniro` (`rm -rf .genir?`, `{.geniro,x}`), a `cd .geniro && find … -delete`, an ambiguous shell-variable target, and `mv -t <dir> .geniro` — five further spellings the `.geniro/` deletion guard previously let through.
+- `cp -t .git/hooks`, `mv -t .git/hooks`, and `ln -s … .git/hooks/pre-commit` — previously only a plain `cp`/`mv` destination inside `.git/hooks/` was caught, so a git hook (code that runs on the next commit) could still be planted via the `-t`/`--target-directory` form or via `ln`.
+- Deletion of a `.geniro/`-bearing path through Cursor's `Delete` file tool. Cursor's file-delete action was previously unguarded entirely — the deletion guard and the protected-path guard were wired only to `beforeShellExecution`, which a `Delete` call never reaches. `cursor/hooks.json` now routes `preToolUse` `Delete` to both.
+
+**Cursor's guards now fail closed.** Cursor's own default is to fail a hook OPEN on a crash, a timeout, or any non-2 exit — an entry has to opt in with `"failClosed": true`. That flag is now set on every Cursor entry for the four data-loss guards (`block-dangerous-git.sh`, `block-geniro-deletion.sh`, `file-protection.sh`, `enforce-state-helper.sh`); `security-pattern-check.sh` (a content scan, not a data-loss guard) stays at the default. A malformed or truncated payload reaching the Cursor shim while `jq` is present no longer silently allows either — it now reaches the guard's own fail-closed scan, the same as when `jq` is absent.
+
+**Two stale behavior claims are corrected, not just documented:**
+
+- `/geniro:review` no longer claims that SessionStart recovery resumes its runs — the restore hook only ever collected `state.md`, and review's own state lives at `state/handoff/from-review-<branch>.md`, so that resume never actually fired. A review run now resumes only by re-invoking `/geniro:review`.
+- `/geniro:setup`'s restart-session warning (the old §5.4) is removed, along with the `plugin_version` state field it compared. It could never fire on a normal re-run — the previous successful run deletes the state file the comparison needed — and restarting after a plugin update is `/geniro:update`'s job, which still warns.
+
+**Action required:** None for a normal workflow — every closed class was already meant to be blocked, and the two corrected claims only ever affected what the skill *told* you, not what it *did*. If a saved command, alias, or CI script relied on one of the newly-closed forms above to reach a file the guard now catches (a `cp -t .git/hooks` deploy step, a case-varied `GIT` wrapper, a `.geniro/safety.json` write via `printf`), rewrite it to the guard's suggested alternative (printed on the block) or add the named pattern ID to `.geniro/safety.json` `allow_patterns` if the write is genuinely intended.
+
+**Auto-detect:** N/A — these are hook-behavior changes with no state artifact to grep for; each guard closure only reveals itself when a previously-passing command is now blocked (fail-loud, with the pattern ID and a suggested alternative in the message).
+
+**Auto-fix:** Manual-only — rewrite the blocked command to its suggested form, or add the pattern ID to `.geniro/safety.json` `allow_patterns` for a workflow that genuinely needs the bypass.
+
+**Severity:** MEDIUM — every change tightens an existing safety boundary or removes a false claim; the risk is a script or habit that depended on one of the closed loopholes, not data loss from the change itself. The two behavior corrections are LOW on their own (informational).
+
+---
+
 ### Deep mode is removed — `--deep` and everything it gated are gone
 
 Deep mode was an opt-in quality mode on `/geniro:plan`, `/geniro:implement`, `/geniro:review`, and `/geniro:debug` — a 3x generative pass plus majority-vote verification, at 3-5x the token cost, for a run willing to pay it. It is now a pure removal: nothing from the deep path was promoted into the default path, which behaves exactly as the non-deep path always did.
@@ -613,6 +643,8 @@ grep -l "Validation: unverified" .geniro/state/handoff/from-review-*.md 2>/dev/n
 ---
 
 ### State-helper enforcement now hard-blocks direct writes to `.geniro/` state paths (incl. Bash-side)
+
+> **Superseded — behavior changed in v5.0.0.** The Bash-side coverage this entry describes was removed — see "The state-helper guard no longer matches `Bash`" above. `hooks/enforce-state-helper.sh` is file-tool-only now (`Edit`/`Write`/`MultiEdit`/`NotebookEdit`); a shell-side write to a canonical `.geniro/` state path is unenforced (prose contract only, per `CLAUDE.md` §State Files), not hard-blocked as this entry says. The file-tool hard-block itself is still current.
 
 `hooks/enforce-state-helper.sh` flips from warn-mode to hard-block, and now also covers the `Bash` tool. Direct `Edit`/`Write`/`MultiEdit` to a canonical state path under `.geniro/` (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`) is blocked (exit 2), as are Bash-side writes into the same paths (redirection `>`/`>>`, `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=`). Reads stay allowed, commands invoking the sanctioned helpers (`atomic_state_write` / `atomic_state_append`) are allowed, and paths under `.geniro/state/tdd/` are exempt (the TDD cycle's own RED-phase state file, written via its own mktemp + mv procedure, per `skills/_shared/tdd-cycle.md` §State file contract). The prior warn-mode let a consumer session ignore 42 warnings in one run; the block makes the contract enforceable.
 

@@ -138,8 +138,8 @@ These are the load-bearing exit gates and safety invariants for the mode that ra
 ### Scientific Mode
 
 - [ ] Bug reproduced consistently with clear steps
-- [ ] Root cause confirmed AND cited per Evidence Standard (not guessed), tagged `[ROOT-CAUSE]`
-- [ ] Reproduction test authored at project's normal test path, F→P verified, survives Cleanup — OR escape hatch invoked with the user-recorded alternative regression guard in state.md "Reproduction Decision"
+- [ ] Root cause confirmed AND cited per Evidence Standard (not guessed), tagged `[ROOT-CAUSE]` — OR, on the §1.7 stall-abandon path, honestly tagged `[SYMPTOM]` / `[UNKNOWN]` per § Definition of done in SKILL.md
+- [ ] Reproduction test authored at project's normal test path, F→P verified, survives Cleanup — OR escape hatch invoked with the user-recorded alternative regression guard in state.md "Reproduction Decision" — exempt on the §1.7 stall-abandon path, where no confirmed root cause exists to author a regression guard against
 - [ ] Proposed fix written as a text patch, NOT applied to source (no-ship boundary held)
 - [ ] When multiple valid fix paths exist, the multi-path fix gate fired (Always-WAIT) — user chose the path
 - [ ] Findings handoff persisted to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (`<branch>` = state.md frontmatter `branch:`, the Phase 0-recorded workspace) via `atomic_state_write` BEFORE the escalation question

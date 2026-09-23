@@ -19,10 +19,6 @@ This dimension fires only when input is a PR ref (`pr-ref != none`); it is skipp
 
 A PR title should describe an action: "Add user authentication", "Fix race in queue worker", "Drop dead config option". Past-tense ("Added X", "Fixed Y") and noun-only titles ("User authentication", "Queue race") are weaker — they describe a topic, not a change.
 
-**How to detect:**
-- Read `pr.title` from the PR-metadata slot in the prompt.
-- Check that the first word (after any prefix like `[ENG-123]` or `feat:`) is an imperative verb: Add, Fix, Drop, Remove, Replace, Refactor, Update, Move, Rename, Introduce, etc.
-
 **Red flag:** title starts with past-tense ("Added", "Fixed", "Updated"), gerund ("Adding", "Fixing"), or no verb at all.
 
 ### 2. Title — convention conformance (when repo uses one)
@@ -40,20 +36,11 @@ Many repos adopt Conventional Commits (`feat:`, `fix:`, `chore:`) or Linear/Jira
 
 A PR description should be more than a one-line restatement of the title and should not be a raw template placeholder (e.g., GitHub's default `## Summary\n\n## Test plan\n` with no content filled in).
 
-**How to detect:**
-- Read `pr.body`. Check it is non-empty after trimming whitespace.
-- Reject as substantive if the body matches a known-template skeleton (only `## Summary`, `## Test plan`, `## Screenshots`, etc., with no content under each heading).
-- Reject as substantive if the body is < 3 sentences AND the diff is non-trivial (>20 LOC changed).
-
 **Red flag:** empty body, or body is just the template skeleton, or body is < 3 sentences when the diff exceeds 20 LOC.
 
 ### 4. Description — "Why" clause present
 
-The description should explain *why* the change is being made, not just *what* changed. Reviewers need motivation to evaluate trade-offs.
-
-**How to detect:**
-- Scan the body for "why" signals: words like "because", "to fix", "to address", "motivation", "this enables", "users were", or an explicit "## Why" / "## Motivation" / "## Context" heading.
-- If none present, flag as missing-why. A clear bug-fix title ("Fix off-by-one in pagination") is itself the why for trivial fixes (<20 LOC); skip this check for trivial diffs.
+The description should explain *why* the change is being made, not just *what* changed. Reviewers need motivation to evaluate trade-offs. A clear bug-fix title ("Fix off-by-one in pagination") is itself the why for trivial fixes (<20 LOC); skip this check for trivial diffs.
 
 **Red flag:** non-trivial diff (>20 LOC) with no "because" / "to fix" / motivation heading anywhere in the body.
 
@@ -61,21 +48,11 @@ The description should explain *why* the change is being made, not just *what* c
 
 When the diff touches non-trivial business logic (controllers, services, models, reducers, query handlers) or includes test files, the description should describe how the change was tested.
 
-**How to detect:**
-- From `DIFF CONTEXT`, count files matching `src/**/{controllers,services,models,reducers,handlers}/*` and files matching `**/*.{test,spec}.*` / `**/__tests__/**` / `tests/**`.
-- If either count ≥1, scan the body for a "## Test plan" / "## Testing" / "## How to test" heading OR bulleted test-step content ("- ran `pytest …`", "- verified in browser").
-- Flag when logic-or-test files changed AND no test plan is mentioned.
-
 **Red flag:** ≥1 logic or test file changed; body contains no test-plan heading or bulleted test evidence.
 
 ### 6. Description — screenshots when UI changed
 
 When the diff includes UI files (matching the UI-file detection rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule), the description should include screenshots, recordings, or a "no visual change" note.
-
-**How to detect:**
-- From `DIFF CONTEXT`, count files matching the UI-file globs (`**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`) or extensions (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.styled.ts*`).
-- If ≥1 UI file changed, scan the body for: markdown image syntax (`![...](...)`), GitHub video attachments (`https://github.com/user-attachments/`), explicit "no visual change" sentence, or "## Screenshots" / "## Demo" heading with content.
-- Flag when UI files changed AND no visual evidence is present.
 
 **Red flag:** ≥1 UI file in the diff; body contains no image, no video, and no "no visual change" disclaimer.
 
@@ -83,21 +60,11 @@ When the diff includes UI files (matching the UI-file detection rule in `${CLAUD
 
 When the diff changes a public API, a database migration, a config schema, or an exported function signature, the description should call out backward-incompatibility explicitly.
 
-**How to detect:**
-- From `DIFF CONTEXT`, look for: removed exports (`-export`), modified function signatures in `*.d.ts` / `*.proto` / OpenAPI specs, files under `migrations/` / `db/migrations/`, `package.json` removed dependencies, breaking-change markers in commit messages.
-- If any present, scan the body for an explicit heading or callout: "## Breaking changes", "**BREAKING:**", "⚠️ migration required", or "backward-incompatible".
-- Flag when such changes appear in the diff AND no breaking-change note exists.
-
 **Red flag:** signature/migration/exported-API change visible in the diff; body silent on backward compatibility.
 
 ### 8. Description — scope alignment
 
 The description should match the actual scope of the diff. A title saying "Fix typo in README" with a 500-LOC diff across 12 source files is a scope mismatch; a description that lists 5 unrelated changes when the diff only touches 1 of them is a scope-creep signal.
-
-**How to detect:**
-- Compare the description's enumerated changes (bullet lists, "## What changed" sections) against `DIFF CONTEXT`'s file list.
-- If the description mentions 3+ items not visible in the diff, flag as overpromised.
-- If the diff has 3+ distinct modules changed but the description names only one, flag as underpromised (likely sneaks).
 
 **Red flag:** description's claimed scope and diff's actual scope diverge by more than one major area.
 
@@ -115,16 +82,12 @@ When the repo uses an issue tracker (Linear / Jira / GitHub Issues / Pivotal), m
 **LINEAR CONTEXT enhancement (workflow integration):** when the `LINEAR CONTEXT:` slot is non-`none`, the ticket ID was both detected by regex AND verified to exist via MCP fetch. Use this to distinguish two failure modes:
 
 - **ID in title/body but LINEAR CONTEXT = `none — MCP fetch failed (fail-open)`**: emit a structured `open_questions[]` entry with `source: pr-metadata`, `status: unresolved`, `question: "Linear ID ENG-NNN cited but not verifiable (MCP unavailable). Confirm the issue exists and matches the PR scope, or revise the PR title/body."`. No finding emitted (MCP outage isn't the author's fault). The orchestrator's Phase 6 gate will require user resolution before action-gate fires.
-- **ID in title/body AND LINEAR CONTEXT populated**: cross-check pr.title against `LINEAR CONTEXT.Title`. If pr.title diverges materially from issue title (different action verb / different surface area), flag as a MEDIUM finding: "PR title `<pr-title>` materially diverges from Linear issue title `<linear-title>` — verify PR addresses the right scope". Pure prefix differences (`[ENG-123]` ahead of pr-title) are NOT divergence.
+- **ID in title/body AND LINEAR CONTEXT populated**: cross-check pr.title against `LINEAR CONTEXT.Title`. If pr.title diverges materially from issue title (different action verb / different surface area), flag as a LOW finding: "PR title `<pr-title>` materially diverges from Linear issue title `<linear-title>` — verify PR addresses the right scope". Pure prefix differences (`[ENG-123]` ahead of pr-title) are NOT divergence.
 - **Repo modal expects Linear AND LINEAR CONTEXT = `none — workflow not configured`**: surface a one-line informational note in `## Caveats` — "Repo uses Linear (per modal sampling) but `.geniro/workflow/linear.md` not configured — run `/geniro:setup` to enable issue context fetch".
 
 ### 10. Description — acceptance criteria when issue linked
 
-When the PR links an issue, the description should either restate the acceptance criteria or explicitly confirm them ("Closes #123 — all ACs from the issue are covered").
-
-**How to detect:**
-- If check #9 found a linked issue, scan the body for: "## Acceptance criteria" / "## ACs" headings, bulleted criteria lists, or explicit closure language naming the criteria ("Implements #123 — UI now matches mockup at width X").
-- Flag when an issue is linked AND no acceptance criteria appear AND the description is < 5 sentences.
+When the PR links an issue (check #9), the description should either restate the acceptance criteria or explicitly confirm them ("Closes #123 — all ACs from the issue are covered").
 
 **Red flag:** linked issue ID is present; description is terse and contains no acceptance-criteria restatement or coverage confirmation.
 
@@ -155,11 +118,11 @@ Skip or downgrade findings in these cases — they look like rubric violations b
 - **Dependabot / Renovate / similar bot PRs** (author user matches `dependabot[bot]` / `renovate[bot]` / `github-actions[bot]` / a known dependency-bumper bot — check `gh pr view --json author --jq '.author.login'`): titles and bodies are templated and the rubric's prose expectations do not apply. Skip every check; emit zero findings.
 - **Revert PRs** (title begins with `Revert "` or body contains `This reverts commit <sha>`): the description is auto-generated by GitHub's revert button and typically lacks a custom "why" or test plan because the change is mechanical. Skip checks #4 (why), #5 (test plan), #6 (screenshots), #10 (acceptance criteria). Flag #7 (breaking-change note) only if the reverted change is a breaking-change reversal.
 - **Cherry-pick or backport PRs** (title begins with `[backport]` / `Cherry-pick` / `[cherry-pick]` or body cites a parent PR): description quality is delegated to the parent PR. Skip checks #4–#8 and #10 when a parent PR is cited; still flag #1, #2, #9.
-- **Force-pushed PRs** where the body was substantive on an earlier push (detect via `gh pr view --json reviews` — if there are review comments referencing earlier content, the description may have been condensed after the prior review): downgrade severity by one level (HIGH → MEDIUM, MEDIUM → LOW) for checks #3, #4. The author already engaged the prior reviewer; rubric-strict re-flagging is noise.
+- **Force-pushed PRs** where the body was substantive on an earlier push (detect via `gh pr view --json reviews` — if there are review comments referencing earlier content, the description may have been condensed after the prior review): skip checks #3, #4. The author already engaged the prior reviewer; rubric-strict re-flagging is noise.
 - **First-review runs** (no prior `pr-body:` in the state file because this is the first `/geniro:review` invocation against this PR): Skip entirely; it has nothing to compare against. The check fires only on round 2+ re-reviews. This is the normal case; do not emit a "no drift to check" finding.
 - **Generated PRs** from automation (release-please, changesets, semantic-release, project-board automation): bodies are formulaic and the rubric does not apply. Detect via author user, title patterns (`chore: release X.Y.Z`, `Release v…`), or the presence of `release-please` / `changeset` labels. Skip every check.
 - **Very small diffs** (<5 LOC AND ≤2 files changed): the rubric's structural expectations (test plan, screenshots, breaking-change note) often do not apply. Skip checks #5 (test plan), #6 (screenshots), #7 (breaking-change) unless the diff visibly touches an API surface / migration / UI file. Still flag #1 (imperative verb) and #3 (substance) if the body is empty.
-- **"PR description could be more verbose" → never MEDIUM** — Suggestions to add more context, link more tickets, or include checklists are LOW. MEDIUM requires the missing field to be documented as REQUIRED in the repo's PR template or CONTRIBUTING.md, AND the omission must materially mislead reviewers.
+- **"PR description could be more verbose" → still LOW** — Suggestions to add more context, link more tickets, or include checklists are LOW, same as every other finding this dim emits (§Severity tagging) — including a missing field documented as REQUIRED in the repo's PR template or CONTRIBUTING.md.
 
 The detection signals above (`isDraft`, `author.login`, `labels`, plus title and body) arrive in your PR-metadata context slot — the orchestrator fetched them once at Phase 1 and passes them through, so no API roundtrip of your own is needed. If a signal you need is missing from the slot, resolve it yourself with a single read-only `gh pr view --json <field>` rather than assuming the class does not apply: guessing "not a bot PR" from an absent author field is how a templated dependency bump collects a full set of prose findings the rubric says to skip. When that call is also unavailable, say which classifier you could not evaluate in your report rather than reviewing as if the PR were an ordinary human one.
 
@@ -169,7 +132,7 @@ Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibra
 
 **This dim emits LOW and nothing else.** Its entire subject is the prose the PR author wrote, and §6 of the canonical file puts documentation and PR-description findings at LOW in every criteria file — lifting one above LOW is how a paper cut reaches the PR surface past the shared gate.
 
-That is not a coverage cut, because the substantive half of the strongest case is owned diff-side and keeps its severity there. A body claiming behavior X is unchanged while the diff changes X is TWO findings: the description defect (this dim, LOW) and the behavior change outside stated intent (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §Severity tagging — HIGH when an intent source exists, which is the §1 HIGH inclusion this dim previously borrowed). The regressions finding anchors at the changed code, so it clears admission, reaches the verifier, and lands on the PR; this dim's finding is the accompanying note that the description needs fixing too.
+That is not a coverage cut, because the substantive half of the strongest case is owned diff-side and keeps its severity there. A body claiming behavior X is unchanged while the diff changes X is TWO findings: the description defect (this dim, LOW) and the behavior change outside stated intent (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §Severity tagging — HIGH when an intent source exists). The regressions finding anchors at the changed code, so it clears admission, reaches the verifier, and lands on the PR; this dim's finding is the accompanying note that the description needs fixing too.
 
 - **LOW** — every finding this dim emits: missing or empty test plan, screenshots, why-clause, breaking-change note, acceptance criteria, or ticket link; title format, convention prefix, imperative-verb polish; description verbosity and rationale suggestions; scope mismatch between description and diff; a description claim the diff contradicts, the §11 cross-round drift case included.
 

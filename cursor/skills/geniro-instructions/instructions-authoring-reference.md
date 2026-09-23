@@ -58,7 +58,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.
 ---
 slug: sql-bindings # REQUIRED; matches filename; must NOT collide with built-in dimensions
 description: All SQL queries use parameterized bindings, never string concatenation
-model: sonnet # OPTIONAL; haiku|sonnet|opus|inherit (+ auto outside Claude Code); omitted = inherit (orchestrator tier)
+model: sonnet # OPTIONAL; haiku|sonnet|opus|fable|inherit (+ auto outside Claude Code); omitted = inherit (orchestrator tier)
 paths: # OPTIONAL; list of globs; absent = always fires
 - "**/*.sql"
 - "**/dao/*.{ts,py}"
@@ -84,12 +84,11 @@ What to NOT flag:
 
 ## Rules
 
-- Use lowercase-hyphen for component file names (e.g., `user-profile.tsx`, not `UserProfile.tsx`).
-- Prefer named exports over default exports for tree-shaking.
+- (none — add project-specific code-style rules here, e.g. file-naming or export conventions)
 
 ## Constraints
 
-- No `any` type without an inline `// reason:...` comment.
+- (none — add hard code-style limits here, e.g. type-safety requirements)
 ```
 
 **`implement.md` scaffold** (shows phase-boundary structure):

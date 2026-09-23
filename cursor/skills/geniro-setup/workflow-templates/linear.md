@@ -92,7 +92,7 @@ Any Linear comment authored by a Geniro skill — implementation summary, triage
 
 (literal bracket-prefix, single trailing space, then the comment body)
 
-Rationale: human reviewers and downstream automation need to distinguish AI-authored content from human-authored content at a glance, especially in triage and review workflows where the skill speaks on behalf of the user. The prefix is required regardless of which skill authored the comment (`/geniro:implement` Phase 3 Ship status update, `/geniro:debug` finding summary posted to a Linear issue, etc.).
+Rationale: human reviewers and downstream automation need to distinguish AI-authored content from human-authored content at a glance, especially in triage and review workflows where the skill speaks on behalf of the user. The prefix is required regardless of which skill authored the comment (`/geniro:implement` Phase 3 Ship status update, `/geniro:plan`'s post-approval tracker note, etc.).
 
 The prefix is NOT required for:
 - Status-only updates (no comment text — just `state: "In Progress"`)

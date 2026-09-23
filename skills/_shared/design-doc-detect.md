@@ -1,8 +1,8 @@
 # Design-doc detection
 
-Authoritative algorithm for resolving the first non-flag token of `$ARGUMENTS` to one of: `DESIGN_DOC`, `IDEA`, `CODE_REFERENCE`. Consumers cite this file at Phase 1 entry.
+Authoritative algorithm for resolving the first non-flag token of `$ARGUMENTS` to one of: `DESIGN_DOC`, `IDEA`, `CODE_REFERENCE`. Consumers cite this file at their mode-detection entry point (`/geniro:plan` Phase 0, `/geniro:implement` Phase 1).
 
-This file is the single source of truth. Skills cite this file; do NOT inline-paste the detection logic. Per-skill `$ARGUMENTS` parsing rules (flag handling, sub-command keyword stripping) remain in the consuming skill.
+This file is the single source of truth for the detection logic. Per-skill `$ARGUMENTS` parsing rules (flag handling, sub-command keyword stripping) remain in the consuming skill.
 
 ## Detection algorithm
 

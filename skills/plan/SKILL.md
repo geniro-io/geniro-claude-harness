@@ -1,6 +1,6 @@
 ---
 name: plan
-description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → grill (decision-tree clarification) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement <path> directly. Optional --artifact builds a live, auto-updating visual artifact of the plan as it develops."
+description: "Use when turning a vague idea or feature request into an approved spec.md before /geniro:implement. Spec-first planning workflow: explore → grill (decision-tree clarification) → propose 2-3 approaches → approve sections → write spec.md → mechanical validate → user approve → handoff. Skip for well-formed specs already authored — use /geniro:implement {path} directly. Optional --artifact builds a live, auto-updating visual artifact of the plan as it develops."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]
@@ -121,7 +121,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 **Turn boundaries.** A turn ends in exactly three places: on a fired approval question, on reaching a terminal `phase:` state, or when the user asked something and is owed the answer. Everywhere else the next action follows in the same turn, with a tool call — between steps, after a check comes back green, after a state write, at a phase transition, and when a subagent's result lands. A status report, a checkpoint summary, and a list of what remains are continuations, not endings: write one where it helps the user follow along, then take the next action in that same turn. A decision that needs the user is asked as a real question in the turn that raises it, its render and the question inside that one turn (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard) — a question left in prose, or announced for a later message, leaves the run waiting on an answer the user was never asked for. Reversibility is not the test: a deviation from a rule this run loaded is a gate however cheap it is to undo.
 
-**Compaction.** The host re-attaches only the first ~20,000 characters of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
+**Compaction.** The host re-attaches only an initial slice of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
 `## Tool log` schema (selective logging): entry shape is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract; each entry is appended via `atomic_state_append_section`. AUQ calls do NOT need logging — `approvals[]` is the structured record.
 
@@ -134,7 +134,7 @@ Do NOT reintroduce these anti-patterns. Loop-level rows (commit timing, message-
 | Your reasoning | Why it's wrong |
 |---|---|
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR topic carries a UI noun). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it forces the user to describe visual intent twice (once in Phase 3 prose, again to /geniro:implement when the rendered UI doesn't match). |
-| "Re-cap Phase 3 at ~5 questions, grill forever without pausing, OR walk into Phase 4 the moment the tree looks resolved." | Phase 3 is an uncapped decision-tree grill bounded by two gates, and each of the three drops one. Re-imposing a flat cap drops the relentless property the grill exists to provide. Skipping the §3.4 checkpoint (every ~6 questions or when a branch resolves) drops the user's off-ramp. Exiting on an exhausted tree without the §3.4 exit gate drops the user's on-ramp — exhaustion is the model's read of a tree the model built, and it reads that way after two questions as easily as after twenty, so keep-grilling stays live even with nothing on the frontier. |
+| "Re-cap Phase 3 at ~5 questions, grill forever without pausing, OR walk into Phase 4 the moment the tree looks resolved." | Phase 3 is an uncapped decision-tree grill bounded by two gates, and each of the three drops one. Re-imposing a flat cap drops the relentless property the grill exists to provide. Skipping the §3.4 checkpoint gate drops the user's off-ramp. Exiting on an exhausted tree without the §3.4 exit gate drops the user's on-ramp — exhaustion is the model's read of a tree the model built, and it reads that way after two questions as easily as after twenty, so keep-grilling stays live even with nothing on the frontier. |
 | "spec.md's fixed section schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
 
@@ -155,7 +155,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Phase 8 user-revision rounds | §8.3 owns the count | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 1 research-agent output size | per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2 | invariant #4 | Truncation with marker, not abort. |
 
-**Question cadence:** Phase 3 uncapped, plus one exit gate per termination; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
+**Question cadence:** Phase 3 uncapped, plus a checkpoint gate per §3.4 and one exit gate per termination; Phase 4 ×1; Phase 5 ×3, one per cluster; Phase 8 ×1.
 
 ---
 
@@ -181,7 +181,7 @@ task_slug: <slug>
 mode: <IDEA|DESIGN_DOC>
 artifact_mode: true              # optional, present only when the user opted into the visual artifact (Phase 0 question or --artifact)
 artifact_status: pending|live|unavailable  # optional, present only in artifact mode — publish lifecycle state
-artifact_url: "<url>"            # optional, present once the page is published live
+artifact_url: "<url>"            # optional, present only in artifact mode — Phase 0 writes it empty ("") alongside artifact_mode/artifact_status; the first publish fills it in
 ---
 ```
 
@@ -200,7 +200,7 @@ Phase 7.5 fires on every run, at every effort tier — it is not conditional on 
 | Phase | Allowed | Blocked |
 |---|---|---|
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskUserQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / AskUserQuestion / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn — OMIT `model=`) / tracker MCP read (`mcp__linear__get_issue`, etc.) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt) | Edit / Write outside state.md |
+| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / AskUserQuestion / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn — OMIT `model=`) / tracker MCP read (the tool named in `.geniro/workflow/<kind>.md`) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) / native `Artifact` calls + scratchpad `Write`† | Edit / Write outside state.md and the artifact scratchpad |
 | Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md only) / Agent (Phase 3 codebase-research + Phase 4 stress-test critic spawns) / native `Artifact` calls + scratchpad `Write`† | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) / native `Artifact` call + scratchpad `Write`† | Edit / direct Write outside the artifact scratchpad / mutating Bash |
@@ -211,7 +211,7 @@ Phase 7.5 fires on every run, at every effort tier — it is not conditional on 
 
 †Artifact mode only — the update/before-gate/finalize calls at each phase's own gate sites, plus a write to the session-scratchpad HTML file; exact call sites are `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`'s table, not repeated per-row here.
 
-Every subagent spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, a category-4 execution spawn whose `sonnet` is a ceiling the orchestrator may size below, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
+Every subagent spawn above OMITs `model=` — subagents inherit the orchestrator's tier — except the Phase 2 UI-description spawn, an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` whose `sonnet` is a ceiling the orchestrator may size below, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
 
 ---
 
@@ -219,7 +219,7 @@ Every subagent spawn above OMITs `model=` — subagents inherit the orchestrator
 
 Call signatures live in each site's phase file (spine §Phase files).
 
-**Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` (L4) · the project snapshot via `load_semantic` (L3) · past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (`mcp__linear__get_issue`, etc.), only when `$ARGUMENTS` carries a tracker URL/ID.
+**Reads — all at Phase 1 entry, full tier:** custom instructions via `load-custom-instructions` (L4) · the project snapshot via `load_semantic` (L3) · past learnings via `query-learnings`, backend-override aware (L2). Plus one conditional external read at §1.4 — the matching tracker MCP (the tool named in `.geniro/workflow/<kind>.md`), only when `$ARGUMENTS` carries a tracker URL/ID.
 
 **Writes:** every state.md and spec.md mutation is T1.5 through the `atomic-state-write` helpers (invariant #3) — `atomic_state_set_field` for one frontmatter field, `atomic_state_append_section` / `atomic_state_append_list_item` for an entry, `atomic_state_write` for a whole file. The state.md body-section index — the base sections, the phase that owns each optional one, and the `approvals[]` entry every gate writes — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. L2 emits are conditional, and each supplies its own `trust` at its emit site.
 

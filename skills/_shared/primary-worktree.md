@@ -75,7 +75,7 @@ These are intended to outlive any single task. The resolver applies to both read
 | `.geniro/state/handoff/from-debug-<branch>.md` | `/geniro:debug` Phase 3 | `/geniro:implement` Phase 1 handoff-resolution step | carries frontmatter `branch:` / `worktree:` fields; resolver removes the need to copy across worktrees |
 | `.geniro/state/handoff/from-debug-adversarial-<branch>.md` | `/geniro:debug` adversarial mode | `/geniro:implement` Phase 1 handoff-resolution step | same handoff |
 | `.geniro/state/handoff/from-review-<branch>.md` | `/geniro:review` | `/geniro:implement` Phase 1 handoff-resolution step (the handoff-persist step that gates on unresolved open questions) | carries `[POSTED-TO-PR]` idempotency markers — losing the file = double-posting on re-run |
-| `.geniro/planning/_FEATURES.md` | manual or `/geniro:plan` | `/geniro:implement` (binding), `/geniro:plan` | persistent registry |
+| `.geniro/planning/_FEATURES.md` | manual (no skill writes it) | `/geniro:implement` (binding), `/geniro:plan` | persistent registry |
 | `.geniro/planning/_CODEBASE_MAP.md` | `/geniro:onboard` | every skill that consults the map (`/geniro:implement`, `/geniro:plan`, `/geniro:debug`, `/geniro:review`, `/geniro:refactor`, `/geniro:investigate`) | persistent orientation artifact; bounded auto-incremental writes via `update-semantic` |
 | `.geniro/planning/_focus-<area>.md` | manual | every skill that consults focused-area context | persistent orientation artifact for a subsystem |
 | `.geniro/workflow/<kind>.md` | manual / `/geniro:setup` | `/geniro:plan`, `/geniro:implement`, `/geniro:review`, `/geniro:refactor` | Tracker integration configs (Linear/Jira/GitHub-Issues/Asana); read with cwd-first / primary-fallback per per-site preambles; written by `/geniro:setup` to `<PRIMARY_ROOT>` |
@@ -95,7 +95,7 @@ If a within-skill state file is later promoted to cross-session use, add it to t
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "This skill never runs in a worktree" | `/geniro:implement` Option C puts the session in a worktree, and orchestrators downstream of it inherit that cwd. Any cross-session write made there is exposed. |
+| "This skill never runs in a worktree" | `/geniro:implement`'s "Git worktree" workspace pick puts the session in a worktree, and orchestrators downstream of it inherit that cwd. Any cross-session write made there is exposed. |
 | "I'll commit the file in the worktree to preserve it" | `.geniro/*` is gitignored — `git add` is a no-op. Even if not, the commit lands on the feature branch, not main. |
 | "I'll make `.geniro/knowledge/` not gitignored" | Different fix, different problem. Knowledge bleeds across feature branches → merge conflicts. The resolver writes to main's tree without involving any branch. |
 | "The subagent has no Bash, so it'll just resolve the path itself" | It can't. Mode B requires the orchestrator pre-resolve and inline. Cwd-relative paths in a Bash-less agent's prompt are a spawn-prompt bug. |

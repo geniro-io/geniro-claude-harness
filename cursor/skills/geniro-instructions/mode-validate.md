@@ -7,10 +7,9 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 ## Contents
 
 - Step 1 — scan + scope, and the `--max-lines` flag
-- Step 2 — the lint rule set: structural / reference / per-scope checks, plus the `## Data Sources`, `## Verification Surface`, `## Memory Backend`, description-quality and `requires-context` rule sets
-- Step 3 — per-skill phase mapping
-- Step 4 — custom-reviewer count caps
-- Step 5 — output format, and the no-auto-fix rule
+- Step 2 — the lint rule set: structural / reference / per-scope checks (run `lib/validate-instructions-file.sh` for the decidable rows), plus the `## Data Sources`, `## Verification Surface`, `## Memory Backend`, description-quality and `requires-context` rule sets
+- Step 3 — custom-reviewer count caps
+- Step 4 — output format, and the no-auto-fix rule
 
 ---
 
@@ -20,26 +19,36 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 
 Scan `"$PRIMARY_ROOT"/.geniro/instructions/` and its `review-extra/` subdirectory for the set to check, and read each target at that same prefix — Phase 1 Step 0.5 resolved it. Validating cwd from a linked worktree grades a different file set than the one `create`/`edit` write and every skill's fallback loads, and an empty worktree directory reports a clean run over rules never checked.
 
-**flag:** `--max-lines N` overrides the default 300-LOC threshold (Step 2). Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
+**flag:** `--max-lines N` overrides the default 300-LOC threshold the Step 2 script applies. Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
 
 ### Step 2 — Lint rule set
 
+Run the script once per target file, then layer the checks that stay hand-run on top. These are conditions a command can decide, so a hand-run table never re-interprets them — the same reasoning `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Validation gate applies to actions:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/validate-instructions-file.sh"
+validate_instructions_file "<target-path>" "<scope>" "<max-lines-from-Step-1>"
+```
+
+`<scope>` is the filename minus `.md`, or `review-extra` for a file under that subdirectory — the script auto-detects the same mapping when the argument is omitted, so pass it explicitly only to override. The helper prints one TAB-separated row per failed check — `<SEVERITY>`, `<check-id>`, `<line-or-dash>`, `<message>` — and nothing for a clean file. Exit codes: `0` clean · `1` MEDIUM/LOW findings only · `2` at least one CRITICAL or HIGH · `64` no path was passed · `65` the path is not a readable file. Gate on the code and render the rows verbatim; do not restate the checks' severities elsewhere.
+
 **Structural checks (apply to all scopes):**
 
-| Check | Severity | Example violation |
+| Check | Severity | Where decided |
 |---|---|---|
-| File parses as valid Markdown | CRITICAL | Binary file masquerading as `.md` |
-| `## Rules` heading present (skip for `memory.md` — it carries the `## Memory Backend` block only; skip for `review-extra/<slug>.md` — uses `# Criteria` instead) | HIGH | File has body but no `## Rules` header |
-| `## Constraints` heading present (skip for `review-extra/<slug>.md` — uses `# Criteria` instead; skip for `memory.md`) | HIGH | Missing `## Constraints` |
-| File ≤ 300 lines (threshold env-overridable, see Step 1) | LOW | Longer instruction files consume more context and reduce rule adherence. Surface suggested actions inline (split into topic-specific files OR trim redundant rules). |
+| File parses as valid Markdown | CRITICAL | hand-run — example: binary file masquerading as `.md` |
+| `## Rules` heading present (skip for `memory.md` — it carries the `## Memory Backend` block only; skip for `review-extra/<slug>.md` — uses `# Criteria` instead) | HIGH | script, `rules-heading-present` |
+| `## Constraints` heading present (same skip) | HIGH | script, `constraints-heading-present` |
+| File within the length threshold (see Step 1) | LOW | script, `file-length` |
 
 **Reference checks:**
 
-| Check | Severity |
-|---|---|
-| No references to dropped skills — list at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/dropped-skills.md` §The list, the canonical home | HIGH |
-| No references to dropped phase names (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM |
-| `Additional Steps` subsections match the scope's legal anchor(s) in `instructions-authoring-reference.md` §5 — a real phase with no read site is rejected the same as a dropped one, and so is any `### Before <phase>` subsection (no skill reads that prefix) | MEDIUM |
+| Check | Severity | Where decided |
+|---|---|---|
+| A reference to a dropped skill — list at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/dropped-skills.md` §The list, the canonical home | HIGH | script, `dropped-skill-reference` |
+| A reference to a dropped phase name (e.g., "Phase 4 (Implement)" — not a value in the current per-skill phase enums) | MEDIUM | hand-run |
+| `Additional Steps` subsections match the scope's legal anchor(s) in `instructions-authoring-reference.md` §5 — a real phase with no read site is rejected the same as a dropped one, and so is any `### Before <phase>` subsection (no skill reads that prefix) | MEDIUM | script, `anchor-illegal` |
+| An `Additional Steps` subsection with no `After <phase>` / `Before <phase>` shape at all (free-form) | LOW | script, `anchor-freeform` |
 
 **Per-scope checks:**
 
@@ -78,7 +87,7 @@ The HIGH severity matches the spec `verify:` read-only doctrine: a data-source s
 
 `## Memory Backend` is optional — absence is not a finding (memory uses the built-in file).
 
-**Description quality rules** — grade the `description:` of `review-extra/<slug>.md` against the three rows in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md`, which owns them and their severity.
+**Description quality rules** — grade the `description:` of `review-extra/<slug>.md` against the rows in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md`, which owns them and their severity.
 
 **`requires-context` lint rules** (applied to `review-extra/<slug>.md`):
 
@@ -89,18 +98,14 @@ The HIGH severity matches the spec `verify:` read-only doctrine: a data-source s
 
 This is the guard that catches the silent-empty-findings trap at authoring time: a reviewer whose criteria say "match the diff against the Notion incident report" but which never declares the dependency will spawn into a subagent that never receives it, producing empty or hallucinated findings with no error.
 
-### Step 3 — Per-skill phase mapping
-
-Read `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §5 and check every `Additional Steps` subsection in the target file against that scope's legal anchor(s), including the severities for free-form and dropped-phase anchors. That section is the single source; the one cross-skill exception it records is `### After worktree-setup`, valid only in `global.md`.
-
-### Step 4 — Count caps (review-extra)
+### Step 3 — Count caps (review-extra)
 
 Both thresholds live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6 — the runtime enforcer, which is what actually aborts a review past the cap and which states that other files cite it rather than restating the figures. Read that section for the two numbers, then count the files in `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/` and report against them:
 
 - Past the soft-warn band: `⚠ Count {N} exceeds the sweet spot — consider consolidating overlapping reviewers.`
 - Past the hard cap: `✗ Count {N} exceeds the hard cap — the loader will refuse to load all reviewers.`
 
-### Step 5 — Output format
+### Step 4 — Output format
 
 ```
 $ /geniro:instructions validate

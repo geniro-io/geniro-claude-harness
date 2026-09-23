@@ -50,7 +50,7 @@ _antirat_rows() {
 
 # `<declaring-file>\t<co-loaded-file>` for every co-load declaration found.
 _coload_pairs() {
-  local f rel_root
+  local f
   for f in "$@"; do
     [ -f "$f" ] || continue
     grep -niE 'co-loaded with (this file|the skill)' "$f" 2>/dev/null | while IFS=: read -r _l rest; do

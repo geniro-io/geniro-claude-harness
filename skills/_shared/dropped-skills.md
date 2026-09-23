@@ -12,5 +12,3 @@ Their `.geniro/instructions/<scope>.md` files are no longer loaded by any skill.
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-validate.md` §Step 2 Reference checks — flags a reference to a dropped skill inside an instruction file.
 - `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-validate.md` §Step 2 — flags a reference to a dropped skill inside an action file's body.
-
-A consumer adding a new dropped-skill check cites this file's list rather than re-typing it.

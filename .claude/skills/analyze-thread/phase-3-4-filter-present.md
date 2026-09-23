@@ -30,7 +30,7 @@ For each finding, the orchestrator tags one of four:
 | **TRUE-POSITIVE** | High confidence + evidence event range cleanly matches the check spec + no contradicting context | Keep; default-include in Phase 4 handoff |
 | **UNCERTAIN** | Medium/low confidence, OR evidence range ambiguous, OR judge tagged as "plausible but contestable" | Keep; per-item AUQ in Phase 4 |
 | **REDUNDANT** | Duplicate of another finding **within the same thread** (same root cause, different surface symptom), OR mechanical-and-judge both flagged the same event range | Drop; merge evidence into the surviving finding. The same defect in a DIFFERENT thread is never redundant — Step 1 already merged it and its recurrence is the signal (the cross-thread-recurrence invariant) |
-| **FALSE-POSITIVE** | The mechanical regex matched a benign case (e.g., A6 over-spawn flagged a TodoWrite that legitimately listed 5 parallel items), OR the judge flagged something that contradicts a documented exception in the skill body | Drop; log reason for Phase 4 transparency section |
+| **FALSE-POSITIVE** | The mechanical regex matched a benign case (e.g., A6 over-spawn flagged "duplicate" prompts that in fact targeted different `subagent_type`s — see `checks-reference.md` §6), OR the judge flagged something that contradicts a documented exception in the skill body | Drop; log reason for Phase 4 transparency section |
 
 For NOVEL findings: always UNCERTAIN unless the rationale ties to a documented anti-rationalization row in some skill body's table — then TRUE-POSITIVE.
 
@@ -54,7 +54,7 @@ Group by category. Within each category, sort by recurrence (most threads first)
 Analyzed:
 - <thread_id> · <date> · <project label> · <title> · <events> events · Geniro-run: <yes/no — skill: <name>>
 - (one line per thread; in single mode this is one line)
-Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the 5 MB cap)
+Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the size cap)
 
 ### Coverage — what the run declared vs. what it did
 | What | Declared | Ran | Gaps |
@@ -78,7 +78,7 @@ Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the 5 MB
 | ...
 
 ### Filtered (transparency)
-- a1f42fdd check_id=A6 event-range=22-23 — FALSE-POSITIVE: the todo list legitimately held 5 items, not duplicate spawns
+- a1f42fdd check_id=A6 event-range=22-23 — FALSE-POSITIVE: the "duplicate" prompts targeted different `subagent_type` values (reviewer-agent for `bugs` vs `security`)
 - a1f42fdd check_id=E4 event-range=87 — REDUNDANT: same root cause as finding #3
 ```
 

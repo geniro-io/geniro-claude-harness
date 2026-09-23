@@ -379,6 +379,28 @@ else
   fail "record_access lock-release; rc=$rc cnt=$cnt lock-left=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) (expect 0/1/n)"
 fi
 
+# record_access must not leave INT/TERM traps installed in the caller's shell
+# after a normal return. It runs directly in the shell that sourced it (no
+# subshell) and installs INT/TERM traps keyed to $lock/$tmp so a signal
+# mid-rewrite still releases the lock; those two do NOT self-clear on a
+# normal return (only when the signal itself fires), so without the RETURN
+# trap also clearing them, every completed call left them armed here — the
+# next Ctrl-C in this shell would run stale cleanup from a finished call and
+# exit outright instead of behaving normally.
+# Compare against the dispositions captured just before the call, not against
+# "no trap": a suite started in the background inherits SIGINT as ignored, and
+# `trap - INT` correctly restores that, so `trap -p INT` prints an ignore entry.
+int_before=$(trap -p INT)
+term_before=$(trap -p TERM)
+set +e; record_access rl1; set -e
+int_trap=$(trap -p INT)
+term_trap=$(trap -p TERM)
+if [ "$int_trap" = "$int_before" ] && [ "$term_trap" = "$term_before" ]; then
+  pass "record_access clears its INT/TERM traps in the caller's shell after a normal return"
+else
+  fail "record_access leaked a trap into the caller's shell — INT: '$int_trap' TERM: '$term_trap'"
+fi
+
 # ===== Pre-acquire stale-lock reclaim (the crash-wedge branch) =====
 # A crash while another rewriter held the mkdir DIRECTORY lock leaves it behind
 # with no trap to clear it; without reclaim every later bump skips silently. The

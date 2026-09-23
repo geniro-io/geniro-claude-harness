@@ -318,7 +318,13 @@ record_access() {
   if ! mkdir "$lock" 2>/dev/null; then
     return 0
   fi
-  trap 'rmdir "$lock" 2>/dev/null; trap - RETURN' RETURN
+  # Also clears INT/TERM (installed just below) on a NORMAL return: those two
+  # traps only self-clear when the signal itself actually fires, and this
+  # function runs directly in the caller's shell (no subshell) — without this,
+  # every completed call left them armed here, referencing this invocation's
+  # $lock/$tmp, so the caller's next Ctrl-C would run stale cleanup and exit
+  # outright instead of behaving normally.
+  trap 'rmdir "$lock" 2>/dev/null; trap - INT TERM RETURN' RETURN
   # A SIGINT/SIGTERM mid-rewrite would skip the RETURN trap and orphan the lock
   # for up to the TTL. Release it on interrupt too, mirroring update-semantic.sh.
   # Split by signal and exit explicitly — cleanup alone does not terminate the

@@ -19,7 +19,7 @@ Mechanical structure rules for every skill / agent / reference file. Companions:
 | Reference file (`*-reference.md`) | n/a | none | Split by phase / concern. Add a Contents block past ~1,200 words (§Reference graph). |
 | Agent file (`agents/*.md`) | whole file | ~2,500 words | Tighten or cut in place. An agent body is injected whole as the subagent's system prompt, so moving content to `agents/<name>-reference.md` converts free prompt tokens into the same tokens plus a Read the agent may skip — and a skipped rule is silently gone rather than merely late. Move only content some runs need and others don't. |
 
-The ~3,000-word front-load budget is the one figure with a mechanism behind it — the compaction re-attach boundary, canonical in `skill-prose.md` §Rule placement. The whole-file numbers are guidelines. An oversize file is a signal to check what is load-bearing and where it sits, not a defect — never trim load-bearing content to hit a number.
+The ~3,000-word front-load budget approximates the compaction re-attach boundary, canonical in `skill-prose.md` §Rule placement — the boundary itself is measured in characters, not words, because characters-per-word swings several-fold with table density. The whole-file numbers are guidelines. An oversize file is a signal to check what is load-bearing and where it sits, not a defect — never trim load-bearing content to hit a number.
 
 The lint therefore measures **growth, not absolute size**: `tests/authoring/skill-size-baseline.txt` records the size each skill was last accepted at, and the warning fires only when a file exceeds its own record (or an unrecorded file exceeds the guideline). Accept a load-bearing growth with `bash tests/authoring/lint-skills.sh --accept <path>`, which rewrites only the row you name; the blanket `--update-baseline` silently accepts every neighbour that grew, so save it for a repo-wide pass where every row is meant. Accept after a trim too — `tests/authoring/lint-size-ratchet.sh` fails on a row recorded above its file's real size, since a stale-high row re-permits that much unreviewed growth.
 
@@ -109,7 +109,7 @@ Sections 1-9 are the spine — what the model checks every turn and what has to 
 |---|---|---|
 | Reference a sibling skill | `/geniro:plan` | `skills/plan/SKILL.md:319` |
 | Reference a phase | `/geniro:plan Phase 5` | `plan-loop.md:319-322` |
-| Reference a sub-step | content-anchored: "the Phase 4.3 F→P invariant" | "step at line 350" |
+| Reference a sub-step | content-anchored: "the implement Phase 3 F→P invariant" | "step at line 350" |
 | Reference a shared helper | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/<name>.md` | bare filename without root |
 | Reference an agent contract | `${CLAUDE_PLUGIN_ROOT}/agents/<name>.md` §Output Format — open the agent and cite the heading it carries | line-numbered ref |
 

@@ -5,7 +5,7 @@ Concrete, measurable performance wins on the changed lines: skip ORM hydration o
 Find every real defect this dimension owns by reading the changed code and its callers directly — your own analysis is the detector. The sections below are the contract you are held to: what NOT to flag, and how severity is calibrated.
 
 ## Scope boundary — defers to `architecture-criteria.md`
-This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` (Performance & Scalability). Defer to that section; do not duplicate findings:
+This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues owned by `architecture-criteria.md` (its §Severity guidelines rates a request-path N+1 HIGH; the rest fall under its architectural-coupling and dead-work charter). Defer to that dimension; do not duplicate findings:
 
 1. **N+1 query patterns** — queries inside loops without batching → architecture
 2. **ORM eager-loading** — `include` / `prefetch_related` / `joinedload` design → architecture
@@ -13,7 +13,7 @@ This dimension owns *micro-level* optimization wins observable on the diff. The 
 4. **Missing pagination on unbounded queries** → architecture
 5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture
 6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
-If a finding fits one of those six, emit it as an architecture finding (its Performance & Scalability section) instead. Optimizations stays focused on the six categories below.
+If a finding fits one of those six, emit it as an architecture finding instead. Optimizations stays focused on the six categories named in the opening paragraph above — hydration skipping, column projection, independent-await parallelization, batched writes, React re-render hygiene, and lean bundle shipping.
 
 ## Common false positives
 

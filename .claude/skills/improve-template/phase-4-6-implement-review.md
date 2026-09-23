@@ -22,7 +22,7 @@ Record the paths about to be modified and the pre-change commit (`git rev-parse 
 ### Step 1: Group changes by file/module
 
 Group approved findings into implementation units:
-- **Trivial** (1-2 lines, obvious target): Apply directly using Edit tool. No subagent needed.
+- **Trivial** (1-2 lines, obvious target): Apply the fix directly. No subagent needed.
   **Guard:** If you find yourself reading more than 2 files or the fix touches logic, delegate instead.
 - **Single file changes:** One agent per file
 - **Cross-file changes:** One agent per logical group (same module/feature)
@@ -34,7 +34,7 @@ Group so that no two agents own the same file — they run concurrently in one s
 Pre-inline the current file content each agent needs (from Phase 1 codebase research).
 
 ```
-Agent(model="sonnet",  # execution spawn — model-tiering.md category 4; the change is approved and the files are named. Ceiling: a purely textual round sizes below it
+Agent(model="sonnet",  # execution spawn — model-tiering.md's execution-spawn category; the change is approved and the files are named. Ceiling: a purely textual round sizes below it
       prompt="""
 ## Task: Implement Changes
 Apply the following approved changes:
@@ -82,17 +82,17 @@ Apply the following approved changes:
 
 Orchestrator runs these checks directly (no subagent). All must pass before Phase 5:
 
-1. **Authoring lint:** `bash tests/authoring/lint-skills.sh` — a hard failure fails this check; its size and duplication warnings are advisory, judged against `.claude/rules/skill-structure.md` § File-size limits, which says what to do with an over-target file. The hard checks scan `skills/` and `agents/` only, so a `.claude/skills/`-only change gets the advisory half alone.
+1. **Authoring lint:** `bash tests/authoring/lint-skills.sh` — a hard failure fails this check; its size warning is advisory, judged against `.claude/rules/skill-structure.md` § File-size limits, which says what to do with an over-target file; its duplication warning is judged against § Reference graph's single-source-of-truth rule. The hard checks scan `skills/` and `agents/` only, so a `.claude/skills/`-only change gets the advisory half alone.
 2. **Outbound references:** Glob for every path/agent/skill name mentioned in changed files — all must exist
 3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
 4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
 5. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
-6. **Description-format checks (6 sub-checks):** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks, their warning/blocker levels, and the procedure are in § Description-format validator below; check 6 there overlaps with #4 above and counts once.
+6. **Description-format checks:** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks, their warning/blocker levels, and the procedure are in § Description-format validator below; its YAML-validity check overlaps with #4 above and counts once.
 7. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md` since it carries the skills-table row. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
    **Generated Cursor agents — blocker, not a warning:** when the change edited any `agents/*.md`, run `scripts/build-cursor-agents.sh` and include the regenerated `cursor/agents/*.md` in the same change set. `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift between the two, so omitting it ships a red build. Fix it by re-running the script rather than spawning a fix agent, and never hand-edit `cursor/agents/`.
 8. **Compaction & redundancy (added text):** judge the lines this change ADDED against the Minimum-tokens principle in the Phase 4 Step 2 constraint set, plus hedges carrying no condition (the `description` field is out of scope here — § Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
 
-If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#1 lint advisories, #6 sub-items 1-4, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
+If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#1 lint advisories, the warning-level description-format checks, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
 ---
 
@@ -180,7 +180,7 @@ Use the `AskUserQuestion` tool to ask:
   - "Skip — focus on the current changes only"
 
 - If **fix all**: spawn implementation agents for the pre-existing fixes (same Phase 4 flow), then re-run Phase 5 review on the new changes only.
-- If **pick**: walk the bugs one at a time — render each row, then fire its own lean `AskUserQuestion` (header: `"This bug"`) — "Fix it" / "Skip it" / "Skip the rest" — matching `skills/reflect/SKILL.md`'s per-candidate walk — then implement the ones fixed.
+- If **pick**: walk the bugs one at a time — render each row, then fire its own lean `AskUserQuestion` (header: `"This bug"`) — "Fix it" / "Skip it" / "Skip the rest" — matching `skills/reflect/phase-4-present.md`'s per-candidate walk — then implement the ones fixed.
 - If **skip**: proceed to Phase 6.
 
 If no pre-existing bugs were found, skip this step.
@@ -277,7 +277,7 @@ If the user picks skip, print the suggested commit message and the `git add` / `
 
 ## Description-format validator (Phase 4 Step 3 extension)
 
-Adds 6 format checks to the existing Phase 4 validation gate. Applies to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
+Adds format checks to the existing Phase 4 validation gate. Applies to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
 
 For each changed/created SKILL.md, check the YAML `description:` field:
 

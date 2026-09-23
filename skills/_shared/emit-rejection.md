@@ -14,7 +14,7 @@ The two layers complement: `approvals[]` stays the authoritative within-task rec
 ## API
 
 ```bash
-source lib/emit-rejection.sh
+source "${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh"
 
 emit_rejection_if_signal \
     <producer> <scope> <auq_category> <suggestion> <picked> [recommended]
@@ -23,7 +23,7 @@ emit_rejection_if_signal \
 **Args:**
 - `<producer>` — emitting skill ID (e.g., `/geniro:plan`)
 - `<scope>` — file/module/topic context (or `global`)
-- `<auq_category>` — approvals[] category (e.g., `approach_choice`, `ship_mode`, `improvement_candidate`)
+- `<auq_category>` — approvals[] category (e.g., `approach_choice`, `ship_mode`, `rule_candidate`)
 - `<suggestion>` — what the user was offered (one line)
 - `<picked>` — what the user picked (label of selected option)
 - `[recommended]` — optional; the option marked `(Recommended)` if any

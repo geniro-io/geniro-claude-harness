@@ -87,7 +87,7 @@ Load-bearing exit gates — per-command mechanics live in their phase sections.
 
 ## Budgets — quality-first
 
-No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: 3-retry slug ambiguity → abort, 3-retry on create-validation failure. Architecture constraints: one action runs at a time (assumed sequential).
+No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Soft gates: the slug-ambiguity retry cap (`${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution Step 3) → abort, and the create-validation retry cap (same file §Validation gate) → entry-mode rollback — both owned there rather than restated here. Architecture constraints: one action runs at a time (assumed sequential).
 
 ## ACI per-phase tool surface
 

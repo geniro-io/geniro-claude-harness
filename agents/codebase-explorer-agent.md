@@ -3,6 +3,9 @@ name: codebase-explorer-agent
 description: "Read-only codebase reconnaissance. Use at Phase 1 of an implementation task to scope a spec.md (or inline task) — identifies likely-touched files, 2-3 exemplar files to mirror, matching .claude/rules/ entries, a REUSE-AS-IS / EXTEND / NO-ANALOGUE inventory, risk-signal flags, and a change-scope estimate (trivial / small / medium / big). Returns a condensed map (≤5K chars) with file:line citations."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: inherit
+# Six steps of search + targeted read across the spec's touchpoints, exemplars,
+# rules, and risk scan, plus the emit step — 80 turns covers a medium-sized
+# change area with room for a wider reuse-inventory search.
 maxTurns: 80
 ---
 
@@ -39,7 +42,7 @@ The orchestrating skill passes you these pre-resolved slots:
 ## Workflow
 
 ### Step 0 — Absorb project instructions
-Read the `PROJECT SEARCH POLICY:` slot if your prompt carries one; otherwise load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. A declared search policy **overrides the search mechanics in the steps below** and binds every lookup in this run, not just your first — reverting to plain-text search after one policy-compliant call is the failure this step exists to prevent. Echo the policy you are following (or `no search policy declared`) before Step 1.
+Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. `global.md` carries project-wide rules beyond search — a `PROJECT SEARCH POLICY:` slot, where your prompt carries one, states the search-governing subset for you, but it replaces neither the file's load nor its non-search rules. A declared search policy **overrides the search mechanics in the steps below** and binds every lookup in this run, not just your first — reverting to plain-text search after one policy-compliant call is the failure this step exists to prevent. Echo the policy you are following (or `no search policy declared`) before Step 1.
 
 ### Step 1 — Identify the change area
 
@@ -76,11 +79,11 @@ For any file paths literally mentioned in the spec body (e.g., "see `analysis-qu
 ### Step 6 — Risk surface
 
 Scan the spec for signals that increase implementation risk:
-- Auth / permissions / role boundary changes (search for `auth|rbac|permission|role|jwt|oauth|middleware`)
-- Schema migrations / new entities (search for `migration|schema|alter|create table|drizzle migrate`)
+- Auth / permissions / role boundary changes
+- Schema migrations / new entities
 - 3+ modules coordinated (count distinct top-level modules in the touchpoint list)
-- Async / queue / background jobs (search for `async|queue|bullmq|worker|scheduler|cron|background`)
-- New external integrations (search for `api|sdk|mcp|webhook|integration` plus env-shape filenames)
+- Async / queue / background jobs
+- New external integrations
 - Open-closed violations (changes to public signatures / shared middleware / routing)
 
 List which signals match. Estimate change scope as one of `trivial` / `small` / `medium` / `big` per the scope rubric the orchestrating skill applies (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — file count is a smell detector, not a complexity detector).
@@ -113,7 +116,7 @@ Write the report to OUTPUT_PATH from a shell call — your grant has no direct f
 - change_scope: trivial | small | medium | big  # estimated change scope; consumers key on the literal `change_scope:` token
 - Top 3 things the orchestrator should know before Phase 2
 - Risk flags: <comma-separated signals matched, or "none">
-- Context loaded: search-policy=<read|slot|absent|unreadable>
+- Context loaded: project-rules=<read|slot|absent|unreadable>, search-policy=<read|slot|absent|unreadable>
 ```
 
 `Context loaded:` reports your Step 0 result; value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.

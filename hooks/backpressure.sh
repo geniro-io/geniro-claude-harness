@@ -85,10 +85,22 @@ run_silent() {
 
         # Filter output: remove passing test lines, keep failures and errors
         # Common noise patterns to strip:
+        #
+        # `|| true` on the whole pipe, same guard as the success branch's
+        # `grep | tail` combos above: any `grep -v` stage that filters out
+        # EVERY line (all-noise or empty input) exits 1, and `head -N`
+        # truncating a large stream sends SIGPIPE upstream, which a still-
+        # writing grep reports as 141 — under pipefail either becomes the
+        # pipeline's own reported exit status even though `head` (the last
+        # stage) succeeded. Without `|| true`, a sourcing caller running
+        # under `set -eo pipefail` aborts right here on that stray nonzero —
+        # never reaching `return $exit_code` below, so the function's return
+        # value becomes this diagnostic pipe's incidental exit code instead
+        # of the wrapped command's real one ($exit_code, captured at :83).
         grep -v -E "^(PASS |  ✓ |    ✓|  ●|^$|^[[:space:]]*$)" "$tmp_file" | \
         grep -v -E "^(Test Suites:.*passed|Tests:.*passed|Snapshots:|Time:)" | \
         grep -v -E "^(ok[[:space:]]+)" | \
-        head -"$output_cap"  # Cap output to prevent context flooding
+        head -"$output_cap" || true  # Cap output to prevent context flooding
 
         local total_lines
         total_lines=$(wc -l < "$tmp_file" | tr -d ' ')

@@ -9,8 +9,8 @@
 # number compared against a recorded figure, which makes both directions of error
 # invisible in normal use — an anchor wrongly counted disappears into the baseline
 # on the next --update-baseline, and an anchor wrongly resolved never shows up at
-# all. Neither can be read off the repo's own run, where the count is 69 either
-# way. So the resolver is exercised against trees whose right answer is known.
+# all. Neither can be read off the repo's own run, where the count is whatever it
+# is either way. So the resolver is exercised against trees whose right answer is known.
 #
 # The lint script derives its repo root from $0 (`dirname $0/../..`), so a symlink
 # to the real script inside a fixture tree makes that script scan the fixture.
@@ -140,6 +140,58 @@ if grep -q 'rose to ' <<<"$out"; then
   fail "the anchor '--deep mode activation' matches the heading '## --deep mode activation' verbatim, yet the count rose — the first two words go to grep unquoted-by-option ('grep -qiF \"--deep mode\"' exits 2), so a valid citation is reported as a heading that was renamed or deleted. Output: $(printf '%s\n' "$out" | grep -i anchor)"
 else
   pass "an anchor beginning with a dash resolves against the heading that carries it"
+fi
+
+# --- C12 (plugin-audit 2026-09-23, fix-plan §O / T4-62): a baseline recorded --
+# ABOVE the live count is a HARD failure, not a silent pass ------------------
+# check 10's growth-direction ratchet only ever asks "did the count rise past
+# the baseline" — a baseline sitting above the live count passes that test
+# right up until growth catches up to it, silently re-permitting the gap.
+tree=$(new_tree 5)
+cat > "$tree/skills/probe/ref.md" <<'EOF'
+# Ref
+
+## Real heading
+
+text
+EOF
+cite "$tree" "Real heading"
+out=$(run_lint "$tree")
+rc=$?
+if grep -q 'records 5 dangling section anchor(s) but the live count is only 0' <<<"$out"; then
+  pass "C12: a baseline (5) recorded above the live count (0) is reported as stale-high"
+else
+  fail "C12: a stale-high baseline (recorded 5, live 0) was NOT reported as such. Output: $(printf '%s\n' "$out" | grep -i anchor)"
+fi
+if [ "$rc" -ne 0 ]; then
+  pass "C12: a stale-high anchor baseline HARD-fails the script (rc $rc)"
+else
+  fail "C12: lint exited 0 on a tree whose baseline (5) sits above its live count (0) — this direction must be a HARD failure, not silent"
+fi
+
+# A baseline that EXACTLY matches the live count must stay clean (rc 0, no
+# stale-high report) — otherwise every accepted, up-to-date baseline would
+# spuriously fail forever.
+tree=$(new_tree 0)
+cat > "$tree/skills/probe/ref.md" <<'EOF'
+# Ref
+
+## Real heading
+
+text
+EOF
+cite "$tree" "Real heading"
+out=$(run_lint "$tree")
+rc=$?
+if grep -q 'silently re-permits' <<<"$out"; then
+  fail "C12: a baseline (0) exactly matching the live count (0) was WRONGLY flagged stale-high. Output: $(printf '%s\n' "$out" | grep -i anchor)"
+else
+  pass "C12: a baseline exactly matching the live count is not flagged stale-high"
+fi
+if [ "$rc" -eq 0 ]; then
+  pass "C12: an up-to-date (non-stale-high) anchor baseline does not fail the script"
+else
+  fail "C12: lint exited $rc on a tree whose baseline exactly matches its live count. Output: $out"
 fi
 
 echo

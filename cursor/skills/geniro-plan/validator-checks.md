@@ -120,7 +120,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 11. `schema_completeness`
 
-*Scripted.* All 11 required section headers are present with their exact canonical text (case-sensitive, from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), and no top-level `## ` section exists outside them plus the two allowed-optional ones (`## Considered Alternatives`, `## Milestones`). Both are allowed-optional: present or absent pass equally, so a spec that omits the milestone-only section is complete.
+*Scripted.* All required section headers are present with their exact canonical text (case-sensitive, from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), and no top-level `## ` section exists outside them plus the two allowed-optional ones (`## Considered Alternatives`, `## Milestones`). Both are allowed-optional: present or absent pass equally, so a spec that omits the milestone-only section is complete.
 
 ### 12. `workflow_refs_consistency`
 

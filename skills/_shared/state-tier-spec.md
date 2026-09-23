@@ -1,6 +1,6 @@
 # Canonical state-tier specification
 
-**Canonical reference for every state file in `.geniro/`.** See `ARCHITECTURE.md` §State Files for the design decisions behind this spec.
+**Canonical reference for every state file in `.geniro/`.**
 
 Helpers reference this spec:
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for T1.5, T2, T3 CRUD, and append-only.
@@ -28,7 +28,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
 | **T1 — TASK ephemeral** | Transient subagent outputs / scratch (no frontmatter) | Created mid-run; deleted at the owning run's terminal exit | cwd-relative | path-scoped via `<task-dir>` |
-| **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/geniro:review` spec-compliance, `/geniro:implement` Adjustment Routing, `/geniro:debug`, `/geniro:refactor`) | Created at Phase 0; **survives Phase Ship** | cwd-relative | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
+| **T1.5 — TASK durable** | Frontmatter-bearing task artifacts owned by one skill run, but needed by downstream consumer skills (`/geniro:review` spec-compliance, `/geniro:implement` Adjustment Routing, `/geniro:debug`, `/geniro:refactor`) | Created at Phase 0; only the `planning/<task-dir>/` layout **survives Phase Ship** — the `<skill>/<slug>/` and singleton layouts are deleted at their own owning skill's terminal exit (see §Who cleans what, and when) | cwd-relative, except the `/geniro:setup` singleton and `/geniro:review`'s optional brief, which route to the primary worktree | path-scoped via `<task-dir>` or `<skill>/<slug>` or singleton `<skill>/state.md` |
 | **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
@@ -42,6 +42,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | `/plan` | `clean_task_transients` on `done` and `aborted`. A plan-only or milestone-sliced run would otherwise leave `.research-*.md` behind, since milestone slicing runs `/implement` in a different task-dir and it never reaches the parent planning dir. `/implement`'s own run stays a backstop. |
 | `/debug`, `/refactor`, `/onboard`, `/investigate`, `/audit-instructions`, `/resolve` | `rm -rf` the whole `.geniro/state/<skill>/<slug>/` dir — state.md plus any scratch written there. The `/geniro:update` migration walk scans only `.geniro/planning`, so nothing else would ever sweep these. `/audit-instructions` deletes its slug dir at the Phase 5 action gate; the dated report at `.geniro/state/audit-instructions/report-<date>.md` lives outside the slug dir and survives (§Path roots → T1.5). |
 | `/review` | Nothing to clean from its T2 handoff — `from-review-<branch>.md` doubles as its working state during the run and is a persistent T2 artifact, not scratch. Its optional brief, when it materializes as a file, is a durable companion artifact for the same reason: it survives the run by design so the user can read it during and after the review (§Path roots, below). |
+| `/setup` | Deletes its singleton `<PRIMARY_ROOT>/.geniro/state/setup/state.md` at Phase Done — the one Geniro state file deleted at a file-per-skill's own terminal exit rather than a whole `<skill>/<slug>/` dir, since a singleton has no slug dir to remove (the `re-run` + `accept-with-warnings` carve-out that keeps the file instead is documented in the skill's own Done phase). |
 
 Transients left behind by an interrupted run are swept by the `/geniro:update` migration walk; that sweep is deliberately recurring rather than one-shot.
 
@@ -64,7 +65,7 @@ Transients left behind by an interrupted run are swept by the `/geniro:update` m
 
 These files carry no frontmatter and never pass through `validate_state_file`. They are cleaned mechanically via targeted `rm -f` before every terminal `phase:` write of the owning run (Ship and all other terminal transitions); leftovers from interrupted runs are swept by the `/geniro:update` migration walk.
 
-### T1.5 — three valid layouts (producer-bound; survives Ship)
+### T1.5 — three valid layouts (producer-bound; one layout survives Ship)
 
 | Path root | Layout | Producer category |
 |---|---|---|
@@ -74,9 +75,9 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 
 **Binary companion artifacts inside a task-dir.** `<task-dir>/visual-*.png` — the `/geniro:implement` before/after visual evidence pair, written by whichever browser tool the run drove rather than by `atomic_state_write`, which produces text. They carry no frontmatter and never pass through `validate_state_file`. They are durable, not scratch: the pair is the run's proof that a UI change does what it claims, and the user reads it after Ship, when writing the PR description or comparing against the next run.
 
-**Frontmatter-less companion artifact inside a T1.5 skill dir.** Two producers persist a dated companion file directly under their skill dir, outside any `<slug>/` subdir — no frontmatter, never passed through `validate_state_file`, written via `atomic_state_write` like every `.geniro/state/` path, deliberately surviving cleanup because something downstream still reads it: `/geniro:audit-instructions`' `.geniro/state/audit-instructions/report-<date>.md` (the next run's do-not-flag input) and `/geniro:review`'s optional brief at `.geniro/state/review/brief-<branch>-<date>.md` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`; the user's reading aid during and after the review). Both resolve their `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` like every other path in this section — being a documented layout, not an ad-hoc one, is what keeps them out of the "No ad-hoc state files under `.geniro/state/`" prohibition below.
+**Frontmatter-less companion artifact inside a T1.5 skill dir.** Two producers persist a dated companion file directly under their skill dir, outside any `<slug>/` subdir — no frontmatter, never passed through `validate_state_file`, written via `atomic_state_write` like every `.geniro/state/` path, deliberately surviving cleanup because something downstream still reads it. Their worktree routing differs: `/geniro:audit-instructions`' `.geniro/state/audit-instructions/report-<date>.md` is the next run's do-not-flag input for the SAME checkout, so it stays cwd-relative like the rest of that skill's task-local state. `/geniro:review`'s optional brief at `.geniro/state/review/brief-<branch>-<date>.md` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`) resolves its `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` and routes to the primary worktree, matching the T2 handoff it accompanies — the user's reading aid needs to survive the same worktree removal the handoff is already routed to survive. Both are documented layouts, not ad-hoc ones, which is what keeps them out of the "No ad-hoc state files under `.geniro/state/`" prohibition below.
 
-**One named exception to "survives Ship."** `/geniro:setup` deletes its singleton `state/setup/state.md` at its Done phase — the only Geniro state file deleted on success. Bootstrap state describes a one-shot run that is over: no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. The exception is scoped to that one path; every other T1.5 file survives past Ship as the tier defines.
+**Only the `planning/<task-dir>/` layout survives Ship.** The other two T1.5 layouts are deleted at their owning skill's own terminal exit, not at `/geniro:implement`'s or `/geniro:plan`'s Ship — the six session-bound skills `rm -rf` their whole `<skill>/<slug>/` dir (see §Who cleans what, and when), and `/geniro:setup` deletes its singleton `state/setup/state.md` at its Done phase. Bootstrap state describes a one-shot run that is over: no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. Unlike the session-bound `<skill>/<slug>/` dirs, the setup singleton lives under the primary worktree (`<PRIMARY_ROOT>/.geniro/state/setup/state.md`) — a fresh linked worktree never has its own copy to delete.
 
 ### T2
 
@@ -137,7 +138,7 @@ Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never 
 
 ### T1.5 optional `approvals` array
 
-Persisted AUQ outcomes for compaction-survival — written to T1.5 `state.md` files, and carried onto T2 handoffs by the producers that write one. Every AUQ answered in the run gets an entry, including an escalation or retry gate that could in principle fire again (`round_n_escalation` in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`, `verification_stalled` in `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`): a resume that cannot tell a gate was already answered re-fires it and re-asks the user a question they already settled, which is the failure this field exists to prevent. What is NOT persisted is the reasoning behind a decision the orchestrator makes without asking — an in-flight escalation choice the run resolves itself, with no AUQ backing it.
+Persisted AUQ outcomes for compaction-survival — written to T1.5 `state.md` files, and carried onto T2 handoffs by the producers that write one. Every AUQ answered in the run gets an entry, including an escalation or retry gate that could in principle fire again (`round_n_escalation` in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`, `verification_stalled` in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md`): a resume that cannot tell a gate was already answered re-fires it and re-asks the user a question they already settled, which is the failure this field exists to prevent. What is NOT persisted is the reasoning behind a decision the orchestrator makes without asking — an in-flight escalation choice the run resolves itself, with no AUQ backing it.
 
 ```yaml
 approvals:
@@ -147,6 +148,7 @@ approvals:
     picked: <chosen option>
     at: <ISO-8601 UTC>
     asked_in_phase: <phase name>
+    source: <what pre-set this pick>            # optional — e.g. launch_config, when a plan-time pre-set answered it instead of a live AUQ this session
     classes_shown: [<action-class>, ...]  # optional, outward gates only — see below
     why: <what made this the answer>            # optional
     evidence: <file:line, quote, or command output>   # optional
@@ -167,7 +169,7 @@ Omit any of the three when there is nothing real to put in it. An empty `why` is
 
 ### `non-resumable-actions[]` action enum
 
-Each entry is `{action, completed-at, <action-specific-fields>}`, where `completed-at` is a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) interpolated in the same write call, never model-supplied (per `atomic-state-write.md` §Timestamp sourcing). The `action` value is one of a fixed enum so the SessionStart restore hook (`hooks/session-start-restore.sh`) can render a per-action resume warning — producers emit the literal string and the hook string-matches it. This table is the single source; add a new value here and to the hook's renderer in lockstep.
+Each entry is `{action, completed-at, <action-specific-fields>}`, where `completed-at` is a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) interpolated in the same write call, never model-supplied (per `atomic-state-write.md` §Timestamp sourcing). The `action` value is one of a fixed enum so the SessionStart restore hook (`hooks/session-start-restore.sh`) can render a per-action resume warning — producers emit the literal string and the hook string-matches it.
 
 **Entries record actions that completed.** An action that was skipped, refused, or failed never becomes an entry, and the enum is never extended to describe one (`git-commit-skipped` and the like). The restore hook renders every entry as something irreversible that already happened out in the world, so an entry describing a non-event tells the resumed session the opposite of the truth — and lands in the hook's unknown-action fallback while doing it. A skipped or failed action belongs in the state file's `## Errors` body section (schema below).
 
@@ -184,7 +186,7 @@ Each entry is `{action, completed-at, <action-specific-fields>}`, where `complet
 
 An unrecognized `action` renders via the hook's generic fallback.
 
-The last two carry no producer: the hook renders them and `tests/hooks/session-start-restore.sh` pins that rendering, but no skill emits either one — a `.geniro/actions/` workflow that posts to Slack or tags a release is the case they were built for, and actions are stateless, so nothing writes a state file to put them in. They stay listed because the renderer is the thing this table has to match: an enum value the hook handles but the table omits is the lockstep breaking in the direction nothing detects. Wiring a producer, or removing value + branch + test together, are both fine; dropping the row alone is not.
+The last two carry no producer: the hook renders them and `tests/hooks/session-start-restore.sh` pins that rendering, but no skill emits either one — a `.geniro/actions/` workflow that posts to Slack or tags a release is the case they were built for, and actions are stateless, so nothing writes a state file to put them in. They stay listed because the renderer is the thing this table has to match: an enum value the hook handles but the table omits is the lockstep breaking in the direction nothing detects.
 
 ### T2 required `open_questions` array
 
@@ -270,7 +272,7 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 
 **`/geniro:implement` producer-specific fields:**
 
-- `spawn_dims_declared: [<dim-slug>, ...]` / `spawn_dims_count: <int>` — same two fields as the `/geniro:review` entry above, written at this skill's own Phase 3 Step 1 before its fixed-grid reviewer batch fires. Consumed by Phase 3 Step 2's Round-1 declared-vs-returned check.
+- `spawn_dims_declared: [<dim-slug>, ...]` / `spawn_dims_count: <int>` — same two fields as the `/geniro:review` entry above, written at this skill's own Phase 3 Step 1 before its reviewer batch fires (the grid scales by `change_scope`). Consumed by Phase 3 Step 2's Round-1 declared-vs-returned check.
 - `todos_declared: [<slug>, ...]` / `todos_declared_count: <int>` — the todo set authored at Phase 2 decomposition, one short slug per todo, written before any todo is marked `in_progress` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 2). Consumed by the Ship pre-terminal check (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §"Emit the ship report, then transition"), which requires every entry to be `completed` or dropped with a stated reason before the terminal `phase:` write.
 - `reviewed_file_set: [<path>, ...]` — frontmatter list of the union of every Phase 3 fix-loop round's CHANGED FILES, written at the loop's exit (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop") in the same `atomic_state_write` call as the `## Deferred Findings` body section. Ship's commit-time review-coverage guard (same file, §"Commit + Push + PR" Step 2) diffs live CHANGED_FILES against it before staging.
 - `## Authored Tests` body section — the tests Phase 3's inline edge-case authoring step wrote, tracked in the column set canonical at §`## Authored Tests` body table below (the same shape `/geniro:debug` Adversarial Mode's own body section uses), written as each authored test resolves so a compaction mid-step recovers the outcome instead of re-authoring hypotheses already tried.
@@ -313,8 +315,6 @@ Columns: **# / Path / Targeted source / Category / Confidence / F→P status**.
 Two producers use this exact column set:
 - `/geniro:debug` Adversarial Mode — `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2, body section `## Authored Tests` of `.geniro/state/debug/<slug>/state.md`.
 - `/geniro:implement` Phase 3 edge-case test authoring — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Edge-case test authoring", body section `## Authored Tests` of the task-dir `state.md`.
-
-Both producers cite this section rather than restating the column set.
 
 ---
 
@@ -407,19 +407,7 @@ tags: [typescript, style]
 
 ### T3 — append-only (learnings sidecar)
 
-`learnings.jsonl` itself is JSONL with no frontmatter. The sidecar `learnings.jsonl.meta.yaml` carries the tier metadata:
-
-```yaml
----
-tier: T3
-producer: implement
-schema-version: 1
-branch: main
-timestamp: 2026-05-19T14:30:00Z
-concurrency: append-only
-schema-ref: "canonical L2 entry schema"
----
-```
+`learnings.jsonl` itself is JSONL with no frontmatter — no helper reads or writes a sidecar file for it; `tier` / `concurrency: append-only` apply to it by this spec, not by a file any tool consults.
 
 Per-line JSONL schema (canonical L2 entry schema): `ts`, `producer`, `scope`, `summary`, `tags`, plus optional `body`, `links`, `dedup_key`, `supersedes`, `deprecated`, `trust`, `type`, `ext`.
 

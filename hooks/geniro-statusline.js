@@ -126,16 +126,20 @@ function justify3(left, center, right, W) {
 }
 
 // Session theme: prefer the AI-generated title, fall back to the last prompt.
-// Reads only the tail of the transcript (last 256KB) so a multi-MB transcript
-// does not slow down every status-line render. Partial first line is skipped
-// by the per-line try/catch.
+// Reads only the tail of the transcript (last 256 KiB) so a multi-MB
+// transcript does not slow down every status-line render. 256 KiB is enough
+// because both target lines are recent by construction: the ai-title line is
+// written once, right after Claude Code generates the session title, and the
+// last-prompt line is by definition the newest user-turn entry — so both sit
+// within the final few JSONL lines rather than needing the whole transcript
+// scanned. Partial first line is skipped by the per-line try/catch.
 function getSessionInfo(transcriptPath) {
   const out = { title: '', lastPrompt: '' };
   try {
     if (!transcriptPath || !fs.existsSync(transcriptPath)) return out;
     const fd = fs.openSync(transcriptPath, 'r');
     const size = fs.fstatSync(fd).size;
-    const len = Math.min(size, 262144);
+    const len = Math.min(size, 262144); // 256 KiB — see the function comment above for why this window is enough
     const buf = Buffer.alloc(len);
     fs.readSync(fd, buf, 0, len, size - len);
     fs.closeSync(fd);
@@ -274,6 +278,15 @@ process.stdin.on('end', () => {
     // sweeps left→right with usage; the centered "usedk/totalk" label rides on
     // top (dark text over the filled span, gray over the empty span); the % sits
     // just after. Normalized to usable context (auto-compact buffer reserved).
+    //
+    // 16.5 is Claude Code's own auto-compact reserve, not a value this plugin
+    // derives: Claude Code auto-compacts once remaining context drops to this
+    // percentage, read empirically off Claude Code's own auto-compact trigger
+    // point (no public spec documents it). Without normalizing against it,
+    // "used%" would read against the FULL context window and understate usage
+    // right up to the point auto-compact actually fires. A retune upstream
+    // would need this value updated too, with no signal from this file when
+    // it drifts — keep it in sync with observed Claude Code behavior.
     const AUTO_COMPACT_BUFFER_PCT = 16.5;
     let ctx = '';
     if (remaining != null) {

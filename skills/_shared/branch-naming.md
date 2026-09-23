@@ -34,6 +34,8 @@ When `BRANCH_FORMAT_RULE` is set (extracted from `.geniro/instructions/global.md
 - If the rule requires a ticket ID and none is in scope, surface the gap to the user rather than inventing one.
 - A worktree directory path may use the bare normalized slug even when the branch name carries the full formatted shape; keep the two consistent enough that slug-match checks still succeed.
 
+**Extraction site.** Read `BRANCH_FORMAT_RULE` from the resolved instructions base dir's `global.md`, not unconditionally from cwd — a fresh linked worktree does not carry the gitignored `.geniro/instructions/global.md`, so resolve the base dir via the `PRIMARY_ROOT` fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` before this targeted read. Extract it once, before the branch-creation pick is authorized, ahead of the full custom-instructions load that later re-Reads the same file with the full echo contract — the targeted read exists only so the format constraint is known before that pick, not to replace the later load.
+
 ## Slug-match check (`BRANCH_MATCHES_TASK_SLUG`)
 
 To decide whether the current branch already corresponds to the task, substring-match the normalized slug against `CURRENT_BRANCH` (case-insensitive). A match means the branch was created for this task; skip re-creating a branch and continue on it. The ticket ID alone is a sufficient match when one is in scope.

@@ -44,6 +44,10 @@ sed-i|sed -i.bak "s/a/b/" {T}
 awk-i-inplace|gawk -i inplace "{print}" {T}
 cp-dest|cp /tmp/src {T}
 mv-dest|mv /tmp/src {T}
+cp-target-dir|cp -t {T} /tmp/src
+mv-target-dir|mv -t {T} /tmp/src
+cp-target-dir-eq|cp --target-directory={T} /tmp/src
+mv-target-dir-eq|mv --target-directory={T} /tmp/src
 dd-of|dd if=/dev/zero of={T}
 truncate|truncate -s 0 {T}
 shred|shred {T}

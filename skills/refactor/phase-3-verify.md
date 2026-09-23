@@ -2,7 +2,7 @@
 
 Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/refactor/SKILL.md`. Read on entry to Phase 3, and again on any resumption of it, including after a compaction. The spine keeps the state machine, the loop invariants, the anti-rationalization table, the budgets, §Git constraint and the tool surface — this file carries the Steps. Bare `§3.M` refs below point at this file's own sub-sections; `§ <name>` refs name a section inside the cited helper, and a `Phase 1 §1.M` / `Phase 2 §2.M` ref points at the sibling phase file (`refactor/phase-1-plan.md` for Phase 1, `refactor/phase-2-apply.md` for Phase 2).
 
-**On this same entry, also Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md`** — the run-completion checklist, walked at §3.4 before the terminal `phase:` write.
+**On this same entry, also Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md`** — the run-completion checklist, walked before the §3.6 terminal `phase:` write.
 
 ## Contents
 
@@ -51,9 +51,9 @@ Escalate every PRODUCT-DECISION finding to `/geniro:implement`; never gate-and-f
 
 Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate (`header: "Escalate"`): render the finding to a chat message first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` § Message-first rendering — the opener, conversational lead, why-it-matters with evidence cite, and visual per the reference's § Finding-type visual map — then fire the lean `AskUserQuestion`. 3 fixed options:
 
-1. **Run /geniro:implement on this finding (Recommended)** — exit /geniro:refactor; user runs /geniro:implement separately to apply a behavioral fix. state.md → `phase: routed` (terminal — recovery treats as complete; the decision was handed to /geniro:implement). Without a terminal write here the run would resume re-surfacing an already-resolved escalation.
-2. **Revert this refactor and start over** — `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). state.md → `reverted` (terminal).
-3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. state.md → `verify-summary-only` (terminal). The user takes the responsibility of resolving the decision later.
+1. **Run /geniro:implement on this finding (Recommended)** — user runs /geniro:implement separately to apply a behavioral fix. Record the outcome as `routed` — the decision was handed to /geniro:implement — written at the single §3.6 terminal-write point, not here: an early write would let a resume between here and §3.6 skip the completion summary, the learning emit, and any custom post-verify steps.
+2. **Revert this refactor and start over** — `git restore --source=HEAD -- <paths>` (per SKILL.md §Git constraint). Record the outcome as `reverted`, written at the same §3.6 point.
+3. **Document and keep the diff as-is — accept the open decision** — keep the working-tree diff, note the deferred decision in completion summary. Record the outcome as `verify-summary-only`, written at the same §3.6 point. The user takes the responsibility of resolving the decision later.
 
 **Approvals-persistence:** before firing the PRODUCT-DECISION AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: refactor_product_decision` matching the finding (use finding `path:lines` + decision-type as disambiguator). If found, use prior `picked` value. If not found, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_append_list_item` BEFORE executing the chosen action.
 
@@ -61,11 +61,11 @@ Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings �
 
 **CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
 
-Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — state.md → `verify-escalated` with timestamp + 1-round fix attempt summary, then surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" (state.md → `routed`, terminal) / "Document remaining findings and keep the diff as-is" (state.md → `verify-summary-only`, terminal) / "Revert all changes" (`git restore --source=HEAD -- <paths>` per SKILL.md §Git constraint; state.md → `reverted`, terminal).
+Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — state.md → `verify-escalated` (this write is the mid-run pause, not the run's terminal) with timestamp + 1-round fix attempt summary, then surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" (record outcome `routed`) / "Document remaining findings and keep the diff as-is" (record outcome `verify-summary-only`) / "Revert all changes" (`git restore --source=HEAD -- <paths>` per SKILL.md §Git constraint; record outcome `reverted`) — each written at the single §3.6 terminal-write point.
 
-**MEDIUM findings only → note in completion summary; proceed.**
+**MEDIUM findings only → note in completion summary; proceed** (outcome `done`, written at the §3.6 point).
 
-**No findings → proceed.**
+**No findings → proceed** (outcome `done`, written at the §3.6 point).
 
 ### 3.4 Completion summary
 
@@ -121,6 +121,8 @@ At Phase 3 exit:
 Execute any user-authored post-verify steps from the L4 `<skill>.md` (`.geniro/instructions/refactor.md`) refreshed at §3.0 above. Per the `load-custom-instructions` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the anchor for this skill's terminal phase is `### After verify` (`verify` is the final non-terminal phase enum value; post-verify steps run after its work completes). Run any subsection whose phase anchor is post-verify.
 
 Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes. §Git constraint still binds here: a post-verify step never runs `git add` / `git commit` / `git push` even when the user's instruction names one — refactor ships no commits regardless of what triggers the step.
+
+**Write the terminal phase.** Once custom post-verify steps have run (or there were none to run), write state.md `phase:` via `atomic_state_set_field` to the outcome recorded in §3.3 — `done` when no PRODUCT-DECISION or fix-loop exhaustion picked otherwise. This is the single point in Phase 3 where the terminal is written; §3.3 only records which one, so a resume anywhere before this point still runs the completion summary, the learning emit, and any custom post-verify steps rather than skipping them (SKILL.md §Terminal states). A `reverted` / `routed` / `aborted` outcome also carries a `## Termination reason` body line naming what ended the run.
 
 ### 3.7 Cleanup
 

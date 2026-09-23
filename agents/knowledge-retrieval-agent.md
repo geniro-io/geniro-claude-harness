@@ -3,6 +3,8 @@ name: knowledge-retrieval-agent
 description: "Read-only past-knowledge search across the memory layers. Use at /geniro:implement Phase 1 for a full multi-layer sweep — past learnings + project snapshots + prior review/debug handoffs + prior plans. /geniro:review, /geniro:debug, /geniro:refactor spawn it scoped to just the backend learnings read (SCOPE: learnings-backend) when memory.md routes learnings to an MCP backend, for context isolation. Returns a condensed bullet report (≤3K chars) with file:line citations."
 tools: [Read, Glob, Grep, Bash, "mcp__*"]
 model: sonnet
+# Four independent lookups (learnings, snapshots, handoffs, prior plans) plus
+# the emit step — comfortably inside 40 turns for the nominal read/grep volume.
 maxTurns: 40
 ---
 
@@ -54,10 +56,10 @@ When Step 0 found a `## Memory Backend` block for `learnings`, retrieve via the 
 
 ```bash
 source "<LIB_ROOT>/query-learnings.sh"
-query_learnings --tag <tag> --limit 5
+query_learnings --tag <tag> --score-min 0 --limit 5
 ```
 
-Aggregate the union of results. Keep the top 5 across all tags by composite score (recency × trust × access-count × recurrence — the helper returns this score per row). De-duplicate by `dedup_key` field. Drop entries with `trust: inferred` unless no higher-trust match exists. Drop entries marked `deprecated: true`.
+`--score-min 0` ranks by the helper's own score (recency × trust × access-count × recurrence) and returns the top 5 for that tag, highest-ranked first. Aggregate the union across tags, keeping the highest-ranked entries first when merging down to 5 overall. De-duplicate by `dedup_key` field. Drop entries with `trust: inferred` unless no higher-trust match exists. Drop entries marked `deprecated: true`.
 
 ### Step 2 — Project snapshots
 

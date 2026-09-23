@@ -1,6 +1,6 @@
 # Verification Surface — what each project check covers, and what it does not
 
-This file is the single source of truth for the optional `## Verification Surface` block in the instructions layer. Skills cite this file; do NOT inline-paste the entry shape.
+This file is the single source of truth for the optional `## Verification Surface` block in the instructions layer.
 
 A project runs several verification layers and they do not cover the same ground. A type check says nothing about behavior. A unit suite says nothing about the wiring between units. An integration suite may not touch the migration path at all, and some ground — a payment flow against a live sandbox, a visual regression — no automated layer covers.
 

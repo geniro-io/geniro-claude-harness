@@ -51,7 +51,7 @@ On Phase 1 entry, in order:
 
 #### 1.3.1 Apply canonical effort-scaling
 
-1. **Steps 1-2 (canonical):** run the hard-escalation-signal check (Step 1) and the dimension score → tier band (Step 2) exactly as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`. Any hard signal forces Big; otherwise the score band sets the tier (Trivial / Small / Medium / Big). effort-scaling.md is the single source — do not restate the signals, the dimension count, the score range, or the bands here.
+1. **Steps 1-2 (canonical):** run the hard-escalation-signal check (Step 1) and the dimension score → tier band (Step 2) exactly as defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`. Any hard signal forces Big; otherwise the score band sets the tier (Trivial / Small / Medium / Big). effort-scaling.md is the single source — do not restate the signals, the dimension count, the score range, or the bands here. Persist the resulting tier to state.md frontmatter `effort_tier` via `atomic_state_set_field` before proceeding to Step 3 — Phase 3 §3.2's tier gate reads it back, and a compaction between here and Phase 3 would otherwise force a re-derivation from scratch.
 2. **Step 3 (refactor-specific tier behavior):**
 
 | Tier | Refactor behavior |
@@ -59,7 +59,7 @@ On Phase 1 entry, in order:
 | **Trivial** | 1-2 files, mechanical (rename, single extract). Skip smell detection. Skip the smell-evidence filter. Skip independent reviewer + custom reviewers. Orchestrator authors the plan directly from $ARGUMENTS + scope-files Read; goes straight to Phase 2 execution. |
 | **Small** | Skip smell detection and the smell-evidence filter (scope too narrow to matter). Skip independent reviewer + custom reviewers. |
 | **Medium** | Full pipeline as specified — orchestrator-inline smell detection + orchestrator-inline smell evidence + reviewer-agent + custom reviewers. |
-| **Big** | Recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user wants to proceed without planning, require explicit confirmation via `AskQuestion` header "Scope": "Run /geniro:plan first" / "Proceed without a plan (risky)". On "Proceed without a plan", Big runs the Medium pipeline. The only difference is user has accepted the added risk of proceeding without architectural review. |
+| **Big** | Recommend running `/geniro:plan` first to split the refactor into independently shippable milestones; refactor then runs one milestone at a time against an approved spec.md. If user wants to proceed without planning, require explicit confirmation via `AskQuestion` header "Scope": "Run /geniro:plan first" / "Proceed without a plan (risky)". On "Run /geniro:plan first", state.md → `phase: routed` (terminal) via `atomic_state_write` with a `## Termination reason` line naming the hand-off to `/geniro:plan`, then run `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md` §3.7 Cleanup. On "Proceed without a plan", Big runs the Medium pipeline. The only difference is user has accepted the added risk of proceeding without architectural review. |
 
 #### 1.3.2 Refactor-specific hard escalation signals (escalate OUT — orthogonal to effort-scaling)
 

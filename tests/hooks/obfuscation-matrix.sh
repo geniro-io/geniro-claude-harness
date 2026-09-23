@@ -55,7 +55,8 @@ fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo 
 # Each entry is a way the shell reaches the SAME program: quoting that a word
 # splitter removes, a separator other than &&, a wrapper that changes only the
 # process environment, an indirection that hands the text to a shell, or a
-# grouping construct. None changes what runs.
+# grouping construct. None changes what runs. On macOS, PATH lookup is
+# case-insensitive, so `BASH` / `Sh` run the real shell (2026-09-23 audit T0-3).
 # ---------------------------------------------------------------------------
 TRANSFORMS='
 plain|{C}
@@ -76,6 +77,9 @@ eval|eval "{C}"
 pipe-to-bash|echo "{C}" | bash
 heredoc-to-bash|bash <<XEOF\n{C}\nXEOF
 command-builtin|command {C}
+sh-c-upper|BASH -c "{C}"
+sh-c-mixed|Sh -c "{C}"
+pipe-to-bash-upper|echo "{C}" | BASH
 '
 
 # ---------------------------------------------------------------------------
@@ -284,6 +288,34 @@ while IFS='|' read -r hook id danger _benign; do
   check "$hook [$id/oversize-payload] dangerous still blocks past the pipe buffer" "$hook" \
     "$oversized" 2
 done <<< "$BASES"
+
+# --- axis 8: abbreviated long options (2026-09-23 audit T0-5/D5b-7) ---------
+# git (parse-options) accepts any unambiguous prefix of a long option, but
+# every flag matcher above spells the option in full — an abbreviated
+# spelling walked past every one of them at rc 0 while the identical command,
+# spelled in full, blocked. Each benign sibling is the SAME base command with
+# the abbreviated flag removed or de-fanged, so a matcher that over-expands
+# (treating an unrelated token as the abbreviation) fails here too.
+ABBREV_BASES='
+block-dangerous-git.sh|reset-hard-abbrev|git reset --har HEAD~1|git reset HEAD~1
+block-dangerous-git.sh|push-force-abbrev|git push --forc|git push origin main
+block-dangerous-git.sh|push-force-lease-abbrev|git push --force-w origin main|git push origin main
+block-dangerous-git.sh|push-mirror-abbrev|git push --mirr origin|git push --tags origin
+block-dangerous-git.sh|push-delete-abbrev|git push --del origin feature|git push origin feature
+block-dangerous-git.sh|branch-delete-force-abbrev|git branch --delete --forc x|git branch --delete x
+block-dangerous-git.sh|clean-fd-abbrev|git clean --forc -d|git clean -n
+block-dangerous-git.sh|checkout-force-abbrev|git checkout --forc main|git checkout main
+'
+while IFS='|' read -r hook id danger benign; do
+  [ -z "$hook" ] && continue
+  check "$hook [$id] abbreviated dangerous blocks" "$hook" "$danger" 2
+  check "$hook [$id] de-abbreviated sibling allows" "$hook" "$benign" 0
+done <<< "$ABBREV_BASES"
+# A longer real option sharing the same stem must stay untouched — the
+# expansion is bounded to the exact abbreviations above, not every token that
+# starts with "forc"/"force".
+check "block-dangerous-git.sh [push-force-if-includes] distinct real option allows" \
+  "block-dangerous-git.sh" "git push --force-if-includes origin main" 0
 
 echo
 echo "Tests run:    $TESTS_RUN"

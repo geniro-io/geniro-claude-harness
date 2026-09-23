@@ -53,6 +53,28 @@ fi
 
 INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
+# macOS resolves a command word case-insensitively (`BASH -c …`, `Sh`, `PYTHON3`
+# run the real program), but every shell/interpreter roster this guard and
+# lib/write-vectors.sh match is spelled in canonical case. Fold those words to
+# their canonical spelling in the text scanned here, so a mixed-case spelling is
+# judged exactly like its lowercase twin (2026-09-23 audit T0-3). Only the
+# scanned copy changes; nothing is executed.
+COMMAND=$(printf '%s' "$COMMAND" | awk '
+  BEGIN {
+    n = split("sh bash zsh dash ksh ash fish csh tcsh xonsh nu elvish rc node bun bunx deno tsx perl ruby php lua tclsh Rscript awk gawk mawk", w, " ")
+    for (i = 1; i <= n; i++) canon[tolower(w[i])] = w[i]
+  }
+  {
+    out = ""; s = $0
+    while (match(s, /[A-Za-z][A-Za-z0-9_.]*/)) {
+      tok = substr(s, RSTART, RLENGTH); low = tolower(tok)
+      if (low in canon) tok = canon[low]
+      else if (low ~ /^python[0-9.]*$/) tok = low
+      out = out substr(s, 1, RSTART - 1) tok
+      s = substr(s, RSTART + RLENGTH)
+    }
+    print out s
+  }')
 
 if [ -z "$COMMAND" ]; then
   # jq is present, but the command extracted empty — either tool_input.command
@@ -71,6 +93,20 @@ fi
 # inside one is text, not a command. Drop body lines (between <<TAG / <<-TAG /
 # <<'TAG' / <<\TAG and the closing TAG) before any matching; the line carrying the <<
 # operator itself is kept. Mirrors file-protection.sh.
+# The character scan below skips a `<<` that is arithmetic (`$((1<<X))`,
+# `((1<<X))`, or an operand of `let`) or that sits inside a `#`-comment — none
+# of those open a real heredoc, and a naive scan treating them as one dropped
+# every following line, which bash then still executes:
+# `echo $((1<<X))⏎git push --force origin main⏎X` used to reach rc 0
+# (2026-09-23 audit T0-6/D5b-11). `depth`/`arith`/`arith_base` track whether
+# the current position sits inside an UNQUOTED `((`-opened span (a lone `(`
+# is an ordinary subshell, which CAN legitimately hold a heredoc, so only a
+# doubled paren counts); `stmt_start` tracks the start of the current
+# `;`/`&`/`|`-bounded statement so a `let` command word anywhere in it makes
+# every `<<` in that statement arithmetic, not just one adjacent to `let`
+# itself. A `<<` ruled out this way is skipped (advance past both `<`
+# characters) rather than aborting the scan, so a LATER, real heredoc opener
+# later in the same line is still found.
 SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
   hd {
     line = $0
@@ -81,11 +117,30 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
   }
   {
     n = length($0); q = ""; pos = 0
+    depth = 0; arith = 0; arith_base = -1; stmt_start = 1
     for (i = 1; i <= n; i++) {
       c = substr($0, i, 1)
       if (q != "") { if (c == q) q = ""; continue }
       if (c == "\"" || c == "'\''") { q = c; continue }
-      if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") { pos = i; break }
+      if (c == "#" && (i == 1 || substr($0, i-1, 1) ~ /[[:space:];&|(]/)) { break }
+      if (c == ";" || c == "&" || c == "|") { stmt_start = i + 1; continue }
+      if (c == "(") {
+        depth++
+        if (!arith && substr($0, i+1, 1) == "(") { arith = 1; arith_base = depth - 1 }
+        continue
+      }
+      if (c == ")") {
+        depth--
+        if (arith && depth <= arith_base) { arith = 0; arith_base = -1 }
+        continue
+      }
+      if (c == "<" && substr($0, i+1, 1) == "<" && substr($0, i+2, 1) != "<") {
+        if (arith) { i++; continue }
+        stmt = substr($0, stmt_start, i - stmt_start)
+        gsub(/^[[:space:]]+/, "", stmt)
+        if (stmt ~ /^let([[:space:]]|$)/) { i++; continue }
+        pos = i; break
+      }
     }
     if (pos > 0 && match(substr($0, pos), /^<<-?[[:space:]]*[\\"'\'']?[A-Za-z_][A-Za-z0-9_]*/)) {
       tag = substr($0, pos, RLENGTH)
@@ -115,7 +170,13 @@ SCRUBBED=$(printf '%s\n' "$COMMAND" | awk '
 # function; edit both or neither — parity is enforced by
 # tests/hooks/write-vectors-fallback-parity.sh, not by markers on the canonical
 # side (lib/write-vectors.sh carries none).
-_geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+# Default to this script's own location, not cwd: when CLAUDE_PLUGIN_ROOT is
+# unset, "." resolved against the PROJECT's cwd, so a project-local
+# lib/write-vectors.sh — even one defining a neutered
+# _geniro_extract_inner_payloads(){ :; } — was sourced ahead of this guard's
+# own copy and silently disarmed the shell-indirection extraction it drives
+# (2026-09-23 audit T4-62g/D5b-23).
+_geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/lib/write-vectors.sh"
 if [ -f "$_geniro_wv_helper" ]; then
   # shellcheck source=/dev/null
   source "$_geniro_wv_helper" 2>/dev/null || true
@@ -511,8 +572,17 @@ JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 # (`push`) instead, leaving `git --force` and bypassing every matcher. The
 # operand alternative matches a double- or single-quoted span (which may contain
 # spaces) before falling back to a bare token.
+#
+# The command word is matched as [gG][iI][tT], not a literal `git`: the
+# 2026-08-23 T0-4 fix case-folded the SUBCOMMAND matchers below, but this strip
+# still matched lowercase `git` only, so `Git -C . push --force origin main` /
+# `GIT --no-pager reset --hard HEAD~3` kept `-C`/`--no-pager` sitting between
+# the command word and the subcommand — no matcher below ever sees them
+# adjacent (2026-09-23 audit T0-4/D5b-8/D8-4). The replacement stays the
+# lowercase literal `git`: every downstream matcher already expects that
+# canonical spelling.
 _op='("[^"]*"|'\''[^'\'']*'\''|[^[:space:]]+)'
-JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/git([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
+JOINED=$(printf '%s\n' "$JOINED" | sed -E "s/[gG][iI][tT]([[:space:]]+(-C[[:space:]]+${_op}|-c[[:space:]]+${_op}|--git-dir(=${_op}|[[:space:]]+${_op})|--work-tree(=${_op}|[[:space:]]+${_op})|--namespace(=${_op}|[[:space:]]+${_op})|--exec-path(=${_op}|[[:space:]]+${_op})|--config-env(=${_op}|[[:space:]]+${_op})|--attr-source(=${_op}|[[:space:]]+${_op})|-P|--no-pager|-p|--paginate|--no-optional-locks|--literal-pathspecs))+/git/g")
 
 # ANSI-C quoting ($'...') and locale quoting ($"...") name the SAME quoted span
 # as a plain '...'/"..." — the shell strips the quote marks and (for $'...')
@@ -574,6 +644,32 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/(^|[[:space:]])#.*$//')
 # appear inside an operand here, because the quote passes above already
 # consumed every quoted span that could carry one.
 PADDED=$(printf '%s\n' "$JOINED" | sed -E 's/[(){}]/ & /g; s/^/ /; s/$/ /')
+
+# git (parse-options) accepts any UNAMBIGUOUS prefix of a long option, but
+# every matcher below spells the option in full — `git reset --har`, `git
+# push --forc`/`--force-w`/`--mirr`/`--del`, `git branch --delete --forc`,
+# `git clean --forc` and `git checkout --forc` all walked past every matcher
+# at rc 0 while the full spelling blocked (2026-09-23 audit T0-5/D5b-7).
+# Expand each abbreviation to the guarded long option it uniquely abbreviates
+# BEFORE any matcher runs, rather than adding an abbreviated variant to every
+# matcher individually. None of these five collides with another option this
+# guard tracks (git subcommands with more than one "force"-ish long option —
+# push's --force/--force-with-lease/--force-if-includes — are disambiguated by
+# requiring `--force-w` before collapsing to --force-with-lease, and ordering
+# that expansion FIRST), so a single global substitution is safe: each span
+# matcher below still requires the expanded flag to sit inside its OWN
+# git-subcommand span before it fires, so an unrelated command that happens to
+# contain the same substring is unaffected. The trailing-boundary group keeps
+# a longer real option intact — `--force-if-includes` has more characters
+# after "forc"/"force" than a boundary allows, so it is never touched and
+# stays allowed exactly as before.
+PADDED=$(printf '%s\n' "$PADDED" | sed -E '
+  s/--force-w[a-z-]*([[:space:];&|]|$)/--force-with-lease\1/g
+  s/--forc(e)?([[:space:];&|]|$)/--force\2/g
+  s/--har[a-z]*([[:space:];&|]|$)/--hard\1/g
+  s/--mirr[a-z]*([[:space:];&|]|$)/--mirror\1/g
+  s/--del[a-z]*([[:space:];&|]|$)/--delete\1/g
+')
 
 # Find the nearest .geniro/safety.json walking up from cwd
 find_safety_json() {

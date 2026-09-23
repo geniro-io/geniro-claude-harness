@@ -1,11 +1,11 @@
 # L3 semantic-memory write helper
 
-**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), `/geniro:plan` (manages `_FEATURES.md`), and `/geniro:onboard` (writes its whole `_CODEBASE_MAP.md` through this helper).
+**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), and `/geniro:onboard` (writes its whole `_CODEBASE_MAP.md` through this helper). No skill currently writes `_FEATURES.md` through this helper — `--file features` stays supported, but `_FEATURES.md` itself is manual today.
 
 ## API
 
 ```bash
-source lib/update-semantic.sh
+source "${CLAUDE_PLUGIN_ROOT}/lib/update-semantic.sh"
 
 # Append a fresh line
 update_semantic --file <codebase-map|features> --append "<line>"
@@ -62,7 +62,7 @@ update_semantic --file codebase-map \
 update_semantic --file codebase-map \
  --replace "- src/old/legacy.ts" "- src/new/legacy.ts — moved during 2026-Q2 cleanup, used by App.tsx"
 
-# /geniro:plan records a new feature
+# --file features is supported but has no current caller — _FEATURES.md is manual today
 update_semantic --file features \
  --append "- [feat-12] Dark mode toggle, scope: ui, status: pending"
 ```

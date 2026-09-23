@@ -73,10 +73,10 @@ When one quality gets restated at every step ("fast, deterministic, low-overhead
 
 ## Rule placement
 
-**Front-load everything the model must check every turn; keep the tail for detail it can look up.** The mechanism is compaction: Claude Code re-attaches only the first 5,000 tokens of each skill after a summary, and re-attached skills share a 25,000-token budget filled most-recent-first ([skills reference](https://code.claude.com/docs/en/skills)). So a skill over ~5,000 tokens loses its tail for the rest of the session at the first compaction, and one invoked early in a busy session can be dropped in full — while a long, subagent-heavy run is exactly where compaction is the expected case.
+**Front-load everything the model must check every turn; keep the tail for detail it can look up.** The mechanism is compaction: Claude Code re-attaches only the first ~20,000 characters of each skill after a summary (measured at that exact cutoff — `tests/authoring/lint-skills.sh`'s `REATTACH_CHARS`), and re-attached skills share a 25,000-token budget filled most-recent-first ([skills reference](https://code.claude.com/docs/en/skills)). So a skill over ~20,000 characters loses its tail for the rest of the session at the first compaction, and one invoked early in a busy session can be dropped in full — while a long, subagent-heavy run is exactly where compaction is the expected case.
 
 Placement for a SKILL.md:
-- **Top (first ~5,000 tokens):** role statement, phases overview, loop invariants, budgets, tool surface, cross-skill contract vocabulary, anti-rationalization table.
+- **Top (first ~20,000 characters):** role statement, phases overview, loop invariants, budgets, tool surface, cross-skill contract vocabulary, anti-rationalization table.
 - **Below:** per-phase Steps with detail, REFERENCE list, state recovery. Cite them by name from the invariants so the model jumps to a phase rather than scanning for it.
 
 An invariant that would land past the boundary moves into Loop invariants and gets cited by `#N` from the phase that needs it.

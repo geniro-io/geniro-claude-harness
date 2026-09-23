@@ -18,19 +18,19 @@ This split matches the `validate-state-file.sh` pattern: it validates schema (me
 ## API
 
 ```bash
-source lib/resolve-conflicts.sh
+source "${CLAUDE_PLUGIN_ROOT}/lib/resolve-conflicts.sh"
 
-# Soft conflict — skill continues, prints notice
+# Soft conflict — L3 does not contradict L4, only L2 differs; skill continues, prints notice
 emit_conflict_notice \
   --subject "http library" \
   --l4 "use axios" \
   --l4-source ".geniro/instructions/global.md" \
-  --l3 "vite.config.ts present, no axios in package.json" \
+  --l3 "axios ^1.6.0 in package.json" \
   --l3-source ".geniro/planning/.fingerprint.json + _project.md" \
   --l2 "migrated to fetch on 2025-08-20" \
   --l2-source "learnings.jsonl dedup_key=a1b2c3d4" \
   --following L4 \
-  --suggested-action "Consider /geniro:instructions edit global.md."
+  --suggested-action "Consider /geniro:instructions edit global.md if the fetch migration should stick."
 
 # Hard conflict — skill halts and invokes AskUserQuestion
 text=$(hard_conflict_block \
@@ -66,9 +66,9 @@ At least one of `--l4` / `--l3` / `--l2` should be supplied; otherwise the notic
 ```
 Conflict on: http library
   Your project rules (.geniro/instructions/global.md): use axios
-  Your project snapshot (.geniro/planning/.fingerprint.json + _project.md): vite.config.ts present, no axios in package.json
+  Your project snapshot (.geniro/planning/.fingerprint.json + _project.md): axios ^1.6.0 in package.json
   Past learnings (learnings.jsonl dedup_key=a1b2c3d4): migrated to fetch on 2025-08-20
-  → Following your project rules, which take precedence. Consider /geniro:instructions edit global.md.
+  → Following your project rules, which take precedence. Consider /geniro:instructions edit global.md if the fetch migration should stick.
 ```
 
 The layer that wins renders by its plain-English name ("your project rules" / "your project snapshot" / "past learnings"), never as a bare layer code — the user is being told which source the run is trusting, and a code they have to look up defeats the notice.
@@ -93,8 +93,8 @@ The hard-conflict block is **plain text**, laid out in the two layers of `${CLAU
 
 1. Skill loads L4 (`load_custom_instructions`), L3 (`load_semantic`), L2 (`query_learnings --type decision` or similar).
 2. Skill's LLM context inspects the three layers for semantic conflicts. (No automation — the LLM is the conflict detector.)
-3. If a soft conflict exists: skill calls `emit_conflict_notice` with the relevant facts, then continues using the precedence-winning value (typically L4).
-4. If the soft notice is being emitted and the L4 rule conflicts with both L3 AND L2 (suggesting L4 is genuinely stale), the skill upgrades to a hard conflict: `hard_conflict_block` + `AskUserQuestion`.
+3. **Soft conflict — L3 does not contradict L4** (L4 disagrees with L2 only, or L3 is silent): skill calls `emit_conflict_notice` with the relevant facts, then continues using the precedence-winning value (typically L4).
+4. **Hard conflict — L4 contradicts L3, the project snapshot** (regardless of what L2 says): the skill halts and calls `hard_conflict_block` + `AskUserQuestion`. The snapshot alone is the trigger — this matches `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 10, the plugin's other cross-layer-conflict halt site.
 5. After user resolves a hard conflict: skill auto-emits an L2 `type=convention` entry recording the resolution (via the `emit_learning` helper, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md`) — echo `Recorded learning: <summary>` after the emit, per that file's §"Caller contract" — and may prompt the user to `/geniro:instructions edit global.md`.
 
 ## Exit codes

@@ -21,10 +21,10 @@ Any gate that presents rich multi-part content before a decision:
 
 - `/geniro:plan` approval gates — Phase 4 approaches, Phase 5 section clusters, Phase 8 final approval.
 - Finding and product-decision gates under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — /geniro:review decision gates and PR-comment per-finding gates, /geniro:implement self-review decision resolution, /geniro:refactor product-decision escalation.
-- Run-outcome and investigation gates — /geniro:review's report wrap-up (Action gate) and round-escalation, /geniro:debug's stall / fix-fail / open-question gates, /geniro:refactor's HIGH-risk step approval and blocked/regression escalations.
+- Run-outcome and investigation gates — /geniro:review's report wrap-up (Action gate) and round-escalation, /geniro:debug's stall / fix-fail / open-question gates, /geniro:refactor's HIGH-risk step approval and blocked/regression escalations, /geniro:resolve's Phase 3 ship gate (items fixed, items declined, the test result, and the exact replies about to be posted).
 - Rule-improvement candidate gates — /geniro:reflect's per-candidate "write this project rule?" walk (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation). No other skill fires one.
 
-The two-step shape — render to a SEPARATE chat message first, then a lean `AskUserQuestion` — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, together with the separate-message rule, the render-exists check, and the pre-fire scrub (§Single-finding gate, "Scrub before the AUQ fires"). Every calling contract above cites that file rather than restating it. This file defines the visual language the render uses; consult per-finding-question.md for when and how the render fires.
+The two-step shape — render to a SEPARATE chat message first, then a lean `AskUserQuestion` — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, together with the separate-message rule; the render-exists check and the pre-fire scrub sit in the companion reference, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate, "Scrub before the AUQ fires". Every calling contract above cites those files rather than restating them. This file defines the visual language the render uses; consult per-finding-question.md for when and how the render fires.
 
 ## Two explanation layers
 
@@ -39,7 +39,7 @@ Two properties make the split work, and a render that breaks either has merged t
 - **The plain layer stands alone.** Delete the technical block and the user can still understand the situation and pick an option. A term the plain layer needs but cannot say in ordinary words is a term the plain layer has to define in ordinary words.
 - **The technical layer adds no argument.** It is evidence for what the plain layer already said. A consideration that appears only there is a consideration the skimming user decides without.
 
-Omit the technical block entirely at a gate with nothing to cite — a workspace pick, a how-deep-should-I-go choice. A labeled block holding restated prose is noise, and padding one teaches the next render to pad too.
+Omit the technical block entirely at a gate with nothing to cite — a workspace pick, a ship-mode choice. A labeled block holding restated prose is noise, and padding one teaches the next render to pad too.
 
 ## Visual rendering language
 
@@ -132,10 +132,9 @@ A gate's option set may include an **"Explain further"** option — a reading ai
 
 The lean `AskUserQuestion` that follows the render obeys these conventions at every gate:
 
-- **Every user-facing choice goes through the tool.** A plain-text `(A)/(B)` in chat bypasses the approvals persistence the structured tool records — a resumed session has nothing to restore and re-asks an already-answered question. Canonical; consuming skills cite this bullet, never restate it.
+- **Every user-facing choice goes through the tool.** A plain-text `(A)/(B)` in chat bypasses the approvals persistence the structured tool records — a resumed session has nothing to restore and re-asks an already-answered question. The one exception is an unbounded option set — free-text pick-by-name from a set too large for the tool's 4-option cap — which gates the resulting launch itself behind a lean `AskUserQuestion` instead; test for any such carve-out on whether the option set cannot fit the tool at all, never on whether enumerating it is merely inconvenient. Canonical; consuming skills cite this bullet, never restate it.
 - **A skill's enumerated gates are examples, not the complete set.** A mid-phase choice the list never named is still a choice, and still routes through the tool above. Canonical statement of the closed-list rule.
 - **No reader for the question is not licence to decide it.** Two different absences, two different answers. The tool missing under its Claude Code name usually means the host renamed it — resolve it by name before concluding anything (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` §Tool substitutions). Nobody there to read it — a cloud or background agent, a scheduled run — means the gate is deferred, not dropped: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md` decides which gates take a recorded reversible default and which halt and hand the question back.
-- **Exception: an unbounded option set, not inconvenient authoring.** This repo's own `.claude/skills/find-threads/` tooling picks a thread by free text — a project can hold far more threads than the tool's 4-option cap allows — then gates the launch itself behind a lean `AskUserQuestion`. Test for any future carve-out: the option set cannot fit the tool at all, not that enumerating it is inconvenient.
 - **The question and its options carry the plain layer only.** `question`, each option `label`, and each option `description` state the choice and its consequence in ordinary words; the `path:lines` cite in the question title is the one identifier they carry, as the anchor back to the render. Everything else technical stays in the chat message's `**Technical detail:**` block, which has the width for it — an option chip reading `Keep the buildQuery() WHERE clause` makes the user parse a symbol name to pick.
 - **Single-select** unless the gate is explicitly multi-select (e.g. a pick loop).
 - **Never auto-default on an empty answer — always re-ask.** An empty answer indicates an upstream tool bug, not a user choice. Only a repeated *empty-answer* loop (the tool keeps returning nothing) justifies falling back to a plain-text question in chat — canonical; cite rather than re-derive.

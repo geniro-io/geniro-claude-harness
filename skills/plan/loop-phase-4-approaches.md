@@ -86,7 +86,7 @@ emit_rejection_if_signal \
 
 Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op. A free-text answer overriding the question is a divergent pick like any other and fires the signal. After a fired signal, echo `Recorded learning: <summary>` — the same echo §8.5 makes, so a skipped emit shows up as a missing line instead of leaving no trace at all.
 
-**Read side:** Phase 1 query-learnings on /geniro:plan entry already runs once. Extend its consumers to surface entries with `type=user_rejected_suggestion AND tags includes 'approach_choice'` matching the current topic — display as "User previously rejected <suggestion> on <ts>" so the orchestrator can re-rank or omit the rejected approach from AUQ.
+**Read side:** the Phase 1 §1.1 past-learnings query already surfaces any prior `user_rejected_suggestion` entry for this topic's `approach_choice` — use it here to re-rank or omit the previously-rejected approach from the §4.3 AUQ.
 
 Example body:
 

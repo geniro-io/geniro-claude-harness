@@ -34,7 +34,7 @@ You are an on-demand session-history miner. You locate the evidence — this pro
 
 1. **Find sessions** — locate the project's transcript files on disk, keep the ones that did agentic work, exclude the session you are running in. Under `--this-session` the running session IS the source, so nothing is selected.
 2. **Analyze sessions** — spawn one read-only transcript analyst per selected session, all in ONE response, each returning a condensed extract of corrections / rejections / friction; under `--this-session` you build that extract's evidence sections inline from the conversation you are in.
-3. **Synthesize candidates** — one reflection-agent spawn consumes the extracts + the existing rule files + prior declines, returning candidates that pass the candidate bar. On return, read the report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar.
+3. **Synthesize candidates** — one reflection-agent spawn consumes the extracts + the existing rule files + prior declines, returning candidates that pass the candidate bar in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar. On return, read the report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report.
 4. **Present and route** — render each candidate to chat, ask per candidate, write approved rules to their routed target, log declines so they stop re-surfacing.
 
 ## Statelessness
@@ -72,7 +72,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | Sessions analyzed (search string) | 8 matches, newest first | Report how many matches were dropped |
 | Sessions analyzed (`--this-session`) | none read from disk — the running session only | n/a; the closing line names it as the source |
 | Extract size | ~4K chars per session, inline extract included | Keep the strongest evidence, note the truncation |
-| Rule candidates | 3 (candidate-bar cap) | Reflection agent keeps the 3 highest-significance |
+| Rule candidates | the cap in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar | Reflection agent keeps the highest-significance candidates within that cap |
 
 ## ACI per-phase tool surface
 
@@ -150,12 +150,7 @@ Spawn ONE `reflection-agent` (contract: `${CLAUDE_PLUGIN_ROOT}/agents/reflection
 
 Under `--this-session` the spawn IS the isolation the shape depends on: you authored the run being judged, so inline synthesis reads it through the same blind spots. The runtime-portability fallback of running an agent's contract inline does not apply here — a host with no delegation facility reports that and exits without side effects.
 
-Gather the prior declines first and pre-inline them — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a declared `## Memory Backend` block routing `learnings`, delegate that read to a scoped `knowledge-retrieval-agent` spawn — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. The agent declares a `Context loaded:` line — check the report for it before treating an empty result as backend-absent rather than unread, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. With no such block, run the inline file query unchanged:
-
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"
-query_learnings --type user_rejected_suggestion --limit 20
-```
+Gather the prior declines first and pre-inline them — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a declared `## Memory Backend` block routing `learnings`, delegate that read to a scoped `knowledge-retrieval-agent` spawn — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. The agent declares a `Context loaded:` line — check the report for it before treating an empty result as backend-absent rather than unread, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. With no such block, run the prior-declines query per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots, which owns the exact call — an unfiltered query lets another skill's rejections fill the window and reflect's own declines never surface.
 
 Spawn slots:
 

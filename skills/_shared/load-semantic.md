@@ -5,7 +5,7 @@
 ## API
 
 ```bash
-source lib/load-semantic.sh
+source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh"
 
 # Read — default top-2 + optional extras
 content=$(load_semantic [--extras "name1 name2 ..."] [--quiet])
@@ -27,7 +27,7 @@ mode is documentary, signaling to the caller why they're invoking.
 | Mode | When | Caller |
 |------|------|--------|
 | `initial-load` | First action of every L3-consuming skill's own work (the phase Read that carries the call site precedes it, per `phase-entry-read.md`) | Pipeline skill at Step 0 |
-| `refresh` | Post-compaction (via `hooks/session-start-restore.sh` Block 6 step 3) or on-demand if a phase explicitly needs fresh L3 facts | Model on next turn after a compact / resume / startup SessionStart |
+| `refresh` | Post-compaction (the SessionStart resume-steps message's step 3, which instructs a re-invoke with `MODE: refresh`, in `hooks/session-start-restore.sh`) or on-demand if a phase explicitly needs fresh L3 facts | Model on next turn after a compact / resume / startup SessionStart |
 
 **Phase-boundary refresh sites:** unlike `load-custom-instructions`, this
 helper has NO mid-pipeline refresh sites — L3 facts are baseline awareness

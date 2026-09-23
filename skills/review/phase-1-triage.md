@@ -79,9 +79,9 @@ Findings tagged `severity: CRITICAL` (secrets are always critical).
 
 ### 1.5.4 Custom-reviewer discovery
 
-**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call before invoking the helper — the helper requires the slot in scope to dual-glob local + main-worktree `review-extra/` files, and a linked worktree's `.geniro/instructions/` is gitignored and may be empty.
+**Resolve `PRIMARY_ROOT` first.** Run the Mode A snippet from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` in a shell call before checking for custom reviewers — a linked worktree's `.geniro/instructions/` is gitignored and may be empty, so the check needs the main-worktree path in scope too.
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` to enumerate user-authored review dimensions in `.geniro/instructions/review-extra/<slug>.md`. The helper applies its `paths:` filter against the changed-files list, enforces the per-project cap it owns, and returns spawn-specs: `{slug, dimension-label: custom:<slug>, model, criteria-content, severity-default, requires-context, source-path}`.
+**Gate the helper Read on a dual glob.** Check `.geniro/instructions/review-extra/*.md` both cwd-relative and under `<PRIMARY_ROOT>` in one shell call. Zero matches — the normal case, no user-authored custom reviewers — write `custom_reviewers: []` and skip straight to the next step; reading `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` costs the same whether or not a file exists to apply it to. On ≥1 match, apply that helper to enumerate the discovered dimensions: it applies its `paths:` filter against the changed-files list, enforces the per-project cap it owns, and returns spawn-specs: `{slug, dimension-label: custom:<slug>, model, criteria-content, severity-default, requires-context, source-path}`.
 
 Persist the result to state.md frontmatter `custom_reviewers[]` — every short spawn-spec scalar, one entry per surviving reviewer (canonical field list: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"`/geniro:review` producer-specific fields"):
 

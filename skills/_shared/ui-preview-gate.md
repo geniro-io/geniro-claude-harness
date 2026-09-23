@@ -14,7 +14,7 @@ The preview has two forms. Default: a structured text description. When the call
 
 ## UI-file detection rule
 
-Canonical definition, shared across `/geniro:review` (design dimension + PR-metadata screenshot check), `/geniro:implement` (Pre-Ship Visual Verification gate), and this preview gate. Defined here once so no skill body owns it — cross-skill coordination lives in `_shared/`.
+Canonical definition, shared across `/geniro:review` (design dimension + PR-metadata screenshot check), `/geniro:implement` (Pre-Ship Visual Verification gate), and this preview gate.
 
 A file is a UI file if its path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR its extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`. A UI-gated step is skipped when no changed/affected file matches.
 
@@ -26,7 +26,7 @@ Skip entirely unless at least one file in the predicted affected-files list matc
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent for the description. Pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the spec already decided what the UI does, and this spawn only transforms it into a structured description. That is the ceiling, not a fixed value: a spec covering one or two screens is a §Sizing down-pick, and the tier goes with it. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site — a spawn has no tool-withholding parameter, so restate the read/transform-only constraint (no file writes, edits, or notebook edits) inside the prompt body per that file's §Forbidden patterns, "Prohibited tools list".
+Spawn a general-purpose subagent for the description. Pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the spec already decided what the UI does, and this spawn only transforms it into a structured description. That is the ceiling, not a fixed value: a spec covering one or two screens is a §Sizing down-pick, and the tier goes with it. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site — a spawn has no tool-withholding parameter, so restate the read/transform-only constraint (no file writes, edits, or notebook edits) inside the prompt body per that file's §Required pre-inlined context, "Prohibited tools list".
 
 ```
 Agent(model="sonnet", prompt="""
@@ -109,7 +109,6 @@ Write the approved text where the caller designates, or hold it in-memory when t
 | Your reasoning | Why it's wrong |
 |---|---|
 | "The plan already describes the UI, skip the preview" | Plans describe files and steps. They do not describe what the user will see. The preview gate surfaces visual intent BEFORE code is written — that is its whole job. |
-| "No UI files matched — skip" | Correct — skip. The gate is conditional by design, enforced by the caller. |
 | "The user will approve anyway — skip" | Preview is cheap. Rebuilding UI after approval is expensive. Never skip when the rule matches. |
 | "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (tier per the procedure above). Orchestrator tokens are the most expensive resource. |
 | "3 revision rounds isn't enough, keep looping" | If 3 rounds did not converge, the real issue is plan-level, not preview-level. Route to plan adjustment. |

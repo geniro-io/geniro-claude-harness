@@ -54,7 +54,7 @@ The taxonomy is CRITICAL / HIGH / MEDIUM / LOW. Each tier has an INCLUSION list 
 - Edge-case bug with low likelihood (the edge case must be reachable)
 - Missing test coverage where the uncovered path has a documented failure mode
 - Maintainability or clarity issue with concrete user-visible impact
-- Convention drift on a required field (e.g., missing required `risk_class:` per CLAUDE.md `/geniro:actions` contract — MEDIUM because tooling depends on it)
+- Convention drift on a required field (e.g., missing required `risk_class:` on a `/geniro:actions` file — MEDIUM because tooling depends on it)
 
 **Excludes:**
 - Documentation polish, PR-description verbosity, comment wording — LOW (never MEDIUM)
@@ -105,11 +105,11 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 
 ### pr-metadata
 
-The dim's ceiling is HIGH: §1's CRITICAL inclusion list admits no PR-prose class, and §6 forbids a per-dim file widening it. A misrepresentation that reads as severe is the §1 HIGH "intent source contradicts the diff" case.
+The dim's ceiling is LOW: every check it runs is PR-prose (title, description, test-plan mention, template field) rather than a code defect, and §1's MEDIUM/HIGH/CRITICAL exclusion lists already name that whole class out — documentation polish, PR-description verbosity, and process recommendations are excluded from MEDIUM by name, and §6 forbids a per-dim file widening it.
 
-- HIGH: PR title misrepresents the diff (e.g., title says "refactor", diff adds new feature)
-- HIGH: Missing test plan when test files are modified
-- MEDIUM: Missing required field per repo's PR template (e.g., `risk_class:` declared in CONTRIBUTING.md)
+- LOW: PR title misrepresents the diff (e.g., title says "refactor", diff adds new feature)
+- LOW: Missing test plan when test files are modified
+- LOW: Missing required field per repo's PR template (e.g., `risk_class:` declared in CONTRIBUTING.md)
 - LOW: PR description could include the linked Linear ticket; commit message could be more verbose
 
 ### conventions

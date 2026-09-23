@@ -73,14 +73,34 @@ scan_file() {
     # (`log="$root/.geniro/x"`, a message string, a comment) mentions
     # `.geniro`/`safety.json` far more often than it MATCHES against them, and
     # is not this class of bug.
+    # A sed normalizer whose script opens with an s-command right after the
+    # quote (double- or single-quoted, `#` or slash delimited) — the shape
+    # block-dangerous-git.sh:515 used to strip the git global options with —
+    # is a matcher too: it decides whether the surrounding text reads as the
+    # command word it rewrites. `.` stands in for the opening quote character
+    # so this matches either quoting style without needing to embed a literal
+    # quote inside this awk program, which is itself inside a single-quoted
+    # shell string where that would break the string open (2026-09-23 audit
+    # T0-4/D8-9/D5b-21).
+    function is_sed_normalizer(s) {
+      return (s ~ /sed[[:space:]]+(-[A-Za-z]+[[:space:]]+)*.s[\/#]/)
+    }
     function is_matcher_line(s) {
-      return (s ~ /grep[[:space:]]+-[A-Za-z]*[qo][A-Za-z]*/ || s ~ /(^|[^A-Za-z0-9_])case[[:space:]]/)
+      return (s ~ /grep[[:space:]]+-[A-Za-z]*[qo][A-Za-z]*/ || s ~ /(^|[^A-Za-z0-9_])case[[:space:]]/ || is_sed_normalizer(s))
     }
     BEGIN { lowered = 0 }
     {
       line = $0
-      # Reset per-function tracking at a new top-level function definition.
+      # Reset per-function tracking at a new top-level function definition,
+      # AND at the closing brace of that same function: the previous version
+      # reset only on the NEXT function header, so every top-level line after a
+      # function that folded case (via tr or _geniro_normalize_path) read as
+      # still-lowered even once execution had left that function body — which
+      # is how block-geniro-deletion.sh:1329 (after find_span_targets_geniro
+      # folded case earlier in a DIFFERENT function) shipped unflagged
+      # (2026-09-23 audit T0-4/D8-9/D5b-21).
       if (line ~ /^[A-Za-z_][A-Za-z0-9_]*\(\)[[:space:]]*\{/) { lowered = 0 }
+      if (line ~ /^\}/) { lowered = 0 }
       if (line ~ /tr[[:space:]]+.\[:upper:\].[[:space:]]+.\[:lower:\]./) { lowered = 1; next }
       # A call to the shared path-normalizer (which case-folds internally)
       # lowers whatever variable it assigns into for the rest of this
@@ -93,11 +113,19 @@ scan_file() {
       needs_fold = 0
       if ((line ~ /\.geniro/) && !has_ifold(line) && !lowered) needs_fold = 1
       if ((line ~ /safety\.json/) && !has_ifold(line) && !lowered) needs_fold = 1
-      # Destructive command word as a bare token immediately followed by a
-      # whitespace-class boundary inside a regex pattern — the shape every
-      # span-extraction / jqless-fallback matcher in this repo uses.
-      if (line ~ /(^|[^A-Za-z0-9_\[])(rm|mv|rmdir|find|rsync|git)\[\[:space:\]\]/) {
+      # Destructive command word, plus the shell/interpreter rosters
+      # lib/write-vectors.sh matches for shell indirection (D8-2), as a bare
+      # token immediately followed by a whitespace-class boundary inside a
+      # regex pattern — the shape every span-extraction / jqless-fallback
+      # matcher in this repo uses.
+      if (line ~ /(^|[^A-Za-z0-9_\[])(rm|mv|rmdir|find|rsync|git|sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc|python|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)\[\[:space:\]\]/) {
         if (!has_ifold(line) && !has_bracket_fold(line) && !lowered) needs_fold = 1
+      }
+      # The same word roster, but as the first thing after a sed
+      # substitution delimiter (`s/git(...`, `s#bash ...`) — the shape a
+      # normalizer rewrites rather than matches inline.
+      if (is_sed_normalizer(line) && line ~ /s[\/#](rm|mv|rmdir|find|rsync|git|sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc|python|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([^A-Za-z0-9_]|$)/) {
+        if (!has_bracket_fold(line) && !lowered) needs_fold = 1
       }
       if (needs_fold) {
         printf "%s:%d:%s\n", FILE, NR, trimmed(line)

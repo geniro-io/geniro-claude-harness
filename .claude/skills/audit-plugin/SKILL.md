@@ -20,6 +20,8 @@ argument-hint: "[path/dimension scope | --quick | empty for full audit]"
 
 You are the audit orchestrator. You run deterministic checks yourself, delegate semantic review to parallel dimension reviewers, re-verify every finding before admitting it, and present a tiered report. Every run also sweeps for subtraction and reports what it found — including nothing. Fixes are applied only after the user approves them at the action gate.
 
+**After a compaction:** only the front of this file re-attaches — re-read this file before continuing, and the running phase's source: `dimensions-reference.md` for Phases 0-4, `phase-5-action-gate.md` for Phase 5. The state checkpoint at `.geniro/state/audit-plugin/<slug>/state.md` records which phase completed.
+
 ## Phases overview
 
 1. **Phase 0 — Scope & inventory.** Parse `$ARGUMENTS`, build the file inventory, load the rubric (every `.claude/rules/*.md` file + `dimensions-reference.md`).
@@ -110,7 +112,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 ## PHASE 3 — Merge, verify, filter
 
 1. **Merge** all reviewer tables + machine findings. Dedupe by (file, issue topic); record `convergence: N` when ≥2 reviewers independently flagged the same location — convergence strengthens, duplicates collapse to one row.
-2. **Verify** every non-machine finding: Read the cited `file:line` ±5 lines; the quoted evidence must appear there and the issue description must match what the code/prose actually says. Quote absent or claim mischaracterizes the source → drop with a one-line note in the report's "Filtered" section.
+2. **Verify** every non-machine finding: Read the cited `file:line` per `skills/_shared/audit-pipeline.md` §Shared invariants invariant 1; the issue description must also match what the code/prose actually says. Quote absent or claim mischaracterizes the source → drop with a one-line note in the report's "Filtered" section.
 3. **Filter**: drop do-not-flag matches; collapse repeating patterns (e.g., the same defect at 14 sites) into ONE finding listing all locations.
 4. **Calibrate tiers** — reviewers over-rate their own dimension; re-check each T0/T1 against the tier table definitions (T0 requires an actual bypass/loss path, T1 an actual behavior delta).
 4b. **Apply the oracle test, and drop what fails it.** Ask of each finding: could a command say "fixed" without anyone's taste being the judge? A dangling reference, a wrong count, a broken hook, a wrong shell branch — yes, and those proceed. "These two sections could merge", "this reads better", "this caps-MUST should be lowercase" — no; nothing confirms those but another reader's agreement, and this pipeline's own prose edits survived at 6%. **A finding with no oracle goes to Filtered, not to a tier table** (`dimensions-reference.md` §Severity tiers).

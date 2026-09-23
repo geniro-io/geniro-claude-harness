@@ -60,7 +60,7 @@ Skip if you intend to re-author them in this branch instead.
 
 The user runs the commands themselves — never invoke them in a shell call. Cross-branch / cross-worktree file operations have no plugin precedent and conflict with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` "Forbidden discovery moves".
 
-**Case B2 — All PRESENT but `debug-source-branch` differs from current branch.** Typical of implement Option A (`git checkout -b <new-branch>`) where uncommitted test files follow the working tree to the new branch. Surface a one-line note in the Phase 1 context summary: `Debug ran on '<debug-source-branch>'; you are now on '<current-branch>'; all <N> authored test(s) carried over to the new working tree.` No commands suggested — the tests are already where they need to be.
+**Case B2 — All PRESENT but `debug-source-branch` differs from current branch.** Typical of implement's "New feature branch" workspace pick (`git checkout -b <new-branch>`) where uncommitted test files follow the working tree to the new branch. Surface a one-line note in the Phase 1 context summary: `Debug ran on '<debug-source-branch>'; you are now on '<current-branch>'; all <N> authored test(s) carried over to the new working tree.` No commands suggested — the tests are already where they need to be.
 
 **Case C — State files exist but `Source branch:` / `Source worktree:` fields are missing.** Treat the existence check as the only signal: if any authored path is missing, surface a degraded suggestion ("Debug findings detected; <N> authored test(s) missing — source branch unknown, run `git log --all -- <path>` to locate") and skip the explicit `git checkout` recommendation. Do not block the consumer skill.
 

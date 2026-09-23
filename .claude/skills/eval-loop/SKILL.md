@@ -36,7 +36,7 @@ judgment the scripts deliberately do not encode.
 - **Money asks first.** Before ANY paid sweep: run `run.sh --probe`, put the
   extrapolated cost in a chat message, and get an AskUserQuestion approval
   naming the dollar figure, the executor adapter, AND the model. The per-sweep hard ceiling is
-  `run.sh --max-usd` (default $50) — raise it only with the user's number. Never launch on a stale rate — after a change to
+  `run.sh --max-usd` (defaults to `run.sh`'s own `MAX_USD`) — raise it only with the user's number. Never launch on a stale rate — after a change to
   task shape, workspace size, or model, the probe is mandatory
   (`adapters/cursor-prices.json` §rule). Judging via Claude subagents is free;
   the `--phase judge` CLI fallback is paid and needs the same approval.

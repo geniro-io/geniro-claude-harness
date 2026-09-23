@@ -9,7 +9,6 @@ Everything `/geniro:setup` does ONLY when §1.1 resolved `mode == re-run`. An `i
 - 3.0 Migration sweep — walk MIGRATION.md and apply what this install is affected by
 - 3.1 Pre-write existing-content audit — merge into the prior `CLAUDE.md` instead of overwriting it
 - 3.4 Conflict-resolution merge rules
-- 5.4 Restart-session warning on a plugin-version delta
 
 ---
 
@@ -45,15 +44,3 @@ Section merge runs **orchestrator-inline** — no subagent spawn. Rules:
 2. Apply factual updates from detection (e.g., new commands detected, stack changes).
 3. If conflict (same statement contradicted), surface both versions via AUQ — let user pick.
 4. Do not add geniro-specific content during merge — apply the exclusion list in `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content.
-
-## 5.4 Restart-session warning
-
-Emitted only when the current `.claude-plugin/plugin.json` version differs from the `plugin_version:` recorded in the prior state file. A prior state file that predates the field (no `plugin_version:`) yields no computable delta, so no warning fires.
-
-```
-⚠ Restart your Claude Code session before using any other Geniro skill.
-
-Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once at session start. The plugin
-update brought a new install path, but in-memory skill bodies still reference
-the old one. Restart and you're done.
-```

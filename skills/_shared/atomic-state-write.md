@@ -18,7 +18,6 @@
 
 - **Library:** `lib/atomic-state-write.sh`
 - **Schema reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`
-- **Design rationale:** `ARCHITECTURE.md` §State Files
 - **Validator:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md`
 
 ---
@@ -48,7 +47,7 @@
 | T1.5 singleton state (`.geniro/state/setup/state.md`) | Helpers above |
 | T2 handoff (`.geniro/state/handoff/from-*.md`) | Helpers above |
 | T3 CRUD (`instructions/*.md`, `actions/*.md`, `workflow/*.md`, `planning/_*.md`) | Helpers above, plus the caller-side mtime check below |
-| T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` only |
+| T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` only — except a locked whole-file rewrite that mutates an existing line (e.g. flipping `deprecated: true` on prune/archive), which is program-produced content and routes through `atomic_state_write_cmd` under the shared knowledge-rewrite lock |
 | T1 ephemeral transient outputs (canonical list: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1 — e.g. `.kr-out.md`, `.research-*.md`, `notes.md`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at the owning run's terminal exit |
 
 **Do not** use the built-in `Write` or `Edit` tools on `.geniro/` state paths. The `enforce-state-helper.sh` PreToolUse hook hard-blocks those (exit 2). A shell-side write is *not* blocked — the hook does not match `Bash` — but it carries the identical corruption risk, so route it through the helper anyway.
@@ -161,7 +160,7 @@ atomic_state_set_field ".geniro/planning/dark-mode/state.md" timestamp "$(date -
 | 73 | Target does not exist or is unreadable |
 | 74 | No closed leading `---` block, or the field is not in it — nothing changed |
 
-### `atomic_state_append_section <target> <heading> <text>`
+### `atomic_state_append_section <target> <heading> <text> [--create]`
 
 Appends `<text>` at the END of the body section introduced by the exact heading line, keeping the blank line that separates the section from the next heading. The section runs to the next heading of the same or a higher level, so a `###` subheading stays inside it.
 
@@ -170,6 +169,13 @@ The heading is the wrong anchor for a plain `atomic_state_edit`: matching on `##
 ```bash
 atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Tool log" \
   "- [$(date -u +%H:%M:%SZ)] test-runner: 42 passed, 0 failed"
+```
+
+`--create` is a fourth, trailing positional argument — never a flag-first form (`atomic_state_append_section --create ...` fails rc 73, since `--create` then parses as the target path). Pass it for a section a run creates on demand (`## Deferred Findings`, `## Visual Baseline`, `## Authored Tests` — the ones no state.md template declares up front): it appends the heading at end of file on the first call and behaves normally after that. Without it, a missing heading is rc 77, not a silent create — a typo would otherwise grow a second, near-identical section that nothing reads.
+
+```bash
+atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Deferred Findings" \
+  "- F3: deferred to a follow-up — see review handoff" --create
 ```
 
 | Code | Meaning |
@@ -214,7 +220,7 @@ Reads stdin and appends it as one record with POSIX `O_APPEND` semantics.
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
 
-printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"implement","scope":"feature/dark-mode","summary":"Use CSS variables not styled-components","tags":["css","ui"],"trust":"verified","dedup_key":"abc123def456"}' \
+printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"/geniro:implement","scope":"feature/dark-mode","summary":"Use CSS variables not styled-components","tags":["css","ui"],"trust":"verified","dedup_key":"abc123def456"}' \
   | atomic_state_append ".geniro/knowledge/learnings.jsonl"
 ```
 
@@ -297,7 +303,7 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 
 ## Portability notes
 
-- `sync -d <file>` fsyncs one file on Linux (GNU coreutils). BSD/macOS `sync` takes no options and ignores every operand, returning 0 either way — so an rc-based probe reads macOS as "per-file sync succeeded". The helper discriminates on `sync --help` naming `--data` instead, and falls back to whole-disk `sync`.
+- `sync -d <file>` fsyncs one file on Linux (GNU coreutils). BSD/macOS `sync` takes no options and ignores every operand, returning 0 either way — so an rc-based probe reads macOS as "per-file sync succeeded". The helper discriminates on `sync --help` naming `--data` instead.
 - **Where there is no per-file sync, the helper syncs nothing.** The former whole-disk fallback cost 164 ms per write and flushed every mounted filesystem on the machine while buying nothing: macOS `sync(2)` schedules the flush rather than waiting for it. Atomicity — the rename — never depended on it and holds on every platform; durability across power loss is Linux-only in practice. Nothing in the state model depends on surviving a power cut.
 
 ## NFS safety

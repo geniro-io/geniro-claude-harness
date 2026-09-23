@@ -184,7 +184,6 @@ expect_parity() {  # <hook-basename> <expected-rc> <label> <command>
 # `*Sync` node spelling. Every one of those spellings walked past four to six
 # guards while this matrix was green on bare `sh` alone.
 PROT="tls.key"
-STATE=".geniro/planning/task/state.md"
 GTREE=".geniro/instructions"
 
 expect_parity file-protection.sh 2 "plain redirect"     "echo x > $PROT"

@@ -1,6 +1,6 @@
 # /improve-template — Phase 1-3 (investigate, cross-reference, present)
 
-Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phase 1 — Phase 1-fast fixes and create-skill mode never take this branch: Phase 1-fast runs its own steps in the spine's Complexity gate section, and create-skill mode reads `create-skill-mode.md` instead. A run that compacts before reaching Phase 1 also never takes this branch.
+Phase body for `.claude/skills/improve-template/SKILL.md`. Read on entry to Phase 1 — Phase 1-fast fixes and create-skill mode never take this branch: Phase 1-fast runs its own steps in the spine's Complexity gate section, and create-skill mode reads `create-skill-mode.md` instead.
 
 ## Contents
 
@@ -53,7 +53,7 @@ RESEARCH_QUESTION: Which recorded decisions, invariants, and operational rules i
 
 DELIVERABLE_SHAPE: table of [{section name + file:line in ARCHITECTURE.md or the cited helper, the decision or rule, how it applies to the issue, already-followed yes/no}]. Research only — do NOT suggest implementation.
 
-SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, deep mode, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract.
+SCOPE_HINT: `ARCHITECTURE.md` — read it in full rather than sampling; it is a consolidated decision record, one section per milestone (state files, memory layers, each skill) plus cross-cutting sections (subagent model selection, self-learning, operational rules), each listing key rulings as bullets with file-path citations. When a ruling cites a `_shared/` helper or skill file, read that target for the full contract.
 
 OUTPUT_PATH: .geniro/state/improve-template/.research-architecture-<slug>.md
 

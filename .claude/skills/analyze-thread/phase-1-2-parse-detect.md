@@ -22,7 +22,7 @@ Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phas
 | a path or bare filename | single | that one thread |
 | two or more paths | batch | exactly those threads, in the order given |
 | a bare integer N, or `--last=N` | batch | the last N work-bearing threads |
-| empty | batch | the last 3 work-bearing threads |
+| empty | batch | the default-sized batch of work-bearing threads (SKILL.md §Budgets & quality gates — Threads per batch row) |
 
 **Single mode.** Resolve the path; for a bare filename search the current working tree first, then the config-dir `projects/` trees. Check the file exists, is readable, and is under the hard cap (SKILL.md §Budgets & quality gates — Thread file size row). Between the warn threshold and the hard cap, warn before continuing — large threads slow the judge pass.
 
@@ -43,7 +43,7 @@ Do NOT filter on `mtime` age. A recent timestamp means a session tab is open, no
 
 Post-process the scan output in one command, never a per-file shell loop — the sandbox constraint that makes such a loop half-fail is documented in `scan.py`'s module docstring.
 
-Clamp N to the 5-thread cap and say so if the user asked for more. If the scan yields nothing — a fresh machine, no work-bearing threads — report that plainly and stop; there is nothing to analyze and no question worth asking.
+Clamp N to the per-batch hard cap (SKILL.md §Budgets & quality gates — Threads per batch row) and say so if the user asked for more. If the scan yields nothing — a fresh machine, no work-bearing threads — report that plainly and stop; there is nothing to analyze and no question worth asking.
 
 If `scan.py` is absent (the sibling skill was removed), fall back to enumerating `*.jsonl` under `~/.claude/projects/`, `$CLAUDE_CONFIG_DIR/projects/` when set, newest-first by mtime, applying the same two filters. The fallback loses the work-bearing filter, so state that the set may include trivial threads.
 
@@ -53,11 +53,11 @@ Echo the resolved set before Phase 1 Step 2 — one line per thread with its dat
 
 Sniff the file's opening bytes. Detection rules:
 
-- Begins with `{"type":"summary"` or `{"type":"user"` or `{"type":"assistant"` followed by a comma — **JSONL** (Claude Code session log).
+- The first line parses as a JSON object with a `type` key — **JSONL** (Claude Code session log; the key's value varies by log kind — `summary`, `user`, `assistant`, `queue-operation`, `bridge-session`, and others).
 - Begins with `# `, `## `, or `**User:**` / `**Assistant:**` block markers — **markdown**.
 - Otherwise — fall back to markdown and warn the user that parsing degrades to heuristic regex.
 
-Record the detected format in the Phase 1 checkpoint.
+Record the detected format in the Phase 1 checkpoint. `--format=jsonl` / `--format=markdown` (SKILL.md §Modifier handling) overrides this sniff for a file it misreads.
 
 ### Step 3: Normalize to events list
 

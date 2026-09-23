@@ -35,7 +35,7 @@ Custom reviewers in `.geniro/instructions/review-extra/<slug>.md` follow a diffe
 
 ## Mode: create — review-extra variant
 
-When the resolved scope is `review-extra`, follow this slug-bearing flow instead of the singleton-file `create` flow in SKILL.md. The output is a single file at `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/<slug>.md` declaring one custom reviewer.
+When the resolved scope is `review-extra`, follow this slug-bearing flow instead of the singleton-file `create` flow in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-create.md`. The output is a single file at `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/<slug>.md` declaring one custom reviewer.
 
 ### Step 1: Resolve the slug
 
@@ -203,5 +203,6 @@ What to NOT flag:
 - Classic vulnerability-class checklist hits (injection, XSS, hardcoded secrets) —
   the security reviewer owns those.
 - Anything deterministically reproducible as a failing test today — emit it tagged
-  [TESTABLE] instead of arguing it as an attack chain, so the test gate picks it up.
+  [TESTABLE] instead of arguing it as an attack chain; `/geniro:implement` authors
+  the confirming test when it applies the fix.
 ```

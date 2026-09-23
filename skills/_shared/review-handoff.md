@@ -7,10 +7,8 @@ State.md `phase: action-gate` during this phase.
 **Handoff schema version: `m6-v3`** (the producer writes `geniro_schema_version:` into the handoff frontmatter at its Phase 5.1 write — `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.1). Consumers accept `m6-v1`, `m6-v2`, and `m6-v3`; per-version field-presence contract:
 
 - `m6-v1` (legacy): no per-finding verification fields at any severity; bare deferred list.
-- `m6-v2`: the four verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) present on every kept finding (CRITICAL / HIGH / MEDIUM), emitted by the Phase 4.2 per-finding verifier; `Validation:` admits `unverified` (orchestrator-assigned when no verifier ran — see the presence rules below); bare deferred list.
+- `m6-v2`: the four verification fields (`Validation` / `Recommended-action` / `Verification-confidence` / `Verification-evidence`) present on every kept finding (CRITICAL / HIGH / MEDIUM), emitted by the Phase 4.2 per-finding verifier; `Validation:` admits `unverified` (orchestrator-assigned when no verifier ran — see the presence rules below); bare deferred list. An early `m6-v2` producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence — apply the "treat as confirmed + one-line warning" fallback.
 - `m6-v3`: as `m6-v2`, plus `## Deferred — sub-threshold` entries carry the structured block schema (D-prefixed id, `File:`, `Why deferred:`, `Suggested fix:` — see §"Deferred-entry schema" below) and `## Findings` admits `[USER-ELECTED]`-tagged promotions from the §4.6 include-deferred gate.
-
-Within `m6-v2`/`v3`, a producer that verified only HIGH findings emits verification fields on HIGH findings only; consumers treat absence on CRITICAL or MEDIUM the same as `m6-v1` absence — apply the "treat as confirmed + one-line warning" fallback.
 
 ## Contents
 
@@ -84,7 +82,7 @@ This gate runs FIRST in Phase 6 — before the Step 0 and Action gates — whene
      - `preview` — empty or a one-line recap (per per-finding-question.md); the `context` / `evidence[]` body lives in the chat block. When `recommendation.option_id == this.id`, position that option first, suffix its `label` with ` (Recommended)`, and state the producer's rationale in the chat block
    - When `recommendation.option_id` is set, position THAT option first in the `options[]` array and suffix its `label` with ` (Recommended)`.
 
-   **Tier 2 — Cross-reference into `## Findings` body.** When the entry has `related_findings: [F1, F2, ...]` non-empty but lacks the Tier 1 rich fields, read those finding blocks from the same handoff file's `## Findings` body (per the multi-line "Per-finding body schema" defined later in this same reference file, after the Wontfix-path note below). Apply `per-finding-question-reference.md` § Single-finding gate rendering directly against the first related finding's body — the finding's Evidence / Why-matters / Suggested-fix / Confidence / Origin fields map onto the chat-render slots per that spec's § Source-field map. When >1 related findings exist, prefer the highest-severity finding; mention the others as `"Also gates: F2, F3"` in the question body.
+   **Tier 2 — Cross-reference into `## Findings` body.** When the entry has `related_findings: [F1, F2, ...]` non-empty but lacks the Tier 1 rich fields, read those finding blocks from the same handoff file's `## Findings` body (per the multi-line "Per-finding body schema" defined later in this same reference file, ahead of §2.6's Deferred-entry schema). Apply `per-finding-question-reference.md` § Single-finding gate rendering directly against the first related finding's body — the finding's Evidence / Why-matters / Suggested-fix / Confidence / Origin fields map onto the chat-render slots per that spec's § Source-field map. When >1 related findings exist, prefer the highest-severity finding; mention the others as `"Also gates: F2, F3"` in the question body.
 
    **Tier 3 — Legacy synth fallback.** When neither Tier 1 nor Tier 2 source data is available (bare `question:` only):
    - chat block + `question`: render a chat block first per § Message-first rendering — expand the terse `question:` field into a plain-English explanation of what is being asked and why (use whatever `context` / `evidence` exists); the lean AUQ `question` then restates it. Do NOT fire the bare reviewer phrasing as the question
@@ -96,7 +94,7 @@ This gate runs FIRST in Phase 6 — before the Step 0 and Action gates — whene
    - Tier 3 is the documented failure mode the schema exists to avoid — emit a `## Errors` notice: `open_questions[].id=<q-id> rendered via Tier 3 (terse) — producer should fill context/evidence/options fields next round`.
 
 3. After the user picks (always-WAIT — empty answer = upstream bug, re-ask), patch that entry with `atomic_state_edit`, anchored on the lines you read in step 2:
-   - `status: resolved`
+   - `status: resolved` — or `wontfix` when the pick is "Other" with explicit decline text ("ignore" / "skip" / "not now"). A `wontfix` entry does NOT block downstream gates — it is recorded but de-prioritized, and downstream consumers read it as "user acknowledged and chose to defer".
    - `resolution.picked`: chosen option text (verbatim)
    - `resolution.at`: ISO-8601 UTC timestamp
    - `resolution.asked_in_phase`: `phase-6-pre-gate`
@@ -137,18 +135,19 @@ status: <in-progress|done|failed>
 report_status: <draft|final>          # whole-report lifecycle — see state-tier-spec.md /geniro:review producer fields (missing reads as final)
 round: <int>
 risk-tier: <standard|high>
-pr-ref: <owner/repo#num|none>          # this run's own ref; a bare commit-range review (no PR target) writes none
+subagent-model: <sonnet|opus|haiku|fable|inherit>   # set by --subagent-model at its Phase 1 parse; missing/inherit reads as the session tier — state-tier-spec.md's shared field
+pr-ref: <owner/repo#num|none>          # this run's own ref; a bare commit-range review (no PR target) writes none — UNLESS it continues an existing handoff for this branch, in which case the prior non-none pr-ref carries forward (phase-1-triage-reference.md §7 step 3/6)
 pr-url: <https://...|null>
 pr-head-sha: <40-char SHA|null>
-pr-body: <verbatim body|null>
+pr-body: <verbatim body|null>          # carries forward the same way as pr-ref when a diff-range run continues an existing handoff
 plan-context-ref: <abs-path|null>
 linear-task-ref: <ENG-123|null>
 linear-parent-ref: <ENG-100|null>
 resolved-threads-snapshot: [<path:line entries|null>]        # read by §7.1 dedup check 1
 pr-bot-comments-snapshot: [<path:line entries|null>]         # read by §7.1 dedup check 2
 pr-formal-reviews-snapshot: [<reviewer:body entries|null>]   # read by §7.1 dedup check 3
-prior-round-summary: <text|null>                       # written/read across re-run rounds (§7)
-steering-note: <text|none>                             # this round's free-text steering from the user, or none (§7 step 5)
+prior-round-summary: <text|null>                       # written/read across re-run rounds (phase-1-triage-reference.md §7)
+steering-note: <text|none>                             # this round's free-text steering from the user, or none (phase-1-triage-reference.md §7 step 5)
 brief: <artifact|file|off|pending>                     # this run's brief opt-in, settled at the last step of Phase 1 so the brief co-fires with the Phase 2 batch — state-tier-spec.md /geniro:review producer fields (missing reads as off; `pending` is a `--brief` pre-answer awaiting its medium)
 spawn_dims_declared: [<dim-slug>, ...]   # producer-run: the dimension set declared before the Phase 2 batch fired
 spawn_dims_count: <int>                  # producer-run: length of spawn_dims_declared
@@ -310,7 +309,7 @@ The `step0_status:` field is the runtime sentinel that §3 (Step 0 per-finding g
 1. `m6-v1` (pre-Phase-4.2) writers — no findings carry verification fields at any severity.
 2. `m6-v2` writers that verified only HIGH findings — HIGH findings carry verification fields; CRITICAL and MEDIUM findings do not.
 
-Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution step) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented above — the safety improvement post-dates these handoffs, so a missing field does not block the Post drill that worked before the field existed.
+Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution step) treat a missing `Validation:` on any CRITICAL/HIGH/MEDIUM finding as `Validation: confirmed` and surface a one-line chat warning so the user knows Phase 4.2 verification was not actively run for that finding. This mirrors the existing `step0_status: missing → resolved` back-compat behavior documented below — the safety improvement post-dates these handoffs, so a missing field does not block the Post drill that worked before the field existed.
 
 **Backward-compatible parsing.** Consumers (Phase 6 §2.5 Tier 2 lookup, §3 per-finding gate, /geniro:implement's handoff-resolution step) accept BOTH the rich multi-line block above AND the legacy one-liner shape `- [NEW|PRE-EXISTING] path:lines — <description> — decision: ... — recommendation: ... — confidence: NN% — origin: ...` produced by older /geniro:review runs. Legacy one-liners fall back to the terse rendering (§2.5 Tier 3 / per-finding-question.md degraded mode); rich blocks unlock the full Single-finding gate shape. **Legacy handoffs predate the `step0_status:` sentinel** — when §7.0 parses a legacy one-liner with `Decision Type: PRODUCT-DECISION` (or its lowercase one-liner form `decision: PRODUCT-DECISION`) and no `step0_status:` sub-field, treat it as `step0_status: resolved` and surface a one-line chat warning so the user knows Invariant B was not actively re-verified for that finding. Never treat a missing field as `pending` — that would false-positive on every legacy handoff and block the Post drill that worked before the field existed.
 
@@ -327,7 +326,7 @@ Consumers (§7.0 fail-closed guard, /geniro:implement Phase 1 handoff-resolution
 
 The schema exists because two consumers parse these entries: the §7 post drill anchors each posted deferred entry's comment by its `File:` path:line (§7.4) and matches POST responses back by (path, line) (§7.6), and the §4.6 include-deferred gate promotes entries into `## Findings` re-rendered as full per-finding blocks — a bare prose list supports neither. **Legacy bare-list entries** (no `File:` sub-field, written by m6-v1/v2 producers) stay awareness-only: the §4.6 include-deferred gate skips them with a one-line notice, and the post drill falls back to listing them in the top-level review body under the `## Findings on unchanged lines` shape when no path:line can be parsed.
 
-**Wontfix path.** If the user picks "Other" with explicit text like "ignore" / "skip" / "not now", set `status: wontfix` and `resolution.picked` to the user's text. Wontfix entries do NOT block downstream gates — they're recorded but de-prioritized. Downstream consumers treat `wontfix` as "user acknowledged and chose to defer".
+**Wontfix path.** Set at §2.5 step 3 above, on the `open_questions[]` entry itself (`status: wontfix` on an explicit "Other" decline) — distinct from the per-finding `step0_status: wontfix` case in step 4 below.
 
 **No skipping.** The pre-gate cannot be deferred to /geniro:implement or to the Post drill. Resolving here makes the Action gate's options meaningful (e.g., "/geniro:implement findings" now points to a known-scope target). Resolving downstream creates the failure mode this gate exists to prevent.
 
@@ -341,7 +340,7 @@ Before recommending which skill to run, surface every `Decision Type: PRODUCT-DE
 
 Read the `## Findings` body section, scanning each finding's `Decision Type:` and `step0_status:` fields — every kept finding, including an unchanged repeat from a prior round, lives there.
 
-1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). For CRITICAL / HIGH / MEDIUM findings, check the `Validation:` field before firing the AUQ — four cases. `confirmed` or `clarified` → proceed. `Validation: refuted` should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. `Validation: unverified` (the verifier never ran — a failed spawn or a deliberate skip, per finding-verification.md §4.5) → proceed with the AUQ but surface a one-line warning that the finding was not independently verified; the decision is the user's either way, so the missing verification is disclosed, not blocking. A missing `Validation:` (legacy handoff per §2 back-compat) is treated as `confirmed` — proceed with the AUQ but surface the one-line warning.
+1. Read the finding's `Options:` sub-list AND body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`). For CRITICAL / HIGH / MEDIUM findings, check the `Validation:` field before firing the AUQ — four cases. `confirmed` or `clarified` → proceed. `Validation: refuted` should already be filtered upstream at Phase 4.2 — if encountered here, it indicates a producer-side schema violation; emit an entry to state.md's `## Errors` body section (`phase: action-gate`, `error: refuted-finding-reached-step-0-gate`, finding ID) and skip the AUQ for that finding. `Validation: unverified` (the verifier never ran — a failed spawn or a deliberate skip, per finding-verification.md §4.5) → proceed with the AUQ but surface a one-line warning that the finding was not independently verified; the decision is the user's either way, so the missing verification is disclosed, not blocking. A missing `Validation:` (legacy handoff per §2.6 back-compat) is treated as `confirmed` — proceed with the AUQ but surface the one-line warning.
 2. **Render the finding to chat first.** Before any `AskUserQuestion` fires, render the finding to chat as a self-contained block instantiating the § Message-first rendering template at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate. The render must be a SEPARATE, already-emitted assistant message that exists BEFORE the AUQ fires — same-turn text does not satisfy the contract; honor the render-exists check ("Scrub before the AUQ fires") in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate. The decision queue for its tracker is the kept PRODUCT-DECISION finding set (tracker only when ≥2 remain). Expand any reviewer shorthand so the question stands on its own. Build the chat block from the finding's `options:` sub-list and body sub-fields (`evidence:`, `why-matters:`, `suggested-fix:`) per the spec's § Source-field map. The option set also carries the "Explain further" reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (writes no decision, consumes no round cap; surfaces via the § Cap-extension chained call when decision options fill 4 slots). It also carries a **"Challenge this finding"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Challenge-finding option: picking it spawns one fresh `finding-verifier-agent` (the Phase 4.2 verifier mechanism — spawn via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, OMIT `model=` by default or pass `model="<tier>"` when the run carries `--subagent-model` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`) primed with the user's stated objection, then re-renders the finding with the returned `confirmed` / `refuted` verdict + fresh evidence and re-fires this gate. A `refuted` verdict demotes the finding to `## Filtered` (moved with `atomic_state_edit` to lift the block, then `atomic_state_append_section` to land it under `## Filtered`) and drops its gate; a `confirmed` verdict re-presents the same options. The challenge writes no resolution and never flips `step0_status` — only a resolution path does (step 4).
 
    **Then fire the lean `AskUserQuestion`.** Set `header: "Decision"`. Build the lean `question` + option `label`+`description` from the same finding fields per the spec's § Source-field map. Leave each option's `preview` empty or a one-line recap (per per-finding-question.md) — never the finding body.
@@ -405,7 +404,7 @@ AskUserQuestion(
     },
     {
       "label": "Continue rounds (re-review)",
-      "description": "Run another review pass over the same changes. After 3 rounds you'll be asked whether to keep going or stop."
+      "description": "End this run and give you the `/geniro:review` command to start the next round over the same changes. After 3 rounds you'll be asked whether to keep going or stop."
     },
     {
       "label": "Skip — keep findings on disk", # append " (Recommended)" when CRITICAL=0 AND HIGH<=1
@@ -457,10 +456,12 @@ The §9 terminal mapping is unchanged — the "/geniro:implement findings" pick 
 
 ## 5. Round-N escalation gate
 
+**At round 1-2, "Continue rounds" needs no secondary AUQ — it terminates the run directly.** Write terminal `done` (§9) and surface the follow-up line per §4's echo, naming `/geniro:review` (with the same target) as the command to run next; that next invocation's own Phase 1 round counter (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 Step 0.5) is what increments `round:` — this gate adds no new `phase:` transition.
+
 When round ≥3 AND user picks "Continue rounds", fire a secondary AUQ:
 
-- **Continue (round 4)** — re-enter Phase 1 with round counter incremented; risk of infinite loop if user picks repeatedly (capped at round 5 hard ceiling — round 6 attempts auto-trigger "Escalate to user").
-- **Escalate to user — structured handoff** — terminal `escalated` state; emits one structured `open_questions[]` frontmatter entry per unresolved next-step (`source: round-N-escalation`, `status: unresolved`), AND writes a chat-surface summary. Downstream consumers gate on the entries per the `open_questions[]` contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`.
+- **Continue (round \<N+1\>)** — re-enter Phase 1 with round counter incremented, `<N+1>` substituted with the actual next round number (this gate can fire again at round 4, 5, and the round-6 auto-trigger below); risk of infinite loop if user picks repeatedly (capped at round 5 hard ceiling — round 6 attempts auto-trigger the stop-and-summarize option below).
+- **Stop and summarize open items for me** — terminal `escalated` state; emits one structured `open_questions[]` frontmatter entry per unresolved next-step (`source: round-N-escalation`, `status: unresolved`), AND writes a chat-surface summary. Downstream consumers gate on the entries per the `open_questions[]` contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md`.
 - **Abort** — terminal `aborted` state; `## Termination reason: repeated-failure: round-limit-3`.
 
 Persist user pick to `approvals[]` with category `round_n_escalation`, appended via `atomic_state_append_list_item`.
@@ -492,8 +493,9 @@ Every gate in this phase follows the empty-answer rule in `${CLAUDE_PLUGIN_ROOT}
 | /geniro:implement findings | `done` | (omitted) |
 | Post Draft PR review (successful POST) | `done` | (omitted) |
 | Post Draft PR review (POST failed) | `aborted` | `tool-unavailable: gh-api-post` |
+| Continue rounds (round 1-2 — no Round-N gate) | `done` | `round-continue: re-invoke-required` |
 | Continue rounds → Round-N → Abort | `aborted` | `repeated-failure: round-limit-3` |
 | Continue rounds → Round-N → Escalate | `escalated` | (omitted; surfaced in `## Open Questions`) |
 | Skip — keep findings on disk | `done` | `modifier-exit: skip-action` |
 
-The SessionStart hook surfaces `## Termination reason` on resume so model and user see context, not bare "aborted".
+A review resumes only when the user re-invokes `/geniro:review` — the SessionStart restore hook globs for files literally named `state.md`, and this skill persists directly to `from-review-<branch>.md` (never a separate `state.md`), so the hook never surfaces `## Termination reason` on its own. The next invocation's own Phase 1 reads it from this file.

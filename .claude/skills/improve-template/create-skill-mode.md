@@ -51,7 +51,7 @@ Investigate → Filter → Implement pipeline.
 
 Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
 - All Phase A interview answers reflected in the SKILL.md
-- Description meets all 6 format rules (`phase-4-6-implement-review.md` §Description-format validator checks 1-6)
+- Description meets the description-format checks (`phase-4-6-implement-review.md` §Description-format validator)
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)
 - No invented `CLAUDE_PLUGIN_ROOT`-rooted references (every cited path actually exists)
 - Frontmatter valid (name, description, allowed-tools, model)
@@ -62,4 +62,4 @@ Process review results per the existing Phase 5 routing (Blockers → fresh fix 
 
 ### Phase D: Report & commit (reuse Phase 6)
 
-Same Phase 6 as improve-existing-skill mode; Step 3 is a no-op.
+Same Phase 6 as improve-existing-skill mode; Step 4 (Cleanup) is a no-op.

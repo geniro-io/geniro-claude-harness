@@ -338,6 +338,28 @@ new_sandbox
 sandbox="$SANDBOX_DIR"
 cat > .geniro/safety.json <<EOF
 { "redaction": { "additional_patterns": [
+  { "name": "backslash-dot", "regex": "INT\\\\.[A-Z0-9]{8}", "replacement": "[REDACTED:internal-dot]" }
+] } }
+EOF
+assert_eq "$(redact 'token: INT.ABCD1234 end')" \
+          'token: [REDACTED:internal-dot] end' \
+          'additional_patterns — backslash-escaped literal dot (\.) survives jq round-trip'
+
+new_sandbox
+sandbox="$SANDBOX_DIR"
+cat > .geniro/safety.json <<EOF
+{ "redaction": { "additional_patterns": [
+  { "name": "backref-pat", "regex": "(SECRET)-[A-Z0-9]{6}", "replacement": "\\\\1-[REDACTED:internal]" }
+] } }
+EOF
+assert_eq "$(redact 'token: SECRET-ABC123 end')" \
+          'token: SECRET-[REDACTED:internal] end' \
+          'additional_patterns — \1 backreference in replacement survives jq round-trip'
+
+new_sandbox
+sandbox="$SANDBOX_DIR"
+cat > .geniro/safety.json <<EOF
+{ "redaction": { "additional_patterns": [
   { "name": "custom-pat", "regex": "ZZ-[A-Z]+", "replacement": "[REDACTED:custom]" }
 ] } }
 EOF

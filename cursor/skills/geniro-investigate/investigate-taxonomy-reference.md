@@ -25,11 +25,11 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.m
                │                 └── investigate-escalated ──┬── investigate (user supplies missing data → resume)
                │                                             └── present (user picks "drop unverified claims" → continue with gaps)
                │
-               └── classify-escalated ──┬── classify (user resolves glossary mismatch → resume)
-                                        └── routed (terminal — question intent doesn't match /geniro:investigate scope; route to /geniro:onboard, /geniro:debug, etc.)
+               ├── classify-escalated ──── classify (user resolves glossary mismatch → resume)
+               └── routed (terminal — Phase 1 Step 1.5 "Run /deep-research instead" pick on an External-docs-lookup question)
 
 present ──┬── (happy: flows to done)
-          └── present-loop ──── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; max 2 rounds)
+          └── present-loop ──── investigate (Phase 3 Step 4 follow-up "dive deeper" → re-enter Phase 2 with narrower scope; capped per SKILL.md §Quality-first budgets "Dive-deeper rounds")
 ```
 
 Terminal/escalation semantics live in SKILL.md §State machine. Reference-only note: `present-loop` is a sub-state of `present`, not a top-level phase — during dive-deeper rounds the persisted `phase:` value stays `present`, which is why the `phase:` enum below has no `present-loop` member.
@@ -60,7 +60,7 @@ geniro_schema_version: m9-v1
 task_slug: <slug>
 worktree: <abs-path>
 question_type: <one of the types in the Phase 1 Step 1 classification table>
-dive_round: <0-2>     # optional; Phase 3 dive-deeper round counter, survives compaction-resume (max 2)
+dive_round: <int>     # optional; Phase 3 dive-deeper round counter, survives compaction-resume; capped per SKILL.md §Quality-first budgets "Dive-deeper rounds"
 ---
 
 ## Scope
@@ -154,12 +154,12 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """)
 ```
 
-The agent's own workflow (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` § Workflow) handles parsing, evidence gathering, and synthesis; the slots above pin the deliverable shape to the Phase 2 Codebase Analyst schema that the orchestrator's re-verify pass (§4) consumes.
+The agent's own workflow (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` § Workflow) handles parsing, evidence gathering, and synthesis; the slots above pin the deliverable shape to the Phase 2 Codebase Analyst schema that Phase 2 Step 2's orchestrator re-verify pass consumes.
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
 ```
-Agent(description="Investigate: git history", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(description="Investigate: git history", prompt="""
 ## Task: Git History Investigation (READ-ONLY)
 Produce a structured timeline + findings report on the git history relevant to the question. This is a read-only research task — do NOT write or edit any file, and do NOT run mutating git operations (no `git add`, `git commit`, `git push`, `git checkout`, `git reset`). Read-only git verbs only: `log`, `blame`, `show`, `diff`.
 
@@ -178,11 +178,7 @@ WORKTREE: [from `git rev-parse --show-toplevel`]
 ---END UNTRUSTED FILE-CONTENT---
 
 ### Investigation strategy
-1. `git log --oneline -30 -- {{target files}}` — recent changes
-2. `git log --all --oneline --grep="{{relevant keywords}}"` — commits mentioning the topic
-3. `git blame {{key files}}` — who wrote critical sections and when
-4. `git log --diff-filter=A -- {{target files}}` — when files were first added
-5. For "why" questions: read commit messages in detail for rationale
+Establish when, by whom, and why the target area changed — recent history, prior authorship, and origin all count as evidence. For "why" questions, commit messages are the rationale source.
 
 ### Output schema (literal shape)
 **Timeline:** [key events in chronological order, each with date + commit hash]
@@ -203,7 +199,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
 ```
-Agent(description="Investigate: internet research", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(description="Investigate: internet research", prompt="""
 ## Task: Internet Research (READ-ONLY)
 Produce a structured external-sources report answering the question. This is a read-only research task — do NOT write or edit any file; do NOT run any local-codebase shell commands. Use web search and fetch only.
 
@@ -244,7 +240,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 The verifier inherits the orchestrator's session tier (OMIT `model=`); the spawn follows `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md` §Subagent spawn contract.
 
 ```
-Agent(description="Review: verify investigation answer", disallowedTools=["Edit", "Write", "NotebookEdit"], prompt="""
+Agent(description="Review: verify investigation answer", prompt="""
 ## Task: Verify Investigation Answer (READ-ONLY)
 Produce an issue list (or "VERIFIED") for the draft answer below. You were NOT involved in the research — verify with fresh eyes. This is a read-only review — do NOT write or edit any file.
 

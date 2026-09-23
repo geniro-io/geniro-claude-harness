@@ -149,7 +149,7 @@ ext_matches() {
 # Test files and disposable scratch trees are out of scope for every pattern
 # here.
 #
-# All eight patterns describe a code SHAPE that is dangerous when it ships —
+# Every pattern here describes a code SHAPE that is dangerous when it ships —
 # none of them detects a leaked credential. Test code exercises those exact
 # shapes on purpose: a jsdom spec asserts against `innerHTML`, a TLS test
 # points at a self-signed local server, a shell-wrapper test builds the
@@ -175,8 +175,37 @@ ext_matches() {
 is_test_or_scratch_target() {
   local p="${1:-}"
   [ -n "$p" ] || return 1
-  grep -qE \
-    '(^|/)(__tests__|__mocks__|tests?|spec|e2e|fixtures?|benchmarks?)/|\.(spec|test)\.[a-z0-9]+$|_test\.[a-z0-9]+$|(^|/)test_[^/]+$|(^|/)conftest\.py$|/scratchpad/' <<< "$p"
+  # A `..` segment can carry the SHAPE without the location:
+  # `tests/../src/app.py` reads as "under tests/" to a substring match while
+  # resolving to plain `src/app.py` on disk. Reject outright rather than
+  # resolve it (2026-09-23 audit T0-13/D8-8/D5b-12).
+  case "/$p/" in
+    */../*) return 1 ;;
+  esac
+  # /scratchpad/ is checked on the RAW path — a session scratchpad
+  # legitimately lives OUTSIDE the repo (the plugin's own scratch dirs sit
+  # under /private/tmp), so it must match absolutely, not repo-relative.
+  grep -qE '/scratchpad/' <<< "$p" && return 0
+  # A basename shape (`foo.spec.ts`, `test_foo.py`, `conftest.py`) names only
+  # the file itself, so it is safe to test on the raw path regardless of any
+  # ancestor directory.
+  grep -qE '\.(spec|test)\.[a-z0-9]+$|_test\.[a-z0-9]+$|(^|/)test_[^/]+$|(^|/)conftest\.py$' <<< "$p" && return 0
+  # The directory-name alternatives (tests?/spec/e2e/fixtures?/benchmarks?)
+  # must match on the path RELATIVE TO THE REPO ROOT, not the raw one: an
+  # ancestor directory ABOVE the repo root that happens to be named "tests" or
+  # "benchmarks" (`/Users/me/benchmarks/proj/app/server.py`) is not this
+  # project's test tree, and matching the raw absolute path exempted the WHOLE
+  # repo from every pattern (2026-09-23 audit T0-13/D8-8/D5b-12). A target
+  # outside the repo root entirely has no repo-relative form, so it cannot
+  # match here at all.
+  local root rel
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || root="$PWD"
+  case "$p" in
+    "$root"/*) rel="${p#"$root"/}" ;;
+    /*) return 1 ;;
+    *) rel="$p" ;;
+  esac
+  grep -qE '(^|/)(__tests__|__mocks__|tests?|spec|e2e|fixtures?|benchmarks?)/' <<< "$rel"
 }
 
 block() {
@@ -316,6 +345,28 @@ strip_quotes() {
 if [ "$TOOL_NAME" = "Bash" ]; then
   # ---- Bash branch: scan content authored via heredoc / echo / printf ----
   COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo "")
+  # macOS resolves a command word case-insensitively (`BASH -c …`, `Sh`, `PYTHON3`
+  # run the real program), but every shell/interpreter roster this guard and
+  # lib/write-vectors.sh match is spelled in canonical case. Fold those words to
+  # their canonical spelling in the text scanned here, so a mixed-case spelling is
+  # judged exactly like its lowercase twin (2026-09-23 audit T0-3). Only the
+  # scanned copy changes; nothing is executed.
+  COMMAND=$(printf '%s' "$COMMAND" | awk '
+    BEGIN {
+      n = split("sh bash zsh dash ksh ash fish csh tcsh xonsh nu elvish rc node bun bunx deno tsx perl ruby php lua tclsh Rscript awk gawk mawk", w, " ")
+      for (i = 1; i <= n; i++) canon[tolower(w[i])] = w[i]
+    }
+    {
+      out = ""; s = $0
+      while (match(s, /[A-Za-z][A-Za-z0-9_.]*/)) {
+        tok = substr(s, RSTART, RLENGTH); low = tolower(tok)
+        if (low in canon) tok = canon[low]
+        else if (low ~ /^python[0-9.]*$/) tok = low
+        out = out substr(s, 1, RSTART - 1) tok
+        s = substr(s, RSTART + RLENGTH)
+      }
+      print out s
+    }')
   if [ -z "$COMMAND" ]; then
     # jq is present, but the command extracted empty — either tool_input.command
     # was genuinely absent, or the payload was malformed JSON the parse above
@@ -338,7 +389,13 @@ if [ "$TOOL_NAME" = "Bash" ]; then
   #    `sh`, not as a write with a target — so `sh -c "echo '...' > bad.py"` was
   #    scanned as nothing while the bare `echo '...' > bad.py` was blocked. Same
   #    extractor, same re-run contract, as the three sibling Bash guards.
-  _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"
+  # Default to this script's own location, not cwd: when CLAUDE_PLUGIN_ROOT is
+  # unset, "." resolved against the PROJECT's cwd, so a project-local
+  # lib/write-vectors.sh — even one defining a neutered
+  # _geniro_extract_inner_payloads(){ :; } — was sourced ahead of this guard's
+  # own copy and silently disarmed the shell-indirection extraction it drives
+  # (2026-09-23 audit T4-62g/D5b-23).
+  _geniro_wv_helper="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/lib/write-vectors.sh"
   if [ -f "$_geniro_wv_helper" ]; then
     # shellcheck source=/dev/null
     source "$_geniro_wv_helper" 2>/dev/null || true

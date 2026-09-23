@@ -13,8 +13,6 @@ Find every real defect this dimension owns by reading the changed code and its c
 
 ## The mirror-gap signal
 
-Kept in full: `architecture-criteria.md` §1.6 and `severity-calibration.md` cite this procedure by number.
-
 ### 4. Parallel-path symmetry (mirror-gap)
 
 When the diff adds or changes a guard / filter / cleanup / replacement on ONE code path, verify the same treatment was applied to every sibling path that shares the invariant. The defect class is an asymmetric edit: path A gets the new guard, the structurally parallel path B is left in the old behavior, and the gap is invisible at A's diff site. Common parallel-path pairs: scheduled vs. on-demand (sync ↔ weekly / cron ↔ manual trigger), delete vs. replace (a row removed on one branch must be re-created on the mirror branch — delete-without-replacement), cascade vs. single-row wipe, create vs. reclaim, encode vs. decode, serialize vs. deserialize.
@@ -34,7 +32,7 @@ For each guard / filter / replacement / cleanup the diff adds or modifies:
 
 ## Common false positives
 
-Two false-positive classes route to other dims rather than being suppressed here:
+Four false-positive classes route to other dims rather than being suppressed here:
 
 - **Behavior shifts in surviving (non-deleted) symbols whose callers are silently exposed to new semantics.** Belongs to `architecture-criteria.md` §1.5 (Caller-Blast Check for Semantic Mutations). This dim covers the inverse: callers of DELETED symbols.
 - **Diff OMITS items the spec promised.** Belongs to `spec-compliance-criteria.md` (when fires). This dim covers the inverse: the diff EXCEEDS the spec.
@@ -44,6 +42,8 @@ Two false-positive classes route to other dims rather than being suppressed here
 When two dims have legitimate overlap on the same hunk, both emit. The consuming skill's filter and stratify steps collapse only same-finding duplicates, so orthogonal findings on the same hunk both survive deduplication.
 
 ## Severity tagging
+
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1 — the rows below specialize it to this dimension's four signals.
 
 | Signal | Condition | Severity |
 |---|---|---|

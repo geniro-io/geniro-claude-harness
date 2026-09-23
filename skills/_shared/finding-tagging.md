@@ -4,7 +4,7 @@ Cause classification for `/geniro:debug` findings. `[ROOT-CAUSE]` / `[SYMPTOM]` 
 
 In `/geniro:debug` the tag doubles as a self-check on the investigation itself: debug is the root-cause flow by definition, so anything other than `[ROOT-CAUSE]` says the hypothesis loop has not closed, and Phase 1.6 routes each of the other two tags to its own recovery.
 
-This file is the single source of truth. Skills cite this file — the tag definitions live only here.
+This file is the single source of truth for the tag definitions.
 
 ## Contents
 

@@ -38,11 +38,11 @@ Scan the target codebase for:
 - Magic numbers, repeated conditions, or boilerplate patterns
 
 #### Long Methods & Deep Nesting
-- Methods/functions exceeding 30 lines of significant logic
-- Nested blocks deeper than 4 levels (loops within conditionals within loops)
+- A method or function markedly longer, in significant logic, than its siblings in the same file or module — what counts as long varies by language and idiom, so judge against the surrounding code, not a fixed line count
+- Nesting markedly deeper than its siblings (loops within conditionals within loops)
 
 #### God Classes & Large Modules
-- Classes/modules handling 5+ distinct responsibilities
+- A class or module handling markedly more distinct responsibilities than comparable classes/modules elsewhere in the codebase
 - Methods with unrelated concerns (auth + business logic + formatting)
 
 #### Dead Code
