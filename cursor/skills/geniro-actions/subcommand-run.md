@@ -10,22 +10,15 @@ Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Ph
 
 Resolve the target via `${CLAUDE_PLUGIN_ROOT}/skills/actions/actions-reference.md` §Target resolution — it handles the exact-slug, free-text and main-worktree-fallback cases and returns `<resolved-path>` / `<resolved-slug>` / `<source>`.
 
-Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`, `allowed-tools`, `external-send`, `argument-hint`, `created`). Hold body steps in memory for Phase 4.3.
+Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`, `external-send`, `argument-hint`, `created`). Hold body steps in memory for Phase 4.3.
 
 ### Phase 4.2: No run-confirmation gate
 
-`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 4.3. Scope of that authorization: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. The five WAIT points that survive this rule are enumerated in SKILL.md loop invariant 3. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 6), the validate lint rules (Phase 7), and the L2 learning tag (Phase 4.4) — it never gates execution.
+`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 4.3. Scope of that authorization: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. The four WAIT points that survive this rule are enumerated in SKILL.md loop invariant 3. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 6), the validate lint rules (Phase 7), and the L2 learning tag (Phase 4.4) — it never gates execution.
 
-### Phase 4.3: Execute inline (tool-scope intersection)
+### Phase 4.3: Execute inline
 
 Follow the action body's numbered steps directly, inline in the orchestrator (the inline-execution invariant). Pass extra positional `$ARGUMENTS` (after the action name) as input context under a "User-supplied input" heading.
-
-**Tool-scope contract.** BEFORE running any step, intersect the action's frontmatter `allowed-tools` with the orchestrator's own `allowed-tools` ONCE and identify any step whose required tools fall outside the intersection. If gaps exist, surface them in a single AUQ before execution begins:
-
-- **Question:** "The action declares N step(s) using tools outside this run's tool scope: [list step numbers + missing tools]. How should I proceed?"
-- **Options:** `Skip the affected steps and run the rest` / `Cancel the run`
-
-If no gaps, proceed without asking. Do not call any tool the action did not declare in `allowed-tools` — the intersection is the action author's stated tool budget. Do not re-prompt mid-execution — the up-front gate is the only tool-scope WAIT point.
 
 **Scope checkpoint.** The action's own `## Steps` declare where its work belongs. Track what the run edits (the same changed-file list Phase 4.4 reports) and pause once — the first time the run edits production files outside the areas those steps name:
 

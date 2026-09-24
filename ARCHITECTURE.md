@@ -242,7 +242,6 @@ Stateless CRUD over `.geniro/instructions/` (L4 procedural layer).
 Stateless CRUD + runner over `.geniro/actions/`.
 
 - `risk_class` (low/medium/high) is mandatory frontmatter. Run mode executes the action directly — invoking it is the authorization, so no confirmation fires; `risk_class` is metadata for the list view, delete warning, and lint.
-- Tool-scope intersection in run mode: action's `allowed-tools` ∩ skill's `allowed-tools`.
 - L2 `discovery` emit fires on successful runs where `external-send: true`.
 - `risk_class` is manually author-picked (Q4 of the create interview) — no auto-elevation from tool surface. The lint's one enforced coupling: `external-send: true` requires `risk_class: medium` or `high`.
 

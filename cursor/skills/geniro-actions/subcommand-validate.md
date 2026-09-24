@@ -21,7 +21,6 @@ Then add these validate-only rows:
 | Check | Severity |
 |---|---|
 | `description:` passes the rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` — that file is the shared source for these rows and their severity | LOW |
-| `allowed-tools:` field present (if action mutates) | LOW |
 | No references to dropped skills in body | HIGH |
 
 Dropped-skill ref check uses the list at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/dropped-skills.md` §The list — the canonical home; cite it rather than restating the slugs.

@@ -10,7 +10,7 @@ agents/knowledge-retrieval-agent.md 1450
 agents/reflection-agent.md 1655
 agents/reviewer-agent.md 3422
 agents/test-runner-agent.md 1142
-skills/actions/SKILL.md 3201
+skills/actions/SKILL.md 3090
 skills/audit-instructions/SKILL.md 3493
 skills/debug/SKILL.md 3892
 skills/implement/SKILL.md 4173

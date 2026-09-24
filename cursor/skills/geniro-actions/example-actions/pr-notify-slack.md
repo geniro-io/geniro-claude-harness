@@ -2,7 +2,6 @@
 name: pr-notify-slack
 description: "Use when a pull request is opened or updated and you want to post a structured summary to Slack #eng-reviews. Skip for force-pushed branches and draft PRs."
 model: inherit
-allowed-tools: [Read, Bash(gh *), Bash(curl *), AskQuestion]
 argument-hint: "[pr_number]"
 risk_class: high
 external-send: true

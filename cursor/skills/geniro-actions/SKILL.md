@@ -54,7 +54,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 1. **Inline execution** — `/geniro:actions` runs entirely in the orchestrator; no subagents are spawned in any mode.
 2. **Invariant #2 (args validated)** — every write is previewed as a draft and gated by a frontmatter-validation step (the `create` path validates at its validation gate, just after the draft is written).
-3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 4.2). Five WAIT points survive today, because none of them re-asks "are you sure you want to run this?": the cross-worktree confirmation (§Target resolution Step 2 — "use the copy from another worktree?"), the free-text picker (§Target resolution Step 3 — "which action?"), the tool-scope gap AUQ (Phase 4.3 — a step needs a tool outside the allowlist intersection), the one-time scope checkpoint when the run edits outside what the action declares (Phase 4.3), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body — this is the exception list to the no-confirm contract, not a ceiling on it, and any further pause is still routed through `AskQuestion`, never plain-text prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. `create` / `edit` / `delete` stay AUQ-gated under #3.
+3. **Invoking authorizes execution** — this replaces invariant #3 (permission before side-effect) on the `run` path only: `run` fires the action's steps directly regardless of `risk_class` (Phase 4.2). Four WAIT points survive today, because none of them re-asks "are you sure you want to run this?": the cross-worktree confirmation (§Target resolution Step 2 — "use the copy from another worktree?"), the free-text picker (§Target resolution Step 3 — "which action?"), the one-time scope checkpoint when the run edits outside what the action declares (Phase 4.3), and any `[AUQ]`/`## Confirm:` checkpoint the action author placed inside the body — this is the exception list to the no-confirm contract, not a ceiling on it, and any further pause is still routed through `AskQuestion`, never plain-text prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions. `create` / `edit` / `delete` stay AUQ-gated under #3.
 4. **Invariant #7 (errors → structured observations)** — there is no state file here, so errors surface inline in the final message.
 
 ## Anti-rationalization
@@ -65,12 +65,12 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 5. Silent overwrite destroys committed work. |
 | "I'll skip the description hygiene preview" | No — descriptions starting with "Use when" trigger reliably. |
 | "The four interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
-| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — Claude Code would then auto-discover it as its own slash command, routing around the no-run-confirmation contract (Phase 4.2), the tool-scope intersection (Phase 4.3), and the L2 emit (Phase 4.4) entirely. Custom actions are reachable ONLY through `/geniro:actions run`. |
-| "I'll spawn a subagent to execute the action" | No — this skill runs in `context: main`, not a forked subagent; the tool-scope intersection (Phase 4.3) and the scope checkpoint are computed and confirmed in this session, and a spawned subagent's steps and questions would fall outside the authorization the user gave by invoking `run`. |
+| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — Claude Code would then auto-discover it as its own slash command, routing around the no-run-confirmation contract (Phase 4.2), the scope checkpoint (Phase 4.3), and the L2 emit (Phase 4.4) entirely. Custom actions are reachable ONLY through `/geniro:actions run`. |
+| "I'll spawn a subagent to execute the action" | No — this skill runs in `context: main`, not a forked subagent; the scope checkpoint (Phase 4.3) is computed and confirmed in this session, and a spawned subagent's steps and questions would fall outside the authorization the user gave by invoking `run`. |
 | "I'll auto-pick `risk_class: low` if I can't tell" | No — Q4 is mandatory. The scaffold heuristic suggests a value based on Q3, but the user must confirm or pick differently. |
 | "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; an "are you sure?" AUQ re-asks a decision the user already made. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
 | "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
-| "I'll auto-elevate risk_class to `high` if `allowed-tools:` contains `Bash(curl)`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
+| "I'll auto-elevate risk_class to `high` if a step runs `curl`" | No — manual is fine. The validate-mode lint catches `external-send: true ⇒ risk_class: medium|high`. Auto-elevation would surprise users. |
 | "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — a top-scored fuzzy match can still be the wrong action, and `run` executes with no confirmation gate (Phase 4.2): a silent mismatch fires that action's side effects with nothing left to catch it. Every free-text resolution passes through AskQuestion. |
 | "I'll re-use the validation gate's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
 | "I'm in a linked worktree, so I'll refuse to edit/delete the main repo's copy of an action" | No — the main repo checkout is the canonical home of actions (`create` writes there); refusing would break the create→edit flow from a worktree. Local branch copies stay respected at read/run time (local wins); CRUD targets the canonical copy, asking only when both copies exist and differ. |
@@ -82,7 +82,7 @@ Load-bearing exit gates — per-command mechanics live in their phase sections.
 - [ ] Every user interaction used `AskQuestion`; destructive ops (`delete`, and overwrite on `create`) confirmed via AUQ before running.
 - [ ] Writes to `.geniro/actions/` routed through `atomic_state_write` (T3 persistent-CRUD path); no `{{placeholder}}` left in any written file.
 - [ ] `create` and `edit` ran `validate_action_file` and cleared it (or applied the entry-mode rollback); `validate` exited non-zero on any CRITICAL/HIGH.
-- [ ] `run` executed inline with no run-confirmation gate (Phase 4.2), within the action's tool-scope intersection; the scope checkpoint fired (once) if the run edited outside what the action declares; L2 `discovery` emit fired on a successful `external-send: true` run.
+- [ ] `run` executed inline with no run-confirmation gate (Phase 4.2); the scope checkpoint fired (once) if the run edited outside what the action declares; L2 `discovery` emit fired on a successful `external-send: true` run.
 - [ ] `.gitignore` re-include rules added on first action created (idempotent).
 
 ## Budgets — quality-first
@@ -98,13 +98,9 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | `execute` (create) | `Read`, `Bash(atomic_state_write, mkdir -p "$PRIMARY_ROOT"/.geniro/actions/, the .gitignore re-include procedure, mv)`, `AskQuestion` | `Write`, `Edit`, `mcp__github__*`, network egress, `Agent` |
 | `execute` (edit) | `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskQuestion` | `Write`, `Edit`, `mcp__*`, network egress |
 | `execute` (delete) | `Read`, `Bash(rm)`, `AskQuestion` | `Write`, `Edit`, all `mcp__*`, network egress |
-| `execute` (run) | **Intersection of /geniro:actions allowed-tools AND action frontmatter `allowed-tools:`** | (whatever is NOT in the intersection) |
+| `execute` (run) | Whatever the action's steps call | `Agent` (inline-execution invariant) |
 | `execute` (validate) | `Read`, `Glob`, `Bash(grep -n, wc)`, `AskQuestion` | `Write`, `Edit`, `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
-
-**Run mode tool gating:** Phase 4.3 intersects the action's frontmatter `allowed-tools:` with this skill's own before any step runs.
-
-Action frontmatter MAY include tools outside `/geniro:actions`' own `allowed-tools:` (e.g. `mcp__github__*`); those never fall inside the run-mode intersection above, so a step needing them surfaces at the tool-scope gap AUQ (Phase 4.3) — skipped or the run cancelled — never executed automatically under the no-confirm contract.
 
 ## Memory I/O
 
@@ -168,7 +164,7 @@ Re-ask up to 3 times via AskQuestion until valid.
 
 Once the sub-command is resolved, **Read that sub-command's body file** — `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-<verb>.md`, named in its phase section below — and follow it. Read it again on any resumption of the run, including after a compaction: the Steps are not in this file, so a run that skips the Read has nothing to execute. Read only the one dispatched to.
 
-That Read comes before any step of the sub-command and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the dispatched body is this run's phase body, and it holds every pause this skill has. `run` is where that matters most: the sub-command deliberately skips the invocation confirmation, so the tool-scope-gap question and the scope checkpoint inside `subcommand-run.md` are the whole distance between invoking an action and arbitrary side effects. `delete` holds the destructive-op confirmation, and the deletion hook permits a per-file `rm -f` on `.geniro/actions/<slug>.md`, so nothing else stops it. A further file a sub-command body defers to — `actions-reference.md` §Target resolution, §Validation gate — is bound by the same contract.
+That Read comes before any step of the sub-command and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the dispatched body is this run's phase body, and it holds every pause this skill has. `run` is where that matters most: the sub-command deliberately skips the invocation confirmation, so the scope checkpoint inside `subcommand-run.md` is the whole distance between invoking an action and arbitrary side effects. `delete` holds the destructive-op confirmation, and the deletion hook permits a per-file `rm -f` on `.geniro/actions/<slug>.md`, so nothing else stops it. A further file a sub-command body defers to — `actions-reference.md` §Target resolution, §Validation gate — is bound by the same contract.
 
 ## Phase 2: `list` sub-command
 
@@ -180,7 +176,7 @@ That Read comes before any step of the sub-command and carries a one-line echo, 
 
 ## Phase 4: `run` sub-command
 
-**On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-run.md`** — it carries the Steps: §4.1 resolve/read/parse, §4.2 the no-run-confirmation contract, §4.3 inline execution under the tool-scope intersection and the scope checkpoint, §4.4 wrap-up and the L2 emit. Every `Phase 4.M` citation in this skill resolves there.
+**On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-run.md`** — it carries the Steps: §4.1 resolve/read/parse, §4.2 the no-run-confirmation contract, §4.3 inline execution and the scope checkpoint, §4.4 wrap-up and the L2 emit. Every `Phase 4.M` citation in this skill resolves there.
 
 ## Phase 5: `edit` sub-command
 
