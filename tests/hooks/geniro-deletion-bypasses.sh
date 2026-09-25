@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression suite for the 2026-09-23 plugin-audit bypasses in
-# hooks/block-geniro-deletion.sh (T0-4, T0-5, T0-6, T0-7, T0-8, T0-9, T0-10,
-# T0-11). Each probe below reproduces the exact repro command from
+# hooks/block-geniro-deletion.sh (T0-4, T0-5, T0-6, T0-7, T0-8, T0-9,
+# T0-10). Each probe below reproduces the exact repro command from
 # design/scratch/plugin-audit-2026-09-23.md / .geniro/state/audit-plugin/main/
 # findings-D5b.md and findings-D8.md, run in a fresh mktemp -d sandbox — never
 # against the real repo.
@@ -46,31 +46,11 @@ expect_allow() {
 mkdir -p "$TMPDIR_BASE/sandbox"
 cd "$TMPDIR_BASE/sandbox" || exit 1
 
-# Worktree fixture shared by the T0-4 case-fold probes and the T0-11 probes
-# below: a clean worktree (nothing to lose) and one whose .geniro/ carries
-# real untracked content (removal destroys it for good).
-WT_ROOT="$TMPDIR_BASE/wt11"
-mkdir -p "$WT_ROOT"
-git -C "$WT_ROOT" init -q .
-git -C "$WT_ROOT" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
-git -C "$WT_ROOT" worktree add -q "$WT_ROOT/wt-clean" -b wt11clean 2>/dev/null
-git -C "$WT_ROOT" worktree add -q "$WT_ROOT/wt-state" -b wt11state 2>/dev/null
-mkdir -p "$WT_ROOT/wt-state/.geniro"
-printf 'unrouted\n' > "$WT_ROOT/wt-state/.geniro/scratch.txt"
-
-# ===== T0-4: case-fold gaps — global-option strip and the worktree matcher =====
+# ===== T0-4: case-fold gaps — global-option strip =====
 expect_block "GIT -C . add -f .geniro/x blocked (uppercase git + global opt)" \
   "$(run_cmd 'GIT -C . add -f .geniro/x')"
 expect_block "Git -C . add -f .geniro/x blocked (mixed-case git + global opt)" \
   "$(run_cmd 'Git -C . add -f .geniro/x')"
-expect_block "GIT worktree remove <state> blocked (uppercase git)" \
-  "$(run_cmd "GIT worktree remove $WT_ROOT/wt-state")"
-expect_block "Git worktree remove <state> blocked (mixed-case git)" \
-  "$(run_cmd "Git worktree remove $WT_ROOT/wt-state")"
-expect_allow "GIT worktree remove <clean> allowed (uppercase git, clean worktree)" \
-  "$(run_cmd "GIT worktree remove $WT_ROOT/wt-clean")"
-expect_allow "GIT worktree list allowed (uppercase, non-remove)" \
-  "$(run_cmd 'GIT worktree list')"
 
 # ===== T0-5: abbreviated long options =====
 expect_block "git add --forc .geniro/x blocked (abbreviated --force)" \
@@ -151,18 +131,6 @@ expect_allow "mv -t /tmp/trash notes.txt allowed (non-.geniro source)" \
   "$(run_cmd 'mv -t /tmp/trash notes.txt')"
 expect_block "mv .geniro /tmp/trash still blocked (plain form, no regression)" \
   "$(run_cmd 'mv .geniro /tmp/trash')"
-
-# ===== T0-11: worktree remove — every span, and only a preceding cd =====
-expect_block "second worktree remove in a compound command still blocks" \
-  "$(run_cmd "git worktree remove $WT_ROOT/wt-clean && git worktree remove $WT_ROOT/wt-state")"
-expect_block "worktree remove blocks when NO cd precedes it, even with a later unrelated cd" \
-  "$(run_cmd 'git worktree remove ../wtstate-relative; cd /')"
-expect_allow "worktree remove correctly anchored by a PRECEDING cd is allowed (clean)" \
-  "$(run_cmd "cd $WT_ROOT && git worktree remove wt-clean")"
-expect_block "worktree remove correctly anchored by a PRECEDING cd still blocks (state)" \
-  "$(run_cmd "cd $WT_ROOT && git worktree remove wt-state")"
-expect_allow "worktree remove anchored by a preceding cd, unaffected by a LATER cd" \
-  "$(run_cmd "cd $WT_ROOT && git worktree remove wt-clean; cd /")"
 
 # ===== T0-15: Cursor file-tool Delete payload (no `command` field) =====
 mkdir -p "$TMPDIR_BASE/delete-sandbox/.geniro/instructions"

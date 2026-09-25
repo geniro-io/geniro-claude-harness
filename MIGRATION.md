@@ -225,7 +225,8 @@ Each carve-out below comes from a measured false positive, not a theory:
   shipped; test code exercises them deliberately.
 - **`block-geniro-deletion.sh`**'s `worktree-remove-with-state` now inspects the worktree before
   blocking, and allows removal when its `.geniro` is absent, empty, or fully tracked. It used
-  to fire on command shape alone.
+  to fire on command shape alone. The pattern was later removed outright — `git worktree remove`
+  is no longer guarded, so a leftover `worktree-remove-with-state` entry does nothing.
 
 Deny messages across `file-protection.sh` and `block-dangerous-git.sh` now name the
 non-destructive alternative before the `safety.json` bypass.

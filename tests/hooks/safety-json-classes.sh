@@ -119,9 +119,6 @@ probe_for_id() {  # <pattern-id>
     find-geniro-delete)
       hook=block-geniro-deletion.sh
       jq -nc '{tool_name:"Bash", tool_input:{command:"find .geniro -name \"*.md\" -delete"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
-    worktree-remove-with-state)
-      hook=block-geniro-deletion.sh
-      jq -nc '{tool_name:"Bash", tool_input:{command:"git worktree remove ../wt"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
     git-add-force-geniro)
       hook=block-geniro-deletion.sh
       jq -nc '{tool_name:"Bash", tool_input:{command:"git add -f .geniro/actions/foo.md"}}' | bash "$HOOKS/$hook" >/dev/null 2>&1 ;;
@@ -216,7 +213,6 @@ rm-geniro-tree
 rm-geniro-subdir
 rm-geniro-state-subdir
 find-geniro-delete
-worktree-remove-with-state
 git-add-force-geniro
 write-cert-key
 write-git-internal

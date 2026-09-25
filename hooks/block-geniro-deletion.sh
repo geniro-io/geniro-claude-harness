@@ -14,6 +14,8 @@
 # Allowed by design (NOT blocked):
 #   - rm -f <single-file>          (any depth — required by skills' state cleanup)
 #   - rm -rf .geniro/<top>/<sub>/  (3+ path segments — task-dir / slug-scoped trees)
+#   - git worktree remove          (a linked worktree's .geniro/ goes with the worktree;
+#                                   state meant to outlive it lives in the main checkout)
 #
 # Blocked by default:
 #   - rm -rf .geniro / .geniro/                    (whole tree)
@@ -35,13 +37,12 @@
 #     shutil.rmtree, os.remove, fs.rmSync, File.delete, unlink, shutil.move,
 #     os.rename, …) — not shell syntax, so the rm and mv matchers never see
 #     them; each target runs the same depth rules
-#   - git worktree remove                          (worktrees often hold un-routed state)
 #
 # Per-project allowlist: .geniro/safety.json (in cwd or any ancestor) can opt out
 # via "allow_patterns".
 #
 # Pattern IDs: rm-geniro-tree, rm-geniro-subdir, rm-geniro-state-subdir,
-#              find-geniro-delete, worktree-remove-with-state, git-add-force-geniro
+#              find-geniro-delete, git-add-force-geniro
 #
 # Every matcher below requires the command WORD itself (`rm`, `find`, `git`,
 # …) to be a literal token adjacent to its arguments, so a word or operand
@@ -720,13 +721,12 @@ JOINED=$(_geniro_join_quoted_newlines "$JOINED")
 # Contract: lib/write-vectors.sh §F.
 JOINED=$(_geniro_wv_expand_assignments "$JOINED")
 
-# Strip git GLOBAL options (`git -C <path> worktree remove`, `git -c k=v add -f`,
+# Strip git GLOBAL options (`git -C <path> add -f`, `git -c k=v add -f`,
 # --git-dir/--work-tree/--namespace/--exec-path/--config-env/--attr-source, pager
 # flags) so the `git <subcommand>` matchers below see the subcommand contiguously.
-# Without this, `git -C /repo worktree remove` and `git -C /repo add -f .geniro/...`
-# evade the data-loss guards. The operand alternative matches a double- or
+# Without this, `git -C /repo add -f .geniro/...` evades the force-add guard. The operand alternative matches a double- or
 # single-quoted span (which may contain spaces) before a bare token, so a quoted
-# path like `git -C "/my repo" worktree remove` is consumed as one unit instead of
+# path like `git -C "/my repo" add -f .geniro/x` is consumed as one unit instead of
 # the strip stopping at the first space inside the quotes and leaking the
 # subcommand. Mirrors block-dangerous-git.sh (kept inline so this guard stays
 # self-contained for vendored installs).
@@ -766,22 +766,22 @@ JOINED=$(printf '%s\n' "$JOINED" | sed -E 's/\\[;&|]/ /g')
 #
 # A backslash before an ordinary character is dropped by the shell too, so
 # `rm -rf \.geniro`, `rm -rf .ge\niro`, `mv \.geniro/... `, `rmdir \.geniro/...`,
-# `git add -f \.geniro/...`, `rsync --delete ... \.geniro/...` and
-# `git worktree remo\ve` all run exactly like their unescaped spelling while
-# every literal matcher below sees a different string. Both spellings, and the
+# `git add -f \.geniro/...` and `rsync --delete ... \.geniro/...` all run
+# exactly like their unescaped spelling while every literal matcher below sees
+# a different string. Both spellings, and the
 # whitespace-free unquote of Pass A below, are single-sourced in
 # lib/write-vectors.sh §E — this call does all three.
 JOINED=$(_geniro_wv_unquote_words "$JOINED")
 
 # Quoted string literals are DATA, not commands — with two exceptions handled by
 # pass ordering. Pass A UNQUOTES a whitespace-free quoted token: a quoted rm
-# OPERAND (`rm -rf ".geniro/"`) or a quoted SUBCOMMAND token (`git worktree
-# "remove" ../wt`) is a single shell word, so unquoting it re-exposes the real
-# delete / worktree-removal to the matchers below. Pass B then blanks the
+# OPERAND (`rm -rf ".geniro/"`) or a quoted SUBCOMMAND token (`git "add" -f
+# .geniro/x`) is a single shell word, so unquoting it re-exposes the real
+# delete / force-add to the matchers below. Pass B then blanks the
 # remaining quoted literals — those all contain whitespace or a separator, i.e.
 # prose (`echo "do not rm -rf .geniro/"`, `git commit -m "why git add -f .geniro/
-# is banned"`, `echo "later: git worktree remove ../wt"`), which must never
-# block. Pass B excludes ; & | so an unbalanced apostrophe in prose cannot pair
+# is banned"`), which must never block. Pass B excludes ; & | so an unbalanced
+# apostrophe in prose cannot pair
 # across a separator and swallow a real destructive command between two quotes.
 # Both passes run per LINE, newlines still intact — collapsing them to spaces
 # first made a NEWLINE the one separator the exclusion above could not see, so
@@ -1555,142 +1555,7 @@ while IFS= read -r RSYNC_SPAN; do
   [ -n "$rsync_dest" ] && check_delete_arg_cd "$rsync_dest" 1 rsync
 done <<< "$RSYNC_SPANS"
 
-# 4. git worktree remove  (worktrees commonly contain .geniro/ state not routed
-#    through ${PRIMARY_ROOT} — removal silently destroys it).
-#
-# The guard LOOKS before it blocks. It used to fire on the command shape alone,
-# telling the caller to "verify the worktree's .geniro/ is empty" — a
-# precondition the caller could satisfy but the guard could not observe, so
-# verifying changed nothing and the block stood. Measured across 1,408 sessions
-# (2026-08-13) that shape produced no compliance at all: in every trace the run
-# confirmed the worktree held nothing worth keeping and then either handed the
-# removal back to the user by hand or abandoned it, because the only remaining
-# exit was a permanent safety.json grant that a second guard exists to prevent.
-#
-# So: resolve the target, and block only when it really holds .geniro/ content
-# git would not preserve — untracked or ignored files. A worktree with no
-# .geniro/, or one whose .geniro/ is entirely tracked (the content survives in
-# the branch), is nothing to lose and is allowed through.
-#
-# Unresolvable target → block, unchanged. A path built from a variable or a
-# command substitution cannot be inspected, and this is a data-loss guard: the
-# fail-closed direction is the one that keeps state.
-#
-# Every removal gets its OWN check, anchored ONLY by a `cd`/`pushd` that runs
-# BEFORE it. `head -1` on the removal spans and `tail -1` on the cd spans used
-# to conflate "the first removal" with "the only removal" (a clean first
-# `git worktree remove` let a second, stateful one through unchecked) and "the
-# last cd anywhere in the command" with "the cd that actually preceded this
-# removal" (a `cd` running AFTER the removal anchored it anyway, resolving a
-# relative target against a directory the removal never ran in — 2026-09-23
-# audit T0-11). Fixed by walking the command as an ORDERED sequence of simple
-# statements — split on every top-level separator (`; & | && || ( )`, and a
-# real newline, which a per-line `grep` already treated as a boundary) — and
-# keeping a running "last cd seen SO FAR" that only reflects what has actually
-# executed by the time each removal is reached, mirroring real shell order.
-# -i on the match: the same case-fold class as T0-4 (macOS PATH lookup
-# resolves `GIT` exactly like `git`); `worktree`/`remove` themselves are real
-# git subcommand spellings, which git's own arg parser reads case-sensitively,
-# but folding them too costs nothing and keeps one matcher instead of two.
-if ! is_allowed "worktree-remove-with-state"; then
-  _wt_last_cd=""
-  while IFS= read -r _wt_stmt; do
-    [ -z "$_wt_stmt" ] && continue
-
-    # A cd/pushd statement (its own FIRST token): remember its target as the
-    # anchor for every removal that comes after it, then move on — it names no
-    # removal itself.
-    set -f
-    # shellcheck disable=SC2086
-    _wt_first=1
-    _wt_is_cd=0
-    for _wt_tok in $_wt_stmt; do
-      if [ "$_wt_first" = "1" ]; then
-        _wt_first=0
-        case "$_wt_tok" in cd|pushd|*/cd|*/pushd) _wt_is_cd=1 ;; esac
-        [ "$_wt_is_cd" = "1" ] || break
-        continue
-      fi
-      case "$_wt_tok" in -*|+*) continue ;; esac
-      _wt_tok="${_wt_tok#\"}"; _wt_tok="${_wt_tok%\"}"
-      _wt_tok="${_wt_tok#\'}"; _wt_tok="${_wt_tok%\'}"
-      _wt_last_cd="$_wt_tok"
-      break
-    done
-    set +f
-    [ "$_wt_is_cd" = "1" ] && continue
-
-    grep -qiE '(^|[[:space:]])git[[:space:]]+worktree[[:space:]]+remove([[:space:]]|$)' <<< "$_wt_stmt" || continue
-
-    _wt_target=""
-    set -f
-    # shellcheck disable=SC2086
-    for _wt_tok in ${_wt_stmt#*[Rr][Ee][Mm][Oo][Vv][Ee]}; do
-      case "$_wt_tok" in
-        -*) continue ;;
-        *) _wt_target="$_wt_tok"; break ;;
-      esac
-    done
-    set +f
-
-    _wt_verdict="block"
-    _wt_detail="the worktree path could not be resolved from the command"
-    # A relative target is relative to where the command will RUN, not to where
-    # the hook runs. Resolve it against the LAST cd/pushd that precedes THIS
-    # removal (tracked above) — the common shape is `cd <abs> && git worktree
-    # remove <relative>` — never a cd/pushd elsewhere in the command. A `cd` we
-    # cannot resolve, or none at all, leaves the target unresolvable, hence
-    # fail-closed.
-    #
-    # _wt_anchored=1 means the resolved path is the one the command will act
-    # on, so "not found" genuinely means "nothing there". Without an anchor a
-    # missing directory only means it is missing from HERE.
-    _wt_anchored=0
-    case "$_wt_target" in
-      /*) _wt_anchored=1 ;;                      # absolute — use as given
-      *)
-        case "$_wt_last_cd" in
-          '')  : ;;                              # no preceding cd — cannot anchor
-          /*)  _wt_target="${_wt_last_cd%/}/$_wt_target"; _wt_anchored=1 ;;
-          *)   _wt_target='?unresolvable' ;;     # cd to a relative/variable dir
-        esac ;;
-    esac
-    case "$_wt_target" in
-      ''|*'$'*|*'`'*|*'*'*|*'?'*)
-        : ;;  # empty, variable, substitution or glob — leave fail-closed
-      *)
-        if [ ! -d "$_wt_target" ]; then
-          # Absent, and we know we looked in the right place.
-          [ "$_wt_anchored" = "1" ] && _wt_verdict="allow"
-          [ "$_wt_anchored" = "1" ] || _wt_detail="the target is relative and no leading cd anchors it, so its contents could not be checked"
-        elif [ ! -d "$_wt_target/.geniro" ]; then
-          _wt_verdict="allow"
-        else
-          # Untracked + ignored files under .geniro/ are the ones `git worktree
-          # remove` destroys for good. `|| true` because git exits non-zero when
-          # the directory is not a worktree at all, which is not a verdict.
-          # --untracked-files=all so the listing names the actual files rather
-          # than collapsing to `?? .geniro/` — the caller has to decide what is
-          # worth routing, and a directory name does not tell them.
-          _wt_at_risk=$(git -C "$_wt_target" status --porcelain --ignored --untracked-files=all -- .geniro 2>/dev/null | head -20 || true)
-          if [ -z "$_wt_at_risk" ]; then
-            _wt_verdict="allow"
-          else
-            _wt_detail="its .geniro/ holds untracked or ignored files that removal destroys for good:
-$_wt_at_risk"
-          fi
-        fi
-        ;;
-    esac
-
-    if [ "$_wt_verdict" = "block" ]; then
-      block "worktree-remove-with-state" "git worktree remove destroys the gitignored .geniro/ in the worktree, and $_wt_detail.
-Route the state first — copy what is worth keeping to the primary worktree (_shared/primary-worktree.md), or delete it — then re-run the removal; this guard re-checks and lets a clean worktree through."
-    fi
-  done <<< "$(printf '%s\n' "$PADDED" | sed -E 's/(&&|\|\||[;&|()])/\n/g')"
-fi
-
-# 5. git add -f / --force on .geniro/ paths. Force-adding ignored files makes them
+# 4. git add -f / --force on .geniro/ paths. Force-adding ignored files makes them
 #    appear in the IDE's Source Control panel — and IDE "Discard All Changes" then
 #    becomes a one-click data-loss vector (real incident: Cursor SCM discard wiped
 #    .geniro/actions/*.md after they were force-added). The correct path for files
