@@ -8,7 +8,7 @@ Phase file for `/geniro:update`. The spine — invariants, budgets, tool surface
 
 Recommend `/geniro:setup` (append the re-setup section below) when ANY of these hold:
 
-- Phase 4 surfaced at least one applicable MIGRATION.md entry — any entry whose `Auto-detect:` returned non-empty for this install (i.e. you fired its AUQ). Applied, deferred, or skipped, that work still needs follow-through.
+- Phase 4 fired at least one per-entry migration AUQ. Applied, deferred, or skipped, that work still needs follow-through. A `noted` entry does not count, because it had nothing for this repo to do.
 - The major (first) version component increased (e.g. `2.13.0 → 3.0.0`). A major release can refresh CLAUDE.md's project sections (stack, commands, conventions) without any per-entry `Auto-detect:` firing, so CLAUDE.md may be stale even at zero applicable entries.
 - The Phase 3 user-content survival diff reported `CHANGED`.
 
@@ -28,7 +28,8 @@ User content: <UNCHANGED | CHANGED — see /tmp/geniro-content-diff.log>
 Update cache: <refreshed | refresh failed — "update available" may still show>
 Statusline: <refreshed | not installed — no prior /geniro:setup>
 Cursor profile: <re-pointed at the new install | not installed — nothing to refresh>
-Migration walked: <N changes — M applied, K skipped, L deferred>
+Migration walked: <N changes — M applied, K skipped, L deferred, J noted>
+<one "  noted: <change-name> — <the action>" line per noted entry; omit when J is 0>
 
 ⚠ Restart your Claude Code session to load v<NEW_VERSION>.
    Claude Code resolves ${CLAUDE_PLUGIN_ROOT} once at session start — in-memory

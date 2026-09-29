@@ -68,6 +68,8 @@ The captured output is the sole relevance signal:
 | Output non-empty | **Applicable** — this install is affected | Hand the entry and its captured output to the caller's apply policy. |
 | `N/A` value, or no `Auto-detect:` field (§4 steps 1-2) | **Not affected** — no detector ran | Same as empty output. |
 
+An applicable entry's `Auto-fix:` comes in one of two shapes, and the shape — not a prefix word — decides whether a shell may run it. A fenced `bash` block is a **command**. Anything else is a **description**: a `Manual-only —` or `Manual —` sentence, `N/A`, or plain prose such as "Remove the `"<id>"` string from `allow_patterns` …". Only a command ever reaches `bash -c`, because a description carries backticks and `;` that a shell would execute — the same hazard as §4 step 2. What happens to a description is the consumer's apply policy.
+
 ## 6. Verify after a fix
 
 Re-run the entry's `Auto-detect:` — exactly as in §4 — after a fix has been applied to it. Only an empty result confirms resolution: an auto-fix can apply partially, and reporting "fixed" without the re-detect leaves the user on a half-migrated install.

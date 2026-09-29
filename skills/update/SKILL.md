@@ -80,7 +80,7 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 | `pre-check` | `Read`, `Bash` (`cat`, `grep`, `find`, `shasum`/`sha256sum`, `stat`, `python3 -c "json.load"`, plus the one sanctioned write: the `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content baseline snapshot redirected into `/tmp`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, any mutating `Bash` outside that snapshot write, `Agent`, all `mcp__*` |
 | `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
 | `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh, the Cursor link script), `Glob`, `AskUserQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
-| `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + auto-fix commands when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
+| `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + the fix when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
 External sends: not in `/geniro:update` ACI ever.
@@ -106,7 +106,7 @@ External sends: not in `/geniro:update` ACI ever.
 | CLAUDE.md (project context) | not read | not written | `/geniro:setup re-run` handles CLAUDE.md refresh; `/geniro:update` only emits a recommendation if user-project CLAUDE.md may be stale |
 | L2 learnings.jsonl | not read | not written | `/geniro:update` is operational, not knowledge-producing |
 | L3 semantic files | not read | not written | N/A |
-| L4 `.geniro/instructions/*.md` | snapshot+integrity check (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check) | Written ONLY when user picks "Fix it for me" per-entry | Auto-fix runs MIGRATION.md commands; manual entries untouched |
+| L4 `.geniro/instructions/*.md` | snapshot+integrity check (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check) | Written ONLY when user picks "Fix it for me" per-entry | The fix is the entry's command or described edit, on the detected files only |
 | `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
 
 ## User-content snapshot
@@ -129,7 +129,7 @@ Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), re-t
 
 ## Phase 4 — migration
 
-Steps: `phase-4-migration.md`. Skip entirely when the new install carries no `MIGRATION.md`. Otherwise walk it per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md`, applying the live-task guard before any delete-class auto-fix and firing the per-entry AUQ (`Fix it for me` / `Show me how to fix manually` / `Skip for now` / `Cancel migration walk`). Exit when every entry has been walked (or the user cancelled), and go to Done.
+Steps: `phase-4-migration.md`. Skip entirely when the new install carries no `MIGRATION.md`. Otherwise walk it per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md`, applying the live-task guard before any delete-class fix and firing the per-entry AUQ (`Fix it for me` / `Show me how to fix manually` / `Skip for now` / `Cancel migration walk`) for every entry the run can fix, `Manual-only` ones included; an entry with nothing for this repo to do is noted for the final report instead. Exit when every entry has been walked (or the user cancelled), and go to Done.
 
 ## Done — final report
 
