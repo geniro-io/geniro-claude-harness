@@ -8,7 +8,7 @@ agents/codebase-research-agent.md 2042
 agents/finding-verifier-agent.md 2423
 agents/knowledge-retrieval-agent.md 1450
 agents/reflection-agent.md 1655
-agents/reviewer-agent.md 3422
+agents/reviewer-agent.md 3536
 agents/test-runner-agent.md 1142
 skills/actions/SKILL.md 3090
 skills/audit-instructions/SKILL.md 3493
@@ -21,6 +21,6 @@ skills/plan/SKILL.md 3611
 skills/refactor/SKILL.md 3759
 skills/reflect/SKILL.md 3088
 skills/resolve/SKILL.md 3628
-skills/review/SKILL.md 4237
+skills/review/SKILL.md 4283
 skills/setup/SKILL.md 2596
 skills/update/SKILL.md 1887

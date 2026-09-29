@@ -144,6 +144,8 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 User-explicit form (user declared `model: haiku|sonnet|opus`, or `auto` on a host that takes it): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=`.
 
+When the consumer writes a review packet for its batch (`/geniro:review`), a custom spawn names it exactly as its built-in siblings do: a `REVIEW PACKET:` line — the shared file plus the plan file when PLAN CONTEXT is set — and the one-line search-policy binding stand in for `PROJECT SEARCH POLICY`, `CHANGED FILES`, `PROJECT CONTEXT`, `WORKTREE`, `DIFF CONTEXT`, and `PLAN CONTEXT` above. `DIMENSION`, `CRITERIA`, `CUSTOM CONTEXT`, `SEVERITY DEFAULT`, and the closing instructions stay inline — each belongs to this spawn alone.
+
 The DIMENSION value uses the literal form `custom:<slug>` so that the reviewer-agent's output naturally carries the source — the agent emits findings under `## custom:<slug> Review — N findings` and the orchestrator's Phase 4 judge pass picks the source up directly from that header. No new finding-output fields are required.
 
 Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every custom-reviewer spawn site (same runtime-degradation ladder as the built-ins: prefixed → bare → general-purpose with body inlined). When the batch falls back to the next rung, all custom reviewers in that batch fall back together — do not mix ladder rungs (per `spawn-agent.md` §Parallel-spawn sites).

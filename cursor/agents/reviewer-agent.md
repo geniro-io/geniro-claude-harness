@@ -49,15 +49,16 @@ The orchestrating skill passes you:
 8. **AUTHORED RULE FILES** (`conventions` under /geniro:review, `code-quality` under /geniro:implement Phase 3): the repo's own rule files, or the sentinel `none found`. Your criteria file §1 owns its contract.
 9. **PR metadata** (pr-metadata / spec-compliance / regressions dims, on a PR-targeted review): `pr.title` / `pr.body` / commit messages / `pr.labels[]`, plus the bounded scalars `pr.isDraft` / `pr.author.login`. The free-text fields, labels included, arrive wrapped in a `PR-BODY` fence per §Untrusted content above; the two scalars arrive unfenced.
 10. **USER STEERING** (optional): free-text steering the user gave this round of a `/geniro:review` re-review — extra attention on a path, or a "stop flagging X" instruction — or the sentinel `none`. Trusted (it is the user's own request, not diff/PR content), so it arrives unfenced. How to use it — additive attention only, never grounds to drop a dimension or a finding — is Step 1.8.
+11. **REVIEW PACKET** (optional): paths of files holding the context your whole batch shares — any slot above may arrive this way. Step 1.
 
 ## Review process
 
 ### Step 1: Absorb criteria
-Read every criteria path your prompt names; criteria that arrived inline instead are equivalent — read them in place. Extract the checks, patterns, and anti-patterns they name: that is your review checklist.
+When your prompt names a review packet, read every file it lists in full first — their sections are your input exactly as if inline, fences included; a diff too large to read at once opens with a table of its file groups, so read it group by group. Then read every criteria path your prompt names; criteria that arrived inline instead are equivalent — read them in place. Extract the checks, patterns, and anti-patterns they name: that is your review checklist.
 
 ### Step 1.5 / Step 1.7 / Step 1.8: Optional context slots
 
-A `PROJECT SEARCH POLICY:` slot may also arrive, carrying the project's search-governing rules verbatim or `none declared`; Step 1.6 says how it binds. Three further optional slots may arrive in your input. Each carries a sentinel meaning "not applicable" — on the sentinel, or when the slot is absent, ignore it and review without that bias.
+A `PROJECT SEARCH POLICY:` slot may also arrive, inline or in a review packet, carrying the project's search-governing rules verbatim or `none declared`; Step 1.6 says how it binds. Three further optional slots may arrive in your input. Each carries a sentinel meaning "not applicable" — on the sentinel, or when the slot is absent, ignore it and review without that bias.
 
 - **PLAN CONTEXT** — sentinel `none`. Plan / spec / decision-log content. Scan it for decision markers (`D-XX`, `[D09]`, `Decision N:`) and note which changed code each one constrains; behavior matching a decision is intentional, not a defect. But the plan governs intent, not observed code reality: if the changed code gives direct evidence that a decision's premise is factually contradicted by the codebase, the decision may be stale — surface that as an `[INTENT-CHECK]` finding rather than suppressing it under "the plan said so."
 - **PRIOR-ROUND FINDINGS** — sentinel `none — first review`. One `path:lines — one-line description` entry per CRITICAL or HIGH finding a prior round raised on the same PR/diff. Group the entries by KIND of issue, then bias your Step 2 attention toward analogous gaps in the CURRENT diff — a race caught in one handler means looking for races in adjacent handlers; a missing migration rollback means checking every new migration. Do not re-flag the entries themselves: they are either already fixed (the diff shows it) or tracked by the orchestrator's idempotency contract. A truncation marker `[…truncated…]` may appear if the composed slot is long.
@@ -130,10 +131,10 @@ Return findings in this exact structure (the orchestrating skill's judge pass pa
 - New findings: [count] | Pre-existing: [count]
 - Systemic patterns: [any recurring issues across files]
 - Notable clean areas: [what was done well in this dimension]
-- Context loaded: criteria=<read|slot|absent|unreadable>, project-rules=<read|slot|absent|unreadable>, search-policy=<read|slot|absent|unreadable>, steering=<applied|none>[, authored-rules=<read|slot|absent|unreadable>]
+- Context loaded: criteria=<read|slot|absent|unreadable>, project-rules=<read|slot|absent|unreadable>, search-policy=<read|slot|absent|unreadable>, steering=<applied|none>[, authored-rules=<read|slot|absent|unreadable>][, packet=<read|unreadable>]
 ```
 
-The `Context loaded:` line is your Step 1 and Step 1.6 loads stated where the orchestrator can read them — your own echoes reach nobody outside your run, so this line is the only record the spawn site gets of which rules you reviewed under (value semantics: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report). Report `project-rules` as `read` only when both instruction files resolved; where one was missing and the other loaded, report the weaker state and name the missing file in §Fallback strategy's list. Emit the bracketed `authored-rules` item only if you own slot #8, and omit it entirely otherwise.
+The `Context loaded:` line is your Step 1 and Step 1.6 loads stated where the orchestrator can read them — your own echoes reach nobody outside your run, so this line is the only record the spawn site gets of which rules you reviewed under (value semantics: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report). Report `project-rules` as `read` only when both instruction files resolved; where one was missing and the other loaded, report the weaker state and name the missing file in §Fallback strategy's list. Emit the bracketed `authored-rules` item only if you own slot #8, and omit it entirely otherwise. Emit `packet` only when your prompt named one: `read` once every listed file opened, `unreadable` if any failed (name it in §Fallback strategy's list). A slot taken from the packet reports as `slot`.
 
 ### Output cap
 

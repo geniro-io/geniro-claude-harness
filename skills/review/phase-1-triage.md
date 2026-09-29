@@ -29,7 +29,7 @@ Run these in order (`§` anchors are sections of the triage reference):
 3. **Resolve the scope** — the reviewed file set, the scope-exclusion note, and the sanity gate that aborts an unresolvable ref or an empty diff before any reviewer spawns · §2 + §2.1.
 4. **Fetch the pull-request metadata** (PR ref only) — diff, base/head refs, title/body, head SHA, URL, draft state, author, labels · `phase-1-pr-reference.md` §3.
 5. **Fetch the linked issue** — workflow-file detection, tracker-ID match, spec-frontmatter ref merge, and the `LINEAR CONTEXT:` block · §3.5.
-6. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope question on a fresh second-or-later round · §7.
+6. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope question on a fresh second-or-later round · §7. The reviewed range is final once this step settles, so start the lint and schema checks in the background now (§1.5).
 7. **Load the custom instructions** · §6.
 8. **Scout sibling pull requests** (PR ref only, round 1) — scored, capped, and inlined as `PEER-PR CONTEXT:`; skipped from round 2 on, the scout already ran · `phase-1-pr-reference.md` §4.
 9. **Load the plan context** · §8.
@@ -37,6 +37,8 @@ Run these in order (`§` anchors are sections of the triage reference):
 11. **Load the memory layers** — project snapshot, past learnings, conflict resolution · §10.
 12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape, measured on the range actually under review · §12.
 13. **Settle the orientation-brief opt-in** — the last thing Phase 1 does, so Phase 2 can fire the brief alongside the reviewer batch instead of behind it; rides along with an earlier §7 question when one is still ahead · §13.
+
+**Gather, then decide in order.** Once the target resolves (step 3), the reads and shell probes behind steps 4-11 depend on none of each other's results — issue the reads in parallel in one response and chain the probes into one shell call, then work through the steps in order on what came back. The order still governs every decision: a question a step fires — round-3 escalation, re-review scope, a hard memory conflict — is asked at its place, before any step that consumes its answer, and the peer-PR scout waits for the round. A turn spent per step re-reads the whole accumulated context for an ordering the reads never needed.
 
 Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, and `subagent-model` (from the step-2 flag parse; missing reads as `inherit`), plus `brief` resolved to `artifact` / `file` / `off` by step 13 — never still `pending`, which is the step-2 flag parse's transient value and nothing Phase 2 knows how to read; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
@@ -48,7 +50,9 @@ Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr di
 
 State.md `phase: mechanical-prepass`.
 
-Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first; LLM-spawn second with pre-pass findings as prior-context. Sequential, not parallel — LLM agents seeing prior mechanical findings produce better-targeted output.
+Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first; LLM-spawn second with pre-pass findings as prior-context. Sequential to the reviewers, not parallel with them — LLM agents seeing prior mechanical findings produce better-targeted output.
+
+**Lint and schema start early, in the background.** Both depend only on the reviewed file list, which is final once Phase 1 step 6 settles — the target resolved and any re-review scope answered, since that answer can narrow the range. Launch them then as one background shell job and let the rest of Phase 1, the brief question included, run while they do. Collect the outcome here, waiting on the job if it is still running, so every check is recorded before a reviewer spawns, exactly as before. The secret scan runs here, because its pattern set depends on the risk tier (step 10). Where the host cannot run a background job, or its output is gone after a compaction, run both checks here in the foreground.
 
 **Each check is must-attempt and lands exactly one of three recorded outcomes** — `findings` (written to the finding list; Check 3's tagged CRITICAL), `clean` (the check ran and found nothing), or `error` (a fail-open `## Errors mechanical-prepass-<id>: <reason>` entry, which also covers not-applicable). There is no silent fourth outcome — skipping a check entirely (e.g. running neither lint nor `tsc` on a TS-dominated diff) is the failure this contract closes, and a clean run is a real result, not the absence of one. Record each check's outcome in state.md frontmatter (§1.5.7) before exiting this phase, mirroring §2.2's spawn-declaration pattern.
 
