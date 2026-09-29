@@ -23,7 +23,7 @@ How prose inside a skill / agent / reference file is written so the orchestrator
 | Bare imperative that invites drift | Reframed with the reason |
 |---|---|
 | "NEVER skip the test run." | "Run the test suite once at end-of-phase. The Phase 3 review pre-condition assumes green tests; skipping leaves the review reading stale code." |
-| "ALWAYS use atomic_state_write." | "Write state.md via `atomic_state_write` — direct `Edit`/`Write` bypasses the state-helper enforcement hook and corrupts mid-crash." |
+| "ALWAYS use atomic_state_write." | "Write state.md via `atomic_state_write` — direct `Edit`/`Write` truncates and rewrites in place, so a crash mid-write leaves a partial file." |
 | "Spawn the reviewers in parallel." | "Spawn every reviewer dimension in ONE assistant response — separate turns serialize execution and double wall-time." |
 
 Routine procedure needs none of it: "Read `<task-dir>/.kr-out.md`." / "Set `phase: ship` on entry."

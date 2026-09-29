@@ -66,7 +66,6 @@ for shell in zsh bash; do
   check_source "$shell" hash.sh               _geniro_sha256
   check_source "$shell" branch-slug.sh        _geniro_branch_slug
   check_source "$shell" resolve-conflicts.sh  emit_conflict_notice
-  check_source "$shell" write-vectors.sh      _geniro_extract_inner_payloads
   check_source "$shell" clean-task-transients.sh clean_task_transients
 done
 

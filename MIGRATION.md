@@ -10,6 +10,28 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### Five guard hooks are removed; only the `.geniro/` force-add check remains
+
+`hooks/file-protection.sh`, `hooks/security-pattern-check.sh`, `hooks/block-dangerous-git.sh`, `hooks/block-geniro-deletion.sh`, and `hooks/enforce-state-helper.sh` no longer ship, nor does their shared command parser `lib/write-vectors.sh`. `hooks/hooks.json` registers one PreToolUse hook, `hooks/block-geniro-force-add.sh`, which blocks `git add -f` on `.geniro/` paths — the one check kept from the deletion guard, under its old pattern ID `git-add-force-geniro`. `cursor/hooks.json` drops its `preToolUse` entries to match.
+
+Across ~3,400 transcripts from 21 days the five guards fired 296 times and no block prevented a mistake: most were read-only or intended commands whose text the guards misparsed, the rest ordinary cleanup the run meant to do (`HOOKS.md` §Removed guards).
+
+What they enforced is now a writer's contract. State writes still route through the `atomic-state-write` helpers (`CLAUDE.md` §State Files); destructive git, bulk `.geniro/` deletion, protected-file writes and security patterns fall to the model's judgment, Claude Code's permission system, and `/geniro:review`. Every `allow_patterns` ID except `git-add-force-geniro` retires with its hook — an entry naming one is inert, not an error. A Cursor profile install that still lists a removed script is harmless: the shim exits 0 for a script that does not exist.
+
+**Action required:** None. Optionally drop the now-inert IDs from the project's safety config.
+
+**Auto-detect:**
+
+```bash
+grep -lE '"(write-[a-z-]+|safety-json-edit|sec-[a-z-]+|force-push[a-z-]*|reset-hard|branch-delete-force|clean-fd|checkout-mass-discard|restore-mass-discard|update-ref-delete|filter-branch|push-delete|stash-drop|worktree-remove-force|rm-geniro-[a-z-]+|find-geniro-delete|enforce-state-helper)"' .geniro/safety.json 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — remove the retired IDs from `allow_patterns[]`; leaving them changes nothing.
+
+**Severity:** LOW — guards are removed, so nothing that used to pass now fails.
+
+---
+
 ### Hook guards close several bypass classes; Cursor gains `Delete` coverage and fail-closed; two stale behavior claims corrected
 
 A plugin-audit round closed a set of guard gaps that had reopened one hop from earlier fixes, and corrected two doc-only claims that had drifted from what the skills actually do. Nothing here is opt-in — every change either blocks a command that previously passed, or removes a claim that was never true.

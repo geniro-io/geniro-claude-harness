@@ -97,7 +97,7 @@ options:
   - "Skip — keep going"                        -> no git action
 ```
 
-Add this one-line caveat under the rebase option so the user can choose well: rebase rewrites this branch's commits, so it is best for a branch you have NOT pushed yet — a pushed branch would then need a force-push (which the git guardrail blocks), so prefer Merge there.
+Add this one-line caveat under the rebase option so the user can choose well: rebase rewrites this branch's commits, so it is best for a branch you have NOT pushed yet — a pushed branch would then need a force-push, which rewrites history other checkouts may hold, so prefer Merge there.
 
 ## 5. Dirty working tree
 

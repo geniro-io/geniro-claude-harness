@@ -13,16 +13,12 @@
 #
 # Translation map:
 #   beforeShellExecution  -> {tool_name:"Bash", tool_input:{command}, cwd}
-#   preToolUse            -> tool_name passthrough (Shell->Bash), tool_input
-#                            normalized so .file_path and .content are present
-#                            when Cursor used an alias key (path / target_file;
-#                            contents / code_edit / new_string / new_source)
 #   sessionStart          -> {source:"startup", cwd:<first workspace root>}
 #                            output {hookSpecificOutput:{additionalContext}}
 #                            re-emitted as Cursor's {additional_context}
 #   anything else         -> no-op (exit 0)
 #
-# The shim also moves into the payload's cwd before running the script: guards
+# The shim moves into the payload's cwd before running the script: hooks
 # resolve the project root, .geniro/ state, and safety.json by walking up from
 # the process cwd, which under Cursor is wherever the editor launched the hook.
 #
@@ -30,11 +26,9 @@
 # {"permission":"deny","agent_message":<script stderr>} + exit 0, so the block
 # reason reaches the Cursor agent instead of being dropped. A script's stdout
 # notice (systemMessage) is re-emitted as {"agent_message":...} with no
-# permission key — an informational notice must not vote on an action another
-# guard may deny. Any other failure fails open, matching the scripts' own
-# fail-open contract. That translation also runs when jq is missing, where the
-# four data-loss guards still block on their own coarse scan — see the
-# jq-absent branch below.
+# permission key — an informational notice must not vote on the action. Any
+# other outcome, a malformed payload included, is a silent exit 0, matching the
+# scripts' own fail-open contract.
 set -uo pipefail
 
 SHIM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,134 +45,30 @@ SCRIPT="$PLUGIN_ROOT/hooks/$SCRIPT_NAME"
 
 INPUT="$(cat 2>/dev/null || true)"
 
-# One capture file for the script's stderr, shared by the jq-absent branch and
-# the main path. The trap carries INT and TERM as well as EXIT: Cursor kills a
-# hook that overruns its timeout, and a signal death skips an EXIT-only trap,
-# leaving the temp file behind in $TMPDIR on every timed-out run.
-#
-# An unguarded mktemp fails the shim OPEN: every `2>"$STDERR_FILE"` redirect
-# below would target an empty/invalid path, error out, and skip the guard
-# script entirely — so `git push --force` and `rm -rf .geniro` pass through
-# with no deny, guards included. Fall back to /dev/null so the guard script
-# still RUNS and its exit code still reaches the deny translation below; the
-# only thing lost on this path is the block's stderr message text, which the
-# existing empty-message fallback ("Blocked by a Geniro guardrail.") already
-# covers. Mirrors hooks/backpressure.sh's own `mktemp || …` guard.
-STDERR_FILE="$(mktemp 2>/dev/null || true)"
-if [ -z "$STDERR_FILE" ] || [ ! -f "$STDERR_FILE" ]; then
-  STDERR_FILE="/dev/null"
-fi
-trap '[ "$STDERR_FILE" = "/dev/null" ] || rm -f "$STDERR_FILE"' EXIT INT TERM
-
 # jq is both the payload translator and the response writer, so without it the
-# shim cannot build a Claude-shaped payload or format a verdict. Say so out
-# loud: every hook script announces its own inactivity on this path under
-# Claude Code, and a silent exit 0 leaves the user believing all seven wired
-# guards are live when they are inert. Everything below is assembled with
-# printf because the tool that would format JSON is the one that is missing —
-# hence the fixed literal notice, the plain-glob event detection, and the
-# hand-rolled string escaping.
+# script cannot run at all. Say so out loud — each hook announces its own
+# inactivity under Claude Code, and a silent exit 0 would leave the user
+# believing it is live. The notice is a printf literal and the event match a
+# plain glob because the tool that would parse and format JSON is the one
+# missing. SCRIPT_NAME is safe to embed: it is an existing hooks/ basename.
 if ! command -v jq >/dev/null 2>&1; then
-  case "$SCRIPT_NAME" in
-    *[!A-Za-z0-9._-]*) GUARD_NAME="a Geniro guard" ;;
-    *) GUARD_NAME="$SCRIPT_NAME" ;;
-  esac
-  NOTICE="Geniro guard inactive: jq not found on PATH, so ${GUARD_NAME} is NOT running. Install jq to restore it."
+  NOTICE="Geniro hook inactive: jq not found on PATH, so ${SCRIPT_NAME} is NOT running. Install jq to restore it."
   case "$INPUT" in
     *'"hook_event_name"'*'"sessionStart"'*)
       printf '{"additional_context":"%s"}\n' "$NOTICE" ;;
-    *'"hook_event_name"'*'"beforeShellExecution"'*|*'"hook_event_name"'*'"preToolUse"'*)
-      # Not every guard is inert without jq. The four data-loss guards
-      # (file-protection, block-dangerous-git, block-geniro-deletion,
-      # enforce-state-helper) keep a coarse fail-CLOSED raw-text scan on
-      # their own jq-absent path and still exit 2 on a hit — HOOKS.md §Key
-      # Safety Principles 5. Emitting the
-      # notice without running the script discards that scan, so `rm -rf
-      # .geniro` would proceed under Cursor while Claude Code blocks it. Run
-      # the script and translate its block; the notice is for the rest.
-      #
-      # Those scans read the raw payload text, so no jq-side translation is
-      # needed — except the path alias, folded here with shell builtins
-      # because normalizing only under jq is the same silent bypass the main
-      # path's fold exists to prevent. The content alias is skipped: no
-      # fail-closed scan reads content. Anchored to the KEY position (`"path":`,
-      # trailing colon included) rather than the bare substring `"path"` — a
-      # blunt substring replace would also rewrite that text wherever it
-      # appears inside a JSON *value*, e.g. a command string containing the
-      # word "path" in quotes, corrupting the very text the fail-closed scan
-      # is about to read.
-      NOJQ_INPUT="${INPUT//\"target_file\":/\"file_path\":}"
-      NOJQ_INPUT="${NOJQ_INPUT//\"path\":/\"file_path\":}"
-      printf '%s' "$NOJQ_INPUT" | bash "$SCRIPT" >/dev/null 2>"$STDERR_FILE"
-      NOJQ_RC="${PIPESTATUS[1]}"
-      if [ "$NOJQ_RC" -eq 2 ]; then
-        NOJQ_MSG="$(cat "$STDERR_FILE" 2>/dev/null || true)"
-        [ -n "$NOJQ_MSG" ] || NOJQ_MSG="Blocked by a Geniro guardrail."
-        # Escape for a JSON string literal: backslash first, then quote, then
-        # collapse the whitespace that has no legal bare form.
-        NOJQ_MSG="${NOJQ_MSG//\\/\\\\}"
-        NOJQ_MSG="${NOJQ_MSG//\"/\\\"}"
-        NOJQ_MSG="${NOJQ_MSG//$'\n'/ }"
-        NOJQ_MSG="${NOJQ_MSG//$'\r'/ }"
-        NOJQ_MSG="${NOJQ_MSG//$'\t'/ }"
-        printf '{"permission":"deny","agent_message":"%s"}\n' "$NOJQ_MSG"
-        exit 0
-      fi
+    *'"hook_event_name"'*'"beforeShellExecution"'*)
       printf '{"agent_message":"%s"}\n' "$NOTICE" ;;
   esac
   exit 0
 fi
 
-EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // ""' 2>/dev/null)"
-EVENT_RC=$?
-
-# A malformed or truncated $INPUT makes the jq call above fail outright (a
-# non-zero exit), not merely return "" — a well-formed payload that
-# genuinely lacks hook_event_name still succeeds at rc 0 and reaches the
-# `*)` no-op below unchanged, so this check cannot be folded into the `||
-# echo ""` the way jq extraction is elsewhere in this file. Falling through
-# to that same no-op on a PARSE failure would exit 0 with no output,
-# discarding every guard's own fail-closed malformed-payload scan
-# (block-dangerous-git.sh, block-geniro-deletion.sh, file-protection.sh and
-# enforce-state-helper.sh each run one when their own jq extraction comes
-# back empty) — a truncated `git push --force` payload would then pass
-# through Cursor with no deny. Pipe $INPUT raw to the guard instead, exactly
-# as the jq-absent branch above does, and translate its exit 2 into a deny.
-if [ "$EVENT_RC" -ne 0 ]; then
-  printf '%s' "$INPUT" | bash "$SCRIPT" >/dev/null 2>"$STDERR_FILE"
-  MALFORMED_RC="${PIPESTATUS[1]}"
-  if [ "$MALFORMED_RC" -eq 2 ]; then
-    MALFORMED_MSG="$(cat "$STDERR_FILE" 2>/dev/null || true)"
-    jq -n --arg msg "$MALFORMED_MSG" \
-      '{permission: "deny", agent_message: (if $msg == "" then "Blocked by a Geniro guardrail." else $msg end)}'
-  fi
-  exit 0
-fi
+EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // ""' 2>/dev/null)" || exit 0
 
 case "$EVENT" in
   beforeShellExecution)
     PAYLOAD="$(printf '%s' "$INPUT" | jq -c \
       '{tool_name: "Bash", tool_input: {command: (.command // "")}, cwd: (.cwd // "")}' \
       2>/dev/null)" || exit 0
-    ;;
-  preToolUse)
-    # Cursor names the edited path and the edited content with whichever key its
-    # tool schema uses. The guards read `.file_path` (plus `.notebook_path`) and
-    # `.content` / `.new_string` / `.new_source`, so an unrecognized alias makes
-    # them see an empty target or empty content and allow the write. Fold both
-    # families onto the canonical keys; the originals stay in tool_input so a
-    # script reading them directly is unaffected.
-    PAYLOAD="$(printf '%s' "$INPUT" | jq -c '
-      (.tool_input // {}) as $ti
-      | ($ti.file_path // $ti.path // $ti.target_file // "") as $fp
-      | ($ti.content // $ti.contents // $ti.code_edit // $ti.new_string // $ti.new_source // "") as $ct
-      | {
-          tool_name: (if .tool_name == "Shell" then "Bash" else (.tool_name // "") end),
-          tool_input: ($ti
-            + (if ($fp | type) == "string" and $fp != "" then {file_path: $fp} else {} end)
-            + (if ($ct | type) == "string" and $ct != "" then {content: $ct} else {} end)),
-          cwd: (.cwd // "")
-        }' 2>/dev/null)" || exit 0
     ;;
   sessionStart)
     PAYLOAD="$(printf '%s' "$INPUT" | jq -c \
@@ -189,40 +79,48 @@ case "$EVENT" in
     ;;
 esac
 
-# Run the script from the directory the action targets. Each guard walks up from
-# $PWD to find the project root, its .geniro/ state, and .geniro/safety.json;
-# Cursor's own working directory is not that root, so without this move a
-# project-scoped gate (a RED TDD cycle, a per-project allowlist) is looked up in
-# the wrong tree and the guard silently allows. Mirrors what
+# Run the script from the directory the action targets — Cursor's own working
+# directory is not the project root, so a per-project safety.json allowlist
+# would otherwise be looked up in the wrong tree. Mirrors what
 # session-start-restore.sh does with the payload's .cwd on the Claude Code side.
 HOOK_CWD="$(printf '%s' "$PAYLOAD" | jq -r '.cwd // ""' 2>/dev/null || echo "")"
 if [ -n "$HOOK_CWD" ] && [ -d "$HOOK_CWD" ]; then
   cd "$HOOK_CWD" || true
 fi
 
+# The script's stderr is the block reason. Without the /dev/null fallback a
+# failed mktemp turns the `2>"$STDERR_FILE"` redirect below into an error that
+# skips the script, so a guard would never run; with it, only the reason text
+# is lost and the generic deny message covers that. The trap carries INT and
+# TERM too: Cursor kills a hook that overruns its timeout, and a signal death
+# skips an EXIT-only trap.
+STDERR_FILE="$(mktemp 2>/dev/null || true)"
+if [ -z "$STDERR_FILE" ] || [ ! -f "$STDERR_FILE" ]; then
+  STDERR_FILE="/dev/null"
+fi
+trap '[ "$STDERR_FILE" = "/dev/null" ] || rm -f "$STDERR_FILE"' EXIT INT TERM
+
 STDOUT="$(printf '%s' "$PAYLOAD" | bash "$SCRIPT" 2>"$STDERR_FILE")"
 RC=$?
-STDERR="$(cat "$STDERR_FILE" 2>/dev/null || true)"
 
 if [ "$RC" -eq 2 ]; then
-  jq -n --arg msg "$STDERR" \
+  jq -n --arg msg "$(cat "$STDERR_FILE" 2>/dev/null || true)" \
     '{permission: "deny", agent_message: (if $msg == "" then "Blocked by a Geniro guardrail." else $msg end)}'
   exit 0
 fi
 
-if [ -n "$STDOUT" ]; then
-  case "$EVENT" in
-    sessionStart)
-      printf '%s' "$STDOUT" \
-        | jq -c '{additional_context: (.hookSpecificOutput.additionalContext // "")} | select(.additional_context != "")' \
-        2>/dev/null || true
-      ;;
-    beforeShellExecution|preToolUse)
-      printf '%s' "$STDOUT" \
-        | jq -c '{agent_message: (.systemMessage // "")} | select(.agent_message != "")' \
-        2>/dev/null || true
-      ;;
-  esac
-fi
+[ -n "$STDOUT" ] || exit 0
+case "$EVENT" in
+  sessionStart)
+    printf '%s' "$STDOUT" \
+      | jq -c '{additional_context: (.hookSpecificOutput.additionalContext // "")} | select(.additional_context != "")' \
+      2>/dev/null || true
+    ;;
+  beforeShellExecution)
+    printf '%s' "$STDOUT" \
+      | jq -c '{agent_message: (.systemMessage // "")} | select(.agent_message != "")' \
+      2>/dev/null || true
+    ;;
+esac
 
 exit 0

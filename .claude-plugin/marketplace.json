@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "geniro",
-      "description": "AI-driven setup, multi-agent skills, specialist sub-agents, and safety hooks + statusline + update check for Claude Code",
+      "description": "AI-driven setup, multi-agent skills, specialist sub-agents, and session-restore hooks + statusline + update check for Claude Code",
       "source": "./",
       "category": "development"
     }

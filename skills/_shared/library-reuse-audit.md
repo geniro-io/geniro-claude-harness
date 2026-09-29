@@ -118,7 +118,7 @@ Persist the pick to state.md `approvals[]` with `category: library_adoption`, `p
 
 Skip the gate silently when no candidate survives Step 3 — ask nothing when there is nothing to adopt.
 
-On an Adopt pick, hand the dependency to Phase 2 as a todo-list item: add it through the package manager (the Step 1 adopt command, run in a shell call), NOT by editing a lockfile — lockfile writes are blocked by the file-protection hook, and a package manager regenerates the lockfile correctly. Pass `--ignore-scripts` (or the ecosystem equivalent) when the package declares install scripts, then integrate the library in place of the hand-written component. An adopted library reshapes the Phase 2 todo list — install plus wire-up replaces implement-from-scratch.
+On an Adopt pick, hand the dependency to Phase 2 as a todo-list item: add it through the package manager (the Step 1 adopt command, run in a shell call), NOT by editing a lockfile — the package manager regenerates the lockfile consistently with the manifest, and a hand edit does not. Pass `--ignore-scripts` (or the ecosystem equivalent) when the package declares install scripts, then integrate the library in place of the hand-written component. An adopted library reshapes the Phase 2 todo list — install plus wire-up replaces implement-from-scratch.
 
 ## MODE: review — finding shape
 
@@ -144,7 +144,7 @@ The existence check in Step 3 Stage 0 is mandatory, not optional polish. Languag
 | "I know this package exists — skip the registry check." | The model is itself the hallucination source; about 1 in 20 frontier suggestions is a name that does not exist and may be a registered malware squat. The inspect command takes a second and is the security floor. |
 | "The library is obviously better — mark Adopt as Recommended." | Adopting a dependency is the user's decision; it adds supply-chain, license, and maintenance surface. Keep-hand-written stays the default — users ratify Recommended options, so auto-recommending an adoption removes the choice. |
 | "Search npm for the package." | Only when the project IS a Node project. Detect the ecosystem first; a Python / Rust / Go repo needs PyPI / crates / pkg.go.dev. An npm-only step is a bug. |
-| "Auto-install the adopted library to save a step." | Never auto-install. Install runs at Phase 2 through the package manager after the user confirms; the lockfile-write hook blocks editor writes, and an unconfirmed install is exactly the slopsquatting delivery vector. |
+| "Auto-install the adopted library to save a step." | Never auto-install. Install runs at Phase 2 through the package manager after the user confirms; an unconfirmed install is exactly the slopsquatting delivery vector. |
 | "The spec already names this library — adopt it without re-checking." | A spec-named library (from the manifest or the user) still goes stale — yanked or newly flagged between planning and implementation — and the name itself must resolve on the registry. Re-verify existence and health at the gate, then confirm. |
 | "Web is down — block the run until research succeeds." | Fail open. A library suggestion is an optimization; a registry timeout must never stop the work. Note it and hand-write the component. |
 | "Suggest a library for this 3-line helper." | A trivial, stable snippet does not justify a dependency's transitive and supply-chain cost. Skip Trivial scope and one-off snippets. |

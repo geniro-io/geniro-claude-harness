@@ -118,7 +118,6 @@ External sends are not part of `/geniro:setup` ACI. Users wire those via `/genir
 | Validation retry-cap escalation (`phase-4-validate.md` §4.2) — "Abort setup" pick | `failed` | "user aborted at the validation escalation gate — remaining drift unresolved; restart via re-run mode" |
 | Validation retry-cap escalation (`phase-4-validate.md` §4.2) — "Accept with warnings" pick | `done` | not written (success path; remaining DRIFT items noted in `## Open Questions`; state file deleted at Phase Done unless `mode == re-run`, per `phase-5-done.md` §5.3) |
 | Validation retry-cap escalation (`phase-4-validate.md` §4.2) — "Start over" pick | `detect` (non-terminal — restarts Phase 1) | not written (run continues, not terminated) |
-| Generation hit write-protection | `failed` | "write-protected target — bypass via `.geniro/safety.json` then re-run" |
 | Bootstrap completed without drift | `done` | not written |
 
 ## Memory I/O

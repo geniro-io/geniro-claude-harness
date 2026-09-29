@@ -1,6 +1,6 @@
 # Geniro Claude Plugin
 
-A production-grade Claude Code plugin with AI-driven setup, multi-agent workflows, and safety hooks. Provides specialist subagents, skills, and safety hooks + statusline + update check out of the box.
+A production-grade Claude Code plugin with AI-driven setup and multi-agent workflows. Provides specialist subagents, skills, and session-restore hooks + statusline + update check out of the box.
 
 Built and maintained by the [Geniro](https://github.com/geniro-io) team.
 
@@ -339,18 +339,14 @@ The current skill set absorbed or dropped 8 earlier skills:
 | `/geniro:cleanup` | Dropped — niche |
 | `/geniro:vendor` | Dropped — no cloud-runner requirement |
 
-## Safety Hooks
+## Hooks
 
-All hooks run automatically after installation. Per-project bypass via `.geniro/safety.json`.
+All hooks run automatically after installation. The plugin ships no broad command-string guards — the git, file-protection, deletion, state-helper, and security-scan guards were removed because they mostly blocked legitimate work ([`HOOKS.md`](HOOKS.md) §Removed guards).
 
-| Hook | Protection |
+| Hook | What it does |
 |------|-----------|
-| **File protection** | Blocks writes to `*.key`, `*.pem`, lock files, credentials, `*.tfstate`, `*.vault*` — not `.env` (that pattern was removed outright; content-level secret scanning still runs in the security pattern scan) |
-| **Git guardrails** | Blocks destructive git: force-push, reset --hard, branch -D, clean -fd, mass-discard checkout/restore, update-ref -d, filter-branch, remote-branch deletion (`git push --delete` / colon-refspec, bypass `push-delete`), stash deletion (`git stash clear` / `git stash drop`, bypass `stash-drop`), forced worktree removal (`git worktree remove -f`/`--force`, bypass `worktree-remove-force`) |
-| **`.geniro/` deletion guard** | Blocks bulk `rm -rf .geniro/` and `git add -f` on `.geniro/` paths. `git worktree remove` is allowed — a linked worktree's `.geniro/` goes with it |
+| **`.geniro/` force-add guard** | Blocks `git add -f` on `.geniro/` paths, which would put ignored files one "Discard All Changes" click from deletion. Bypass: `git-add-force-geniro` in `.geniro/safety.json` `allow_patterns` |
 | **Session-start restore** | `SessionStart` hook (`matcher: "compact\|resume\|startup"`) re-injects active task state.md + L4 instructions set + CLAUDE.md so context survives compaction |
-| **State-helper enforcement** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` (hard-block, file tools only — no `Bash` branch) — blocks direct writes to canonical state paths under `.geniro/`; suggests `atomic_state_write` / `atomic_state_append` |
-| **Security pattern scan** | PreToolUse `Edit\|Write\|MultiEdit\|NotebookEdit` AND `Bash` (hard-block) — regex scan of edit content and of content a shell command WRITES (heredoc/echo/printf into a file), for high-signal security anti-patterns: `eval`/`exec`, pickle, unsafe `yaml.load`, `shell=True`, `curl \| sh`, TLS bypass, XSS sinks, weak hashes. It does not scan a command's own runtime behavior — `curl … \| sh` piped straight to a shell, with nothing written to a file, is outside its scope |
 
 ## Updating
 
@@ -396,11 +392,11 @@ geniro/
 │   ├── update/                  # plugin update
 │   └── _shared/                 # canonical helpers (atomic-state-write, spawn-agent,
 │                                # load-custom-instructions, query/emit-learnings, etc.)
-├── hooks/                       # safety hooks + statusline + update check (roster: HOOKS.md §Hook scripts)
+├── hooks/                       # force-add guard + session restore + statusline + update check (roster: HOOKS.md §Hook scripts)
 │   ├── hooks.json               # Hook configuration
 │   ├── geniro-check-update.js   # Update detection (SessionStart)
 │   ├── geniro-statusline.js     # Status line renderer
-│   └── *.sh                     # Safety hook scripts
+│   └── *.sh                     # Guard, session-restore, and backpressure scripts
 ├── lib/                         # shell helpers the skills and hooks source
 │                                # (atomic-state-write, validate-state-file,
 │                                # emit/query-learnings, load/update-semantic, ...)

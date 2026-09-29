@@ -127,8 +127,6 @@ If the orchestrator's tools cannot produce evidence for a load-bearing claim, th
 - Allowed subagent spawns: fresh verifier agent (inherits orchestrator session tier).
 - Fresh verifier agent: Read / Grep (no Edit / Write).
 
-The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
-
 ## Memory I/O
 
 | Phase | Helper | Direction | MODE |

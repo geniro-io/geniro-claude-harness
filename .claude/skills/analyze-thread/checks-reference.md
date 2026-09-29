@@ -75,7 +75,7 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| G1 | Git destructive op attempted | blocker | plugin | Grep `tool_use` Bash commands for: `git push --force` (without `--with-lease` if also flagged), `git reset --hard`, `git branch -D`, `git clean -fd`, `git checkout -- .`, `git restore .`, `git update-ref -d`, `git filter-branch`, `git add -f .geniro/`, `git worktree remove`. Each is a separate finding ID. |
+| G1 | `.geniro/` force-add attempted | blocker | plugin | Grep `tool_use` Bash commands for `git add -f` / `--force` naming a `.geniro/` path. Other destructive git (`branch -D`, `reset --hard`, `worktree remove --force`, …) is not a finding on its own — the plugin's git guard was removed for blocking legitimate cleanup (`HOOKS.md` §Removed guards); judge those only against what the user asked for. |
 | G2 | `--no-verify` used | blocker | plugin | Grep Bash commands for ` --no-verify` (with leading space to avoid matching `name-verify`). Also flag `-c commit.gpgsign=false`, `--no-gpg-sign`. |
 | G3 | Secret in state file | blocker | generic+plugin | When an `Edit`/`Write` targets `.geniro/state/` / `.geniro/knowledge/` / `.geniro/planning/`, scan `new_string` / `content` for patterns: `[A-Za-z0-9]{32,}` after `api_key|token|secret|bearer|password` (case-insensitive), `sk-[a-zA-Z0-9]{20,}`, `xoxb-`, `ghp_`, `glpat-`, PEM headers. Cross-check against `redact-secrets.sh` invocation in the same turn — if redaction was called, downgrade to nit. |
 

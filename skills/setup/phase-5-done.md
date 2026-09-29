@@ -15,7 +15,7 @@ Detected:
 Stack: node/npm + jest tests + ESLint
 Default branch: main (auto-detected)
 
-Cursor: installed the Geniro skills, subagents, and safety hooks into ~/.cursor/   (only when §3.7 ran)
+Cursor: installed the Geniro skills, subagents, and hooks into ~/.cursor/   (only when §3.7 ran)
 
 Next:
 • Commit: git add CLAUDE.md

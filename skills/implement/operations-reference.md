@@ -25,8 +25,6 @@ These sections live here rather than in SKILL.md's tail because compaction re-at
 | **Every spawned subagent** (knowledge-retrieval, codebase-explorer, test-runner, reviewer, finding-verifier, Phase 2 code delegate) | Exactly its own `agents/<name>.md` frontmatter `tools:` whitelist — that allowlist is the contract, not a summary of one; the code delegate has no such file — its ceiling is the spawn template's constraints block instead (`implement-reference.md` §"Phase 2: Code-delegate spawn template") | Agent (all are leaf agents — no nesting); git mutation; destructive Bash; Edit / Write beyond the agent's declared surface; the read-only agents write only their own OUTPUT_PATH |
 | **Phase 3 Ship sub-step** | Browser control + a background dev-server start, for the Pre-Ship Visual Verification pass; `git commit`, `git push`, `gh pr create` — each gated by the push-grade doctrine (`SKILL.md` §Anti-rationalization, ship-mode row); Edit/Write, scoped to the review-coverage guard's re-review of diverged files only (invariant S5); AskUserQuestion | External commits before AUQ resolution |
 
-The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
-
 ---
 
 ## Budgets — quality-first framing

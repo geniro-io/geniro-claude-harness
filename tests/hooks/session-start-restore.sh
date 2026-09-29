@@ -1332,10 +1332,9 @@ dep=$(jq -r 'select(.dedup_key=="opt-stale1") | (.deprecated // false)' "$sandbo
 #      opt-out check — treated as opt-out, not as default-on. Before the fix,
 #      jq's exit status went uncaptured: a parse failure left `_opt` empty,
 #      `[ "$_opt" = "false" ]` was false, and auto-archive ran anyway despite
-#      the file being unreadable — the opposite of every OTHER safety.json
-#      reader's fail-closed posture (file-protection.sh, block-dangerous-git.sh,
-#      block-geniro-deletion.sh all block on a coarse scan when jq can't read
-#      their allowlist). Same corpus/threshold shape as 21a/21b.
+#      the file being unreadable — the opposite of block-geniro-force-add.sh,
+#      which still blocks when it cannot read its allowlist. Same
+#      corpus/threshold shape as 21a/21b.
 sandbox=$(new_sandbox)
 mkdir -p "$sandbox/.geniro/knowledge" "$sandbox/.geniro"
 write_archivable_corpus "$sandbox/.geniro/knowledge/learnings.jsonl"

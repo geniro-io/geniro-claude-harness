@@ -123,7 +123,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 4 — Report
 
-Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/` is a gitignored local-only working area — not a `.geniro/` state path, so the state-helper hook does not apply) with this structure, mirroring the established audit-report format:
+Write `design/scratch/plugin-audit-<YYYY-MM-DD>.md` via Write (`design/scratch/` is a gitignored local-only working area — not a `.geniro/` state path, so the atomic-write contract does not apply) with this structure, mirroring the established audit-report format:
 
 1. **Header** — date, scope, reviewer topology (which dimensions ran, sharding).
 2. **Health summary** — what's strong and must NOT be over-corrected (feeds the next run's do-not-flag list).

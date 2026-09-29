@@ -12,7 +12,6 @@
 - §What this helper does NOT do — validation, locking, rollback, retry
 - §Portability notes — Linux vs macOS sync
 - §NFS safety — tmp-filename uniqueness
-- §Bypass — power-user allowlist opt-out
 
 **Helper for atomic state-file writes.** Skills source this from Bash to write `.geniro/` state files without partial-write corruption.
 
@@ -50,7 +49,7 @@
 | T3 append-only JSONL (`.geniro/knowledge/learnings.jsonl`) | `atomic_state_append` only — except a locked whole-file rewrite that mutates an existing line (e.g. flipping `deprecated: true` on prune/archive), which is program-produced content and routes through `atomic_state_write_cmd` under the shared knowledge-rewrite lock |
 | T1 ephemeral transient outputs (canonical list: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1 — e.g. `.kr-out.md`, `.research-*.md`, `notes.md`) | Plain `Write` — no frontmatter, no atomicity requirement, deleted at the owning run's terminal exit |
 
-**Do not** use the built-in `Write` or `Edit` tools on `.geniro/` state paths. The `enforce-state-helper.sh` PreToolUse hook hard-blocks those (exit 2). A shell-side write is *not* blocked — the hook does not match `Bash` — but it carries the identical corruption risk, so route it through the helper anyway.
+Write `.geniro/` state paths through these helpers, not the built-in `Write`/`Edit` tools or a shell redirect — each of those truncates and rewrites in place, so a reader during that window sees a partial file. No hook checks this; it is a contract the writer keeps.
 
 ---
 
@@ -309,17 +308,3 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 ## NFS safety
 
 - The tmp filename carries the hostname plus `mktemp` randomness. A PID would not have been enough: inside a subshell `$$` is the parent shell's, so same-host concurrent writers collided. The hostname covers the cross-host case on a shared `.geniro/`; zsh does not set `HOSTNAME`, so the helper falls back to `HOST` and then to `hostname`.
-
----
-
-## Bypass — power users
-
-Add `enforce-state-helper` to `.geniro/safety.json` `allow_patterns` to bypass the hook for the current project:
-
-```json
-{
-  "allow_patterns": ["enforce-state-helper"]
-}
-```
-
-This only silences the hook; it does not make direct `Edit`/`Write` safe. Use it only if you understand the atomicity trade-off.

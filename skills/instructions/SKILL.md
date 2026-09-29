@@ -109,8 +109,6 @@ Failure paths report a structured reason in the final user message.
 |---|---|
 | User cancelled at any question | `aborted: user cancelled at <step>` |
 | Scope resolution retry cap exhausted (cap set in `phase-1-parse.md` §Ambiguity resolution) | `aborted: scope unresolved after <cap> rounds of questions` |
-| Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>; see .geniro/safety.json` |
-| Delete blocked by `.geniro/` deletion guard | `aborted: .geniro/ deletion guard blocked rm of <path>; see .geniro/safety.json` |
 
 ## Valid scope set
 

@@ -112,7 +112,7 @@ S2. **One todo in_progress at a time.** Use the todo-list tool to expose per-pha
 | "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change guarantee applies even when the in-scope behavior is buggy. |
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. If you find yourself orchestrator-inline editing for a PRODUCT-DECISION finding, that's the rationalization. Stop and route the escalation. |
 | "Auto-promote a recorded discovery into a project rule when refactor completes." | /geniro:refactor proposes no project rules at all — its durable output is the `discovery` / `pitfall` learning emitted at Phase 3 §3.5. Rule mining is `/geniro:reflect`, which the user invokes when they want it; a rule offer bolted onto a refactor interrupts the diff review the run exists to deliver. |
-| "The revert step needs `git checkout -- .` / `git restore .`, but the guard blocks it — I'll bypass the hook or run `git stash`." | The guard is blocking a mass discard, not the revert. Use the targeted form § Git constraint defines; a bypass or `git stash` reaches the same uncommitted work the guard exists to protect. If some other guardrail blocks legitimate refactor work, the path is `.geniro/safety.json` `allow_patterns`, not `--no-verify`. |
+| "The revert step is simpler as `git checkout -- .` / `git restore .`." | A bare pathspec discards every uncommitted change in the tree, including work outside this refactor. Use the targeted form § Git constraint defines; `git stash` reaches the same unrelated work. |
 | "PRODUCT-DECISION 3-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 3 fixed options. The Revert path is a user-controlled safety net, and dropping it leaves a user who dislikes the diff with no in-skill way out. Collapsing removes meaningful agency. |
 | "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous. The diff-sanity check in Phase 3 §3.1 + the baseline regression in Phase 2 §2.4 catch behavioral drift. Running a full reviewer-agent batch for a 5-line rename wastes tokens. Tier behavior is intentional. |
 
@@ -190,13 +190,11 @@ Route every user-facing choice in this skill through the `AskQuestion` tool per 
 
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
 
-The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
-
 ---
 
 ## Git constraint
 
-Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert applied work in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <paths>`, where `<paths>` is the aggregated `files_affected` from state.md's executed `## Plan steps` rows (plus, in Phase 3, any path a fix-loop finding touched) — never `git diff --name-only`, which would also sweep up any unrelated uncommitted work already in the tree (Phase 1 §1.2 does not require a clean working tree before scope discovery starts). Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the git-guardrail hook blocks the mass-discard form because it would wipe every uncommitted change, including work outside this refactor entirely.
+Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert applied work in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <paths>`, where `<paths>` is the aggregated `files_affected` from state.md's executed `## Plan steps` rows (plus, in Phase 3, any path a fix-loop finding touched) — never `git diff --name-only`, which would also sweep up any unrelated uncommitted work already in the tree (Phase 1 §1.2 does not require a clean working tree before scope discovery starts). Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the mass-discard form wipes every uncommitted change, including work outside this refactor entirely.
 
 ---
 

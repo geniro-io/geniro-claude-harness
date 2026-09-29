@@ -13,7 +13,7 @@
 # "plugins are not currently working in the CLI" (forum.cursor.com/t/158947).
 # That is plugin-WIDE, not skills-only: under a plugin install a cursor-agent
 # session gets no Geniro skills, no Geniro subagents, and — the part that bites
-# hardest — none of the safety hooks. The IDE loads all three; the CLI loads
+# hardest — none of the hooks. The IDE loads all three; the CLI loads
 # none. Measured 2026-08-26 against cursor-agent 2026.08.11-e8db854.
 #
 # The fix is to stop shipping through the plugin and use the per-component user
@@ -214,7 +214,7 @@ hooks_apply() {
   local merged tmp
 
   if ! command -v jq >/dev/null 2>&1; then
-    echo "SKIP: jq not found — $HOOKS_DEST left untouched. Geniro's safety hooks will not run" >&2
+    echo "SKIP: jq not found — $HOOKS_DEST left untouched. Geniro's hooks will not run" >&2
     echo "      in Cursor until you install jq and re-run this script." >&2
     return 0
   fi
@@ -262,7 +262,7 @@ hooks_apply() {
 # so each one is rewritten to an absolute path under the resolved source root.
 #
 # That absolute path is single-quoted, and only the path — the script's own
-# trailing argument (the hook basename, e.g. "block-dangerous-git.sh") stays a
+# trailing argument (the hook basename, e.g. "block-geniro-force-add.sh") stays a
 # bare word after it, so the profile-level command is still "'<script>'
 # <arg>". Unquoted, a source root containing a space (a checkout under
 # `~/My Projects/`, or a `CLAUDE_CONFIG_DIR` with one) splits the command on

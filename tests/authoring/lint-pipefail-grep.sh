@@ -19,23 +19,17 @@
 # the exposed process, so the scan matches on the pipe into `grep -q` itself,
 # not on any particular producer command.
 #
-# The fix shape already lives in this repo with its rationale at
-# file-protection.sh's `is_disposable_tree`: a here-string
-# (`grep -qE 'PATTERN' <<< "$X"`) never opens a pipe, so grep can never
-# SIGPIPE its producer — there is no producer. That is the ONLY allowed shape
-# for this class; `<producer> … | grep -q` in a pipefail-reachable file is
-# always the bug, never a legitimate use.
+# The fix is a here-string (`grep -qE 'PATTERN' <<< "$X"`): it never opens a
+# pipe, so there is no producer for grep to SIGPIPE. That is the ONLY allowed
+# shape for this class; `<producer> … | grep -q` in a pipefail-reachable file
+# is always the bug, never a legitimate use.
 #
 # Coverage: every hooks/*.sh and lib/*.sh file that itself runs
 # `set -o pipefail` / `set -euo pipefail`, PLUS every lib/*.sh file any of
 # those (transitively) `source` — it runs in the SAME shell, inheriting the
 # pipefail setting, so it is exactly as exposed as the file that sourced it
 # (D5b-22: lib/validate-state-file.sh has no pipefail of its own but is
-# sourced by hooks/session-start-restore.sh, which does). lib/write-vectors.sh
-# is additionally checked unconditionally, since some callers reach it through
-# indirection this scan's static source-tracing may not catch — leaving it out
-# would silently exclude the file the T0-6/T0-7 canonical fix actually lives
-# in.
+# sourced by hooks/session-start-restore.sh, which does).
 
 set -uo pipefail
 
@@ -62,8 +56,7 @@ scan_file() {
 # caller below loops this to a fixed point. Two sourcing shapes exist in this
 # codebase:
 #   (a) the filename is literally on the `source` line itself, e.g.
-#       `source "$_as_script_dir/repo-root.sh"` or
-#       `source "${CLAUDE_PLUGIN_ROOT:-.}/lib/write-vectors.sh"`.
+#       `source "$_as_script_dir/repo-root.sh"`.
 #   (b) the whole path is a bare variable, e.g. `source "$_vsf_helper"`, whose
 #       OWN assignment elsewhere in the SAME file carries the literal
 #       filename (`_vsf_helper="${CLAUDE_PLUGIN_ROOT:-.}/lib/validate-state-file.sh"`).
@@ -120,13 +113,9 @@ pipefail_setting_files() {
   done
 }
 
-# --- the lint: every pipefail-setting file, plus lib/write-vectors.sh,
-# plus every lib any of those (transitively) source ---------------------------
+# --- the lint: every pipefail-setting file, plus every lib any of those
+# (transitively) source -------------------------------------------------------
 FILES="$(pipefail_setting_files)"
-if ! printf '%s\n' "$FILES" | grep -qx 'lib/write-vectors.sh'; then
-  FILES="${FILES}
-lib/write-vectors.sh"
-fi
 
 SOURCED=""
 while IFS= read -r f; do

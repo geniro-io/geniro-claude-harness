@@ -22,12 +22,9 @@ set -uo pipefail
 # PROJECT this hook is running IN, not the plugin install) whenever
 # CLAUDE_PLUGIN_ROOT is unset. A project that happens to carry its own
 # lib/repo-root.sh (or any of the other lib names this file sources) then had
-# THAT file sourced instead of the plugin's own — the exact shadowing class
-# file-protection.sh's `_geniro_wv_helper` fallback already guards against
-# (see its comment there); mirrored here instead of `.`. Computed before the
-# cd so a relative BASH_SOURCE still resolves against the directory this
-# script was actually invoked from, not the project's cwd it is about to
-# switch into.
+# THAT file sourced instead of the plugin's own. Computed before the cd so a
+# relative BASH_SOURCE still resolves against the directory this script was
+# actually invoked from, not the project's cwd it is about to switch into.
 _GENIRO_PLUGIN_ROOT_FALLBACK="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Announce inactivity if jq is missing, like every sibling hook. Without the
@@ -131,9 +128,9 @@ if ! command -v _geniro_branch_slug >/dev/null 2>&1; then
 fi
 
 # Find the nearest .geniro/safety.json walking up from cwd. Mirrors
-# file-protection.sh / block-dangerous-git.sh so the auto-archive opt-out is
-# honored regardless of cwd depth (a single cwd-relative check misses the
-# opt-out from any subdirectory or linked worktree).
+# block-geniro-force-add.sh so the auto-archive opt-out is honored regardless
+# of cwd depth (a single cwd-relative check misses the opt-out from any
+# subdirectory or linked worktree).
 find_safety_json() {
   local dir="$PWD"
   while [ "$dir" != "/" ]; do

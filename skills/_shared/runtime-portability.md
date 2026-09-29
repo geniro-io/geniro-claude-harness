@@ -50,18 +50,18 @@ Note the ordering against the row below: a missing question tool is common and u
 
 ## Hooks do not fire — self-enforce the conventions
 
-Claude Code wires `hooks/hooks.json` (PreToolUse guards, SessionStart restore). Other runtimes never read that file, so every guardrail becomes a binding instruction on you instead of a mechanical block. Before the corresponding action, apply the same check the hook would have applied:
+Claude Code wires `hooks/hooks.json` (the `.geniro/` force-add guard, SessionStart restore). Other runtimes never read that file, so before the corresponding action apply the check the hook would have applied:
 
 | Lost hook | Self-enforce |
 |---|---|
-| State-helper enforcement | Write `.geniro/` state paths only via the `atomic-state-write` helpers — `atomic_state_write` / `atomic_state_write_cmd` for whole files, `atomic_state_edit` / `atomic_state_set_field` for in-place changes, `atomic_state_append_section` / `atomic_state_append_list_item` for appends, `atomic_state_append` for JSONL — never direct Edit/Write/redirection. |
-| Destructive-git guard | Do not run force-push, `reset --hard`, `branch -D`, `clean -fd`, mass-discard checkout/restore, or remote-branch deletion unless the user explicitly asked for that exact operation. |
-| `.geniro/` deletion guard | No bulk `rm -rf .geniro/` or `git add -f` on `.geniro/` paths; delete only specific files you created. |
-| File protection | Do not write `*.key`, `*.pem`, credentials, or lock files. |
-| Security pattern scan | Before writing code, check it against the anti-pattern list in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md` (eval/exec, unsafe yaml/pickle, shell injection, TLS bypass, XSS sinks, weak hashes). |
-| Reporter no-Edit/no-Write contract | Hold it yourself under every host, Claude Code included — `allowed-tools` only pre-approves listed tools, it never restricted `Write`/`Edit`; Cursor subagents additionally inherit every parent tool regardless of the frontmatter list (`reporter-boundary.md` §1). |
+| `.geniro/` force-add guard | No `git add -f` on `.geniro/` paths — track a subdir through `.gitignore` negation instead. |
 
-If Cursor is the host and the plugin's Cursor hook set is installed (see `cursor/README.md` in the plugin root), the shell-side and file-side guards above fire mechanically again; the instruction layer still applies for anything the port does not cover.
+Two contracts hold under every host, Claude Code included, because no hook enforces them anywhere:
+
+- **State writes** — write `.geniro/` state paths only via the `atomic-state-write` helpers: `atomic_state_write` / `atomic_state_write_cmd` for whole files, `atomic_state_edit` / `atomic_state_set_field` for in-place changes, `atomic_state_append_section` / `atomic_state_append_list_item` for appends, `atomic_state_append` for JSONL.
+- **Reporter no-Edit/no-Write** — `allowed-tools` only pre-approves listed tools, it never restricted `Write`/`Edit`; Cursor subagents additionally inherit every parent tool regardless of the frontmatter list (`reporter-boundary.md` §1).
+
+If Cursor is the host and the plugin's Cursor hook set is installed (see `cursor/README.md` in the plugin root), the force-add guard fires mechanically again.
 
 ## Subagents do not inherit the orchestrator's cwd
 

@@ -97,7 +97,6 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | "Per protocol I should ask via AskUserQuestion, but this specific intermediate question isn't in the enumerated gates — I'll inline (A)/(B) in chat" | Every user-facing choice in this skill routes through the `AskUserQuestion` tool (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule) — the enumerated gates are examples, not the complete set. An inline `(A)/(B)` leaves no structured answer for the resume hook to restore. If you catch yourself rationalizing "but this case is different / needs runtime confirmation / is just a quick check" — stop and call the tool. |
 | "I'll name the reproduction test after the confirmed hypothesis number from `## Hypotheses`" | state.md gets deleted at Cleanup; the test ships with the fix. A name like `Bug C` or `Hypothesis 2 reproduction` is meaningless to whoever reads the test in CI weeks later. §2.4 mandates: describe the bug behavior, not the thread-local label. |
 | "I see two valid fixes for this root cause — I'll just pick one and write the text proposal" | §2.2 multi-path fix gate (Always-WAIT) requires AskUserQuestion whenever the root cause has more than one valid fix path with real trade-offs. Single-text-proposal default applies ONLY when there is one obvious right fix. |
-| "Bypass `git guardrail` hooks if a needed `git bisect` step blocks." | Hooks fail for a reason. `git bisect` is permitted (read-only investigation per § ACI per-phase). If a specific guardrail blocks legitimate debug work, the path is `.geniro/safety.json` allow_patterns, not `--no-verify`. |
 | "Self-fix indefinitely until verify passes." | §2.5 fix-loop escalation bounds the fix-attempt count and, past it, escalates AUQ ("Try different approach" / "Accept as documented limitation" / "Abort"). "Kick it until it passes" is an anti-pattern that wastes budget on a hypothesis that needs revisiting. |
 
 ---
@@ -173,8 +172,6 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 **Adversarial Mode (A4):**
 - Allowed: Read / Grep / Glob / Bash (read-only — diff resolution, framework detection, running the test command) / Edit / Write, scoped to test files and test-only fixtures/helpers (never production source) / AskUserQuestion (escalation gate).
 - Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`, `git add`. No subagent spawn — test authoring runs inline in this same context.
-
-The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
 
 ---
 

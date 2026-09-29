@@ -23,8 +23,6 @@ rm -f "$PRIMARY_ROOT"/.geniro/instructions/<scope>.md
 rm -f "$PRIMARY_ROOT"/.geniro/instructions/review-extra/<slug>.md
 ```
 
-The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/instructions/<scope>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk `rm -rf .geniro/instructions/` is blocked.
-
 Clean up empty parent dirs silently:
 
 ```bash
@@ -33,4 +31,4 @@ rmdir "$PRIMARY_ROOT"/.geniro/instructions/review-extra/ 2>/dev/null
 rmdir "$PRIMARY_ROOT"/.geniro/instructions/ 2>/dev/null
 ```
 
-For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delete review-extra <slug>` per-file; bulk delete protected by guard hook."
+For `review-extra` ALL: explicitly refused with "Use `/geniro:instructions delete review-extra <slug>` per-file — each reviewer is deleted on its own confirmation."

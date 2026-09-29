@@ -189,13 +189,10 @@ else
 fi
 
 # A fixture tree that has to carry `.geniro/` — the memory layers a Phase 1
-# recon task is measured on — cannot be committed under that name: the
-# `enforce-state-helper` hook matches `.geniro/<tier>/` anywhere in a path and
-# would (correctly) refuse the direct writes that author the fixture, since it
-# has no way to tell benchmark data from this repo's own state. Committing the
-# directory as `dot-geniro/` and restoring the real name at stage time keeps the
-# hook exactly as strict as it is, at the cost of one rename here. Any task tree
-# may use it; tasks without the directory are unaffected.
+# recon task is measured on — is committed as `dot-geniro/` and restored to the
+# real name at stage time, so fixture data is never mistaken for this repo's own
+# `.geniro/` state by a tool that walks up looking for one. Any task tree may use
+# it; tasks without the directory are unaffected.
 if [ -d "$STAGE_DIR/tree/dot-geniro" ]; then
   rm -rf "$STAGE_DIR/tree/.geniro"
   mv "$STAGE_DIR/tree/dot-geniro" "$STAGE_DIR/tree/.geniro"

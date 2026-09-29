@@ -25,5 +25,3 @@ rmdir "$(dirname "<resolved-path>")" 2>/dev/null # silently if empty
 ```
 
 Print: "Deleted `<resolved-path>`."
-
-The `.geniro/` deletion guard hook **allows** per-file `rm -f` of `.geniro/actions/<slug>.md` (per the hook's "Per-file `rm -f` remain allowed" rule); only bulk deletion is blocked.

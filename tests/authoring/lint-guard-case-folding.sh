@@ -1,47 +1,33 @@
 #!/usr/bin/env bash
 # Guards hooks/ and lib/ against a case-sensitive `.geniro` / `safety.json` /
-# destructive-command-word matcher — the class behind the 2026-08-23 audit's
-# T0-1 through T0-4 bypasses.
+# command-word matcher — the class behind the 2026-08-23 audit's T0-1 through
+# T0-4 bypasses.
 #
 # Run: bash tests/authoring/lint-guard-case-folding.sh
 #
-# Why this exists: `.GENIRO` and `.geniro` are the same inode on a
-# case-insensitive filesystem (macOS's default), and `RM`/`Rm`/`GIT`/`Git` all
-# resolve on PATH exactly like their lowercase spelling. A guard whose matcher
-# is a bare-lowercase regex misses every uppercase variant — `Write
-# .GENIRO/safety.json`, `rm -rf .Geniro`, `RM -rf .geniro`, `Git push --force`
-# all returned rc 0 (measured by executing the shipped hooks, not by reading
-# them). Each of the four sites was fixed by ONE of two shapes:
-#   - the whole grep call gets `-i` (`grep -qiE`, `grep -oiE`) — used where
-#     folding the surrounding flags/subcommand text does no harm, or
-#   - only the specific word is folded via a bracket class (`[gG][iI][tT]`)
-#     — used where an adjacent FLAG must stay case-sensitive (block-dangerous-git.sh:
-#     `--FORCE` is not a real git flag, so folding it would invent false
-#     positives), or
-#   - the compared VARIABLE is lowered once, upstream, via
-#     `tr '[:upper:]' '[:lower:]'` (as `_geniro_normalize_path` and
-#     `find_glob_covers_geniro`/`find_span_targets_geniro` do) — every match
-#     against that variable inherits the fold for free.
+# Why this exists: `.GENIRO` and `.geniro` are the same directory on a
+# case-insensitive filesystem (macOS's default), and `GIT`/`Git`/`RM` resolve
+# on PATH exactly like their lowercase spelling. A matcher written as a bare
+# lowercase regex misses every uppercase variant. Three fix shapes pass:
+#   - the grep call carries `-i` (`grep -qi`, `grep -oiE`);
+#   - only the word is folded via a bracket class (`[gG][iI][tT]`), for when an
+#     adjacent flag must stay case-sensitive;
+#   - the compared variable was lowered earlier in the same function via
+#     `tr '[:upper:]' '[:lower:]'`, so every match against it inherits the fold.
 #
-# What this checks, mechanically: every line in hooks/*.sh or lib/*.sh whose
-# grep/case pattern contains the literal `.geniro`, `safety.json`, or one of
-# the destructive command words (rm, mv, rmdir, find, rsync, git) spelled as a
-# bare lowercase token PASSES if the SAME line carries `-i` on the grep call, a
-# same-line bracket-class fold, OR the enclosing function already ran
-# `tr '[:upper:]' '[:lower:]'` on some variable before this line (tracked by
-# function body, reset at each new `name() {`). It is a heuristic pinned to the
-# three fix shapes actually shipped, not a formal prover — a new matcher that
-# invents a fourth shape needs a matching update here, the same way
-# lint-shipped-shas.sh's resolution check is a heuristic pinned to its own
-# fix shape.
+# What this checks, mechanically: every grep -q/-o, `case`, or sed-normalizer
+# line in hooks/*.sh or lib/*.sh whose pattern holds `.geniro`, `safety.json`,
+# or a command word (rm, mv, rmdir, find, rsync, git) as a bare lowercase token
+# must carry one of those shapes. The `tr` fold is tracked per function body,
+# reset at each `name() {` and at its closing `}`. It is a heuristic pinned to
+# the shipped fix shapes, not a prover — a matcher that invents a fourth shape
+# needs a matching update here.
 #
 # Deliberately NOT flagged (false-positive exclusions, not loopholes):
 #   - lines that are comments (leading `#` after trimming)
 #   - the `tr '[:upper:]' '[:lower:]'` fold line itself
-#   - `case "$cmdword"` / `"$cmdword"` comparisons — these compare against a
-#     variable holding the ALREADY-MATCHED word, not a fresh literal
-#   - a bare filename mention with no `[[:space:]]` boundary immediately after
-#     the command word (comments, prose, path examples)
+#   - a bare command-word mention with no `[[:space:]]` boundary immediately
+#     after it (prose, path examples)
 
 set -uo pipefail
 
@@ -74,14 +60,11 @@ scan_file() {
     # `.geniro`/`safety.json` far more often than it MATCHES against them, and
     # is not this class of bug.
     # A sed normalizer whose script opens with an s-command right after the
-    # quote (double- or single-quoted, `#` or slash delimited) — the shape
-    # block-dangerous-git.sh:515 used to strip the git global options with —
-    # is a matcher too: it decides whether the surrounding text reads as the
-    # command word it rewrites. `.` stands in for the opening quote character
-    # so this matches either quoting style without needing to embed a literal
-    # quote inside this awk program, which is itself inside a single-quoted
-    # shell string where that would break the string open (2026-09-23 audit
-    # T0-4/D8-9/D5b-21).
+    # quote (double- or single-quoted, `#` or slash delimited) is a matcher
+    # too: it decides whether the surrounding text reads as the command word
+    # it rewrites. `.` stands in for the opening quote character so this
+    # matches either quoting style without embedding a literal quote in this
+    # awk program, which sits inside a single-quoted shell string.
     function is_sed_normalizer(s) {
       return (s ~ /sed[[:space:]]+(-[A-Za-z]+[[:space:]]+)*.s[\/#]/)
     }
@@ -91,40 +74,27 @@ scan_file() {
     BEGIN { lowered = 0 }
     {
       line = $0
-      # Reset per-function tracking at a new top-level function definition,
-      # AND at the closing brace of that same function: the previous version
-      # reset only on the NEXT function header, so every top-level line after a
-      # function that folded case (via tr or _geniro_normalize_path) read as
-      # still-lowered even once execution had left that function body — which
-      # is how block-geniro-deletion.sh:1329 (after find_span_targets_geniro
-      # folded case earlier in a DIFFERENT function) shipped unflagged
-      # (2026-09-23 audit T0-4/D8-9/D5b-21).
+      # Reset per-function tracking at a new top-level function definition AND
+      # at the closing brace of that function — resetting only on the next header
+      # let top-level lines after a folding function read as still-lowered
+      # (2026-09-23 audit T0-4).
       if (line ~ /^[A-Za-z_][A-Za-z0-9_]*\(\)[[:space:]]*\{/) { lowered = 0 }
       if (line ~ /^\}/) { lowered = 0 }
       if (line ~ /tr[[:space:]]+.\[:upper:\].[[:space:]]+.\[:lower:\]./) { lowered = 1; next }
-      # A call to the shared path-normalizer (which case-folds internally)
-      # lowers whatever variable it assigns into for the rest of this
-      # function body — every match against that variable below inherits it.
-      if (line ~ /_geniro_normalize_path/) { lowered = 1; next }
       if (is_comment(line)) next
-      if (line ~ /"\$cmdword"/) next
       if (!is_matcher_line(line)) next
 
       needs_fold = 0
       if ((line ~ /\.geniro/) && !has_ifold(line) && !lowered) needs_fold = 1
       if ((line ~ /safety\.json/) && !has_ifold(line) && !lowered) needs_fold = 1
-      # Destructive command word, plus the shell/interpreter rosters
-      # lib/write-vectors.sh matches for shell indirection (D8-2), as a bare
-      # token immediately followed by a whitespace-class boundary inside a
-      # regex pattern — the shape every span-extraction / jqless-fallback
-      # matcher in this repo uses.
-      if (line ~ /(^|[^A-Za-z0-9_\[])(rm|mv|rmdir|find|rsync|git|sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc|python|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)\[\[:space:\]\]/) {
+      # A command word as a bare token immediately followed by a
+      # whitespace-class boundary inside a regex pattern.
+      if (line ~ /(^|[^A-Za-z0-9_\[])(rm|mv|rmdir|find|rsync|git)\[\[:space:\]\]/) {
         if (!has_ifold(line) && !has_bracket_fold(line) && !lowered) needs_fold = 1
       }
-      # The same word roster, but as the first thing after a sed
-      # substitution delimiter (`s/git(...`, `s#bash ...`) — the shape a
-      # normalizer rewrites rather than matches inline.
-      if (is_sed_normalizer(line) && line ~ /s[\/#](rm|mv|rmdir|find|rsync|git|sh|bash|zsh|dash|ksh|ash|fish|csh|tcsh|xonsh|nu|elvish|rc|python|node|bun|bunx|deno|tsx|perl|ruby|php|lua|tclsh|Rscript)([^A-Za-z0-9_]|$)/) {
+      # The same words as the first thing after a sed substitution delimiter
+      # (`s/git(...`) — the shape a normalizer rewrites rather than matches.
+      if (is_sed_normalizer(line) && line ~ /s[\/#](rm|mv|rmdir|find|rsync|git)([^A-Za-z0-9_]|$)/) {
         if (!has_bracket_fold(line) && !lowered) needs_fold = 1
       }
       if (needs_fold) {
@@ -191,7 +161,7 @@ fi
 
 cat > "$SCRATCH/folded-normalize.sh" <<'EOF'
 #!/usr/bin/env bash
-_geniro_normalize_path() {
+normalize_path() {
   local p="${1:-}"
   p="$(printf '%s' "$p" | tr '[:upper:]' '[:lower:]')"
   echo "$p" | grep -qE '(^|/)\.geniro/safety\.json$'

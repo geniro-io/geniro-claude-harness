@@ -4,22 +4,22 @@
 # Run: bash tests/cursor/hook-shim.sh
 #
 # Coverage:
-#   - beforeShellExecution: every guard wired on that event denies its own
-#     destructive command and stays silent on the benign counterpart.
-#   - beforeShellExecution with a benign command -> no output, exit 0.
-#   - preToolUse file-path aliases (path / target_file) -> deny.
-#   - preToolUse content aliases (content / contents / code_edit / new_string /
-#     new_source) -> the security scan still sees the content and denies; the
-#     MultiEdit edits[] payload (no content key) keeps working.
-#   - The payload's cwd is where the guards run: a project-rooted payload finds
-#     the project's own safety.json bypass even when the shim's own cwd is
-#     elsewhere.
-#   - sessionStart -> Claude additionalContext re-emitted as additional_context.
-#   - A hook's stdout systemMessage -> agent_message on the shell/edit events.
-#   - jq missing -> loud Cursor-shaped notice instead of a silent fail-open.
-#   - Unknown event -> no-op exit 0.
-#   - Missing / path-traversal script argument -> no-op exit 0 (fail-open).
-#   - cursor/hooks.json is valid JSON and every wired script exists in hooks/.
+#   - beforeShellExecution through block-geniro-force-add.sh: a force-add on
+#     .geniro/ -> permission deny carrying the guard's reason; a benign command
+#     -> silent allow.
+#   - The payload's cwd is where the hook runs: a project's own safety.json
+#     allowlist is honored even when the shim's own cwd is elsewhere.
+#   - Payload translation both ways, against a stub hook that echoes what it
+#     received: beforeShellExecution -> Bash tool_input, sessionStart ->
+#     {source, cwd}; systemMessage -> agent_message (no permission key) and
+#     additionalContext -> additional_context.
+#   - sessionStart through the real session-start-restore.sh.
+#   - A failed mktemp still runs the guard and still denies.
+#   - jq missing -> a Cursor-shaped inactivity notice, and the script NOT run.
+#   - preToolUse, unknown events, and malformed payloads -> no-op, script not run.
+#   - Missing / nonexistent / path-traversal script argument -> no-op.
+#   - cursor/hooks.json is valid, wires only events the shim translates, every
+#     wired script exists, and the force-add entry fails closed.
 
 set -uo pipefail
 
@@ -56,41 +56,28 @@ shell_verdict() {
   verdict "$out"
 }
 
-# edit_verdict <script> <tool_input-json> [cwd] [tool_name]
-edit_verdict() {
-  local out
-  out="$(jq -nc --argjson ti "$2" --arg w "${3:-.}" --arg tn "${4:-Write}" \
-    '{hook_event_name:"preToolUse", tool_name:$tn, tool_input:$ti, cwd:$w}' \
-    | bash "$SHIM" "$1")"
-  verdict "$out"
-}
-
 expect_verdict() { # <label> <expected> <actual>
   if [ "$3" = "$2" ]; then pass "$1"; else fail "$1 (expected $2, got $3)"; fi
 }
 
-# An anti-pattern the security scan must catch, assembled at runtime so this
-# test file is not itself a match for the guard that scans edits.
-EVAL_SNIPPET="ev""al(userInput)"
-
-# --- deny on destructive git ---
-OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git push --force origin main", cwd:"."}' \
-  | bash "$SHIM" block-dangerous-git.sh)"
+# --- deny on a force-add of .geniro/ ---
+OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git add -f .geniro/actions/x.md", cwd:"."}' \
+  | bash "$SHIM" block-geniro-force-add.sh)"
 RC=$?
 if [ "$RC" -eq 0 ] && [ "$(printf '%s' "$OUT" | jq -r '.permission' 2>/dev/null)" = "deny" ]; then
-  pass "beforeShellExecution force-push -> permission deny"
+  pass "beforeShellExecution force-add -> permission deny"
 else
-  fail "beforeShellExecution force-push -> expected deny JSON, got rc=$RC out=$OUT"
+  fail "beforeShellExecution force-add -> expected deny JSON, got rc=$RC out=$OUT"
 fi
-if printf '%s' "$OUT" | jq -e '.agent_message | length > 0' >/dev/null 2>&1; then
-  pass "deny carries the guardrail reason in agent_message"
+if printf '%s' "$OUT" | jq -e '.agent_message | test("git-add-force-geniro")' >/dev/null 2>&1; then
+  pass "deny carries the guard's reason (pattern ID) in agent_message"
 else
-  fail "deny JSON missing agent_message"
+  fail "deny JSON missing the guard's reason: $OUT"
 fi
 
 # --- benign command passes silently ---
 OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git status", cwd:"."}' \
-  | bash "$SHIM" block-dangerous-git.sh)"
+  | bash "$SHIM" block-geniro-force-add.sh)"
 RC=$?
 if [ "$RC" -eq 0 ] && [ -z "$OUT" ]; then
   pass "benign command -> silent allow"
@@ -98,79 +85,19 @@ else
   fail "benign command -> expected silent exit 0, got rc=$RC out=$OUT"
 fi
 
-# --- every other guard wired on beforeShellExecution fires through the shim ---
-expect_verdict ".geniro/ bulk delete -> deny" deny \
-  "$(shell_verdict block-geniro-deletion.sh 'rm -rf .geniro/')"
-expect_verdict "single-file .geniro/ delete -> allow" allow \
-  "$(shell_verdict block-geniro-deletion.sh 'rm -f .geniro/planning/task/notes.md')"
-
-expect_verdict "shell write to tls.key -> deny" deny \
-  "$(shell_verdict file-protection.sh 'echo TOKEN=1 > tls.key')"
-expect_verdict "shell write to a normal file -> allow" allow \
-  "$(shell_verdict file-protection.sh 'echo hello > notes.txt')"
-
-# enforce-state-helper is no longer wired on beforeShellExecution at all (see
-# cursor/hooks.json) — the guard reads .tool_input.file_path, which a shell
-# payload never carries, so the entry only ever cost a shim + bash spawn per
-# command with nothing to show for it. It stays wired on preToolUse, where a
-# file_path is actually present; that side is covered by
-# tests/hooks/enforce-state-helper.sh.
-
-expect_verdict "shell-authored anti-pattern -> deny" deny \
-  "$(shell_verdict security-pattern-check.sh "printf '$EVAL_SNIPPET' > app.js")"
-expect_verdict "shell-authored benign content -> allow" allow \
-  "$(shell_verdict security-pattern-check.sh "printf 'const a = 1;' > app.js")"
-
-# --- preToolUse with Cursor `path` alias hits file protection ---
-OUT="$(jq -nc '{hook_event_name:"preToolUse", tool_name:"Write", tool_input:{path:"tls.key"}, cwd:"."}' \
-  | bash "$SHIM" file-protection.sh)"
-RC=$?
-if [ "$RC" -eq 0 ] && [ "$(printf '%s' "$OUT" | jq -r '.permission' 2>/dev/null)" = "deny" ]; then
-  pass "preToolUse Write tls.key via path alias -> permission deny"
-else
-  fail "preToolUse Write tls.key -> expected deny JSON, got rc=$RC out=$OUT"
-fi
-expect_verdict "preToolUse Write tls.key via target_file alias -> deny" deny \
-  "$(edit_verdict file-protection.sh '{"target_file":"tls.key"}')"
-
-# --- preToolUse content aliases reach the security scan ---
-# The guard reads .content / .new_string / .new_source; a Cursor payload naming
-# the edited content anything else used to arrive empty and be allowed.
-if command -v perl >/dev/null 2>&1; then
-  for key in content contents code_edit new_string new_source; do
-    TI="$(jq -nc --arg k "$key" --arg v "$EVAL_SNIPPET" '{file_path:"a.js"} + {($k): $v}')"
-    expect_verdict "preToolUse content key '$key' -> security scan denies" deny \
-      "$(edit_verdict security-pattern-check.sh "$TI")"
-  done
-  TI="$(jq -nc --arg v "$EVAL_SNIPPET" '{target_file:"a.js", code_edit:$v}')"
-  expect_verdict "preToolUse target_file+code_edit (pure Cursor payload) -> deny" deny \
-    "$(edit_verdict security-pattern-check.sh "$TI")"
-  TI="$(jq -nc --arg v "$EVAL_SNIPPET" '{file_path:"a.js", edits:[{old_string:"x", new_string:$v}]}')"
-  expect_verdict "preToolUse MultiEdit edits[] still scanned -> deny" deny \
-    "$(edit_verdict security-pattern-check.sh "$TI" "." MultiEdit)"
-  expect_verdict "preToolUse benign content -> allow" allow \
-    "$(edit_verdict security-pattern-check.sh '{"target_file":"a.js","code_edit":"const a = 1;"}')"
-else
-  skip "content-alias security cases (perl not installed — the scan self-skips)"
-fi
-
-# --- the payload's cwd is where the guards look for project state ---
-# Guards walk up from their process cwd to find .geniro/safety.json; Cursor
-# starts the hook elsewhere, so the shim must move into the payload's cwd
-# first. A project-scoped safety.json bypass in a throwaway project is the
-# cheapest observable: the write is only allowed if the guard actually walked
-# up from inside the project and found that file.
+# --- the payload's cwd is where the hook looks for project state ---
+# The guard walks up from its process cwd to find .geniro/safety.json; Cursor
+# starts the hook elsewhere, so the shim must move into the payload's cwd first.
+# The allowlist only takes effect if the guard actually ran inside the project.
 PROJ="$TMPDIR_BASE/proj"
-mkdir -p "$PROJ/.geniro"
-printf '{"allow_patterns": ["write-cert-key"]}\n' > "$PROJ/.geniro/safety.json"
-expect_verdict "preToolUse tls.key write with a project bypass, shim cwd inside the project -> allow" allow \
-  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/tls.key" '{file_path:$p}')" "$PROJ")"
-expect_verdict "beforeShellExecution tls.key write with a project bypass, shim cwd inside the project -> allow" allow \
-  "$(shell_verdict file-protection.sh "echo TOKEN=1 > $PROJ/tls.key" "$PROJ")"
-expect_verdict "same tls.key write with no project cwd -> deny (bypass not found)" deny \
-  "$(edit_verdict file-protection.sh "$(jq -nc --arg p "$PROJ/tls.key" '{file_path:$p}')" "$TMPDIR_BASE")"
+mkdir -p "$PROJ/.geniro" "$TMPDIR_BASE/elsewhere"
+printf '{"allow_patterns": ["git-add-force-geniro"]}\n' > "$PROJ/.geniro/safety.json"
+expect_verdict "force-add with a project allowlist, payload cwd inside the project -> allow" allow \
+  "$(shell_verdict block-geniro-force-add.sh 'git add -f .geniro/actions/x.md' "$PROJ")"
+expect_verdict "same force-add, payload cwd outside the project -> deny (allowlist not found)" deny \
+  "$(shell_verdict block-geniro-force-add.sh 'git add -f .geniro/actions/x.md' "$TMPDIR_BASE/elsewhere")"
 
-# --- sessionStart re-emits additionalContext as additional_context ---
+# --- sessionStart through the real restore hook ---
 OUT="$(jq -nc --arg r "$TMPDIR_BASE" '{hook_event_name:"sessionStart", workspace_roots:[$r]}' \
   | bash "$SHIM" session-start-restore.sh)"
 RC=$?
@@ -184,35 +111,64 @@ else
   fail "sessionStart -> expected exit 0, got rc=$RC"
 fi
 
-# --- a hook's stdout notice reaches the Cursor agent on the shell/edit events ---
-# Exercised against a copy of the shim rooted on a throwaway tree, so the notice
-# comes from a stub hook rather than depending on a shipped guard emitting one.
+# --- payload translation and output re-emit, against a stub hook ---
+# A copy of the shim rooted on a throwaway tree runs a stub that echoes the
+# payload it received back as both a notice and session context, and leaves a
+# marker so a later case can prove the shim did NOT run it.
 FAKE_ROOT="$TMPDIR_BASE/fake-plugin"
+FAKE_SHIM="$FAKE_ROOT/cursor/hooks/claude-hook-shim.sh"
+RAN="$FAKE_ROOT/hooks/ran"
 mkdir -p "$FAKE_ROOT/cursor/hooks" "$FAKE_ROOT/hooks"
-cp "$SHIM" "$FAKE_ROOT/cursor/hooks/claude-hook-shim.sh"
-cat > "$FAKE_ROOT/hooks/notice-only.sh" <<'STUB'
+cp "$SHIM" "$FAKE_SHIM"
+cat > "$FAKE_ROOT/hooks/echo-payload.sh" <<'STUB'
 #!/usr/bin/env bash
-cat >/dev/null
-printf '{"systemMessage":"Geniro test notice"}\n'
-exit 0
+: > "${BASH_SOURCE[0]%/*}/ran"
+IN="$(cat)"
+jq -nc --arg p "$IN" '{systemMessage: $p, hookSpecificOutput: {additionalContext: $p}}'
 STUB
-for EV in beforeShellExecution preToolUse; do
-  OUT="$(jq -nc --arg e "$EV" \
-    '{hook_event_name:$e, command:"ls", tool_name:"Write", tool_input:{file_path:"a.js"}, cwd:"."}' \
-    | bash "$FAKE_ROOT/cursor/hooks/claude-hook-shim.sh" notice-only.sh)"
-  if [ "$(printf '%s' "$OUT" | jq -r '.agent_message' 2>/dev/null)" = "Geniro test notice" ]; then
-    pass "$EV -> hook systemMessage forwarded as agent_message"
-  else
-    fail "$EV -> expected the hook notice in agent_message, got: $OUT"
-  fi
-  if printf '%s' "$OUT" | jq -e 'has("permission")' >/dev/null 2>&1; then
-    fail "$EV notice must not carry a permission verdict (it would vote on the action)"
-  else
-    pass "$EV notice carries no permission verdict"
-  fi
-done
 
-# --- jq missing -> loud notice, not a silent fail-open ---
+OUT="$(jq -nc --arg w "$PROJ" '{hook_event_name:"beforeShellExecution", command:"ls -la", cwd:$w}' \
+  | bash "$FAKE_SHIM" echo-payload.sh)"
+ECHOED="$(printf '%s' "$OUT" | jq -r '.agent_message // ""' 2>/dev/null)"
+if [ "$(printf '%s' "$ECHOED" | jq -c '[.tool_name, .tool_input.command, .cwd]' 2>/dev/null)" \
+     = "$(jq -nc --arg w "$PROJ" '["Bash", "ls -la", $w]')" ]; then
+  pass "beforeShellExecution -> {tool_name:Bash, tool_input:{command}, cwd}; systemMessage -> agent_message"
+else
+  fail "beforeShellExecution translation wrong: $OUT"
+fi
+if printf '%s' "$OUT" | jq -e 'has("permission")' >/dev/null 2>&1; then
+  fail "a notice must not carry a permission verdict (it would vote on the action)"
+else
+  pass "a notice carries no permission verdict"
+fi
+
+OUT="$(jq -nc --arg r "$PROJ" '{hook_event_name:"sessionStart", workspace_roots:[$r, "/other"]}' \
+  | bash "$FAKE_SHIM" echo-payload.sh)"
+ECHOED="$(printf '%s' "$OUT" | jq -r '.additional_context // ""' 2>/dev/null)"
+if [ "$(printf '%s' "$ECHOED" | jq -c '[.source, .cwd]' 2>/dev/null)" \
+     = "$(jq -nc --arg r "$PROJ" '["startup", $r]')" ] \
+   && ! printf '%s' "$OUT" | jq -e 'has("agent_message")' >/dev/null 2>&1; then
+  pass "sessionStart -> {source:startup, cwd:<first root>}; additionalContext -> additional_context only"
+else
+  fail "sessionStart translation wrong: $OUT"
+fi
+
+# --- a failed mktemp still runs the guard and still denies ---
+# Only the block's reason text is lost; the generic message stands in for it.
+FAIL_BIN="$TMPDIR_BASE/failing-mktemp-bin"
+mkdir -p "$FAIL_BIN"
+printf '#!/bin/sh\nexit 1\n' > "$FAIL_BIN/mktemp"
+chmod +x "$FAIL_BIN/mktemp"
+OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git add -f .geniro/x", cwd:"."}' \
+  | PATH="$FAIL_BIN:$PATH" bash "$SHIM" block-geniro-force-add.sh)"
+if [ "$(verdict "$OUT")" = "deny" ] \
+   && [ "$(printf '%s' "$OUT" | jq -r '.agent_message' 2>/dev/null)" = "Blocked by a Geniro guardrail." ]; then
+  pass "mktemp failure -> guard still runs, deny with the generic reason"
+else
+  fail "mktemp failure -> expected a generic deny, got: $OUT"
+fi
+
+# --- jq missing -> loud notice, and the script is not run ---
 STUB_BIN="$TMPDIR_BASE/nojq-bin"
 mkdir -p "$STUB_BIN"
 STUB_OK=1
@@ -222,119 +178,86 @@ for B in bash cat dirname; do
   ln -sf "$BP" "$STUB_BIN/$B"
 done
 if [ "$STUB_OK" -eq 1 ]; then
-  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git push --force", cwd:"."}' \
-    | PATH="$STUB_BIN" bash "$SHIM" block-dangerous-git.sh)"
-  if printf '%s' "$OUT" | jq -e '.agent_message | test("jq not found")' >/dev/null 2>&1; then
-    pass "jq missing on beforeShellExecution -> agent_message names the inactive guard"
+  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git add -f .geniro/x", cwd:"."}' \
+    | PATH="$STUB_BIN" bash "$SHIM" block-geniro-force-add.sh)"
+  if printf '%s' "$OUT" | jq -e '(.agent_message | test("jq not found") and test("block-geniro-force-add.sh")) and (has("permission") | not)' >/dev/null 2>&1; then
+    pass "jq missing on beforeShellExecution -> agent_message names the inactive hook, no verdict"
   else
-    fail "jq missing on beforeShellExecution -> expected a loud notice, got: $OUT"
-  fi
-  OUT="$(jq -nc '{hook_event_name:"preToolUse", tool_name:"Write", tool_input:{path:"tls.key"}, cwd:"."}' \
-    | PATH="$STUB_BIN" bash "$SHIM" file-protection.sh)"
-  if printf '%s' "$OUT" | jq -e '.agent_message | test("jq not found")' >/dev/null 2>&1; then
-    pass "jq missing on preToolUse -> agent_message names the inactive guard"
-  else
-    fail "jq missing on preToolUse -> expected a loud notice, got: $OUT"
+    fail "jq missing on beforeShellExecution -> expected a notice with no verdict, got: $OUT"
   fi
   OUT="$(jq -nc '{hook_event_name:"sessionStart", workspace_roots:["."]}' \
     | PATH="$STUB_BIN" bash "$SHIM" session-start-restore.sh)"
   if printf '%s' "$OUT" | jq -e '.additional_context | test("jq not found")' >/dev/null 2>&1; then
     pass "jq missing on sessionStart -> notice arrives as additional_context"
   else
-    fail "jq missing on sessionStart -> expected a loud notice, got: $OUT"
+    fail "jq missing on sessionStart -> expected a notice, got: $OUT"
   fi
   OUT="$(jq -nc '{hook_event_name:"afterAgentThought"}' \
-    | PATH="$STUB_BIN" bash "$SHIM" file-protection.sh)"
+    | PATH="$STUB_BIN" bash "$SHIM" block-geniro-force-add.sh)"
   if [ -z "$OUT" ]; then
     pass "jq missing on an unhandled event -> still a silent no-op"
   else
     fail "jq missing on an unhandled event -> expected no output, got: $OUT"
   fi
+  rm -f "$RAN"
+  jq -nc '{hook_event_name:"beforeShellExecution", command:"ls", cwd:"."}' \
+    | PATH="$STUB_BIN" bash "$FAKE_SHIM" echo-payload.sh >/dev/null
+  if [ -e "$RAN" ]; then
+    fail "jq missing -> the shim ran the script anyway"
+  else
+    pass "jq missing -> the script is not run"
+  fi
 else
   skip "jq-missing cases (could not build a jq-free PATH stub)"
 fi
 
-# --- jq missing but grep/sed/mktemp present -> the guard's own coarse
-# fail-closed scan still denies through the shim. The stub above (bash/cat/
-# dirname only) omits grep and mktemp, so neither the guards' jqless raw-text
-# scan nor the shim's own mktemp can run there — that gap is exactly why a
-# broken shim mktemp (T0 #3) went uncaught. This stub adds grep, sed and
-# mktemp so both paths actually execute, and asserts the coarse scan's verdict
-# reaches the Cursor agent as permission:"deny".
-STUB_BIN2="$TMPDIR_BASE/nojq-full-bin"
-mkdir -p "$STUB_BIN2"
-STUB2_OK=1
-for B in bash cat dirname grep sed mktemp rm; do
-  BP="$(command -v "$B" 2>/dev/null || echo "")"
-  if [ -z "$BP" ]; then STUB2_OK=0; break; fi
-  ln -sf "$BP" "$STUB_BIN2/$B"
-done
-if [ "$STUB2_OK" -eq 1 ]; then
-  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git push --force origin main", cwd:"."}' \
-    | PATH="$STUB_BIN2" bash "$SHIM" block-dangerous-git.sh)"
-  if printf '%s' "$OUT" | jq -e '.permission == "deny"' >/dev/null 2>&1; then
-    pass "jq missing (grep/mktemp present), force-push -> coarse scan denies through the shim"
+# --- events and payloads the shim does not translate never reach the script ---
+# preToolUse included: nothing is wired to it, so a Shell call arriving there
+# must not be read as a Bash command.
+no_op_case() { # <label> <raw payload>
+  local out
+  rm -f "$RAN"
+  out="$(printf '%s' "$2" | bash "$FAKE_SHIM" echo-payload.sh)"
+  if [ -z "$out" ] && [ ! -e "$RAN" ]; then
+    pass "$1 -> no-op, script not run"
   else
-    fail "jq missing (grep/mktemp present), force-push -> expected deny, got: $OUT"
+    fail "$1 -> expected a silent no-op with the script not run, got out=$out ran=$([ -e "$RAN" ] && echo yes || echo no)"
   fi
+}
+no_op_case "preToolUse Shell call" \
+  '{"hook_event_name":"preToolUse","tool_name":"Shell","tool_input":{"command":"git add -f .geniro/x"},"cwd":"."}'
+no_op_case "unknown event" '{"hook_event_name":"afterAgentThought"}'
+no_op_case "truncated payload" '{"hook_event_name":"beforeShellExecution","command":"git add -f .geniro/x"'
+no_op_case "well-formed payload missing hook_event_name" '{"command":"git status"}'
+no_op_case "empty payload" ''
 
-  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"rm -rf .geniro", cwd:"."}' \
-    | PATH="$STUB_BIN2" bash "$SHIM" block-geniro-deletion.sh)"
-  if printf '%s' "$OUT" | jq -e '.permission == "deny"' >/dev/null 2>&1; then
-    pass "jq missing (grep/mktemp present), rm -rf .geniro -> coarse scan denies through the shim"
-  else
-    fail "jq missing (grep/mktemp present), rm -rf .geniro -> expected deny, got: $OUT"
-  fi
-
-  OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"echo TOKEN=1 > tls.key", cwd:"."}' \
-    | PATH="$STUB_BIN2" bash "$SHIM" file-protection.sh)"
-  if printf '%s' "$OUT" | jq -e '.permission == "deny"' >/dev/null 2>&1; then
-    pass "jq missing (grep/mktemp present), tls.key write -> coarse scan denies through the shim"
-  else
-    fail "jq missing (grep/mktemp present), tls.key write -> expected deny, got: $OUT"
-  fi
-else
-  skip "jq-missing-but-grep/sed/mktemp-present cases (could not build the stub PATH)"
-fi
-
-# --- unknown event is a no-op ---
-OUT="$(jq -nc '{hook_event_name:"afterAgentThought"}' | bash "$SHIM" file-protection.sh)"
-RC=$?
-if [ "$RC" -eq 0 ] && [ -z "$OUT" ]; then
-  pass "unknown event -> no-op"
-else
-  fail "unknown event -> expected silent exit 0, got rc=$RC out=$OUT"
-fi
-
-# --- missing and traversal script args fail open ---
+# --- missing, nonexistent, and traversal script args are no-ops ---
 #
-# Fed by here-string, NOT by a pipe, and these two cases specifically must stay
-# that way. Both reject their argument before `INPUT="$(cat)"` runs, so the shim
+# Fed by here-string, NOT by a pipe, and these cases specifically must stay
+# that way. Each rejects its argument before `INPUT="$(cat)"` runs, so the shim
 # exits without ever reading stdin — correct behaviour, and exactly what makes a
 # producer on the other end of a pipe die of SIGPIPE. Under `set -o pipefail`
 # that death becomes the pipeline's exit code, so the assertion reads the
 # PRODUCER's rc and reports the shim as broken when it did the right thing.
-#
-# It is a race, which is why it survived: jq's payload normally lands in the
-# pipe buffer before the shim can exit. On a loaded CI runner the shim wins and
-# the suite fails with `jq: error: writing output failed: Broken pipe`. Forcing
-# the producer past the buffer reproduces it every time (rc=141).
+# It is a race: on a loaded CI runner the shim wins and the suite fails with
+# `jq: error: writing output failed: Broken pipe`.
 PAYLOAD="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"x"}')"
-OUT="$(bash "$SHIM" <<<"$PAYLOAD")"
-RC=$?
-[ "$RC" -eq 0 ] && [ -z "$OUT" ] && pass "missing script arg -> no-op" \
-  || fail "missing script arg -> expected silent exit 0, got rc=$RC out=$OUT"
-OUT="$(bash "$SHIM" "../lib/hash.sh" <<<"$PAYLOAD")"
-RC=$?
-[ "$RC" -eq 0 ] && [ -z "$OUT" ] && pass "path-traversal script arg -> no-op" \
-  || fail "path-traversal script arg -> expected silent exit 0, got rc=$RC out=$OUT"
+for ARG_CASE in "missing script arg|" "nonexistent script arg|no-such-hook.sh" "path-traversal script arg|../lib/hash.sh"; do
+  LABEL="${ARG_CASE%%|*}"; ARG="${ARG_CASE#*|}"
+  if [ -n "$ARG" ]; then
+    OUT="$(bash "$SHIM" "$ARG" <<<"$PAYLOAD")"
+  else
+    OUT="$(bash "$SHIM" <<<"$PAYLOAD")"
+  fi
+  RC=$?
+  [ "$RC" -eq 0 ] && [ -z "$OUT" ] && pass "$LABEL -> no-op" \
+    || fail "$LABEL -> expected silent exit 0, got rc=$RC out=$OUT"
+done
 
 # Regression guard: put the shim back under a real broken pipe — a producer far
 # larger than the pipe buffer, which an early-exiting reader always breaks — and
-# record the SHIM's own rc rather than the pipeline's. It stays 0. That is the
-# proof the defect was in how the assertion measured, not in the shim, and it
-# fails loudly if the early exit is ever "fixed" into reading stdin it does not
-# need.
+# record the SHIM's own rc rather than the pipeline's. It stays 0, and fails
+# loudly if the early exit is ever "fixed" into reading stdin it does not need.
 SHIM_RC_FILE="$TMPDIR_BASE/early-exit-rc"
 { head -c 300000 /dev/zero | tr '\0' 'x'; } 2>/dev/null \
   | { bash "$SHIM" >/dev/null 2>&1; echo "$?" > "$SHIM_RC_FILE"; }
@@ -345,7 +268,8 @@ else
 fi
 
 # --- cursor/hooks.json integrity ---
-if jq -e '.version == 1 and (.hooks | type == "object")' "$REPO_ROOT/cursor/hooks.json" >/dev/null 2>&1; then
+HOOKS_JSON="$REPO_ROOT/cursor/hooks.json"
+if jq -e '.version == 1 and (.hooks | type == "object")' "$HOOKS_JSON" >/dev/null 2>&1; then
   pass "cursor/hooks.json is valid Cursor-schema JSON"
 else
   fail "cursor/hooks.json invalid"
@@ -353,182 +277,28 @@ fi
 MISSING=0
 while IFS= read -r script; do
   [ -f "$REPO_ROOT/hooks/$script" ] || { MISSING=$((MISSING + 1)); echo "  missing: hooks/$script" >&2; }
-done < <(jq -r '.hooks[][] | .command' "$REPO_ROOT/cursor/hooks.json" | awk '{print $2}')
+done < <(jq -r '.hooks[][] | .command' "$HOOKS_JSON" | awk '{print $2}')
 if [ "$MISSING" -eq 0 ]; then
   pass "every script wired in cursor/hooks.json exists in hooks/"
 else
   fail "$MISSING wired script(s) missing from hooks/"
 fi
 
-# --- preToolUse matcher vocabulary is pinned to what the shim's alias map assumes ---
-#
-# Cursor's own hook runner picks entries by `matcher` BEFORE the shim ever
-# executes — the shim's Shell->Bash fold and its path/target_file/code_edit
-# alias map (claude-hook-shim.sh's preToolUse branch, ~line 146) both run
-# strictly after that selection, and neither one normalizes a *tool name*.
-# So cursor/hooks.json's preToolUse matcher strings are the only place a
-# Cursor file-edit or Delete event has to spell its tool name the way the
-# shim's alias logic is written for (it special-cases MultiEdit's edits[]
-# shape above).
-#
-# Cursor's documented preToolUse tool_name vocabulary (cursor.com/docs/hooks,
-# fetched 2026-09-23): "Values include Shell, Read, Write, Grep, Delete,
-# Task", plus MCP tools as "MCP:<tool_name>". That confirms `Write` and
-# `Delete` as real tool names; the reference does not separately spell out
-# `Edit` / `MultiEdit` / `NotebookEdit` — this repo carries them forward as
-# Claude Code's own file-edit tool names on the theory that Cursor's editor
-# surfaces the same distinctions under `Write`, unverified by a captured
-# Cursor payload. Two matcher groups are pinned below: the file-edit group
-# and the standalone `Delete` group the T0-15 fix wires (hooks/
-# block-geniro-deletion.sh and hooks/file-protection.sh). Change either group
-# without updating the shim's alias map and this fails.
-FILE_EDIT_MATCHER="Write|Edit|MultiEdit|NotebookEdit"
-FILE_EDIT_COUNT="$(jq --arg m "$FILE_EDIT_MATCHER" \
-  '[.hooks.preToolUse[]? | select(.matcher == $m)] | length' "$REPO_ROOT/cursor/hooks.json")"
-if [ "$FILE_EDIT_COUNT" -ge 1 ]; then
-  pass "file-edit preToolUse matcher vocabulary matches what the shim's alias map assumes ($FILE_EDIT_MATCHER)"
+# An entry on an event the shim does not translate is a silent no-op on every
+# call — wire a new event only together with a translation branch for it.
+UNTRANSLATED="$(jq -r '.hooks | keys[] | select(. != "beforeShellExecution" and . != "sessionStart")' "$HOOKS_JSON")"
+if [ -z "$UNTRANSLATED" ]; then
+  pass "cursor/hooks.json wires only events the shim translates"
 else
-  fail "file-edit preToolUse matcher vocabulary drifted from what the shim's alias map assumes ($FILE_EDIT_MATCHER) -- update both together"
+  fail "cursor/hooks.json wires events the shim no-ops: $(printf '%s' "$UNTRANSLATED" | tr '\n' ' ')"
 fi
 
-DELETE_COUNT="$(jq '[.hooks.preToolUse[]? | select(.matcher == "Delete")] | length' "$REPO_ROOT/cursor/hooks.json")"
-if [ "$DELETE_COUNT" -ge 1 ]; then
-  pass "Delete preToolUse matcher is wired (Cursor's documented Delete tool)"
+# Cursor fails a hook OPEN on crash, timeout, or any non-2 exit unless the entry
+# sets failClosed: true (cursor.com/docs/hooks, fetched 2026-09-23).
+if [ "$(jq '[.hooks[][] | select((.command | test("block-geniro-force-add\\.sh")) and .failClosed == true)] | length' "$HOOKS_JSON")" = "1" ]; then
+  pass "the force-add guard entry sets failClosed: true"
 else
-  fail "no preToolUse entry uses the Delete matcher"
-fi
-
-# No preToolUse entry may use a matcher outside these two known groups — an
-# unrecognized matcher means either a typo or a new Cursor tool the shim's
-# alias map has not been taught about yet.
-UNKNOWN_MATCHERS="$(jq -r --arg fe "$FILE_EDIT_MATCHER" \
-  '[.hooks.preToolUse[]? | select(.matcher != $fe and .matcher != "Delete") | .matcher] | unique | .[]' \
-  "$REPO_ROOT/cursor/hooks.json" 2>/dev/null)"
-if [ -z "$UNKNOWN_MATCHERS" ]; then
-  pass "no preToolUse entry uses an unrecognized matcher"
-else
-  fail "preToolUse entry uses an unrecognized matcher: $(printf '%s' "$UNKNOWN_MATCHERS" | tr '\n' ';')"
-fi
-
-# --- T1-1: failClosed pinned on every data-loss guard entry ---
-#
-# Cursor fails a hook OPEN on crash, timeout, or any non-2 exit unless the
-# entry sets failClosed: true (cursor.com/docs/hooks, fetched 2026-09-23:
-# "Crashes, timeouts, and non-zero exit codes other than 2 fail open by
-# default: Cursor logs the failure and allows the action through. Set
-# failClosed: true on the hook definition to block on those failures too.").
-# An entry with no failClosed key silently allows on a guard crash or
-# timeout. The four data-loss guards (HOOKS.md §Key Safety Principles 5) must
-# not have that gap: block-dangerous-git.sh, block-geniro-deletion.sh,
-# file-protection.sh and enforce-state-helper.sh. security-pattern-check.sh
-# is a content scan, not a data-loss guard, and is deliberately left at the
-# fail-open default.
-DATA_LOSS_GUARDS='block-dangerous-git\.sh|block-geniro-deletion\.sh|file-protection\.sh|enforce-state-helper\.sh'
-UNCLOSED="$(jq -r --arg re "$DATA_LOSS_GUARDS" \
-  '[.hooks[][] | select((.command | test($re)) and (.failClosed != true)) | .command] | .[]' \
-  "$REPO_ROOT/cursor/hooks.json" 2>/dev/null)"
-if [ -z "$UNCLOSED" ]; then
-  pass "every data-loss guard entry in cursor/hooks.json sets failClosed: true"
-else
-  fail "missing failClosed: true on: $(printf '%s' "$UNCLOSED" | tr '\n' ';')"
-fi
-SEC_CLOSED="$(jq '[.hooks[][] | select((.command | test("security-pattern-check\\.sh")) and (.failClosed == true))] | length' \
-  "$REPO_ROOT/cursor/hooks.json")"
-if [ "$SEC_CLOSED" = "0" ]; then
-  pass "security-pattern-check.sh entries stay at the fail-open default (not a data-loss guard)"
-else
-  fail "security-pattern-check.sh unexpectedly sets failClosed: true"
-fi
-
-# --- T0-15: cursor/hooks.json wires preToolUse Delete to both sides of the contract ---
-if [ "$(jq '[.hooks.preToolUse[]? | select(.matcher == "Delete" and (.command | endswith("block-geniro-deletion.sh")))] | length' \
-  "$REPO_ROOT/cursor/hooks.json")" = "1" ]; then
-  pass "cursor/hooks.json wires preToolUse Delete -> block-geniro-deletion.sh"
-else
-  fail "cursor/hooks.json missing a preToolUse Delete entry for block-geniro-deletion.sh"
-fi
-if [ "$(jq '[.hooks.preToolUse[]? | select(.matcher == "Delete" and (.command | endswith("file-protection.sh")))] | length' \
-  "$REPO_ROOT/cursor/hooks.json")" = "1" ]; then
-  pass "cursor/hooks.json wires preToolUse Delete -> file-protection.sh"
-else
-  fail "cursor/hooks.json missing a preToolUse Delete entry for file-protection.sh"
-fi
-
-# --- T0-15: the shim's OWN payload translation for a Delete call ---
-#
-# Contract: a Cursor preToolUse Delete call becomes
-# {"tool_name":"Delete","tool_input":{"file_path":"<abs path>"},"cwd":"<cwd>"}
-# before it reaches a guard. Proven against a stub hook that echoes back the
-# payload it actually received, rather than against block-geniro-deletion.sh
-# or file-protection.sh — this isolates the shim's translation (already
-# generic: its preToolUse branch passes tool_name through unchanged and folds
-# any of Cursor's path aliases onto file_path, with no Delete-specific code
-# needed) from whether either guard script has grown a Delete branch yet.
-DELETE_ECHO_ROOT="$TMPDIR_BASE/delete-echo-plugin"
-mkdir -p "$DELETE_ECHO_ROOT/cursor/hooks" "$DELETE_ECHO_ROOT/hooks"
-cp "$SHIM" "$DELETE_ECHO_ROOT/cursor/hooks/claude-hook-shim.sh"
-cat > "$DELETE_ECHO_ROOT/hooks/echo-payload.sh" <<'STUB'
-#!/usr/bin/env bash
-IN="$(cat)"
-jq -n --arg p "$IN" '{systemMessage: $p}'
-STUB
-DELETE_PROJ="$TMPDIR_BASE/delete-proj"
-mkdir -p "$DELETE_PROJ"
-RAW_PAYLOAD="$(jq -nc --arg w "$DELETE_PROJ" \
-  '{hook_event_name:"preToolUse", tool_name:"Delete", tool_input:{path:($w + "/notes.md")}, cwd:$w}')"
-ECHOED="$(printf '%s' "$RAW_PAYLOAD" \
-  | bash "$DELETE_ECHO_ROOT/cursor/hooks/claude-hook-shim.sh" echo-payload.sh \
-  | jq -r '.agent_message // ""')"
-if [ -n "$ECHOED" ] \
-  && [ "$(printf '%s' "$ECHOED" | jq -r '.tool_name' 2>/dev/null)" = "Delete" ] \
-  && [ "$(printf '%s' "$ECHOED" | jq -r '.tool_input.file_path' 2>/dev/null)" = "$DELETE_PROJ/notes.md" ] \
-  && [ "$(printf '%s' "$ECHOED" | jq -r '.cwd' 2>/dev/null)" = "$DELETE_PROJ" ]; then
-  pass "preToolUse Delete -> shim translates path alias to tool_name/tool_input.file_path/cwd"
-else
-  fail "preToolUse Delete translation wrong: $ECHOED"
-fi
-
-# --- T0-15: end-to-end through each guard the Delete entries route to ---
-#
-# file-protection.sh's Edit/Write branch (hooks/file-protection.sh, the
-# "Edit/Write/MultiEdit branch" past its Bash branch) is not gated on
-# tool_name — it already blocks any non-Bash call whose tool_input.file_path
-# names a protected pattern, so this passes with NO change to that hook
-# script, only to the wiring above.
-expect_verdict "preToolUse Delete of tls.key -> file-protection denies" deny \
-  "$(edit_verdict file-protection.sh '{"path":"tls.key"}' "." Delete)"
-
-# block-geniro-deletion.sh applies the same depth rules to a Delete target as
-# to an `rm` operand: a whole-tree or top-level-subdir delete is blocked, a
-# single file is allowed (per-file `rm -f` is allowed too — HOOKS.md).
-expect_verdict "preToolUse Delete of .geniro/instructions -> block-geniro-deletion denies" deny \
-  "$(edit_verdict block-geniro-deletion.sh '{"path":".geniro/instructions"}' "." Delete)"
-expect_verdict "preToolUse Delete of a single .geniro file -> block-geniro-deletion allows (same as rm -f)" allow \
-  "$(edit_verdict block-geniro-deletion.sh '{"path":".geniro/instructions/x.md"}' "." Delete)"
-
-# --- T1-2: jq present but $INPUT does not parse -> pipe raw to the guard, translate exit 2 ---
-#
-# Before this fix: a malformed/truncated payload made the shim's own
-# hook_event_name extraction fail; EVENT came back "" via `// ""`
-# indistinguishably from a well-formed payload that legitimately lacks the
-# field, so the shim took the `*)` no-op branch and exited 0 WITHOUT ever
-# running the guard — discarding block-dangerous-git.sh's own fail-closed
-# malformed-payload scan (and the equivalent scan in every other data-loss
-# guard).
-TRUNCATED='{"hook_event_name":"beforeShellExecution","command":"git push --force origin main"'
-OUT="$(printf '%s' "$TRUNCATED" | bash "$SHIM" block-dangerous-git.sh)"
-if [ "$(printf '%s' "$OUT" | jq -r '.permission // "allow"' 2>/dev/null)" = "deny" ]; then
-  pass "truncated git-push--force payload (jq present) -> shim still denies"
-else
-  fail "truncated git-push--force payload (jq present) -> expected deny, got: $OUT"
-fi
-# The fix must not fire on a payload that parses fine but genuinely has no
-# hook_event_name — that stays the ordinary no-op.
-OUT="$(jq -nc '{command:"git status"}' | bash "$SHIM" block-dangerous-git.sh)"
-if [ -z "$OUT" ]; then
-  pass "well-formed payload missing hook_event_name -> still a silent no-op"
-else
-  fail "well-formed payload missing hook_event_name -> expected no-op, got: $OUT"
+  fail "cursor/hooks.json must wire block-geniro-force-add.sh exactly once with failClosed: true"
 fi
 
 echo

@@ -37,9 +37,7 @@ EOF
 
 **Why.** The helper does tmp + fsync + rename; a direct write truncates-and-rewrites, so a reader hitting that window sees a partial file.
 
-**What enforces it.** The `enforce-state-helper` PreToolUse hook hard-blocks `Edit`/`Write`/`MultiEdit`/`NotebookEdit` on a state path — it reads `file_path`, a declared target it cannot misread. Its exemptions are encoded in the hook (dot-prefixed T1 scratch, `.geniro/state/tdd/`); a path it blocks is a path that needs the helper, not one that needs a workaround.
-
-**Shell-side writes are on you.** The hook does not match `Bash`: a redirection, `tee`, `sed -i`, or an interpreter's `open(p,'w')` into a state path is undetected, and routing it through the helper is a contract you keep rather than one a guard enforces. The Bash branch was removed 2026-08-13 — with no target field to read it guessed one out of the command string, and the guessing blocked a `MIGRATION.md` edit whose prose mentioned a state path and a heredoc fragment that was not a path at all. Across 1,408 sessions it produced compliance under a third of the time; the rest was a near-identical retry or a workaround. An undetectable write beats a guard that blocks the wrong ones.
+**Nothing enforces it — the contract is yours.** No hook checks state writes: a `Write`/`Edit`, a redirection, `tee`, `sed -i`, or an interpreter's `open(p,'w')` into a state path all go through undetected. The `enforce-state-helper` guard was deleted 2026-09-29 (`HOOKS.md` §Removed guards) — its blocks made runs re-send identical content through the helper, and not one prevented a torn write.
 
 Do not restate tier facts in this file — the copy drifts. Tier model, per-tier frontmatter, the terminal-exit cleanup contract, and the TDD carve-out are canonical in `skills/_shared/state-tier-spec.md`. Helper exit codes and the optimistic mtime-check pattern: `atomic-state-write.md`. Validator exit codes and the recovery prompt when validation fails before a resume: `validate-state-file.md`.
 
@@ -89,7 +87,7 @@ bash tests/authoring/lint-skills.sh   # authoring lint (hard failures + advisory
 
 | Topic | File |
 |---|---|
-| Safety hooks — what each one blocks, every bypass pattern ID, `.geniro/safety.json` | `HOOKS.md` |
+| Hooks — the force-add guard, session restore, `.geniro/safety.json`, and the guards deleted for blocking legitimate work (read before adding one) | `HOOKS.md` |
 | Design decisions, subagent model tiering, optional MCP companions, the Cursor runtime port | `ARCHITECTURE.md` |
 | Skill catalogue — full descriptions, every flag, the deleted skills and their replacements | `README.md` |
 | Breaking changes and the per-entry upgrade walk | `MIGRATION.md` |

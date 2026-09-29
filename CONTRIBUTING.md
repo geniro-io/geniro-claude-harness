@@ -37,7 +37,7 @@ bash scripts/build-cursor-skills.sh
 #    agents/*.md and cursor/agents/*.md together.
 bash scripts/build-cursor-agents.sh
 
-# 3. Run every shell test suite (helpers, safety hooks, authoring lint).
+# 3. Run every shell test suite (helpers, hooks, authoring lint).
 #    Exits non-zero if any suite fails — this is the CI gate.
 bash tests/run-all.sh
 ```

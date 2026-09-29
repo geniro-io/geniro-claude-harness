@@ -42,7 +42,7 @@ Generated CLAUDE.md sections:
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
-- `$HOME/.cursor/{skills,agents}/` and `$HOME/.cursor/hooks.json` — the Cursor profile install (§3.7): symlinks to the plugin's generated Cursor skill and subagent copies, plus its safety-hook entries merged into an existing `hooks.json`. A user-config write outside PROJECT_ROOT, listed only when §3.7's condition holds.
+- `$HOME/.cursor/{skills,agents}/` and `$HOME/.cursor/hooks.json` — the Cursor profile install (§3.7): symlinks to the plugin's generated Cursor skill and subagent copies, plus its hook entries merged into an existing `hooks.json`. A user-config write outside PROJECT_ROOT, listed only when §3.7's condition holds.
 
 Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, the statusline install, and the §3.7 Cursor profile install when that step's condition holds — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
 
@@ -79,7 +79,7 @@ Check `$CLAUDE_USER_DIR/settings.json` for a `statusLine` entry. If absent, add 
 
 Fires only when this machine has a Cursor install (`$HOME/.cursor/` exists) AND the resolved plugin root carries `cursor/skills/`. Skip silently when either is absent — there is nothing to install into, or nothing to install.
 
-`cursor-agent` loads no plugin components at all, so a plugin install alone leaves every Cursor CLI and ACP session with no Geniro skills, no Geniro subagents, and none of the safety hooks; the IDE is unaffected. The per-component profile directories are the only route that reaches both surfaces. `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §Install carries the evidence, the source threads, and the condition for removing this step once Cursor fixes the bug.
+`cursor-agent` loads no plugin components at all, so a plugin install alone leaves every Cursor CLI and ACP session with no Geniro skills, no Geniro subagents, and none of the hooks; the IDE is unaffected. The per-component profile directories are the only route that reaches both surfaces. `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §Install carries the evidence, the source threads, and the condition for removing this step once Cursor fixes the bug.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-cursor.sh"

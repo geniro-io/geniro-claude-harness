@@ -114,8 +114,6 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 - Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskQuestion / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
 - Explicitly blocked: a direct write or edit to `_CODEBASE_MAP.md` (route through `update-semantic` — `.geniro/planning/_*.md` is a guarded persistent path), production-source writes and edits, `git add` / `git commit` / `git push`.
 
-The safety hooks apply across every phase; the complete list and what each blocks is in `${CLAUDE_PLUGIN_ROOT}/HOOKS.md`. Runtime denies stay enforced.
-
 ---
 
 ## Definition of done

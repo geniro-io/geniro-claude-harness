@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Covers scripts/install-cursor.sh — the ~/.cursor/ profile install that gets
-# Geniro's skills, subagents, and safety hooks in front of cursor-agent, which
+# Geniro's skills, subagents, and hooks in front of cursor-agent, which
 # loads no plugin components at all.
 #
 # Run: bash tests/cursor/install-cursor.sh
@@ -242,7 +242,7 @@ check "and warns that those links will dangle" \
 # --- T1-6: a source root containing a space still produces a working command ---
 # hooks_ours() rewrites "./cursor/hooks/..." to an absolute path; unquoted,
 # `/Users/John Doe/checkout/cursor/hooks/claude-hook-shim.sh` splits on the
-# space and none of the seven guards starts. Copy the real script and cursor/
+# space and no hook starts. Copy the real script and cursor/
 # tree into a root whose path contains a space and run it from there directly
 # (skipping the plugins/cache marketplace-resolution branch — SRC_ROOT stays
 # SELF_ROOT for a plain checkout).
@@ -277,14 +277,18 @@ check "re-install from the space-containing root does not duplicate hook entries
 
 # SHIM_MARKER must still recognise an OLD unquoted entry (written by a prior
 # version of this script, or a plugin-runtime install that never quotes at
-# all) so a later install replaces it instead of duplicating it.
+# all) so a later install replaces it instead of duplicating it — including an
+# entry on an event cursor/hooks.json no longer wires, like the preToolUse
+# entries of the guards deleted 2026-09-29.
 cat > "$HOOKS_FILE" <<EOF
-{"version":1,"hooks":{"beforeShellExecution":[{"command":"$SPACE_ROOT/cursor/hooks/claude-hook-shim.sh block-dangerous-git.sh","timeout":10}]}}
+{"version":1,"hooks":{"beforeShellExecution":[{"command":"$SPACE_ROOT/cursor/hooks/claude-hook-shim.sh block-dangerous-git.sh","timeout":10}],"preToolUse":[{"command":"$SPACE_ROOT/cursor/hooks/claude-hook-shim.sh file-protection.sh","matcher":"Write"}]}}
 EOF
 HOME="$FAKE_HOME" bash "$SPACE_ROOT/scripts/install-cursor.sh" >/dev/null 2>&1
 check "an old UNQUOTED geniro entry is replaced, not duplicated, by the quoted form" \
   "$(jq '[.hooks.beforeShellExecution[] | select(.command | test("claude-hook-shim"))] | length' "$HOOKS_FILE")" \
   "$(jq '[.hooks.beforeShellExecution[]] | length' "$SPACE_ROOT/cursor/hooks.json")"
+check "an old geniro entry on an event no longer wired is dropped" \
+  "$(jq '.hooks | has("preToolUse")' "$HOOKS_FILE")" "false"
 
 # Uninstall still removes every entry of ours, quoted path included.
 HOME="$FAKE_HOME" bash "$SPACE_ROOT/scripts/install-cursor.sh" --uninstall >/dev/null 2>&1

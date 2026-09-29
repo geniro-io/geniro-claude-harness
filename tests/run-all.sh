@@ -58,12 +58,8 @@ fi
 if [ "${1:-}" = "--run-one" ]; then
   _idx="$2"; _suite="$3"; _outdir="$4"
   # 300, not 120: this guard exists to tell a HANG from a slow suite, and a hang
-  # is unbounded, so headroom costs nothing while a tight cap kills real work.
-  # Measured: obfuscation-matrix.sh runs 412 assertions, each spawning a guard
-  # process — 39s locally, and a macOS CI runner got 265 of them done in 120s
-  # (~186s for the full set). At 120 it was killed at two-thirds and reported as
-  # a failure. The next-heaviest suites are 19s and 17s locally, so 300 leaves
-  # every other suite an order of magnitude of slack.
+  # is unbounded, so headroom costs nothing while a tight cap kills real work —
+  # a suite that ran 39s locally once needed ~186s on a macOS CI runner.
   _suite_timeout="${TEST_SUITE_TIMEOUT_SECS:-300}"
   case "$_suite_timeout" in ''|*[!0-9]*) _suite_timeout=300 ;; esac
   bash "$_suite" </dev/null >"$_outdir/$_idx.log" 2>&1 &

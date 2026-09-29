@@ -121,7 +121,6 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Slug resolution retry cap exhausted (cap set in `actions-reference.md` §Target resolution Step 3) | `aborted: slug unresolved after <cap> rounds of asking` |
 | Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
-| Write blocked by file-protection hook | `aborted: file-protection hook blocked write to <path>` |
 | Validate found CRITICAL/HIGH issues | exit non-zero with `validate: <slug> failed — N CRITICAL, M HIGH` |
 
 ## Phase 1: Parse intent from `$ARGUMENTS`

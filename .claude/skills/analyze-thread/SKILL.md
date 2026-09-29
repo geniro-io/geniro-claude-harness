@@ -152,7 +152,7 @@ On skill start: compute `<slug>`, then `Glob(".geniro/state/analyze-thread/<slug
 | 1 Parse | Read, Bash (`scan.py`, `file`, `jq`, `wc`) | Bash runs the thread-discovery scan in batch mode, then format sniffing and JSONL parsing; Read for the thread file. Step 4b's expectation set is projected out of the same thread file — no Read of this repo's skills or instruction files, per the trace-is-the-declaration invariant |
 | 2 Detect | Bash (`jq`, `grep`, `awk`), Agent | Bash for mechanical checks; Agent for the per-thread LLM-judge spawns, issued together in one response |
 | 3 Filter | (orchestrator inline) | No tools — orchestrator reads the Phase 2 output, merges across threads, and tags each finding |
-| 4 Present | AskUserQuestion, Bash | AUQ for the per-finding gates and the final handoff AUQ; Bash runs `atomic_state_write` for the handoff file — a direct `Write` to a `.geniro/state/` path is hard-blocked by the state-helper hook |
+| 4 Present | AskUserQuestion, Bash | AUQ for the per-finding gates and the final handoff AUQ; Bash runs `atomic_state_write` for the handoff file — a direct `Write` to a `.geniro/state/` path skips the atomic rename |
 
 Glob is permitted across phases for state-file lookup and helper resolution but is not the workhorse tool.
 

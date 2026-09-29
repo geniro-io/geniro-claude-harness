@@ -20,6 +20,6 @@ All three callers detect the same four the same way, and they must: implement an
 
 ## Why `PROTECTED_BRANCH` has no per-project override
 
-The set is fixed. `.geniro/safety.json`'s `allow_patterns` key, read by the guard hooks to waive a named bypass ID, is the only knob that could carry a branch override — there is no `protected_branches` key and no reader for one. A skill that offers to honor a per-project override is promising a configuration surface that does not exist, which is worse than silence: the user edits a file, nothing changes, and the failure is invisible.
+The set is fixed. There is no `protected_branches` key and no reader for one — `.geniro/safety.json`'s `allow_patterns` only waives the force-add guard's bypass ID. A skill that offers to honor a per-project override is promising a configuration surface that does not exist, which is worse than silence: the user edits a file, nothing changes, and the failure is invisible.
 
-To treat an additional branch as protected, add the relevant guard's bypass ID to `allow_patterns` in reverse (the guards block by default), or rename the branch. If a real override is ever wanted, it needs a key, a reader in every consuming hook, and a row here — not a parenthetical in one skill's table.
+No per-project setting adds a branch to the set. If a real override is ever wanted, it needs a key, a reader in every consuming skill, and a row here — not a parenthetical in one skill's table.
