@@ -16,7 +16,7 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 Across ~3,400 transcripts from 21 days the five guards fired 296 times and no block prevented a mistake: most were read-only or intended commands whose text the guards misparsed, the rest ordinary cleanup the run meant to do (`HOOKS.md` §Removed guards).
 
-What they enforced is now a writer's contract. State writes still route through the `atomic-state-write` helpers (`CLAUDE.md` §State Files); destructive git, bulk `.geniro/` deletion, protected-file writes and security patterns fall to the model's judgment, Claude Code's permission system, and `/geniro:review`. Every `allow_patterns` ID except `git-add-force-geniro` retires with its hook — an entry naming one is inert, not an error. A Cursor profile install that still lists a removed script is harmless: the shim exits 0 for a script that does not exist.
+What they enforced is now a writer's contract. State writes still route through the `atomic-state-write` helpers (`CLAUDE.md` §State Files); destructive git, bulk `.geniro/` deletion, protected-file writes and security patterns fall to the model's judgment, Claude Code's permission system, and `/geniro:review`. Every `allow_patterns` ID except `git-add-force-geniro` retires with its hook — an entry naming one is inert, not an error. A Cursor profile install that still lists a removed script is harmless: the shim answers `{"permission":"allow"}` for a script that does not exist.
 
 **Action required:** None. Optionally drop the now-inert IDs from the project's safety config.
 

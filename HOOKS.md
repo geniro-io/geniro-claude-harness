@@ -20,12 +20,13 @@ Cursor speaks a different hook dialect, so its manifest points every entry at [`
 
 | Direction | Claude Code dialect | Cursor dialect |
 |---|---|---|
-| Event names | `PreToolUse` with a `Bash` matcher; `SessionStart` | `beforeShellExecution` / `sessionStart` (camelCase). Any other event reaching the shim is a no-op. |
+| Event names | `PreToolUse` with a `Bash` matcher; `SessionStart` | `beforeShellExecution` / `sessionStart` (camelCase). Any other event reaching the shim runs nothing; a permission event among them is answered allow. |
 | Stdin payload | `{tool_name, tool_input, cwd}` | `{command, cwd}` for shell events, folded to `{tool_name:"Bash", tool_input:{command}, cwd}` |
 | Working directory | guards walk up from `$PWD` | the shim `cd`s into the payload's `cwd` first, so the walk-up lands in the project the action targets |
 | Block signal | `exit 2` + reason on stderr | `{"permission":"deny","agent_message":"<reason>"}` + exit 0, so the reason reaches the Cursor agent |
+| Pass signal | `exit 0`, no output | `{"permission":"allow"}` — Cursor blocks a permission hook that exits 0 without a verdict. A crash's exit status passes through for `failClosed` to judge |
 | Session context | `hookSpecificOutput.additionalContext` | `additional_context` |
-| Notices | stdout `systemMessage` | `agent_message` with no `permission` key, so a notice never votes on an action |
+| Notices | stdout `systemMessage` | `agent_message` on the allow |
 | `jq` missing | the script announces itself inactive via `systemMessage` | the shim emits the same inactivity notice itself and does not run the script |
 
 Wired for Cursor: the force-add guard on `beforeShellExecution` (with `"failClosed": true` — Cursor otherwise fails open on a crash, timeout, or any non-2 exit) plus session-start restore. The marketplace update check is deliberately not wired: it depends on Claude Code's `claude plugin` registry. Add a new hook to `cursor/hooks.json` only when its event maps cleanly onto the translation map at the top of the shim. `tests/cursor/hook-shim.sh` covers the translation — extend it when the map changes.

@@ -84,5 +84,5 @@ Failing both, the skill runs degraded under a defined contract rather than an im
 - **Everything under `cursor/skills/` is generated** — edit `skills/<slug>/SKILL.md` or any of its siblings, run `scripts/build-cursor-skills.sh`, commit the result. The generator clears each skill's output directory first, so a deleted source file disappears from the copy. CI (`tests/cursor/build-skills-fresh.sh`) fails on drift.
 - `cursor/agents/*.md` are **generated** — edit `agents/*.md`, run `scripts/build-cursor-agents.sh`, commit both. CI (`tests/cursor/build-agents-fresh.sh`) fails on drift.
 - `cursor/hooks.json` wires the shim; add new hook scripts there only if their event maps cleanly (see the translation map at the top of `cursor/hooks/claude-hook-shim.sh`).
-- `tests/cursor/hook-shim.sh` covers the adapter's translation and fail-open behavior.
+- `tests/cursor/hook-shim.sh` covers the adapter's translation and the verdict it answers on every path.
 - `scripts/install-cursor.sh` links skills and agents, it does not copy — a regenerated `cursor/skills/` or `cursor/agents/` reaches an already-linked profile with no re-run. `cursor/hooks.json` is the exception: its entries are merged into a file the user also owns, so an edit there does need a re-run. Covered by `tests/cursor/install-cursor.sh`.

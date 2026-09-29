@@ -6,18 +6,21 @@
 # Coverage:
 #   - beforeShellExecution through block-geniro-force-add.sh: a force-add on
 #     .geniro/ -> permission deny carrying the guard's reason; a benign command
-#     -> silent allow.
+#     -> an explicit permission allow (Cursor blocks an exit 0 with no verdict).
 #   - The payload's cwd is where the hook runs: a project's own safety.json
 #     allowlist is honored even when the shim's own cwd is elsewhere.
 #   - Payload translation both ways, against a stub hook that echoes what it
 #     received: beforeShellExecution -> Bash tool_input, sessionStart ->
-#     {source, cwd}; systemMessage -> agent_message (no permission key) and
+#     {source, cwd}; systemMessage -> agent_message on an allow, and
 #     additionalContext -> additional_context.
+#   - A script that crashes passes its exit status through, with no verdict.
 #   - sessionStart through the real session-start-restore.sh.
 #   - A failed mktemp still runs the guard and still denies.
 #   - jq missing -> a Cursor-shaped inactivity notice, and the script NOT run.
-#   - preToolUse, unknown events, and malformed payloads -> no-op, script not run.
-#   - Missing / nonexistent / path-traversal script argument -> no-op.
+#   - preToolUse -> allow, script not run; unknown events and malformed
+#     payloads -> no output, script not run.
+#   - Missing / nonexistent / path-traversal script argument -> allow on a
+#     permission event, no output on sessionStart.
 #   - cursor/hooks.json is valid, wires only events the shim translates, every
 #     wired script exists, and the force-add entry fails closed.
 
@@ -37,14 +40,15 @@ pass() { TESTS_RUN=$((TESTS_RUN + 1)); echo "PASS: $1"; }
 fail() { TESTS_RUN=$((TESTS_RUN + 1)); TESTS_FAILED=$((TESTS_FAILED + 1)); echo "FAIL: $1" >&2; }
 skip() { echo "SKIP: $1"; }
 
-# Verdict of one shim run: "deny", "allow" (no output), or "malformed".
+# Verdict of one shim run: its permission key, "none" when it gave no verdict
+# (which Cursor treats as a block on a permission hook), or "malformed".
 verdict() {
   local out="$1"
   if [ -z "$out" ]; then
-    echo "allow"
+    echo "none"
     return 0
   fi
-  printf '%s' "$out" | jq -r '.permission // "allow"' 2>/dev/null || echo "malformed"
+  printf '%s' "$out" | jq -r '.permission // "none"' 2>/dev/null || echo "malformed"
 }
 
 # shell_verdict <script> <command> [cwd]
@@ -75,14 +79,14 @@ else
   fail "deny JSON missing the guard's reason: $OUT"
 fi
 
-# --- benign command passes silently ---
+# --- benign command is allowed out loud ---
 OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git status", cwd:"."}' \
   | bash "$SHIM" block-geniro-force-add.sh)"
 RC=$?
-if [ "$RC" -eq 0 ] && [ -z "$OUT" ]; then
-  pass "benign command -> silent allow"
+if [ "$RC" -eq 0 ] && [ "$OUT" = '{"permission":"allow"}' ]; then
+  pass "benign command -> explicit permission allow"
 else
-  fail "benign command -> expected silent exit 0, got rc=$RC out=$OUT"
+  fail "benign command -> expected exit 0 with {\"permission\":\"allow\"}, got rc=$RC out=$OUT"
 fi
 
 # --- the payload's cwd is where the hook looks for project state ---
@@ -136,10 +140,20 @@ if [ "$(printf '%s' "$ECHOED" | jq -c '[.tool_name, .tool_input.command, .cwd]' 
 else
   fail "beforeShellExecution translation wrong: $OUT"
 fi
-if printf '%s' "$OUT" | jq -e 'has("permission")' >/dev/null 2>&1; then
-  fail "a notice must not carry a permission verdict (it would vote on the action)"
+expect_verdict "a notice rides on an explicit allow" allow "$(verdict "$OUT")"
+
+cat > "$FAKE_ROOT/hooks/crash.sh" <<'STUB'
+#!/usr/bin/env bash
+echo '{"systemMessage":"half-written"}'
+exit 1
+STUB
+OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"ls", cwd:"."}' \
+  | bash "$FAKE_SHIM" crash.sh)"
+RC=$?
+if [ "$RC" -eq 1 ] && [ -z "$OUT" ]; then
+  pass "a crashed script -> its exit status passes through, no verdict (failClosed decides)"
 else
-  pass "a notice carries no permission verdict"
+  fail "a crashed script -> expected rc=1 and no output, got rc=$RC out=$OUT"
 fi
 
 OUT="$(jq -nc --arg r "$PROJ" '{hook_event_name:"sessionStart", workspace_roots:[$r, "/other"]}' \
@@ -180,10 +194,17 @@ done
 if [ "$STUB_OK" -eq 1 ]; then
   OUT="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"git add -f .geniro/x", cwd:"."}' \
     | PATH="$STUB_BIN" bash "$SHIM" block-geniro-force-add.sh)"
-  if printf '%s' "$OUT" | jq -e '(.agent_message | test("jq not found") and test("block-geniro-force-add.sh")) and (has("permission") | not)' >/dev/null 2>&1; then
-    pass "jq missing on beforeShellExecution -> agent_message names the inactive hook, no verdict"
+  if printf '%s' "$OUT" | jq -e '(.agent_message | test("jq not found") and test("block-geniro-force-add.sh")) and .permission == "allow"' >/dev/null 2>&1; then
+    pass "jq missing on beforeShellExecution -> allow, agent_message names the inactive hook"
   else
-    fail "jq missing on beforeShellExecution -> expected a notice with no verdict, got: $OUT"
+    fail "jq missing on beforeShellExecution -> expected an allow carrying the notice, got: $OUT"
+  fi
+  OUT="$(jq -nc '{hook_event_name:"preToolUse", tool_name:"Shell"}' \
+    | PATH="$STUB_BIN" bash "$SHIM" no-such-hook.sh)"
+  if [ "$OUT" = '{"permission":"allow"}' ]; then
+    pass "jq missing on a stale-profile permission entry -> bare allow"
+  else
+    fail "jq missing on a stale-profile permission entry -> expected a bare allow, got: $OUT"
   fi
   OUT="$(jq -nc '{hook_event_name:"sessionStart", workspace_roots:["."]}' \
     | PATH="$STUB_BIN" bash "$SHIM" session-start-restore.sh)"
@@ -212,60 +233,50 @@ else
 fi
 
 # --- events and payloads the shim does not translate never reach the script ---
-# preToolUse included: nothing is wired to it, so a Shell call arriving there
-# must not be read as a Bash command.
-no_op_case() { # <label> <raw payload>
+# preToolUse included: nothing current is wired to it, so a Shell call arriving
+# there must not be read as a Bash command — but a profile installed from an
+# older release still wires it, and it is a permission hook, so it gets an
+# allow. A payload the shim cannot parse gets no answer at all.
+no_op_case() { # <label> <expected output> <raw payload>
   local out
   rm -f "$RAN"
-  out="$(printf '%s' "$2" | bash "$FAKE_SHIM" echo-payload.sh)"
-  if [ -z "$out" ] && [ ! -e "$RAN" ]; then
-    pass "$1 -> no-op, script not run"
+  out="$(printf '%s' "$3" | bash "$FAKE_SHIM" echo-payload.sh)"
+  if [ "$out" = "$2" ] && [ ! -e "$RAN" ]; then
+    pass "$1 -> ${2:-no output}, script not run"
   else
-    fail "$1 -> expected a silent no-op with the script not run, got out=$out ran=$([ -e "$RAN" ] && echo yes || echo no)"
+    fail "$1 -> expected ${2:-no output} with the script not run, got out=$out ran=$([ -e "$RAN" ] && echo yes || echo no)"
   fi
 }
-no_op_case "preToolUse Shell call" \
+no_op_case "preToolUse Shell call" '{"permission":"allow"}' \
   '{"hook_event_name":"preToolUse","tool_name":"Shell","tool_input":{"command":"git add -f .geniro/x"},"cwd":"."}'
-no_op_case "unknown event" '{"hook_event_name":"afterAgentThought"}'
-no_op_case "truncated payload" '{"hook_event_name":"beforeShellExecution","command":"git add -f .geniro/x"'
-no_op_case "well-formed payload missing hook_event_name" '{"command":"git status"}'
-no_op_case "empty payload" ''
+no_op_case "unknown event" '' '{"hook_event_name":"afterAgentThought"}'
+no_op_case "truncated payload" '' '{"hook_event_name":"beforeShellExecution","command":"git add -f .geniro/x"'
+no_op_case "well-formed payload missing hook_event_name" '' '{"command":"git status"}'
+no_op_case "empty payload" '' ''
 
-# --- missing, nonexistent, and traversal script args are no-ops ---
-#
-# Fed by here-string, NOT by a pipe, and these cases specifically must stay
-# that way. Each rejects its argument before `INPUT="$(cat)"` runs, so the shim
-# exits without ever reading stdin — correct behaviour, and exactly what makes a
-# producer on the other end of a pipe die of SIGPIPE. Under `set -o pipefail`
-# that death becomes the pipeline's exit code, so the assertion reads the
-# PRODUCER's rc and reports the shim as broken when it did the right thing.
-# It is a race: on a loaded CI runner the shim wins and the suite fails with
-# `jq: error: writing output failed: Broken pipe`.
-PAYLOAD="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"x"}')"
+# --- missing, nonexistent, and traversal script args run nothing ---
+# The nonexistent case is a profile installed from an older release, still
+# naming a script that no longer ships: on a permission hook it must allow, or
+# Cursor blocks every command that entry sees.
+SHELL_PAYLOAD="$(jq -nc '{hook_event_name:"beforeShellExecution", command:"x"}')"
+START_PAYLOAD="$(jq -nc '{hook_event_name:"sessionStart", workspace_roots:["."]}')"
 for ARG_CASE in "missing script arg|" "nonexistent script arg|no-such-hook.sh" "path-traversal script arg|../lib/hash.sh"; do
   LABEL="${ARG_CASE%%|*}"; ARG="${ARG_CASE#*|}"
-  if [ -n "$ARG" ]; then
-    OUT="$(bash "$SHIM" "$ARG" <<<"$PAYLOAD")"
-  else
-    OUT="$(bash "$SHIM" <<<"$PAYLOAD")"
-  fi
+  OUT="$(printf '%s' "$SHELL_PAYLOAD" | bash "$SHIM" ${ARG:+"$ARG"})"
   RC=$?
-  [ "$RC" -eq 0 ] && [ -z "$OUT" ] && pass "$LABEL -> no-op" \
-    || fail "$LABEL -> expected silent exit 0, got rc=$RC out=$OUT"
+  if [ "$RC" -eq 0 ] && [ "$OUT" = '{"permission":"allow"}' ]; then
+    pass "$LABEL on beforeShellExecution -> allow"
+  else
+    fail "$LABEL on beforeShellExecution -> expected exit 0 with an allow, got rc=$RC out=$OUT"
+  fi
+  OUT="$(printf '%s' "$START_PAYLOAD" | bash "$SHIM" ${ARG:+"$ARG"})"
+  RC=$?
+  if [ "$RC" -eq 0 ] && [ -z "$OUT" ]; then
+    pass "$LABEL on sessionStart -> no output"
+  else
+    fail "$LABEL on sessionStart -> expected silent exit 0, got rc=$RC out=$OUT"
+  fi
 done
-
-# Regression guard: put the shim back under a real broken pipe — a producer far
-# larger than the pipe buffer, which an early-exiting reader always breaks — and
-# record the SHIM's own rc rather than the pipeline's. It stays 0, and fails
-# loudly if the early exit is ever "fixed" into reading stdin it does not need.
-SHIM_RC_FILE="$TMPDIR_BASE/early-exit-rc"
-{ head -c 300000 /dev/zero | tr '\0' 'x'; } 2>/dev/null \
-  | { bash "$SHIM" >/dev/null 2>&1; echo "$?" > "$SHIM_RC_FILE"; }
-if [ "$(cat "$SHIM_RC_FILE" 2>/dev/null)" = "0" ]; then
-  pass "shim still exits 0 under a broken stdin pipe (the rc the assertion must read)"
-else
-  fail "shim exited $(cat "$SHIM_RC_FILE" 2>/dev/null) under a broken stdin pipe — expected 0"
-fi
 
 # --- cursor/hooks.json integrity ---
 HOOKS_JSON="$REPO_ROOT/cursor/hooks.json"
