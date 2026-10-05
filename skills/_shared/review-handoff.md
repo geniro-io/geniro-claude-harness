@@ -171,6 +171,7 @@ open_questions: []                    # always present; may be empty []. Entry s
 - Steering: <this round's applied text, or "none">
 - Risk-tier: <standard|high>
 - Dimensions spawned: [<the `actual` set per §"Dimensions spawned — `declared` vs `actual`" below, naming any declared-but-missing dimension with its skip reason>]
+- Spec check: ran (<spec path from `plan-context-ref`>) | skipped — <reason: no spec resolved, reviewer failed, …>  [read from the `actual` set, so a clean Summary cannot hide a spec that was never checked]
 - Mechanical pre-pass: [lint:N, schema:M, secrets:K]
 - Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
 - Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, documented-intent, unverified; omit zero-count reasons>) · <D> deferred · <S> set aside by your steering note (omit when zero) · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; a repeat stays in `## Findings` like any other kept finding — see the per-finding body schema below)
@@ -408,7 +409,7 @@ AskUserQuestion(
 )
 ```
 
-After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim, with the handoff's absolute path (e.g., `Run: /geniro:implement <PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`, `<PRIMARY_ROOT>` resolved per §2.6) — the user runs the slash command themselves; the orchestrator never auto-invokes /geniro:implement.
+After the user picks — and, on the `/geniro:implement findings` pick, after the §4.6 include-deferred gate resolves — surface ONE follow-up chat line stating the chosen next command verbatim, with the handoff's absolute path (e.g., `Run: /geniro:implement <PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md`, `<PRIMARY_ROOT>` resolved per §2.6) — the user runs the slash command themselves; the orchestrator never auto-invokes /geniro:implement. Add that the handoff file carries everything /geniro:implement needs, so the user can run `/clear` first and start it on a fresh context.
 
 **Post-option presence.** "Post Draft PR review" is present whenever `pr-ref:` is non-`none` AND at least one finding of any severity (including LOW / deferred / sub-threshold) remains unposted (no `[POSTED-TO-PR]` tag) AND not kept off the PR (`post-disposition: off-pr`) AND not resolved to need no action (`post-disposition: no-action`) — an all-LOW review still presents it. Omit it only when `pr-ref: none`, OR no findings exist at all, OR every finding already carries `[POSTED-TO-PR]`, OR every remaining finding is `post-disposition: off-pr` or `no-action`. Posting is an external write to a public surface — this gate is mandatory before ANY review posting: fire it and wait; never auto-post (even a draft), never publish, never substitute a chat-text "submit it yourself" line for the pick. Picking it IS the approval; the post creates a PENDING draft the user submits themselves (per §7.4). The Action gate is mutually exclusive — user chooses ONE path.
 

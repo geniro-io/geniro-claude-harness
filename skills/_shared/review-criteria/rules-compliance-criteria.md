@@ -27,6 +27,7 @@ This item is not the same load as `project-rules`, and collapsing them loses the
 | Windsurf | `.windsurfrules`, `.windsurf/rules/**` | global / per-file |
 | GitHub Copilot | `.github/copilot-instructions.md` | global |
 | Generic agent rules | `AGENTS.md`, `.agents.md` | global |
+| Contributor standards | `CONTRIBUTING.md`, `CODING_STANDARDS.md` (repo root or `docs/`) | global |
 
 ## 2. Path-scope matching
 
@@ -34,7 +35,7 @@ A rule applies to a changed file ONLY when the file is in the rule's declared sc
 
 - A `.cursor/rules/*.mdc` with `globs: ["src/**/*.ts"]` applies only to changed files matching that glob; `alwaysApply: true` → all files. A `.mdc` with neither `globs` nor `alwaysApply: true` (description-only / agent-requested / manual) is NOT auto-attached by Cursor — treat it as advisory and do not apply it repo-wide, or a rule the author deliberately scoped out becomes a false positive.
 - A `.claude/rules/*.md` with `paths:` frontmatter → applies only to matching files; without `paths:` → all files.
-- Global files (`CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `AGENTS.md`, `.github/copilot-instructions.md`) → every changed file.
+- Global files (`CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `AGENTS.md`, `.github/copilot-instructions.md`, `CONTRIBUTING.md`, `CODING_STANDARDS.md`) → every changed file.
 
 Flagging a file for a rule outside its declared scope is a false positive — the rule's author scoped it deliberately. Match scopes before checking.
 
@@ -68,7 +69,7 @@ Do NOT escalate every violation to HIGH because "it's a rule." A repo that bans 
 
 ## 6. Checklist
 
-- [ ] Discovered all present rule files (Claude, Cursor `.mdc` + legacy, Windsurf, Copilot, AGENTS)
+- [ ] Discovered all present rule files (Claude, Cursor `.mdc` + legacy, Windsurf, Copilot, AGENTS, CONTRIBUTING / CODING_STANDARDS)
 - [ ] Parsed path-scopes; applied each rule only to in-scope changed files
 - [ ] Every finding quotes the exact rule + cites the violating diff line
 - [ ] Severity calibrated by impact of breaking the rule, not by "it's a rule"

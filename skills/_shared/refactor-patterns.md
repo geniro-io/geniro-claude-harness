@@ -83,14 +83,14 @@ Each smell reads what-it-is → how-to-fix:
 This lens is orthogonal to the smell categories above — it asks "is this module **shallow** when it could be **deep**?" rather than "is there a smell?"
 
 Look for:
-- **Wide-interface modules with low internal logic** — e.g., a util file with 12 exported helpers each used once — are the shape to run the deletion test against. A vanishing-complexity result means inline the module and remove it; complexity that reappears across callers means the module was earning its keep — deepen it instead.
-- **Pass-through wrappers / leaky abstractions** — modules that re-export third-party types or expose adapter internals. These widen the seam without adding depth. Either deepen (absorb more behavior) or remove the wrapper.
-- **Repeated cross-call orchestration at call sites** — same 3-4 module calls in sequence, repeated across files. The orchestration belongs INSIDE one of those modules (deepening it) or in a new orchestrator module (narrowing the seam at every caller).
-- **High-leverage code with shallow implementation** — types or functions imported by 30+ files but with trivial internal logic. The leverage is wasted; deepening would let callers offload more responsibility.
+- **Shallow modules — callers must learn nearly as much as the module does** — e.g., a util file of 12 thin helpers, each used once — are the shape to run the deletion test against. A vanishing-complexity result means inline the module and remove it; complexity that reappears across callers means the module was earning its keep — deepen it instead.
+- **Pass-through wrappers / leaky abstractions** — modules that re-export third-party types or expose adapter internals. These add to what callers must know without hiding anything. Either deepen (absorb more behavior) or remove the wrapper.
+- **Repeated cross-call orchestration at call sites** — same 3-4 module calls in sequence, repeated across files. The orchestration belongs INSIDE one of those modules (deepening it) or in a new orchestrator module (shrinking what every caller must know).
+- **Heavily depended-on code that hides little** — a type or function many callers use, each re-doing the same handling around it. The leverage is wasted; deepening would let callers offload that responsibility.
 
 For each deepening opportunity, report:
 - **Module**: file:line of the current shallow module
-- **Current interface size**: count of exported symbols
+- **Current interface**: what a caller must know to use it correctly — signatures plus invariants, ordering constraints, error modes, required configuration
 - **Proposed deepening**: what behavior to absorb (1-2 sentences)
 - **Affected call sites**: count of consumers (this drives risk classification per Step 2)
 - **Vocabulary tag**: which terms apply (depth / seam / adapter / leverage / locality)

@@ -133,7 +133,7 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - [ ] **The no-ship boundary held.** A proposed fix is a text patch, never applied to source.
 - [ ] **Every experimental edit to non-test source was reverted before handoff.** Authored *tests* are the exception in Adversarial Mode — they stay on disk.
 - [ ] **The root cause is cited per the Evidence Standard, not guessed** — tagged `[ROOT-CAUSE]`, or honestly `[SYMPTOM]` / `[UNKNOWN]` when it is not established.
-- [ ] **The findings handoff was persisted via `atomic_state_write` BEFORE the escalation question fired** — an unpersisted handoff is lost if the user aborts at the gate.
+- [ ] **The findings handoff was persisted via `atomic_state_write_cmd` through `redact_secrets` BEFORE the escalation question fired** — an unpersisted handoff is lost if the user aborts at the gate.
 
 ## State file schema
 

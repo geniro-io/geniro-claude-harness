@@ -83,7 +83,7 @@ Body sections (Scientific Mode):
 
 - `## Symptom`
 - `## Reproduction Steps`
-- `## Feedback Loop` (Command — the minimised form / Expected output / Actual output / Re-run cost / Determinism — includes any rate-raising attempt + outcome for intermittent bugs)
+- `## Feedback Loop` (Original command — un-minimised, as first run / Command — the minimised form / Expected output / Actual output / Re-run cost / Determinism — includes any rate-raising attempt + outcome for intermittent bugs)
 - `## Hypotheses` (Hypothesis / Evidence For / Evidence Against / Status / Test Plan / Result per hypothesis)
 - `## Root Cause` (Validation: confirmed | unverified / Verification-evidence — written by §1.6's independent verification)
 - `## Proposed Fix`
@@ -125,13 +125,18 @@ approvals: []
 non-resumable-actions: []
 authored_tests: []                    # entry fields: id, path, intent, mode, f_to_p_status,
                                       #   related_hypotheses, targeted_source, confidence
+original_repro: <command>             # optional — the un-minimised reproduction command; self-contained (runs after §3.4
+                                      #   deletes scratch files and kills debug's dev server); exits non-zero while the
+                                      #   bug reproduces, zero once fixed; omitted when no such command exists
 open_questions: []                    # entry-field schema: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md §T2
 ---
 ```
 
+Secrets are redacted from the whole file at write time (`phase-3-ship.md` §3.1), which is why §1.3 builds the loop on environment variables.
+
 Body: full content of findings template + body sections (`## Tool log` / `## Errors` / `## Open Questions` (human-readable mirror of frontmatter) / `## Resolved Questions` / `## Persisted approvals`).
 
-Both arrays are present on every handoff and may be empty `[]`; the per-field schema, enums, and producer/consumer responsibilities live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — `open_questions[]` under §T2, `authored_tests[]` under §Producer-specific extensions. Restating the fields here is what lets them drift out of step with /geniro:implement's consumer, so read the schema there rather than from a copy.
+`original_repro` is /geniro:implement's post-fix re-run of the user's actual scenario — minimising can drop a second cause, so the minimised reproduction test going green does not prove it; handoffs predating the field simply lack it. Both arrays are present on every handoff and may be empty `[]`; the per-field schema, enums, and producer/consumer responsibilities live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — `open_questions[]` under §T2, `authored_tests[]` under §Producer-specific extensions. Restating the fields here is what lets them drift out of step with /geniro:implement's consumer, so read the schema there rather than from a copy.
 
 Debug-specific values within those schemas: `mode:` matches the handoff's top-level `mode:` discriminator (`scientific` here, `adversarial` for the adversarial handoff); `source:` names the gate that raised the question (`phase-1-stall-gate`, `phase-1-missing-data-gate`, `phase-3-cannot-verify`); `resolution.resolved_by:` is `debug`, `implement`, or `manual`.
 
@@ -201,6 +206,8 @@ After the A4 step 3 authoring-and-verification loop, present this block directly
 
 ### Discarded / Inconclusive
 [brief list with reasons]
+
+**Special handling:** [omit unless the authored-test secret scan hit — "fixture in `<path>` matches a secret pattern; swap in an environment variable before committing"]
 
 **Zero red tests?** [If M == 0: state plainly "no bugs found in scanned diff" — this is a valid outcome.]
 ```

@@ -369,7 +369,6 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 4. Persist to state.md frontmatter.
 
 **Downstream knobs:**
-- spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds the strict-mode patterns (`phase-1-triage.md` §1.5.3).
 - Phase 2's always-fire dimension grid — risk-tier:high forces the full six-dimension set regardless of the §12 size signal (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`).
 

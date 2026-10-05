@@ -58,12 +58,13 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 |---|---|---|
 | /geniro:plan | Phase 4 approach selection AUQ | producer=/geniro:plan, scope=<topic>, auq_category=approach_choice, suggestion=<approach name>, picked=<user's choice>, recommended=<recommended approach if any> |
 | /geniro:implement | Phase 3 ship-mode AUQ | producer=/geniro:implement, scope=<branch-or-topic>, auq_category=ship_mode, suggestion=<offered ship mode>, picked=<user's choice>, recommended=<recommended ship mode> |
+| /geniro:refactor | Phase 1 §1.5 "Intentional?" pick (smells the user left unpicked) | producer=/geniro:refactor, scope=global, auq_category=refactor_intentional, suggestion=<category: pattern in one line (key files)>, picked="Rejected as intentional" |
 
 **Optional:** any skill with an AUQ that has a clear "yes/no" or "recommended/alternative" semantic can invoke this helper. Skills with only-informational AUQs (e.g., section-by-section confirm) should not invoke — no rejection signal there.
 
 ## Read-side status
 
-`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `approach_choice`, `ship_mode`, and `library_adoption` entries accumulate with no reader.
+`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `refactor_intentional` entries have one too — `/geniro:refactor` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag refactor_intentional`) and §1.5 skips those patterns. `approach_choice`, `ship_mode`, and `library_adoption` entries accumulate with no reader.
 
 ## Example flow
 

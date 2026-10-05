@@ -69,7 +69,7 @@ These files carry no frontmatter and never pass through `validate_state_file`; c
 
 | Path root | Layout | Producer category |
 |---|---|---|
-| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `plan-*.md` + `milestone-*.md` + `visual-*.png`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
+| `.geniro/planning/<task-dir>/` | Multi-file task-dir (`state.md` + `spec.md` + `questionnaire.md` + `plan-*.md` + `milestone-*.md` + `visual-*.png`) | **Task-bound skills** producing durable artifacts — `/geniro:implement`, `/geniro:plan` |
 | `.geniro/state/<skill>/<slug>/` | Subdir-per-slug; canonical `state.md` inside | **Session-bound skills** — `/geniro:debug`, `/geniro:refactor`, `/geniro:onboard`, `/geniro:investigate`, `/geniro:resolve`, `/geniro:audit-instructions` |
 | `.geniro/state/<skill>/state.md` | **Singleton** — no `<slug>/` subdir | **Singleton-lifecycle skills** — `/geniro:setup` |
 
@@ -288,6 +288,7 @@ authored_tests:
     related_hypotheses: [H2]          # optional — Hypothesis IDs from `## Hypotheses` body (scientific mode)
     targeted_source: src/api/handler.ts  # optional — production file the test targets (used in adversarial mode for triage)
     confidence: high                  # optional — adversarial mode only (high | medium | low)
+original_repro: test "$(node scripts/profile.js 42)" = ok   # optional, scientific handoff only — un-minimised, self-contained repro; non-zero while the bug reproduces
 ```
 
 **Producer responsibilities:**
@@ -295,12 +296,10 @@ authored_tests:
 - One entry per authored test file. If a single test file holds multiple test cases, one entry covers it; the `intent` field summarizes the file-level guarantee.
 - `path` is repo-root relative. Consumers re-resolve against their own `git rev-parse --show-toplevel` to handle cross-worktree consumption.
 - `mode` matches the handoff's top-level `mode:` discriminator (`scientific` for `from-debug-<branch>.md`, `adversarial` for `from-debug-adversarial-<branch>.md`).
+- `original_repro` is optional and top-level, not per test: the un-minimised reproduction command as first run, before debug minimised it. It is self-contained — it must run on its own after debug deletes its scratch files and kills the dev server it started — and exits non-zero while the bug reproduces and zero once fixed (an expected-vs-actual output comparison is turned into that exit code); it is omitted when no such command can be formed. Debug writes the whole handoff through `redact_secrets`, so the command reads credentials from environment variables.
 - Scientific mode `f_to_p_status: escape-hatch` paired with an `intent: "escape-hatch: <rationale>"` is valid — surfaces the §2.4 hard-to-mock chain case where the bug cannot be verified without temporary production edits (which are reverted before escalation).
 
-**Consumer responsibilities:**
-- Read `authored_tests[]` before falling back to body-string parsing. The shared consumer protocol at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` codifies the prefer-frontmatter / fallback-to-body order.
-- Resolve each `path` against the current `git rev-parse --show-toplevel` and bucket as PRESENT / MISSING. On MISSING, surface the cross-worktree relocation suggestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case B1 — never auto-execute `git checkout <debug-source-branch> -- <path>`.
-- The array is informational, not a gate — consumers do NOT block on its presence or content. The `open_questions[]` gate remains the only code-edit blocker for /geniro:implement Phase 1.
+**Consumer responsibilities:** follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — prefer `authored_tests[]` over body parsing, bucket each `path` PRESENT / MISSING against the current `git rev-parse --show-toplevel`, and on MISSING surface the suggest-only relocation block (§Step 4 Case B1), never auto-executing `git checkout <debug-source-branch> -- <path>`. Neither `authored_tests[]` nor `original_repro` blocks Phase 1 — the `open_questions[]` gate remains the only code-edit blocker for /geniro:implement Phase 1; `original_repro` is run after the fix, at Phase 2 §5.5.
 
 ### `## Authored Tests` body table
 

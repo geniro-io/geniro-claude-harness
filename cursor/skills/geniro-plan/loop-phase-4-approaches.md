@@ -7,6 +7,7 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 ## Contents
 
 - 4.1 Approach generation
+- 4.1.5 Design it twice (Big tier, interface shape)
 - 4.2 Independent stress-test (adversarial weighing)
 - 4.2.5 Build-vs-buy library reuse (per approach)
 - 4.3 Present approaches — message-first
@@ -23,6 +24,12 @@ Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches
 - **Effort estimate** (Trivial / Small / Medium / Big per effort-scaling.md)
 
 **A materially cheaper shape is a real approach, not filler.** Price the objective at less than full scope as one of the 2-3 candidates, not a fourth: a strict subset carrying most of the value, or reaching it through configuration or an existing mechanism instead of new code. Include one whenever it is genuinely on the table. The filler bar above rejects a strawman *of the same shape*, built to pad the option count; a cheaper shape is its opposite — the only candidate that can shrink the work rather than plan it, and the one nobody proposes because the request already implies the full build. Give it the same `Trade-off:` line as every other approach, naming what it gives up, so the user weighs a real option rather than reading a suggestion to do nothing. Every candidate here still has to be buildable — this phase's output becomes a spec, so "build nothing" is not an approach but a Phase 3 conclusion, routed at §3.1.
+
+### 4.1.5 Design it twice (Big tier, interface shape)
+
+Runs before the §4.1 approach list is finalised — numbered after §4.1 but feeding it. Fires only when the tier is Big AND the decision is the shape of an interface or module boundary (a new public contract, a module's seam, a service API) — the one decision where the first design in mind is rarely the best and rework is costliest. Spawn 3 `codebase-research-agent` generators in ONE assistant response, per the spine §Spawn contract (OMIT `model=`), each designing under a different constraint so the designs differ in kind rather than in detail: minimal surface (1-3 entry points), maximal flexibility (many callers, extension points), optimized for the most common caller (the default case trivial). Slots as in §4.2: `RESEARCH_QUESTION` is the boundary, the constraint, and the Phase 3 decisions it must honor; `DELIVERABLE_SHAPE` is the interface (signatures, invariants, error modes), a caller usage example, what it hides, and trade-offs; `PRE_INLINED_CONTEXT` carries the Phase 1 surface, the Phase 3 closing summary, and the run's canonical terms, plus this line in every brief: "The proposed design is exempt from the file:line citation requirement — it does not exist yet; only claims about existing code cite file:line"; `OUTPUT_PATH` is `<task-dir>/.research-design-<constraint-slug>.md`.
+
+The designs feed §4.1: the distinct ones (or a hybrid) become the interface shape of the 2-3 approaches, ahead of the §4.2 critics, which stress-test them like any other approach. Append a `## Tool log` Echo entry per spawn; on a failed spawn log a `## Errors` entry and generate from the surviving designs, or from your own when none returned.
 
 ### 4.2 Independent stress-test (adversarial weighing)
 

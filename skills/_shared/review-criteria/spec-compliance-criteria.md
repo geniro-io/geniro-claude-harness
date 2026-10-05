@@ -2,7 +2,7 @@
 
 Conformance audit of the diff **against the plan / spec** — what the spec promised but the diff omits (checks 1-11), and what the diff implements contrary to the spec's stated behavior (check 12). The diff's code quality (bugs, security, architecture, tests, optimizations, conventions, regressions, design, pr-metadata) is owned by the other reviewer dimensions; this dimension owns SPEC→DIFF conformance only. The spec is the **primary rubric** for what the change intended; the diff is the side-input — the inverse of every other reviewer, which is diff-anchored. But the spec is a fallible human artifact, not ground truth: a divergence between spec and diff can mean the diff is wrong OR the spec is wrong. Before flagging an omission or contradiction as a defect against the implementation, rule out that the code deliberately and correctly departed from a spec premise the live code contradicts (see §Spec-premise validation) — otherwise a correct implementation gets blamed for the spec's own error.
 
-This dimension fires conditionally: PLAN CONTEXT must be non-`none` AND either the input is a PR ref OR the change carries `risk-tier: high`. It is skipped for local files, branches, or diff ranges with no plan context attached. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
+This dimension fires whenever PLAN CONTEXT is non-`none`, PR or not. With no PR there is no PR body or metadata: treat PR-body and PR-metadata evidence as absent, accept commit messages (`git log` over the reviewed range), code comments, or docs in its place, and apply the draft / bot-author / revert bullets of §Common false positives only when the PR metadata exists. The reviewer emits findings without a `path:lines` anchor — on a PR post the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, alongside PR-METADATA findings under a dedicated `## Spec Compliance` section, not as inline comments. The plan-context tagging convention in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md` (`[ALIGNS-WITH-PLAN]` / `[DIVERGES-FROM-PLAN]`) does not apply here — findings in this dimension are inherently divergences, so the tag is implicit.
 
 ## Contents
 
@@ -24,7 +24,7 @@ When the spec.md being audited carries `geniro_kind: design-doc` + `geniro_schem
 - Section 1: Objective
 - Section 2: Scope — Included
 - Section 3: Scope — Excluded
-- Section 4: Assumptions
+- Section 4: Assumptions — a `pending: <owner> — …` line is an open decision awaiting its owner, not a claim about the code; check it against nothing in the diff
 - Section 5: Risks
 - Section 6: Steps
 - Section 7: Tools Required
@@ -72,7 +72,7 @@ This is skip-when-clean: it only runs when a real divergence surfaces, and it ne
 
 The spec enumerates files, modules, endpoints, entities, or surfaces that the change must touch; the diff omits one or more of them. This is the most common spec-compliance gap: the spec said "update A, B, and C"; the diff updates A and B.
 
-**schema cite:** section 2 (Scope — Included). Each bullet there is a scoped item the diff must touch. Section 4 (Assumptions) often contains conditional scope ("assuming the auth middleware is in place, …") — cross-check.
+**schema cite:** section 2 (Scope — Included). Each bullet there is a scoped item the diff must touch. Section 4 (Assumptions) often contains conditional scope ("assuming the auth middleware is in place, …") — cross-check, skipping `pending:` lines.
 
 **How to detect:**
 - Extract scoped items from PLAN CONTEXT: schema-aware mode, parse section 2 bullets; in fallback mode, scan for explicit file paths, module names, table names, endpoint paths, "must include X", "add Y to Z", bulleted "the following will change:" lists.

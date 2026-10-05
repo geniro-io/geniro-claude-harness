@@ -41,7 +41,7 @@ Persist to state.md body sections `## Symptom` and `## Reproduction Steps` (per 
 
 A feedback loop is a fast (≤30s, ideally ≤5s), deterministic, captured signal that reproduces the bug AND can be re-run cheaply.
 
-**Pick the cheapest mechanism that reliably reproduces** — an assertion, a request, a query, or a browser script, whichever matches the layer the bug lives at; a manual click-through is the fallback for a UI with no automation seam. Two shapes are not interchangeable with the rest: a regression that worked at commit X wants a differential test (good vs bad commit), and an intermittent bug wants a fuzz / loop reproducer feeding the reproduction-rate rule below.
+**Pick the cheapest mechanism that reliably reproduces** — an assertion, a request, a query, or a browser script, whichever matches the layer the bug lives at; read credentials from environment variables, never a literal in the command, since the command is saved to the handoff; a manual click-through is the fallback for a UI with no automation seam. Two shapes are not interchangeable with the rest: a regression that worked at commit X wants a differential test (good vs bad commit), and an intermittent bug wants a fuzz / loop reproducer feeding the reproduction-rate rule below.
 
 **Quality bar:**
 - **Fast** — re-runs in seconds. If only loop possible takes 5 minutes, shrink scope (smaller payload, in-memory mock, skip auth).
@@ -52,11 +52,11 @@ A feedback loop is a fast (≤30s, ideally ≤5s), deterministic, captured signa
 
 When repeated loop-construction attempts keep landing on a different failure signature each time, or produce no captured signal at all, do NOT proceed by guessing — `AskUserQuestion` with header "Repro signal" — paste log / run command / mark intermittent + investigate without loop.
 
-**Minimise.** Once the loop is red on the right bug, shrink the repro to the smallest scenario that still fails: cut inputs, config, data, and steps one at a time, re-running the loop after each cut. Done when every remaining element is load-bearing — removing any one turns the loop green. A minimal repro shrinks the §1.4 hypothesis space and converts into the §2.4 reproduction test with little rework.
+**Minimise.** Once the loop is red on the right bug, shrink the repro to the smallest scenario that still fails: cut inputs, config, data, and steps one at a time, re-running the loop after each cut. Done when every remaining element is load-bearing — removing any one turns the loop green. A minimal repro shrinks the §1.4 hypothesis space and converts into the §2.4 reproduction test with little rework. Minimising can drop a second cause, so keep the command as first run, before any cut, beside the minimised one — /geniro:implement re-runs the original after the fix.
 
-Persist to state.md `## Feedback Loop` body section: Command (the minimised form) / Expected output / Actual output / Re-run cost / Determinism (including any rate-raising attempt + outcome for intermittent bugs).
+Persist to state.md `## Feedback Loop` body section: Original command (un-minimised) / Command (the minimised form) / Expected output / Actual output / Re-run cost / Determinism (including any rate-raising attempt + outcome for intermittent bugs).
 
-> **NOT the reproduction test.** The reproduction test is a unit/integration test in the project framework that ships with the fix as the regression guard. The feedback loop is a fast-iteration scratch signal so you can move quickly. The test STAYS on disk; the scratch signal is reverted at Cleanup.
+> **NOT the reproduction test.** The reproduction test is a unit/integration test in the project framework that ships with the fix as the regression guard. The feedback loop is a fast-iteration scratch signal so you can move quickly. The test STAYS on disk; the scratch signal is reverted at Cleanup, and the original command survives it as the handoff's `original_repro` (§3.1).
 
 ### 1.4 Hypothesize
 
