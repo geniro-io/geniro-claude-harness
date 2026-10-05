@@ -1,6 +1,6 @@
 # /analyze-thread — Phase 1 & Phase 2
 
-Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phase 1; re-read on entry to Phase 2 and on any resumption of either, including after a compaction — the spine keeps the phase headings, the loop invariants, the anti-rationalization table, and the Definition of done, this file carries the Steps.
+Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phase 1, again on entry to Phase 2, and on any resumption (including after a compaction).
 
 ## Contents
 
@@ -11,7 +11,7 @@ Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phas
 
 ## PHASE 1: PARSE
 
-**Purpose:** Turn each raw thread file into a normalized events list the detection phase can operate on. Step 1 resolves which threads; Steps 2-5 run per thread in that set.
+**Purpose:** Turn each thread file into a normalized events list for detection. Step 1 resolves which threads; Steps 2-5 run per thread.
 
 ### Step 1: Resolve the thread set
 
@@ -26,7 +26,7 @@ Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phas
 
 **Single mode.** Resolve the path; for a bare filename search the current working tree first, then the config-dir `projects/` trees. Check the file exists, is readable, and is under the hard cap (SKILL.md §Budgets & quality gates — Thread file size row). Between the warn threshold and the hard cap, warn before continuing — large threads slow the judge pass.
 
-**Explicit paths.** Two or more paths skip discovery and run as a batch over exactly those threads — this is how `/find-threads` hands over a multi-thread pick, and running them as one batch instead of N single runs is what earns the Phase 3 recurrence merge. Apply the single-mode existence and size checks to each; skip and name an oversize one rather than aborting; exclude this session's own log even when it is named (the own-log-exclusion invariant); clamp to the 5-thread cap and say so.
+**Explicit paths.** Two or more paths skip discovery and run as one batch over exactly those threads — one batch rather than N single runs is what earns the Phase 3 recurrence merge. Apply the single-mode existence and size checks to each; skip and name an oversize one rather than aborting; exclude this session's own log even when it is named; clamp to the batch cap and say so.
 
 **Batch mode.** Discover threads with the sibling scan engine, which already enumerates every config-dir root, keeps only threads that did agentic work, and reports each thread's size and true project label:
 
@@ -41,11 +41,11 @@ It prints one TSV row per thread — `mtime · date · oversize · kind · turns
 
 Do NOT filter on `mtime` age. A recent timestamp means a session tab is open, not that a run is in progress — idle sessions keep touching their logs, so an age cutoff silently drops finished threads that are the most interesting ones. The only log that must be excluded is this one.
 
-Post-process the scan output in one command, never a per-file shell loop — the sandbox constraint that makes such a loop half-fail is documented in `scan.py`'s module docstring.
+Post-process the scan output in one command, never a per-file shell loop (the sandbox constraint is in `scan.py`'s module docstring).
 
-Clamp N to the per-batch hard cap (SKILL.md §Budgets & quality gates — Threads per batch row) and say so if the user asked for more. If the scan yields nothing — a fresh machine, no work-bearing threads — report that plainly and stop; there is nothing to analyze and no question worth asking.
+Clamp N to the per-batch hard cap (SKILL.md §Budgets & quality gates — Threads per batch row) and say so if the user asked for more. If the scan yields nothing, report that plainly and stop.
 
-If `scan.py` is absent (the sibling skill was removed), fall back to enumerating `*.jsonl` under `~/.claude/projects/`, `$CLAUDE_CONFIG_DIR/projects/` when set, newest-first by mtime, applying the same two filters. The fallback loses the work-bearing filter, so state that the set may include trivial threads.
+If `scan.py` is absent, fall back to enumerating `*.jsonl` under `~/.claude/projects/` and `$CLAUDE_CONFIG_DIR/projects/` when set, newest-first, applying the same two filters, and state that the set may include trivial threads.
 
 Echo the resolved set before Phase 1 Step 2 — one line per thread with its date, project label, and title — so the user sees what is about to be analyzed.
 
@@ -61,18 +61,20 @@ Record the detected format in the Phase 1 checkpoint. `--format=jsonl` / `--form
 
 ### Step 3: Normalize to events list
 
-Each check queries the thread file for the fields below with `jq` / `grep` — the events list is a projection over the file, never a multi-MB log read into your context. One row per event:
+Each check queries the thread file for the fields below with `jq` / `grep` — the events list is a projection over the file, never a multi-MB log read into your context. In a JSONL log, top-level `.type` is `user`, `assistant`, `attachment`, `system`, `cost-state`, `queue-operation`, and others — a tool call or result is never a top-level event, so `tool_use` / `tool_result` throughout the checks name content items inside a turn. One row per event:
 
 | Field | Source — JSONL | Source — markdown |
 |---|---|---|
 | `idx` | line number in the .jsonl | block index in the .md |
-| `role` | `.type` field (`user` / `assistant` / `tool_use` / `tool_result` / `summary`) | regex on block header (`**User:**` → user, etc.) |
-| `content` | `.message.content` array | block body |
-| `tool_name` | `.message.content[].name` when `tool_use` | regex on fenced ```` ```tool ```` blocks |
-| `tool_input` | `.message.content[].input` JSON | regex-extracted JSON block (best-effort) |
+| `role` | top-level `.type`; only `user` and `assistant` are conversation turns, the rest are side events | regex on block header (`**User:**` → user, etc.) |
+| `content` | `.message.content` — a string, or an array of `text` / `tool_use` / `tool_result` / `thinking` items | block body |
+| `tool_name`, `tool_input`, `tool_id` | assistant turn: each `.message.content[]` item with `.type=="tool_use"` → `.name`, `.input`, `.id` | regex on fenced ```` ```tool ```` blocks (best-effort) |
+| `tool_result` | user turn: each `.message.content[]` item with `.type=="tool_result"` → `.tool_use_id` pairs it to its call; `.content` is a string or an array of text items — measure `.content\|tostring\|length` | the block following the call |
+| `usage` | assistant `.message.usage` (`input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`, `output_tokens`) and `.message.model`; one API response is every assistant event sharing a `.message.id` — each holds one content item and user result events sit between them, so group by unique id and count each id once | not available |
+| `cost` | when present: the log's last `cost-state` event (each is cumulative; `totalCostUSD`, `modelUsage`). Subagent totals and result text — foreground spawn: the user-turn `.toolUseResult` (`totalTokens`, `totalToolUseCount`, `resolvedModel`). Background spawn: `.toolUseResult.status == "async_launched"` carries no totals and only a launch stub as its `tool_result`; both arrive later in an `attachment` event with `.attachment.type == "queued_command"` and `.attachment.commandMode == "task-notification"` — `.attachment.usage.{totalTokens,toolUses,durationMs}` and the result text inside `.attachment.prompt`'s `<result>`, linked to the spawn by the `<tool-use-id>` in that prompt (`usage: null` marks a background shell command, not a subagent; when one id notifies twice, take the last) | not available |
 | `timestamp` | `.timestamp` ISO field | not available — use idx as proxy |
 
-JSONL parsing uses `jq -Rc 'fromjson?'` per the project memory rule — never bare `jq -c` (jq aborts on first parse error, silently wedging the pipeline).
+Parse JSONL with `jq -Rc 'fromjson?'`, never bare `jq -c` — jq aborts on the first malformed line and silently wedges the pipeline.
 
 ### Step 4: Extract pipeline metadata
 
@@ -90,9 +92,9 @@ Skip plugin-specific checks (the `[plugin]` rows in checks-reference.md) when `g
 
 The A-H checks read an action and ask whether it was wrong. The I- and K-class checks ask what is *missing* — an instruction file never loaded, a phase never entered, an approval never asked — and a missing thing has no event to match on. They need a declared side, and Step 4b is where it is built.
 
-Project it out of the trace, per the field list and the degradation ladder in `checks-reference.md` §8. Everything needed is in the thread: the injected skill body carries the phases, phase-body pointers, load sites, and gates; each instruction file's own tool_result carries the blocks it shipped. Where a field is missing, take the §8 degradation rather than substituting this checkout for it (the trace-is-the-declaration invariant), and let the weakening travel with each finding instead of being decided once for the thread.
+Project it out of the trace per the trace-is-the-declaration invariant — field list and degradation ladder in `checks-reference.md` §8. Where a field is missing, take the §8 degradation, and let the weakening travel with each finding instead of being decided once for the thread.
 
-Skip the step when `geniro-run: no` — a thread with no skill run declares nothing (the no-declaration-no-finding invariant). Echo the set's shape in one line so the user can see what coverage will be measured against, and spot a parse that read nothing.
+Skip the step when `geniro-run: no` (the no-declaration-no-finding invariant). Echo the set's shape in one line so the user can see what coverage will be measured against, and spot a parse that read nothing.
 
 ### Step 5: Write Phase 1 checkpoint
 
@@ -102,23 +104,19 @@ Record, per thread: file path, format, byte count, events count, geniro-run flag
 
 ## PHASE 2: DETECT
 
-**Purpose:** Run every check in the taxonomy against each thread's normalized events list and produce a raw findings list for filtering. Every finding carries its thread id from here on — Phase 3 cannot merge across threads without it.
+**Purpose:** Run every check against each thread's events list and produce a raw findings list. Every finding carries its thread id from here on — Phase 3 cannot merge across threads without it.
 
 ### Step 1: Run mechanical checks
 
-For each `[M]` check in `.claude/skills/analyze-thread/checks-reference.md` (see § Mechanical checks reference table), run the documented detection logic. Detection logic is one of three shapes:
+Run each `[M]` check in `.claude/skills/analyze-thread/checks-reference.md` as a query over the thread file, per its documented detection logic.
 
-- **jq predicate** over the JSONL events (e.g., A6 over-spawn detects identical `tool_input` across two `tool_use` events in the same assistant turn).
-- **grep pattern** over the event content (e.g., G2 `--no-verify` scan).
-- **windowed sequence match** over the events list (e.g., B3 infinite-loop detects same `tool_name` + same `tool_input` 3+ times in a sliding window of 5 events).
+Each mechanical hit produces a draft finding: `{thread_id, check_id, category, severity, confidence: high, evidence: [event_idx range], rationale}`. Mechanical confidence is `high` — the rule either matched or it didn't. `thread_id` is the first 8 chars of the log's filename.
 
-Each mechanical hit produces a draft finding: `{thread_id, check_id, category, severity, confidence: high, evidence: [event_idx range], rationale}`. Mechanical confidence is always `high` — the rule either matched or it didn't. `thread_id` is the session log's short id (first 8 chars of its filename), which stays readable in the merged report.
-
-The I- and K-class coverage checks are the exception on both counts, because they match on an absence rather than an event: they roll up per declaration site rather than per item, and their confidence tracks how much of the trace you could see rather than how cleanly the rule matched. Both rules are canonical in `checks-reference.md` §I-class.
+The I- and K-class coverage checks are the exception: they match on an absence, so they roll up per declaration site and their confidence tracks how much of the trace you could see (`checks-reference.md` §I-class). The cost checks H4-H7 also keep their raw numbers — per-phase context rows, steering share, largest results, subagent totals — for the Phase 4 cost table, so record them in the checkpoint even when no finding fires.
 
 ### Step 2: Spawn the LLM-judge
 
-ONE agent spawn per thread, and in a batch every one of them goes in the SAME assistant response (the one-judge-per-thread invariant). The judge is a spawned subagent that shares none of your context and cannot be assumed to resolve a `CLAUDE_PLUGIN_ROOT`-rooted path inside its own run, so the taxonomy travels as inlined text, never as a bare path it may fail to open — a bare path would leave it judging against nothing and say so nowhere. Pre-inline, per spawn:
+ONE agent spawn per thread, all in the SAME assistant response in a batch (the one-judge-per-thread invariant). The judge shares none of your context and may not resolve a `CLAUDE_PLUGIN_ROOT`-rooted path, so the taxonomy travels as inlined text — a bare path it fails to open leaves it judging against nothing and says so nowhere. Pre-inline, per spawn:
 - The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the seed budget (SKILL.md §Budgets & quality gates — LLM-judge token budget row).
 - **This thread's expectation set** from Phase 1 Step 4b, with the degradation level it was built at. The judged coverage checks (the judged I/K-class rows in `checks-reference.md` §4) have no declared side without it and silently return nothing; the judge cannot re-derive it, because the turns it came from may not survive the excerpt slice. Send the set itself, never a pointer.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
@@ -148,7 +146,7 @@ declared, so it cannot be missing.
 ### Mechanical findings already detected
 {{mechanical findings from Step 1, as a table}}
 
-### Thread excerpts (top-3 per judged check)
+### Thread excerpts (ranked slice)
 {{excerpts}}
 Excerpts are a slice, not the whole thread. Where a declaration's boundary is
 not in the slice, say so in the rationale and lower confidence — an absence you

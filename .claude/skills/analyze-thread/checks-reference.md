@@ -5,18 +5,21 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 - `[M]` mechanical (deterministic over the normalized events list) — runs in Phase 2 Step 1
 - `[J]` judged (LLM pass over thread excerpts with this taxonomy seeded) — runs in Phase 2 Step 2
 - `[generic]` valid on any Claude conversation thread
-- `[plugin]` only meaningful when the thread is a Geniro skill run (skip when Phase 1 metadata extraction sets `geniro-run: no` AND no plugin signals appear)
+- `[plugin]` only meaningful when the thread is a Geniro skill run (skipped per `phase-1-2-parse-detect.md` Phase 1 Step 4)
+
+`tool_use` and `tool_result` below name content items, not top-level log events: calls sit in an assistant turn's `.message.content[]`, results in the following user turn's, paired by `tool_use_id` (`phase-1-2-parse-detect.md` Phase 1 Step 3). "Consecutive" calls means consecutive in that item order; a "turn" is one API response — every assistant event sharing a `.message.id`. Each event holds one content item, so a response's parallel tool calls are separate events with the same id, and checks group by that id, never by event. Subagent results and totals: `phase-1-2-parse-detect.md` Phase 1 Step 3 `cost` row, which also covers background spawns.
 
 ## Contents
 
 1. Mechanical checks — A-class (subagent spawning)
 2. Mechanical checks — B-class (tool-call correctness)
-3. Mechanical checks — C/D/E/F/G/H-class (state, gates, drift, memory, safety, context) · I-class (custom-instruction wiring) · K-class (stage & gate completeness)
+3. Mechanical checks — C/D/E/F/G/H-class (state, gates, drift, memory, safety, context and cost) · I-class (custom-instruction wiring) · K-class (stage & gate completeness)
 4. Judged checks — taxonomy seed for the LLM-judge prompt
 5. Severity ladder & confidence calibration
 6. Common false-positive recipes for Phase 3 filter
 7. Evidence-excerpt ranking heuristic for the judge
 8. The expectation set — what the coverage checks (I/K-class) compare against
+9. Fix routing — the default `fix_kind` per check
 
 ---
 
@@ -24,12 +27,12 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| A1 | Missed parallel-spawn | warning | generic+plugin | Find runs of ≥2 `tool_use.name == "Agent"` events where each lives in a separate assistant turn AND the inter-event narration contains no result-dependency words ("based on the previous", "after the first agent returns"). The phrase "in ONE assistant response" / "in ONE response" / "same assistant turn" in the spawn site's enclosing skill section confirms one response was required — it raises confidence on a separate-turn hit; on its own, with the spawns batched in one turn, it is compliance, not a finding. |
+| A1 | Missed parallel-spawn | warning | generic+plugin | Find runs of ≥2 `tool_use.name == "Agent"` items whose `.message.id`s all differ (separate API responses) AND the inter-event narration contains no result-dependency words ("based on the previous", "after the first agent returns"). The phrase "in ONE assistant response" / "in ONE response" / "same assistant turn" in the spawn site's enclosing skill section confirms one response was required — it raises confidence on a separate-response hit; on its own, with the spawns sharing one `.message.id`, it is compliance, not a finding. |
 | A2 | Spawn-list violation | blocker | plugin | Only fires when `geniro-run: yes` AND the active skill is `/geniro:review` or `/geniro:implement` Phase 3. Parse the state.md frontmatter (if present in thread) for `spawn_dims_declared:` — count items. Count actual `tool_use.name == "Agent"` events in the same phase whose `subagent_type` is `reviewer-agent`. If actual < declared, flag the diff. |
 | A3 | Hallucinated subagent name | blocker | generic | Extract every `tool_use.input.subagent_type` value from `tool_use.name == "Agent"` events. The Claude Code system prompt lists available agents — collect them from the thread's system message (or the in-thread `Available agent types for the Agent tool:` block). Flag any `subagent_type` not in that list. |
-| A4 | Wrong tier for the spawn's side of decide-vs-apply | warning | plugin | For each `Agent` tool_use carrying `tool_input.model`, place the spawn per `skills/_shared/model-tiering.md` §The rule. Defect: a tier at a spawn whose agent declares `model: inherit` — it defeats the user's session-level `/model` choice. Also a defect: a non-judgment spawn passed a tier *above* `sonnet`, its ceiling. Not a defect: a tier at or below `sonnet` at a non-judgment-spawn site (test-runner, knowledge-retrieval, code-delegate, UI-description, setup-verifier, fix agents), which the orchestrator may size down per §Sizing a non-judgment spawn; or any tier at any site in a run that carried `--subagent-model`. |
+| A4 | Wrong tier for the spawn's side of decide-vs-apply | warning | plugin | For each `Agent` tool_use carrying `tool_input.model`, place the spawn per `skills/_shared/model-tiering.md` §The rule. Defect: a tier at a spawn whose agent declares `model: inherit` — it defeats the user's session-level `/model` choice. Also a defect: a non-judgment spawn passed a tier *above* `sonnet`, its ceiling. Not a defect: a tier at or below `sonnet` at a non-judgment-spawn site (test-runner, knowledge-retrieval, code-delegate, UI-description, setup-verifier, fix agents), which the orchestrator may size down per §Sizing a non-judgment spawn; or any tier at any site in a run that carried `--subagent-model`. A spawn result's `resolvedModel` shows the tier the agent actually ran at. |
 | A5 | Fallback ladder not attempted | warning | plugin | After any `tool_result` containing `Agent type '<name>' not found`, the next 2 assistant turns must contain another `Agent` call. First retry should use the bare-name form; second retry should use `subagent_type="general-purpose"`. If the assistant abandons the spawn after one failure, flag. |
-| A6 | Over-spawn / duplicate prompts | warning | generic | Group `Agent` tool_uses by assistant turn. Within each group, hash the `tool_input.prompt` field; if two have identical hashes (or Levenshtein distance < 50 chars on prompts >500 chars), flag as duplicate. |
+| A6 | Over-spawn / duplicate prompts | warning | generic | Group `Agent` tool_uses by `.message.id`. Within each group, hash the `tool_input.prompt` field; if two have identical hashes (or Levenshtein distance < 50 chars on prompts >500 chars), flag as duplicate. |
 | A7 | Leaf subagent spawning nested agent | blocker | plugin | If the thread under analysis is itself a subagent transcript (detectable when the system message lacks a slash-command invocation context and the user message is a structured prompt), any `Agent` call from within is a violation. Skip in main-context threads. |
 
 ## 2. Mechanical checks — B-class (tool-call correctness)
@@ -38,7 +41,7 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 |---|---|---|---|---|
 | B1 | Hallucinated tool / wrong tool selection | blocker | generic | Extract the available-tools list from the system message (or first `<functions>` block). For each `tool_use.name`, check membership. Flag non-members. Sub-check: when two tools share a stem (`*_user` vs `*_channel`, `Edit` vs `Write`), tally per-stem usage; if usage flips mid-thread without explicit reasoning, flag as potential mis-selection. |
 | B2 | Schema-invalid tool arguments | blocker | generic | Cross-reference each `tool_use.input` against the tool's declared JSON schema (extracted from the system `<functions>` block). Flag: missing required fields, type mismatches (string passed where number expected), fields not in the schema (fabricated parameters). Best-effort: skip for MCP tools whose schema isn't in the thread. |
-| B3 | Infinite / retry loop | warning | generic | Sliding window of 5 consecutive `tool_use` events. Flag when ≥3 share the same `tool_name` AND byte-identical `tool_input` AND the intervening `tool_result` events show no progress (same error message OR empty result OR identical content). |
+| B3 | Infinite / retry loop | warning | generic | Sliding window of 5 consecutive `tool_use` items. Flag when ≥3 share the same `tool_name` AND an equivalent `tool_input` — byte-identical, or near-identical: the same command after collapsing whitespace and ordering flags, or the same status check polled in a loop (`sleep N && <check>`, repeated `gh run view` / `curl` against one target) — AND the intervening `tool_result` items show no progress (same error message OR empty result OR identical content; for a poll, the status unchanged). |
 
 ## 3. Mechanical checks — C/D/E/F/G/H-class
 
@@ -46,15 +49,15 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| C1 | Direct Edit/Write on `.geniro/` state path | blocker | plugin | Flag any `tool_use.name in ("Edit","Write")` whose `tool_input.file_path` matches `.geniro/state/` / `.geniro/planning/` / `.geniro/knowledge/` / `.geniro/.geniro-state.json` AND the prior assistant narration does not invoke `source ... atomic-state-write.sh` or `atomic_state_write` in a Bash call. |
+| C1 | Direct Edit/Write on `.geniro/` state path | blocker | plugin | Flag any `tool_use.name in ("Edit","Write")` whose `tool_input.file_path` matches `.geniro/state/` / `.geniro/planning/` / `.geniro/knowledge/` / `.geniro/.geniro-state.json`. |
 
 ### D-class phase & gate compliance
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
 | D2 | AskUserQuestion bypass | blocker | generic+plugin | Key off the outward-action set, not a declared field: for every call matching the `non-resumable-actions[]` enum in `skills/_shared/state-tier-spec.md` (`git push`, `gh pr create`, `gh pr comment`, commit, release tag, outward post), scan backwards for an `AskUserQuestion` whose resolved answer covered that action class. Flag when none precedes the call, or the answer was "Cancel" / "Skip". Per `skills/_shared/approval-scope.md`, an approval reaches only the class the user was shown, so a gate about a different class does not count. |
-| D3 | Premature completion (mechanical part) | warning | generic+plugin | Find the last assistant turn containing one of: "shipped", "done!", "all tests pass", "ready to merge", "complete". Then check: (a) TodoWrite state at that point has open items, OR (b) the prior `tool_result` from a test-runner agent had non-zero failure count. The judged part is in §4. |
-| D6 | Unresolved open_questions[] at gate | blocker | plugin | Grep handoff files referenced in the thread for `status: unresolved` entries. If the next assistant turn after the handoff read is a Phase 6 / Pre-PR action (gh pr create, gh pr comment, git push) without a preceding resolution step, flag. |
+| D3 | Premature completion (mechanical part) | warning | generic+plugin | Find the last assistant turn containing one of: "shipped", "done!", "all tests pass", "ready to merge", "complete". Then check: (a) TodoWrite state at that point has open items, OR (b) the prior result from a test-runner agent had non-zero failure count (a background spawn's result is its task-notification text, not the launch stub). The judged part is in §4. |
+| D6 | Unresolved open_questions[] at gate | blocker | plugin | Grep handoff files referenced in the thread for `status: unresolved` entries. If the next assistant turn after the handoff read is an outward action from the D2 set (`gh pr create`, `gh pr comment`, `git push`, commit) without a preceding resolution step, flag. |
 
 ### E-class instruction-following & drift
 
@@ -79,21 +82,25 @@ The canonical check taxonomy used by `/analyze-thread` Phase 2. Each check is ta
 | G2 | `--no-verify` used | blocker | plugin | Grep Bash commands for ` --no-verify` (with leading space to avoid matching `name-verify`). Also flag `-c commit.gpgsign=false`, `--no-gpg-sign`. |
 | G3 | Secret in state file | blocker | generic+plugin | When an `Edit`/`Write` targets `.geniro/state/` / `.geniro/knowledge/` / `.geniro/planning/`, scan `new_string` / `content` for patterns: `[A-Za-z0-9]{32,}` after `api_key|token|secret|bearer|password` (case-insensitive), `sk-[a-zA-Z0-9]{20,}`, `xoxb-`, `ghp_`, `glpat-`, PEM headers. Cross-check against `redact-secrets.sh` invocation in the same turn — if redaction was called, downgrade to nit. |
 
-### H-class context / lost-in-the-middle
+### H-class context / lost-in-the-middle / cost
+
+H4-H7 are the cost checks: they read result sizes and usage fields, need no judge, and also record their raw numbers for the Phase 4 cost table (`phase-3-4-filter-present.md` Phase 4 Step 1) whether or not a finding fires. Each threshold is a starting value to calibrate against real threads.
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
-| H2 | Step repetition / redundant tool use | nit | generic | For each `tool_use.name in ("Read","Grep","Glob")`, hash `tool_input.file_path` + `tool_input.pattern`. Count occurrences. Flag any input that appears 3+ times. Exception: the second read is OK if the file was Edit/Written between reads. |
+| H2 | Step repetition / redundant tool use | nit / warning | generic | For each `tool_use.name in ("Read","Grep","Glob")`, hash `tool_input.file_path` + `tool_input.pattern`. Count occurrences. Flag any input that appears 3+ times. Exception: a re-read is OK if the file was Edit/Written between reads. Grade by cost: re-read cost = the repeated result's chars × (repeats − 1); at ≥ 20,000 chars, or ≥ 5 repeats of any input, the finding is a warning, else a nit. |
+| H4 | Oversized tool result | warning | generic | Main-thread `tool_result` items whose text exceeds 20,000 chars. Pair each to its call by id and flag once per thread, itemising tool, command or path, and size, largest first. Record the five largest for the cost table. |
+| H5 | Search streak | warning | generic | A run of ≥ 8 consecutive search or read calls (`Grep`, `Glob`, `Read`, search-shaped `Bash` such as `find` / `rg` / `grep` / `ls`) with no `Edit` / `Write` between, whose last call is the first to touch the file the run then edited — or, in a read-only run, the file its answer rests on. The streak was spent locating that file. Cite the streak's first and last call and the file it landed on. |
+| H6 | Per-phase context growth | warning | generic | Per API call — count each `.message.id` once — context = `input_tokens` + `cache_read_input_tokens` + `cache_creation_input_tokens`. Group calls by phase (K1 narration markers or phase-body Reads; one group when the run has no phases) and record per phase: calls, peak context, summed context, output tokens, and any subagent `totalTokens` (background spawns: from the task-notification, Step 3 `cost` row). Summed context is the cost driver, since every call re-reads the whole context. Flag a phase holding ≥ 50% of the thread's summed context, naming the H4 / H5 / H7 hits inside it and the largest single-call jumps. |
+| H7 | Steering-file share | warning | generic+plugin | Chars of steering text — `instructions` (user and project CLAUDE.md), `nested_memory`, `skill_listing`, and `hook_additional_context` attachments, the injected skill body, and the results of Reads of CLAUDE.md, `.claude/rules/`, and `.geniro/instructions/` files — as a share of every char entering context (user text, attachments, tool results). Flag a share ≥ 30%, itemising the three largest sources. Steering text rides along on every later call, so a modest share compounds. |
 
 ### I-class custom-instruction loading & dynamic-rule wiring
 
-Every I-class check is a **coverage check**: it compares what the run declared it would load against what the trace shows it loaded and applied. Both halves come from the expectation set (§8).
+Every I-class check is a **coverage check**: it compares what the run declared it would load against what the trace shows it loaded and applied, both from the expectation set (§8). Three rules govern this class and K-class equally.
 
-Three rules keep this class honest, and they govern K-class equally.
-
-- **An expectation the trace does not establish is not a finding.** A project that declares no `## Data Sources` cannot omit consulting one, and a thread whose expectation set came out empty produces zero coverage findings rather than a wall of "missing" rows.
-- **One finding per declaration site, itemised.** A `pipeline` load site that read none of its files is one finding listing every missing file, not one finding per file; a phase whose steps went unrun is one finding listing every skipped step. This is what keeps a systematically-broken run inside the raw-findings cap SKILL.md §Budgets sets instead of burying every other check under it.
-- **Confidence tracks the trace, not the rule.** Elsewhere a mechanical hit is always high-confidence, because the rule either matched or it did not. A coverage check matched on an absence, so an absence in what you could see is indistinguishable from an absence in what happened: a check built on a partial trace or a project-read expectation set (§8 degradations 1-2) caps at medium and carries the reason in its rationale.
+- **An expectation the trace does not establish is not a finding** (SKILL.md's no-declaration-no-finding invariant): a project that declares no `## Data Sources` cannot omit consulting one, and an empty expectation set produces zero coverage findings.
+- **One finding per declaration site, itemised.** A `pipeline` load site that read none of its files is one finding listing every missing file; a phase whose steps went unrun is one finding listing every skipped step. This keeps a systematically-broken run inside the raw-findings cap SKILL.md §Budgets sets.
+- **Confidence tracks the trace, not the rule.** A coverage check matched on an absence, and an absence in what you could see is indistinguishable from an absence in what happened: a check built on a partial trace or a project-read expectation set (§8 degradations 1-2) caps at medium and carries the reason in its rationale.
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
@@ -102,12 +109,12 @@ Three rules keep this class honest, and they govern K-class equally.
 | I3 | Phase-boundary refresh skipped | warning | plugin | For each `refresh_sites[]` entry (a phase boundary whose skill body prescribes `MODE: refresh`), check that the boundary's turn or the next re-Reads the whole load set and re-echoes. A refresh that reads a strict subset counts as skipped for the unread files — the refresh exists because compaction drops all of them equally. |
 | I4 | Fallback path not attempted | warning | plugin | After a `Read` on `.geniro/instructions/<file>` whose `tool_result` is file-not-found, the loader owes one of two things: a retry against `<PRIMARY_ROOT>/.geniro/instructions/<file>`, or evidence that `PRIMARY_ROOT` equals cwd (no worktree probe in the trace, or one whose output shows a single worktree). Flag a run that goes straight from the miss to `No <file> found — skipping.` while the trace shows a linked worktree. Same shape for a configured-but-missing external dir: the bad-pointer caveat must be echoed before the in-repo fallback runs. |
 | I5 | Declared memory backend bypassed | warning | plugin | When the `memory.md` tool_result carries a `## Memory Backend` block routing the `learnings` layer, every later learnings write and read must go through the declared tools. Flag an `emit-learning.sh` call or a direct `learnings.jsonl` append with no companion call to the declared write tool, and a `query-learnings.sh` call or file read with no companion call to the declared read tool. Under `mode: replace` the file path alone is a silent no-op, so it is a blocker rather than a warning there. |
-| I6 | Custom reviewers discovered but not spawned | blocker | plugin | When the trace shows `review-extra/*.md` files resolved (a Glob result, or Reads of those paths), each valid slug owes one `Agent` spawn carrying `custom:<slug>` as its dimension. Flag a slug with no spawn; flag separately a spawn that lands in a different assistant turn than the built-in reviewer batch, which serialises what the helper requires to run parallel. A slug the trace shows failing validation is correctly absent — not a finding. |
-| I7 | Subagent load report missing | warning | plugin | For each `Agent` spawn whose `subagent_type` is one whose contract prescribes its own instruction load, check the returned `tool_result` for a `Context loaded: <item>=<state>` line. A report without one came from an agent that did not run its load steps, so its conclusions rest on plugin defaults rather than project rules. Also flag `<state>` = `unreadable` on a path the orchestrator itself passed — that is a spawn-site defect, not an agent defect. |
+| I6 | Custom reviewers discovered but not spawned | blocker | plugin | When the trace shows `review-extra/*.md` files resolved (a Glob result, or Reads of those paths), each valid slug owes one `Agent` spawn carrying `custom:<slug>` as its dimension. Flag a slug with no spawn; flag separately a spawn whose `.message.id` differs from the built-in reviewer batch's, which serialises what the helper requires to run parallel. A slug the trace shows failing validation is correctly absent — not a finding. |
+| I7 | Subagent load report missing | warning | plugin | For each `Agent` spawn whose `subagent_type` is one whose contract prescribes its own instruction load, check the returned result for a `Context loaded: <item>=<state>` line — for a background spawn the `tool_result` is only a launch stub, so read the task-notification's result text. A report without one came from an agent that did not run its load steps, so its conclusions rest on plugin defaults rather than project rules. Also flag `<state>` = `unreadable` on a path the orchestrator itself passed — that is a spawn-site defect, not an agent defect. |
 
 ### K-class stage & gate completeness
 
-K-class answers "did every stage the skill declared actually run, and did every gate actually fire". Its declared side comes from the expectation set's `phases[]`, `phase_files[]`, `steps[]`, and `gates[]` (§8); the three coverage rules above apply here unchanged.
+K-class asks whether every declared stage ran and every declared gate fired, against the expectation set's `phases[]`, `phase_files[]`, `steps[]`, and `gates[]` (§8); the three coverage rules above apply unchanged.
 
 | ID | Name | Severity | Scope | Detection logic |
 |---|---|---|---|---|
@@ -121,7 +128,7 @@ K-class answers "did every stage the skill declared actually run, and did every 
 
 ## 4. Judged checks — taxonomy seed for the LLM-judge prompt
 
-These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. This table is what the orchestrator inlines verbatim into each judge prompt (SKILL.md's one-judge-per-thread invariant); the judge returns findings in the schema documented in SKILL.md Phase 2 Step 2.
+These checks require LLM reading because they depend on intent inference, narrative coherence, or cross-section reasoning that regex cannot capture. The orchestrator inlines this table verbatim into each judge prompt; the judge returns findings in the schema of `phase-1-2-parse-detect.md` Phase 2 Step 2.
 
 | ID | Name | Severity | Scope | What the judge looks for |
 |---|---|---|---|---|
@@ -155,7 +162,7 @@ These checks require LLM reading because they depend on intent inference, narrat
 |---|---|---|
 | **blocker** | A failure that broke or would break the pipeline's correctness contract. Approved findings of this severity ship to `/improve-template` as priority items. | Hallucinated tool, spawn-list violation, `--no-verify`, secret in state file. |
 | **warning** | A failure that degraded quality but did not break the pipeline. Worth fixing but not urgent. | Missed parallel-spawn, schema-invalid args, premature completion, step repetition. |
-| **nit** | A stylistic or hygiene issue that compounds slowly. Often FILTERED in Phase 3 unless multiple instances cluster. | Internal jargon in user prose, redundant Read, T1 vs T1.5 confusion. |
+| **nit** | A stylistic or hygiene issue that compounds slowly. Often FILTERED in Phase 3 unless multiple instances cluster. | Internal jargon in user prose, a repeated Read of a small file, T1 vs T1.5 confusion. |
 
 ### Confidence
 
@@ -175,14 +182,14 @@ Use these when tagging FALSE-POSITIVE. Each is a documented case where a mechani
 |---|---|---|
 | A1 missed parallel-spawn | The second Agent call's prompt explicitly references the first agent's output ("based on the previous agent's findings, ...") | Read the spawn-site prompt; if it cites prior output, the serialization is intentional. |
 | A6 over-spawn | The "duplicate" prompts target different `subagent_type` values (e.g., reviewer-agent for `bugs` vs `security`) | Diff the spawn invocations; different subagent_type = different work even with similar prompt. |
-| B3 infinite loop | The 3+ identical calls were retries against a flaky external service (network, MCP) where the tool_result varies | Read the tool_results; if errors differ or eventually succeed, this is correct retry, not infinite loop. |
+| B3 infinite loop | The 3+ identical or near-identical calls were retries against a flaky external service (network, MCP) or a poll that eventually changed state, where the tool_result varies | Read the tool_results; if errors differ, the status moved, or the call eventually succeeded, this is a correct retry or poll, not a loop. |
 | D2 AUQ bypass | An upstream approval already covered the action class — a ship gate answered "push and open the PR" covers both calls | Read the approving question and its options; if they named that class, the action is covered. |
 | D3 premature completion | The "shipped" claim was about a sub-task (Phase 2 of N), not the overall pipeline | Read the narrative scope — "Phase 2 done" is fine even with open Todo items for Phase 3+. |
 | E6 internal jargon | The jargon appears in a state-file write or REFERENCE section, not in user-facing prose | E6 only applies to AskUserQuestion / TodoWrite / final report. Other contexts are author-facing. |
-| G1 git destructive | The command was inside a `<details>` block or a `# Legacy` section (not actually executed) | If Bash output is empty / non-existent for that command, it was illustrative, not executed. |
+| G1 `.geniro/` force-add | The command was inside a `<details>` block or a `# Legacy` section (not actually executed) | If Bash output is empty / non-existent for that command, it was illustrative, not executed. |
 | G3 secret in state | The "secret" was a redacted token (`sk-***REDACTED***`) or a test fixture (`fake-api-key`, `dummy-token`) | Check if `redact_secrets` was called in the same turn, OR if the value matches a documented fixture pattern. |
 
-A coverage check compares a declared side against an observed side, so it has two ways to be wrong that the other classes do not: the declaration can be misread, and the observation can be missed. Both fail toward a false "missing", which is why the recipes below skew to confirming absence rather than confirming presence.
+A coverage check can be wrong in two ways the other classes cannot — the declaration misread, the observation missed — and both fail toward a false "missing", so the recipes below confirm absence rather than presence.
 
 | Finding pattern | Likely false-positive when | How to confirm |
 |---|---|---|
@@ -203,9 +210,7 @@ A coverage check compares a declared side against an observed side, so it has tw
 
 ## 7. Evidence-excerpt ranking heuristic for the judge
 
-Phase 2 Step 2 slices the thread into excerpts to fit the judge's excerpt budget (SKILL.md §Budgets & quality gates — LLM-judge token budget row). The ranking decides which events to include:
-
-Suspicion score per event = sum of:
+Phase 2 Step 2 slices the thread to the judge's excerpt budget (SKILL.md §Budgets & quality gates — LLM-judge token budget row), ranking events across the whole thread, not per check. Suspicion score per event = sum of:
 
 - `+5` if the event is within ±2 events of a mechanical finding
 - `+3` if the event is within ±3 events of an `AskUserQuestion` call
@@ -216,19 +221,17 @@ Suspicion score per event = sum of:
 - `+1` if the event is in the first 10 or last 10 events of the thread (start/end carry context)
 - `0` otherwise
 
-Sort events by suspicion descending; take top events until the excerpt budget is reached; sort the selection back into chronological order for the judge. Always include the opening user message and the closing assistant turn regardless of score (anchors for E3 task-drift judging), and both ends of each declaration the expectation set carries — the tool_result that established it, and the turns at the boundary where it applied — before spending the budget on the ranked tail: a purely score-sorted slice reliably keeps the declaration and drops its boundary, because a boundary where nothing happened scores near zero for exactly the reason it is the finding, and the judged coverage checks (I8-I11, K7, K8) need that empty boundary as evidence, not just the declaration. Where an excerpt had to be dropped anyway, tell the judge which checks are running on partial evidence rather than letting it read absence as proof.
+Sort events by suspicion descending, take events until the excerpt budget is reached, and return the selection to chronological order. Before spending the budget on the ranked tail, always include the opening user message and the closing assistant turn (anchors for E3), and both ends of each declaration the expectation set carries — the tool_result that established it, and the turns at the boundary where it applied. A purely score-sorted slice keeps the declaration and drops its boundary, because a boundary where nothing happened scores near zero for exactly the reason it is the finding, and the judged coverage checks (I8-I11, K7, K8) need that empty boundary as evidence. Where an excerpt had to be dropped anyway, tell the judge which checks run on partial evidence rather than letting it read absence as proof.
 
 ---
 
 ## 8. The expectation set
 
-Every A-H check reads the trace and asks "is this action wrong?". The I- and K-class checks ask a different question — "is something *missing*?" — and a missing thing has no event to match on. They need a declared side to compare the trace against. That is the expectation set: per thread, what the run said it would load, enter, and ask, built at Phase 1 and consumed by Phase 2.
+The A-H checks read the trace and ask "is this action wrong?"; the I- and K-class checks ask "is something *missing*?", and a missing thing has no event to match on. The expectation set is their declared side: per thread, what the run said it would load, enter, and ask, built at Phase 1 and consumed by Phase 2.
 
 ### Build it from the trace, not from this checkout
 
-The thread being analyzed usually belongs to a different project than the machine running the analysis — that is the normal case in a batch, where threads are drawn from every project on the box. Reading the analyzer's own `.geniro/instructions/` or `skills/` to decide what a thread should have loaded compares one project's run against another project's rules, and every row it produces is fiction.
-
-The trace is self-sufficient, and this is what makes the class work: a Claude Code session log records the skill body that was injected, the tool_results of every instruction file the run read, and the arguments of every call it made. What the run was told and what it did are both in the file.
+The trace-is-the-declaration invariant (SKILL.md) rests on the log being self-sufficient: it records the skill body that was injected, the tool_results of every instruction file the run read, and the arguments of every call. What the run was told and what it did are both in the file; the analyzing checkout holds a different project's rules.
 
 | Field | What it holds | Where the trace shows it |
 |---|---|---|
@@ -250,4 +253,23 @@ Three degradations, in order of preference. Each one weakens the checks that dep
 2. **Skill body absent, project reachable** — the trace names the skill but does not carry its body, and the thread's own project directory is readable from here. Read the body from there, and mark every finding derived from it as UNCERTAIN: the file has changed since the run by an unknown amount, so a mismatch may be an edit rather than a failure.
 3. **Neither** — drop the I- and K-class checks for that thread and say so in the report. A coverage check with no declared side reports nothing, which is the correct answer; inventing the declared side reports everything, which is worse than the silence it replaces.
 
-An empty expectation set is a normal outcome, not a parse failure. A thread with no Geniro run in it — the `geniro-run: no` case — has no declarations to check, and generic threads skip the whole class the same way they skip every other `[plugin]` row.
+An empty expectation set is a normal outcome, not a parse failure: a thread with no Geniro run (`geniro-run: no`) has no declarations to check, and skips the class like every other `[plugin]` row.
+
+---
+
+## 9. Fix routing — the default `fix_kind` per check
+
+Phase 3 Step 3 assigns each kept finding one `fix_kind` (the enum and the loaded-and-still-violated rule are defined there), starting from this default and moving off it only on trace evidence. Rewritten instruction text only raises compliance on a step the model would otherwise skip, so the defaults favor a check, a wiring fix, a pointer, or a removal wherever the model already attempts the step.
+
+| Finding | Default `fix_kind` |
+|---|---|
+| Violation a script can decide: A2, A3, B1, B2, E5, F2, G1-G3 | `DETERMINISTIC-CHECK`; `WIRE` when the check exists but never ran |
+| Declared thing never reached: I1, I3, I4, I5, I6, I7, K1, K2, K3 | `WIRE` — the load, step, or gate exists in the skill and was not connected |
+| C1 direct state write | `WIRE` an existing lint or test over the skill's state-write sites — not a hook (`HOOKS.md` §Removed guards) |
+| I9 / E1 / I8 — rule loaded and broken anyway | `DETERMINISTIC-CHECK` when the rule is mechanically decidable (a path, a command shape, an ordering), else `REMOVE-RULE` for a rule that changes nothing as written. A correct safety rule that was ignored keeps its place and takes `WIRE` or `TOOL-CHANGE`. |
+| H4 oversized result, B3 retry or poll | `TOOL-CHANGE` — cap or filter the output, delegate to an agent, run in the background |
+| H5 search streak, H2 re-reads | `NAV-POINTER`; `TOOL-CHANGE` when one tool's output is what forced the re-read |
+| H6 phase dominance | The `fix_kind` of the H4 / H5 / H7 hit that drives it |
+| H7 steering share | `REMOVE-RULE` for text that changes nothing; `NAV-POINTER` when content moves behind a pointer to a doc read on demand |
+| Judgment-only: E2, E3, H1, H3, D1, D3-D5, K4, K5, K7, K8 | `PROSE` is allowed; prefer `DETERMINISTIC-CHECK` where the judged defect has a mechanical signature |
+| Any check not listed above | Pick from the Phase 3 Step 3 table on trace evidence |
