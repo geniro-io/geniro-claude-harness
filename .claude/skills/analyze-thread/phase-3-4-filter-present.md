@@ -1,17 +1,17 @@
 # /analyze-thread — Phase 3 & Phase 4
 
-Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phase 3; re-read on entry to Phase 4 and on any resumption of either, including after a compaction — the spine keeps the phase headings, the loop invariants, the anti-rationalization table, and the Definition of done, this file carries the Steps.
+Phase bodies for `.claude/skills/analyze-thread/SKILL.md`. Read on entry to Phase 3, again on entry to Phase 4, and on any resumption (including after a compaction).
 
 ## Contents
 
-- Phase 3 — Filter (Steps 1-2)
+- Phase 3 — Filter (Steps 1-3, incl. the `fix_kind` classification)
 - Phase 4 — Present (Steps 1-6, incl. the per-finding gate and the handoff emit)
 
 ---
 
 ## PHASE 3: FILTER (orchestrator-inline)
 
-**Purpose:** Merge the batch, then triage raw findings to TRUE-POSITIVE / UNCERTAIN / drop the rest. No subagent — this is reasoning over Phase 2's structured output.
+**Purpose:** Merge the batch, triage raw findings to TRUE-POSITIVE / UNCERTAIN / drop the rest, and say what kind of change fixes each survivor. No subagent — this is reasoning over Phase 2's structured output.
 
 ### Step 1: Merge across threads (batch only)
 
@@ -33,6 +33,21 @@ For each finding, the orchestrator tags one of four:
 | **FALSE-POSITIVE** | The mechanical regex matched a benign case (e.g., A6 over-spawn flagged "duplicate" prompts that in fact targeted different `subagent_type`s — see `checks-reference.md` §6), OR the judge flagged something that contradicts a documented exception in the skill body | Drop; log reason for Phase 4 transparency section |
 
 For NOVEL findings: always UNCERTAIN unless the rationale ties to a documented anti-rationalization row in some skill body's table — then TRUE-POSITIVE.
+
+### Step 3: Assign `fix_kind`
+
+Give every kept finding exactly one `fix_kind` — the kind of environment change that would stop the defect recurring, which decides what `/improve-template` builds. Start from the default in `checks-reference.md` §9 and move off it only on trace evidence.
+
+| `fix_kind` | The fix is | Example `suggested_action` |
+|---|---|---|
+| `DETERMINISTIC-CHECK` | a mechanical check — lint rule, test, CI step (not a hook: `HOOKS.md` §Removed guards) — that decides the violation without a model | add a lint over `<path>` that rejects `<pattern>` |
+| `WIRE` | connecting something that exists but never fired — a declared step, helper, or check not wired in or silently broken | call `<helper>` at `<anchor>`, where the skill declares it but never reaches it |
+| `NAV-POINTER` | a one-line pointer to what the agent could not find or kept re-searching for | add one line to `<file>` pointing at `<path>` |
+| `TOOL-CHANGE` | changing a tool, command, or agent so the expensive or looping call stops | run `<command>` through the test-runner agent, or cap its output with `<flag>` |
+| `REMOVE-RULE` | deleting or merging a rule or step that changes nothing or conflicts with another | delete `<rule>` at `<anchor>` — it changed nothing in N threads |
+| `PROSE` | rewriting or adding instruction text — only when no kind above fits | rewrite the instruction at `<anchor>` |
+
+A rule is **loaded** when its load echo is present in the trace — cite the echo line itself, not the check that flags a missing one. A loaded rule still violated in 2+ threads may not be `PROSE`: the text was in context and lost. Any other kind satisfies this; `REMOVE-RULE` only when the rule demonstrably changes nothing as written, never for a correct safety rule that was ignored (an approval gate, say), which takes `WIRE`, `DETERMINISTIC-CHECK`, or `TOOL-CHANGE` instead.
 
 Write Phase 3 checkpoint with `findings-kept: <count>`, `filtered: <count + reasons summary>`, and in a batch `merged: <raw count> → <merged count>`.
 
@@ -66,15 +81,23 @@ Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the size
 | Approval questions | 5 | 4 | the ship gate never fired (#3) |
 | Custom reviewers wired in | 2 | 2 | — |
 
+### Cost — where the tokens went
+| Phase | Calls | Peak context | Share of re-read context | Largest driver |
+|---|---|---|---|---|
+| Phase 1 | 22 | 61K | 4% | — |
+| Phase 3 | 140 | 209K | 71% | 3 oversized results (#4) · 11-call search streak (#6) |
+Steering files: 31% of input (#7) · Session cost: $17.13 · Subagents: 4 spawns, 410K tokens
+
 ### Confirmed findings (default-include)
-| # | Threads | Category | Check | Severity | Confidence | Evidence | Suggested fix target |
-|---|---|---|---|---|---|---|---|
-| 1 | 3/3 | Subagent spawning | A1 missed parallel-spawn | warning | high | a1f42fdd:12-14 · d34948e9:88-91 · 0cd65de4:40-44 | skills/review/SKILL.md §Phase 2 |
+| # | Threads | Category | Check | Severity | Confidence | Evidence | Fix kind | Suggested fix target |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 3/3 | Custom-instruction loading | I1 declared instruction file never loaded | blocker | high | a1f42fdd:12-14 · d34948e9:88-91 · 0cd65de4:40-44 | WIRE | skills/review/SKILL.md §Phase 1 |
 | ...
 
 ### Uncertain findings (gated below)
-| # | Threads | Category | Check | Severity | Confidence | Evidence | Rationale |
-| 5 | 1/3 | Context | H1 first-vs-last contradiction | warning | medium | a1f42fdd:4 vs 198 | judge: "user asked X early, agent did not-X at the end without acknowledgement" |
+| # | Threads | Category | Check | Severity | Confidence | Evidence | Fix kind | Rationale |
+|---|---|---|---|---|---|---|---|---|
+| 5 | 1/3 | Context | H1 first-vs-last contradiction | warning | medium | a1f42fdd:4 vs 198 | PROSE | judge: "user asked X early, agent did not-X at the end without acknowledgement" |
 | ...
 
 ### Filtered (transparency)
@@ -84,13 +107,15 @@ Skipped: <thread_id> (still being written) · <thread_id> (7.2 MB, over the size
 
 Drop the `Threads` column in single mode — a column reading `1/1` on every row is noise.
 
-The coverage table is a scoreboard, not a second findings list: every gap cites the finding carrying its evidence, and a gapless row still renders, because "6 of 6 phases ran" is the result the user came for on a clean run. Render it only where the expectation set is non-empty. In a batch, one table per thread — Phase 3's merge applies to findings, and averaging two runs' coverage hides which one had the gap. Name the degradation level under the table when there was one: a `4 / 3` on a partial trace means a load was not visible, not that it did not happen.
+The coverage and cost tables are scoreboards, not second findings lists: every gap or driver cites the finding carrying its evidence, and a clean row still renders, because "6 of 6 phases ran" is the result the user came for. In a batch, one table of each per thread — averaging two runs hides which one had the gap. Render coverage only where the expectation set is non-empty; name the degradation level under it when there was one, since a `4 / 3` on a partial trace means a load was not visible, not that it did not happen.
+
+Cost rows come from the numbers H4-H7 recorded in Phase 2 (`checks-reference.md` §3 H-class): one row per declared phase, or a single `whole thread` row when there are none. Peak context is the largest per-call context in the phase; the share column divides the phase's summed per-call context by the thread's, because every call re-reads the whole context. Take the session cost from the log's last `cost-state` event (each one is cumulative) when present and omit it otherwise. A markdown export or a log without usage fields gets one line saying the cost table is unavailable, not an empty table.
 
 ### Step 2: Gate uncertain findings
 
 For EACH uncertain finding, render it to chat first and then fire a lean `AskUserQuestion` — the message-first shape in `skills/_shared/per-finding-question.md` §Message-first rendering (do NOT batch into one multiSelect — per-finding gating is what the user asked for):
 
-1. **Render the finding to a chat message before the question fires**, as its own separate assistant message: a plain-English title using the check's `Name` column from `checks-reference.md` (never the bare `<check_id>` — that identifier fails the fresh-user test on its own), what the trace shows, why it matters, the evidence excerpt, and the three options below with their consequences.
+1. **Render the finding to a chat message before the question fires**, as its own separate assistant message: a plain-English title using the check's `Name` column from `checks-reference.md` (never the bare `<check_id>`), what the trace shows, why it matters, the evidence excerpt, the kind of fix it would get in plain words (a new check, a pointer, a tool change, a rule removal, or rewritten text), and the three options below with their consequences.
 2. **Then fire a lean `AskUserQuestion`** that points at the chat message rather than restating its rationale:
    - **Question:** "Finding #<N> (<plain-English name>; seen in <M> of <T> threads): keep, drop, or challenge?"
    - **Options:**
@@ -102,9 +127,7 @@ Process answers in sequence. Add KEPT items to the confirmed list; record DROPPE
 
 ### Step 3: Final user gate on confirmed list
 
-Skipped under `--no-handoff`: the modifier already answered the handoff-destination question in the negative, so asking again is redundant. Print the confirmed list, then go to Step 6.
-
-Print the updated confirmed list (including newly-promoted UNCERTAIN items). Fire ONE final `AskUserQuestion`:
+Under `--no-handoff` the destination question is already answered: print the confirmed list and go to Step 6. Otherwise print the updated confirmed list (including newly-promoted UNCERTAIN items). Fire ONE final `AskUserQuestion`:
 
 - **Question:** "Confirmed findings ready. How to hand off?"
 - **Options:**
@@ -115,7 +138,7 @@ Print the updated confirmed list (including newly-promoted UNCERTAIN items). Fir
 
 ### Step 4: Emit the handoff
 
-If the user chose either of the first two options, write `.geniro/state/handoff/from-analyze-thread-<branch>.md` via `atomic_state_write`. Emit each kept finding as a machine-readable `open_questions[]` frontmatter entry per the T2 contract in `skills/_shared/state-tier-spec.md` §T2 (each entry needs `id` / `source` / `question` / `status`; `severity`, `recurrence`, and `suggested_action` are producer-specific extensions). The body `## Open questions` block is a human-readable mirror only — the frontmatter array is the source of truth a consumer parses.
+If the user chose either of the first two options, write `.geniro/state/handoff/from-analyze-thread-<branch>.md` via `atomic_state_write`. Emit each kept finding as a machine-readable `open_questions[]` frontmatter entry per the T2 contract in `skills/_shared/state-tier-spec.md` §T2 (each entry needs `id` / `source` / `question` / `status`; `severity`, `recurrence`, `fix_kind`, and `suggested_action` are producer-specific extensions). The body `## Open questions` block is a human-readable mirror only — the frontmatter array is the source of truth a consumer parses.
 
 ```yaml
 ---
@@ -138,22 +161,23 @@ open_questions:
     related_findings: []               # finding has no /review F-id; leave empty
     severity: <blocker|warning|nit>    # producer-specific extension
     recurrence: <M>/<T>                # producer-specific extension — threads hit / threads analyzed
-    suggested_action: <one sentence — usually "rewrite instruction at <anchor>" or "add anti-rationalization row" or "extend Phase N gate">
+    fix_kind: <DETERMINISTIC-CHECK|WIRE|NAV-POINTER|TOOL-CHANGE|REMOVE-RULE|PROSE>   # Step 3
+    suggested_action: <one sentence in the shape of its fix_kind>
     status: unresolved
   # (one entry per kept finding: q2, q3, ...)
 ---
 
 ## Open questions
-- [ ] q1 (<check_id> — <category>, seen in <M>/<T> threads): <one-line>. Target: <file>. Evidence: <thread_id>:<range>. Suggested action: <one sentence>.
+- [ ] q1 (<check_id> — <category>, seen in <M>/<T> threads): <one-line>. Target: <file>. Evidence: <thread_id>:<range>. Fix kind: <fix_kind>. Suggested action: <one sentence>.
 
 (one bullet per kept finding, mirroring the frontmatter entry by `id`)
 ```
 
-`/improve-template` reads this handoff when invoked with the `process-handoff` argument (its mode-detection → handoff-ingestion path) and routes each parsed finding to its appropriate flow (Phase 1-fast / full pipeline depending on complexity).
+`suggested_action` takes the shape of its `fix_kind` (the Step 3 table's last column), so the consumer reads a concrete edit rather than a request for more instruction text. `/improve-template` reads this handoff when invoked with the `process-handoff` argument and routes each parsed finding through its complexity gate.
 
 ### Step 5: If "launch now", invoke /improve-template
 
-Print a one-line summary of the handoff and call `/improve-template` with `$ARGUMENTS` set to "process handoff from analyze-thread". `/improve-template` will pick up the handoff file from its standard read location.
+Print a one-line summary of the handoff and call `/improve-template` with `$ARGUMENTS` set to "process handoff from analyze-thread".
 
 If the user chose "emit handoff only" or "skip": print the handoff path and the exact command (`/improve-template process-handoff`) for them to run later.
 
@@ -161,4 +185,4 @@ If the user chose "emit handoff only" or "skip": print the handoff path and the 
 
 `rm -rf .geniro/state/analyze-thread/<slug>/` per the helper § Cleanup contract — the whole slug directory, and only this run's slug, never globbing sibling slugs.
 
-The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` is T2 and survives until `/improve-template` consumes it (per the standard handoff lifecycle in `skills/_shared/state-tier-spec.md`).
+The handoff file at `.geniro/state/handoff/from-analyze-thread-<branch>.md` survives until `/improve-template` consumes it (`skills/_shared/state-tier-spec.md` §T2).
