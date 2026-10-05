@@ -17,7 +17,7 @@ Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_s
 **On approval**, write before rendering the next candidate, routed per the improvement-routing §Routing table:
 
 - **CLAUDE.md / `.claude/rules/<scope>.md` / ADR** — an ordinary file edit by the orchestrator; these are user-visible project files, and the approval you just collected is the authorization.
-- **`.geniro/instructions/<skill>.md` / `code-style.md`** — hand off to the `/geniro:instructions create` patterns, or write via `atomic_state_write` (`source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"`); direct `Edit`/`Write` is hook-blocked there (invariant #5).
+- **`.geniro/instructions/<skill>.md` / `code-style.md`** — hand off to the `/geniro:instructions create` patterns, or write via `atomic_state_write` (`source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"`); a direct `Edit`/`Write` can leave a half-written file (invariant #5).
 - **Project rules/hooks (CI, lint, project-local hooks)** — outside this skill's tool surface: name the exact change (which config, which check) in chat and let the user apply it in their own automation.
 - **Memory (native auto-memory)** — no file write exists to route to; state the approved preference plainly in the chat response so Claude Code's own auto-memory captures it.
 - **Learnings** — `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract; never a raw write to the append-only log.

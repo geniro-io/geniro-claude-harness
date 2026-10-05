@@ -4,7 +4,7 @@
 #
 # Run: bash tests/authoring/lint-description-xml.sh
 #
-# Why this exists: skill-structure.md §Frontmatter hygiene rule 5 is "No XML
+# Why this exists: skill-structure.md §Frontmatter hygiene description rule 4 is "No XML
 # tags anywhere in the description" — but the description is also the ONE
 # field Claude Code parses to decide whether to trigger a skill, so a stray
 # `<branch>` placeholder (copied from a file-path example elsewhere in the

@@ -63,7 +63,7 @@ The bookkeeping types (`retry_failure_sequence`, `discarded_hypothesis`) accumul
 | `retry_failure_sequence` | 3 | `(producer, scope, phase)` |
 | `discarded_hypothesis` | 5 | `(producer, scope)` |
 
-**On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file per the JSONL locked-rewrite exception in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §When to use, never a direct `Edit`/`Write`. The state-helper hook blocks those two routes, so an attempt at them fails the step rather than corrupting the log; appending first and pruning after leaves the window over-full for any reader that queries in between.
+**On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file per the JSONL locked-rewrite exception in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §When to use, never a direct `Edit`/`Write` (those truncate and rewrite in place, so a crash mid-write leaves a partial log). Prune before appending: appending first leaves the window over-full for any reader that queries in between.
 
 Hold the shared knowledge-rewrite lock across the read-modify-write — the same one the archival path and the access-counter bump take. A whole-file rewrite that skips it silently discards every append another session made between the read and the rename.
 
@@ -90,53 +90,45 @@ A learning emitted with `trust: verified` is grounded in a captured observation 
 ## Optional fields the helper recognizes
 
 - `ts` — auto-injected as UTC ISO-8601 if absent.
-- `dedup_key` — auto-computed as `sha256(producer|scope|normalize(summary))[:12]` if absent. `normalize` = lowercase + whitespace collapse + trim. Documented so callers can reproduce the key if they want to look up an entry later.
-- `body` — sanitized via `redact_secrets`.
-- `ext` — every string value anywhere inside is sanitized via `redact_secrets`, whatever shape `ext` takes: a scalar string, an object, or arrays nested inside. Path labels in the audit log use dotted notation (e.g. `ext.symptom`, `ext.options.0`).
-- `links` — walked and sanitized the same way as `ext` — a credential-bearing URL must not land unredacted, so `links` routes through `redact_secrets` like every other free-text field (e.g. `links.pr`, `links.refs.0`).
-- `supersedes` — if the caller provides it, it's preserved verbatim. Otherwise the helper may auto-inject it (see Dedup).
-- `recurrence_count` — how many times this learning has recurred. Defaults to `1` on a fresh emit. On a dedup match (different content under an existing `dedup_key`), the helper carries forward the prior entry's value and increments by 1, so a learning re-observed N times ends at `recurrence_count: N`. Callers normally leave this unset and let the helper manage it. The helper does not echo the resulting value — a caller that needs to read the post-write count re-queries after the emit via `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --include-superseded`, filtered by `dedup_key`. Entries written before this field existed have it absent — `query-learnings` treats absent as `1`, so legacy entries score and rank exactly as they did before the field was added.
+- `dedup_key` — auto-computed as `sha256(producer|scope|normalize(summary))[:12]` if absent (`normalize` = lowercase + whitespace collapse + trim), so callers can reproduce it to look an entry up later.
+- `body`, `ext`, `links` — free text; every string inside is redacted per §Sanitization.
+- `supersedes` — preserved verbatim if the caller provides it; otherwise the helper may auto-inject it (see §Dedup pipeline).
+- `recurrence_count` — defaults to `1` on a fresh emit; on a dedup match with different content the helper carries the prior entry's value forward and adds 1. Callers leave it unset. The helper does not echo the result — re-query with `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --include-superseded`, filtered by `dedup_key`. Absent on legacy entries; `query-learnings` treats absent as `1`.
 - `type`, `trust`, `deprecated` — passed through unchanged.
 
 Unknown fields are also passed through — the schema is open.
 
 ## Sanitization
 
-The helper calls `redact_secrets` on:
-- `summary`
-- `body` (if present)
-- Every remaining string value anywhere else in the entry, at any depth and regardless of container — `ext`, `links`, `tags[]` elements (including a string nested inside a non-string element), and any caller-added key. One walk covers all of them, so a shape none of the schema fields anticipate (a scalar `ext`, an object buried in `tags[]`) is still reached.
-
-The control-plane identifiers — `producer`, `scope`, `type`, `trust`, `ts`, `dedup_key`, `supersedes` — are excluded from that walk: they are assumed to hold no secrets, and sanitizing them would corrupt structure the helper itself relies on.
+The helper calls `redact_secrets` on `summary`, `body`, and every other string value in the entry at any depth and in any container — `ext`, `links` (a credential-bearing URL must not land unredacted), `tags[]` elements, and any caller-added key. Audit-log path labels use dotted notation (e.g. `ext.options.0`). The control-plane identifiers — `producer`, `scope`, `type`, `trust`, `ts`, `dedup_key`, `supersedes` — are excluded: they hold no secrets, and sanitizing them would corrupt structure the helper relies on.
 
 ## Injection rejection
 
-L2 entries are re-loaded into orchestrator and subagent context by `query-learnings`. A learning auto-emitted from untrusted text (a fetched page, a PR body, peer-PR content) could carry a prompt-injection payload that is then replayed verbatim into a later session. The read side is defended by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` (inlined into every subagent); this helper closes the **write** side as defense-in-depth.
+L2 entries are re-loaded into orchestrator and subagent context by `query-learnings`, so a learning auto-emitted from untrusted text (a fetched page, a PR body, peer-PR content) could replay a prompt-injection payload into a later session. The read side is defended by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md`; this helper closes the **write** side.
 
-Before redaction and dedup, `emit_learning` scans **every string value in the entry** (`summary`, `body`, every string inside `ext`, and any non-canonical free-text key such as `entry`/`note`) for two high-signal injection shapes and rejects the entry with `rc=64` if either matches:
+Before redaction and dedup, `emit_learning` scans every string value in the entry and rejects it with `rc=64` on either of two high-signal shapes:
 
-- **Override phrasing** — `<verb> <previous-reference> <instruction-noun>`, e.g. "ignore previous instructions", "disregard the above context", "new directives:". Genuine technical learnings essentially never use this structure.
+- **Override phrasing** — `<verb> <previous-reference> <instruction-noun>`, e.g. "ignore previous instructions", "disregard the above context", "new directives:".
 - **Chat-template control tokens** — `<|im_start|>`, `<|system|>`, `</system>`, etc.
 
-The pattern set is deliberately narrow. A false reject drops just one best-effort learning — the caller surfaces the non-zero return per §Caller contract rule 3 but does not block the workflow on it — whereas a stored payload persists across sessions. If a legitimate learning needs one of these phrases, rephrase it. Control-plane tokens (`producer`/`scope`/`tags`/`type`/`trust`) are scanned too but never match the structured shapes, so scanning the whole entry is harmless and removes any "smuggle it into a non-standard key" bypass.
+The pattern set is deliberately narrow: a false reject drops one best-effort learning (the caller surfaces the non-zero return per §Caller contract rule 3 and does not block), whereas a stored payload persists across sessions. If a legitimate learning needs one of these phrases, rephrase it.
 
 ## Dedup pipeline
 
 1. Compute or accept `dedup_key`.
-2. `tail -n "$GENIRO_DEDUP_WINDOW"` of the log file (cheap — covers the recency window where dups appear; see §Known limitations for the default and how to override it).
-3. Find the **last** prior entry with matching `dedup_key` (handles supersede chains correctly — the comparison targets the head of the chain).
-4. Compare prior vs new excluding `ts`, `recurrence_count`, and `supersedes` via `jq -cS 'del(.ts, .recurrence_count, .supersedes)'` (canonicalized). All three are derived per-write fields: `ts` is auto-injected per write, `recurrence_count` is a re-emit counter, and `supersedes` is auto-injected only on a superseding entry — a fresh re-emit of that same content carries no `supersedes` at compare time. Excluding all three makes an identical re-emit of a superseding entry compare equal (correct no-op); comparing them would make every re-emit look "different", defeating the no-op return and falsely inflating `recurrence_count`.
-5. Decisions:
- - **Equal** → no-op return 0.
- - **Different** + caller did NOT set `supersedes` → auto-inject `supersedes: <dedup_key>`, set `recurrence_count` to prior value + 1, append.
- - **Different** + caller set `supersedes` → preserve caller's value, set `recurrence_count` to prior value + 1, append.
-6. **No prior match** → append fresh with `recurrence_count: 1`.
+2. Scan the last `GENIRO_DEDUP_WINDOW` lines of the log (§Known limitations) for the **last** prior entry with that key — the head of the supersede chain.
+3. Compare prior vs new with `ts`, `recurrence_count`, and `supersedes` excluded (canonicalized `jq -cS 'del(.ts, .recurrence_count, .supersedes)'`). All three are derived per-write fields; comparing them would make every re-emit look different, defeating the no-op return and inflating `recurrence_count`.
+4. Decide:
+ - **Equal** → no-op, rc 0.
+ - **Different**, caller did NOT set `supersedes` → inject `supersedes: <dedup_key>`, set `recurrence_count` to prior + 1, append.
+ - **Different**, caller set `supersedes` → keep the caller's value, set `recurrence_count` to prior + 1, append.
+ - **No prior match** → append fresh with `recurrence_count: 1`.
 
-The prior entry's `recurrence_count` is read from the matched entry (absent counts as `1`), so a first re-emit lands at `2`, the next at `3`, and so on — the counter rides the supersede chain. `query-learnings` folds this count into its score as a dampened multiplier (a high count strengthens but does not dominate ranking).
+The counter rides the supersede chain (absent counts as `1`), so a first re-emit lands at `2`, then `3`. `query-learnings` folds it into its score as a dampened multiplier.
 
 ## Per-line byte ceiling
 
-A single JSONL line must stay under the append helper's per-line byte ceiling, or it aborts with rc=68 rather than risk a torn write — the exact value (`GENIRO_APPEND_MAX_BYTES`) and its newline-framing accounting are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`. That ceiling bounds line length; it is not by itself an atomicity guarantee — POSIX `PIPE_BUF` (the size up to which `>>` appends are kernel-serialized) is platform-dependent: 4096 bytes on Linux but only 512 on macOS. So a line near the ceiling is not guaranteed to append atomically on macOS; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §Known limitations for the canonical caveat. In practice: keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put truly large content into a separate file referenced by `scope`.
+A JSONL line over the append helper's ceiling aborts with rc=68 rather than risk a torn write; the value (`GENIRO_APPEND_MAX_BYTES`) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`. The ceiling bounds line length but is not an atomicity guarantee — `PIPE_BUF` is 4096 on Linux and only 512 on macOS (see that file's §Known limitations). Keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put large content in a separate file referenced by `scope`.
 
 ## Example callers
 
@@ -170,8 +162,8 @@ jq -nc \
 
 ## Known limitations
 
-- **Dedup window is bounded by `GENIRO_DEDUP_WINDOW`** (single-sourced in `lib/emit-learning.sh`). Older near-duplicates re-append as fresh entries. With typical L2 write volume (a few per `/geniro:debug` session, a few per `/geniro:implement` run) the default covers weeks; if it becomes too short, set `GENIRO_DEDUP_WINDOW` wider or have callers pre-query `learnings.jsonl` via `query-learnings` and pass `supersedes` explicitly.
-- **No multi-entry batching.** One JSON object per call. Callers that need to emit many at once should loop.
-- **Sanitization is per-call.** A pattern that fires across multiple ext fields emits multiple audit-log rows. Aggregating is left to readers of the audit log.
-- **No producer→trust auto-default.** The helper does NOT auto-set `trust` based on producer; each caller supplies it explicitly at its emit site (e.g. `/geniro:debug` emits confirmed root causes as `verified`). A missing `trust` is treated as `inferred` by `query-learnings` (strictest filter excludes).
-- **Concurrent emit-learning with the same caller-supplied `dedup_key` is not serialized.** Two parallel calls with the same key but different content append both without auto-injecting `supersedes`, because each call's dedup-scan happens before the other's append. Acceptable given the helper's no-lock design; if strict serialization is needed, callers can wrap calls with a file lock.
+- **Dedup window is bounded by `GENIRO_DEDUP_WINDOW`** (default single-sourced in `lib/emit-learning.sh`). Older near-duplicates re-append as fresh entries. If the window proves too short, set it wider or have callers pre-query via `query-learnings` and pass `supersedes` explicitly.
+- **No multi-entry batching.** One JSON object per call; loop for many.
+- **Sanitization is per-call.** A pattern firing across several fields emits several audit-log rows.
+- **No producer→trust auto-default.** Each caller supplies `trust` at its emit site (e.g. `/geniro:debug` emits confirmed root causes as `verified`); a missing `trust` is treated as `inferred` by `query-learnings`.
+- **Concurrent emits with the same caller-supplied `dedup_key` are not serialized.** Two parallel calls with different content both append without auto-injecting `supersedes`, because each dedup-scan runs before the other's append. Wrap calls in a file lock if strict serialization is needed.

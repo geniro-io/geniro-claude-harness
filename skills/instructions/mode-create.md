@@ -40,7 +40,7 @@ Capture 1-2 follow-up answers via additional AUQs. Convert vague user input into
 
 ### Step 5 — Generate the file
 
-Apply the writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2. Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, route the file through `atomic_state_write` targeting `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
+Apply the writing principles in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §2. Show preview via final AUQ `Write scaffold? | Edit body before writing | Cancel`. On `write`, route the file through `atomic_state_write` targeting `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — a direct `Edit`/`Write` truncates and rewrites in place, so a crash mid-write leaves a partial file.
 
 ### Step 6 — Confirm
 

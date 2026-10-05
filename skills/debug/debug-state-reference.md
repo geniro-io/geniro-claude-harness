@@ -1,16 +1,14 @@
 # Debug — detailed reference
 
-Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` to keep the main skill body lean. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections the `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` spine and the phase files cite by section number — the numbers are citation targets and stay fixed.
 
 ## Contents
 
 1. State machine — full ASCII diagram + state semantics
 2. State file schema — frontmatter + body sections (T1.5 state.md, T2 handoff files)
 3. Infrastructure investigation — signals + investigation checklist
-4. Isolation techniques — binary search, git bisect, profiling
 5. Stall diagnosis taxonomy — 8-component missing-component table
-6. Adversarial Mode templates — A5 handoff-persistence field mapping + A6 findings template
-7. Extended examples — intermittent timeout + verify recent changes
+6. Adversarial Mode template — A6 findings template
 8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
 9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5, `pitfall` Adversarial Mode A4 step 5)
 
@@ -137,8 +135,6 @@ Both arrays are present on every handoff and may be empty `[]`; the per-field sc
 
 Debug-specific values within those schemas: `mode:` matches the handoff's top-level `mode:` discriminator (`scientific` here, `adversarial` for the adversarial handoff); `source:` names the gate that raised the question (`phase-1-stall-gate`, `phase-1-missing-data-gate`, `phase-3-cannot-verify`); `resolution.resolved_by:` is `debug`, `implement`, or `manual`.
 
-The `open_questions[]` frontmatter array is the machine-readable source of truth. The body `## Open Questions` section is a human-readable mirror; the body `## Resolved Questions` section mirrors resolutions written back by the Phase 3 Pre-gate or by /geniro:implement's Phase 1 handoff-resolution step gate.
-
 The `authored_tests[]` frontmatter array is the machine-readable source of truth for the F→P tests this debug run produced. Body lines `**Reproduction test:**` (scientific) and `**Test file:**` (adversarial, A6 template) remain as human-readable mirrors of this array. Consumers (notably /geniro:implement Phase 1 handoff-resolution step) prefer the frontmatter; legacy handoffs at `geniro_schema_version: m7-v1` lack this field, so the consumer protocol in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` falls back to body-string parsing in that case.
 
 ### from-debug-adversarial-<branch>.md (T2 — handoff, Adversarial Mode)
@@ -159,12 +155,6 @@ When symptoms suggest the bug may not be in the code (timeouts, intermittent fai
 
 ---
 
-## 4. Isolation techniques
-
-Don't run all three (binary search, git bisect, profiling) on the same hypothesis — pick the one the confirmed root cause calls for; which fits which case is in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` § Isolation techniques.
-
----
-
 ## 5. Stall diagnosis taxonomy
 
 When /geniro:debug stalls (the stall gate fires — threshold defined in `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.7), classify the root-cause-of-the-stall as a missing component:
@@ -180,23 +170,9 @@ When /geniro:debug stalls (the stall gate fires — threshold defined in `${CLAU
 | G | **Missing eval** | Bug type has no existing regression test pattern in the project — hypotheses cannot be expressed in the existing test framework | "Missing eval pattern" | Author a new test pattern (parameterized fuzzer, mutation-test seed, etc.) |
 | H | **Missing recovery path** | All hypotheses confirmed but the fix path is unclear because the bug spans a DI / generated-code / framework-internal layer | "Missing recovery path" | Specify whether the production-source escape hatch is acceptable, or escalate as architectural |
 
-**AUQ rendering:** stall gate fires `AskUserQuestion` with header "Stall diagnosis". Render the most likely missing-component categories plus an "Abandon — present partial findings" option (AUQ maxItems=4, so typically the top 3 categories + Abandon) — the model picks categories based on stall context (inconclusive-test outputs, hypothesis types tried). "Abort" comes via "Other". Each option's `preview` (where helpful) shows what Phase 1 will do next.
-
-**Persistence:** same structured-entry pattern as the Scientific-mode stall gate (`${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.7 Stall escalation gate). Write a structured `open_questions[]` entry with `source: phase-1-stall-gate`, `question: <verbatim category text>`, `related_hypotheses: [<inconclusive H-IDs>]`, `status: unresolved`. On user pick of any surfaced missing-component category, update to `status: resolved` with `resolution.picked` and `resolution.resolved_by: debug`. On Abandon or Abort, the entry stays `unresolved` and Phase 3 §3.0 Pre-gate surfaces it before the escalation AUQ.
-
 ---
 
-## 6. Adversarial Mode templates
-
-### A5 handoff persistence
-
-Frontmatter for `from-debug-adversarial-<branch>.md`, written directly via `atomic_state_write` at A4 step 4 (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) — a direct Edit/Write to any `.geniro/state/` path is hard-blocked by the state-helper enforcement hook, so write it with `source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"` then `atomic_state_write "<path>" <<'EOF' … EOF`.
-
-Emit the complete T2 frontmatter, not only the test array. Field semantics are canonical at this file's §2 above — read it rather than guessing a field's shape. Required keys: `tier`, `producer`, `consumer`, `schema-version`, `branch`, `worktree`, `timestamp`, `geniro_kind`, `geniro_schema_version`, `mode`, `phase`, `status`, `approvals`, `non-resumable-actions`, `authored_tests`, `open_questions`. Values this mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `schema-version: 1`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `non-resumable-actions: []` (this pass makes no persisted-AUQ pick and completes no non-resumable action), `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `branch` / `worktree` = state.md frontmatter `branch:` / `worktree:`, the Phase 0-recorded workspace; `timestamp` = a live clock read at write time. Omitting `branch`/`worktree` routes the consumer into the degraded fallback (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C), which drops the relocation suggestion the tests need to be found by.
-
-`authored_tests: [...]` carries one entry per RED test kept after the A4 step 3 flake check — the consumer (/geniro:implement Phase 1 handoff-resolution step) reads this field to relocate the tests into its worktree. Entry schema at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` § Producer-specific extensions; the values this mode fixes are `mode: adversarial` (matching the top-level `mode:` discriminator), `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring the A6 Confidence column, `path` resolved against `git rev-parse --show-toplevel`.
-
-`authored_tests: []` (empty array) is the correct form for the zero-red-tests terminal outcome. Body `**Test file:**` lines remain the human-readable mirror; the frontmatter is the contract.
+## 6. Adversarial Mode template
 
 ### A6 findings template
 
@@ -229,42 +205,6 @@ After the A4 step 3 authoring-and-verification loop, present this block directly
 **Zero red tests?** [If M == 0: state plainly "no bugs found in scanned diff" — this is a valid outcome.]
 ```
 
-If zero red tests survive, skip escalation entirely and go directly to Cleanup. Otherwise proceed to escalation per A4 step 5.
-
----
-
-## 7. Extended examples
-
-### Example 1: Cache not invalidating
-
-`/geniro:debug User sees stale data after profile update` → two competing hypotheses (cache invalidation broken vs. update endpoint never called); logging confirms the first, isolating a cache-key mismatch as the `[ROOT-CAUSE]` → propose patching the cacheKey builder in `src/cache/user.ts` to include the user ID, verified by monkey-patch → findings persisted to `from-debug-<branch>.md`, escalated to /geniro:implement, `diagnosis` emitted with tags=[cache, invalidation, user-role].
-
-### Example 2: Intermittent timeout
-
-```
-/geniro:debug API endpoint times out randomly under load
-```
-
-→ Phase 1 Observe: Happens ~5% of requests during stress test
-→ Hypothesis 1 (code): Database query too slow; Hypothesis 2 (infra): External service timeout
-→ Test: Profile database queries, check service logs
-→ Result: Hypothesis 2 confirmed (service is slow)
-→ Phase 2 Propose: add timeout + fallback around the external service call
-→ Verify: local experiment shows timeouts disappear with monkey-patch
-→ Phase 3 Escalate: /geniro:implement with the proposed patch
-
-### Example 3: Verify recent changes (Adversarial Mode)
-
-```
-/geniro:debug verify last changes
-```
-
-→ Phase 0 Mode detect: anchored "verify last changes" → Adversarial
-→ A2 Diff resolution: `git diff main...HEAD` (per scope-anchor rule #3)
-→ A4 Step 3: Generate hypotheses against the diff; author and F→P-verify tests inline — 7 authored, 5 kept after the flake check, 2 discarded (1 passed on current code, 1 diverged across rounds)
-→ A4 Step 4: Findings persisted to `from-debug-adversarial-<branch>.md`
-→ Escalate: /geniro:implement with the authored tests as escalation targets
-
 ---
 
 ## 8. Open-PR scan — already fixed elsewhere?
@@ -287,7 +227,7 @@ Persist the pick to state.md frontmatter `approvals[]` category `existing_fix_pr
 
 ## 9. L2 emit payload shapes — canonical `emit_learning` call shapes
 
-`emit_learning` reads a single JSON object on stdin; a YAML payload exits 64, and mis-named or missing `ext` sub-fields silently drop the typed extension. Mirror the shapes below exactly — the field names match the helper contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Example callers.
+`emit_learning` reads a single JSON object on stdin; a YAML payload exits 64, and mis-named or missing `ext` sub-fields silently drop the typed extension. Mirror the shapes below exactly — the field names match the helper contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Example callers; the echo and non-zero-return rules for every emit are its §Caller contract.
 
 ### `diagnosis` (Phase 3 §3.3)
 
@@ -312,7 +252,7 @@ emit_learning <<'EOF'
 EOF
 ```
 
-Substitute the run's real values: `scope` = the affected file/module path glob; `summary` = the one-line root-cause statement; `tags` inferred from affected files + hypothesis category; `ext.symptom` / `ext.root_cause` / `ext.fix` = the confirmed observation, isolated cause, and proposed patch. After a `rc=0` return, echo `Recorded learning: <summary>` per the helper's §Caller contract — the helper writes silently, so the echo is the only in-session signal it ran. On a non-zero return, surface the plain-English failure line (rc=64 missing field / 68 oversized / 69 write-failed) rather than swallowing it.
+Substitute the run's real values: `scope` = the affected file/module path glob; `summary` = the one-line root-cause statement; `tags` inferred from affected files + hypothesis category; `ext.symptom` / `ext.root_cause` / `ext.fix` = the confirmed observation, isolated cause, and proposed patch. After a successful emit, echo `Recorded learning: <summary>` — the helper writes silently, so the echo is the only in-session proof it ran.
 
 ### `discarded_hypothesis` (Phase 1 §1.5)
 
@@ -351,4 +291,4 @@ Same invocation form. One entry per RED test kept after the A4 step 3 F→P and 
 }
 ```
 
-Substitute the run's real values: `scope` = the production source path the kept test targets (its `targeted_source`); `summary` = the defect in one line (mirrors the A6 **Hypothesis** line); `tags` inferred from the A6 **Category** column plus the changed files. `trust: verified` — the F→P and flake-check run (A4 step 3) is the captured artifact. `pitfall` is a user-facing type per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract rule 1: echo `Recorded learning: <summary>` after a `rc=0` return, and surface a non-zero return per that section's rule 3 rather than swallowing it.
+Substitute the run's real values: `scope` = the production source path the kept test targets (its `targeted_source`); `summary` = the defect in one line (mirrors the A6 **Hypothesis** line); `tags` inferred from the A6 **Category** column plus the changed files. `trust: verified` — the F→P and flake-check run (A4 step 3) is the captured artifact. After each successful emit, echo `Recorded learning: <summary>`.

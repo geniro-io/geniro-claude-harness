@@ -18,10 +18,9 @@
 # `ci-201-verification-tracker.md`) "is invisible to `validate_state_file`, to
 # the SessionStart restore hook, and to the terminal-exit cleanup contract" —
 # but the condition it describes is one a command can just decide, and nothing
-# did. The check itself is the fix: none of the four canonical layouts
+# did. The check itself is the fix: none of the three canonical layouts
 # (`state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton,
-# `state/handoff/from-<producer>-<branch>.md`, the documented
-# `state/tdd/state-<slug>.md` exception) — nor the one documented
+# `state/handoff/from-<producer>-<branch>.md`) — nor the one documented
 # frontmatter-less companion artifact
 # (`state/audit-instructions/report-<date>.md`) — ever places a file directly
 # at `.geniro/state/<file>`; every one of them nests at least one directory
@@ -56,7 +55,7 @@ if [ -d ".geniro/state" ]; then
   if [ -n "$hits" ]; then
     while IFS= read -r h; do
       [ -n "$h" ] || continue
-      report_fail "$h sits directly under .geniro/state/ — not one of the canonical layouts (state/<skill>/<slug>/state.md, state/setup/state.md, state/handoff/from-<producer>-<branch>.md, state/tdd/state-<slug>.md); route it to .geniro/planning/<task-dir>/ instead"
+      report_fail "$h sits directly under .geniro/state/ — not one of the canonical layouts (state/<skill>/<slug>/state.md, state/setup/state.md, state/handoff/from-<producer>-<branch>.md); route it to .geniro/planning/<task-dir>/ instead"
     done <<< "$hits"
   else
     echo "OK: no ad-hoc file directly under this machine's .geniro/state/"
@@ -65,7 +64,7 @@ else
   echo "OK: no .geniro/state/ directory present on this machine — nothing to check"
 fi
 
-# --- self-test: red on a seeded ad-hoc file, silent across all four ---------
+# --- self-test: red on a seeded ad-hoc file, silent across all three ---------
 # canonical layouts plus the documented companion-artifact shape -------------
 SELFTEST_DIR="$(mktemp -d)"
 trap 'rm -rf "$SELFTEST_DIR"' EXIT
@@ -77,14 +76,12 @@ mkdir -p "$STATE/setup"
 : > "$STATE/setup/state.md"                                      # layout 2: singleton
 mkdir -p "$STATE/handoff"
 : > "$STATE/handoff/from-review-feature-x.md"                    # layout 3: handoff
-mkdir -p "$STATE/tdd"
-: > "$STATE/tdd/state-feature-x-slug.md"                          # layout 4: TDD exception
 mkdir -p "$STATE/audit-instructions"
 : > "$STATE/audit-instructions/report-2026-08-10.md"              # documented companion artifact
 
 clean_hits="$(_adhoc_state_files "$STATE")"
 if [ -z "$clean_hits" ]; then
-  echo "OK: self-test — all four canonical layouts plus the companion artifact stay silent"
+  echo "OK: self-test — all three canonical layouts plus the companion artifact stay silent"
 else
   report_fail "self-test — a canonical-layout fixture false-positived: $(printf '%s' "$clean_hits" | tr '\n' ' ')"
 fi
@@ -96,7 +93,7 @@ if printf '%s\n' "$violation_hits" | grep -q 'ci-201-verification-tracker.md'; t
 else
   report_fail "self-test — seeded ad-hoc violation was NOT detected"
 fi
-# Only the one seeded file should be flagged — the four layouts and the
+# Only the one seeded file should be flagged — the three layouts and the
 # companion artifact must not regress once the violation is added alongside them.
 violation_count=$(printf '%s\n' "$violation_hits" | grep -c . || true)
 if [ "$violation_count" -eq 1 ]; then

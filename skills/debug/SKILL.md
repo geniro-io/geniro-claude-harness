@@ -1,6 +1,6 @@
 ---
 name: debug
-description: "Use when a bug needs systematic investigation. 3-phase loop (Investigate → Propose → Ship) mirroring /geniro:implement: observe → hypothesize → test → isolate → propose fix → author reproduction test, then escalate to /geniro:implement with a handoff file at .geniro/state/handoff/from-debug-{branch}.md. Adversarial mode authors F→P tests against a diff (verify-changes). Skip for bugs with obvious root cause — go straight to /geniro:implement."
+description: "Use when a bug needs systematic root-cause investigation: hypothesize, test, isolate, reproduce, then hand the fix to /geniro:implement. Adversarial mode (verify-changes) writes failing tests for a diff. Skip for obvious causes (/geniro:implement)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, EnterWorktree, ExitWorktree, WebSearch, WebFetch]
@@ -18,8 +18,6 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 - Budgets — quality-first
 - Subagent model tiering
 - Definition of done
-- ACI per-phase tool surface
-- Memory I/O schedule
 - State file schema
 - Phase 0 (mode detection) · Phase 1 (investigate) · Phase 2 (propose) · Phase 3 (ship) · Adversarial Mode
 - Task execution entry / state recovery
@@ -27,9 +25,9 @@ argument-hint: "[bug description | verify <diff-range> | verify last changes]"
 
 ---
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is a path placeholder Claude Code substitutes into file references, never a shell export — it reads empty in a Bash call under every host, Claude Code included, so an empty probe is no evidence of another runtime (`CLAUDECODE` in the environment marks Claude Code). Resolve the root by working these in order: the ancestor directory of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file sitting beside this one (the Cursor build ships each skill's own phase and reference files there); a plugin checkout inside the workspace. Substitute the resolved root for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. **Work the rungs with a command, not a judgment:** the run's first Bash call prints the real path of the directory this file was read from and checks the rungs above against it in order, and its output is echoed verbatim before anything else. Read the rungs against that output — a path it does not show did not resolve, and a file it does not show cannot be read, however confidently a later step would report otherwise. A ladder that resolves is bookkeeping, not a finding: keep the echo to the probe output and the resolved root, and reserve a degraded-run notice for a rung that actually failed. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here: it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not** — open your first message by naming what is unavailable, run every phase and gate this skill declares, never let the project's own rules stand in for its decision gates, and take no outward-facing action (ready-for-review PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
-**Progressive load.** This file is the spine — role, invariants, gates, budgets, tool surface. Each phase's Steps live in a sibling file you Read on entry to that phase; the phase sections below carry the paths. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
+**Progressive load.** This file is the spine — role, invariants, gates, budgets. Each phase's Steps and tool surface live in a sibling file you Read on entry to that phase; the phase sections below carry the paths. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates and its helper call sites, so work started before the Read runs outside them.
 
 **`phase:` → phase file, for a post-compaction resume that can no longer see the phase sections below:**
 
@@ -55,7 +53,7 @@ You investigate. You isolate. You propose. You do not apply the fix. Phase 3 han
 
 state.md `phase:` enum: `mode-detect` → `investigate` → `propose` → `ship` → `done` (Scientific Mode happy path). Terminal states: `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`, `adversarial-ship-summary-only` (SessionStart recovery treats these as complete). Escalation states: `phase-1-escalated`, `phase-1-verification-stalled`, `phase-2-escalated` (recovery surfaces "task was paused — your previous options:" so user re-picks without losing context). Adversarial Mode runs a parallel chain (`adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship` → `done` | `adversarial-ship-summary-only`).
 
-Full ASCII state diagram + non-terminal recovery rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §1.
+ASCII state diagram + recovery rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §1.
 
 ---
 
@@ -75,8 +73,6 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 **Turn boundaries.** A turn ends in exactly three places: on a fired approval question, on reaching a terminal `phase:` state, or when the user asked something and is owed the answer. Everywhere else the next action follows in the same turn, with a tool call — between steps, after a check comes back green, after a state write, at a phase transition, and when a subagent's result lands. A status report, a checkpoint summary, and a list of what remains are continuations, not endings: write one where it helps the user follow along, then take the next action in that same turn. A decision that needs the user is asked as a real question in the turn that raises it, its render and the question inside that one turn (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard) — a question left in prose, or announced for a later message, leaves the run waiting on an answer the user was never asked for. Reversibility is not the test: a deviation from a rule this run loaded is a gate however cheap it is to undo.
 
 **Compaction.** The host re-attaches only an initial slice of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
-
-`## Tool log` schema: typical run produces 0-3 entries (stall/fix-fail escalation entries). Routine Read / Edit / Bash skipped.
 
 ---
 
@@ -103,7 +99,7 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 ## Budgets — quality-first
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — quality-first (canonical). Deep hypothesis-driven investigation merits a strong session tier; the skill inherits the session's model (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — quality-first (canonical).
 
 **Quality gates (escalate to user, do not abort):**
 
@@ -113,13 +109,6 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | Fix attempts failed verification | per §2.5 | fix-loop gate | AUQ — try different approach / accept as documented limitation / abort. User picks. |
 | Adversarial mode authored tests | per A4 step 3 | A4 step 3 (hypothesis-authoring loop) | Stop authoring; surface findings |
 | Adversarial mode consecutive discards | per A4 step 3 | A4 step 3 (hypothesis-authoring loop) | Stop hypothesis generation; surface partial |
-
-**Architecture constraints (design intent, not budget):**
-
-| Constraint | Value |
-|---|---|
-| Subagent spawns | `codebase-research-agent` (Phase 1 codebase mapping, on demand) + `finding-verifier-agent` (Phase 1 root-cause verification, always-on). Adversarial Mode's test authoring runs inline — no subagent spawn. |
-| Reproduction-test framework | Project's native (detected from CLAUDE.md Essential Commands) |
 
 ---
 
@@ -147,64 +136,6 @@ Four gates are cross-cutting — they bind from Phase 1 onward, not only at the 
 - [ ] **The root cause is cited per the Evidence Standard, not guessed** — tagged `[ROOT-CAUSE]`, or honestly `[SYMPTOM]` / `[UNKNOWN]` when it is not established.
 - [ ] **The findings handoff was persisted via `atomic_state_write` BEFORE the escalation question fired** — an unpersisted handoff is lost if the user aborts at the gate.
 
-## ACI per-phase tool surface
-
-**Phase 0 (Mode Detect):**
-- Allowed: Read / Bash (read-only — `git branch --show-current`, `git rev-parse`; the Step 0.3 freshness commands `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`; the Step 0.2 workspace commands `git worktree add` / `git checkout -b` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md`; plus `atomic_state_write` to persist the mode/freshness/workspace pick) / AskUserQuestion (the mode/freshness/workspace gates) / EnterWorktree (immediately after Step 0.2's `git worktree add`, so the run investigates inside the tree it just cut, not the protected checkout) / ExitWorktree. Under a runtime without these tools, substitute per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` §Tool substitutions.
-- Explicitly blocked: any write or edit to project files, any ship/side-effect tool (`git commit`, `git push`, `gh pr create`).
-
-**Phase 1 (Investigate):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git blame`, `git bisect`, `gh pr list` / `gh pr view` / `gh pr diff` for the Phase 1 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, third-party CLI like `psql -c` against test DB if configured) / WebSearch / WebFetch (§1.5 external-dependency hypothesis, tiers 2-3) / AskUserQuestion.
-- Allowed: Edit / Write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
-- Allowed subagent spawns: `codebase-research-agent` for codebase mapping / flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block).
-- Explicitly blocked: production-source writes and edits that are not reverted before handoff — permitted only as the reverted experiments above (tagged debug logging, scratch files); `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.
-
-**Phase 2 (Propose):**
-- Allowed: Read / Grep / Glob / Bash (read-only + experimental test runs) / AskUserQuestion.
-- Allowed: Edit / Write for reproduction test authoring + experimental monkey-patches.
-- No subagent spawns.
-- Explicitly blocked: production-source writes and edits that are not reverted before escalation — permitted only via the §2.4 verification escape hatch, reverted before escalation; `git commit`, `git push`, `gh pr create`.
-
-**Phase 3 (Ship):**
-- Allowed: Read / Bash (`atomic_state_write` for the T2 handoff, `emit-learning`, §3.4 cleanup; the §3.1 working-tree check's read-only `git status --porcelain`, plus its blocker-path revert) / AskUserQuestion.
-- Explicitly blocked: file writes and edits, `git commit`, `git push`, `gh pr create`, subagent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
-
-**Adversarial Mode (A4):**
-- Allowed: Read / Grep / Glob / Bash (read-only — diff resolution, framework detection, running the test command) / Edit / Write, scoped to test files and test-only fixtures/helpers (never production source) / AskUserQuestion (escalation gate).
-- Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`, `git add`. No subagent spawn — test authoring runs inline in this same context.
-
----
-
-## Memory I/O schedule
-
-**Scientific Mode:**
-
-| Phase | Helper | Direction | MODE |
-|---|---|---|---|
-| Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` |
-| Phase 1 entry | `load-semantic` | read L3 | `refresh` |
-| Phase 1 entry | `query-learnings` | read L2 | n/a |
-| Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
-| Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes hypotheses, and on `m5-v3` the cached parent-epic and sibling statuses do too |
-| Phase 2 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
-| Phase 3 entry | `load-custom-instructions` | read L4 | `refresh` (single re-fire) |
-| Phase 1 (per rejection) | `emit-learning` | write L2 | n/a (type `discarded_hypothesis` — §1.5) |
-| Phase 2 exit (conditional) | `emit-learning` | write L2 | n/a (type `retry_failure_sequence` — §2.5) |
-| Phase 3 exit | `emit-learning` | write L2 | n/a (type `diagnosis` — §3.3) |
-
-**Adversarial Mode:**
-
-| Phase | Helper | Direction | MODE |
-|---|---|---|---|
-| `adversarial-investigate` entry | `load-custom-instructions` | read L4 | `refresh` |
-| `adversarial-ship` exit | `emit-learning` | write L2 | n/a (type `pitfall` — A4 step 5) |
-
-No L3/L2-read rows fire — diff-scoped work receives its diff pre-inlined, so a snapshot load is scope creep.
-
-`update-semantic` is not called. Debug investigates existing code; it does not add modules, move files, or rename — those are /geniro:implement and /geniro:refactor concerns.
-
----
-
 ## State file schema
 
 T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `existing_fix_pr`, `debug_workspace_setup` for `approvals[]`) + body sections (Scientific Mode + Adversarial Mode); T2 handoff schemas for `from-debug-<branch>.md` and `from-debug-adversarial-<branch>.md` including the `open_questions[]` contract — full schemas in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2.
@@ -217,31 +148,31 @@ T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `
 
 state.md `phase: mode-detect`. Loads custom instructions, records the starting working-tree state, decides where the investigation runs, checks branch freshness, and routes `$ARGUMENTS` to Scientific Mode or Adversarial Mode.
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`** — Steps, routing table, anchored verify-keyword signals. Exits when the mode is picked and persisted to `approvals[]`: Scientific → `phase: investigate`, Adversarial → `phase: adversarial-mode-detect`.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`** — Steps, routing table, anchored verify-keyword signals, this phase's tool surface.
 
 ---
 
 ## Phase 1 — investigate
 
-state.md `phase: investigate`. An entry-gate + context load plus an inner hypothesis-test loop. Exits to Phase 2 only when a hypothesis is confirmed, its Result: field cites an artifact per Evidence Standard, and the §1.6 independent verification confirms the root cause (or fails open with the unverified disclosure).
+state.md `phase: investigate`. An entry-gate + context load plus an inner hypothesis-test loop.
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md`** — Steps 1.1-1.7, the missing-data and stall gates, the external-dependency hypothesis step, infrastructure-cause guidance, isolation techniques.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md`** — Steps 1.1-1.7, the missing-data and stall gates, infrastructure-cause guidance, isolation techniques, this phase's tool surface and exit condition.
 
 ---
 
 ## Phase 2 — propose
 
-state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduction test. **No production-source edits applied.** Exits to Phase 3 when fix proposal AND reproduction test are both verified.
+state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduction test. **No production-source edits applied.**
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-2-propose.md`** — Steps 2.1-2.5, the multi-path fix gate, the monkey-patch verification contract.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-2-propose.md`** — Steps 2.1-2.5, the multi-path fix gate, the monkey-patch verification contract, this phase's tool surface and exit condition.
 
 ---
 
 ## Phase 3 — ship
 
-state.md `phase: ship`. Findings handoff to downstream skill OR user-handles — proposals + tests authored locally (no-ship boundary per § Your role, § ACI per-phase).
+state.md `phase: ship`. Findings handoff to downstream skill OR user-handles — proposals + tests authored locally (no-ship boundary per § Your role).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`** — Steps 3.0-3.5, the Debug Findings template, the cleanup contract, and the Scientific-Mode Definition of done. Exits when every `open_questions[]` entry reaches `resolved` or `wontfix` (§3.0) and the §3.2 escalation pick resolves to a terminal state — `phase: done` or `phase: ship-summary-only` — with the findings handoff already persisted via `atomic_state_write` before that question fired.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md`** — Steps 3.0-3.4, the Debug Findings template, the cleanup contract, this phase's tool surface and exit condition, and the Scientific-Mode Definition of done.
 
 ---
 
@@ -249,7 +180,7 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship`. Parallel to Scientific Mode; shared Phase 0 routes here on anchored verify-keyword signals (Phase 0 above).
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A6 (purpose, diff resolution, skip conditions, RED-phase workflow, handoff persistence, findings template) and this mode's Definition of done. Exits when findings are surfaced, the `pitfall` learnings are recorded ahead of the A4 step 5 escalation AUQ, and that pick reaches this chain's terminal `phase: done` via Run `/geniro:implement` or `phase: adversarial-ship-summary-only` via Leave it to me — or directly to terminal `phase: adversarial-aborted` when zero red tests survive the F→P and flake-check verification (A4 step 3) — a valid deliverable, not a failure.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`** — A1-A7 (purpose, diff resolution, skip conditions, RED-phase workflow, handoff persistence, findings template, cleanup), this mode's tool surface and exit condition, and its Definition of done.
 
 ---
 
@@ -261,6 +192,6 @@ State file: `.geniro/state/debug/<slug>/state.md` (T1.5, `<slug>` per `${CLAUDE_
 
 ## REFERENCE
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram, state/handoff schemas, infrastructure + isolation reference, stall taxonomy, adversarial templates, worked examples, open-PR scan, emit payload shapes (§1-9; see its own Contents).
+- `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` — state diagram, state/handoff schemas, infrastructure reference, stall taxonomy, adversarial templates, open-PR scan, emit payload shapes (see its own Contents).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Investigation-driven fix gate (debug-flavored) — multi-path fix gate and repro-infeasible escape hatch.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` — consumer protocol for downstream skills reading the handoffs this skill writes.

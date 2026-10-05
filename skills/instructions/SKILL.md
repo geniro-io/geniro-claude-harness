@@ -1,6 +1,6 @@
 ---
 name: instructions
-description: "Use when adding skill-behavior rules at Geniro skill phase boundaries OR cross-cutting code-style rules loaded at every code-writing/review step; also for declaring read-only fact-verification sources (## Data Sources), recording what each project check covers and leaves uncovered so results are not overstated (## Verification Surface), or routing the agent's memory/learnings through a custom backend like an MCP (## Memory Backend). Operations: list, create, edit, validate, delete. Skip for per-file-pattern rules — .claude/rules/."
+description: "Use when managing Geniro project rules: phase-boundary skill rules, code-style rules, Data Sources, Verification Surface, or a Memory Backend (e.g. an MCP). Ops: list/create/edit/validate/delete. Skip for per-file-pattern rules (.claude/rules/)."
 context: main
 model: inherit
 allowed-tools: [Read, Bash, Glob, Grep, AskUserQuestion]
@@ -20,7 +20,6 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 - Termination case → state mapping
 - Valid scope set
 - File shapes
-- Frontmatter field reference (`review-extra/<slug>.md`)
 - Phase 1 — parse intent, resolve scope, dispatch to a mode
 - Writing effective instructions
 - Cross-references
@@ -29,11 +28,11 @@ argument-hint: "[what you want — e.g. 'add a rule to run tests', 'show instruc
 
 Stateless loop: **Parse → Execute → Done** — every invocation is a single transaction with no state file. CRUD frontend over `.geniro/instructions/` — the L4 procedural memory layer. Five modes: `list`, `create`, `edit`, `validate`, `delete`; Phase 1 resolves exactly one of them per invocation.
 
-**Phase body.** Phase 1's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md`. Read it on entry to the phase, and again on any resumption of it, including after a compaction. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase file holds this skill's gates and its helper call sites, so work started before the Read runs outside them. A `create`/`edit` run also reads `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` from there.
+**Phase body.** Phase 1's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md`. Read it on entry to the phase, and again on any resumption of it, including after a compaction. That Read is the phase's first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase file holds the gates and helper call sites, so work started before the Read runs outside them. A `create`/`edit` run also reads `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` from there.
 
-**Mode bodies.** Each mode's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-<op>.md`. Read the one Phase 1 dispatches to, and again on any resumption of it — the four it did not dispatch to are never read. That Read comes before any step of the mode and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the dispatched body is this run's phase body, and it holds every pause this skill declares today, not a cap on future ones. `delete` is where that matters most: `mode-delete.md` is the sole home of the destructive-op confirmation, and the `.geniro/` deletion guard hook permits a per-file `rm -f` on `.geniro/instructions/<scope>.md`, so nothing else stops it.
+**Mode bodies.** Each mode's Steps live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-<op>.md`. Read the one Phase 1 dispatches to, and again on any resumption of it — the four it did not dispatch to are never read. That Read comes before any step of the mode and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the dispatched body is this run's phase body and holds every pause this skill declares. `delete` is where that matters most: `mode-delete.md` is the sole home of the destructive-op confirmation, and nothing else stops a per-file `rm -f` on `.geniro/instructions/<scope>.md`.
 
-**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is a path placeholder Claude Code substitutes into file references, never a shell export — it reads empty in a Bash call under every host, Claude Code included, so an empty probe is no evidence of another runtime (`CLAUDECODE` in the environment marks Claude Code). Resolve the root by working these in order: the ancestor directory of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file sitting beside this one (the Cursor build ships each skill's own phase and reference files there); a plugin checkout inside the workspace. Substitute the resolved root for every `${CLAUDE_PLUGIN_ROOT}` occurrence and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. **Work the rungs with a command, not a judgment:** the run's first Bash call prints the real path of the directory this file was read from and checks the rungs above against it in order, and its output is echoed verbatim before anything else. Read the rungs against that output — a path it does not show did not resolve, and a file it does not show cannot be read, however confidently a later step would report otherwise. A ladder that resolves is bookkeeping, not a finding: keep the echo to the probe output and the resolved root, and reserve a degraded-run notice for a rung that actually failed. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` before deciding a step cannot run here: it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not** — open your first message by naming what is unavailable, run every phase and gate this skill declares, never let the project's own rules stand in for its decision gates, and take no outward-facing action (ready-for-review PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
+**Runtime portability.** `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
 Code rules split three ways depending on **when** they should fire:
 
@@ -41,7 +40,7 @@ Code rules split three ways depending on **when** they should fire:
 - **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads on matching glob — fires even outside Geniro pipelines).
 - **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
 
-**After a compaction, re-Read the phase body and the dispatched mode's body file before continuing** — only a skill's front-loaded prefix is re-attached after a summary, so a mid-run summary can drop the Steps while leaving this spine intact. If which mode was running is also gone, re-invoke and restart the transaction from Phase 1.
+**After a compaction, re-Read the phase body and the dispatched mode's body file before continuing** — only the front-loaded prefix is re-attached, so a summary can drop the Steps while leaving this spine intact. If which mode was running is also gone, re-invoke and restart from Phase 1.
 
 ## Loop invariants
 
@@ -85,10 +84,10 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Phase | Allowed tools | Forbidden tools |
 |---|---|---|
 | `parse` | `Read`, `Bash` (read-only: `ls`, `cat`, `find`, `grep`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, mutating `Bash`, all `mcp__*`, network |
-| `execute` | `Read`, `Bash` (`atomic_state_write`, `mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Write`, `Edit` (`.geniro/instructions/*` is a persistent-CRUD path — a direct write is hard-blocked by the state-helper hook; see `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-create.md` §Step 5), `Agent` (no subagents), `mcp__github__*`, network egress |
+| `execute` | `Read`, `Bash` (`atomic_state_write`, `mkdir -p`, `rm` after AUQ confirm), `Glob`, `Grep`, `AskUserQuestion` | `Write`, `Edit` (`.geniro/instructions/*` writes go through `atomic_state_write`, since a direct write truncates in place and a crash leaves a partial file; see `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-create.md` §Step 5), `Agent` (no subagents), `mcp__github__*`, network egress |
 | `done` | (terminal report) | (none) |
 
-External sends: not in `/geniro:instructions` ACI ever.
+External sends are never part of this skill's tool surface.
 
 ## Memory I/O
 
@@ -125,33 +124,19 @@ The stable scope set:
 
 **Operational skills (`/geniro:setup`, `/geniro:instructions`, `/geniro:actions`, `/geniro:update`, `/geniro:audit-instructions`) load only the `rules-only` tier** — `global.md` + `memory.md` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Caller contract) — never the per-skill or `code-style.md` layers.
 
-**External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that external location. `/geniro:instructions` CRUD (list / create / edit / delete / validate) still operates on the in-repo copy at the primary worktree root (`"$PRIMARY_ROOT"/.geniro/instructions/`) — the path keeps the literal `.geniro/` segment, so the atomic-write helper and the `.geniro/` deletion guard stay engaged; an external location would bypass both. To manage the external set, edit it directly at its path. The override covers the loaded instruction set (`global.md`, `memory.md`, `code-style.md`, and the per-skill `<skill>.md`); custom review-extra reviewers (`review-extra/<slug>.md`) are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected by the external override — they stay in the in-repo `.geniro/instructions/review-extra/`.
-
 ## File shapes
 
-Three shapes across the scope set. The schema itself is owned by the loader that parses these files at runtime — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract; the shapes below and the annotated templates are authoring scaffolds written against it, so a schema change lands there first. The templates for all three, plus the per-scope create scaffolds, live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — read that section before rendering a scaffold or judging a body's structure.
+Three shapes across the scope set. The schema is owned by the loader that parses these files at runtime — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract; a schema change lands there first. Annotated templates and the per-scope create scaffolds live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — read that section before rendering a scaffold or judging a body's structure.
 
-- **`code-style`** — `## Rules`, `## Constraints` only. No `## Additional Steps` (rules-only scope, `mode-edit.md` §Body section invariants) and no `## Data Sources` / `## Verification Surface` (`code-style` is rules-only, `instructions-authoring-reference.md` §1).
-- **`global` and every per-skill scope** (`implement`, `plan`, `review`, `resolve`, `debug`, `refactor`, `onboard`, `investigate`, `reflect`) — `## Rules`, `## Constraints`, and the optional `## Data Sources` and `## Verification Surface`; `## Additional Steps` → `### After <phase>` only where the §Valid scope set table above grants that scope a legal anchor (`global`'s cross-skill anchor; `implement`'s and `plan`'s two anchors each, `refactor`'s one — `instructions-authoring-reference.md` §5).
-- **`memory`** — its own `.geniro/instructions/memory.md`, carrying the `## Memory Backend` block only; no Rules / Constraints / Additional Steps.
-- **`review-extra/<slug>`** — directory-style, one file per custom reviewer, with YAML frontmatter (fields below) plus a `# Criteria` body.
+- **`code-style`** — `## Rules`, `## Constraints` only. No `## Additional Steps` (`mode-edit.md` §Body section invariants) and no `## Data Sources` / `## Verification Surface`.
+- **`global` and every per-skill scope** — `## Rules`, `## Constraints`, and the optional `## Data Sources` and `## Verification Surface`; `## Additional Steps` → `### After <phase>` only where the §Valid scope set table grants that scope a legal anchor (`instructions-authoring-reference.md` §5).
+- **`memory`** — `## Memory Backend` only. **`review-extra/<slug>`** — one file per custom reviewer: YAML frontmatter (fields in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Frontmatter field reference) plus a `# Criteria` body.
 
-The optional `## Data Sources` section — valid in `global` and the per-skill scopes — declares the read-only sources a skill phase cross-checks against wherever it establishes a load-bearing fact; its entry shape, discovery, and read-only screening are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`, and an absent section just means no declared sources.
+Optional sections and their contract owners; an absent section changes nothing:
 
-The optional `## Verification Surface` section — same scopes — declares what each of the project's checks covers and what it leaves uncovered, so a run picks the check that actually demonstrates a criterion and states the result at that check's width; its entry shape and consumption contract are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md`, and an absent section changes nothing.
-
-`memory.md` is loaded alongside `global.md` for every skill, and its `## Memory Backend` section routes the learnings layer through a custom backend (typically a memory MCP); the entry shape and the full routing contract are owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`, and an absent file or block leaves the built-in `.geniro/knowledge/learnings.jsonl` in use unchanged.
-
-## Frontmatter field reference (`review-extra/<slug>.md`)
-
-The single source for every field's value set and length cap — validate-mode's per-scope check resolves here rather than restating them.
-
-- `slug` (required) — must satisfy the rules `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 4 enforces at load time: the filename without `.md`, matching `^[a-z][a-z0-9-]*$`, and not colliding with a reserved dimension name. That file owns the reserved list, because it is the runtime enforcer — a slug this skill accepts but the loader rejects produces a file the user believes is active while its criteria silently never run.
-- `description` (required) — one-line summary; the same routing-surface role `description-quality.md` grades, so the cap mirrors `_VAF_DESC_MAX_CHARS` in `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh`, the action-file description's cap.
-- `model` (optional) — `haiku`/`sonnet`/`opus`/`fable`/`inherit`, plus `auto` outside Claude Code; omitted = `inherit` (the reviewer runs at the orchestrator's tier, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`). Declare a tier only to deliberately pin this reviewer cheaper or stronger than the session.
-- `paths` (optional) — list of globs.
-- `severity-default` (optional) — `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`; default `MEDIUM`.
-- `requires-context` (optional) — natural-language directive naming the live external data this reviewer needs (a Notion page, a Linear issue, an API response). The orchestrator pre-fetches the data at spawn time — deterministic hydration into a fixed snapshot, since MCP tool names are per-install and unknowable when the reviewer's tool surface is fixed — and injects it as a `CUSTOM CONTEXT:` block, failing open if it's unavailable (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context). Omit unless the reviewer genuinely needs external data. Example: `requires-context: "Fetch the live Notion Incident Report (latest entry) and provide its incident-pattern list."`
+- `## Data Sources` (`global` and per-skill scopes) — read-only sources a phase cross-checks load-bearing facts against: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`.
+- `## Verification Surface` (same scopes) — what each project check covers and leaves uncovered, so a run states a result at that check's width: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/verification-surface.md`.
+- `## Memory Backend` (`memory.md`, loaded alongside `global.md` for every skill) — routes the learnings layer through a custom backend, typically a memory MCP; absent, the built-in `.geniro/knowledge/learnings.jsonl` stays in use: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md`.
 
 ## Phase 1: Parse intent
 
@@ -167,9 +152,9 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 
 ## Cross-references
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` — the Phase 1 Steps (Step 0 instruction load, Step 0.5 `PRIMARY_ROOT`, mode + scope resolution, scope validation, dispatch, batch walk).
+- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` — the Phase 1 Steps, including the external instructions dir rule (Step 0.5).
 - `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` — the intent → block-type routing table.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — T3 persistent-CRUD tier for `.geniro/instructions/` and the optimistic mtime check
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — persistent-CRUD tier for `.geniro/instructions/` and the optimistic mtime check
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the L4 procedural-memory loader for `.geniro/instructions/*.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for instruction files
 - `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` — file shapes, create scaffolds, writing principles, and the per-skill phase enums validate-mode checks `Additional Steps` anchors against (§5)

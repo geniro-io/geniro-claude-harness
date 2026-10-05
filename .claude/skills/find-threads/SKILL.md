@@ -1,6 +1,6 @@
 ---
 name: find-threads
-description: "Use when finding past Claude Code conversation threads — across every project and every config dir on this machine — to hand selected ones to /analyze-thread for failure analysis. Scans the projects/ tree of each config dir, keeps threads that did agentic work (edited code, ran a skill, or spawned a subagent — so read-only review/debug/investigate runs are included), tags each edited or read-only, and either lists them grouped by project or, when you pass a query, searches inside the thread bodies (PR number, error string, filename, or a topic phrase) and ranks the matches. Pass --code-only to restrict to code-editing threads. Takes a free-text pick. Skip for analyzing one already-known thread file (call /analyze-thread directly) or live debugging (/geniro:debug)."
+description: "Use when finding past Claude Code threads across every project and config dir, listed by project or searched by PR number, error, filename or phrase, to hand to /analyze-thread. Skip for a thread file you already have."
 context: main
 model: inherit
 allowed-tools: [Read, Bash, Glob, Grep, AskUserQuestion]

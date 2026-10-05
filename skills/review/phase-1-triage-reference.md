@@ -1,6 +1,6 @@
 # Phase 1 Triage Reference
 
-Detailed contract for `/geniro:review` Phase 1 (Triage & Context Collect). SKILL.md retains a 2-3 line summary + a pointer here.
+Detailed contract for `/geniro:review` Phase 1 (Triage & Context Collect).
 
 State.md `phase: triage` during this phase.
 
@@ -12,13 +12,11 @@ State.md `phase: triage` during this phase.
 - §3 PR-ref input parsing — pointer to `phase-1-pr-reference.md` §3
 - §3.5 Workflow integrations (issue-tracker fetch)
 - §4 Peer-PR scout — pointer to `phase-1-pr-reference.md` §4
-- §5 reserved — scope resolution is covered under §2 above
 - §6 Custom-instructions load
 - §7 Step 0.5 — Round-N counter (+ re-review gate: scope)
 - §8 Step 0.6 — PLAN CONTEXT load (schema-aware)
 - §9 Step 0.7 — Risk-tier stratification
 - §10 Step 0.8 — Memory layer load
-- §11 reserved — the review-depth question is removed; the re-review gate asks scope + steering under §7
 - §12 Size triage
 - §13 Brief opt-in — resolved here so the brief can co-fire with the Phase 2 batch
 
@@ -38,7 +36,7 @@ Two situations reach this sub-step, and they are NOT the same. A **compaction-re
 2. Read the `approvals[]` category `review_workspace_setup` (workspace location/action). It is **binding** on both a compaction-resume and a fresh re-run (anti-relocation).
 3. **Honor the recorded workspace location exactly** — re-enter the same worktree path the prior round approved; do not substitute a different location. The persisted pick names a specific tree, not just "use a worktree": re-applying it at a fresh default location is the silent-relocation failure this sub-step prevents.
 4. **Re-ask only when the recorded pick no longer applies** — the approved worktree was deleted, or the branch moved off the commit it was created from. In that case fire the workspace AUQ fresh (the Case-mismatch UX below still governs).
-5. Narrate the inheritance and proceed by run-type. On a **compaction-resume**: narrate `Continuing the workspace choice from the interrupted run: <workspace pick>.`, skip the 0b AUQ branches, execute the inherited workspace action in 0d, and let §7 skip the re-review gate (already answered this run). On a **fresh Round 2+ re-run**: narrate only `Continuing in the workspace you approved last round: <workspace pick>.`, skip the 0b workspace AUQ branches, execute the inherited workspace action in 0d — but the re-review gate (§7) DOES fire this run; never suppress it with the prior round's picks.
+5. Narrate the inheritance and proceed by run-type. On a **compaction-resume**: narrate `Continuing the workspace choice from the interrupted run: <workspace pick>.`, skip the 0b AUQ branches, execute the inherited workspace action in 0d, and let §7 skip the re-review gate (already answered this run). On a **fresh Round 2+ re-run**: narrate only `Continuing in the workspace you approved last round: <workspace pick>.`, skip the 0b workspace AUQ branches, and execute the inherited workspace action in 0d; the §7 re-review gate still fires.
 
 ### 0a — Detect current context (passive)
 
@@ -167,9 +165,7 @@ approvals:
 
 Field names are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array". The timestamp key is `at`, not `timestamp` — the SessionStart restore hook reads `.at` when it renders the entry, so an entry keyed `timestamp` loses its time to every later reader.
 
-On a compaction-resume or a Round 2+ re-run, the recorded **workspace** answer is read and re-applied in §0-pre — BEFORE passive detection and any workspace action — so the persisted workspace pick binds before the tree is detected fresh (re-review scope is re-asked on a fresh re-run per §0-pre, not inherited).
-
-Workflow status transitions (e.g., "Move <issue_id> to In Review?") are NOT part of Step 0 — /geniro:review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture + regressions) per §3.5; they are not user-prompted in Step 0. Workflow status mutation belongs to `/geniro:implement` only — Step 0c (kickoff) and Phase 3 Ship (completion); `/geniro:plan`, `/geniro:debug`, `/geniro:refactor`, and `/geniro:review` are all read-only tracker consumers.
+Workflow status transitions are NOT part of Step 0 — /geniro:review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture + regressions) per §3.5; they are not user-prompted in Step 0.
 
 ### 0d — Execution of the workspace decision
 
@@ -189,8 +185,6 @@ Do NOT use `EnterWorktree(name: ...)` — that path auto-creates with `worktree-
 | Stale T2 handoff (older than the current work) | Still triggers rule 2 / 3. Emit soft notice: `"Note: review handoff is N days old."` |
 | `IN_WORKTREE == true` AND `IN_TARGET_WORKTREE == true` but PR `headRefOid` mismatches current `HEAD` | Auto-continue per rule 1. Mismatch surfaces as warning in §3 PR-ref parsing, never blocks. User can re-run with `new-branch` modifier to force a fresh fetch. |
 
-After Step 0 settles, every subsequent Phase 1 step and downstream phases run from the new cwd. Cross-session writes (`.geniro/state/handoff/from-review-<branch>.md`, `learnings.jsonl`) auto-route to the main worktree's `.geniro/` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`, so they survive worktree teardown.
-
 ---
 
 ## 1. Input parsing
@@ -209,8 +203,6 @@ The pre-step resolves the review target from the remaining `$ARGUMENTS`:
 | PR ref (`#1234` / PR URL) | Read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` and run its §1 (PR-ref resolution + thread-state fetch) and §1.1 (existing-review ingest) → Phase 1.5 |
 
 /geniro:review always authors a review of the target. It does not process reviewer comments left on your own PR — that is `/geniro:resolve`'s job.
-
-The PR-side contract — thread-state fetch, existing-review ingest (§1.1), PR metadata fetch (§3), and peer-PR scout (§4) — lives whole in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md`, loaded only on a PR-ref run; a files / branch / diff-range run never pays for it.
 
 ### 1.1 Existing PR review ingest
 
@@ -264,7 +256,7 @@ Workflow files live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_s
 1. `ls ./.geniro/workflow/*.md <PRIMARY_ROOT>/.geniro/workflow/*.md 2>/dev/null` — merge the two listings, deduplicating by basename (cwd-local entry wins when a file exists in both locations; uncommitted local edits beat the primary copy). If zero matches across both, skip entirely.
 2. For each unique workflow file, read it and extract the `## Argument detection` regex patterns (Linear's: `https://linear\.app/.+/issue/([A-Z]+-\d+)` URL form, `\b[A-Z]{2,}-\d+\b` bare-ID form).
 3. Apply patterns against (a) `$ARGUMENTS`, (b) `pr.title`, (c) `pr.body` — in that order. First match wins. Multiple matches in one source are deduplicated to the first.
-4. **Merge in the spec's own tracker refs.** When a spec.md is resolvable (via `--plan <path>`, a `geniro-plan:` PR-body line, a walk-up `.geniro/planning/*/spec.md`, or a canonical project path), parse its frontmatter `workflow_refs[]` and merge those entries with the refs found in steps 1-3. Accepted schema versions and the merge precedence are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` §Spec metadata contract — the `$ARGUMENTS` reference wins on conflict because the user just typed it, the fresher signal.
+4. **Merge in the spec's own tracker refs.** When a spec.md is resolvable (via `--plan <path>`, a `geniro-plan:` PR-body line, a walk-up `.geniro/planning/*/spec.md`, or a canonical project path), parse its frontmatter `workflow_refs[]` and merge those entries with the refs found in steps 1-3. Accepted `geniro_schema_version`: `m5-v1` (treat `workflow_refs` as absent), `m5-v2`, `m5-v3` (entries also carry parent-epic + sibling chain fields), `m5-v4` (same `workflow_refs[]`, may add a `launch_config` block /geniro:review ignores). Merge by `(kind, issue_id)`: `$ARGUMENTS` wins on conflict because the user just typed it, then the PR body, then spec frontmatter.
 5. Persist the tracker ID from the deduplicated merged list to state.md frontmatter:
 - Linear: `linear-task-ref: <ENG-123|null>` (defaults to `null` when no match).
 
@@ -316,8 +308,6 @@ Other dims (bugs / security / tests / optimizations / conventions / design) do N
 | Sub-task list fetch fails (parent fetch ok) | `Sibling sub-tasks: none — child fetch failed` (partial block) | `## Caveats` one-liner |
 | Parent issue absent from fetched issue (top-level epic) | `Parent: none` (legitimate, no caveat) | none |
 
-Read-only — never writes to Linear; never mutates git state. Latency ~1-3s per fetch on healthy network (1-2 fetches: main issue + optional parent).
-
 ---
 
 ## 4. Peer-PR scout (PR-ref input only)
@@ -326,13 +316,9 @@ Skip for files / diff range / branch — the `PEER-PR CONTEXT:` slot renders `no
 
 ---
 
-(§5 reserved — scope resolution is covered under §2 above.)
-
----
-
 ## 6. Custom-instructions load
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`. The helper's §Procedure prescribes imperative read directives on every file in the pipeline load set; the §Echo contract requires one observable line per file. Both are mandatory.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: review`, `LOAD_TIER: pipeline`, `MODE: initial-load`.
 
 ---
 
@@ -344,17 +330,15 @@ Round-N awareness so reviewers can focus on what prior rounds missed.
 2. Read the state file if present. If absent, set `prior-round-summary: none — first review` and `round: 1`.
 3. If present AND (state-file's `pr-ref:` matches the current run's `pr-ref` — literal compare, both `none` counts as a match — OR the current run's `pr-ref` is `none` AND `INPUT_SHAPE == diff-range`, a bare commit-range follow-up against an existing handoff for this branch): set `round: <prior round + 1>` (defaulting prior to `1` when absent). Capture prior `prior-round-summary:` value into in-memory variable for threading into reviewer prompts as `PRIOR-ROUND FINDINGS:`. Also capture `pr-body:` value into `prior-pr-body` for the pr-metadata reviewer's drift check. **On the diff-range-continues-existing-handoff branch specifically** (this run's own `pr-ref` parsed to `none`, matched via the OR clause), also capture the state file's `pr-ref:` and `pr-body:` when either is non-`none`/non-`null` — step 6 writes both forward into this round's own frontmatter instead of the literal `none`/`null` this run's input would otherwise produce, so a later PR-ref round still round-matches at step 3's first clause and the pr-metadata drift check still has a prior body to diff against.
 
-   **Round-counter + repeat markers are scoped to the SAME target.** The round counter increments on a `pr-ref:` match, or on a bare commit-range follow-up against an existing handoff for this branch — a fresh PR (a different, non-`none` `pr-ref`) is still round 1, so this branch does not run and no finding is marked as a repeat. This is deliberate: a new PR target earns a fresh review bar, a commit-range follow-up continues whatever was reviewed on the branch, and the repeat comparison must never cross different PRs.
+   **Round-counter + repeat markers are scoped to the SAME target.** The round counter increments on a `pr-ref:` match, or on a bare commit-range follow-up against an existing handoff for this branch — a fresh PR (a different, non-`none` `pr-ref`) is still round 1, so this branch does not run and no finding is marked as a repeat. The repeat comparison never crosses different PRs.
 
    **`repeat-of-prior-round` marker (round ≥2 only).** When this branch runs, mark each prior-round finding so Phase 4/5 can annotate it. A current-round finding is `repeat-of-prior-round` when it matches the retained `prior-round-summary` by dedup key (`path:line + finding-title` — the finding was raised in an earlier round) AND it carries no strengthening signal THIS round — no rise in `convergence_count` this round, and no per-finding verifier `confirmed` verdict this round. This is a best-effort heuristic keyed on the retained `prior-round-summary` string: the no-strengthening-signal test reads this round's own signals. The marker rides the `PRIOR-ROUND FINDINGS:` slot threaded into reviewer prompts; it feeds the Disposition repeats count and the finding's "seen since round <N>" annotation per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.0, NEVER a filter that decides whether a finding renders. A finding that was fixed in the prior round and no longer reproduces is simply absent from the current reviewers' output — it is not a repeat.
 4. If `round >= 3` after increment, fire `AskUserQuestion` (header `"Review rounds"`, question `"This is round N of review on the same target (substitute the actual round number for N). Continue or stop here?"`) with options `"Continue review (Recommended)"` / `"Stop and summarize open items for me"`. On the stop pick: record the reason as an `open_questions[]` entry (`source: round-n-gate`, the verbatim round-limit question, `status: unresolved`), mirrored into the `## Open Questions` body — §9's terminal mapping (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`) reads an `escalated` run's reason from there. Persist `round:` and `prior-round-summary:` alongside it, then exit cleanly without spawning reviewers (terminal `escalated`).
 5. **Re-review gate (round ≥ 2, fresh re-run only).** When `round >= 2` AND this is a fresh user-invoked re-run (NOT a compaction-resume — §0-pre distinguishes them by the in-flight `state.md`), the scope and steering of this round are the user's to choose, never auto-decided or inherited from the prior round. After any round-≥3 escalation clears, fire ONE `AskUserQuestion` carrying whichever of these two questions still applies before spawning reviewers (both, on a PR/branch/files re-run; Steering alone on a diff-range re-run):
    - **Re-review scope** (header `"Re-review scope"`, question `"This branch was reviewed before (round N). What should this round cover?"`) — options `"Re-review the whole PR"` / `"Only changes since the last review"`. Skipped for an explicit diff-range input (`INPUT_SHAPE == diff-range`): the range the user typed IS the scope, so there is nothing to ask — the review resolves to that literal range and `PRIOR-ROUND FINDINGS:` threads under it unchanged. Otherwise, the delta option scopes the review to `<prior-reviewed-head>..HEAD`, where `<prior-reviewed-head>` is the handoff `pr-head-sha:` the prior round reviewed; when that SHA is absent or unreachable, fall back to whole-PR and note it under `## Caveats`. Prior-round findings thread into reviewers as the `PRIOR-ROUND FINDINGS:` slot under either scope. Persist `approvals[]` category `rereview_scope_choice` when the question fired. **On the delta option, re-run the §2 target-sanity gate's non-empty-diff check against `<prior-reviewed-head>..HEAD` before spawning anything** — the §2 gate already ran against the whole-PR target before this narrower scope existed, so a round with no new commits since the prior round reaches Phase 2 with nothing for reviewers to see unless this check runs again. On empty, either abort the same way §2 does (`## Termination reason: empty-or-unresolvable-target: <detail>`) or, since the user is present at this gate, offer a fallback `AskUserQuestion` pick to fall back to "Re-review the whole PR" instead of aborting outright.
    - **Steering** (header `"Steering"`, question `"Anything specific this round's reviewers should pay attention to, or stop flagging?"`) — options `"Nothing specific"` plus the tool's own custom-input path for free text. Skipped when `--focus` (§1) already supplied text this run. Persist `approvals[]` category `rereview_steering`. The captured text threads into every Phase 2 reviewer prompt as the `USER STEERING:` slot (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3) — additive attention only for the reviewer, never grounds to drop a dimension, suppress a criteria check, or gate admission; the reviewer-side rule is canonical in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Input contract. A "stop flagging" match does not erase the finding: once it clears admission and verification, the orchestrator moves it to the filtered list instead, per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.2.
-   Never auto-decide either of the two: an orchestrator narrating "I'll review only the unreviewed delta", silently re-reviewing the whole PR, or silently carrying the prior round's steering note forward is the exact drift this gate prevents. On a compaction-resume this gate does NOT re-fire — re-apply the saved picks per §0-pre.
-6. Persist `round:`, `prior-round-summary:`, and `steering-note:` to the state file — `steering-note:` is whatever step 5 (or the `--focus` flag from §1) set this run, defaulting to `none` when neither fired. On the diff-range-continues-existing-handoff branch, also persist the captured prior `pr-ref:` and `pr-body:` in place of this run's own `none`/`null` — so the PR reference and drift-check body survive a commit-range follow-up round instead of resetting. Consumed by every Phase 2 reviewer prompt as the `PRIOR-ROUND FINDINGS:` and `USER STEERING:` slots.
-
-**Repeat-finding presentation (Phase 5 mechanics).** Detailed contract for the repeats accounting named in `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-5-6-emit-handoff.md` §5.0. A kept finding carrying the `repeat-of-prior-round` marker (step 3 above) stays in the main `## Findings` list with every gate intact — a needs-your-decision repeat still carries `step0_status: pending` and fires the open-decision gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3), an `open_questions[]`-linked repeat keeps its entry and the full gate chain, and a repeat stays in the Post drill's eligible set (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.1) — annotated "seen since round <N>" on its title line. Repeats are never dropped and never removed from the handoff body; the marker drives the count and annotation, never admission (per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.1). The report's and handoff's `## Summary` `Disposition:` line carries `<R> repeated unchanged from round <N-1>` (omitted when `<R>` is zero).
+   Never auto-decide either of the two: an orchestrator narrating "I'll review only the unreviewed delta", silently re-reviewing the whole PR, or silently carrying the prior round's steering note forward is the exact drift this gate prevents.
+6. Persist `round:`, `prior-round-summary:`, and `steering-note:` to the state file — `steering-note:` is whatever step 5 (or the `--focus` flag from §1) set this run, defaulting to `none` when neither fired. On the diff-range-continues-existing-handoff branch, also persist the captured prior `pr-ref:` and `pr-body:` in place of this run's own `none`/`null`.
 
 ---
 
@@ -384,7 +368,7 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 
 **Downstream knobs:**
 - spec-compliance dimension default-on when risk-tier:high (otherwise gated on PR ref).
-- Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds patterns: AWS access keys / GCP service-account JSON / Azure SAS tokens / SSH OPENSSH key markers. Standard tier scans only the 4 baseline patterns.
+- Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds the strict-mode patterns (`phase-1-triage.md` §1.5.3).
 - Phase 2's always-fire dimension grid — risk-tier:high forces the full six-dimension set regardless of the §12 size signal (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`).
 
 **Not tier-scaled:** Phase 4.1 admission reads severity and the Evidence-Block check only, and neither varies by `risk-tier` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for every admission signal, so do not reintroduce a tier-varying threshold here. Phase 4.2 verifier coverage is the same: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) is verified at both tiers — no tier-scaling, no severity-scaling.
@@ -405,7 +389,7 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 
 ## 12. Size triage
 
-**The size threshold — canonical home for the number, cited from every other site: >8 files OR >400 LOC.** That is roughly where one flat diff stops fitting a single reading pass: below it a reviewer holds the whole change at once and grouping only adds structure for nothing, above it the middle of the payload is where findings get missed. All three consumers below key off this one boundary, measured on the range actually under review — the delta (`<prior-reviewed-head>..HEAD`) when §7 step 5 resolved the re-review scope to "Only changes since the last review", the range itself for a diff-range input, never the original PR's full change set once a narrower scope was chosen.
+**The size threshold — canonical home for the number, cited from every other site: >8 files OR >400 LOC.** Below it a reviewer holds the whole change at once and grouping only adds structure; above it the middle of the payload is where findings get missed. All three consumers below key off this one boundary, measured on the range actually under review — the delta (`<prior-reviewed-head>..HEAD`) when §7 step 5 resolved the re-review scope to "Only changes since the last review", the range itself for a diff-range input, never the original PR's full change set once a narrower scope was chosen.
 
 After context settled, classify files once the diff crosses it:
 

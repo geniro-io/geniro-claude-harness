@@ -2,7 +2,7 @@
 
 # Debug Phase 1 — investigate
 
-Phase file for `/geniro:debug`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
+Phase file for `/geniro:debug`. The spine — invariants, budgets, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
 
 state.md `phase: investigate`. An entry-gate + context load plus an inner hypothesis-test loop. Exits to Phase 2 only when a hypothesis is confirmed, its Result: field cites an artifact per Evidence Standard, and the §1.6 independent verification confirms the root cause (or fails open with the unverified disclosure).
 
@@ -10,7 +10,7 @@ state.md `phase: investigate`. An entry-gate + context load plus an inner hypoth
 
 - §1.1 Memory layer load · §1.2 Observe & repro · §1.3 Build feedback loop · §1.4 Hypothesize
 - §1.5 Test each hypothesis + missing-data gate + external-dependency hypothesis · §1.6 Isolate root cause · §1.7 Stall escalation gate
-- Infrastructure investigation · Isolation techniques · Stall diagnosis taxonomy
+- Infrastructure investigation · Isolation techniques · Stall diagnosis taxonomy · Tool surface
 
 ### 1.1 Memory layer load (past-knowledge query)
 
@@ -70,7 +70,7 @@ Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypo
 
 **Render the ranked hypothesis list to chat before testing begins** — plain narration, NOT a gate: do not fire AskQuestion and do not block for a response. The user often re-ranks the list instantly from domain knowledge or names a hypothesis already ruled out, and a correction that arrives before the first test costs nothing.
 
-> **Inconclusive** means the test could not distinguish whether the hypothesis is true or false. Common causes: (1) test environment differs from production, (2) bug is intermittent and didn't manifest, (3) test was too coarse, (4) multiple interacting causes mask effects. Inconclusive is NOT a rejection — you need a better test or more data.
+> **Inconclusive** means the test could not distinguish whether the hypothesis is true or false. It is NOT a rejection — you need a better test or more data.
 
 ### 1.5 Test each hypothesis + missing-data gate
 
@@ -84,7 +84,7 @@ Persist to state.md `## Hypotheses` body section, one block per hypothesis (Hypo
 
 **Record a past learning for each rejected hypothesis.** For each hypothesis transitioning to `Status: rejected` (eliminated by a test that produced contradicting evidence), call `emit-learning` with type `discarded_hypothesis`, required `ext.{hypothesis, evidence_against, tested_by}`, trust `verified`. Scope = the file/module the hypothesis targeted. The emit is per-rejection (multiple rejections in one Phase 1 = multiple emits). Canonical payload shape: `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9.
 
-**Sliding-window cap:** 5 latest `discarded_hypothesis` entries per `(producer, scope)` — unbounded, discarded-hypothesis chatter drowns out `diagnosis` entries at retrieval time. Before emit, count existing non-deprecated entries via `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --type discarded_hypothesis --scope <scope> --include-superseded`; at 5 or more, prune per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types, which owns the flip-then-append order and the locking that rewrite needs.
+**Sliding-window cap:** 5 latest `discarded_hypothesis` entries per `(producer, scope)` — unbounded, discarded-hypothesis chatter drowns out `diagnosis` entries at retrieval time. Before emit, count the existing non-deprecated entries and, at 5 or more, prune per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types, which owns the flip-then-append order and the locking that rewrite needs.
 
 `rejected` is a normal outcome of hypothesis testing — emit fires in the happy path. `inconclusive` does NOT emit (the data is ambiguous; recording it would seed noise). `confirmed` does NOT emit a `discarded_hypothesis` (it emits a `diagnosis` later at Phase 3 §3.3).
 
@@ -97,11 +97,11 @@ Once a hypothesis is confirmed:
 - Understand why the bug happens (not just where).
 - **Tag emitted findings per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-tagging.md`.** `/geniro:debug` is the root-cause flow by definition — a confirmed hypothesis isolates to a `[ROOT-CAUSE]` finding, NOT `[SYMPTOM]`. `[UNKNOWN]` from debug is a failure mode — if you find yourself emitting `[UNKNOWN]`, the hypothesis loop didn't close (escalate via stall gate). `[SYMPTOM]` from debug is also a failure mode — re-enter with a new hypothesis.
 
-**Verify the root cause independently.** The hypothesis and the test that confirmed it came from the same reasoning context that isolated this location — spawn one `finding-verifier-agent` to re-read the confirmed hypothesis's `Result:` evidence cold, with none of that reasoning, and judge whether it actually supports the `[ROOT-CAUSE]` claim; the same mechanism `/geniro:resolve`, `/geniro:review`, and `/geniro:implement` already route every claim through. One root cause per run, so this is one verifier at a time, never a parallel fan-out.
+**Verify the root cause independently.** The hypothesis and the test that confirmed it came from the same reasoning context that isolated this location — spawn one `finding-verifier-agent` to re-read the confirmed hypothesis's `Result:` evidence cold, with none of that reasoning, and judge whether it actually supports the `[ROOT-CAUSE]` claim. One root cause per run, so this is one verifier at a time, never a parallel fan-out.
 
-Spawn via the ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:finding-verifier-agent` under Claude Code → bare `finding-verifier-agent`, the entry rung everywhere else → `general-purpose` with the agent body inlined), OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Slice/grep sizes, actionability bar, and anti-rationalization guard per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 / §3.6 / §6 apply unchanged — not restated here so they cannot drift. §2's finding body also carries severity, decision-type, confidence, suggested-fix, and why-matters, plus its own cited-slice and caller-grep inlines; none of those exist for a debug root-cause claim, so the finding body below is a deliberate narrowing, not an oversight: title, the isolated `path:lines`, the `[ROOT-CAUSE]` tag, and the confirmed hypothesis's `Result:` evidence verbatim (nothing else from `## Hypotheses`). Satisfy the rest of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`: `disallowedTools: [Edit, Write, NotebookEdit]` declared and restated in the prompt body; and the output schema below.
+Spawn `geniro:finding-verifier-agent` per SKILL.md §Subagent model tiering (ladder, OMIT `model=`). Slice/grep sizes, actionability bar, and anti-rationalization guard per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 / §3.6 / §6 apply unchanged. §2's severity, decision-type, confidence, suggested-fix, why-matters, cited-slice and caller-grep inlines do not exist for a root-cause claim, so the finding body is only: title, the isolated `path:lines`, the `[ROOT-CAUSE]` tag, and the confirmed hypothesis's `Result:` evidence verbatim (nothing else from `## Hypotheses`). Satisfy the rest of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`: `disallowedTools: [Edit, Write, NotebookEdit]` declared and restated in the prompt body; and the output schema below.
 
-The agent returns one verdict block per `${CLAUDE_PLUGIN_ROOT}/agents/finding-verifier-agent.md` § Output schema — `validation: confirmed | refuted | clarified`, `recommended_action`, `confidence: 1-5`, `evidence: <literal quote>`:
+The agent returns one verdict block per `${CLAUDE_PLUGIN_ROOT}/agents/finding-verifier-agent.md` § Output schema — `validation: confirmed | refuted | clarified` and `evidence: <literal quote>` drive the routing:
 
 - `confirmed` → proceed to Phase 2.
 - `refuted` or `clarified` → revert `Status:` to `testing` and re-enter §1.5 with the verifier's `evidence` as the next test (§1.7's inconclusive counter doesn't bound this). A second consecutive `refuted`/`clarified` on the same claim ends the loop instead of a third re-entry — mirrors §2.5's 2-attempt fix-loop cap. Before the question fires, mark state.md `phase: phase-1-verification-stalled` with timestamp + both disputed verdicts via `atomic_state_write` — otherwise a compaction while the question sits unanswered resumes into the ordinary hypothesis loop and re-runs both verifier spawns rather than re-surfacing this gate, the same risk §1.7 and §2.5 already guard against. Render both verdicts to chat per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, then `AskQuestion` (header "Verification stalled"): try a different hypothesis (§1.4, resets the count, `phase: investigate`) / proceed with `Validation: unverified` and `Verification-evidence` naming both disputed verdicts, never silently `confirmed` (proceeds into Phase 2 like any other resolved verdict) / abort (`phase: aborted`, terminal). Persist the pick to `approvals[]` category `verification_stalled` with `root_cause` as the disambiguator, mirroring §2.2's `multi_path_fix` — the gate can re-fire later in the same run against a different confirmed hypothesis.
@@ -147,10 +147,19 @@ When the symptom matches any signal in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug
 
 ## Isolation techniques
 
-Binary search / git bisect / profiling — full procedure in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §4. Pick the cheapest technique: binary search for large regions, git bisect for known-good→bad regression boundaries, profiling for quantitative symptoms.
+Pick the one technique the confirmed root cause calls for — never all three on the same hypothesis: binary search to narrow a large region, `git bisect` to find the regression range when a known-good revision exists, profiling for quantitative symptoms.
 
 ---
 
 ## Stall diagnosis taxonomy
 
-When the §1.7 stall gate fires, classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table + AUQ rendering + persistence rules in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §5.
+When the §1.7 stall gate fires, classify the stall as a missing component (8-category taxonomy A-H: missing instruction / source-of-truth / tool / validator / permission rule / sandbox signal / eval / recovery path). Full table in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §5; the rendering and persistence rules are §1.7 above.
+
+---
+
+## Tool surface
+
+- Read / Grep / Glob, plus read-only Bash: `git status` / `log` / `diff` / `blame` / `bisect`, `gh pr list` / `view` / `diff` for the §1.2 open-PR scan, test re-runs without code edits, log inspection, profiler invocations, and third-party CLIs such as `psql -c` against a test DB when configured. Web search and fetch serve §1.5's external-dependency hypothesis. `AskQuestion`.
+- Edit / write for EXPERIMENTS only — debug scripts, logging statements, scratch test files, `.geniro/state/debug/<slug>/` artifacts.
+- Subagent spawns: `codebase-research-agent` for codebase mapping and flow tracing (Loop Invariant S1); `finding-verifier-agent` for the §1.6 root-cause verification (always-on); `knowledge-retrieval-agent` scoped `learnings-backend` (§1.1, only under a declared memory-backend block).
+- Blocked: production-source writes and edits that are not reverted before handoff — permitted only as the reverted experiments above (tagged debug logging, scratch files); `git push`, `gh pr create`, branch switching beyond the Step 0.2 workspace pick.

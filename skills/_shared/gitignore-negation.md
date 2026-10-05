@@ -21,4 +21,4 @@ A user who wants one of these directories ignored deletes its two `!` lines by h
 
 ## Why negation rather than `git add -f`
 
-Force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click then becomes a one-click data-loss vector — in a real incident that click wiped user-authored `.geniro/actions/*.md` files after they had been force-added. `.gitignore` negation is the supported path for `.geniro/` content that should be tracked; the `.geniro/` deletion guard hook blocks `git add -f` on those paths for the same reason.
+Force-adding ignored files makes them visible in IDE Source Control panels, and a single "Discard All Changes" click then becomes a one-click data-loss vector — in a real incident that click wiped user-authored `.geniro/actions/*.md` files after they had been force-added. `.gitignore` negation is the supported path for `.geniro/` content that should be tracked; the `block-geniro-force-add.sh` hook blocks `git add -f` on those paths for the same reason.

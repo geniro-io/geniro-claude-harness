@@ -7,11 +7,10 @@
 - §Timestamp sourcing — time-bearing fields come from a live clock read
 - §Changing part of an existing file — edit in place, don't regenerate
 - §Caller-side mtime check — optimistic-concurrency for T3 CRUD files
-- §Properties every helper holds — signals, concurrency, permissions
+- §Properties every helper holds — signals, concurrency (incl. NFS tmp names), permissions
 - §Known limitations — symlinks, append race
 - §What this helper does NOT do — validation, locking, rollback, retry
 - §Portability notes — Linux vs macOS sync
-- §NFS safety — tmp-filename uniqueness
 
 **Helper for atomic state-file writes.** Skills source this from Bash to write `.geniro/` state files without partial-write corruption.
 
@@ -244,7 +243,7 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"/geniro:implement","scope"
 
 ## Timestamp sourcing
 
-Every `timestamp:` / `completed-at:` / time-bearing field comes from a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured in the same Bash call that writes — never a copied example literal, a remembered value, or a rounded estimate. The literal timestamps elsewhere in this doc (and in `state-tier-spec.md`'s examples) are illustrative; an unquoted heredoc as shown in §API interpolates the live read at write time, which is why that example uses `$(date -u ...)` rather than a frozen string. These fields order decisions across rounds and compactions, and the restore hook renders `completed-at` when warning about already-fired external actions — an invented time corrupts exactly the audit trail the field exists to provide.
+Every `timestamp:` / `completed-at:` / time-bearing field comes from a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured in the same Bash call that writes — never a copied example literal, a remembered value, or a rounded estimate. Timestamps in this doc and in `state-tier-spec.md` are illustrative; an unquoted heredoc as in §API interpolates the live read at write time. These fields order decisions across rounds and compactions, and the restore hook renders `completed-at` when warning about already-fired external actions — an invented time corrupts the audit trail the field exists to provide.
 
 ---
 
@@ -264,7 +263,7 @@ atomic_state_set_field "$S" timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 The escape hatch is a genuine whole-file regeneration — a renderer producing the file from scratch, a migration rewriting its whole shape. Route those through `atomic_state_write_cmd` so a producer that dies mid-render cannot commit a half-file over good state.
 
-Editing in place by other means — `sed -i`, an interpreter's `open(p,'w')`, an `Edit` call — is the truncate-and-rewrite this helper exists to replace, and it stays unsafe when a later `atomic_state_write` re-writes the result: by then the unprotected write already happened, so the helper copies damage rather than preventing it. No hook catches the shell-side shape: `enforce-state-helper.sh` reads `file_path` and does not inspect shell commands, so this one rests on the caller.
+Editing in place by other means — `sed -i`, an interpreter's `open(p,'w')`, an `Edit` call — is the truncate-and-rewrite this helper exists to replace, and a later `atomic_state_write` over the result does not undo it: the unprotected write already happened, so the helper copies damage rather than preventing it.
 
 ---
 
@@ -278,33 +277,27 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 
 ## Properties every helper holds
 
-- **Signals belong to the caller.** Each public function does its work in a subshell, so the trap that removes a half-written tmp file cannot replace a trap the caller installed, and a signal arriving mid-write does not override the caller's own handler or exit code.
-- **Concurrent calls get distinct tmp files.** Names come from `mktemp`, not from `$$` — inside a subshell `$$` is the parent shell's pid, so two backgrounded writers to one target once shared a tmp path and could splice their payloads into one committed file. Distinct tmp files reduce that to last-writer-wins, which is the documented concurrency model.
-- **Permissions are carried across a rewrite.** A state file deliberately restricted to `0600` stays `0600`; a new file gets the mode a plain `>` redirection would have produced.
-- **A directory in the target's place is refused** (rc 67) rather than silently receiving the tmp file, which `mv` would otherwise do while reporting success.
+- **Signals belong to the caller.** Each public function works in a subshell, so its tmp-cleanup trap cannot replace a trap the caller installed.
+- **Concurrent calls get distinct tmp files** (`mktemp`, not `$$` — inside a subshell `$$` is the parent's pid), so two backgrounded writers to one target never splice payloads. What remains is last-writer-wins, the documented concurrency model. The tmp name also carries the hostname, covering writers on different hosts sharing `.geniro/` over NFS.
+- **Permissions are carried across a rewrite.** A `0600` state file stays `0600`; a new file gets the mode a plain `>` would have produced.
+- **A directory in the target's place is refused** (rc 67) rather than silently receiving the tmp file.
 
 ## Known limitations
 
-- **Symlinks are replaced, not followed.** The internal `mv tmp target` follows POSIX rename semantics — if `target` is a symlink, the symlink itself is replaced with a regular file (the linked-to file becomes orphaned with its old content). Don't symlink state files. If you need shared state between worktrees, share the `.geniro/` directory itself, not individual files inside it.
-
-- **Append race on no-newline files can produce a blank line.** When two concurrent `atomic_state_append` calls both find a target file missing its trailing newline, both prepend `\n` independently. The POSIX `O_APPEND` write atomicity is preserved (no torn line), but the result is one harmless blank line in JSONL. `jq -cs` and `query-learnings` tolerate it; `wc -l` and strict line-number-based diagnostics over-count by 1. Acceptable for now — a single appender doesn't trigger it, and the first append after the race "heals" the file (subsequent appends see the trailing newline).
+- **Symlinks are replaced, not followed.** `mv tmp target` replaces a symlink target with a regular file, orphaning the linked-to file. Don't symlink state files; to share state between worktrees, share the `.geniro/` directory itself.
+- **Append race on no-newline files can produce a blank line.** Two concurrent `atomic_state_append` calls that both find the target missing its trailing newline both prepend `\n`. No line is torn, but JSONL gains one harmless blank line (`jq -cs` and `query-learnings` tolerate it; `wc -l` over-counts by 1). The next append heals it.
 
 ---
 
 ## What this helper does NOT do
 
 - **No frontmatter validation on the whole-file writers.** `atomic_state_write` / `atomic_state_write_cmd` take whatever content they are given; produce valid frontmatter per `state-tier-spec.md` and run `validate_state_file` after the write if validation is desired. `atomic_state_set_field` is the exception: it requires a closed leading `---` block and a pre-existing field, and fails rc 74 rather than inventing either.
-- **No locking.** T1 path-scoping and T3 mtime check are the concurrency model. No `flock`, no `.lock` files.
-- **No rollback / backup.** Atomicity guarantees no partial writes; recovery is via skill re-run (T1/T2) or `git checkout` (T3 user content).
+- **No locking.** T1 path-scoping and the T3 mtime check are the concurrency model.
+- **No rollback / backup.** Recovery is skill re-run (T1/T2) or `git checkout` (T3 user content).
 - **No retry on transient errors.** Caller decides.
 
 ---
 
 ## Portability notes
 
-- `sync -d <file>` fsyncs one file on Linux (GNU coreutils). BSD/macOS `sync` takes no options and ignores every operand, returning 0 either way — so an rc-based probe reads macOS as "per-file sync succeeded". The helper discriminates on `sync --help` naming `--data` instead.
-- **Where there is no per-file sync, the helper syncs nothing.** The former whole-disk fallback cost 164 ms per write and flushed every mounted filesystem on the machine while buying nothing: macOS `sync(2)` schedules the flush rather than waiting for it. Atomicity — the rename — never depended on it and holds on every platform; durability across power loss is Linux-only in practice. Nothing in the state model depends on surviving a power cut.
-
-## NFS safety
-
-- The tmp filename carries the hostname plus `mktemp` randomness. A PID would not have been enough: inside a subshell `$$` is the parent shell's, so same-host concurrent writers collided. The hostname covers the cross-host case on a shared `.geniro/`; zsh does not set `HOSTNAME`, so the helper falls back to `HOST` and then to `hostname`.
+Per-file fsync is Linux-only (`sync -d` under GNU coreutils; BSD/macOS `sync` ignores its operands and returns 0, so the helper detects support from `sync --help` rather than from an rc). Where it is unavailable the helper syncs nothing — a whole-disk fallback cost 164 ms per write and bought nothing, since macOS `sync(2)` only schedules the flush. Atomicity (the rename) holds on every platform; durability across power loss is Linux-only in practice, and nothing in the state model depends on surviving a power cut.

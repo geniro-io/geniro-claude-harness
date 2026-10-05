@@ -1,15 +1,15 @@
 # Debug Phase 3 — ship
 
-Phase file for `/geniro:debug`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
+Phase file for `/geniro:debug`. The spine — invariants, budgets, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
 
-state.md `phase: ship`. Findings handoff to downstream skill OR user-handles — proposals + tests authored locally (no-ship boundary per § Your role, § ACI per-phase).
+state.md `phase: ship`. Findings handoff to downstream skill OR user-handles — proposals + tests authored locally (no-ship boundary per SKILL.md § Your role). Exits when every `open_questions[]` entry reaches `resolved` or `wontfix` (§3.0) and the §3.2 escalation pick resolves to a terminal state — `phase: done` or `phase: ship-summary-only` — with the findings handoff already persisted via `atomic_state_write` before that question fired.
 
 **Refresh custom instructions on entry.** Re-fire `load-custom-instructions(SKILL_SLUG: debug, LOAD_TIER: pipeline, MODE: refresh)` once (pipeline tier's load set owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`), before §3.0 below. The Debug Findings summary and the escalation gate are both authored here, so the code-style and process rules have to be the ones on disk now — Phase 2's load can be several fix-loop rounds old.
 
 ## Contents
 
 - §3.0 Pre-gate — resolve open questions · §3.1 Present findings · §3.2 Escalation AUQ
-- §3.3 Emit learnings · §3.4 Cleanup · §3.5 Atomic non-resumable updates
+- §3.3 Emit learnings · §3.4 Cleanup · Tool surface
 - Definition of done — Scientific Mode
 
 ### 3.0 Pre-gate — resolve open questions
@@ -98,16 +98,13 @@ Only after the summary above is visible AND persisted, `AskUserQuestion` with he
 - **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because a probe you actually ran failed to reach the artifact (§1.5 — an assumed limit is not a reason to route). Trigger a follow-up `AskUserQuestion` with concrete options for the missing data. When data arrives, return to the §3.0 Pre-gate, do NOT escalate yet — state.md stays `phase: ship` (non-terminal) until a later pick resolves to one of the other two terminals.
 - **Leave it to me** — user will apply the patch manually using the state file as reference. state.md transitions to `phase: ship-summary-only` (terminal).
 
-Do NOT auto-invoke the next skill — surface the suggestion only. The state file IS the handoff channel.
+Do NOT auto-invoke the next skill — surface the suggestion only.
 
 ### 3.3 Emit learnings
 
-At Phase 3 exit, fire the `diagnosis` emit below. Sequence the emit before the phase is declared done — a diagnosis emit left trailing after the handoff is persisted and the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing). The visibility + ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract". The other two `emit-learning` types fire earlier in their own phases — listed here together so the full debug emit surface is visible in one place:
+At Phase 3 exit, fire the `diagnosis` emit below. Sequence the emit before the phase is declared done — a diagnosis emit left trailing after the handoff is persisted and the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing). The echo and ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
 
-- **`emit-learning`** — called by /geniro:debug at three distinct points:
-- **`diagnosis`** (primary emit type, fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical `emit_learning` call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` to the user — the helper writes silently, so the echo is the only in-session signal the diagnosis was captured.
-- **`discarded_hypothesis`** — fires per-rejection during Phase 1; payload schema, cap, and emit logic in §1.5.
-- **`retry_failure_sequence`** — fires at Phase 2 exit when `fix_attempts >= 2`; payload schema and emit logic in §2.5.
+**`diagnosis`** (fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` — the helper writes silently, so the echo is the only in-session proof it ran. The other two types fire earlier: `discarded_hypothesis` per rejection in §1.5, `retry_failure_sequence` at Phase 2 exit in §2.5.
 
 ### 3.4 Cleanup
 
@@ -121,17 +118,15 @@ After Phase 3 completes (escalated, accepted, or user-handles):
 
 Cleanup is best-effort — if a command fails silently, that's fine.
 
-### 3.5 Atomic non-resumable updates
+## Tool surface
 
-After each side-effect that cannot be replayed safely (none in baseline — debug performs no `git push` / `gh pr create`), append a structured entry to state.md frontmatter `non-resumable-actions[]` via `atomic_state_append_list_item`.
-
-The empty baseline is intentional: debug ships proposals, not commits. If a future user-customization introduces side-effects (e.g. a `.geniro/actions/post-finding-to-slack.md` invocation), THAT action becomes a non-resumable entry — not the standard ship flow.
+Read; Bash for `atomic_state_write` (the handoff), `emit-learning`, the §3.4 cleanup, and the §3.1 working-tree check's read-only `git status --porcelain` plus its blocker-path revert; `AskUserQuestion`. Blocked: file writes and edits, `git commit`, `git push`, `gh pr create`, subagent spawns. Debug stops before shipping — pushing and PR creation are the consumer skill's job (`/geniro:implement`).
 
 ---
 
 ## Definition of done
 
-These are the load-bearing exit gates and safety invariants for the mode that ran — the checks that, if skipped, make the investigation unsound or the no-ship boundary unsafe. Per-phase mechanics (context loading, hypothesis recording, feedback-loop construction) live in their phase sections; this is the final correctness/contract check, not a re-listing of every step.
+The load-bearing exit gates and safety invariants for the mode that ran — the checks that, if skipped, make the investigation unsound or the no-ship boundary unsafe.
 
 ### Scientific Mode
 

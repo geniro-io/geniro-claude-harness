@@ -42,7 +42,7 @@ Run these in order (`§` anchors are sections of the triage reference):
 
 Exit criterion: state.md frontmatter carries the fields each prior step wrote — `round`, `risk-tier`, `pr-ref`, `linear-task-ref`, `linear-parent-ref`, `plan-context-ref`, and `subagent-model` (from the step-2 flag parse; missing reads as `inherit`), plus `brief` resolved to `artifact` / `file` / `off` by step 13 — never still `pending`, which is the step-2 flag parse's transient value and nothing Phase 2 knows how to read; `approvals[]` carries any AUQ answers; `## Tool log` includes initial load echoes.
 
-Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr diff` / `gh pr view` / `mcp__linear__*` reads). For codebase-research side queries inside this phase (e.g., locating a pattern across the wider repo when scoring peer-PR overlap), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+**Tool surface (Phases 1 and 1.5).** Read-only repo and shell access (`gh pr diff` / `gh pr view`, `git diff`, lint, no-emit type check), `atomic_state_write` for the state file, read-only `mcp__linear__*` reads (`get_issue` / `list_issues`; degrade silently if unregistered), `codebase-research-agent` for codebase-research side queries (e.g. locating a pattern across the wider repo when scoring peer-PR overlap — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research), and this phase's questions. No Edit/Write — the state file goes through `atomic_state_write` — and no Linear `update_issue` / `create_comment`; those stay in /geniro:implement Ship.
 
 ---
 
@@ -50,11 +50,11 @@ Phase 1 PR metadata and tracker context loads are orchestrator-inline (`gh pr di
 
 State.md `phase: mechanical-prepass`.
 
-Three deterministic checks BEFORE LLM reviewer spawns. Cheap-deterministic first; LLM-spawn second with pre-pass findings as prior-context. Sequential to the reviewers, not parallel with them — LLM agents seeing prior mechanical findings produce better-targeted output.
+Three deterministic checks BEFORE the LLM reviewer spawns, so reviewers receive their findings as prior-context.
 
 **Lint and schema start early, in the background.** Both depend only on the reviewed file list, which is final once Phase 1 step 6 settles — the target resolved and any re-review scope answered, since that answer can narrow the range. Launch them then as one background shell job and let the rest of Phase 1, the brief question included, run while they do. Collect the outcome here, waiting on the job if it is still running, so every check is recorded before a reviewer spawns, exactly as before. The secret scan runs here, because its pattern set depends on the risk tier (step 10). Where the host cannot run a background job, or its output is gone after a compaction, run both checks here in the foreground.
 
-**Each check is must-attempt and lands exactly one of three recorded outcomes** — `findings` (written to the finding list; Check 3's tagged CRITICAL), `clean` (the check ran and found nothing), or `error` (a fail-open `## Errors mechanical-prepass-<id>: <reason>` entry, which also covers not-applicable). There is no silent fourth outcome — skipping a check entirely (e.g. running neither lint nor `tsc` on a TS-dominated diff) is the failure this contract closes, and a clean run is a real result, not the absence of one. Record each check's outcome in state.md frontmatter (§1.5.7) before exiting this phase, mirroring §2.2's spawn-declaration pattern.
+**Each check is must-attempt and lands exactly one recorded outcome** — `findings`, `clean`, or `error` (§1.5.6). There is no silent fourth outcome: skipping a check entirely (e.g. running neither lint nor `tsc` on a TS-dominated diff) is the failure this contract closes. Record each outcome in state.md frontmatter (§1.5.7) before exiting this phase.
 
 ### 1.5.1 Check 1 — Lint
 
@@ -99,9 +99,9 @@ custom_reviewers:
     requires_context: "fetch the live incident report, latest entry, and provide its pattern list"   # verbatim `requires-context:` directive, or null when unset
 ```
 
-The one spawn-spec field this list deliberately omits is `criteria-content` — the user file's whole body. Writing it here would drag every word of every custom rubric through `atomic_state_write` into a durable handoff that ships downstream, then back out at Phase 2: the same pass-through cost §2.3's "pass the path, never the body" rule exists to avoid, paid twice. `source_path` is the anchor instead — Phase 2 re-reads it for the body at the moment it composes the spawn.
+`criteria-content` (the user file's whole body) is deliberately omitted — it would carry every custom rubric through `atomic_state_write` into a durable handoff that ships downstream. `source_path` is the anchor: Phase 2 re-reads it for the body when it composes the spawn.
 
-Phase 2 reads `custom_reviewers[]` from frontmatter and re-reads each `source_path` for the criteria body — no discovery, globbing, path-filtering, or cap-checking at Phase 2 entry (discovery lives here because Phase 1.5 already has shell tooling primed, keeping the cognitively heavy Phase 2 spawn assembly free of it).
+Phase 2 reads `custom_reviewers[]` from frontmatter and re-reads each `source_path` for the criteria body — no discovery, globbing, path-filtering, or cap-checking at Phase 2 entry.
 
 On the helper's hard-cap error, surface it to chat, persist `custom_reviewers: []`, and let Phase 2 fire only the built-ins. A helper batch-size *warning* is advice to the user about how many custom reviewers to keep — it never trims the batch: the §2.1 always-fire rows fire on every run regardless of how many custom reviewers discovery returned.
 
@@ -135,6 +135,6 @@ mechanical_prepass_attempted:
   secret: clean
 ```
 
-Every check that ran gets an entry; a check with no entry is one that was never reached. This is the observability surface the Phase 4 §4.0a verification gate asserts against — a missing declaration, a missing check, or an outcome the run cannot corroborate (`findings` with nothing on the finding list, `error` with no `## Errors mechanical-prepass-<id>` entry) is a pre-pass contract miss the gate surfaces.
+Every check that ran gets an entry; a check with no entry was never reached. The Phase 4 §4.0a gate asserts against this declaration.
 
 ---

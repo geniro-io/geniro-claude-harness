@@ -1,9 +1,10 @@
 ---
 name: update
-description: "Use when the status line shows a plugin update is available, or to manually pull the latest Geniro plugin version. Verifies plugin integrity, ensures user-authored .geniro/instructions/ and .geniro/actions/ survived intact, and walks any breaking changes in MIGRATION.md."
+description: "Use when the status line shows a Geniro update or the user asks to update the plugin. Verifies integrity, checks .geniro/instructions/ and .geniro/actions/ survived, and walks MIGRATION.md breaking changes."
 context: main
 model: inherit
 allowed-tools: [Bash, AskUserQuestion, Read, Write, Edit, Glob, Grep]
+disable-model-invocation: true
 argument-hint: "[--dry-run]"
 ---
 
@@ -30,7 +31,7 @@ argument-hint: "[--dry-run]"
 
 **Runtime requirement.** This skill drives the `claude plugin` CLI and the Claude Code install registry, and functions only under Claude Code. When invoked from another runtime (e.g. Cursor), state that updates are managed by that runtime's own plugin mechanism and exit without side effects.
 
-**Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/update/`: `phase-1-precheck.md` · `phase-2-update.md` · `phase-3-postcheck.md` · `phase-4-migration.md` · `done-final-report.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (the update-confirmation AUQ, the hash-check and tamper-diff AUQs, the per-entry migration AUQ) and their helper call sites, so work started before the Read runs outside them. `/geniro:update` keeps no state file, so a compaction mid-run is recovered by re-Reading the phase you were in, named from this spine's phase headings, rather than by re-invoking the whole skill.
+**Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/update/`: `phase-1-precheck.md` · `phase-2-update.md` · `phase-3-postcheck.md` · `phase-4-migration.md` · `done-final-report.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (the update-confirmation AUQ, the hash-check and tamper-diff AUQs, the per-entry migration AUQ) and their helper call sites, so work started before the Read runs outside them. With no state file, recover from a compaction by re-Reading the phase you were in (named from this spine's headings), not by re-invoking the skill.
 
 ## Path constraints
 
@@ -42,9 +43,9 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 - **Invariant #2 (args validated before execution)** — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 - **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one example among this skill's several (the hash-check and tamper-diff AUQs in `phase-3-postcheck.md`, the per-entry migration AUQ in `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskUserQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
-- **Invariant #4 (bounded structured tool results)** — the migration-step AUQ truncates auto-detect output to its first ~10 lines; the full content diff is written to a log file rather than inlined.
+- **Invariant #4 (bounded structured tool results)** — the migration-step AUQ truncates auto-detect output to its first ~10 lines; the full content diff goes to a log file.
 - **Invariant #5 (escalation gates, not silent abort)** — 4-retry exponential-backoff on network errors; abort after the 4th retry. (`phase-2-update.md` §Marketplace refresh + plugin update owns the exact delays.)
-- **Invariant #7 (errors → structured observations)** — this skill is stateless, so errors surface inline in the run's output rather than in a state-file `## Errors` section; no silent skips.
+- **Invariant #7 (errors → structured observations)** — stateless, so errors surface inline in the run's output; no silent skips.
 
 This skill adds one invariant:
 
@@ -54,24 +55,24 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "My recalled experience says the MIGRATION.md version headings don't match the package version, so I'll range-filter or read only the newest block." | A recalled learning does not override the walk-all consumption contract. The version heading is not a selection gate — walk EVERY entry across ALL sections (Phase 4) and let each read-only auto-detect decide relevance. The current skill body and the MIGRATION.md preamble are authoritative over any prior-session recollection. |
-| "The version-confirm AUQ is a formality — I'll just run the update." | That AUQ is the one explicit permission gate before a mutating marketplace + plugin update touches the install. Skipping it removes the user's only chance to cancel before the network fetch and registry write. Fire it unless `--dry-run`. |
-| "I ran the Auto-fix command, so the migration entry is resolved." | Auto-fix can apply partially. Re-run the entry's `Auto-detect:` after fixing; only an empty result confirms resolution. Reporting "fixed" without the re-detect can leave the user on a half-migrated install. |
-| "A file is missing from the hash-check but the update likely worked — continue." | A missing key file means a broken install, not a benign blip. Fire the Cancel-as-recommended AUQ and let the user decide; auto-continuing ships a plugin that may fail mid-skill later. |
-| "The user-content survival diff shows changes, but they're probably benign." | The update must never touch `.geniro/instructions/` or `.geniro/actions/`. Any diff is either a plugin bug or tampering — surface it via the AUQ; never auto-dismiss content the user authored. |
+| "My recalled experience says the MIGRATION.md version headings don't match the package version, so I'll range-filter or read only the newest block." | A recalled learning does not override the walk-all contract. The version heading is not a selection gate — walk EVERY entry across ALL sections (Phase 4) and let each read-only auto-detect decide relevance. This skill body and the MIGRATION.md preamble outrank any prior-session recollection. |
+| "The version-confirm AUQ is a formality — I'll just run the update." | It is the one permission gate before a mutating marketplace + plugin update touches the install — the user's only chance to cancel before the fetch and registry write. Fire it unless `--dry-run`. |
+| "I ran the Auto-fix command, so the migration entry is resolved." | Auto-fix can apply partially. Re-run the entry's `Auto-detect:`; only an empty result confirms resolution, and "fixed" without it can leave a half-migrated install. |
+| "A file is missing from the hash-check but the update likely worked — continue." | A missing key file means a broken install, not a blip. Fire the Cancel-as-recommended AUQ and let the user decide. |
+| "The user-content survival diff shows changes, but they're probably benign." | The update must never touch `.geniro/instructions/` or `.geniro/actions/`; any diff is a plugin bug or tampering — surface it via the AUQ, never auto-dismiss user-authored content. |
 
 ## Definition of done
 
 - [ ] `phase-3-postcheck.md` §Plugin file hash-check (sanity mode) ran; `HASH_FAIL` resolved (PASS, or the user picked Continue anyway at the AUQ)
 - [ ] `phase-3-postcheck.md` §User-content survival check ran; any non-empty diff was surfaced via AUQ and resolved
-- [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` invoked against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit for the rest of the session, in the run meant to clear it
+- [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit
 - [ ] `phase-3-postcheck.md` §Refresh statusline stable copy (conditional) ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
 - [ ] `phase-3-postcheck.md` §Re-point the Cursor profile install (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
-- [ ] The final report's `Update cache`, `Statusline`, and `Cursor profile` lines reflect the actual outcome of each refresh, not an assumed one
+- [ ] The final report's `Update cache`, `Statusline`, and `Cursor profile` lines state each refresh's actual outcome
 
 ## Budgets — quality-first
 
-`/geniro:update` has **zero hard kill caps**. Class-B gates: 4-retry network backoff, hash-diff truncation, per-migration-step truncation. Not capped: migration walk step count, hash-check file count, total update duration.
+No hard kill caps. Class-B gates: 4-retry network backoff, hash-diff and per-migration-step truncation. Not capped: migration walk step count, hash-check file count, total duration.
 
 ## ACI per-phase tool surface
 
@@ -101,19 +102,11 @@ External sends: not in `/geniro:update` ACI ever.
 
 ## Memory I/O
 
-| Layer | Read | Write | Notes |
-|---|---|---|---|
-| CLAUDE.md (project context) | not read | not written | `/geniro:setup re-run` handles CLAUDE.md refresh; `/geniro:update` only emits a recommendation if user-project CLAUDE.md may be stale |
-| L2 learnings.jsonl | not read | not written | `/geniro:update` is operational, not knowledge-producing |
-| L3 semantic files | not read | not written | N/A |
-| L4 `.geniro/instructions/*.md` | snapshot+integrity check (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check) | Written ONLY when user picks "Fix it for me" per-entry | The fix is the entry's command or described edit, on the detected files only |
-| `.geniro/actions/*.md` (T3) | snapshot+integrity check | Written ONLY when user picks "Fix it for me" per-entry | Same |
+Reads and writes no memory layer: no CLAUDE.md (`/geniro:setup re-run` owns its refresh; this skill only recommends it when the project's CLAUDE.md may be stale), no L2 learnings (operational, not knowledge-producing), no L3 files. It snapshots and integrity-checks `.geniro/instructions/*.md` and `.geniro/actions/*.md` (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check), and writes them ONLY when the user picks "Fix it for me" per entry — the entry's command or described edit, on the detected files only.
 
 ## User-content snapshot
 
-The one definition of the snapshot, used by `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content (baseline) and `phase-3-postcheck.md` §User-content survival check (comparison). Both phases must run identical code: a second copy that drifted by one flag would make the survival diff raise a tamper alarm over content nothing touched. Shell state does not persist between Bash calls, so each phase pastes these definitions into its own call and passes the `PRIMARY_ROOT` it just re-resolved.
-
-Read `${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md` for the exact shell functions — the single copy both phases paste in.
+One definition, used by `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content (baseline) and `phase-3-postcheck.md` §User-content survival check (comparison). Both must run identical code — a copy that drifted by one flag raises a tamper alarm over content nothing touched. Shell state does not persist between Bash calls, so each phase pastes the functions from `${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md` into its own call, passing the `PRIMARY_ROOT` it just re-resolved.
 
 ## Phase 1 — pre-check
 
@@ -125,11 +118,11 @@ Steps: `phase-2-update.md`. Run the marketplace + plugin update with exponential
 
 ## Phase 3 — post-check
 
-Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), re-take the user-content snapshot and diff it against the Phase 1 baseline (AUQ on any change), refresh the update cache, refresh the statusline copy when one already exists, and re-point the Cursor profile install when that already exists. Exit when both AUQ-gated checks have resolved and the cache / statusline / Cursor-install outcomes are recorded for the final report.
+Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), diff a fresh user-content snapshot against the Phase 1 baseline (AUQ on any change), refresh the update cache, and refresh the statusline copy and re-point the Cursor profile install when those already exist. Exit when both AUQ-gated checks have resolved and the refresh outcomes are recorded for the final report.
 
 ## Phase 4 — migration
 
-Steps: `phase-4-migration.md`. Skip entirely when the new install carries no `MIGRATION.md`. Otherwise walk it per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md`, applying the live-task guard before any delete-class fix and firing the per-entry AUQ (`Fix it for me` / `Show me how to fix manually` / `Skip for now` / `Cancel migration walk`) for every entry the run can fix, `Manual-only` ones included; an entry with nothing for this repo to do is noted for the final report instead. Exit when every entry has been walked (or the user cancelled), and go to Done.
+Steps: `phase-4-migration.md`. Skip when the new install carries no `MIGRATION.md`; otherwise walk it per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md`, applying the live-task guard before any delete-class fix and firing the per-entry AUQ (`Fix it for me` / `Show me how to fix manually` / `Skip for now` / `Cancel migration walk`) for every entry the run can fix, `Manual-only` ones included; an entry with nothing for this repo to do is noted for the final report instead. Exit when every entry has been walked (or the user cancelled), and go to Done.
 
 ## Done — final report
 

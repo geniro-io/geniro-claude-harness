@@ -2,7 +2,7 @@
 
 Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules, near-zero token usage.
 
-**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, is the enumeration of which checks are scripted, so adding one only means editing the script's own call list. Each check's *Scripted*/*Judgment* tag below is the single record of which kind it is. The judgment checks turn on reasoning no command can make — whether a citation is load-bearing, whether an area is sensitive, whether a verification method is real, whether a done-condition names an observable signal — so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports every check in §Contents' number order.
+**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, is the enumeration of which checks are scripted, so adding one only means editing the script's own call list. Each check's *Scripted*/*Judgment* tag below is the single record of which kind it is. The judgment checks turn on reasoning no command can make, so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports every check in §Contents' number order.
 
 **Status:** Authoritative. Each check returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
 
@@ -45,7 +45,7 @@ Each scripted check below states what it decides and what a `fail` means, so a r
 
 ### 3. `source_materials`
 
-*Judgment.* Deciding whether a citation actually grounds its step, and whether "scope-bound, no exploration needed" is honest rather than convenient, is why this one is not scripted.
+*Judgment.*
 
 **Rule:** state.md `## Tool log` body has ≥1 Agent entry with `status: ok` per effort tier:
 - Trivial: ≥1 (OR explicit "scope-bound, no exploration needed" note)
@@ -72,7 +72,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 5. `forbidden_actions`
 
-*Judgment.* A keyword scan is the trigger, not the verdict — whether a spec that touches `auth` genuinely needs a forbidden action, and whether the one written is the right one, is a reading of the task.
+*Judgment.* A keyword scan is the trigger, not the verdict.
 
 **Rule:** frontmatter `forbidden_actions` is a non-empty list when the task touches sensitive areas (auto-detected: presence of `auth`/`secret`/`migration`/`payment` keywords in section 1 Objective OR section 2 Scope.Included). Otherwise `null` is OK.
 
@@ -90,7 +90,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 8. `validation_method`
 
-*Judgment.* "References a test type" is greppable; "is a real verification method" is not — a section naming `unit` while describing nothing runnable passes the grep and fails the intent.
+*Judgment.* A section naming `unit` while describing nothing runnable passes the grep and fails the intent.
 
 **Rule:** section 9 (Validation) has body content; either references a test type (`unit`, `integration`, `e2e`) OR specifies a manual-verification procedure.
 
@@ -102,7 +102,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 9. `stopping_condition`
 
-*Judgment.* Classifying a clause as an observable signal is the same judgment the ship-time annotation makes, and the two must agree — which is why both read one ontology instead of a regex.
+*Judgment.*
 
 **Rule:** section 11 (Done Condition) has body content matching pattern "<observable signal>" (e.g., "all 5 acceptance tests green", "PR approved by stakeholder X", "feature ships behind flag AND telemetry shows ≥1 successful use").
 

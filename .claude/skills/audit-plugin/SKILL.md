@@ -1,6 +1,6 @@
 ---
 name: audit-plugin
-description: "Use when auditing the Geniro plugin repo as a whole — skills, agents, hooks, lib helpers, rules, and docs — for cross-file consistency, stale references, authoring-rule compliance, logic and shell correctness, over-complication, magic numbers, safety/coverage gaps, and wiring completeness (what the plugin declares but never consumes: instruction blocks with no execution site, load sites that cannot resolve, phases and gates promised but never built, enforcement claimed with no hook). Also proposes deleting whole mechanics — a phase, gate, step, spawn, or check earning too little for what it costs in tokens and wall-clock, or that makes the process worse — each backed by a measured cost and asked as its own question, with an explanation, before anything is removed. Runs a deterministic pre-pass, then parallel dimension reviewers that re-verify every finding, and writes a tiered report to design/scratch/. Skip for fixing one known issue (/improve-template) or reviewing a pending diff (/geniro:review)."
+description: "Use when auditing the Geniro plugin repo for cross-file consistency, stale refs, rule compliance, logic and shell correctness, over-complication, declared-but-unwired mechanics, or to cut low-value phases. Skip for one fix (/improve-template)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]

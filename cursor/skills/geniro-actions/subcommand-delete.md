@@ -2,9 +2,11 @@
 
 # Actions — `delete` sub-command (Phase 6)
 
-Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `delete`. The spine keeps the invariants, the anti-rationalization table, the tool surface and the termination mapping — this file carries the Steps.
+Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `delete`. The spine keeps the invariants, the anti-rationalization table and the termination mapping — this file carries the Steps.
 
 ## Phase 6: `delete` sub-command
+
+**Tool surface.** Allowed: `Read`, `Bash(rm)`, `AskQuestion`. Forbidden: `Write`, `Edit`, all `mcp__*`, network egress.
 
 ### Step 1 — Resolve target copy
 

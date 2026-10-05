@@ -20,7 +20,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` with MODE: plan, 
 
 The helper runs VERIFY (every claim in its §3 set, claims that share code clustered into shared verifier spawns per its spawn-batch shape) + RED-TEAM + SYNTHESIZE, and returns a verdict: `keep` / `keep-with-modifications` / `re-plan`.
 
-Cost scales with the spec, not with the tier: the claim set is what the spec itself asserts, and claims that share code share a spawn, so a small spec is a small batch and the whole batch runs in parallel. `/geniro:implement` re-runs the same helper pre-edit, and that stays the backstop for a spec that went stale between planning and building — but it is a backstop, not the first check. A defect found there is found after the user approved the plan and switched context to building it.
+Cost scales with the spec, not the tier: claims that share code share a spawn, and the batch runs in parallel. `/geniro:implement` re-runs the helper pre-edit as the backstop for a spec gone stale between planning and building — not as the first check, since a defect found there is found after the user approved the plan.
 
 ### 7.5.2 Verdict handling
 

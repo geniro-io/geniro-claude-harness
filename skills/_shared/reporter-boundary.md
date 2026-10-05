@@ -37,7 +37,7 @@ Routing findings to `/geniro:implement` hands off work to fix, not authority to 
 
 ### 3. State writes via atomic_state_write
 
-Every `.geniro/` state and handoff write goes through the `atomic-state-write` helpers (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`), never a raw `Edit` / `Write`, even inside a workflow step. Raw writes trip the `enforce-state-helper` hook and lose atomicity on a mid-crash.
+Every `.geniro/` state and handoff write goes through the `atomic-state-write` helpers (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`), never a raw `Edit` / `Write`, even inside a workflow step. A raw write truncates then rewrites, so a reader (or a mid-crash) sees a torn file; the helper does tmp + fsync + rename.
 
 ### 4. Verify what's verifiable; surface only genuine decisions
 

@@ -2,9 +2,11 @@
 
 # Actions — `edit` sub-command (Phase 5)
 
-Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `edit`. The spine keeps the invariants, the anti-rationalization table, the tool surface and the termination mapping — this file carries the Steps.
+Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `edit`. The spine keeps the invariants, the anti-rationalization table and the termination mapping — this file carries the Steps.
 
 ## Phase 5: `edit` sub-command
+
+**Tool surface.** Allowed: `Read`, `Bash(atomic_state_write, stat, cp, mv, rm -f *.pre-edit.bak)`, `AskQuestion`. Forbidden: `Write`, `Edit`, `mcp__*`, network egress.
 
 ### Step 1 — Resolve target
 
