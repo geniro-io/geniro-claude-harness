@@ -4,8 +4,6 @@
 
 Read at every phase entry, alongside that phase's own body file. `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` keeps the role, the state machine, the loop invariants and the anti-rationalization table; this file carries the operational contracts every phase runs under.
 
-These sections live here rather than in SKILL.md's tail because compaction re-attaches only an early portion of a skill body. Left there they were silently absent from every phase after the first compaction; read here they are present in all three.
-
 ## Contents
 
 - ACI per-phase tool surface
@@ -14,6 +12,7 @@ These sections live here rather than in SKILL.md's tail because compaction re-at
 - State persistence
 - Memory I/O
 - Modifier handling (semantic, deterministic)
+- Loop-invariant detail — the Ship exception to S5, the tool log, custom-instruction load, memory backend, termination reasons
 
 ---
 
@@ -47,11 +46,11 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 ## Subagent model tiering
 
-Plugin agents declare their tier in frontmatter (`model: inherit`, except `test-runner-agent` and `knowledge-retrieval-agent`, both `model: sonnet`) — OMIT `model=` at every judgment-grade spawn site so it governs. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host; on a spawn that fails to start or returns empty, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder and empty-result fallback, then cache the resolved rung for the session.
+**Spawning rule — every spawn site in this skill applies it by citation.** Plugin agents declare their tier in frontmatter (`model: inherit`, except `test-runner-agent` and `knowledge-retrieval-agent`, both `model: sonnet`) — OMIT `model=` at every judgment-grade spawn site so it governs. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host; on a spawn that fails to start or returns empty, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder and empty-result fallback, then cache the resolved rung for the session.
 
 **The three non-judgment spawns — `test-runner-agent`, `knowledge-retrieval-agent`, the Phase 2 code-delegate — take `sonnet` as a ceiling, not a fixed value.** Pass a cheaper tier, with a one-clause reason, where the workload is visibly smaller than the ceiling assumes: a suite re-run after a one-line fix, a delegate slice that is a mechanical rename across its named files. Take the ceiling while the size is still unknown — the run's first test spawn against an unfamiliar suite. One tier per parallel batch, set by its largest member, so delegates spawned together keep a shared cache prefix. Conditions and the haiku caveat: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Sizing a non-judgment spawn.
 
-**`--subagent-model <tier>` pins the judgment spawns for this run and caps the rest.** When `$ARGUMENTS` carries the flag, pass `model="<tier>"` at every judgment-grade spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the `codebase-research-agent` side-query spawns of loop invariant S3, the spec-challenge verifiers, the library-reuse-audit web-research spawn. The three non-judgment spawns take it only when it names a tier cheaper than theirs: the flag buys reasoning depth, and none of the three reasons. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. Persisted to state.md frontmatter `subagent-model:` at Phase 1 Step 4 (§State persistence below) so a compaction before Phase 2 or Phase 3 does not silently revert every spawn back to inherit.
+**`--subagent-model <tier>` pins the judgment spawns for this run and caps the rest.** When `$ARGUMENTS` carries the flag, pass `model="<tier>"` at every judgment-grade spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the `codebase-research-agent` side-query spawns of loop invariant S3, the spec-challenge verifiers, the library-reuse-audit web-research spawn. The three non-judgment spawns take it only when it names a tier cheaper than theirs: the flag buys reasoning depth, and none of the three reasons. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. The flag has no chooser question: it is parsed at Phase 1 Step 1 and persisted to state.md frontmatter `subagent-model:` at Step 4, so a compaction before Phase 2 or Phase 3 does not silently revert every spawn back to inherit.
 
 ---
 
@@ -88,9 +87,7 @@ reviewed_file_set: []     # union of every fix-loop round's CHANGED FILES (imple
 ---
 ```
 
-`subagent-model` has no chooser question — it is flag-only, parsed at Phase 1 Step 1 and persisted at Step 4 so a compaction before Phase 2 or Phase 3 fires does not silently revert every spawn back to inherit.
-
-**Write contract.** Route every state.md mutation through the `atomic-state-write` helpers — a direct `Edit` or `Write` on a canonical state path bypasses the helper and corrupts the file mid-crash; the State-helper enforcement hook hard-blocks such a direct write (exit 2). Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
+**Write contract.** Route every state.md mutation through the `atomic-state-write` helpers — a direct `Edit` or `Write` on a canonical state path truncates and rewrites in place, so a crash mid-write leaves a partial file, whereas the helpers do tmp + fsync + rename and a reader never sees a torn one. Nothing blocks a direct write; the contract is yours. Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
 
 ---
 
@@ -105,7 +102,7 @@ Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in 
 | **Phase 3** | Entry: `load-custom-instructions` (`MODE: refresh`) + `load-custom-reviewers` (round 1 only). Fix loop: `query-learnings` per round. Ship sub-step: `emit-learning`, `update-semantic`, and the `non-resumable-actions[]` write via `atomic_state_write` |
 | **Any phase** | `resolve-conflicts` when the layers disagree — a soft conflict prints the notice and continues on the precedence-winning value; a hard conflict (a custom-instruction rule contradicts project reality) halts and asks. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` |
 
-Each helper's arguments, echo contract, and failure semantics live with the step that calls it. Two rules span all of them — "Custom-instruction load is mandatory in full at every phase entry" and "A declared memory backend redirects every learnings read", both in `SKILL.md` §Loop invariants.
+Each helper's arguments, echo contract, and failure semantics live with the step that calls it. Two rules span all of them — "Custom-instruction load is mandatory in full at every phase entry" and "A declared memory backend redirects every learnings read", both in §Loop-invariant detail below.
 
 ---
 
@@ -115,3 +112,21 @@ Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministical
 
 - **Workspace and run-behavior modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 0b "Inline modifier overrides" (also owns the conflicting-modifiers rule and its soft notice).
 - **Ship-mode modifiers** — `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Inline modifiers from $ARGUMENTS".
+
+---
+
+## Loop-invariant detail
+
+Detail behind the `SKILL.md` §Loop invariants and §State machine, read here at every phase entry.
+
+**Ship exception to S5.** When the Ship sub-step's review-coverage guard finds staged files the fix loop's last round never reviewed, editing reopens once for those diverged files only: fixes go through the fix loop's existing inline-fix rule, a fresh full-suite test run covers any fix it makes before staging whenever an edit landed after the last full run, it counts against neither the round cap nor a new one, and `phase:` stays `ship` throughout. An unbuilt spec requirement the Ship reconciliation step catches is not a second exception — it rolls the run back to `phase: implement` for that requirement and flows forward through Phase 3 again, never an inline edit at Ship.
+
+**`## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into that body section — shape in `implement-reference.md` §"Phase 2: Implement — error-handling". Routine Read/Edit/Bash on local files need no logging: the tool_result return is sufficient.
+
+**Custom-instruction load is mandatory in full at every phase entry.** The pipeline load set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Procedure, with one observable Echo line per file, fires at Phase 1 entry, again at Phase 2 entry, and again at Phase 3 entry.
+
+**A declared memory backend redirects every learnings read.** When `memory.md` carries a `## Memory Backend` block for `learnings`, query the declared read tool instead of the file helper per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" — under `mode: replace` the local `learnings.jsonl` is never written, so the file query returns nothing and only the backend read recalls anything. Absent block → the file query is correct, unchanged.
+
+**Termination reason.** On `phase: aborted`, write one line under `## Termination reason` in the state.md body: `repeated-failure: phase-N retry-limit` / `safety-denied: <rule>` / `tool-unavailable: <tool>` / `user-cancelled: <wrong-worktree | no-ticket-id | spec-replan>` (the last three are the Phase 1 cancel picks). The SessionStart hook re-injects it on resume. A Step 0 cancel that fires before Phase 1 Step 4 created the task directory has no state.md to write — say so in plain English and exit; nothing was mutated and there is nothing to resume.
+
+**Escalation (paused) states.** `phase-2-escalated` and `phase-3-escalated` mean a fix loop is exhausted and an AUQ is open. On resume the recovery re-surfaces "task was paused — your previous options:" so the user re-picks without losing context.

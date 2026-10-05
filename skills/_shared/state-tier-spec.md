@@ -9,7 +9,7 @@ Helpers reference this spec:
 ## Contents
 
 - Tier model — the four tiers and their lifecycle contracts
-- Path roots — which files live under each tier (plus the tier-exempt TDD-cycle state file)
+- Path roots — which files live under each tier
 - No ad-hoc state files under `.geniro/state/` — free-form files bypass the validator, restore hook, and cleanup
 - Frontmatter contract — common-base + tier-specific required fields
 - T2 `open_questions` array schema — the handoff gate substrate
@@ -23,7 +23,7 @@ Helpers reference this spec:
 
 ## Tier model
 
-Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract — with one documented exception, the TDD-cycle state file (see §Path roots → Tier-exempt).
+Every state file in `.geniro/` belongs to exactly one tier, determined by its path root and lifecycle contract.
 
 | Tier | Purpose | Lifecycle | Worktree routing | Concurrency |
 |---|---|---|---|---|
@@ -32,7 +32,7 @@ Every state file in `.geniro/` belongs to exactly one tier, determined by its pa
 | **T2 — HANDOFF** | Inter-skill data handoff | Created by producer; overwritten on next produce; not auto-deleted | primary-worktree (via `primary-worktree.md` Mode A) | branch-scoped path |
 | **T3 — PERSISTENT** | Cross-session knowledge & user content | Never auto-deleted; CRUD or append-only | primary-worktree always | declared via `concurrency:` sub-attribute |
 
-**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via the shared helper `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list; timing per the note under that table). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them. T1.5 surviving is the point: the user keeps the spec, the state log, and the milestone breakdown for audit or for re-running `/implement` against the same task-dir.
+**T1 vs T1.5 distinction.** T1 = ephemeral transient outputs without frontmatter — canonical list: the §T1 table below; they never pass through `validate_state_file` and are deleted at terminal exit via `${CLAUDE_PLUGIN_ROOT}/lib/clean-task-transients.sh` (`clean_task_transients <task-dir>` — the single source of the list). T1.5 = frontmatter-bearing durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) that downstream consumer skills read after the producing skill ships; the cleanup never touches them, so the user keeps the spec, state log, and milestone breakdown for audit or for re-running `/implement` against the same task-dir.
 
 **Who cleans what, and when.**
 
@@ -63,7 +63,7 @@ Transients left behind by an interrupted run are swept by the `/geniro:update` m
 | `.geniro/planning/<task-dir>/.spec-challenge-out.md` | spec-challenge pass scratch report (/plan Phase 7.5, /implement fact-check) |
 | `.geniro/planning/<task-dir>/notes.md` | Orchestrator ad-hoc scratch |
 
-These files carry no frontmatter and never pass through `validate_state_file`. They are cleaned mechanically via targeted `rm -f` before every terminal `phase:` write of the owning run (Ship and all other terminal transitions); leftovers from interrupted runs are swept by the `/geniro:update` migration walk.
+These files carry no frontmatter and never pass through `validate_state_file`; cleanup is per §Who cleans what, and when.
 
 ### T1.5 — three valid layouts (producer-bound; one layout survives Ship)
 
@@ -77,7 +77,7 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 
 **Frontmatter-less companion artifact inside a T1.5 skill dir.** Two producers persist a dated companion file directly under their skill dir, outside any `<slug>/` subdir — no frontmatter, never passed through `validate_state_file`, written via `atomic_state_write` like every `.geniro/state/` path, deliberately surviving cleanup because something downstream still reads it. Their worktree routing differs: `/geniro:audit-instructions`' `.geniro/state/audit-instructions/report-<date>.md` is the next run's do-not-flag input for the SAME checkout, so it stays cwd-relative like the rest of that skill's task-local state. `/geniro:review`'s optional brief at `.geniro/state/review/brief-<branch>-<date>.md` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`) resolves its `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` and routes to the primary worktree, matching the T2 handoff it accompanies — the user's reading aid needs to survive the same worktree removal the handoff is already routed to survive. Both are documented layouts, not ad-hoc ones, which is what keeps them out of the "No ad-hoc state files under `.geniro/state/`" prohibition below.
 
-**Only the `planning/<task-dir>/` layout survives Ship.** The other two T1.5 layouts are deleted at their owning skill's own terminal exit, not at `/geniro:implement`'s or `/geniro:plan`'s Ship — the six session-bound skills `rm -rf` their whole `<skill>/<slug>/` dir (see §Who cleans what, and when), and `/geniro:setup` deletes its singleton `state/setup/state.md` at its Done phase. Bootstrap state describes a one-shot run that is over: no downstream skill reads it, and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. Unlike the session-bound `<skill>/<slug>/` dirs, the setup singleton lives under the primary worktree (`<PRIMARY_ROOT>/.geniro/state/setup/state.md`) — a fresh linked worktree never has its own copy to delete.
+**Only the `planning/<task-dir>/` layout survives Ship.** The other two T1.5 layouts are deleted at their owning skill's own terminal exit (§Who cleans what, and when): bootstrap and session state describe a run that is over, no downstream skill reads them, and a stale setup copy makes the next invocation resolve to `re-run` against a run that already finished. The setup singleton lives under the primary worktree (`<PRIMARY_ROOT>/.geniro/state/setup/state.md`) — a fresh linked worktree never has its own copy to delete.
 
 ### T2
 
@@ -91,13 +91,9 @@ These files carry no frontmatter and never pass through `validate_state_file`. T
 - `.geniro/workflow/` — CRUD (integration config)
 - `.geniro/planning/_FEATURES.md`, `_CODEBASE_MAP.md`, `_project.md`, `_architecture.md`, `_focus-<area>.md` — CRUD global registries (`_` prefix = visual cue for persistent-global)
 
-### Tier-exempt — TDD-cycle state file
-
-- `.geniro/state/tdd/state-<slug>.md` — a live state file under `.geniro/state/` that does NOT belong to the tier model above. It is slug-scoped, single-writer (only the orchestrator that drives the TDD cycle writes it; subagents never write it), Markdown-not-JSON, and written via a custom `mktemp` + `mv -f` atomic procedure rather than `atomic_state_write`. It carries only the current RED/GREEN/REFACTOR/IDLE phase — an unenforced convention, not a mechanically gated one; nothing reads it to block an edit — and it is not a frontmatter-bearing durable artifact, so it is never passed through `validate_state_file`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` §State file contract.
-
 ### No ad-hoc state files under `.geniro/state/`
 
-Every file under `.geniro/state/` conforms to one of the canonical layouts above: `state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, `state/handoff/from-<producer>-<branch>.md`, or the documented `state/tdd/state-<slug>.md` exception. A free-form file dropped directly under `.geniro/state/` — an ad-hoc working note such as `ci-201-verification-tracker.md`, carrying no frontmatter — is invisible to `validate_state_file`, to the SessionStart restore hook, and to the terminal-exit cleanup contract — none of those know to look for it, so it neither resumes nor gets cleaned. Route a working note like that to `.geniro/planning/<task-dir>/` (the scratch tier) instead, where the cleanup contract reaches it.
+Every file under `.geniro/state/` conforms to one of the canonical layouts above: `state/<skill>/<slug>/state.md`, the `state/setup/state.md` singleton, or `state/handoff/from-<producer>-<branch>.md`. A free-form file dropped directly under `.geniro/state/` — an ad-hoc working note such as `ci-201-verification-tracker.md`, carrying no frontmatter — is invisible to `validate_state_file`, to the SessionStart restore hook, and to the terminal-exit cleanup contract — none of those know to look for it, so it neither resumes nor gets cleaned. Route a working note like that to `.geniro/planning/<task-dir>/` (the scratch tier) instead, where the cleanup contract reaches it.
 
 Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never manufacture a second `.geniro/` root inside a linked worktree. The resolver exists precisely so multi-worktree checkouts converge on the primary worktree's root; a split root fragments the file set the restore hook can discover, so a task started under one root cannot resume against the other.
 
@@ -186,7 +182,7 @@ Each entry is `{action, completed-at, <action-specific-fields>}`, where `complet
 
 An unrecognized `action` renders via the hook's generic fallback.
 
-The last two carry no producer: the hook renders them and `tests/hooks/session-start-restore.sh` pins that rendering, but no skill emits either one — a `.geniro/actions/` workflow that posts to Slack or tags a release is the case they were built for, and actions are stateless, so nothing writes a state file to put them in. They stay listed because the renderer is the thing this table has to match: an enum value the hook handles but the table omits is the lockstep breaking in the direction nothing detects.
+The last two carry no producer today; they stay listed because the table must match what the restore hook renders (`tests/hooks/session-start-restore.sh` pins it) — an enum value the hook handles but the table omits is lockstep breaking in the direction nothing detects.
 
 ### T2 required `open_questions` array
 
@@ -263,11 +259,11 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 
 - `spawn_dims_declared: [<dim-slug>, ...]` — declared parallel-spawn list, written at Phase 2 entry before the batch fires. Consumed by Phase 4 §4.0 verification gate (declared-vs-actual diff). **Shared field:** `/geniro:implement` writes the same field at its own Phase 3 Step 1 — see the `/geniro:implement` entry below.
 - `spawn_dims_count: <int>` — denormalized length of `spawn_dims_declared`, same shared-field note.
-- `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default, requires_context}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Carries every short spawn-spec scalar; the unbounded `criteria-content` body is deliberately absent, because `/geniro:review`'s state file and its T2 handoff are the same physical file (`from-review-<branch>.md`), and persisting a user file's whole body into it would pay that cost twice. Phase 2 re-reads `source_path` for the body instead. Consumed by Phase 2 to merge into the spawn batch.
+- `custom_reviewers: [{slug, paths_matched, model, source_path, severity_default, requires_context}, ...]` — discovered in Phase 1.5 §1.5.4 via `load-custom-reviewers.md`. Carries every short spawn-spec scalar; the unbounded `criteria-content` body is deliberately absent (the state file and T2 handoff are the same physical file) — Phase 2 re-reads `source_path` for it. Consumed by Phase 2 to merge into the spawn batch.
 - `mechanical_prepass_attempted: {<check-id>: <findings|clean|error>, ...}` — per-check outcome map written by Phase 1.5 §1.5.6/§1.5.7. Consumed by the Phase 4 §4.0a declaration check. A closed value set matters: `clean` is a recorded outcome, so a healthy diff that produced no findings is distinguishable from a check that was declared and never reached.
 - `report_status: <draft|final>` — whole-report lifecycle. Phase 5.1 writes `draft` so a mid-gate compaction still recovers the findings; the Phase 6 finalize step (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) flips it to `final` only after the Pre-gate (open questions) and the open-decision gate clear. The Action gate's handoff option and the §7.0 Post-drill guard both require `final`. **Back-compat (single source of this rule): a missing `report_status` reads as `final`** — mirrors the `step0_status: missing → resolved` precedent, so handoffs produced before this field exists are not retro-blocked. Other sites reference this rule; they do not restate it.
-- `steering-note: <text|none>` — this round's free-text steering from the user, captured at the re-review gate or the `--focus` flag (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 5); `none` when neither supplied text. Capped at ~500 chars, truncated with a `[…truncated…]` marker — a steering instruction is a short pointer ("focus on the auth path"), not a second rubric. Threaded into every Phase 2 reviewer prompt as the `USER STEERING:` slot — additive attention, never grounds to drop a dimension or a finding (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Input contract carries the full rule). Asked fresh every round like the re-review scope pick (`rereview_scope_choice`), never inherited from a prior round.
-- `brief: <artifact|file|off|pending>` — this run's brief opt-in, answered at the last step of Phase 1 so the brief can co-fire with the Phase 2 reviewer batch instead of starting after it (pre-settable via `--brief` / `--no-brief`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`). Persisted as soon as the answer lands and before the batch fires, so a compaction cannot silently drop it. `off` records a declined offer; a handoff written before this field existed reads the same as `off`. `pending` is the transient form — a `--brief` pre-answer whose medium is not settled yet — written at the Phase 1 flag parse and normally resolved a few steps later at the opt-in; reaching Phase 2 still `pending` means a compaction skipped that step, and the batch response co-fires the brief on the accept it already records while asking only the medium. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`.
+- `steering-note: <text|none>` — this round's free-text steering from the user, captured at the re-review gate or the `--focus` flag (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 5); `none` when neither supplied text. Capped at ~500 chars, truncated with a `[…truncated…]` marker. Threaded into every Phase 2 reviewer prompt as the `USER STEERING:` slot — additive attention, never grounds to drop a dimension or a finding (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Input contract). Asked fresh every round like `rereview_scope_choice`, never inherited.
+- `brief: <artifact|file|off|pending>` — this run's brief opt-in, answered at the last step of Phase 1 so the brief can co-fire with the Phase 2 reviewer batch instead of starting after it (pre-settable via `--brief` / `--no-brief`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`). Persisted as soon as the answer lands and before the batch fires, so a compaction cannot drop it. `off` records a declined offer (a missing field reads as `off`). `pending` is the transient form — a `--brief` pre-answer whose medium is not settled — written at the Phase 1 flag parse; reaching Phase 2 still `pending` means a compaction skipped the opt-in, and the batch response co-fires the brief on the accept it already records while asking only the medium. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`.
 - `subagent-model: <sonnet|opus|haiku|fable>` — set by the `--subagent-model` flag at its Phase 1 parse, announced once at run start. Missing reads as `inherit` (session tier / agent frontmatter governs unchanged). No AUQ backs this field — it is a pre-set the run reads once, not a persisted answer — so a compaction before the spawn batch fires re-applies it without an `approvals[]` entry rather than silently reverting every spawn to the default. Multiplies to every plugin spawn in the run per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. **Shared field:** `/geniro:implement` and `/geniro:review` are the two skills the flag targets; the field is therefore defined once here and not restated per producer section.
 
 **`/geniro:implement` producer-specific fields:**

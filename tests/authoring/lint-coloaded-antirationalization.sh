@@ -8,10 +8,11 @@
 # `## Anti-rationalization` table exceeds the 15-row guideline — but it reads
 # one file at a time, so it cannot see a table that was deliberately SPLIT
 # across two files that always load together. `skills/plan/SKILL.md` states
-# exactly that split: "Loop-level rows ... live in
-# `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Anti-rationalization —
-# co-loaded with this file, and counted against the same <=15-row cap as one
-# table." Both files individually sit under 15 rows, so the per-file check
+# exactly that split: "Loop-level rows live in
+# `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Anti-rationalization,
+# co-loaded with this file; this table keeps the skill-scope rows." The
+# co-loaded pair is counted against one <=15-row cap, as a single table.
+# Both files individually sit under 15 rows, so the per-file check
 # stays silent while the union — what a session actually holds in context at
 # once — sits well over it. Nothing re-derives the sum, so "auditing row #16"
 # never fires.

@@ -1,12 +1,12 @@
 # /geniro:implement — Phase 2: Implement
 
-Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry to Phase 2. The spine keeps the state machine, the loop invariants and the anti-rationalization table; this file carries the Steps. **Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` in the same action as this file** — it carries the tool surface, the state-persistence write contract, subagent model tiering, budgets, memory I/O and the modifier table, all of which bind in this phase.
+Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry to Phase 2. **Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` in the same action as this file.**
 
 ## Contents
 
 - Steps 1-6 — read spec source, todo-list decomposition + file-set partition, pre-change visual baseline (2.5), sequential todo loop (incl. the delegation rule, scope + comment discipline, the unbidden-mutation halt), end-of-phase test run, fix loop, per-criterion `verify:` commands (5.5), escalation (6)
 - State.md update on phase exit · the `## Phase 2 Completion` sentinel · past-learning emit on retry exit
-- Loop visualization
+- Anti-rationalization (Phase 2)
 
 ---
 
@@ -31,7 +31,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
    All todos initially `status: pending`. Persist the authored set to state.md — `todos_declared: [<slug>, ...]` + `todos_declared_count`, one short slug per todo, through two `atomic_state_set_field` calls against the fields Phase 1 seeded — the same declare-before-fire moment `spawn_dims_declared` uses ahead of the Phase 3 reviewer batch (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §Step 1). Mark the FIRST todo `in_progress` before any edit.
 
-   A library adopted at the Phase 1 build-vs-buy library-reuse audit (`approvals[]` category `library_adoption`) also becomes a todo here: add it through the package manager (not by editing a lockfile — lockfile writes stay hook-protected) and integrate it in place of the hand-written component.
+   A library adopted at the Phase 1 build-vs-buy library-reuse audit (`approvals[]` category `library_adoption`) also becomes a todo here: add it through the package manager (not by editing a lockfile by hand — the package manager keeps the lockfile consistent with the manifest) and integrate it in place of the hand-written component.
 
    **Partition the todos by file set.** Name each todo's file set from the Codebase-Explorer "Likely-Touched Files" inventory and the spec, then form delegate groups: a group may bundle several todos whose file sets are pairwise disjoint from each other and from every other group's, and that together share no in-flux type, contract, or import with any other group. A todo whose file set overlaps another todo's, or that shares in-flux type/contract/import with work outside its own group, joins the single coupled group instead, edited inline. This partition is the orchestrator's own call, recorded against the todos (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §"What this category does NOT cover"). Fewer than 2 disjoint groups is the common case, not a shortfall: the single group stays inline unless it is itself a decided mechanical slice (Step 3).
 
@@ -50,9 +50,9 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
        e. Move to next todo
    ```
 
-   The loop runs to completion in one continuous stretch. A completed todo, a green check, and a commit are checkpoints inside it, not handoff points — mark the next todo `in_progress` and keep going in the same turn. Where a checkpoint summary helps the user follow along, write one and then take the next action in that same turn. When the last todo completes, Step 4's test run follows without returning control, and a green suite carries the run into Phase 3.
+   When the last todo completes, Step 4's test run follows without returning control, and a green suite carries the run into Phase 3.
 
-   **Delegating a group.** Step 2's partition sets the default: 2 or more disjoint groups delegate, one `general-purpose` subagent per group — model per `operations-reference.md` §Subagent model tiering (`model="sonnet"` as the ceiling — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §"Execution spawns": the slice is already decided, so the delegate only applies it; pass a cheaper tier for a group that is a mechanical rename or an equally determined edit, one tier for the whole batch). A single group delegates too when it is a decided mechanical slice — fully determined, no design judgment required (a rename across many call sites is the canonical case); otherwise it stays inline as the common case, the orchestrator editing directly. Delegated todos are marked `in_progress` at spawn and `completed` on diff read (invariant S2 covers the exception). Delegate every group the partition yielded, spawned in ONE assistant response, same assistant turn, NOT one per turn — separate turns serialize the spawns and the delegation buys nothing. The binding constraint is the orchestrator's own context: each returned diff is read into the one context that also holds the spec, the rules, and the remaining todos, so when returns come back large, integrate before spawning more. Spawn per the template at `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Code-delegate spawn template". Rules: a delegate edits ONLY its named file set; on return, read its diff and check every reported path against that allowlist — an out-of-bounds path is a boundary violation to surface, not to fold in — and check the diff against the loaded `PROJECT RULES / CONSTRAINTS` (the delegate carries no self-load of `global.md` / `implement.md`, so this integration step is the only check a project Constraint gets against a delegated slice), fixing a violation inline before the todo counts as done; then fold the in-bounds, constraint-clean paths into `CHANGED_FILES`, record to state.md `## Pruned Tests` per §Scope discipline every pruned test case the diff shows, including one the delegate's own report omitted, and mark its todos completed; integrate multiple delegates' returns one at a time.
+   **Delegating a group.** Step 2's partition sets the default: 2 or more disjoint groups delegate, one `general-purpose` subagent per group — model per `operations-reference.md` §Subagent model tiering (`sonnet` ceiling, since the slice is already decided; a cheaper tier for a mechanical rename, one tier for the whole batch). A single group delegates too when it is a decided mechanical slice — fully determined, no design judgment required (a rename across many call sites is the canonical case); otherwise it stays inline as the common case, the orchestrator editing directly. Delegated todos are marked `in_progress` at spawn and `completed` on diff read (invariant S2 covers the exception). Delegate every group the partition yielded, spawned in ONE assistant response, same assistant turn, NOT one per turn — separate turns serialize the spawns and the delegation buys nothing. The binding constraint is the orchestrator's own context: each returned diff is read into the one context that also holds the spec, the rules, and the remaining todos, so when returns come back large, integrate before spawning more. Spawn per the template at `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Code-delegate spawn template". Rules: a delegate edits ONLY its named file set; on return, read its diff and check every reported path against that allowlist — an out-of-bounds path is a boundary violation to surface, not to fold in — and check the diff against the loaded `PROJECT RULES / CONSTRAINTS` (the delegate carries no self-load of `global.md` / `implement.md`, so this integration step is the only check a project Constraint gets against a delegated slice), fixing a violation inline before the todo counts as done; then fold the in-bounds, constraint-clean paths into `CHANGED_FILES`, record to state.md `## Pruned Tests` per §Scope discipline every pruned test case the diff shows, including one the delegate's own report omitted, and mark its todos completed; integrate multiple delegates' returns one at a time.
 
    A delegate that returns empty, errors, or can't finish its slice: check its allowlist for edits already made — a tool error returns no path list; a boundary stop after partial progress often leaves files changed. Surface any out-of-allowlist path as a boundary violation rather than folding it in; fold the rest into `CHANGED_FILES`, reconcile the inline work against that state, then take the rest inline. Never re-spawn the same slice, and never mark a todo `completed` while the work it names is unfinished — a delegate's todo needs a diff to read before it counts as done; an inline todo needs its own content and this turn's state.md write to actually agree the slice is finished (Step 3d).
 
@@ -62,7 +62,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md`. Read on entry 
 
    **Halt on unbidden working-tree mutation.** Between edits, if the working tree changes in ways no in-flight delegate's declared file set accounts for — an edit repeatedly fails with "file changed since read", or files/tests appear on disk — treat it as a concurrent external process, NOT a benign harness restore. Stop and fire an `AskUserQuestion` (header: "Tree changed", options: "Pause — let me resolve the other process" / "Move my work into a fresh worktree and continue there" / "Abort"). Committing from a working tree another process is mutating risks the commit being orphaned by an external reset.
 
-4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, and OUTPUT_PATH `<task-dir>/.tr-out.md` — per the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md`, which omits `MAX_FAILURES_REPORTED` and lets the agent's own declared default govern. Spawn `subagent_type="geniro:test-runner-agent"` under Claude Code, bare `subagent_type="test-runner-agent"` under any other host (`geniro:` is Claude Code's plugin namespace); on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session. Model per `operations-reference.md` §Subagent model tiering — OMIT `model=` so the agent's `model: sonnet` governs on the first run of the phase, and pass a cheaper tier on a fix-loop re-spawn once the first run has shown how large this suite's output actually is. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
+4. **End-of-phase test run via `test-runner-agent`.** After all todos `completed`, spawn `test-runner-agent` once with the project's pre-resolved TEST_COMMAND (from CLAUDE.md "Essential Commands"), the CHANGED_FILES list, and OUTPUT_PATH `<task-dir>/.tr-out.md` — per the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md`, which omits `MAX_FAILURES_REPORTED` and lets the agent's own declared default govern. Agent name per host and spawn-failure ladder: `operations-reference.md` §Subagent model tiering — OMIT `model=` on the first run of the phase, and pass a cheaper tier on a fix-loop re-spawn once the first run has shown how large this suite's output actually is. Read back the OUTPUT_PATH report. Attach the report's Command / Exit code / Summary / Verdict block as Evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`.
 
 5. **In-phase fix loop on test failure.** Up to RETRY_CAP retries (canonical in `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` §Loop invariants, invariant 5; full pseudo-code + token-cost analysis: `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 2: Implement — error-handling"). On each retry: read `.tr-out.md`, escalate-AUQ immediately on `INFRA_ERROR`, edit top-priority failures on `HAS_FAILURES`, re-spawn `test-runner-agent`. On `ALL_GREEN` — by EITHER path (the first-shot end-of-phase run OR a later fix-loop iteration) — run the spec's per-criterion `verify:` commands (step 5.5) BEFORE exiting to Phase 3. Retry exhaust OR an early-escalation trigger (see below) → escalate-AUQ before the RETRY_CAP budget is spent — a loop that is not converging burns the user's tokens on the same wall.
 
@@ -96,31 +96,11 @@ verify: <ALL_GREEN|HAS_FAILURES|INFRA_ERROR|none — <reason>>
 
 **Record a past learning on retry exit.** When Phase 2 exits AND `retry_count ≥ 2` (i.e., at least one fix-iteration happened), call `emit-learning` with `type: retry_failure_sequence`, `trust: verified`, required `ext.{phase: "phase-2-fix-loop", attempts: [...], resolution}`. Each `attempts[]` entry = `{round: N, failure: "<one-line summary>"}`. `resolution ∈ {passed, escalated, aborted}` matches the actual exit state. Sliding-window cap per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Sliding-window caps on bookkeeping types, which owns the window size and the flip-then-append order. Single-retry exits (retry_count == 1) do NOT emit. Future Phase 1 `query-learnings` calls surface this as priming context.
 
-### Loop visualization
+### Anti-rationalization (Phase 2)
 
-```
-PHASE 2 (todo loop — coupled work inline, disjoint groups delegated, both running at once):
-
-  spec.md + Codebase-Explorer report
-       ↓
-  [Phase 2 entry] todo list: decompose into N todos
-       ↓
-  Partition by file set (Step 2 close)
-       │
-       ├─ coupled work (inline, sequential):
-       │    ┌─→ todo[i].in_progress ──→ edit batch ──→ todo[i].completed ─┐
-       │    │                  [i++; loop until all completed]                  │
-       │    └───────────────────────────────────────────────────────────────────┘
-       │
-       └─ disjoint groups (delegated, spawned together in one response):
-            mark in_progress at spawn, completed on diff read,
-            fold in-bounds paths into CHANGED_FILES (integrate large returns before spawning more)
-       ↓  (both tracks run at once — rejoin here)
-  [End-of-Phase] test-runner-agent spawn (one shot)
-       ↓
-  [RETRY_CAP fix-loop on failures]
-       ↓ (suite ALL_GREEN — by either path)
-  [run spec verify: commands] (spec-driven runs only)
-       ↓ (all pass)            ↘ (any fail/refused)
-  Phase 3              [Step 6 escalation AUQ]
-```
+| Your reasoning | Why it's wrong |
+|---|---|
+| "Phase 2 should fan out subagents — by role (backend/frontend) or one per todo — to save wall-time or keep context lean." | Fan-out of COUPLED work (shared contracts, types, imports) is the documented anti-pattern: style drift, duplicated implementations, and contradictions lint/compile cannot catch. The sanctioned form is the orchestrator's partition — todo groups with disjoint file sets and no shared in-flux type, contract, or import, delegated in parallel; everything coupled stays inline, and the orchestrator reads every delegate's diff before accepting it. |
+| "Skip TodoWrite — it's overhead." / "Mark all todos in_progress at start so the orchestrator can interleave work." | TodoWrite gives the user per-unit progress visibility; without it Phase 2 is a black box until tests run. Marking the whole list `in_progress` destroys that visibility just as thoroughly — it reports everything as started and nothing as finished (invariant S2). |
+| "Re-run tests after each file Edit to catch regressions early." | Single end-of-Phase-2 test run via `test-runner-agent`. Per-file test runs explode wall-time on slow suites and burn turns inside the runner agent (one invocation per spawn). |
+| "The working tree keeps changing on its own — it's just the harness restoring my prior session, or a stale-mtime artifact." | A harness restore re-materializes work THIS session already authored; it never writes files or tests you did not create. A change inside an in-flight delegate's declared file set is this run's own work, not a halt signal; one landing outside it is a concurrent external process. Committing from a working tree another process is mutating risks an external reset orphaning the commit — a real near-data-loss failure mode. Stop and fire the "Tree changed" AUQ (Step 3) instead of rationalizing the mutation away. |

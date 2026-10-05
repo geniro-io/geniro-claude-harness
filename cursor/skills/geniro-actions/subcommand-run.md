@@ -2,9 +2,11 @@
 
 # Actions — `run` sub-command (Phase 4)
 
-Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `run`. The spine keeps the invariants, the anti-rationalization table, the tool surface and the termination mapping — this file carries the Steps.
+Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `run`. The spine keeps the invariants, the anti-rationalization table and the termination mapping — this file carries the Steps.
 
 ## Phase 4: `run` sub-command
+
+**Tool surface.** Allowed: whatever the action's steps call. Forbidden: `Agent` (inline-execution invariant).
 
 ### Phase 4.1: Resolve, read, parse
 
@@ -29,7 +31,7 @@ Follow the action body's numbered steps directly, inline in the orchestrator (th
 
 One such trigger per run at most — a second prompt gets less attention than the first, not more — and it is declaration-relative: what the action names versus what the run touched. The count is reported, never the trigger; no number of edits fires this on its own.
 
-**Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. Writes still route through the atomic helpers where the state-helper hook requires them.
+**Persistent-path write routing.** When an action step writes to `.geniro/instructions/`, `.geniro/actions/`, or `.geniro/workflow/` via a relative path, resolve the target against `$PRIMARY_ROOT`, recomputed via the Mode A snippet inside the Bash call performing the write — these three families are persistent user-authored content that must survive worktree removal, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`. Task-local writes (`.geniro/planning/`, `.geniro/state/`) stay cwd-relative. State-path writes still route through the atomic helpers.
 
 If a step has a `[AUQ]` or `## Confirm:` annotation, fire AUQ at that step. On non-zero exit or tool failure → halt with the step number captured, then go to Phase 4.4 and print its wrap-up summary — the failed step number in place of the steps-run count, everything already changed still listed under `Files changed` / `External calls`. This is the terminal the user most needs the summary at: it names what the action already mutated before it stopped. Skip the L2 emit; a failed run is not the successful-external-send case that gates it.
 

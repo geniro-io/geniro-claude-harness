@@ -1,8 +1,10 @@
 # Actions — `validate` sub-command (Phase 7)
 
-Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `validate`. The spine keeps the invariants, the anti-rationalization table, the tool surface and the termination mapping — this file carries the Steps.
+Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `validate`. The spine keeps the invariants, the anti-rationalization table and the termination mapping — this file carries the Steps.
 
 ## Phase 7: `validate` sub-command
+
+**Tool surface.** Allowed: `Read`, `Glob`, `Bash(grep -n, wc)`, `AskUserQuestion`. Forbidden: `Write`, `Edit`, `Agent`, `mcp__*`.
 
 ### Step 1 — Resolve scope
 

@@ -2,9 +2,11 @@
 
 # Actions — `list` sub-command (Phase 2)
 
-Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `list`. The spine keeps the invariants, the anti-rationalization table, the tool surface and the termination mapping — this file carries the Steps.
+Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `list`. The spine keeps the invariants, the anti-rationalization table and the termination mapping — this file carries the Steps.
 
 ## Phase 2: `list` sub-command
+
+**Tool surface.** Allowed: `Read`, `Glob`, `Bash(ls...)`, `AskQuestion`. Forbidden: `Write`, `Edit`, `Agent`, `mcp__*`.
 
 ### Step 1 — Scan directory
 

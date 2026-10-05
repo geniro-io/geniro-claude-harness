@@ -4,6 +4,7 @@
 
 ## Contents
 
+- Frontmatter field reference — every field's value set and cap.
 - Custom reviewer authoring (review-extra) — body shape, severity-default, paths scoping, model choice, count caps.
 - Mode: create — review-extra variant — the slug-bearing flow:
   - Step 1: Resolve the slug
@@ -17,9 +18,20 @@
   - Step 9: Confirm
 - Worked example — an adversarial reviewer for high-risk paths (a complete, copy-adaptable `review-extra/adversarial.md`).
 
-Companion file to `SKILL.md` for the `review-extra` directory-style scope. `phase-1-parse.md` keeps the scope resolution and the sibling `mode-<op>.md` files keep the list / edit / validate / delete Steps; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-9), which replaces the singleton-file flow in `mode-create.md` for this one scope. Load this file when the resolved scope is `review-extra` and the mode is `create`, OR when the user asks for guidance on writing a custom reviewer. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it with the one-line resolver in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` Step 0.5, in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal).
+Companion file to `SKILL.md` for the `review-extra` directory-style scope. `phase-1-parse.md` keeps the scope resolution and the sibling `mode-<op>.md` files keep the list / edit / validate / delete Steps; this file holds the authoring guidance and the slug-bearing `create` flow (Steps 1-9), which replaces the singleton-file flow in `mode-create.md` for this one scope. Load this file when the resolved scope is `review-extra` and the mode is `create`, OR when the user asks for guidance on writing a custom reviewer; `mode-validate.md` also reads it for §Frontmatter field reference. `PRIMARY_ROOT` in the commands below is the main repo checkout root — resolve it with the one-line resolver in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` Step 0.5, in each Bash call that uses it (shell state does not persist across Bash calls; custom reviewers are cross-session content that must survive worktree removal).
 
-For the load-bearing rules referenced below: the validation rules are in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-validate.md` §Step 2 — Lint rule set (the `review-extra/<slug>.md` row in the per-scope table); the file structure is in `SKILL.md` §File shapes (for the loaded instruction files) and §Frontmatter field reference (for this scope's own schema).
+For the load-bearing rules referenced below: the validation rules are in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-validate.md` §Step 2 — Lint rule set (the `review-extra/<slug>.md` row in the per-scope table); the file structure is in `SKILL.md` §File shapes (for the loaded instruction files) and §Frontmatter field reference below (for this scope's own schema).
+
+## Frontmatter field reference
+
+The single source for every field's value set and length cap — validate-mode's per-scope check resolves here rather than restating them.
+
+- `slug` (required) — must satisfy the rules `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Discovery procedure Step 4 enforces at load time: the filename without `.md`, matching `^[a-z][a-z0-9-]*$`, and not colliding with a reserved dimension name. That file owns the reserved list, because it is the runtime enforcer — a slug this skill accepts but the loader rejects produces a file the user believes is active while its criteria silently never run.
+- `description` (required) — one-line summary; the same routing-surface role `description-quality.md` grades, so the cap mirrors `_VAF_DESC_MAX_CHARS` in `${CLAUDE_PLUGIN_ROOT}/lib/validate-action-file.sh`, the action-file description's cap.
+- `model` (optional) — `haiku`/`sonnet`/`opus`/`fable`/`inherit`, plus `auto` outside Claude Code; omitted = `inherit` (the reviewer runs at the orchestrator's tier, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md`). Declare a tier only to deliberately pin this reviewer cheaper or stronger than the session.
+- `paths` (optional) — list of globs.
+- `severity-default` (optional) — `CRITICAL`/`HIGH`/`MEDIUM`/`LOW`; default `MEDIUM`.
+- `requires-context` (optional) — natural-language directive naming the live external data this reviewer needs (a Notion page, a Linear issue, an API response). The orchestrator pre-fetches the data at spawn time — deterministic hydration into a fixed snapshot, since MCP tool names are per-install and unknowable when the reviewer's tool surface is fixed — and injects it as a `CUSTOM CONTEXT:` block, failing open if it's unavailable (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Hydrating requires-context). Omit unless the reviewer genuinely needs external data. Example: `requires-context: "Fetch the live Notion Incident Report (latest entry) and provide its incident-pattern list."`
 
 ## Custom reviewer authoring (review-extra)
 
@@ -118,7 +130,7 @@ On "Change a field", fire `AskQuestion` (header: "Field") over the four fields �
 
 ### Step 8: Write the file
 
-Route the approved file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook.
+Route the approved file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/instructions/review-extra/{{slug}}.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` (with the caller-side optimistic mtime check T3 CRUD requires) — a direct `Edit`/`Write` truncates and rewrites in place, so a crash mid-write leaves a partial file.
 
 Example output for the `sql-bindings` walk-through (`model:` omitted, so the reviewer inherits the session tier):
 

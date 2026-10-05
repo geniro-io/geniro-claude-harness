@@ -281,7 +281,7 @@ Adds format checks to the existing Phase 4 validation gate. Applies to BOTH impr
 
 For each changed/created SKILL.md, check the YAML `description:` field:
 
-1. **Length within budget**: per `.claude/rules/skill-structure.md` §Frontmatter hygiene. Warning if violated (not blocker — content matters more than character count). Flag a description only for exceeding this limit, never for verbosity: its trigger keywords + what/when drive skill selection, so trimming them to save tokens degrades discovery.
+1. **Length within budget**: per `.claude/rules/skill-structure.md` §Frontmatter hygiene. Warning if violated (not blocker). Flag a description that is over budget OR verbose — a process summary, argument docs `argument-hint` already carries, identity the body carries. Keep the trigger keywords: they drive skill selection.
 2. **Third person**: description should read as "use when X" / "the skill does Y" — NOT "I will X" / "you should X". Check: grep for `\b(I |my |me |you |your )\b` in the description; if matches, flag as warning.
 3. **"Use when" trigger clause**: description should include a phrase like "Use when …" / "Use for …" / "Trigger when …" — names the conditions that activate the skill. Required (warning if missing).
 4. **"Skip for" anti-trigger clause** (recommended, not required): "Skip for X — use Y instead" — disambiguates against neighbor skills. Adds a recommendation note when missing; not a warning.

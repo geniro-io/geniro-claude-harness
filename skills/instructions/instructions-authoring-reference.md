@@ -1,6 +1,6 @@
 # Instructions — authoring reference
 
-Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. The orchestrator reads this file when SKILL.md references one of the sections below by name.
+Detail sections for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`: the per-scope file shapes and create scaffolds, the instruction-writing principles, and the per-skill phase enums validate-mode checks against. Read the section SKILL.md names.
 
 ## Contents
 
@@ -50,7 +50,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.
 - layer: learnings   # mode: mirror|replace; write: <mcp tool>; read: <read-only mcp tool>
 ```
 
-**`review-extra/<slug>`** — YAML frontmatter plus a `# Criteria` body. Field constraints: SKILL.md §Frontmatter field reference.
+**`review-extra/<slug>`** — YAML frontmatter plus a `# Criteria` body. Field constraints: `instructions-review-extra.md` §Frontmatter field reference.
 
 ```yaml
 ---

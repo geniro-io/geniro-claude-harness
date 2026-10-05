@@ -2,7 +2,7 @@
 # Single source of truth for the branch -> state-file slug derivation.
 #
 # A skill writes state under a slug derived from the branch name
-# (.geniro/state/tdd/state-<slug>.md, .geniro/planning/<slug>/...). The
+# (.geniro/state/<skill>/<slug>/state.md, .geniro/planning/<slug>/...). The
 # session-start-restore hook must derive the SAME slug to read that state
 # back. A divergent derivation (e.g. a different truncation length) computes a
 # slug no producer ever wrote, so Tier-1 state resolution misses on every long

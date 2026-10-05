@@ -4,7 +4,7 @@
 
 Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase order, the gates that bind every phase, and a pointer to the file holding each phase's steps. This file plus the phase files it names are the single source of truth for the loop. Skills cite them; do NOT inline-paste the loop logic.
 
-**How to run the loop.** Read this spine at entry; Read a phase's steps file on entry to that phase, not up front. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this loop's gates and its helper call sites, so work started before the Read runs outside them. Pre-loading every phase file pays the whole loop to run one phase, and Claude Code re-attaches only a skill's front-loaded prefix after a summary — so what a pre-load spends its budget losing is the gates below. Read Phase 2's file only once its UI trigger fires. Each phase file ends by naming the next `phase:` value; look it up in §Phase files and Read that one. On a compaction resume, re-Read this spine plus the current phase's file.
+**How to run the loop.** Read this spine at entry; Read a phase's steps file on entry to that phase, not up front, as its physically-first action with a one-line echo (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`) — the phase files hold this loop's gates and helper call sites, and a pre-load spends the budget a post-summary re-attach then loses. Read Phase 2's file only once its UI trigger fires. Each phase file ends by naming the next `phase:` value; look it up in §Phase files. On a compaction resume, re-Read this spine plus the current phase's file.
 
 ## Contents
 
@@ -13,7 +13,6 @@ Canonical phase pattern for `/geniro:plan`, and the spine of the loop: the phase
 - Echo contract
 - Spawn contract
 - Phase files — the pointer table
-- Phase 0 .. Phase 9 — one stub per phase, naming the file that holds its steps
 - Terminal states
 - Definition of Done
 - Anti-rationalization
@@ -39,7 +38,7 @@ Every gate that presents rich, multi-part content — Phase 3 grill questions, P
 The Phase 4, Phase 5, and Phase 8 gate messages render in the shared visual language defined canonically in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language — progress tracker, one-sentence opener, friendly digest blocks (lead sentence / `**Why:**` with evidence cite / `**How it gets built:**` / `**You'll see:**`), a visual per unit, light heading icons, closed against the plain-English bar. The plan instantiation:
 
 - **Journey stops.** The tracker runs over the stops `Approach · Goal & scope · Steps · Safety · Final approval` (the three middle stops are the Phase 5 clusters under short display labels). Example at Phase 5 cluster 1: `✔ Approach · ● Goal & scope (step 1 of 3) · ○ Steps · ○ Safety · ○ Final approval`. When Trivial tier collapses clusters, show the collapsed stops.
-- **Per-section visuals.** Every section or approach carries the visual shape mapped in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map" — scope map, steps flow diagram, risks table, done-condition checklist, approach data-flow; render plain text instead only when a section genuinely has nothing to map (e.g., "none — task scope precludes"). Each section also closes on a concrete example of its content, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-reference.md` §"Concrete example per section type".
+- **Per-section visuals.** Every section or approach carries the visual shape mapped in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Plan-unit visual map" — scope map, steps flow diagram, risks table, done-condition checklist, approach data-flow; render plain text instead only when a section genuinely has nothing to map (e.g., "none — task scope precludes"). Each section also closes on a concrete example of its content, per `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2 (its example table).
 - **Section-heading icons** — e.g. 🎯 objective / 📦 included / 🚫 excluded / ⚠️ risks / 🧪 validation / ↩️ rollback / ✅ done.
 
 **One decision per logical unit.** Phase 5 fires ONE question per cluster (not one per section); Phase 4 fires ONE question for the approach choice; Phase 8 fires ONE question for the whole spec. Collapsing per-item questions into one-per-unit stops the gate from re-asking decisions the user already settled upstream (in clarify / approaches), which is the click-through fatigue this contract also prevents. Per-decision persistence granularity is unchanged — a unit-level approval still writes one `approvals[]` entry per item it covers (Phase 5 §5.2).
@@ -73,7 +72,7 @@ Phase 7 validator (check `source_materials`) requires ≥1 Agent entry with `sta
 
 Cross-phase, binding every subagent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, and the Phase 4 stress-test critics.
 
-Subagent model selection: follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Judgment-grade spawns OMIT `model=`. Spawn with `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host (`geniro:` is Claude Code's plugin namespace; no other host has one); on a spawn that fails to start or an empty (0-token) result, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its ladder / empty-result fallback, then cache the resolved form for the session.
+Spawn custom plugin agents per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (host-dependent ladder, empty-result fallback; cache the resolved form for the session). Judgment-grade spawns OMIT `model=` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 
 ---
 
@@ -100,53 +99,7 @@ Two cross-phase files, both conditional:
 - `loop-artifact-call-sites.md` — the visual plan artifact's first publish plus every per-gate call site. Read at §1.5 only when `artifact_mode: true`; without artifact mode every **Artifact** line in a phase file is a silent no-op and this file is never loaded.
 - `loop-definition-of-done.md` — the run-completion checklist. Read at Phase 9, before the terminal `phase:` write.
 
-The table is the phase order. Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator hard-fail re-enters write-spec, and a Phase 8 revision re-enters section-approve; visual-companion "Adjust the plan instead" re-enters explore, a Phase 7.5 `re-plan` verdict re-enters approaches, and a Phase 7.5 milestone re-open re-enters write-spec.
-
----
-
-## Phase 0 — Mode detect
-
-`phase: mode-detect`. Steps in `loop-phase-0-mode-detect.md`: §0.1 $ARGUMENTS + opt-in-flag + launch-modifier resolution · §0.2 DESIGN_DOC mode AUQ · §0.2.5 visual-artifact opt-in · §0.3 task-dir + state.md creation · §0.4 cancel handling.
-
-## Phase 1 — Explore
-
-`phase: explore`. Steps in `loop-phase-1-explore.md`: §1.1 memory layer loading · §1.1b branch freshness · §1.2 effort-tier-scaled research spawns · §1.4 workflow refs fetch (tracker linkage) · §1.5 transition to Phase 2 (drain, synthesis, the Trivial skip). §1.3 Echo contract is the §Echo contract above.
-
-## Phase 2 — Visual Companion (UI-conditional)
-
-`phase: visual-companion`. Steps in `loop-phase-2-visual-companion.md`: §2.1 trigger detection · §2.2 UI preview procedure · §2.3 persistence · §2.4 routing-out signal. The §2.1 trigger is evaluated at the §1.5 transition, which also names the phase entered when it does not match.
-
-## Phase 3 — Grill (decision-tree clarification)
-
-`phase: clarify`. Steps in `loop-phase-3-grill.md`: §3.1 build the decision tree · §3.2 AUQ shape · §3.3 persistence · §3.4 checkpoint gate and termination.
-
-## Phase 4 — Approaches
-
-`phase: approaches`. Steps in `loop-phase-4-approaches.md`: §4.1 approach generation · §4.2 independent stress-test · §4.2.5 build-vs-buy library reuse · §4.3 present approaches (message-first) · §4.4 persistence.
-
-## Phase 5 — Section approval
-
-`phase: section-approve`. Steps in `loop-phase-5-section-approval.md`: §5.1 section template (the standard spec schema, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) · §5.2 cluster approval · §5.3 milestone-mode.
-
-## Phase 6 — Write spec.md
-
-`phase: write-spec`. Steps in `loop-phase-6-write-spec.md`: §6.0 refresh custom instructions · §6.1 write contract (including the `workflow_refs[]` copy and the `m5-v1`/`m5-v2`/`m5-v3` schema-version rule) · §6.2 no auto-commit · §6.3 milestone-mode write fan-out · §6.4 idempotent re-entry (compaction-safe). This is the canonical writer of all three design-doc detection markers.
-
-## Phase 7 — Mechanical validator
-
-`phase: validate`. Steps in `loop-phase-7-validator.md`: §7.1 mechanical pass-through · §7.2 validator checks · §7.3 hard-fail handling · §7.4 no transition to Phase 7.5 if the validator hard-fails.
-
-## Phase 7.5 — Spec challenge
-
-`phase: spec-challenge`. Steps in `loop-phase-7.5-spec-challenge.md`: §7.5.1 invoke the challenge helper · §7.5.2 verdict handling · §7.5.3 advisory + fail-open.
-
-## Phase 8 — User approval
-
-`phase: user-approve`. Steps in `loop-phase-8-user-approval.md`: §8.0 refresh custom instructions · §8.1 approval gate · §8.2 shape (message-first) · §8.3 revision-round escalation · §8.3.5 launch config · §8.4 approve → git commit (step 2 carries the write-time `launch_config` enum assertion) · §8.5 record a learning · §8.6 custom post-approval steps.
-
-## Phase 9 — Handoff
-
-`phase: handoff`. Steps in `loop-phase-9-handoff.md`: §9.1 print next-step command · §9.2 clean up transient working files · §9.3 terminal transition.
+The table is the phase order; re-entry edges are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/SKILL.md` §Phase structure.
 
 ---
 

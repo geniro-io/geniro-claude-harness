@@ -1,6 +1,6 @@
 ---
 name: eval-loop
-description: "Use when improving a plugin module through the evals/loop measurement cycle — proposing a hypothesis, screening a variant against the champion, judging runs, reading verdicts, confirming on holdout, promoting a winner, calibrating the judge, or growing a benchmark. Owns the judgment half of the loop (error analysis, EXP files, blind judge subagents, spend approval, promotion) on top of the mechanical scripts. Skip for one-off plugin fixes (/improve-template)."
+description: "Use when improving a plugin module through the evals/loop cycle: hypothesis, screening a variant against the champion, judging, verdicts, holdout, promotion, judge calibration, growing the benchmark. Skip for one-off plugin fixes (/improve-template)."
 context: main
 model: inherit
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, TodoWrite]

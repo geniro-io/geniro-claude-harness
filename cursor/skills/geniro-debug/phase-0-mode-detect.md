@@ -11,10 +11,13 @@
 - $ARGUMENTS routing
 - Anchored verify-keyword signals
 - Approvals-persistence protocol
+- Tool surface
 
-Phase file for `/geniro:debug`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
+Phase file for `/geniro:debug`. The spine — invariants, budgets, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
 
-state.md `phase: mode-detect`. **Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Echo per the helper's contract.
+state.md `phase: mode-detect`. Exits when the mode is picked and persisted to `approvals[]`: Scientific → `phase: investigate`, Adversarial → `phase: adversarial-mode-detect`.
+
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: initial-load`. Echo per the helper's contract.
 
 **Step 0.1 — Entry-time working-tree baseline.** On a fresh run (skip on compaction-resume — the baseline already lives in state.md), before Step 0.2 evaluates the workspace decision, run `git status --porcelain` from the worktree root and capture its changed-path list — Step 0.2's recommendation policy reads it to decide which workspace option to recommend. Hold the captured list in working memory rather than writing it here: debug keys `.geniro/state/debug/<slug>/` to the branch (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules), and Step 0.2 is what may change the branch, so a write here would land under the slug this run is about to leave. Step 0.2 persists `baseline-dirty-paths` itself, in the phase's first `atomic_state_write`, after its own git action (if any) settles. The Step 0.3 branch-freshness pick writes its own `approvals[]` entry, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` §7. Phase 3 §3.1's working-tree check subtracts this baseline — Adversarial Mode's ship path never reads it.
 
@@ -69,3 +72,5 @@ $ARGUMENTS routing:
 **Approvals-persistence protocol:** before firing the empty-AUQ, check state.md frontmatter `approvals[]` for prior entry with `category: disambiguate_mode`. If found, use prior `picked` value. If not, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_append_list_item` before proceeding. The session-start restore re-surfaces this saved choice from `approvals[]` on resume.
 
 When in doubt (ambiguous input), default to Scientific Mode — user can re-invoke with explicit adversarial phrasing if needed.
+
+**Tool surface.** Read, plus Bash limited to `git branch --show-current` / `git rev-parse`, Step 0.3's `git fetch` / `git merge` / `git rebase` / `git stash` / `git pull --ff-only` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`), Step 0.2's `git worktree add` / `git checkout -b` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md`), and `atomic_state_write` to persist the mode / freshness / workspace picks. `AskQuestion` for those gates. EnterWorktree immediately after Step 0.2's `git worktree add`, so the run investigates inside the tree it just cut, not the protected checkout; ExitWorktree to leave it. Blocked: any write or edit to project files, and any ship or side-effect command (`git commit`, `git push`, `gh pr create`).

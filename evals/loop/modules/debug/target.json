@@ -39,8 +39,8 @@
       "to": "criteria/infrastructure.md"
     },
     {
-      "from": "skills/debug/debug-state-reference.md",
-      "section": "4. Isolation techniques",
+      "from": "skills/debug/phase-1-investigate.md",
+      "section": "Isolation techniques",
       "to": "criteria/isolation.md"
     }
   ],

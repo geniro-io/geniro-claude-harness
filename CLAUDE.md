@@ -39,7 +39,7 @@ EOF
 
 **Nothing enforces it — the contract is yours.** No hook checks state writes: a `Write`/`Edit`, a redirection, `tee`, `sed -i`, or an interpreter's `open(p,'w')` into a state path all go through undetected. The `enforce-state-helper` guard was deleted 2026-09-29 (`HOOKS.md` §Removed guards) — its blocks made runs re-send identical content through the helper, and not one prevented a torn write.
 
-Do not restate tier facts in this file — the copy drifts. Tier model, per-tier frontmatter, the terminal-exit cleanup contract, and the TDD carve-out are canonical in `skills/_shared/state-tier-spec.md`. Helper exit codes and the optimistic mtime-check pattern: `atomic-state-write.md`. Validator exit codes and the recovery prompt when validation fails before a resume: `validate-state-file.md`.
+Do not restate tier facts in this file — the copy drifts. Tier model, per-tier frontmatter, and the terminal-exit cleanup contract are canonical in `skills/_shared/state-tier-spec.md`. Helper exit codes and the optimistic mtime-check pattern: `atomic-state-write.md`. Validator exit codes and the recovery prompt when validation fails before a resume: `validate-state-file.md`.
 
 ## Memory Layers
 

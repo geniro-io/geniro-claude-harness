@@ -62,7 +62,7 @@ When you find yourself writing a second sentence to clarify how a field should b
 ```yaml
 ---
 name: <slug>                       # bare slug — Claude Code prefixes the plugin name (`geniro`)
-description: "Use when ..."        # third-person, what + when, slightly pushy, <=1024 chars, no XML
+description: "Use when ..."        # third-person, trigger + optional "Skip for ...", <=250 chars, no XML
 context: main                      # or fork (for subagent-isolation skills)
 model: inherit                     # default; per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md
 allowed-tools: [Read, Write, ...]  # explicit allowlist
@@ -70,12 +70,12 @@ argument-hint: "[shape | empty]"   # one-line cue
 ---
 ```
 
-Description rules:
+Description rules — every description loads into every session's skill listing, so each word is paid on every turn:
 1. **Third person.** Good: "Processes Excel files." Bad: "I can help you" / "You can use this."
-2. **What + when.** Don't describe behavior without saying when to invoke.
-3. **Slightly pushy** — lead with `Use when <trigger phrase>.` to combat under-triggering.
-4. **No reserved words** (`anthropic`, `claude`) in `name:`.
-5. **No XML tags** anywhere in the description.
+2. **≤250 characters, "Use when …" opener, optional "Skip for …" tail.** One trigger per branch; cut identity and process summary the body already carries.
+3. **No reserved words** (`anthropic`, `claude`) in `name:`.
+4. **No XML tags** anywhere in the description.
+5. **Hand-only skills** — one that only ever starts by hand (no other skill invokes it inline) — set `disable-model-invocation: true` so its description stops loading every session. A skill another skill hands off to stays model-invoked.
 
 ### `maxTurns` on agent frontmatter
 
@@ -129,4 +129,4 @@ Each row is `| reasoning the model might generate | why that reasoning is wrong 
 2. **Reference depth.** Any file this edit makes a skill cite must not itself pull runtime instructions from another skill's body (§Reference graph).
 3. **TOC presence.** A runtime-Read file past ~1,200 words has a Contents block near the top. `agents/*.md` are exempt.
 4. **No pseudo-code duplication.** A block added to SKILL.md must not also live in the sibling reference file.
-5. **Frontmatter description** is third-person, "Use when …" form, within the length limit.
+5. **Frontmatter description** is third-person, "Use when …" form, within the 250-character budget.

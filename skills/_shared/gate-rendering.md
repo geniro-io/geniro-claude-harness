@@ -24,7 +24,7 @@ Any gate that presents rich multi-part content before a decision:
 - Run-outcome and investigation gates — /geniro:review's report wrap-up (Action gate) and round-escalation, /geniro:debug's stall / fix-fail / open-question gates, /geniro:refactor's HIGH-risk step approval and blocked/regression escalations, /geniro:resolve's Phase 3 ship gate (items fixed, items declined, the test result, and the exact replies about to be posted).
 - Rule-improvement candidate gates — /geniro:reflect's per-candidate "write this project rule?" walk (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation). No other skill fires one.
 
-The two-step shape — render to a SEPARATE chat message first, then a lean `AskUserQuestion` — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, together with the separate-message rule; the render-exists check and the pre-fire scrub sit in the companion reference, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate, "Scrub before the AUQ fires". Every calling contract above cites those files rather than restating them. This file defines the visual language the render uses; consult per-finding-question.md for when and how the render fires.
+The two-step shape — render to a SEPARATE chat message first, then a lean `AskUserQuestion` — is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering (which also holds the finding-gate render template), with the separate-message rule; the render-exists check and the pre-fire scrub sit in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate, "Scrub before the AUQ fires". This file defines the visual language the render uses.
 
 ## Two explanation layers
 
@@ -118,7 +118,7 @@ The two-step shape leaves a seam between its steps: the render is emitted as its
 
 **When the render is missing, write it.** A question that points at content "above" is honest only while that content is on the user's screen. On reaching a gate whose render was never emitted, write the full render as an ordinary chat message — the digest, evidence, and visuals the question refers to — then fire the same question, options unchanged. Three shortcuts each produce the blind approval the two-step shape exists to prevent: putting the options in chat as plain text (no structured answer is captured, so the approvals persistence has nothing to restore on resume), dropping the gate (the decision is never made), and stripping the "above" reference so a bare question reads self-contained when its evidence was never shown.
 
-This section is the inverse of the separate-message rule: that rule forbids cramming the render and the question into one assistant message; this one requires the question to follow the render. Both exist because the underlying model has a documented early-stopping failure mode — deep into a long session it can end on a text-only statement of intent without issuing the corresponding tool call. Gates sit exactly on that seam, so the question-fire is part of the render's own action, not a follow-up that can be dropped.
+This section is the inverse of the separate-message rule (which forbids cramming render and question into one message). Gates sit on exactly the seam where a long session's early-stopping failure mode — ending on a text-only statement of intent without the tool call — bites, so the question-fire is part of the render's own action.
 
 ## Explain-further option
 
@@ -145,6 +145,6 @@ The lean `AskUserQuestion` that follows the render obeys these conventions at ev
 
 ## Why this exists
 
-One language across plan, review, implement, debug, and refactor means the user learns the gate shape once and reads every gate the same way — the rationale for rendering the decision body before the question at all is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Why this exists.
+One language across plan, review, implement, debug, and refactor means the user learns the gate shape once and reads every gate the same way; the rationale for rendering the decision body before the question is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Why this exists.
 
-The layer split exists because the two readers of a gate want opposite things from the same paragraph. The user deciding wants the situation and the stakes; the user checking wants the cites. Interleaving them serves neither: a technical detail landing in the second sentence forces the first reader to parse an identifier before they have the concept, and it buries the cites the second reader came for inside prose. Split, both readers get a block written for them, and either can skip the other's.
+The layer split exists because the two readers of a gate want opposite things from the same paragraph: the user deciding wants the situation and the stakes, the user checking wants the cites. Interleaved, a technical detail in the second sentence forces the first reader to parse an identifier before they have the concept and buries the cites the second reader came for. Split, each gets a block written for them and can skip the other's.

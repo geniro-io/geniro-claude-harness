@@ -17,7 +17,7 @@ Read `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` (`review-extra/<slug>.md`
 - `Rewrite via dialogue` — Interview-style sequence of AUQs (Add a Rule / Add an Additional Step / Add a Constraint / Remove a Rule by number / Done). Apply edits to an in-memory copy; final write AUQ-gated.
 - `Cancel`
 
-**The write.** Both editing paths land the approved body through `atomic_state_write` targeting the same `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` Step 1 read, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/instructions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook. Carry the caller-side optimistic mtime check T3 CRUD requires: `edit` is a read-modify-write over user-authored rules, so a file changed since Step 1 loses that change silently.
+**The write.** Both editing paths land the approved body through `atomic_state_write` targeting the same `"$PRIMARY_ROOT"/.geniro/instructions/<scope>.md` Step 1 read, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — a direct `Edit`/`Write` truncates and rewrites in place, so a crash mid-write leaves a partial file. Carry the caller-side optimistic mtime check T3 CRUD requires: `edit` is a read-modify-write over user-authored rules, so a file changed since Step 1 loses that change silently.
 
 ### Step 3 — Re-validate (review-extra only)
 

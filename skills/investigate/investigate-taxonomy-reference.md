@@ -9,7 +9,7 @@ Detail sections extracted from `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.m
 3. Phase 2 research-agent spawn templates (Codebase / Git / Internet)
 4. Phase 3 fresh verifier agent spawn template
 5. Answer-structure templates per question type (How / Why / What-if / Compare / Risk)
-6. Extended examples (design rationale, impact analysis, forward-looking integration)
+6. Worked examples (feature understanding, design rationale, impact analysis, forward-looking integration)
 
 ---
 
@@ -368,7 +368,18 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 ---
 
-## 6. Extended examples
+## 6. Worked examples
+
+### Example 1: Understanding a feature
+
+```
+/geniro:investigate how does the authentication flow work?
+```
+→ Codebase agent traces auth middleware, token validation, session management
+→ Git agent finds when auth was added and major changes
+→ Synthesize into execution flow with file:line references
+→ Fresh verifier checks all references are accurate
+→ Present: flow diagram + key files + edge cases
 
 ### Example 2: Design rationale
 

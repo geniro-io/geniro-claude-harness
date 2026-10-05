@@ -6,7 +6,7 @@ State.md `phase: write-spec` during this phase.
 
 ### 6.0 Refresh custom instructions
 
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`. Re-Read all files and echo per the helper's contract.
 
 The loop's other load sites are Phase 1 (§1.1) and Phase 8 (§8.0). This phase authors `spec.md`, so the project's rules have to be the ones on disk now, not the ones read before the grill and approach rounds.
 
@@ -25,28 +25,9 @@ Set the schema version from what the copied `workflow_refs[]` actually carry:
 
 The Phase 7 validator shape-checks `workflow_refs` on m5-v2 / m5-v3 / m5-v4, so an m5-v1 spec carrying the field would escape validation — never emit m5-v1 when `workflow_refs:` is present.
 
-Write spec.md (and state.md / each `milestone-N.md`) via `atomic_state_write` — source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`, then feed the full file content on stdin via a heredoc, the same helper used for every state.md write, so a reader never sees a half-written spec:
+Write spec.md (and state.md / each `milestone-N.md`) via `atomic_state_write` (source `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh`; usage in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`), so a reader never sees a half-written spec.
 
-```bash
-source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"
-atomic_state_write ".geniro/planning/<slug>/spec.md" <<'EOF'
----
-<spec frontmatter>
----
-
-<spec body — per spec-template.md schema>
-EOF
-```
-
-After writing spec.md, append a `## Tool log` entry to state.md via `atomic_state_append_section`:
-
-```yaml
-- ts: 2026-05-17T11:08:00Z
- tool: atomic_state_write
- detail: ".geniro/planning/<slug>/spec.md"
- status: ok
- result_ref: "<bytes-count>"
-```
+After writing spec.md, append a `## Tool log` entry to state.md via `atomic_state_append_section` in the plan-loop §Echo contract shape — `tool: atomic_state_write`, `detail: <spec path>`, `status: ok`, `result_ref: <bytes-count>`.
 
 **Artifact** — after spec.md is written, fire the update for this site (call-site table in `loop-artifact-call-sites.md`).
 

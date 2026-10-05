@@ -21,7 +21,7 @@
 # inline-paste the procedure" is the corpus's own CORRECT single-source-of-
 # truth sentence (skill-structure.md §Reference graph), stated verbatim and
 # legitimately in at least 8 `_shared/*.md` helpers (data-sources.md,
-# spec-challenge.md, task-chain-context.md, tdd-cycle.md,
+# spec-challenge.md, task-chain-context.md,
 # verification-surface.md, design-doc-detect.md, memory-backend.md,
 # prior-work-scan.md). Including it would hard-fail every one of them on
 # their correct, load-bearing text — the opposite of what T2-5 asks for — so

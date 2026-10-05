@@ -2,7 +2,7 @@
 
 # Instructions — Phase 1: Parse intent
 
-Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on entry to Phase 1, and again on any resumption of it, including after a compaction. The spine keeps the scope set, the file shapes, the frontmatter reference, the invariants and the tool surface — this file carries the Steps.
+Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on entry to Phase 1, and again on any resumption of it, including after a compaction. The spine keeps the scope set, the file shapes, the invariants and the tool surface — this file carries the Steps.
 
 ---
 
@@ -17,6 +17,8 @@ source "${CLAUDE_PLUGIN_ROOT}/lib/repo-root.sh"; PRIMARY_ROOT="$(_geniro_repo_ro
 `_geniro_repo_root` returns the main checkout's absolute path even when the session sits in a linked worktree; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` carries the why — instruction files are cross-session content, and a cwd-relative write from a linked worktree dies with `git worktree remove`. Resolve it per call rather than once: shell state does not persist between Bash calls, and an unset `"$PRIMARY_ROOT"/.geniro/...` expands to a root-anchored `/.geniro/...` that silently scans an empty directory and writes nowhere. Tool-call paths (a `Read` target, an `atomic_state_write` target) take the resolved absolute path the same way.
 
 When `PRIMARY_ROOT` is not the current working tree: create/edit/delete success lines show the resolved absolute path, create/edit lines append `— written to the main repo checkout so it survives this worktree's removal.`, and if a same-named file exists at the cwd-local `.geniro/instructions/` path with different content, print one notice after create/edit: `Note: this worktree has its own copy of <file>, which takes precedence here when rules load.` Notice only — no question, no block.
+
+**External instructions dir — read there, manage here.** When an external instructions dir is configured (`GENIRO_INSTRUCTIONS_DIR` or the plugin's `instructions_dir` option), the pipeline skills' loader READS instruction files from that location, while every mode here still operates on the in-repo copy at `"$PRIMARY_ROOT"/.geniro/instructions/` — the path keeps the literal `.geniro/` segment. The external set is the user's own to manage: edit it directly at its path. The override covers `global.md`, `memory.md`, `code-style.md`, and the per-skill `<skill>.md`; `review-extra/<slug>.md` reviewers are enumerated separately by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` and are NOT redirected — they stay in the in-repo `review-extra/` directory.
 
 ## Mode detection
 

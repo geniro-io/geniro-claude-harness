@@ -1,8 +1,10 @@
 # Actions — `create` sub-command (Phase 3)
 
-Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `create`. The spine keeps the invariants, the anti-rationalization table, the tool surface and the termination mapping — this file carries the Steps.
+Sub-command body for `${CLAUDE_PLUGIN_ROOT}/skills/actions/SKILL.md`. Read on Phase-1 dispatch to `create`. The spine keeps the invariants, the anti-rationalization table and the termination mapping — this file carries the Steps.
 
 ## Phase 3: `create` sub-command
+
+**Tool surface.** Allowed: `Read`, `Bash(atomic_state_write, mkdir -p "$PRIMARY_ROOT"/.geniro/actions/, the .gitignore re-include procedure, mv)`, `AskUserQuestion`. Forbidden: `Write`, `Edit`, `mcp__github__*`, network egress, `Agent`.
 
 ### Step 1 — Pre-check
 
@@ -83,7 +85,7 @@ On `Edit before writing`: capture specific changes via `AskUserQuestion` (free-t
 
 ### Step 5 — Write the file
 
-Route the file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/actions/<name>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/actions/*` is a T3 persistent-CRUD path, so direct `Edit`/`Write` trips the state-helper enforcement hook. Apply the §Caller-side mtime check before the write (`create` is the initial-write branch — target absent at read time and write time, so no conflict; `edit-in-place` catches concurrent modification). Frontmatter must include `created: <YYYY-MM-DD>` (today) and `created-by: geniro:actions`.
+Route the file through `atomic_state_write` to `"$PRIMARY_ROOT"/.geniro/actions/<name>.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — `.geniro/actions/*` is a T3 persistent-CRUD path, so a direct `Edit`/`Write` can be read torn mid-write. Apply the §Caller-side mtime check before the write (`create` is the initial-write branch — target absent at read time and write time, so no conflict; `edit-in-place` catches concurrent modification). Frontmatter must include `created: <YYYY-MM-DD>` (today) and `created-by: geniro:actions`.
 
 ### Step 6 — Validation gate
 

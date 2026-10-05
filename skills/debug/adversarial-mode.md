@@ -1,8 +1,8 @@
 # Debug — Adversarial Mode (verify-changes)
 
-Phase file for `/geniro:debug`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
+Phase file for `/geniro:debug`. The spine — invariants, budgets, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md`.
 
-state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship`. Parallel to Scientific Mode; shared Phase 0 routes here on anchored verify-keyword signals (Phase 0 — `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`).
+state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial-investigate` → `adversarial-ship`. Parallel to Scientific Mode; shared Phase 0 routes here on anchored verify-keyword signals (Phase 0 — `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`). Exits when findings are surfaced, the `pitfall` learnings are recorded ahead of the A4 step 5 escalation AUQ, and that pick reaches this chain's terminal `phase: done` via Run `/geniro:implement` or `phase: adversarial-ship-summary-only` via Leave it to me — or directly to terminal `phase: adversarial-aborted` when zero red tests survive the F→P and flake-check verification (A4 step 3) — a valid deliverable, not a failure.
 
 ## Contents
 
@@ -13,6 +13,7 @@ state.md `mode: adversarial`. Phases: `adversarial-mode-detect` → `adversarial
 - A5. Handoff persistence
 - A6. Findings template
 - A7. Cleanup
+- Tool surface
 - Definition of done
 
 ### A1. Purpose
@@ -39,14 +40,14 @@ Write terminal `phase: adversarial-aborted` with `## Termination reason: <skip r
 
 ### A4. RED-phase workflow
 
-Runs the **RED phase** of the canonical cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/tdd-cycle.md` § RED phase: author the failing test FIRST, verify it fails with a real assertion signature, then escalate the fix to the receiving skill. Tests are never authored alongside or after the fix in this mode — RED-first ordering is non-negotiable.
+RED only: author the failing test FIRST, verify it fails with a real assertion signature, then escalate the fix to the receiving skill. Tests are never authored alongside or after the fix in this mode — a test written after the fix passes on first run and proves nothing about the bug, so RED-first ordering is non-negotiable.
 
-0. **Refresh custom instructions on entry.** Re-fire `load-custom-instructions(SKILL_SLUG: debug, LOAD_TIER: pipeline, MODE: refresh)` once. Step 3 authors test code, so the code-style rules it applies have to be the ones on disk now — Phase 0's load predates the mode routing that got here.
+0. **Refresh custom instructions on entry.** Re-fire `load-custom-instructions(SKILL_SLUG: debug, LOAD_TIER: pipeline, MODE: refresh)` once. Step 3 authors test code, so the code-style rules it applies have to be the ones on disk now — Phase 0's load predates the mode routing that got here. Load no project snapshot and run no past-learnings query: diff-scoped work receives its diff pre-inlined, so a snapshot load is scope creep.
 1. **Resolve the diff** (A2). Record the resolved range into state.md `## Diff Scope` — a compaction-resume re-entering this step reads that record rather than re-deriving the range against whatever branch is current then.
 2. **Detect the project test framework.** Read CLAUDE.md Essential Commands + `package.json` scripts / `pyproject.toml` / `Cargo.toml` to extract test command, naming convention, and 1-2 exemplar test files closest to changed code.
 3. **Generate hypotheses and author F→P-verified RED tests.** Read every changed source file in full, not just the diff hunks — context around the change is where an attacker's inputs hide. Form a hypothesis per plausible edge case, boundary, or interaction the change misses; ceiling **5-12 hypotheses**, scaled to how many distinct regions the diff actually touched — a cap on a large diff, not a floor a small one owes rows to fill. For each hypothesis worth pursuing, author a failing test in the project's framework and naming convention, next to the exemplar files from Step 2.
 
-   **F→P invariant.** Run the authored test. A hypothesis counts only once its test is demonstrated RED on current code with a real assertion failure — an import error or setup exception does not prove the behavior is uncovered, it proves the test file is malformed. A test that passes today, or never produces a genuine assertion failure, is discarded (`discarded-cannot-repro`) and its file deleted — no bug, or the hypothesis was wrong.
+   **F→P invariant.** Run the authored test with the project's test command and capture stdout/stderr and the exit code verbatim; record them as the test's Evidence Block per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — reasoning from the diff is not proof. A hypothesis counts only once its test is demonstrated RED on current code (non-zero exit) with a real assertion failure (`AssertionError`, `expected X got Y`, or equivalent) — an import error or setup exception does not prove the behavior is uncovered, it proves the test file is malformed. A test that passes today (exit 0), or never produces a genuine assertion failure, is discarded (`discarded-cannot-repro`) and its file deleted — no bug, or the hypothesis was wrong.
 
    **Flake check.** Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flake-check.md` — same determinism procedure, applied here to this mode's kept RED tests before they enter `## Authored Tests`. Flaky failures are worse than none: they train the next reader to re-run until green and mask a real regression once it starts failing for a new reason.
 
@@ -55,8 +56,8 @@ Runs the **RED phase** of the canonical cycle at `${CLAUDE_PLUGIN_ROOT}/skills/_
    **Hard cap:** 10 authored tests per run. At the cap, stop, note the overflow in the A6 Summary, and let the escalation target schedule a second pass.
 
    Record each authored test into state.md `## Authored Tests` (kept) and `## Re-verification Results` (path / F→P + flake-check status / kept or discarded / discard reason where applicable) as it resolves — so a compaction mid-loop recovers this step's outcome rather than re-running it.
-4. **Present Adversarial Findings** (A6 template) **and persist the handoff.** Output the findings block directly in chat AND write it — full T2 frontmatter, per A5 — to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` via `atomic_state_write`, before Step 5's escalation AUQ fires. `<branch>` = state.md frontmatter `branch:`, the workspace this run recorded at the Phase 0 pick, not a fresh `git branch --show-current` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §6).
-5. **Emit pitfalls, then escalate fix authoring.** Before firing the escalation AUQ, call `emit-learning` once per kept RED test — `type: pitfall`, payload shape at `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9 — so the record does not depend on which option the user picks next. Firing it here, ahead of the AUQ, is what keeps it from becoming the trailing step that gets dropped once the deliverable already reads as finished (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract rule 2). If zero red tests survived the F→P and flake-check verification, SKIP entirely (nothing to emit) — report `"no bugs found in scanned diff"` and go directly to Cleanup (A7); terminal state `adversarial-aborted` with `## Termination reason: no-bugs-found-in-diff`.
+4. **Present Adversarial Findings** (A6 template) **and persist the handoff.** Output the findings block directly in chat AND write it — full T2 frontmatter, per A5 — to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` via `atomic_state_write` (resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A), before Step 5's escalation AUQ fires. `<branch>` = state.md frontmatter `branch:`, the workspace this run recorded at the Phase 0 pick, not a fresh `git branch --show-current` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/workspace-chooser.md` §6).
+5. **Emit pitfalls, then escalate fix authoring.** Before firing the escalation AUQ, call `emit-learning` once per kept RED test and echo `Recorded learning: <summary>` for each — `type: pitfall`, payload shape at `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9 — so the record does not depend on which option the user picks next. Firing it here, ahead of the AUQ, is what keeps it from becoming the trailing step that gets dropped once the deliverable already reads as finished (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Caller contract rule 2, which with rule 1 also owns the echo). If zero red tests survived the F→P and flake-check verification, SKIP entirely (nothing to emit) — report `"no bugs found in scanned diff"` and go directly to Cleanup (A7); terminal state `adversarial-aborted` with `## Termination reason: no-bugs-found-in-diff`.
 
    Then fire a 2-option escalation AUQ (header "Escalate") — "Run `/geniro:implement`" and "Leave it to me" — with findings file path referencing `from-debug-adversarial-<branch>.md` instead of `from-debug-<branch>.md`. Do NOT reuse the §3.2 escalation AUQ's "Cannot verify" option here: it holds `phase: ship`, loops back through §3.0/§3.1, and needs `open_questions[]` entries — none of which an adversarial run produces (`authored_tests[]` gates this pass, not `open_questions[]`). The authored test file paths inside the handoff are the escalation targets — the handoff carries RED tests; the receiving skill's own fix loop turns them green as it applies the fix. **"Run `/geniro:implement`"** writes `phase: done`, this chain's terminal. **"Leave it to me"** — user will apply or discard the authored tests manually using the handoff as reference — writes `phase: adversarial-ship-summary-only`, this chain's other terminal. Do NOT auto-invoke the next skill — surface the suggestion only.
 
@@ -64,17 +65,21 @@ state.md `## Authored Tests` body section tracks each authored test per the colu
 
 ### A5. Handoff persistence
 
-Field values for `from-debug-adversarial-<branch>.md` frontmatter (A4 step 4) — schema canonical at `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 / §Producer-specific extensions; read those rather than guessing a field's shape. This mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `authored_tests[]` carries one entry per kept RED test: `mode: adversarial`, `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring the A6 Confidence column, `path` resolved against this run's own worktree. Omitting `branch`/`worktree` routes the consumer into the degraded fallback that drops the relocation suggestion the tests need to be found by (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C). `authored_tests: []` is the correct form for the zero-red-tests terminal outcome.
+Frontmatter for `from-debug-adversarial-<branch>.md` (A4 step 4), written through `atomic_state_write` — tmp + fsync + rename, so a reader never sees a torn file. Emit the complete T2 frontmatter, not only the test array. Schema canonical at `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §2 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 / §Producer-specific extensions; read those rather than guessing a field's shape. This mode fixes: `tier: T2`, `producer: debug`, `consumer: implement`, `geniro_kind: debug-handoff`, `geniro_schema_version: m7-v2`, `mode: adversarial`, `phase: adversarial-ship`, `status: done`, `approvals: []`, `non-resumable-actions: []` (this pass makes no persisted-AUQ pick and completes no non-resumable action), `open_questions: []` (every gate that populates this array belongs to Scientific Mode — this pass raises none). `authored_tests[]` carries one entry per kept RED test: `mode: adversarial`, `f_to_p_status: red-on-current` (the only status valid for a kept adversarial test), `targeted_source` = the production file the test attacks, `confidence` mirroring the A6 Confidence column, `path` resolved against this run's own worktree. `branch` / `worktree` = state.md frontmatter `branch:` / `worktree:` (the Phase 0-recorded workspace); `timestamp` = a live clock read at write time. Omitting `branch`/`worktree` routes the consumer into the degraded fallback that drops the relocation suggestion the tests need to be found by (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-handoff.md` §Step 4 Case C). `authored_tests: []` is the correct form for the zero-red-tests terminal outcome.
 
 ### A6. Findings template
 
 Markdown template for the findings block (Diff scope / Hypotheses generated / Tests authored / Tests discarded / CRITICAL-HIGH / MEDIUM / Discarded-Inconclusive / Zero-red-tests outcome) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §6 (A6 findings template).
 
-If zero red tests survive, skip escalation entirely and go directly to Cleanup (A7). Otherwise proceed to escalation per A4 step 5.
-
 ### A7. Cleanup
 
 `rm -rf .geniro/state/debug/<slug>/` for the current branch's slug, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract — every experiment artifact the run wrote under that dir goes with `state.md`. `from-debug-adversarial-<branch>.md` lives under `.geniro/state/handoff/`, outside the slug dir, so it survives as the audit trail. Authored test files stay on disk at their project test paths — they are the deliverable, not scratch. Best-effort: `2>/dev/null || true`.
+
+---
+
+## Tool surface
+
+Read / Grep / Glob / Bash (read-only — diff resolution, framework detection, running the test command) / `AskUserQuestion` (escalation gate). Edit / write only for test files and test-only fixtures or helpers, never production source. Blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`, `git add`, subagent spawns — test authoring runs inline in this context.
 
 ---
 

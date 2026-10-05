@@ -52,7 +52,7 @@ validate_instructions_file "<target-path>" "<scope>" "<max-lines-from-Step-1>"
 
 | Scope | Extra checks |
 |---|---|
-| `review-extra/<slug>.md` | Frontmatter parses as YAML and every field satisfies `SKILL.md` §Frontmatter field reference — the single source for the value sets and the description length cap. Severity: CRITICAL when `slug` fails its regex, mismatches the filename, or collides with a built-in dimension (the loader then silently runs the built-in and the custom criteria never fire); HIGH for any other field violation. Description quality is graded separately below. |
+| `review-extra/<slug>.md` | Frontmatter parses as YAML and every field satisfies `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-extra.md` §Frontmatter field reference (Read it for this row) — the single source for the value sets and the description length cap. Severity: CRITICAL when `slug` fails its regex, mismatches the filename, or collides with a built-in dimension (the loader then silently runs the built-in and the custom criteria never fire); HIGH for any other field violation. Description quality is graded separately below. |
 | `code-style.md` | At least 1 rule under `## Rules` — LOW warning if empty (no-op file) |
 
 **`## Data Sources` lint rules** (applied to `global.md` and per-skill scopes when a `## Data Sources` section is present):

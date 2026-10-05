@@ -15,7 +15,7 @@ PR-side contract for `/geniro:review` Phase 1. Read this file when — and only 
 
 ## 1. PR-ref resolution + thread-state fetch
 
-**PR-ref resolution.** Parse `<owner>/<repo>/<number>` from `$ARGUMENTS`. For a full PR URL, parse the path segments directly; for bare PR number (`#1234` or `1234`), resolve `<owner>/<repo>` from the current repo via `gh repo view --json owner,name --jq '"\(.owner.login)/\(.name)"'`.
+**PR-ref resolution.** Parse `<owner>/<repo>/<number>` from `$ARGUMENTS`. For a full PR URL, parse the path segments directly; for bare PR number (`#1234` or `1234`), resolve `<owner>/<repo>` from the current repo.
 
 **Thread-state fetch.** Feeds the `resolved-threads-snapshot:` persisted below and the existing-review ingest (§1.1). MCP-preferred: `mcp__github__pull_request_read` with the resolved owner/repo/number; consume `reviewThreads[]` from the returned payload directly. Fallback when MCP is unavailable:
 
@@ -23,7 +23,7 @@ PR-side contract for `/geniro:review` Phase 1. Read this file when — and only 
 gh api graphql -F owner=<owner> -F repo=<repo> -F number=<N> -F cursor=null -f query='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{isResolved isOutdated path line}}}}}'
 ```
 
-Paginate with `endCursor` until `hasNextPage == false` (loop the call, concatenate `nodes[]` across pages — typical PR completes in 1-3 calls, stays under rate-limit budget). Record each thread's `isResolved` / `isOutdated` / `path` / `line` — resolved threads feed the snapshot; outdated threads are excluded (referenced code rewritten, comment stale).
+Paginate with `endCursor` until `hasNextPage == false`, concatenating `nodes[]` across pages. Record each thread's `isResolved` / `isOutdated` / `path` / `line` — resolved threads feed the snapshot; outdated threads are excluded (referenced code rewritten, comment stale).
 
 Persist the surviving entries to state.md frontmatter as `resolved-threads-snapshot:` (one `path:line` per already-resolved thread). The Phase 6 Post drill's already-on-PR dedup (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff-post.md` §7.1) is its only consumer: it drops findings overlapping a review comment already on the PR, and reads `null` as "nothing to dedup against" rather than "no overlap found".
 
@@ -113,5 +113,3 @@ Mechanism:
 - Pre-inline the SAME slot value into every receiving reviewer prompt identically — architecture, design, bugs, conventions, optimizations, spec-compliance, regressions. Feeding the block to a subset is a distribution miss the user did not consent to; the slot content is one computed value shared verbatim across all of them. Skipped for tests + security + pr-metadata (orthogonal or target-PR-specific). The slot is part of each receiving dim's pre-inlined context per `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; a dim spawned without it is detectable against that spawn-context contract and the `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.0 post-spawn verification gate.
 
 Fail-open: if `gh pr list` fails or zero overlap-and-bonus surviving, render slot as `none — gh unavailable (fail-open)` (error case) or `none — no relevant open peer PRs` (legitimate empty result).
-
-Read-only — never writes files, never mutates git state. Latency ~1-3s base + ~200ms per kept sibling.
