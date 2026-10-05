@@ -1,13 +1,16 @@
 # Existing Abstraction Audit
 
-Canonical procedure for "before creating new code, check what already exists."
+Canonical procedure for "before creating new code, check what already exists" — and, when reviewing a diff, for "does the new code re-implement something the repo already has."
 
 ## When to run
 
-Before recommending any of:
+**Before recommending a new abstraction**, such as:
+
 - "Extract to a new shared utility / helper / hook / module"
 - "Replace this with a new wrapper / facade / abstraction"
 - "Create a new file under `utils/` / `lib/` / `shared/` for this"
+
+**When reviewing newly added code** — a helper, component, hook, constant set, or formatting / validation / parsing routine — for re-implementing something the repo already provides.
 
 ## Procedure
 
@@ -18,11 +21,12 @@ Before recommending any of:
 
 2. **Search designated helper directories.** Search (case-insensitive) with the project's code-search tooling across the project's conventional helper directories:
    - `utils/`, `lib/`, `shared/`, `helpers/`, `services/`
+   - Shared component, hook, constant / enum / type locations, wherever the project keeps them — a review search covers these as well as the changed module's neighbours
    - Plus any project-specific directories named in CLAUDE.md
    - Also check barrel files: `index.*` at module roots
 
 3. **Categorize each candidate** found:
-   - **REUSE-AS-IS** — analogue solves the same problem with the same shape; replace duplication with a call site to the existing analogue.
+   - **REUSE-AS-IS** — analogue solves the same problem with the same shape; replace the duplication or hand-rolled copy with a call to the existing analogue.
    - **EXTEND** — analogue solves a closely-related problem; a small extension (no new parameters that complicate its current shape) covers this case.
    - **NO-ANALOGUE** — nothing comparable exists; a new abstraction is justified ONLY when the Rule of Three applies (≥3 distinct call sites).
 

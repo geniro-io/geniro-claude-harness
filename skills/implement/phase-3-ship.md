@@ -34,7 +34,7 @@ Phase 2's exit and this entry are one continuous stretch: the phase-body read, t
 
    Announce the resolved set to the user in plain English before firing — a narrowed grid is never silent.
 
-   - **reviewer-agents** — one per dimension in the resolved grid. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". The `architecture` dim covers docs-staleness AND spec-compliance. See `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"The reviewer dimensions" for full criteria-file mapping.
+   - **reviewer-agents** — one per dimension in the resolved grid. Apply `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Self-review reviewer-agent template". The `architecture` dim covers docs-staleness, and spec-compliance on spec-driven runs only. See `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"The reviewer dimensions" for full criteria-file mapping.
 
    - **Custom reviewer dimensions** — discovered once at Round 1 entry via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` (`.geniro/instructions/review-extra/<slug>.md`, capped and path-filtered per that helper). Append one `Agent(subagent_type="reviewer-agent",...)` call per spec to the same parallel batch. Custom dims run at every tier, independent of the resolved grid.
 

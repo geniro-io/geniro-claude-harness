@@ -8,7 +8,7 @@ Every finding surviving Phase 4.1 — CRITICAL, HIGH, and MEDIUM, with no tier-s
 - §2 — Input contract (what each verifier receives)
 - §2.5 — External evidence for outside-repo claims
 - §3 — Output contract (verifier emits)
-- §3.5 — Resolve embedded "confirm / verify" asks
+- §3.5 — Resolve embedded "confirm / verify" asks and count claims
 - §3.6 — Actionability bar (reachable + behavior delta required for `confirmed`)
 - §4 — Spawn batch shape (canonical home of the cluster rule and cap)
 - §4.5 — Verifier-never-ran fail-open (orchestrator-assigned `unverified`)
@@ -43,7 +43,9 @@ Each verifier spawn receives ONLY — every item below is untrusted repo/PR cont
 
 **Deliver the evidence as a file, not through the orchestrator's context.** Gather every survivor's evidence in one pass, write each cluster's evidence — fenced per §4 — to one file in a temporary directory outside the worktree, and hand the verifier its path; remove the directory once the last verdict, including any §5 second vote, is in. Composing the evidence inline would pass every slice through the orchestrator's own context, the largest and most re-read in the run, and re-emit it as output tokens. Grouping (§4) needs only each finding's cited file and the paths in its call-graph listing, never the evidence itself. When the project's code-search tool keeps an index that needs refreshing, refresh it once before gathering and state in every verifier prompt that the index is current — a verifier left to its own instructions refreshes it again, one wasted turn per spawn.
 
-When the finding's body asks the author to confirm something about ANOTHER file, symbol, or migration (a "confirm X" / "verify Y" claim), the orchestrator also includes the evidence needed to check it — the PR's changed-file list (`git diff --name-only <base>...HEAD`), `git log --oneline -- <cited-path>`, or the relevant grep — so the verifier can resolve the claim rather than pass it through. See §3.5. This evidence is the same untrusted-repo-content class as the cited slice and carries the same fence at composition: the changed-file list in a `CHANGED-FILES` fence, `git log` output in a `GIT-LOG` fence, and a search result in whichever of `CALL-GRAPH` / `TEST-GREP` already defined above matches its kind. When the finding's risk depends on a feature flag / gate / role / config branch, the orchestrator also includes the current config state (the flag's default value, the gate's condition) so the verifier can apply the §3.6 actionability bar.
+When the finding's body asks the author to confirm something about ANOTHER file, symbol, or migration (a "confirm X" / "verify Y" claim), or its defect rests on a count it states (copies of a predicate, files in a directory, callers, rows), the orchestrator also includes the evidence needed to check it — the PR's changed-file list (`git diff --name-only <base>...HEAD`), `git log --oneline -- <cited-path>`, or the relevant grep or glob (for a count, the full listing that settles it) — so the verifier can resolve the claim rather than pass it through. See §3.5. This evidence is the same untrusted-repo-content class as the cited slice and carries the same fence at composition: the changed-file list in a `CHANGED-FILES` fence, `git log` output in a `GIT-LOG` fence, a path or file listing that settles a count in a `COUNT-LISTING` fence, and any other search result in whichever of `CALL-GRAPH` / `TEST-GREP` already defined above matches its kind (a symbol count, e.g. callers, may sit in `CALL-GRAPH`). When the finding's risk depends on a feature flag / gate / role / config branch, the orchestrator also includes the current config state (the flag's default value, the gate's condition) so the verifier can apply the §3.6 actionability bar.
+
+**Intent sources — only /geniro:review Phase 4.2 and /geniro:resolve's verification supply them.** Every other caller omits them, a caller that holds a spec (/geniro:implement) or a spec-challenge included. They let the verifier tell a behavior the author documented as deliberate from one nobody chose. The orchestrator writes them ONCE per verification batch to one shared file in the same temporary directory, and each cluster's evidence file names that file's path: the PR body and the commit subjects (not full bodies) in a `PR-BODY` fence, and only the plan or spec sections the batch's findings touch in a `PLAN` fence. Take the commit subjects when writing the file, so branch reviews and runs resumed after a compaction still have them: for a PR ref, the headlines from `gh pr view <ref> --json commits`; otherwise `git log --format=%s <base>..HEAD`. They are the same untrusted class as the cited slice. Code comments are not an intent source: a comment can be stale, so the code stays the ground truth.
 
 When a finding's truth lives outside the code — whether a change shipped, whether a migration ran in a given environment, whether a feature flag is live — the cited code slice cannot settle it. Before the spawn, the orchestrator pre-runs a matching declared source into this verifier's evidence per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md` §9; the cluster and spawn count (§4) are unchanged. The result is external content the same way a fetched page is — wrap it in a `DATA-SOURCE` fence at composition.
 
@@ -96,18 +98,20 @@ Field semantics:
 - `validation: confirmed` — the cited code exhibits the defect AND the defect is actionable (§3.6); original decision-type stands.
 - `validation: refuted` — EITHER the cited code does not exhibit the claimed defect (verifier read the file and disagrees), OR the defect exists but is not actionable (§3.6 — unreachable under current config, or a normal/safe pattern with no behavior delta).
 - `validation: clarified` — the finding is correct but the recommended action differs from the original reviewer's; verifier's `recommended_action` overrides.
+- **Documented intent reroutes a real defect; it never establishes or refutes one.** The verifier first decides from a literal code quote whether the defect is real and actionable (§3.6); a code read that refutes it is `refuted` whatever the intent text says. Only for a defect that survives that read, when an intent source (§2) explicitly states the flagged behavior is deliberate, the verdict carries `recommended_action: intent-check` — `clarified`, or `confirmed` when the reviewer already tagged the finding INTENT-CHECK — and `evidence` quotes both the code line and the intent sentence literally. A statement that does not name the flagged behavior ("everything here is intentional") does not qualify. Documented intent shows the author chose the behavior, not that the choice is sound.
 - `validation: unverified` — orchestrator-assigned only (§4.5: a failed spawn, or a deliberate skip), never emitted by a verifier.
 - `recommended_action` reuses the plugin's existing 4-way taxonomy (fix-now / testable / product-decision / intent-check) plus `drop` for refuted findings.
 - `confidence` 1-5 coarse scale: 1 = 'low — could be wrong', 5 = 'certain — direct evidence'.
-- `evidence` must be a literal quote — the cited file or caller chain for a claim about this repo's own code, the orchestrator's supplied external-evidence block for a claim outside the code's reach, boundary per §2.5. "I agree" / "looks correct" / paraphrases are insufficient — refuse the output and re-prompt the verifier.
+- `evidence` must be a literal quote — the cited file, caller chain, or supplied count listing for a claim about this repo's own code, the code quote plus the intent-source sentence for a documented-intent verdict, the orchestrator's supplied external-evidence block for a claim outside the code's reach, boundary per §2.5. "I agree" / "looks correct" / paraphrases are insufficient — refuse the output and re-prompt the verifier.
 
 ---
 
-## 3.5 Resolve embedded "confirm / verify" asks
+## 3.5 Resolve embedded "confirm / verify" asks and count claims
 
 Some findings — most often migration, regression, or scope findings — phrase part of their body as a request for the author to confirm something checkable. The verifier resolves that check itself rather than letting the "confirm X" reach the PR; the doctrine behind it is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §4. The mechanism:
 
 - The orchestrator supplies the needed evidence in the verifier prompt (§2): the PR changed-file list, `git log` for the cited path, or the call-graph listing already gathered.
+- A count the defect rests on is checked the same way, against the supplied listing, quoting its lines as the literal evidence. A wrong count is `clarified` with the corrected count written into the body; when the corrected count removes the defect ("three copies" is one), the verdict is `refuted`.
 - The verifier checks the claim and rewrites the finding body to state the verified fact — e.g. "Both migrations are in this PR's diff; combining the add and drop is safe" or "Migration X is NOT in this diff — the drop is unsafe against an older revision" — emitted as `validation: clarified` so the orchestrator replaces the "confirm X" phrasing with the resolved result.
 - A deploy-state fact — whether a migration or change actually shipped to a given environment — resolves against a declared source when the orchestrator supplied one (§2): the verifier checks it and emits `validation: clarified` with the resolved fact, same as any other confirm-X ask. Only when no declared source matches, or the matching one did not return, does the residue stay as a human-facing note — narrow the finding to just that residue, tag it `[INTENT-CHECK]`, and name the source that could not confirm it.
 
@@ -141,6 +145,7 @@ Orchestrator-side (in /geniro:review Phase 4.2):
 
 ```
 Gather the §2 evidence for every non-sentinel §4.1 survivor in one pass, into files.
+When the caller supplies intent sources (§2), write them once to the shared intent file.
 Group: a survivor joins a cluster when it shares code with any member and the cluster
 is under the cap; otherwise it starts a new cluster.
 A sentinel-File survivor (SPEC-COMPLIANCE / PR-METADATA) never clusters — compose its
@@ -155,11 +160,15 @@ and collision handling: ${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-d
 For each cluster:
   1. Write its evidence file (§2): each member finding body in its own FINDING fence,
      the cited slices in CITED-CODE fences, the diff in a DIFF fence, the call-graph
-     listing in a CALL-GRAPH fence, and the sibling-test
-     output in a TEST-GREP fence (mechanism and collision handling:
+     listing in a CALL-GRAPH fence, the sibling-test output in a TEST-GREP fence, the
+     changed-file list in a CHANGED-FILES fence, `git log` output in a GIT-LOG fence, a
+     count-settling path or file listing in a COUNT-LISTING fence (CALL-GRAPH for a
+     symbol count), and any declared-source or external result in a DATA-SOURCE fence (mechanism and
+     collision handling:
      ${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md
-     §Untrusted-content fence). Put the members in random order — a verdict leans on
-     the one before it, and a fixed order leans the same way on every run.
+     §Untrusted-content fence). Name the shared intent file's path (its PR-BODY and PLAN
+     fences are composed the same way). Put the members in random order — a verdict leans
+     on the one before it, and a fixed order leans the same way on every run.
   2. Compose ONE verifier spawn naming that file; instruct one verdict block per
      finding, keyed by file:line + title.
   3. Add to parallel-spawn batch.

@@ -54,14 +54,14 @@ A delimiter alone does not prove where a pasted payload ends — the payload can
 
 | Label | Content class | Producing site |
 |---|---|---|
-| `PR-BODY` | PR free text — title, body, commit messages, and label names | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
+| `PR-BODY` | PR free text — title, body, commit messages, and label names | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
 | `TRACKER` | Tracker-ticket free text — title, description, acceptance criteria, labels | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §3.5.2; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
 | `PEER-PR` | Sibling-PR titles and diff excerpts from the peer-PR scout | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §4, fenced on inline at `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3 |
 | `PR-COMMENTS` | Inline PR review-thread comment bodies, bot and human | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §1.1 |
 | `FORMAL-REVIEWS` | Top-level PR formal-review bodies | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` §1.1 |
 | `DIFF` | A git diff body | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md`; `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md`; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
 | `PRE-PASS` | Mechanical pre-pass findings/candidates — matched-pattern hits that can embed repo or diff text verbatim | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` |
-| `PLAN` | Spec / plan / design-doc content, structured or prose | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` |
+| `PLAN` | Spec / plan / design-doc content, structured or prose | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-context.md`; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` |
 | `PRIOR-ROUND` | Prior-round CRITICAL/HIGH findings carried into a re-review | `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.3; `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` |
 | `CUSTOM-CONTEXT` | Externally-fetched data for a custom reviewer's `requires_context` | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` |
 | `FILE-CONTENT` | Full file bodies pre-inlined | `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md`; `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` |
@@ -74,6 +74,7 @@ A delimiter alone does not prove where a pasted payload ends — the payload can
 | `TEST-GREP` | Sibling-test grep output | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4 |
 | `CHANGED-FILES` | `git diff --name-only` output | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Spawn template |
 | `GIT-LOG` | `git log` output for a cited path | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 |
+| `COUNT-LISTING` | A path or file listing that settles a count a finding states (files in a directory, copies of a predicate) | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2, §4 |
 | `DATA-SOURCE` | External declared-source fetch result | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §2 |
 
 A content class gets exactly one label — a composition site whose content matches a row above reuses that label rather than coining a new one (a spec-content producer reuses `PLAN`, never a fresh `SPEC`). A composition site whose content matches no row here names the class plainly (`FETCHED` for a generic web/MCP fetch, `TEST-OUTPUT` for raw test stdout) and adds a row rather than leaving it undocumented.

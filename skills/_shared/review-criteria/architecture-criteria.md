@@ -9,6 +9,7 @@ Find every real defect this dimension owns by reading the changed code and its c
 - §1.5 — Caller-blast check for semantic mutations
 - §1.6 — Parallel-path symmetry (mirror-gap)
 - §7.5 — Reinvented-wheel / build-vs-buy
+- §7.6 — Re-implementation of existing in-repo code
 - §8 — Testability of the production code
 - Common false positives
 - Severity guidelines
@@ -63,13 +64,21 @@ When a hunk adds or changes a guard / filter / cleanup / replacement on ONE code
 
 Severity HIGH when the untreated sibling loses or corrupts data; MEDIUM when it degrades gracefully. Anchor the finding at the edited path and name the unedited sibling `path:line`.
 
-This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence, since the two rubrics share this check by construction — Phase 3 dedup merges them, so do not suppress your finding on the assumption another dimension will cover it.
+This compact form is the primary owner of the check in review contexts that do NOT spawn a separate `regressions` dimension (e.g., `/geniro:implement` Phase 3 self-review), so the asymmetric-edit class is still caught there. In `/geniro:review`, the dedicated `regressions` reviewer runs the fuller procedure at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §4 in parallel; both dimensions emitting the same mirror-gap finding is expected convergence, since the two rubrics share this check by construction — Phase 3 dedup merges them, so do not suppress your finding on the assumption another dimension will cover it. The exception is a divergence between two role / permission gates for the same resource: the security dimension owns it (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/security-criteria.md`), so leave it to that reviewer.
 
 ### 7.5. Reinvented-wheel / build-vs-buy
 
 Hand-written code in a domain a maintained external library already solves — crypto, auth, password hashing, tokens, date/time math, parsing or serialization of untrusted input, retry-with-backoff, validation, HTTP clients, compression. Detection-only: this dimension flags the smell and tags the finding `[PRODUCT-DECISION]` so the user decides whether to adopt a library — it does not research candidates itself, since the reviewer-agent has no web-research grant and the review path cannot rely on web reach being present.
 
 Trigger condition, finding shape, and the `Options:` block are canonical at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` §MODE: review — apply that section when the diff hand-writes non-trivial functionality in one of the domains above; cite it rather than restating its procedure. Severity feeds the HIGH/MEDIUM rows below: MEDIUM is typical; HIGH only when the hand-written code carries real correctness or security risk a battle-tested library would remove (hand-rolled crypto, auth, timezone math, HTML sanitization); never CRITICAL — a runtime defect in the hand-rolled code itself is a bugs/security-dimension finding, not this one's.
+
+### 7.6. Re-implementation of existing in-repo code
+
+For each helper, component, hook, constant set, or formatting / validation / parsing routine the diff adds, search the repo for an existing one that does the same job. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — its search scope, REUSE-AS-IS / EXTEND categories, and force-fit guard — and look beyond the changed module: shared component, hook, and constant locations and barrel exports are where the copy-pasted original lives. Run this before §7.5: a library recommendation applies only once no in-repo analogue exists. When the review packet carries a `REUSE INVENTORY` section, check each REUSE-AS-IS / EXTEND row against the diff: the diff must use the named helper (or extend it), not grow a parallel one.
+
+Flag new code that re-implements an existing helper, component, or enum — hand-written formatting beside an exported formatter, a near-copy of a shared component, hardcoded literals where a constant set or enum exists, a local copy of something already exported. Every finding names what breaks: a divergence already present (the copy differs from the shared symbol in a case, or misses a fix the shared one has) or a reachable consequence of it. Where none exists yet, state the maintenance cost plainly (the copy will drift when the shared symbol changes) and cap the finding at MEDIUM (LOW for a one- or two-line case). Name the existing symbol at `path:line` and recommend using it, or extending it when it covers most of the case. When extending would force a new parameter or branch onto the existing symbol's shape, the audit's force-fit guard applies and the local code stands.
+
+**Severity:** HIGH for a near-verbatim fork of a shared component or module, or a copy of non-trivial shared logic, when it already diverges from the original; MEDIUM for a hand-rolled replacement of an existing helper, component, or enum (typical tier); LOW for a one- or two-line case. Never CRITICAL.
 
 ### 8. Testability of the production code
 
@@ -88,10 +97,10 @@ Trigger condition, finding shape, and the `Options:` block are canonical at `${C
 - Small projects don't need full SOLID adherence
 - Check project size and constraints
 
-2. **Intentional repetition** — Code reuse isn't always beneficial
+2. **Intentional repetition** — Extracting a NEW shared abstraction isn't always beneficial
 - Duplicating code for different contexts is sometimes correct
-- Premature abstraction creates worse problems
-- Only flag if obvious shared logic exists
+- Premature abstraction creates worse problems: recommend a new shared helper only when the audit's Rule of Three holds
+- Using an EXISTING helper that already covers the case is not premature abstraction — flag the re-implementation per §7.6
 
 3. **Framework patterns** — Many frameworks violate SOLID on purpose
 - Rails/Django models do multiple things by design
@@ -113,6 +122,6 @@ Trigger condition, finding shape, and the `Options:` block are canonical at `${C
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
 - **CRITICAL** — Never emitted by this dimension. Architecture findings cannot block deploy on their own — they signal design risk, not immediate breakage. A semantic mutation that silently drops data from user-visible surfaces (per §1.5 Caller-Blast Check) is a runtime defect owned by the bugs dimension, not an architecture CRITICAL.
-- **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist; hand-rolled crypto / auth / parsing a battle-tested library would secure (per §7.5 reinvented-wheel).
-- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier); function-level complexity / deep nesting on a critical path where the cognitive load raises real defect risk.
-- **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; excessive function-level nesting / cognitive load on a non-critical path; documentation or PR-description nits about an architectural area.
+- **HIGH** — Caller-blast >= 10 surviving callers, or a public-API / module-export / shared-type change at any count, when a contract changes (per §1.5 Caller-Blast Check thresholds in this file); circular dependency introduced where none existed; new tight coupling between modules that prior architecture explicitly decoupled (cite the decoupling source); new shared mutable state across boundaries; N+1 pattern in a request-handling path; a type-design gap where an escape hatch or public mutable field lets a cross-module caller construct an illegal state a downstream consumer assumes cannot exist; hand-rolled crypto / auth / parsing a battle-tested library would secure (per §7.5 reinvented-wheel); a near-verbatim fork of a shared component or module (per §7.6).
+- **MEDIUM** — Caller-blast 4-9 callers on a contract change; coupling increase with documented future remediation cost (e.g., the dimension flagged a similar coupling in a prior PR surfaced via the inline `PEER-PR CONTEXT:` slot); module-boundary violation that requires a sibling module to know an implementation detail; a type-design gap contained to one module and guarded by convention at each use site today; reinvented-wheel / build-vs-buy where a maintained library already solves the hand-written code (per §7.5, typical tier); a hand-rolled replacement of an existing in-repo helper, component, or enum (per §7.6, typical tier); function-level complexity / deep nesting on a critical path where the cognitive load raises real defect risk.
+- **LOW** — Stylistic structural suggestions ("this would be cleaner as a class"); coupling concerns without measured blast radius; "consider splitting this module" without a defect or growth-pressure citation; excessive function-level nesting / cognitive load on a non-critical path; a one- or two-line re-implementation of an existing in-repo helper (per §7.6); documentation or PR-description nits about an architectural area.

@@ -40,6 +40,13 @@ Find every real defect this dimension owns by reading the changed code and its c
 Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
 
 - **CRITICAL** — SQL injection with user-controlled input reaching a raw query; XSS via unsanitized field reaching HTML output; secret or credential committed to the repo; broken authentication (e.g., role check missing entirely); broken authorization (e.g., user-A can access user-B's data); RCE via unsafe deserialization; insecure cryptography on a production code path.
-- **HIGH** — Missing input validation that REACHES a downstream consumer (trace the input to its sink — speculative "this might be exploited" is MEDIUM); IDOR or mass-assignment with a documented attack path; sensitive data in logs that's actively written; CSRF gap on a state-changing endpoint with no compensating defense; new suppression directive (`# noqa`, `eslint-disable`, `@SuppressWarnings`, config-level rule disable) added in the diff without an in-comment justification linking to a tracked issue or ADR (silently un-audits a previously-flagged risk).
+- **HIGH**:
+  - Missing input validation that REACHES a downstream consumer (trace the input to its sink — speculative "this might be exploited" is MEDIUM).
+  - IDOR or mass-assignment with a documented attack path.
+  - Parent-resource authorization gap: a child record loaded or mutated by its own id without authorizing the parent it belongs to, when the child has no per-row guard of its own.
+  - Divergent role gate: a new role list or permission check that drops a role the existing gate for the same resource admits, or admits one it excludes. This dimension owns the case, so architecture and regressions do not double-report it; the sibling-path check is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` §1.6.
+  - Sensitive data actively written or sent to any outbound channel: logs, tracing/observability, product analytics, LLM/AI-provider calls and their traces, error messages and API error responses.
+  - CSRF gap on a state-changing endpoint with no compensating defense.
+  - New suppression directive (`# noqa`, `eslint-disable`, `@SuppressWarnings`, config-level rule disable) added in the diff without an in-comment justification linking to a tracked issue or ADR (silently un-audits a previously-flagged risk).
 - **MEDIUM** — Defense-in-depth gap that an existing layer covers (e.g., output encoding missing but the framework auto-escapes); informational disclosure that requires authenticated access; rate-limit gap on a non-critical path; weak crypto on a non-production code path.
 - **LOW** — Hardening suggestions without an exploit path ("add CSP headers" when none exist but no known XSS sink); convention-style "use the safe wrapper here" without demonstrating the unsafe path is reachable; documentation or PR-description nits about a security area.
