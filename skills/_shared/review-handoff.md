@@ -174,7 +174,7 @@ open_questions: []                    # always present; may be empty []. Entry s
 - Dimensions spawned: [<the `actual` set per §"Dimensions spawned — `declared` vs `actual`" below, naming any declared-but-missing dimension with its skip reason>]
 - Mechanical pre-pass: [lint:N, schema:M, secrets:K]
 - Finding totals: CRITICAL=<X>, HIGH=<Y>, MEDIUM=<Z>
-- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, unverified; omit zero-count reasons>) · <D> deferred · <S> set aside by your steering note (omit when zero) · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; a repeat stays in `## Findings` like any other kept finding — see the per-finding body schema below)
+- Disposition: <K> kept · <P> posted · <W> withheld (<reasons — e.g. already-on-PR, kept-off-PR, documented-intent, unverified; omit zero-count reasons>) · <D> deferred · <S> set aside by your steering note (omit when zero) · <R> repeated unchanged from round <N-1> (omit the clause when <R> is zero; a repeat stays in `## Findings` like any other kept finding — see the per-finding body schema below)
 
 ## Findings
 
@@ -192,7 +192,7 @@ open_questions: []                    # always present; may be empty []. Entry s
 <deferred-entry blocks, or the assessed sentinel `none — the Phase 4 filter ran and deferred nothing`>
 
 ## Filtered
-<!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, no-action-needed, user-kept-off-pr, already-resolved-on-pr, overturned-after-post, convention-filtered, user-steering: "<the steering instruction, verbatim>" — set only after admission + verification, per phase-3-4-filter-stratify.md §4.2; a CRITICAL never carries this reason). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
+<!-- Findings demoted out of ## Findings, each with a `reason:` (non-exhaustive — e.g. verifier-refuted, not-actionable, no-action-needed, user-kept-off-pr, documented-intent, already-resolved-on-pr, overturned-after-post, convention-filtered, user-steering: "<the steering instruction, verbatim>" — set only after admission + verification, per phase-3-4-filter-stratify.md §4.2; a CRITICAL never carries this reason). Kept visible with original severity + reason so the user can re-elevate; never propagated to ## Findings, open_questions[], or the Post drill. -->
 <list, or empty>
 
 ## Caveats
@@ -274,7 +274,7 @@ Each field is `null` when the producer had nothing to capture (no PR ref, or `gh
 **Per-finding body schema (referenced by §2.5 Tier 2 + §3).** Each finding renders as a sub-section block so consumers can build rich AUQs per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate without re-deriving Evidence / Why-matters / Suggested-fix from outside the handoff. Every finding — including an unchanged repeat from a prior round — lives under the handoff's `## Findings` body:
 
 ```markdown
-- [ ] F1 — [NEW|PRE-EXISTING] [optional: POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR|USER-ELECTED] **<short title>** · <SEVERITY> [optional: · seen since round <N>]
+- [ ] F1 — [NEW|PRE-EXISTING] [optional: POSTED-TO-PR|ALREADY-RESOLVED-ON-PR|ALREADY-RAISED-ON-PR|KEPT-OFF-PR|NO-ACTION|USER-ELECTED] **<short title>** · <SEVERITY> [optional: · seen since round <N>]
   - **Severity:** CRITICAL | HIGH | MEDIUM | LOW
   - **File:** path/to/file.ts:42-48
   - **Decision Type:** FIX-NOW | TESTABLE | PRODUCT-DECISION | INTENT-CHECK
@@ -295,6 +295,7 @@ Each field is `null` when the producer had nothing to capture (no PR ref, or `gh
     - `<option-id>`: `<short label>` — `<one-line trade-off>`
   - **Recommendation:** <option-id> — <one-sentence rationale> [PRODUCT-DECISION only]
   - **step0_status:** `pending | resolved | wontfix` [PRODUCT-DECISION only — omit for other types]
+  - **post-disposition:** `off-pr | no-action` [optional — withholds the finding from the §7.1 post set; set by the §3 open-decision gate, or to `off-pr` by Phase 4.2 when a verifier quotes documented intent for a MEDIUM finding (the quote sits in `Verification-evidence:`); absent otherwise]
 ```
 
 **`Origin:` — producer→handoff mapping.** The name carries a different value set on each side of the write, so map it explicitly rather than copying it through. `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output Format emits `Origin: [NEW] | [PRE-EXISTING]` — *newness*, whether the defect sits in changed or unchanged code — and that value lands in this block's **title-line tag** (`[NEW]` / `[PRE-EXISTING]`), never in the `Origin:` sub-field. The `Origin:` sub-field above carries *provenance*: `llm:<dim>` for the reviewer dimension that reported it, `mechanical:<check>` for a Phase 1.5 pre-pass check, which the reviewer output does not state (the orchestrator knows it from which spawn returned the finding). A writer that copies the agent's `Origin:` straight into the sub-field produces `Origin: [NEW]`, which no consumer can resolve to a dimension.
