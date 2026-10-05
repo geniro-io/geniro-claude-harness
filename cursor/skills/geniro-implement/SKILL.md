@@ -47,7 +47,7 @@ State.md `phase:` transitions (`from → to | trigger`):
 | (entry) | analyze | Phase 1 start |
 | analyze | implement | spec parsed, handoffs resolved |
 | analyze | (analyze) | surface failures inline; no separate escalation state |
-| analyze | aborted | a Phase 1 cancel pick (terminal): wrong-worktree abort, no-ticket-ID cancel, or spec-challenge abort ("re-plan via /geniro:plan") |
+| analyze | aborted | a Phase 1 cancel pick (terminal): wrong-worktree abort, no-ticket-ID cancel, spec-challenge abort ("re-plan via /geniro:plan"), or a spec pending-decision stop |
 | implement | self-review | Phase 2 todos done, tests green |
 | implement | phase-2-escalated | test fix-loop exhausted / not converging |
 | phase-2-escalated | debug-handoff \| self-review \| aborted | the escalation AUQ pick: escalate to debug (terminal) \| accept failures \| abort (terminal) |

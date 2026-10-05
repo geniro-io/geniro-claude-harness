@@ -7,18 +7,18 @@ Single source of truth for design vocabulary. Skills cite this file rather than 
 | Term | Definition | Concrete signal |
 |---|---|---|
 | **Module** | A unit of code with a public interface and an internal implementation. May be a file, package, class, or directory boundary — what matters is the seam, not the syntax. | "What does this module expose? What does it hide?" answerable in 1 sentence. |
-| **Interface** | The surface a module exposes to callers. Function signatures, exported types, public methods, REST endpoints, CLI flags. Smaller is better. | Count exported symbols. Lower count + stable signatures = better interface. |
+| **Interface** | Everything a caller must know to use the module correctly: signatures, exported types, public methods, REST endpoints, CLI flags — and also invariants, ordering constraints, error modes, required configuration, and performance characteristics. Less to know is better. | Could a caller use it correctly from the signatures alone? Every fact they must learn beyond that is interface too, so three exports with a hidden call-order rule are a bigger interface than they look. |
 | **Implementation** | The code behind the interface. Callers never read this. | Internal helpers, private methods, hidden state. |
-| **Depth** | The ratio of behavior-behind-the-interface to interface size. **Deep modules** hide a lot of behavior behind a small interface; **shallow modules** expose nearly all their internal complexity. | Deep: `cache.get(key)` does eviction, TTL, serialization, hit-stats — but the caller sees one method. Shallow: a util file with 12 exported helpers each used once. |
-| **Seam** | A point in the code where two modules meet through an interface. The narrower the seam, the easier it is to change either side. | Imports + function calls between modules. A module imported by 30 callers has a wide seam. |
+| **Depth** | How much behavior a module hides behind how little its callers must know. **Deep modules** do a lot while callers learn little; **shallow modules** make callers learn nearly as much as the module does. Judge it by what callers must know, never by comparing line or symbol counts. | Deep: `cache.get(key)` does eviction, TTL, serialization, hit-stats — but the caller sees one method. Shallow: a util file of 12 thin helpers, each used once, where callers must learn every name and quirk to save a line apiece. |
+| **Seam** | A place where behavior can be altered without editing in that place — the location where a module's interface lives. Where to put a seam is a design decision separate from what sits behind it. A seam is narrow when crossing it takes little knowledge, wide when it takes a lot. | Can you swap or intercept behavior here (a different implementation, a test double) without touching the calling code? If nothing varies across it, the seam is hypothetical (rule 7). |
 | **Adapter** | A module whose only job is to translate between two interfaces (or between an external service and an internal interface). Adapters absorb interface change so the rest of the code doesn't have to. | "DB adapter", "Stripe adapter", "Slack adapter". They have one job. |
-| **Leverage** | How much of the codebase benefits from a single change. High-leverage code is depended on by many; low-leverage code is depended on by few. | Count imports via the project's code search. A type used 200 places has high leverage; a helper used twice has low leverage. |
+| **Leverage** | How much caller code a change at this point affects — what callers gain from depth, since one implementation pays back across every caller and test that goes through it. | Ask what a fix or improvement here would change for callers. A module that 200 call sites lean on for real behavior has high leverage; a type those sites merely pass along has little, however often it is imported. |
 | **Locality** | How much of the change for a given task lives in one place. High locality = "to add a field, edit one file"; low locality = "to add a field, edit 7 files in 4 directories". | Trace a typical change. Count files touched. Few files = high locality. |
 
 ## Derived rules (apply when designing or evaluating modules)
 
 1. **Prefer deep modules over shallow ones.** A module hiding a lot of behavior behind a small interface gives callers leverage without forcing them to learn the implementation.
-2. **Narrow seams over wide seams.** When two modules must talk, expose the smallest possible interface. Wide seams couple modules; narrow seams let them evolve independently.
+2. **Narrow seams over wide seams.** When two modules must talk, make what a caller must know to cross the seam as small as it can be. Wide seams couple modules; narrow seams let them evolve independently.
 3. **High locality over low locality.** A typical change should touch as few places as possible. If adding a single feature edits N files in M directories, the seam is wrong — refactor the seam, not the feature.
 4. **Use adapters at trust boundaries.** Anywhere external code (DB, third-party API, transport layer) meets internal code, put an adapter. The adapter absorbs upstream change.
 5. **High-leverage code deserves more design.** Code many callers depend on warrants extra care: stable interface, deep implementation, comprehensive tests. Low-leverage code can stay simple.
@@ -30,6 +30,7 @@ Single source of truth for design vocabulary. Skills cite this file rather than 
 - **"Add an abstraction"** — abstractions are not the goal; depth is. An abstraction without depth (e.g., a wrapper that adds nothing) is *worse* than no abstraction.
 - **"Make it more flexible"** — flexibility without a concrete deepening or seam-narrowing rationale is YAGNI. Add complexity only when it absorbs change.
 - **"Refactor for testability"** — if a module is hard to test, the seam is wrong, not the test framework. Fix the seam.
+- **Counts and ratios as the measure** — implementation-lines over interface-lines, exported-symbol totals, import tallies. They reward padding the implementation or splitting one surface into many small exports. Ask what a caller must know and what a change would reach.
 
 ## Anti-rationalization
 

@@ -21,6 +21,8 @@ If neither exists, this whole file is a no-op — skip to your next step.
 - frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for legacy files.
 - When both variants are present, prefer values from `from-debug-<branch>.md` (scientific) over the adversarial variant for consistency; only fall back to adversarial values when the scientific field is absent.
 
+**Original reproduction** (scientific handoff only): frontmatter `original_repro:` → record as `debug-original-repro`, the un-minimised command that reproduced the bug before debug shrank it. Absent on older handoffs and on runs with no runnable command — skip silently. The consumer runs it once after the fix (`/geniro:implement` Phase 2 §5.5); a non-zero exit means the bug still reproduces and is a failed check.
+
 **Authored test paths — prefer frontmatter (m7-v2+), fall back to body parse (legacy m7-v1):**
 
 1. Check frontmatter `geniro_schema_version` field on each handoff file present.
@@ -29,7 +31,7 @@ If neither exists, this whole file is a no-op — skip to your next step.
    - `from-debug-<branch>.md`: body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim whitespace. Skip if value is `none` or starts with `escape hatch:`.
    - `from-debug-adversarial-<branch>.md`: for each body `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace.
 
-**When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on a single line. Consumers split on `,` and trim each token before re-resolving. Optionally also persist `Authored-tests-intent:` as a parallel comma-separated list of intents (one per path, same order) when consumed from m7-v2+ frontmatter — preserves the producer's per-test annotation for downstream Phase 2 todo-decomposition.
+**When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on a single line, and `Original-repro:` as the command verbatim when present (never split on `,`). Consumers split `Authored-tests:` on `,` and trim each token before re-resolving. Optionally also persist `Authored-tests-intent:` as a parallel comma-separated list of intents (one per path, same order) when consumed from m7-v2+ frontmatter — preserves the producer's per-test annotation for downstream Phase 2 todo-decomposition.
 
 ## Step 3: Verify
 

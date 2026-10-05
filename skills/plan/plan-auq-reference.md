@@ -6,7 +6,7 @@ Literal `AskUserQuestion` templates and state-schema blocks for the `/geniro:pla
 
 1. state.md frontmatter + body template (Phase 0.3) + the `approvals[]` entry shape every gate below writes
 1b. Artifact opt-in question — Phase 0, asked once when `--artifact` is absent
-2. Phase 3 grill AUQ — message-first, one question at a time
+2. Phase 3 grill AUQ — message-first, one round at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 4. Phase 5 cluster AUQ — message-first cluster approval (3 dependency-ordered gates) + milestone-mode
 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
@@ -96,16 +96,19 @@ Empty answer → re-ask, never auto-default, per `${CLAUDE_PLUGIN_ROOT}/skills/_
 
 ---
 
-## 2. Phase 3 grill AUQ — message-first, one question at a time
+## 2. Phase 3 grill AUQ — message-first, one round at a time
 
 The procedure is `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.2; this section holds the literal templates.
 
-Chat message rendered before the FIRST question:
+Chat message rendered before a round's AUQ — the first round also opens with the decisions already settled in the conversation:
 
 ```markdown
-First decision before I lock the approach:
+Already settled earlier in this conversation (tell me if any is wrong):
+- Rate limit: reuse the existing per-user limiter.
 
-**Auth method** — how should callers of the new endpoint prove who they are?
+Two decisions I can ask now — neither depends on the other:
+
+**1. Auth method** — how should callers of the new endpoint prove who they are?
 
 - **A token sent with each request.** The caller attaches a token; anyone without a
   valid one is turned away. This is the same check the rest of the API already does,
@@ -113,18 +116,22 @@ First decision before I lock the approach:
   **Technical detail:** `@UseGuards(JwtAuthGuard)`; token read from the Authorization
   header; 401 on missing/invalid, `code: 'UNAUTHENTICATED'`.
 - **The browser's login cookie.** The caller is recognised by the session they already
-  have from logging in. Same rejection behavior for anyone not logged in, but the API
-  then has two ways of proving identity to keep working.
+  have from logging in. The API then has two ways of proving identity to keep working.
   **Technical detail:** `@UseGuards(SessionGuard)`; reads the `session_id` cookie;
   mirrors `/auth/session.spec.ts`; same 401 shape.
-- **Decide later.** I write down "tokens, unless told otherwise" as a stated assumption,
-  and the build step confirms it against the code before relying on it.
+- **Decide later.** I write down "tokens, unless told otherwise" as a stated assumption.
 
-I recommend the token check — it already exists and is already tested; the cookie route
-would add a second way in for the project to keep working.
+➡️ I recommend the token check — it already exists and is already tested.
+
+**2. Retention** — how long should the new audit rows be kept?
+
+- **90 days**, **forever**, or **someone else decides this** — a compliance call; I
+  record it as pending with an owner and write the questions for them.
+
+➡️ 90 days, matching the existing events table.
 ```
 
-Then the LEAN single-question AUQ — options are short selectors carrying the plain layer only (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions); the identifiers live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, the framing message names the recommendation and the AUQ's first option carries the `(Recommended)` marker:
+Then ONE lean AUQ carrying the round's questions (up to 4 per call; a larger round chains further calls from the same message). Options are short selectors carrying the plain layer only (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions); the identifiers live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, each question's first option carries the `(Recommended)` marker:
 
 ```yaml
 questions:
@@ -137,11 +144,30 @@ questions:
         description: "Recognises an already-logged-in user; adds a second way in to maintain."
       - label: "Decide later — assume tokens"
         description: "Recorded as a stated assumption for the build step to confirm."
+  - header: "Retention"
+    question: "How long should the new audit rows be kept?"
+    options:
+      - label: "90 days (Recommended)"
+        description: "Matches the existing events table."
+      - label: "Forever"
+        description: "No cleanup job; storage grows with traffic."
+      - label: "Someone else decides this"
+        description: "Recorded as pending for its owner; the questions go in questionnaire.md."
 ```
 
-After the user answers, persist it (below), then render the next question's framing and fire its own single-question AUQ.
+After the answers, persist each (below), recompute the frontier, and render the next round. A "Someone else decides this" pick opens one follow-up AUQ (`header: "Decided by"`, role options the conversation already named, a name typed via Other). The `<task-dir>/questionnaire.md` that §3.4 termination writes:
 
-Each answered question → one `approvals[]` entry (§1 entry shape) with category `clarify_<dim>` (e.g. `clarify_auth_method`), `asked_in_phase: clarify`.
+```markdown
+# Questions for <owner>
+
+## Retention — how long should the new audit rows be kept?
+**Why it matters:** decides whether a cleanup job is needed.
+**Options considered:** 90 days (recommended — matches the events table); forever.
+
+> (answer here)
+```
+
+Each answered question → one `approvals[]` entry (§1 entry shape) with category `clarify_<dim>` (e.g. `clarify_auth_method`), `asked_in_phase: clarify`; a pending pick records `picked: "pending: <owner>"` (quoted — an unquoted colon-space breaks the YAML).
 
 ### 2b. Checkpoint gate and termination summary
 
@@ -150,7 +176,7 @@ Trigger and procedure: `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md`
 Chat message rendered before the checkpoint AUQ:
 
 ```markdown
-Quick checkpoint — 6 decisions in, here's where we are:
+Quick checkpoint — 2 rounds and 6 decisions in, here's where we are:
 
 **Resolved**
 - Auth: JWT via existing middleware
@@ -327,7 +353,7 @@ header: "Milestones"
 question: "This task is large enough to slice into milestones. Slice it now or keep as a single spec?"
 options:
   - label: "Slice into milestones"            # Recommended for Big
-    description: "Splits into 3-7 milestone files instead of one spec.md — you approve the names, then build and ship each one as its own /geniro:implement session."
+    description: "Splits into 3-7 milestone files instead of one spec.md — you approve each one's deliverable and dependencies, then build and ship each as its own /geniro:implement session."
   - label: "Keep as a single spec"
     description: "The spec write step emits only spec.md; /geniro:implement consumes the whole thing."
 ```
@@ -338,7 +364,7 @@ If "Slice into milestones" picked:
 
 Propose the milestones as vertical slices: each cuts a narrow but complete path through every affected layer (schema, API, UI, tests), is demoable or verifiable on its own, and fits one fresh /geniro:implement session; prefactoring that eases later milestones lands in milestone-1. A layer-per-milestone split leaves nothing verifiable until the last milestone lands — the failure mode vertical slicing prevents. A wide mechanical refactor that cannot slice vertically sequences expand–contract instead, per the Big-tier row in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`.
 
-1. Fire a follow-up AUQ with the proposed milestone names (single-select for "approve all" or multi-select pick per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`).
+1. Render the breakdown to a chat message first: each milestone with its name, its deliverable (what is demoable or verifiable once it lands), and its `blocked_by` edges. Then fire a lean AUQ — header "Breakdown", options: "Approve this breakdown" (Recommended) / "Merge milestones" / "Split a milestone". A merge or split pick opens a picker of the milestone names (multi-select for merge, single for split, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`); re-propose the breakdown, re-render it, and re-ask until approved — a breakdown the user never saw as deliverables gets approved as names, and the mismatch surfaces mid-build. Persist the approval to `approvals[]` with category `milestone_breakdown`, so a compaction between approval and Phase 6 cannot lose it.
 2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own copy of the standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) scoped to the milestone. A milestone that depends on specific earlier milestones (not merely everything before it) lists them in its `blocked_by:` frontmatter, and the `## Milestones` index mirrors those edges (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §Milestone-mode).
 
 ---
@@ -364,6 +390,7 @@ the in/out scope map from the Goal & scope step>
 **⚠️ Risk level:** <the highest per-risk severity in section 5, raised one level
 when frontmatter forbidden_actions is non-empty> — <one-line why, naming the risk
 that set the level>
+**⏳ Still waiting on others:** <each `pending: <owner>` assumption from section 4, by owner — omit when none; questions in `.geniro/planning/<slug>/questionnaire.md`; an answer replaces its `pending:` line in the spec before /geniro:implement runs>
 **↩️ If something goes wrong:** <section 10 summary, 1-2 sentences>
 **✅ How we'll know it's done:**
 ☐ <section 11 — one checkbox per observable signal, e.g. "all 5 acceptance tests green">

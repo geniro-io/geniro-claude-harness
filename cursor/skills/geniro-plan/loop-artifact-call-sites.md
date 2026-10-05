@@ -15,7 +15,7 @@ The sites, in loop order — a site missing from this table is an artifact updat
 | §2.2 before the UI preview question | Before-gate (`visual-companion`) | the rendered UI mockup + the pending preview decision |
 | §2.2 on each preview revision round | Before-gate (`visual-companion`) | the revised mockup — refresh the panel, don't blank it; the gate is being re-presented |
 | §2.3 after the preview is approved | Update (`visual-companion`) | the approved mockup + its digest |
-| §3.4 before the grill checkpoint or exit question | Before-gate (`clarify`) | the pending checkpoint / exit decision; refresh at these two gates only, never per grill question |
+| §3.4 before the grill checkpoint or exit question | Before-gate (`clarify`) | the pending checkpoint / exit decision; refresh at these two gates only, never per grill round |
 | §3.4 on grill termination, once the exit gate resolves toward Phase 4 | Update (`clarify`) | the decision log |
 | §4.3 before the approach question | Before-gate (`approach`) | approach write-ups, stress-test evidence, data-flow diagram |
 | §4.4 after the approach pick persists | Update (`approach`) | chosen approach + considered alternatives |

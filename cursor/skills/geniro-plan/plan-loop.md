@@ -47,7 +47,7 @@ The Phase 4, Phase 5, and Phase 8 gate messages render in the shared visual lang
 
 ## Echo contract
 
-Cross-phase: Phase 1 research spawns, the Phase 3 grill's on-demand research spawns, the Phase 4 stress-test critics, and the Phase 6 spec write all append an entry of this shape, so it lives in the spine rather than in one phase's file.
+Cross-phase: Phase 1 research spawns, the Phase 3 grill's on-demand research spawns, the Phase 4 design generators and stress-test critics, and the Phase 6 spec write all append an entry of this shape, so it lives in the spine rather than in one phase's file.
 
 Each Phase 1 research spawn appends a structured entry to state.md `## Tool log` via `atomic_state_append_section`:
 
@@ -70,7 +70,7 @@ Phase 7 validator (check `source_materials`) requires ≥1 Agent entry with `sta
 
 ## Spawn contract
 
-Cross-phase, binding every subagent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, and the Phase 4 stress-test critics.
+Cross-phase, binding every subagent spawn in the loop — the Phase 1 research spawns, the Phase 3 on-demand research spawns, and the Phase 4 design generators and stress-test critics.
 
 Spawn custom plugin agents per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (host-dependent ladder, empty-result fallback; cache the resolved form for the session). Judgment-grade spawns OMIT `model=` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
 

@@ -108,7 +108,7 @@ launch_config: # optional, SEPARATE block (NOT goal-state) — present only when
 
 ## 4. Assumptions
 
-<Bullet list of the premises the plan rests on, each written as a predicate a reader can check against the code or the environment — "the `users` table has a `deleted_at` column", "OAuth library version ≥2.5", "the test DB is available" — never a gesture at an area ("auth is handled elsewhere"). Every design branch the planning grill closed without an answer belongs here; a premise stated this way is verified claim by claim before approval, and one left in prose is not. Use "none" if scope precludes assumptions.>
+<Bullet list of the premises the plan rests on, each written as a predicate a reader can check against the code or the environment — "the `users` table has a `deleted_at` column", "OAuth library version ≥2.5", "the test DB is available" — never a gesture at an area ("auth is handled elsewhere"). Every design branch the planning grill closed without an answer belongs here; a premise stated this way is verified claim by claim before approval, and one left in prose is not. A decision that belongs to someone else is the one exception, written `pending: <owner> — <the decision>; working assumption: <X>` — a decision awaiting its owner, not a code predicate, so it is listed at approval rather than verified. Use "none" if scope precludes assumptions.>
 
 ## 5. Risks
 
