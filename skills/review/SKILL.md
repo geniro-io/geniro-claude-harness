@@ -104,7 +104,7 @@ When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLA
 
 ## Subagent spawning
 
-Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` under any other host. `--subagent-model <tier>` in `$ARGUMENTS` passes `model="<tier>"` at every judgment-grade spawn instead — announce the pinned tier once at run start. The flag only lowers the scoped `knowledge-retrieval-agent` (Phase 1), whose ceiling is `sonnet`; it never raises it. Spawn list, registration ladder, and the flag's reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
+Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` on any other host whose agent-type list carries it, else that host's general-purpose type with the agent body inlined. `--subagent-model <tier>` in `$ARGUMENTS` passes `model="<tier>"` at every judgment-grade spawn instead — announce the pinned tier once at run start. The flag only lowers the scoped `knowledge-retrieval-agent` (Phase 1), whose ceiling is `sonnet`; it never raises it. Spawn list, registration ladder, and the flag's reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
 
 ---
 

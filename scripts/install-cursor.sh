@@ -24,6 +24,12 @@
 #     ~/.cursor/agents/     cursor.com/docs/subagents   ("editor, CLI, and Cloud Agents")
 #     ~/.cursor/hooks.json  cursor.com/docs/hooks       (merged, User priority)
 #
+# The agents directory reaches the IDE and `cursor-agent -p`, not ACP: driven
+# over ACP the same binary lists only its built-in agents and the workspace's
+# own (.cursor/agents, .claude/agents). Measured 2026-10-06 on
+# 2026.10.01-e373342. ACP runs spawn through spawn-agent.md's general-purpose
+# rung, which needs no install.
+#
 # THIS ROUTE AND A PLUGIN INSTALL ARE MUTUALLY EXCLUSIVE. Cursor performs no
 # deduplication across skill sources — it scans every known directory and loads
 # every SKILL.md it finds, staff-confirmed and unfixed

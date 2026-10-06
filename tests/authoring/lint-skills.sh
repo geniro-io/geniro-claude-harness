@@ -294,8 +294,8 @@ rm -f "$valid_agents"
 # spawn-agent.md §Parallel-spawn sites degrades a batch as a unit, a fan-out
 # that opens at the prefixed rung there burns one dead spawn PER AGENT plus a
 # whole turn before any real work starts (observed: an 11-reviewer
-# /geniro-review fan-out). spawn-agent.md now enters the ladder at the bare
-# rung off-Claude-Code, but that file is a deferred read the happy path never
+# /geniro-review fan-out). spawn-agent.md now reads the entry rung from the
+# host's agent list, but that file is a deferred read the happy path never
 # opens: what a run actually obeys is the spawn form written at the call site.
 # So every call site naming the prefixed form must name the bare one beside it.
 # spawn-agent.md itself is exempt — it is where the distinction is defined.

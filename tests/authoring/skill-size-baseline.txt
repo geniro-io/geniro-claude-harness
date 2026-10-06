@@ -21,6 +21,6 @@ skills/plan/SKILL.md 2852
 skills/refactor/SKILL.md 3200
 skills/reflect/SKILL.md 2962
 skills/resolve/SKILL.md 3468
-skills/review/SKILL.md 2783
+skills/review/SKILL.md 2798
 skills/setup/SKILL.md 2314
 skills/update/SKILL.md 1755

@@ -125,7 +125,7 @@ For each spec the helper returns, the consumer skill appends one spawn to its pa
 Inherit form (default — user did not declare `model:`):
 
 ```
-Agent(subagent_type="geniro:reviewer-agent", prompt="""   # ladder rung 1 — Claude Code only; bare name under any other host
+Agent(subagent_type="geniro:reviewer-agent", prompt="""   # ladder rung 1 — Claude Code only; elsewhere the bare name if the host lists it, else general-purpose + body
 DIMENSION: {spec.dimension-label}
 CRITERIA: {spec.criteria-content}
 PROJECT SEARCH POLICY: [verbatim global.md rules governing how to search this codebase, or `none declared` — governs every lookup the reviewer makes, not just its first]
