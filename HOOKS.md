@@ -8,7 +8,7 @@ Hook configuration is **split** across three files:
 
 | File | Purpose |
 |---|---|
-| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, SessionStart) for Claude Code. Auto-discovered at the `hooks/hooks.json` convention path — deliberately NOT declared in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json), which stays metadata-only. Adding a `hooks` field there would duplicate an auto-discovered path and risk double-registration; see [`.claude-plugin/PLUGIN_SCHEMA_NOTES.md`](.claude-plugin/PLUGIN_SCHEMA_NOTES.md) §Component declaration. |
+| [`hooks/hooks.json`](hooks/hooks.json) | Registers event-driven hooks (PreToolUse, SessionStart) for Claude Code; Codex also runs it from the plugin install once the user trusts the hooks in `/hooks`. Auto-discovered at the `hooks/hooks.json` convention path — deliberately NOT declared in [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json), which stays metadata-only. Adding a `hooks` field there would duplicate an auto-discovered path and risk double-registration; see [`.claude-plugin/PLUGIN_SCHEMA_NOTES.md`](.claude-plugin/PLUGIN_SCHEMA_NOTES.md) §Component declaration. |
 | [`settings.json`](settings.json) (root) | Template only — Claude Code accepts a `statusLine` command solely from the user's or project's own settings, so this bundled copy never runs for the plugin itself; `/geniro:setup` copies it into the user config dir, and that copy is the operative one (see §geniro-statusline.js). The status line is NOT a Claude Code hook — it's a separate display feature. Plugin-shipped `settings.json` cannot grant permissions either (Claude Code ignores a `permissions` block here) — permission rules belong in the consumer's own user/project settings. |
 | [`cursor/hooks.json`](cursor/hooks.json) | Registers the same hook scripts for the Cursor runtime. Pointed to by [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json) `hooks` field. Every entry runs through the shim (below) rather than calling `hooks/*.sh` directly. |
 
@@ -16,7 +16,7 @@ The status messages set on each `hooks.json` entry (e.g. `"Checking for git add 
 
 ### Cursor wiring (`cursor/hooks.json` → the shim)
 
-Cursor speaks a different hook dialect, so its manifest points every entry at [`cursor/hooks/claude-hook-shim.sh`](cursor/hooks/claude-hook-shim.sh), which takes a script basename from `hooks/` and translates in both directions — one script set, two runtimes, no fork:
+Cursor speaks a different hook dialect, so its manifest points every entry at [`cursor/hooks/claude-hook-shim.sh`](cursor/hooks/claude-hook-shim.sh), which takes a script basename from `hooks/` and translates in both directions — one script set for every runtime, no fork:
 
 | Direction | Claude Code dialect | Cursor dialect |
 |---|---|---|
@@ -37,7 +37,7 @@ Wired for Cursor: the force-add guard on `beforeShellExecution` (with `"failClos
 |---|---|---|---|
 | [`block-geniro-force-add.sh`](hooks/block-geniro-force-add.sh) | PreToolUse `Bash` | exit 2 = block | Blocks `git add -f` / `--force` (and `git update-index --force`) on `.geniro/` paths. Bypass: `git-add-force-geniro` |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1.5 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); skips state.md candidates already in a terminal `phase:`/`status:` during resolution, so a finished task is never surfaced as resumable AND cannot shadow an in-flight task on the same branch in a later resolution tier; pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Also runs L2 auto-archive. Read-only on state.md; the only writes are `learnings.jsonl` (auto-archive flip) + `.archive-stale.{hash,lock}`. |
-| [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates |
+| [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates; exits as a no-op under Codex |
 | [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | Two-row width-justified status line (model — effort · task · topic · 5h limit · cost · update / dir · context · last prompt) |
 | [`backpressure.sh`](hooks/backpressure.sh) | **NOT registered** — utility library | — | Sourced by skills (e.g. /refactor, /review) to compress verbose test/build output |
 
@@ -80,7 +80,7 @@ Emits an `additionalContext` block-set:
 
 **Event:** SessionStart. **Block exit:** never blocks. **Timeout:** 5s.
 
-Spawns a detached child process via `spawn(..., detached: true, stdio: 'ignore')` then `child.unref()`; the parent consumes stdin and exits immediately so session start is never blocked. The child fetches GitHub `releases/latest` (10s timeout, fallback to `raw.githubusercontent.com`) and writes the result to `~/.claude/cache/geniro-update-check.json`. The status line consumes that cache to surface "update available" indicators.
+Spawns a detached child process via `spawn(..., detached: true, stdio: 'ignore')` then `child.unref()`; the parent consumes stdin and exits immediately so session start is never blocked. Under Codex, which also runs this hook, the parent skips the spawn when `PLUGIN_ROOT` is set and equals `CLAUDE_PLUGIN_ROOT` — Codex exports both, with the same value, to plugin hooks; Claude Code exports only `CLAUDE_PLUGIN_ROOT` — because only Claude Code's status line reads the cache, and the check would otherwise create `~/.claude` and call GitHub at every Codex session start. The child fetches GitHub `releases/latest` (10s timeout, fallback to `raw.githubusercontent.com`) and writes the result to `~/.claude/cache/geniro-update-check.json`. The status line consumes that cache to surface "update available" indicators.
 
 The child also re-syncs `~/.claude/hooks/geniro-statusline.js` from the plugin's own copy when the two differ. Claude Code accepts a `statusLine` command only from user or project settings, so the plugin cannot point at its own file — `/geniro:setup` installs a copy (§3.6) and `/geniro:update` refreshes it (Phase 3 Step 4). A background marketplace auto-update runs neither, so for exactly the users who opted into `autoUpdate` the copy would drift behind the plugin forever. Writes via rename so a concurrent render never reads a half-written file, and only ever overwrites a copy that already exists — creating one would install a status line the user never configured.
 

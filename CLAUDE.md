@@ -1,6 +1,6 @@
 # Geniro Plugin
 
-One `skills/` directory ships to two runtimes, Claude Code and Cursor.
+One `skills/` directory ships to three runtimes, Claude Code, Cursor, and Codex.
 
 ## Skill routing
 
@@ -88,7 +88,7 @@ bash tests/authoring/lint-skills.sh   # authoring lint (hard failures + advisory
 | Topic | File |
 |---|---|
 | Hooks — the force-add guard, session restore, `.geniro/safety.json`, and the guards deleted for blocking legitimate work (read before adding one) | `HOOKS.md` |
-| Design decisions, subagent model tiering, optional MCP companions, the Cursor runtime port | `ARCHITECTURE.md` |
+| Design decisions, subagent model tiering, optional MCP companions, the Cursor and Codex runtime ports | `ARCHITECTURE.md` |
 | Skill catalogue — full descriptions, every flag, the deleted skills and their replacements | `README.md` |
 | Breaking changes and the per-entry upgrade walk | `MIGRATION.md` |
 | Agent spawn ladder (`geniro:<agent>` → bare → `general-purpose` + inlined body) | `skills/_shared/spawn-agent.md` |

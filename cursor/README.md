@@ -1,6 +1,6 @@
 # Using Geniro with Cursor
 
-This repository is a dual-runtime plugin: `.claude-plugin/plugin.json` packages it for Claude Code, `.cursor-plugin/plugin.json` packages it for Cursor. Skills, agents, and hooks are each runtime-specific ports generated from one canonical source:
+This repository is a multi-runtime plugin: `.claude-plugin/plugin.json` packages it for Claude Code (and Codex, which reads the same manifest and `skills/`), `.cursor-plugin/plugin.json` packages it for Cursor. Cursor's skills, agents, and hooks are runtime-specific ports generated from one canonical source:
 
 | Component | Claude Code reads | Cursor reads | Installed to |
 |---|---|---|---|
