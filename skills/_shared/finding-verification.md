@@ -179,9 +179,9 @@ After loop:
     on any other host whose agent-type list carries it, else that host's general-purpose
     type with the agent body inlined — per the ladder in
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
-  - OMIT `model=` by default (orchestrator tier inherits via frontmatter `model: inherit`),
-    or pass `model="<tier>"` when the run carries `--subagent-model` — per
-    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`.
+  - Spawn as **session** — pass no `model=` — per
+    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, or pass the
+    `--subagent-model` value when the run carries it (§`--subagent-model`).
 ```
 
 Critical: ALL verifier spawns fire in ONE assistant response, same assistant turn, NOT one per turn. Separate turns serialize execution and double wall-time; the canonical parallel-spawn invariant applies.
@@ -192,7 +192,7 @@ Critical: ALL verifier spawns fire in ONE assistant response, same assistant tur
 
 ## 4.5 Verifier-never-ran fail-open
 
-A §4.1 survivor can reach Phase 5 with no verdict two ways: the spawn fails — errors out even after the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, or returns output with no parseable `validation:` value after the one empty-result retry (inherit tier) — or the orchestrator never spawns one at all, the §6 context-budget rationalization this table exists to confront. Either way the finding lands in none of the §3 outcome buckets, and an unmarked `Validation:` would read as `confirmed` to every consumer via the legacy back-compat rule — masking "nobody checked this" as "this was checked" regardless of cause. The orchestrator instead assigns an explicit disposition, the two causes distinguished only by the `Verification-evidence:` string — a failed cluster spawn (after the ladder + one retry) assigns its string to EVERY finding in that cluster:
+A §4.1 survivor can reach Phase 5 with no verdict two ways: the spawn fails — errors out even after the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`, or is still empty or without a parseable `validation:` value after the one session retry its §Empty-result fallback gives a session spawn — or the orchestrator never spawns one at all, the §6 context-budget rationalization this table exists to confront. Either way the finding lands in none of the §3 outcome buckets, and an unmarked `Validation:` would read as `confirmed` to every consumer via the legacy back-compat rule — masking "nobody checked this" as "this was checked" regardless of cause. The orchestrator instead assigns an explicit disposition, the two causes distinguished only by the `Verification-evidence:` string — a failed cluster spawn (after the ladder and the one session retry) assigns its string to EVERY finding in that cluster:
 
 - `Validation: unverified`, `Verification-confidence: 1`, `Recommended-action` mirroring the finding's original Decision Type, `Verification-evidence:` naming the cause verbatim — `"verifier did not run — spawn failed after retry"` for a tooling failure, `"verifier not spawned — orchestrator elected to skip verification"` for a deliberate skip.
 - The finding stays kept — fail-open, mirroring the Phase 1.5 mechanical pre-pass doctrine: neither cause deletes a finding the reviewers already paid for.
@@ -236,6 +236,6 @@ The verifier-side rows (coherence with the original reviewer, skipping caller se
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — agent registration ladder.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — OMIT `model=` rule.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes (verifiers are **session**) and the `--subagent-model` override.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` — handoff schema consumer.
 - `${CLAUDE_PLUGIN_ROOT}/agents/finding-verifier-agent.md` — the agent this contract spawns.

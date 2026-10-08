@@ -126,7 +126,7 @@ Zero sessions surviving selection → the same one-sentence graceful exit as ste
 
 ## Phase 2: Analyze sessions
 
-With a search string or an empty argument, spawn one `Agent(subagent_type="generalPurpose", ...)` transcript analyst per selected session — all spawns in ONE assistant response. Each spawn satisfies the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`; OMIT `model=` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`.
+With a search string or an empty argument, spawn one `Agent(subagent_type="generalPurpose", ...)` transcript analyst per selected session — all spawns in ONE assistant response. Each spawn satisfies the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` and is **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes.
 
 Each analyst prompt carries:
 
@@ -151,7 +151,7 @@ Spawn ONE `reflection-agent` (contract: `${CLAUDE_PLUGIN_ROOT}/agents/reflection
 
 Under `--this-session` the spawn IS the isolation the shape depends on: you authored the run being judged, so inline synthesis reads it through the same blind spots. The runtime-portability fallback of running an agent's contract inline does not apply here — a host with no delegation facility reports that and exits without side effects.
 
-Gather the prior declines first and pre-inline them — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a declared `## Memory Backend` block routing `learnings`, delegate that read to a scoped `knowledge-retrieval-agent` spawn — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. The agent declares a `Context loaded:` line — check the report for it before treating an empty result as backend-absent rather than unread, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. With no such block, run the prior-declines query per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots, which owns the exact call — an unfiltered query lets another skill's rejections fill the window and reflect's own declines never surface.
+Gather the prior declines first and pre-inline them — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a declared `## Memory Backend` block routing `learnings`, delegate that read to a scoped `knowledge-retrieval-agent` spawn (**light (mid)**, `SCOPE: learnings-backend`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. The agent declares a `Context loaded:` line — check the report for it before treating an empty result as backend-absent rather than unread. With no such block, run the prior-declines query per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots, which owns the exact call — an unfiltered query lets another skill's rejections fill the window and reflect's own declines never surface.
 
 Spawn slots:
 
@@ -176,7 +176,7 @@ The agent returns the candidates that passed `${CLAUDE_PLUGIN_ROOT}/skills/_shar
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` — visual gate language
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` — analyst spawn contract
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` — transcript-as-data rule
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — OMIT `model=` rationale
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — project-rules load
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` · `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-rejection.md` · `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` — memory helper APIs
 - `${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh` · `${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh` · `${CLAUDE_PLUGIN_ROOT}/lib/emit-learning.sh` · `${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh` — shell helpers

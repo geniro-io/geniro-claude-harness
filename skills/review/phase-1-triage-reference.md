@@ -382,7 +382,7 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 | `query-learnings` (route per `query-learnings.md` §"Memory backend override" — declared backend read tool under a `## Memory Backend` block; the file is empty under `replace`) | `--type pitfall --tag <tags inferred from changed-file paths> --score-min 0 --limit 5` | top 5 matching L2 entries by score (superseded/deprecated excluded by default) |
 | `resolve-conflicts` | transitive | hard conflict → AUQ |
 
-**Backend-routed learnings.** When `memory.md` declares a `## Memory Backend` block routing `learnings`, delegate that one read to a scoped `knowledge-retrieval-agent` spawn (`SCOPE: learnings-backend`) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3, and use the returned report in place of the file query. The agent declares a `Context loaded:` line; the empty-vs-unread reading rule is single-sourced at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. With no such block, the inline file query above runs unchanged.
+**Backend-routed learnings.** When `memory.md` declares a `## Memory Backend` block routing `learnings`, delegate that one read to a scoped `knowledge-retrieval-agent` spawn (`SCOPE: learnings-backend`, **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3, and use the returned report in place of the file query. The agent declares a `Context loaded:` line; the empty-vs-unread reading rule is single-sourced at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. With no such block, the inline file query above runs unchanged.
 
 ---
 

@@ -103,7 +103,7 @@ External sends are not part of `/geniro:audit-instructions` ACI.
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers OMIT `model=`, inheriting the orchestrator's tier so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 5 fix agents pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4, receiving findings the user already approved and a file allowlist it may not extend. That tier is the ceiling; a round of purely textual instruction-file edits takes a cheaper one, the same tier across the batch (same file, §Sizing a non-judgment spawn). Phase 3's T0/T1 cold-verify uses the `finding-verifier-agent` ladder (OMIT `model=`). The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
+All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers are `session` (OMIT `model=`), so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 5 fix agents and Phase 3's T0/T1 cold-verify (`finding-verifier-agent` ladder) are **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: the fixes apply findings the user already approved within a file allowlist, and the verifier checks findings about instruction files, not code. The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
 
 ---
 
@@ -177,5 +177,5 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-write helper API and exit codes
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — resume validation and the recovery question
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — reviewer inherit rule and the fix-agent execution pin
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes: `session` reviewers, light fix agents and verifier
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` / `per-finding-question.md` — render-then-ask contract for the action gate and the per-proposal deletion gate

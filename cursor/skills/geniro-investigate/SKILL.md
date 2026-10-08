@@ -91,7 +91,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## Subagent model tiering
 
-Follow the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. OMIT `model=` at every spawn — every spawn in this skill researches or verifies, and the orchestrator's session tier propagates to the work that decides the answer.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, spawns are `session` unless a site names a light class: Git Historian **light (smallest)**, Internet Researcher **light (mid)**. Codebase Analyst and fresh verifier decide the answer and stay `session`.
 
 ## Subagent spawn contract
 

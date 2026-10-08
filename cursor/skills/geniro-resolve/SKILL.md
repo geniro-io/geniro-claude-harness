@@ -95,8 +95,8 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | Phase | Allowed | Forbidden |
 |---|---|---|
 | Phase 1 (Triage) | Read / Grep / Glob / Bash (`gh pr view`, `gh api graphql` / `gh pr checks` read side of `pr-threads.md`; workspace-sync git: `fetch` / `gh pr checkout` / `merge` / `rebase` / `pull` / `stash`; `atomic_state_write`) / AskQuestion (sync offers + no-PR fallback) | Edit / Write on source / any `gh` write / `git push` |
-| Phase 2 (Decide) | Read / Grep / Glob / Bash (read-only repro, test runs; a resume's `pr-threads.md` read side re-running the Phase 1 fetch) / Agent (`finding-verifier-agent` — OMIT `model=`) / AskQuestion / atomic_state_write | Edit / Write on source / `gh` write / `git push` |
-| Phase 3 (Fix & close) | Read / Grep / Glob / Edit / Write on source / Bash (the `pr-threads.md` read side, before the gate and again before staging; after the gate answers: `git add` / `commit` / `git push`, the `pr-threads.md` write side; `atomic_state_write`; the terminal sweep of this run's own slug dir) / Agent (`test-runner-agent` — OMIT `model=`) / AskQuestion / TodoWrite | `git add` / `commit` / `git push` / `gh` write before the ship gate answers; force-push; branch or PR creation |
+| Phase 2 (Decide) | Read / Grep / Glob / Bash (read-only repro, test runs; a resume's `pr-threads.md` read side re-running the Phase 1 fetch) / Agent (`finding-verifier-agent` — **session**) / AskQuestion / atomic_state_write | Edit / Write on source / `gh` write / `git push` |
+| Phase 3 (Fix & close) | Read / Grep / Glob / Edit / Write on source / Bash (the `pr-threads.md` read side, before the gate and again before staging; after the gate answers: `git add` / `commit` / `git push`, the `pr-threads.md` write side; `atomic_state_write`; the terminal sweep of this run's own slug dir) / Agent (`test-runner-agent` — **light (smallest)**) / AskQuestion / TodoWrite | `git add` / `commit` / `git push` / `gh` write before the ship gate answers; force-push; branch or PR creation |
 
 ## Memory I/O
 

@@ -173,7 +173,7 @@ If none match AND $ARGUMENTS is non-empty free-form text → enter **inline-task
 
 ## Phase 1: Subagent spawn template
 
-Spawn `knowledge-retrieval-agent` and `codebase-explorer-agent` IN PARALLEL — one assistant response, both spawns together (the codebase-explorer alone when the store-empty gate in `phase-1-analyze.md` Step 7 skipped the knowledge-retrieval slot). Agent name per host, model, and spawn-failure ladder: `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering.
+Spawn `knowledge-retrieval-agent` (**light (mid)**) and `codebase-explorer-agent` (`session`) IN PARALLEL — one assistant response, both spawns together (the codebase-explorer alone when the store-empty gate in `phase-1-analyze.md` Step 7 skipped the knowledge-retrieval slot). Agent name per host and spawn-failure ladder: `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering.
 
 ### Backgrounding when a handoff gate is pending (idle-overlap)
 
@@ -214,7 +214,8 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 | `OUTPUT_PATH` | `<task-dir>/.kr-out.md` |
 
 ```
-Agent(subagent_type="knowledge-retrieval-agent", description="Retrieving past learnings", prompt="""
+Agent(subagent_type="knowledge-retrieval-agent", description="Retrieving past learnings",   # cost class: light (mid) — model-tiering.md §Cost classes
+      prompt="""
 LIB_ROOT: [absolute path]
 KNOWLEDGE_ROOT: [absolute path]
 PLANNING_ROOT: [absolute path]
@@ -329,7 +330,7 @@ Runs only when BOTH hold: the Phase 1 predicted affected-files list contains a U
 
 ## Phase 2: Code-delegate spawn template
 
-Applies when Phase 2 Step 3's delegation rule (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 3) selects a group for delegation. Spawn `subagent_type="generalPurpose"` — no plugin agent owns this shape, and no `agents/*.md` file carries production-source write authority. Model per `operations-reference.md` §Subagent model tiering: `sonnet` is the ceiling, since the slice, its file set, and its paired test are already decided; a fully determined group (a rename across the named files, a mechanical signature update) takes a cheaper tier, one tier for the whole batch. The template below shows the ceiling form. The delegate runs in the SAME worktree as the orchestrator; the disjoint file-set allowlist is the isolation mechanism, not `isolation: worktree`.
+Applies when Phase 2 Step 3's delegation rule (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 3) selects a group for delegation. Spawn `subagent_type="generalPurpose"` — no plugin agent owns this shape, and no `agents/*.md` file carries production-source write authority. Spawn it as **light (mid)** per `operations-reference.md` §Subagent model tiering, since the slice, its file set, and its paired test are already decided. The delegate runs in the SAME worktree as the orchestrator; the disjoint file-set allowlist is the isolation mechanism, not `isolation: worktree`.
 
 **Pre-spawn ownership assert.** The orchestrator computes the file-set partition into disjoint delegate groups at Phase 2 Step 2 (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Step 2) — a delegate never discovers its own file set. Before any delegate fires, verify: every todo in the delegated set appears in exactly one delegate's allowlist; every file those todos touch falls inside exactly one allowlist; anything with no owner is echoed to the user and assigned before spawning.
 
@@ -348,7 +349,8 @@ The orchestrator pre-resolves these slots per delegate:
 | `PROJECT SEARCH POLICY` | Verbatim `global.md` search rules, or `none declared` — governs every lookup the delegate makes, not just the first |
 
 ```
-Agent(subagent_type="generalPurpose", model="sonnet", description="Implementing: <todo summary>", prompt="""
+Agent(subagent_type="generalPurpose", description="Implementing: <todo summary>",   # cost class: light (mid) — model-tiering.md §Cost classes
+      prompt="""
 WORKTREE: [absolute path]
 TODO_SPEC_EXCERPT: [pre-inlined]
 ALLOWED_FILES: [newline-separated absolute paths — edit ONLY these]
@@ -391,7 +393,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 
 ## Phase 2: test-runner-agent spawn template
 
-Spawn `test-runner-agent` ONCE at end of Phase 2 (after all TodoWrite todos completed), ONCE per fix-loop retry, and once more with the full command whenever the Phase 3 fix loop's final full-suite trigger fires (§"Phase 3: Bounded fix loop" "Final full-suite trigger"). Agent name per host, model, and spawn-failure ladder: `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering — OMIT `model=` on the end-of-phase run. A fix-loop re-spawn is the sizing case: the first run reported the suite's real shape, so it re-runs on a cheaper tier — smaller still on a Phase 3 fix round, which passes the related-tests command that same section defines rather than the full suite.
+Spawn `test-runner-agent` as **light (smallest)** on every run, the first included — ONCE at end of Phase 2 (after all TodoWrite todos completed), ONCE per fix-loop retry, and once more with the full command whenever the Phase 3 fix loop's final full-suite trigger fires (§"Phase 3: Bounded fix loop" "Final full-suite trigger"). Agent name per host and spawn-failure ladder: `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §Subagent model tiering.
 
 The orchestrator pre-resolves these slots:
 
@@ -403,7 +405,8 @@ The orchestrator pre-resolves these slots:
 | `OUTPUT_PATH` | `<task-dir>/.tr-out.md` (overwritten per retry) |
 
 ```
-Agent(subagent_type="test-runner-agent", description="Running the test suite", prompt="""
+Agent(subagent_type="test-runner-agent", description="Running the test suite",   # cost class: light (smallest) — model-tiering.md §Cost classes
+      prompt="""
 WORKTREE: [absolute path]
 TEST_COMMAND: [exact command string]
 CHANGED_FILES: [newline-separated paths]
@@ -642,17 +645,17 @@ while round ≤ ROUND_CAP:                      # cap canonical in SKILL.md §Lo
     does not require (speculative generality is itself a finding, not a fix); a
     recommendation that amounts to a redesign routes to the escalation AUQ, never
     the inline batch.
-  re-spawn test-runner-agent scoped to this round's fixed files (§"Related-tests
-    scoping" below); if Verdict != ALL_GREEN, rollback to Phase 2
+  re-spawn test-runner-agent (light (smallest)) scoped to this round's fixed files
+    (§"Related-tests scoping" below); if Verdict != ALL_GREEN, rollback to Phase 2
   round += 1
 else:
   # round ROUND_CAP+1 would start — DO NOT enter
   escalate via AskQuestion
 ```
 
-**Related-tests scoping.** A fix round's `test-runner-agent` re-spawn passes the project's related-tests command scoped to that round's fixed files — the runner's own related-tests mode when the project has one (e.g. `vitest related --run`, `jest --findRelatedTests`), else the test files beside those changed files. Fall back to the full `TEST_COMMAND` when the project has no such mode, the scoped selection comes back empty, or the round touched config, shared test setup, fixtures, or another file an import graph can't trace to its tests. A non-green scoped run gets the same rollback-to-Phase-2 handling as a non-green full run.
+**Related-tests scoping.** A fix round's **light (smallest)** `test-runner-agent` re-spawn passes the project's related-tests command scoped to that round's fixed files — the runner's own related-tests mode when the project has one (e.g. `vitest related --run`, `jest --findRelatedTests`), else the test files beside those changed files. Fall back to the full `TEST_COMMAND` when the project has no such mode, the scoped selection comes back empty, or the round touched config, shared test setup, fixtures, or another file an import graph can't trace to its tests. A non-green scoped run gets the same rollback-to-Phase-2 handling as a non-green full run.
 
-**Final full-suite trigger.** Whenever the fix loop exits — the clean break above, or the escalation AUQ resolving to "Accept findings and proceed to ship" — check whether the last test run was scoped rather than full, or any edit (a fix or a clean-exit nit) landed after it. If either, run `test-runner-agent` once more with the full `TEST_COMMAND` before Ship; a non-green result gets the same rollback-to-Phase-2 handling as a non-green fix-round run. That final full-suite Verdict is what the Ship sub-step's Test results line quotes. A loop whose last test run was full with no edit after it has nothing to supersede; the suite already known green stands.
+**Final full-suite trigger.** Whenever the fix loop exits — the clean break above, or the escalation AUQ resolving to "Accept findings and proceed to ship" — check whether the last test run was scoped rather than full, or any edit (a fix or a clean-exit nit) landed after it. If either, run `test-runner-agent` (**light (smallest)**) once more with the full `TEST_COMMAND` before Ship; a non-green result gets the same rollback-to-Phase-2 handling as a non-green fix-round run. That final full-suite Verdict is what the Ship sub-step's Test results line quotes. A loop whose last test run was full with no edit after it has nothing to supersede; the suite already known green stands.
 
 **Round N+1 only re-spawns dimensions whose round-N actionable finding produced an edit.** A dimension that reported nothing actionable in round N — clean, or minor-only — is NOT re-spawned, and neither is one whose finding was settled by a user decision with no resulting edit: bounds cost, avoids re-litigating settled code, and keeps round N+1's CHANGED FILES from coming back empty when it does fire. Custom reviewer specs are computed once at Round 1 entry; round N+1 reuses the cache. An authored edge-case test that still fails is re-checked via the round's `test-runner-agent` spawn, not re-authored.
 

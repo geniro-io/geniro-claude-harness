@@ -157,7 +157,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 †Artifact mode only — the update/before-gate/finalize calls at each phase's own gate sites, plus a write to the session-scratchpad HTML file; exact call sites are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`'s table.
 
-Every subagent spawn above OMITs `model=` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`) — except the Phase 2 UI-description spawn, whose `sonnet` is a ceiling the orchestrator may size below, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1.
+Spawns are `session` unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes); Phase 3 grill lookups and Phase 2 UI description (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1) are **light (mid)**.
 
 ---
 

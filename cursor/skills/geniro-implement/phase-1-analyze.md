@@ -102,7 +102,7 @@ On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both sk
 | `worktree` / `new-worktree` | Force worktree creation path. |
 | `no-worktree` / `here` | Force in-place execution; skips worktree even if `IN_WORKTREE == false`. |
 | `--no-adversarial` | Skips Phase 3's edge-case test-authoring step for this run. |
-| `--subagent-model <tier>` | Pins every judgment-grade spawn this run makes to `<tier>` and caps the non-judgment ones, per `operations-reference.md` §Subagent model tiering. Sets `subagent-model: <tier>` (Step 4 persists it; missing reads as `inherit`). |
+| `--subagent-model <tier>` | Pins every `session` spawn this run makes to `<tier>` and caps the light ones, per `operations-reference.md` §Subagent model tiering. Sets `subagent-model: <tier>` (Step 4 persists it; missing reads as `inherit`). |
 
 Conflicting modifiers (e.g., `new-branch` AND `current-branch` both present): last-occurrence wins (right-to-left scan). Emit soft notice: `"Both 'new-branch' and 'current-branch' modifiers detected; using <last>."`
 
@@ -174,7 +174,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
    ```
 
    `load_semantic` has no MODE flag — the Reads and the fingerprint drift check fire unconditionally; a mismatched `.fingerprint.json` surfaces a drift notification to the user.
-7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response — both spawns together (just the codebase-explorer call when the store-empty gate below skips the knowledge-retrieval slot). Apply the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Subagent spawn template" — first prime both spawns with the related-task chain context (parent epic + sibling tasks + neighboring milestones) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`. Agent name per host, model, and spawn-failure ladder: `operations-reference.md` §Subagent model tiering.
+7. **Spawn knowledge-retrieval + codebase-explorer agents in parallel.** ONE assistant response — both spawns together (just the codebase-explorer call when the store-empty gate below skips the knowledge-retrieval slot). Apply the spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Subagent spawn template" — first prime both spawns with the related-task chain context (parent epic + sibling tasks + neighboring milestones) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`. Spawn `knowledge-retrieval-agent` as **light (mid)** and `codebase-explorer-agent` as `session`; agent name per host and spawn-failure ladder: `operations-reference.md` §Subagent model tiering.
 
    **Store-empty gate on the knowledge-retrieval slot — a mechanical check every run evaluates fresh, continuations included.** The agent's sweep covers four sources (past learnings, project snapshots, prior handoffs, prior task plans); spawn it when ANY of them holds content, skip it only when ALL are empty:
    - `<PRIMARY_ROOT>/.geniro/knowledge/` contains any file (a non-empty `learnings.jsonl` or an archive);

@@ -117,7 +117,7 @@ The chat message that precedes it (§Message-first rendering in the same file) i
 **The single-item gate — one call per ambiguous item.** Shape per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate. Options are the item's competing readings plus two standing aids:
 
 - **"Explain further"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option. Renders a deeper walkthrough and re-fires the same question; writes nothing, consumes no cap slot.
-- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (OMIT `model=`) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate.
+- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (**session**) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate.
 
 Persist every pick to `approvals[]` (category `comment_decision`). An unpicked `ask` sets `picked: false` and stops there — no edit, no reply, thread untouched — and appears in the final report under what was left for the user.
 
