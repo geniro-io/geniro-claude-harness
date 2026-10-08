@@ -64,7 +64,7 @@ When you find yourself writing a second sentence to clarify how a field should b
 name: <slug>                       # bare slug — Claude Code prefixes the plugin name (`geniro`)
 description: "Use when ..."        # third-person, trigger + optional "Skip for ...", <=250 chars, no XML
 context: main                      # or fork (for subagent-isolation skills)
-model: inherit                     # default; per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md
+model: inherit                     # always inherit (agents too); the cost class is set at the spawn site — ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md §Cost classes
 allowed-tools: [Read, Write, ...]  # explicit allowlist
 argument-hint: "[shape | empty]"   # one-line cue
 ---

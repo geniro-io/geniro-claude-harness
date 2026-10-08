@@ -39,7 +39,7 @@ The launch modifiers above pre-fill the spec's `launch_config` block per `${CLAU
 | `draft only` / `draft PR` / `open draft` | one value | Push and open a draft PR. | The ship-mode question. |
 | `ready PR` / `ready-for-review` / `non-draft PR` | one value | Push and open a PR ready for review. | The ship-mode question. |
 | `stop after review` | present / absent | Exit before any commit; surface clean review status as the deliverable. | The ship-mode question. |
-| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every judgment-grade spawn in this run to the named tier, overriding agent frontmatter, and caps the non-judgment ones — a stronger tier never raises them, a cheaper one lowers them. Announced once at run start. A value outside the four names the two working routes instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
+| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every session spawn in this run to the named model and caps light spawns — a stronger model never raises them, a cheaper one lowers them. Announced once at run start. A value outside the four names the two working routes instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
 
 A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the ship-mode question — it routes through the gate so the safe draft default stays visible.
 
@@ -56,7 +56,7 @@ A bare `open PR` / `with PR` (no draft-vs-ready qualifier) does NOT skip the shi
 | `--brief` | present / absent | Pre-answers the opt-in for the optional companion brief (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`); where Artifact publishing is available, the medium (Artifact vs file) still asks — where it isn't, only the file medium exists, so it's persisted directly with no question. | The brief question, the last step of Phase 1 — skipped entirely on a host without Artifact support. |
 | `--no-brief` | present / absent | Skips the brief offer entirely — no opt-in question, no medium question. | The brief question, the last step of Phase 1. |
 | `worktree` / `no-worktree` / `here` / `current-branch` / `new-branch` | one value | Forces the workspace path the review inspects. | The Step 0 workspace question. |
-| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every judgment-grade spawn in this run to the named tier, overriding agent frontmatter, and caps the non-judgment ones — a stronger tier never raises them, a cheaper one lowers them. Announced once at run start. A value outside the four names the two working routes instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
+| `--subagent-model` | `sonnet` / `opus` / `haiku` / `fable` | Pins every session spawn in this run to the named model and caps light spawns — a stronger model never raises them, a cheaper one lowers them. Announced once at run start. A value outside the four names the two working routes instead of applying silently — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. | No question — an explicit run-wide election, not a pre-set answer. |
 
 ## Non-suppressible safety gates
 

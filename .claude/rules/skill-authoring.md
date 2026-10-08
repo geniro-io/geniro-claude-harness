@@ -72,6 +72,13 @@ Literal names belong in the four places where the name is data rather than instr
 
 `Artifact` and `Workflow` stay named as Claude Code features: each has a substitutions row and an explicit not-available-here path, and their names are also section anchors and call syntax.
 
+### 7. Model names at spawn sites
+
+A light spawn in a skill or agent names its class — `light (smallest)` or `light (mid)` — defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. A site that names none is `session` and omits the model. A spawn never names a model family, a model id or a version; that file's §Runtime resolution is the only place a class meets a host's models.
+
+- Agent frontmatter is always `model: inherit`; the class lives at the spawn site.
+- `tests/authoring/lint-skills.sh` fails a literal `model=<family>` (quoted, spaced or bare) and any agent declaring other than `inherit`.
+
 ## Soft preferences (apply where reasonable)
 
 - Short imperative sentences.

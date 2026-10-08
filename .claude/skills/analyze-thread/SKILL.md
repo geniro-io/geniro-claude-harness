@@ -62,7 +62,7 @@ A batch run changes what each phase iterates over, never the phase contract; onl
 
 ## Subagent model tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`. This skill has exactly one subagent spawn — the Phase 2 LLM-judge — and it OMITs `model=` so it inherits orchestrator tier (judging the thread is reasoning-grade work).
+Follow the canonical rule in `skills/_shared/model-tiering.md` §Cost classes. The Phase 2 LLM-judge is this skill's only subagent spawn, and it is `session` (OMIT `model=`): judging the thread decides what the orchestrator acts on.
 
 ---
 
@@ -203,6 +203,6 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 - `skills/_shared/validate-state-file.md` — pre-resume validator + recovery AUQ
 - `skills/_shared/state-tier-spec.md` — T1 / T1.5 / T2 lifecycle (handoff lives at T2)
 - `skills/_shared/spawn-agent.md` — bare/prefixed/general-purpose degradation ladder
-- `skills/_shared/model-tiering.md` — `model=` vs OMIT rules
+- `skills/_shared/model-tiering.md` — session / light cost classes
 - `skills/_shared/per-finding-question.md` — message-first per-finding gate protocol (the shape Phase 4 Step 2 fires)
 - `.claude/skills/improve-template/SKILL.md` — handoff consumer

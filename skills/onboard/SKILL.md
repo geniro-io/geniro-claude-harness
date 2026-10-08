@@ -103,13 +103,13 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Repo-size scan cap | owned by §1.3 Step 2 (override via `--cap N`) | §1.3 Step 2 | A repo too large for that sample to represent it escalates via AUQ — §1.3 Step 2 owns the threshold, the option list and the `approvals[]` persistence. |
 
 **Architecture constraints (design intent, not budget):**
-- No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+- No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` as **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 ## ACI per-phase tool surface
 
 **Phase 1 (Discover):**
 - Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`) / AskUserQuestion (the §1.3 repo-size-cap expansion gate).
-- Explicitly blocked: production-source writes and edits, `git add` / `git commit` / `git push`. subagent spawns limited to `codebase-research-agent` for narrow locator side queries during the scan (no parallel agent spawns — /geniro:onboard is a solo orchestrator skill).
+- Explicitly blocked: production-source writes and edits, `git add` / `git commit` / `git push`. subagent spawns limited to `codebase-research-agent` (**light (smallest)**) for narrow locator side queries during the scan.
 
 **Phase 2 (Map):**
 - Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskUserQuestion / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).

@@ -1,7 +1,7 @@
 ---
 name: test-runner-agent
 description: "Executes the project's pre-resolved TEST_COMMAND once and returns a structured pass/fail summary with a capped set of failure snippets. Use at end-of-phase test runs and inside fix-retry loops so the raw test stdout (typically 50K+ tokens) never reaches the orchestrator's main context."
-model: auto
+model: inherit
 readonly: false
 ---
 <!-- Generated from agents/test-runner-agent.md by scripts/build-cursor-agents.sh. Edit the source and re-run; do not edit this copy. -->

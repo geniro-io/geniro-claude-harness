@@ -34,7 +34,7 @@ Group so that no two agents own the same file — they run concurrently in one s
 Pre-inline the current file content each agent needs (from Phase 1 codebase research).
 
 ```
-Agent(model="sonnet",  # execution spawn — model-tiering.md's execution-spawn category; the change is approved and the files are named. Ceiling: a purely textual round sizes below it
+Agent(  # light (mid) spawn per model-tiering.md §Cost classes — the change is approved and the files are named; pass the model §Runtime resolution gives for this host
       prompt="""
 ## Task: Implement Changes
 Apply the following approved changes:

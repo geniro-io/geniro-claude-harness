@@ -44,11 +44,11 @@ Resolve the user's Claude config dir once as `CLAUDE_USER_DIR="${CLAUDE_CONFIG_D
 
 ## Subagent model tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`, plugin-agent spawns OMIT `model=` and inherit the orchestrator tier. Setup has a single spawn — the verification subagent — a documented carve-out. This table is the one place its tier and reason are stated; the §4.1 spawn site points here.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, a spawn is `session` unless a site names a light class. Setup has a single spawn — the verification subagent — and it is light. This table is the one place its class and reason are stated; the §4.1 spawn site points here.
 
-| Spawn | Tier | Why |
+| Spawn | Class | Why |
 |---|---|---|
-| Verification subagent (validate generated CLAUDE.md against codebase) | `sonnet` ceiling | Mechanical check-and-report: runs a fixed check list and emits PASS/DRIFT lines the orchestrator re-decides from, so its output does not scale with orchestrator tier. A short generated CLAUDE.md sizes below the ceiling (`model-tiering.md` §Sizing a non-judgment spawn) |
+| Verification subagent (validate generated CLAUDE.md against codebase) | **light (smallest)** | Mechanical check-and-report: runs a fixed check list and emits PASS/DRIFT lines the orchestrator re-decides from, so its output does not scale with orchestrator tier |
 
 ## Loop invariants
 
@@ -163,5 +163,5 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1
 - `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/instruction-file-scaffolds.md` — the `plan.md` / `implement.md` scaffolds §3.3 writes before merging an OpenSpec block into a missing file.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 schema and the `trust:` evidence bar; the §4.3 `discovery` row conforms.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — model tiering; the verification subagent's carve-out is in §Subagent model tiering.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes; the verification subagent's class is in §Subagent model tiering.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` — the §3.5 `.gitignore` re-include that keeps `.geniro/workflow/` and `.geniro/instructions/` committed.

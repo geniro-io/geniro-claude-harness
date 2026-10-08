@@ -159,7 +159,8 @@ The agent's own workflow (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
 ```
-Agent(description="Investigate: git history", prompt="""
+Agent(description="Investigate: git history",   # cost class: light (smallest) — model-tiering.md §Cost classes
+      prompt="""
 ## Task: Git History Investigation (READ-ONLY)
 Produce a structured timeline + findings report on the git history relevant to the question. This is a read-only research task — do NOT write or edit any file, and do NOT run mutating git operations (no `git add`, `git commit`, `git push`, `git checkout`, `git reset`). Read-only git verbs only: `log`, `blame`, `show`, `diff`.
 
@@ -199,7 +200,8 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
 ```
-Agent(description="Investigate: internet research", prompt="""
+Agent(description="Investigate: internet research",   # cost class: light (mid) — model-tiering.md §Cost classes
+      prompt="""
 ## Task: Internet Research (READ-ONLY)
 Produce a structured external-sources report answering the question. This is a read-only research task — do NOT write or edit any file; do NOT run any local-codebase shell commands. Use web search and fetch only.
 

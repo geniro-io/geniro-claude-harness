@@ -1,129 +1,90 @@
 # Model tiering — canonical rule
 
-Single source of truth for picking a `model=` when spawning subagents from any skill in this plugin.
+Single source of truth for the model a spawned subagent runs on, from any skill in this plugin, on any host.
 
 ## Contents
 
-- The rule — inherit by default; OMIT `model=`; the four non-inherit categories
-- Sizing a non-judgment spawn — `sonnet` is the ceiling, the orchestrator picks below it
-- Runtime resolution — how each host spells these tiers
+- Cost classes — session by default; the light class and its roles; fallbacks; the batch rule; user overrides
+- Runtime resolution — how each host spells the classes
 - `--subagent-model` — user-elected run-wide override
-- Escalation signals (tier-selection cues, read once up front)
-- Runtime escalation (Sonnet → Opus on failure)
 - Hard rules
 - Anti-rationalization
 
-## The rule
+## Cost classes
 
-**Judgment-grade subagents inherit orchestrator tier by default.** A judgment-grade spawn is one that *decides* something the orchestrator will act on — what the code does, whether a finding is real, which approach to take, what a diff should contain. Frontmatter declares `model: inherit` (except the carve-outs in categories 3-4 below, which declare or pin a concrete cheaper tier); spawn sites **OMIT the `model=` argument** unless a category below names them — the agent's frontmatter `model:` governs (inherit-agents resolve to the orchestrator tier; carve-out agents resolve to their declared tier). Rationale: the user explicitly chose their orchestrator tier (Opus / Sonnet / Haiku) at session start, and the quality of a *decision* scales with the tier that makes it. The user owns the cost / quality trade-off on judgment work — pinning a reviewer or a researcher cheaper is the documented paternalism anti-pattern.
+Every spawn runs at one class. A site states its class in the sentence that describes the spawn and never names a model, so one skill file reads the same on every host; a site that states none is **session**. In a literal `Agent(...)` block, drop `model=` and put the class in a trailing comment (`# cost class: light (mid) — model-tiering.md §Cost classes`).
 
-The Agent tool's `model=` argument enum is `sonnet|opus|haiku|fable`; passing `model="inherit"` at the call site fails input validation with "Invalid tool parameters". Propagate `inherit` by **OMITTING the runtime arg** — Claude Code's Agent tool resolver picks up the orchestrator's tier when `model=` is unset.
+- **session** — the default. Pass no model: the subagent runs on the model the user chose for the session. It covers anything that decides what the orchestrator acts on — what the code does, whether a finding is real, which approach to take, what a diff should contain. The user chose the session model knowing its cost, and a decision's quality scales with the model that makes it. The Agent tool's `model=` enum is `sonnet|opus|haiku|fable`, so `model="inherit"` fails input validation ("Invalid tool parameters"); session is expressed by OMITTING the argument, and the host then resolves the orchestrator's model.
+- **light** — a spawn that meets all four: (1) it applies a decision already made, or gathers evidence the orchestrator re-checks; (2) its output can be checked without redoing the work; (3) a wrong result costs one re-spawn; (4) its size is known before spawning. Except on Cursor, where the host's selector decides (§Runtime resolution), a light class never runs above the session: when the session model is at or below the class's family, spawn as session and omit the model.
+  - **light (smallest)** — a mechanical, fixed-shape check. The host's smallest current model family.
+  - **light (mid)** — any other light work. The host's mid current model family. When unsure, use light (mid).
 
-**A tier other than inherit is set in four narrow categories.** Category 1 is the user's own declaration on a judgment agent. Categories 2-4 are *non-judgment* spawns, and §Sizing a non-judgment spawn below governs what tier they actually get.
+Always use the newest model of the family and never write a version number. §Runtime resolution spells each class per host.
 
-1. **User-authored custom reviewers** (`.geniro/instructions/review-extra/<slug>.md` with an explicit `model:` field). That's the user's own opt-in — their declaration overrides inherit. Absent declaration in custom-reviewer frontmatter = inherit (NOT a hidden default to Sonnet).
+Agent frontmatter never pins a model: every `agents/*.md` declares `model: inherit`, so one agent can be session at one site and light at another.
 
-2. **Plugin-defined mechanical-only spawn sites** whose workload is a fixed check-and-report:
-   - `/geniro:setup`'s Phase 4 verification subagent → `model="sonnet"` — runs a fixed check list against the generated CLAUDE.md and emits PASS / DRIFT lines. No hypothesis generation and no judgment call: the orchestrator re-decides from those lines, so output quality does not scale with orchestrator tier. Set at the spawn site because this spawn has no agent file to carry the tier in frontmatter.
+**Roles that are light** — the sites that name a light class. The list describes them; a site that names none is session.
 
-   The site carries an inline comment justifying the exemption. Any new non-inherit site requires the same justification — and the justification names what actually constrains the spawn (a mechanical, re-decidable output), never a tool restriction the spawn call cannot express: the Agent tool takes no `tools=` argument, so a tier defended by a claimed tool budget is defended by nothing. The tier is a speed/cost preference, not a hard requirement — apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` so the spawn degrades to inherit (then inline) when the target tier is unavailable in the runtime.
+- light (smallest): the `/geniro:review`, `/geniro:refactor` and `/geniro:onboard` "where is X" locator lookups, the test runner, the scoped learnings read in `/geniro:review`, the setup checklist verifier, the git-history extractor.
+- light (mid): applying a decided code slice, applying approved instruction fixes, the UI description, the library web search, the memory sweep and the other scoped learnings reads, ad-hoc research during implementation, grill fact lookups, the internet researcher, the transcript analysts, the `/geniro:audit-instructions` verifiers.
 
-3. **Plugin-defined mechanical / recoverable-evidence agents** that declare a concrete cheaper tier in their OWN frontmatter (so every spawn site still OMITs `model=` and the frontmatter governs — the universal spawn-site rule is unchanged):
-   - `${CLAUDE_PLUGIN_ROOT}/agents/test-runner-agent.md` → `model: sonnet` — runs the test command and parses stdout into a fixed `{ALL_GREEN|HAS_FAILURES|INFRA_ERROR}` verdict plus capped failure snippets. No hypothesis generation or judgment: the orchestrator re-decides from the verdict and re-greps the saved log, so output quality does not scale with orchestrator intelligence. Pure mechanics.
-   - `${CLAUDE_PLUGIN_ROOT}/agents/knowledge-retrieval-agent.md` → `model: sonnet` — mechanical search-and-cite across the memory layers; its one relevance filter is a one-line, hard-capped, citation-recoverable gate, so a weaker model's failure mode is bounded padding (which the orchestrator filters via the citations), not missed knowledge.
+**Fallbacks.**
 
-   Both declare **`sonnet`, never `haiku`**, because frontmatter is a fixed value a spawn cannot re-evaluate and Haiku 4.5 has no 1M-context variant — a haiku-frontmatter agent returns `0 tokens` from a 1M-context session, with no orchestrator judgment in the loop to catch it. Sonnet is the safe declared value; §Sizing below is where a cheaper tier gets chosen, at the spawn site, where the workload is visible and the fallback is one retry away. These are cost optimizations on genuinely mechanical agents — distinct from the reviewer / finding-verifier / codebase-research / codebase-explorer / reflection agents, whose output quality scales with orchestrator intelligence and which therefore stay `inherit` (pinning those cheaper is the paternalism anti-pattern below).
+- A writer (a code delegate, an approved-fix agent) that started and failed is never re-spawned: it may already have written edits, so its caller inspects the tree and takes its own error path. A writer whose model the host refused or does not offer never started, so it steps up like the read-only spawns the bullets below cover.
+- **Zero output**, or a model the host does not offer or refuses: step up one class (smallest → mid → session); a session spawn retries once.
+- **Malformed or otherwise unusable output**: re-spawn once as session. A light spawn jumps straight to session; a session spawn retries once.
+- **Still failing at session** is no model problem: it goes to the caller's own error path (a fix loop, an escalation gate, a verifier's unverified disposition), not to a bigger model.
+- Red tests and a refuted finding are results, not failures.
 
-4. **Execution spawns — `model="sonnet"` by default.** A spawn is an execution spawn when the decision is already made and the deliverable is applying it: the orchestrator (or the user, at an approval gate) has settled *what* changes, and the subagent's job is to carry that into files it was handed by name. The tier that decided is the tier that mattered; running the transcription on a reasoning-grade model buys nothing.
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §Empty-result fallback runs the step-up.
 
-   The current sites — each carries an inline comment naming this category:
+**One class per role or prompt template in a parallel batch.** A shared `subagent_type` (general-purpose, Codex `default`) does not by itself make two spawns the same role, so different roles in one batch may use different classes. Model is part of the prompt-cache key, so batch siblings that share a cached prefix share a class.
 
-   | Site | Applies |
-   |---|---|
-   | `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md` §Steps, the delegation rule | one already-decomposed todo slice, against a named disjoint file set |
-   | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1: Spawn the UI description agent | a read-only spec→description transform, no file writes at all |
-   | `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/SKILL.md` §Phase 5 fix path | user-approved instruction-file findings into their assigned file allowlist |
+**User overrides win over the class:** `--subagent-model` (pins session spawns, caps light ones; beats a custom reviewer's `model:`) and a custom reviewer's own `model:`. Host-level settings apply as the host defines them: `CLAUDE_CODE_SUBAGENT_MODEL` overrides every spawn argument, Codex's subagent default applies where a spawn omits the model, and Cursor's session model propagates.
 
-   **A ceiling, not a floor.** `sonnet` is what the site gets absent a reason to spend less, and never more — a session on a reasoning tier does not push that tier into transcription work. Below it, §Sizing applies: an execution spawn is the clearest case for it, since the orchestrator reads every delegate's diff against a named allowlist before accepting it.
+## Runtime resolution — how each host spells the classes
 
-   **What this category does NOT cover.** The boundary is decide-vs-apply, not the shape of the output. An agent whose deliverable is still a judgment call stays `inherit` even when that judgment lands in a rigid, pre-defined schema: `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` returns one fixed-shape block per finding — severity, confidence, decision-type — but the values inside that schema are the analysis itself, not a decision already made elsewhere and merely transcribed, so it stays `inherit` per its own frontmatter. Nor does it cover a spawn whose file set the subagent must still discover — a delegate that has to work out *which* files to touch is deciding, and the delegation rule already refuses that shape.
+`skills/` is shared by every runtime, and Claude Code's model names are on no other host's roster. A site names a class; this table spells it. Never substitute a model id of your own choosing.
 
-## Sizing a non-judgment spawn
-
-Categories 2-4 name what the tier is *not* — not the user's reasoning-grade choice, because the reasoning already happened. `sonnet` is the ceiling for all of them. **Below that ceiling the orchestrator picks the tier from the workload actually in front of it**, and states the pick with a one-clause reason at the spawn site. Cursor already works this way and spells it `auto`, handing the choice to the host's selector; Claude Code has no such selector, so the orchestrator is the selector. A re-run of one test file, a rename across three call sites, a description of a two-screen flow — each is smaller than `sonnet` assumes, and matching the spend to it is the point of the ceiling.
-
-Two conditions bound a down-pick, and every category 2-4 site already satisfies both: the output is **checkable without redoing the work** (a verdict the orchestrator re-decides from, a diff it reads against an allowlist, PASS/DRIFT lines it re-judges), and **recovery is one re-spawn**, never a wrong ship. Take the ceiling where either fails — and take it where the size is not knowable before the spawn, since guessing small is not the same as knowing it: the first test run of an unfamiliar suite is a ceiling case, its retry after a one-line fix is not.
-
-`haiku` is inside the band and frequently unspawnable from a 1M-context session; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` §Empty-result fallback recovers it and sets the session's floor.
-
-**One tier per parallel batch.** Model is part of the prompt-cache key, so siblings spawned in one response share a prefix only while they share a tier. Size the batch as a unit — one tier for all of it, set by its largest member — rather than per-member.
-
-**When a down-pick comes back wrong** — schema violated, verdict unusable, an edit outside the allowlist — re-spawn that one site once at the ceiling and hold the ceiling for that site for the rest of the run. That is the whole tier ladder here: a mechanical spawn still failing at its ceiling is not a tier problem, so it goes to the caller's own error path (a fix loop, an escalation gate), never up to a reasoning tier — §Runtime escalation is scoped to reasoning-grade carve-outs and does not reach these sites. A sized-down spawn re-judged in the orchestrator's own context rather than re-spawned has spent the saving twice.
-
-**A run carrying `--subagent-model` turns this section off.** The user named a tier, so the plugin does not then size under it — the same override the rule forbids in the other direction. Sizing is the default behavior of a run that named nothing.
-
-## Runtime resolution — how each host spells these tiers
-
-`haiku` / `sonnet` / `opus` are Claude Code model ids, and `skills/` is shared by every runtime — so a spawn site written above is read verbatim under hosts whose roster carries no `sonnet`. The tiers name INTENTS; each host spells them its own way:
-
-| Intent | Claude Code | Cursor | Codex |
+| Class | Claude Code | Cursor | Codex |
 |---|---|---|---|
-| Judgment-grade — the tier the user chose | OMIT `model=` | omit the model argument | omit `model` |
-| Mechanical / execution (categories 2-4) | `model="sonnet"`, or the cheaper tier §Sizing picked | `model="auto"` — the host's selector is Cursor's version of §Sizing | omit `model` |
-| One-shot escalation after a failure (§Runtime escalation) | `model="opus"` | omit the model argument — inheriting the session tier IS the step up from `auto` | omit `model` |
+| session | omit `model=` | omit the model argument | omit `model` |
+| light (smallest) | `haiku` | `auto` | the newest `…-luna` in the spawn tool's model list |
+| light (mid) | `sonnet` | `auto` | the newest `…-sol` in the spawn tool's model list, with `reasoning_effort: "medium"` |
 
-`auto` is Cursor's own selector (first entry in `cursor-agent --list-models`, and its default): a server-side classifier picks per task. **Never substitute a pinned Cursor model id instead.** The roster turns over constantly, and an id that is unavailable or blocked by team policy falls back silently to something else — `auto` is the only stable way to say "this workload is mechanical, spend accordingly". It means "the host decides", not "always cheaper": a session already on a cheap model can see `auto` pick something dearer. That is still the right semantic, because the point is that the tier stops being the user's reasoning-grade choice. This rule binds the plugin's own category 2-4 spawn sites, which pick a tier on the user's behalf — it says nothing about the user naming a model for their own run, which `--subagent-model` (below) exists to do.
+**Claude Code.** The `haiku` and `sonnet` aliases resolve to the newest model of each family that the installed Claude Code knows. Where `haiku` resolves to a model with a smaller context window than the session's, the spawn comes back empty.
 
-Agent frontmatter needs no per-site handling — `scripts/build-cursor-agents.sh` applies this same table when it generates `cursor/agents/` from `agents/*.md`, and rejects a tier the table cannot express.
+**Cursor.** `auto` is Cursor's own selector (first entry in `cursor-agent --list-models`, and its default): a server-side classifier picks per task, so it means "the host decides", not "always cheaper". A pinned Cursor model id is the wrong spelling — the roster turns over constantly, and an unavailable or team-blocked id falls back silently to something else. A subagent `model:` declared in frontmatter takes effect only on some plans (without Max Mode, Cursor forces subagents onto the Composer family), with nothing in the transcript to say which happened; the reliable lever to tell a Cursor user about is the SESSION model, which propagates to every subagent.
 
-**Cursor subagent model field.** Cursor's subagent frontmatter takes `model: inherit` (default) or a specific model ID, but whether a declared model takes effect depends on the plan: without Max Mode, Cursor forces subagents onto the Composer family regardless of the field, and a team-blocked or off-plan model falls back silently, with nothing in the transcript distinguishing the two. Treat a declared subagent `model:` as real but conditional. What works unconditionally is setting the SESSION model, which propagates to every subagent — the reliable lever to tell a Cursor user about.
-
-**Codex.** A spawn naming a Claude tier fails outright (they are not on Codex's roster), Codex has no host-side selector to stand in for "mechanical", and its spawn tool says to set a model only when the user asks. Unless `[agents] default_subagent_model` / `default_subagent_reasoning_effort` are set, the subagent inherits the session's model and reasoning effort. A user-elected tier (`--subagent-model`, or a custom reviewer's `model:`) has no Codex spelling: announce once that it is not applied and name `[agents] default_subagent_model` (§`--subagent-model`, Codex route), rather than dropping it silently. Codex registers no plugin agents, so agent frontmatter `model:` never reaches it either.
+**Codex.** A spawn naming a Claude model fails outright. The spawn tool lists the models it allows; pick the newest model of the family from that list. Codex's tool wants an explicit instruction before it sets a model, and the class declared at the site is that instruction. If the run still omits the model, the work runs at session, which is safe: unless `[agents] default_subagent_model` / `default_subagent_reasoning_effort` are set, a subagent inherits the session's model and reasoning effort. A user-elected model (`--subagent-model`, or a custom reviewer's `model:`) has no Codex spelling: announce once that it is not applied and name `[agents] default_subagent_model` (§`--subagent-model`, Codex route), rather than dropping it silently.
 
 ## `--subagent-model` — user-elected run-wide override
 
-A run-scoped flag on `/geniro:implement` and `/geniro:review` (values `sonnet` / `opus` / `haiku` / `fable`) naming the tier the user wants this run's spawns to reason at, overriding agent frontmatter. Announce it once at run start (name the tier) so it stays visible for the rest of the session.
+A run-scoped flag on `/geniro:implement` and `/geniro:review` (values `sonnet` / `opus` / `haiku` / `fable`) naming the model the user wants this run's spawns to reason at. Announce it once at run start (name the model) so it stays visible for the rest of the session.
 
-**It pins judgment spawns and caps the rest.** A judgment-grade spawn takes the value verbatim — reasoning depth is what the flag buys. A category 2-4 spawn treats it as a ceiling: a flag naming a *stronger* tier does not raise it, because `--subagent-model opus` is a request for deeper judgment and putting Opus on a test re-run answers a question nobody asked; a flag naming a *cheaper* tier does lower it, because "spend less everywhere" is exactly what that election says. Where you cannot place the named tier against a spawn's own — `fable` has no settled position in this ordering — leave that spawn at its own tier and say so once. Either way the resulting tier is final: a flagged run does not also size below it (§Sizing a non-judgment spawn).
+**It pins session spawns and caps light ones.** A session spawn takes the value verbatim — reasoning depth is what the flag buys. A light spawn treats it as a cap: a *stronger* value never raises it, because `--subagent-model opus` asks for deeper judgment and putting Opus on a test re-run answers a question nobody asked; a *cheaper* value lowers it, because "spend less everywhere" is exactly what that election says. Where the named model cannot be placed against the class's own — `fable` has no settled position among the light models — leave that spawn at its class and say so once.
 
-This is not the paternalism the anti-rationalization table forbids below: that rule stops the *plugin* choosing a cheaper tier on the user's behalf, unprompted. `--subagent-model` is the user's own declaration for one run — the same shape as category 1's custom reviewer, which already overrides inherit by declaring `model:` in its own file. What the rule tracks is who decided, not which tier came out.
+The flag is the user's own declaration for one run, the same shape as a custom reviewer's declared `model:` — not the plugin choosing a cheaper model on their behalf, which the anti-rationalization table below forbids.
 
-**Expressible values only.** The value has to be one the Agent tool's `model=` argument can actually carry — the closed `sonnet|opus|haiku|fable` enum from §The rule, the same set `inherit` can't join either, which is why inherit is propagated by omitting the argument rather than passing the word. A `--subagent-model` value outside those four hits the identical wall: no spawn-site argument expresses it. A run given such a value does not drop it silently — it says so and names the routes that still work:
+**Expressible values only.** The value has to be one the Agent tool's `model=` argument can carry — the closed `sonnet|opus|haiku|fable` enum from §Cost classes. A value outside it has no spawn-site argument. A run given one does not drop it silently — it says so and names the routes that still work:
 
 - **Claude Code:** `CLAUDE_CODE_SUBAGENT_MODEL`, a session-wide environment variable that overrides every subagent's model — it takes precedence over both frontmatter and the spawn argument, but must be set before the session starts, so a mid-run request can only be relayed to the user, not applied live. A non-Anthropic model id passes through this variable only behind a gateway or non-Anthropic provider; Anthropic documents routing to non-Claude models this way as unsupported.
-- **Cursor:** the agent file's own `model:` frontmatter (subject to the plan gating in §Runtime resolution above), or — as an explicit escape hatch — spawning via `cursor-agent -p --model <id> --output-format text` from Bash instead of the Task tool. This bypasses the plugin's agent registry and the `Context loaded:` reporting contract, so the caller owns output parsing and failure handling; treat it as the escape hatch, not the default route.
-- **Codex:** `[agents] default_subagent_model` in `~/.codex/config.toml`, a session-wide default that must be set before the session starts, so a mid-run request can only be relayed to the user. Its values are Codex model ids, so the flag's Claude tier names have no meaning there.
+- **Cursor:** the session model, which propagates to every subagent, is the reliable lever; as an explicit escape hatch, spawn via `cursor-agent -p --model <id> --output-format text` from Bash instead of the Task tool. The hatch bypasses the plugin's agent registry and the `Context loaded:` reporting contract, so the caller owns output parsing and failure handling.
+- **Codex:** `[agents] default_subagent_model` in `~/.codex/config.toml`, a session-wide default that must be set before the session starts, so a mid-run request can only be relayed to the user. Its values are Codex model ids, so the flag's Claude names have no meaning there.
 
-**`effort`** (`low` / `medium` / `high` / `xhigh` / `max`), a Claude Code agent-frontmatter field, is a second cost lever independent of model choice — a tier and an effort level compose rather than substitute.
-
-**Caching consequence.** Model and effort are part of the prompt-cache key, so uniformity is required **within a parallel batch**, not across the run (§Sizing, "One tier per parallel batch"): a singleton test-runner spawn on its own tier costs nothing.
-
-## Escalation signals (tier-selection cues, read once up front)
-
-No skill scans for these signals mid-run — read them once, when picking a tier before the run starts: a schema or migration change, an auth or role boundary, 3+ coordinated modules, a new external integration, async / queue / background work, an ambiguous spec or absent acceptance criteria, a novel problem domain with no similar code in the repo to copy, long-horizon autonomy (multi-step plan, no human checkpoints), and an open-closed violation (changing public signatures, shared middleware, routing). The same risk surface also reaches the user through the change-scope estimate and the reviewer dimensions, so a signal missed here is not the only net catching it. Signals never drive an automatic tier override; the user retains authority via `/model`.
-
-## Runtime escalation (Sonnet → Opus on failure)
-
-Still applicable to the finding-verifier's high-stakes refutation retry path (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5) and other reasoning-grade carve-outs that internally escalate. NOT applicable to inherit-default subagents (their tier IS the orchestrator's tier; "escalation" would mean changing the orchestrator mid-session, which is the user's call).
-
-When a `sonnet` subagent returns wrong output, fails its checklist, or fails tests:
-
-1. Re-dispatch ONCE with: more context (paste the failure) + `model="opus"`.
-2. If the opus retry also fails, escalate to the user — do not loop.
-3. Never bump twice in a row. Never escalate `haiku` → `opus` directly (go `haiku` → `sonnet` first).
+**`effort`** (`low` / `medium` / `high` / `xhigh` / `max`, a Claude Code agent-frontmatter field; Codex `reasoning_effort`) is a second cost lever independent of the model — the two compose rather than substitute. Both are part of the prompt-cache key, so uniformity matters within a parallel batch of one agent (§Cost classes), not across the run.
 
 ## Hard rules
 
-- **Architect-flavored work (multi-file design, planning, threat modeling) runs orchestrator-side**, not in a subagent. The orchestrator's own model handles this reasoning inline. (When the orchestrator is on Opus, architecture work happens on Opus; when on Sonnet, on Sonnet. The user picks.)
+- **Architect-flavored work (multi-file design, planning, threat modeling) runs orchestrator-side**, not in a subagent. That reasoning decides, so it runs on the session model.
 
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll pass `model='sonnet'` explicitly at the reviewer-agent spawn site to ensure cost containment — the user might not realize Opus is expensive." | Forbidden — this is the plugin picking a cheaper tier on the user's behalf, unprompted. A reviewer decides whether a finding is real, so it is judgment-grade and inherits per the Rule. User chose Opus at session start with full knowledge of cost; overriding back to sonnet without being asked is paternalistic and produces tier-mismatch UX. If the user wants cheaper review, they switch orchestrator tier, or pass `--subagent-model sonnet` on the run itself — an explicit election the plugin honors (§`--subagent-model`), the same shape as a custom reviewer's own declared `model:`. What's forbidden is the plugin deciding for the user; what's permitted is the user deciding for themselves. Category 4 is not a licence to widen this either: it covers spawns that apply a decision already made, and a reviewer is never one. |
-| "This spawn writes files, so it's an execution spawn — pin it sonnet." | Writing files is not the test; category 4's test is whether the decision is already made. An agent still working out *what* the content should be — reviewer-agent's per-finding severity and confidence, a delegate that must first find its own file set — is deciding, and decisions inherit. Check category 4's site table: if the spawn isn't in it, adding it needs the same decide-vs-apply argument the listed ones carry. |
-| "Custom reviewer's `.geniro/instructions/review-extra/<slug>.md` doesn't declare `model:` — I'll default to sonnet at the spawn site." | When `model:` is OMITTED in the custom reviewer's frontmatter, treat it as "inherit", not "sonnet". Custom reviewers follow the same default as built-ins. The user opts INTO a hardcoded tier only by explicitly writing `model: haiku` / `model: opus` in their custom-reviewer frontmatter — that's their declaration, honor it. |
-| "Plugin subagent spawning fails because the Agent tool doesn't accept `model='inherit'`." | Correct — the tool doesn't. At an inherit spawn site the fix is to OMIT `model=` entirely, not to fall back to a hardcoded value: the resolver picks up orchestrator tier when the arg is unset, and hardcoding a fallback defeats the inherit contract. A category 1-4 site is different — its tier is declared, so it passes that tier verbatim. |
-| "User is on Haiku; subagents on Haiku will produce low-quality output for reasoning dimensions." | User chose Haiku — they accepted the trade-off. Plugin paternalism ("I know better, bump to Sonnet") defeats the user's tier choice. If a reviewer-agent on Haiku misses bugs, surface this in the Phase 6 handoff summary ("findings count: 2 — note: orchestrator tier is Haiku; consider /model switch to Sonnet for deeper review"), not by silent override. |
-| "This reviewer dimension is simple on this diff — I'll size it down the way §Sizing sizes a test re-run." | §Sizing lives entirely on the non-judgment side of the decide-vs-apply line. An easy-looking dimension is not a decision already made: the reviewer still decides whether a finding is real, and that is the tier the user bought. The band never crosses the line — a spawn is either in categories 2-4 or it inherits. |
-| "The run carries `--subagent-model opus`, so the test-runner and the code-delegate go to Opus too — the flag says every spawn." | The flag buys reasoning depth, and neither of those spawns reasons. It pins judgment spawns and *caps* categories 2-4 (§`--subagent-model`): stronger never raises them, cheaper does lower them. A `--subagent-model haiku` run does drag them down with it. |
+| "I'll run this reviewer light — the user might not realize their session model is expensive." | Forbidden — this is the plugin picking a cheaper model on the user's behalf, unprompted. A reviewer decides whether a finding is real, so it is session however simple the diff looks: an easy dimension is still a decision, and light work applies one already made. The user chose their session model with full knowledge of its cost. If they want cheaper review, they switch the session model or pass `--subagent-model` on the run itself — an explicit election the plugin honors (§`--subagent-model`). What's forbidden is the plugin deciding for the user; what's permitted is the user deciding for themselves. |
+| "This spawn writes files, so it applies a decision — make it light." | Writing files is not the test; whether the decision is already made is. A spawn still working out what the content should be — a reviewer's per-finding severity and confidence, a delegate that must first find its own file set — is deciding, and decisions are session. A role missing from §Cost classes' list needs all four light conditions argued. |
+| "Custom reviewer's `.geniro/instructions/review-extra/<slug>.md` doesn't declare `model:` — I'll default it to a light model at the spawn site." | An omitted `model:` means session (`inherit`). Custom reviewers follow the same default as built-ins. The user opts INTO a model only by explicitly writing `model: haiku` / `model: opus` in the reviewer's frontmatter — that is their declaration, and it overrides the class. |
+| "The Agent tool doesn't accept `model='inherit'`, so I'll hardcode a model at this spawn site." | At a session site the fix is to OMIT `model=` entirely: the resolver picks up the orchestrator's model when the argument is unset, and a hardcoded fallback defeats that. A light site names its class, never a model, and the orchestrator spells the class for this host from §Runtime resolution — a Claude model name at the site fails on Codex and Cursor. |
+| "User is on a small model; subagents on it will produce low-quality output for reasoning dimensions." | The user chose it and accepted the trade-off. Plugin paternalism ("I know better, bump to something larger") defeats the user's choice. If a reviewer on a small model misses bugs, surface it in the Phase 6 handoff summary ("findings count: 2 — note: session model is small; consider switching to a larger one for deeper review"), not by silent override. |
+| "The run carries `--subagent-model opus`, so the test-runner and the code delegate go to Opus too — the flag says every spawn." | The flag buys reasoning depth, and neither of those spawns reasons. It pins session spawns and *caps* light ones (§`--subagent-model`): stronger never raises them, cheaper does lower them. A `--subagent-model haiku` run does drag them down with it. |

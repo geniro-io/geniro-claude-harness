@@ -20,11 +20,11 @@ Read-only research agent — the plugin `codebase-research-agent` (tools: Read /
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
-Read-only research agent — restricted to a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`); no file writes or edits. Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent B).
+Read-only research agent, spawned as **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — restricted to a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`); no file writes or edits. Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent B).
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
-WebSearch+WebFetch agent — read-only, no local-codebase Bash and no file writes or edits. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent C).
+WebSearch+WebFetch agent, spawned as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — read-only, no local-codebase Bash and no file writes or edits. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent C).
 
 ### Step 2: Verify — orchestrator re-checks each load-bearing claim
 

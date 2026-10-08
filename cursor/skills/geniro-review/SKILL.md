@@ -61,7 +61,7 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 This skill adds three invariants:
 
-S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default; spawned **light (smallest)**; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 S2. **Re-verify ambiguity gates at external-effect boundaries.** Upstream gates establish invariants on `open_questions[].status`, PRODUCT-DECISION `step0_status:`, kept-finding `Validation:`, and `report_status:`; the Pre-Post guard (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.0) re-reads all four before any `gh api POST /reviews`, because mid-phase producer writes, parallel resolvers, or drift can re-create ambiguity between gate and write.
 S3. **Stamp `phase:` on entry, before the phase's work.** A checkpoint written only at the end records history, not current state: a crash mid-phase leaves no resumable marker, and a declaration the phase produces (`spawn_dims_declared`, written before the spawns) lands too late to power the gate reading it. A phase counts DONE only once its trailing steps complete — stamp `persist` only after the §5.3 emits have run, or stamp the next phase at its own entry.
 
@@ -103,7 +103,7 @@ When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLA
 
 ## Subagent spawning
 
-Plugin agents declare `model: inherit` — OMIT `model=` at every spawn site. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` on any other host whose agent-type list carries it, else that host's general-purpose type with the agent body inlined. `--subagent-model <tier>` in `$ARGUMENTS` passes `model="<tier>"` at every judgment-grade spawn instead — announce the pinned tier once at run start. The flag only lowers the scoped `knowledge-retrieval-agent` (Phase 1), whose ceiling is `sonnet`; it never raises it. Spawn list, registration ladder, and the flag's reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
+Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` on any other host listing it, else that host's general-purpose type, agent body inlined. `--subagent-model <tier>` in `$ARGUMENTS` passes `model="<tier>"` at every session spawn instead — announce the pinned tier once at run start. The flag only lowers the light spawns (S1 lookups, Phase 1's scoped `knowledge-retrieval-agent`); it never raises them. Spawn list, registration ladder, and flag reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
 
 ---
 

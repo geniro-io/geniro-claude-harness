@@ -42,17 +42,17 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 
 ## Subagent model tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md`: research and review spawns OMIT `model=` so they inherit the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off on work that decides something; a skill-side hardcode there overrides that choice silently. Execution spawns pin `model="sonnet"` per `model-tiering.md`'s execution-spawn category; the table below maps every spawn in this skill to its tier. For plugin-defined subagents (the agents under `agents/`), also follow the ladder in `skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
+Follow the canonical rule in `skills/_shared/model-tiering.md` §Cost classes: research and review spawns are `session` and OMIT `model=` so they inherit the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off on work that decides something; a skill-side hardcode there overrides that choice silently. Implementation and fix agents are `light (mid)`; the table below maps every spawn in this skill to its class. For plugin-defined subagents (the agents under `agents/`), also follow the ladder in `skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent body inlined (frontmatter stripped). Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
 
 **Skill-specific mapping:**
 
-| Spawn | Tier | Why |
+| Spawn | Class | Why |
 |---|---|---|
-| Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | inherit (OMIT `model=`) | Reasoning-grade research runs at the tier the user chose for the session |
+| Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | `session` (OMIT `model=`) | Reasoning-grade research runs at the tier the user chose for the session |
 | Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits the orchestrator's context; a spawn would only buy isolation this work doesn't need |
-| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `model="sonnet"` ceiling | Execution spawns per `model-tiering.md`'s execution-spawn category — the user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
-| Phase 5 review agent | inherit (OMIT `model=`) | Fresh reviewer judges at the same tier that authored the changes |
-| Create-skill Phase A duplicate-check + Phase B author agent | inherit (OMIT `model=`) | Semantic comparison and skill authoring are reasoning-grade — the author agent composes a skill from an interview, it does not transcribe one |
+| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `light (mid)` | The user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
+| Phase 5 review agent | `session` (OMIT `model=`) | Fresh reviewer judges at the same tier that authored the changes |
+| Create-skill Phase A duplicate-check + Phase B author agent | `session` (OMIT `model=`) | Semantic comparison and skill authoring are reasoning-grade — the author agent composes a skill from an interview, it does not transcribe one |
 
 ---
 

@@ -13,6 +13,8 @@
 #     2. Dangling plugin-root file references — ${CLAUDE_PLUGIN_ROOT}/<path> and the
 #        $PLUGIN_PATH/<path> form (target must exist).
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
+#     3c. Model names at spawn sites — a literal model="<family>" in skills/ or
+#        agents/, or an agents/*.md frontmatter model: other than inherit.
 #     4. Reference-graph inversion — a skills/<other-skill>/ path inside skills/_shared/.
 #     4b. Cross-skill reference-graph inversion — a skills/<a>/ file sourcing a
 #        runtime rule from a DIFFERENT skills/<b>/ body (b != a, b != _shared).
@@ -309,6 +311,36 @@ done <<< "$(grep -rnE 'subagent_type[=:][[:space:]]*"?geniro:' skills agents 2>/
   | grep -vE 'bare `?subagent_type|bare name|Claude Code only|bare `<agent>`|→ bare' \
   | cut -d: -f1,2)"
 [ "$missing_bare" -eq 0 ] && echo "OK: every prefixed spawn form names its bare non-Claude-Code counterpart"
+
+# 3c. Model names at spawn sites (skill-authoring.md §7). A spawn states a cost
+# class (session, light (smallest), light (mid)) and never a model family, id or
+# version; skills/_shared/model-tiering.md §Runtime resolution is where a class
+# meets a host's models. Agent frontmatter is always `model: inherit`, bare or
+# quoted (the build script rejects anything else for Cursor).
+# The spawn-argument pattern takes optional spaces around `=` and a quoted or
+# bare value. It needs a non-name character before `model`, so the user's flag
+# written `--subagent-model=opus` is not a spawn argument and stays silent. No
+# line is skipped for mentioning that flag: a `model="haiku"` planted beside it
+# still fails.
+# No file is exempt: load-custom-reviewers.md describes the Cursor-only `auto` a
+# USER-declared reviewer `model:` maps to without the literal `model="auto"`
+# form, so a family planted there fails like anywhere else.
+model_hits=0
+while IFS= read -r hit; do
+  [ -z "$hit" ] && continue
+  report_fail "model name at a spawn site (state a cost class; agents declare model: inherit): $hit"
+  model_hits=$((model_hits + 1))
+done <<< "$(
+  {
+    grep -rnE "(^|[^A-Za-z0-9_-])model[[:space:]]*=[[:space:]]*[\"']?(haiku|sonnet|opus|fable|auto)([^A-Za-z]|\$)" skills agents 2>/dev/null \
+      | cut -d: -f1,2
+    for f in agents/*.md; do
+      case "$f" in *-reference.md) continue ;; esac
+      awk -v f="$f" 'c<2 && /^---$/ {c++; next} c==1 && /^model:/ && $0 !~ /^model:[[:space:]]*["\047]?inherit["\047]?[[:space:]]*$/ {print f ":" NR}' "$f"
+    done
+  }
+)"
+[ "$model_hits" -eq 0 ] && echo "OK: no model names at spawn sites (agents all declare model: inherit)"
 
 # 4. Reference-graph inversion — skill-structure.md §Reference graph: skills cite
 # DOWNWARD into skills/_shared/, never the reverse. A helper that names a skill

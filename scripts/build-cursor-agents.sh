@@ -7,7 +7,7 @@
 # frontmatter (name, description, model, readonly), so each agent gets a
 # derived copy under cursor/agents/ with:
 #   - tools/maxTurns dropped (not enforceable in Cursor)
-#   - model mapped from the source tier by cursor_model_for() below
+#   - model checked and emitted by cursor_model_for() below (always inherit)
 #   - readonly set from the agent's documented write contract below
 #   - the body copied verbatim, prefixed with a generated-file marker and a
 #     plugin-root resolution note (the bodies cite ${CLAUDE_PLUGIN_ROOT})
@@ -16,57 +16,23 @@
 # tests/cursor/build-agents-fresh.sh fails CI when the copies drift.
 #
 # Usage: scripts/build-cursor-agents.sh [output-dir]   (default: cursor/agents)
-#
-# GENIRO_CURSOR_SUBAGENT_MODEL (optional env var): pins every mechanical/
-# execution-tier agent (the sonnet|haiku carve-outs below, which otherwise map
-# to Cursor's `auto` selector) to this Cursor model id instead. Judgment-grade
-# agents (model: inherit) still emit inherit — that tier is the session model
-# the user picked via /model, not this variable's job; a user who wants THOSE
-# agents on a specific model too sets the session model itself. Unset (the
-# default) reproduces today's output exactly. Not validated against a fixed
-# model roster — Cursor's lineup turns over and a stale allowlist would reject
-# a valid id — only checked for a plausible shape. An unavailable or policy-
-# blocked id is silently rerouted by Cursor itself with no signal back to this
-# script, so passing validation here is NOT a guarantee the pin takes effect
-# at runtime — only that this script emitted it.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${1:-$REPO_ROOT/cursor/agents}"
 mkdir -p "$OUT_DIR"
 
-if [ "${GENIRO_CURSOR_SUBAGENT_MODEL+set}" = set ]; then
-  case "$GENIRO_CURSOR_SUBAGENT_MODEL" in
-    "")
-      echo "ERROR: GENIRO_CURSOR_SUBAGENT_MODEL is set but empty. Unset it to keep Cursor's auto selector, or set it to a model id." >&2
-      exit 1 ;;
-    *[!A-Za-z0-9._-]*)
-      echo "ERROR: GENIRO_CURSOR_SUBAGENT_MODEL='$GENIRO_CURSOR_SUBAGENT_MODEL' contains characters no Cursor model id uses (expected [A-Za-z0-9._-])." >&2
-      exit 1 ;;
-  esac
-fi
-
-# Tier mapping, Claude Code -> Cursor. This is the mechanical half of the table
-# in skills/_shared/model-tiering.md §Runtime resolution — read it there for the
-# rationale and for the measured caveat about whether Cursor honors a subagent's
-# declared model at all. Nothing here names a model id by default: the mapping
-# is between INTENTS, and a pinned id rots with Cursor's roster — unless the
-# caller opts in via GENIRO_CURSOR_SUBAGENT_MODEL (validated above), in which
-# case that id substitutes for `auto` on the mechanical/execution row only.
-#
-#   inherit (or unset) -> inherit                              judgment-grade; the tier the USER chose
-#   sonnet | haiku     -> ${GENIRO_CURSOR_SUBAGENT_MODEL:-auto} mechanical carve-outs (model-tiering.md cat 3)
-#   anything else      -> build error
-#
-# The error branch matters: "stronger than the session tier" has no Cursor
-# selector, so mapping an `opus` declaration to `auto` would silently invert it.
-# Category 3 pins nothing above sonnet, so this fires only on a doctrine breach.
+# Model check. Every agent declares `model: inherit` (or nothing): cost classes
+# are set at the spawn site, not in frontmatter (skills/_shared/model-tiering.md
+# §Cost classes), so Cursor gets `inherit` and the user's session model applies —
+# nothing here names or substitutes a model id. Any other declared value is a
+# build error: a pinned family has no Cursor selector, and silently mapping it
+# to `inherit` or `auto` would drop what the author asked for.
 cursor_model_for() {
   case "${1:-}" in
-    ""|inherit)   echo "inherit" ;;
-    sonnet|haiku) echo "${GENIRO_CURSOR_SUBAGENT_MODEL:-auto}" ;;
+    ""|inherit) echo "inherit" ;;
     *)
-      echo "ERROR: agent declares model: $1 — no Cursor selector expresses a tier above the session's without pinning a model id (skills/_shared/model-tiering.md §Runtime resolution). Fix the declaration." >&2
+      echo "ERROR: agent declares model: $1 — agents/*.md must declare model: inherit; cost classes are set at the spawn site (skills/_shared/model-tiering.md §Cost classes)." >&2
       exit 1 ;;
   esac
 }

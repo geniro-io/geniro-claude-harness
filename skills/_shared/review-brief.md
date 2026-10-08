@@ -89,7 +89,7 @@ Agent(
 )
 ```
 
-OMIT `model=` so the spawn inherits the orchestrator's tier. Judging what a human most needs to see going into a review is itself a judgment call, not a mechanical transform, and judgment-grade spawns inherit the orchestrator's tier (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`).
+Spawn it as **session** (pass no `model=`). Judging what a human most needs to see going into a review is itself a judgment call, not a mechanical transform, so it takes no light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes).
 
 The agent returns the brief's markdown as its result. It does not write a file and does not publish anything — the medium is the caller's decision (§Medium selection), and the caller is the only side with a publish surface.
 

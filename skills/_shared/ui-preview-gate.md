@@ -26,10 +26,10 @@ Skip entirely unless at least one file in the predicted affected-files list matc
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent for the description. Pass `model="sonnet"` — an execution spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` category 4: the spec already decided what the UI does, and this spawn only transforms it into a structured description. That is the ceiling, not a fixed value: a spec covering one or two screens is a §Sizing down-pick, and the tier goes with it. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site — a spawn has no tool-withholding parameter, so restate the read/transform-only constraint (no file writes, edits, or notebook edits) inside the prompt body per that file's §Required pre-inlined context, "Prohibited tools list".
+Spawn a general-purpose subagent for the description as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: the spec already decided what the UI does, and this spawn only transforms it into a structured description. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site — a spawn has no tool-withholding parameter, so restate the read/transform-only constraint (no file writes, edits, or notebook edits) inside the prompt body per that file's §Required pre-inlined context, "Prohibited tools list".
 
 ```
-Agent(model="sonnet", prompt="""
+Agent(prompt="""
 ## Task: Describe UI Before Implementation
 
 Produce a textual, structured description of how the UI will LOOK after this change — so the user can review it and request changes BEFORE any code is written.
@@ -65,12 +65,12 @@ Things you could not infer from the inputs — as crisp questions. If none, writ
 - Read/transform-only — do not write, edit, or otherwise modify any file. Do NOT write code. Describe intent only.
 - Do NOT invent requirements that are not in the inputs.
 - Keep the whole response under 200 lines.
-""", description="UI preview: describe intent")
+""", description="UI preview: describe intent")   # cost class: light (mid) — model-tiering.md §Cost classes
 ```
 
 ### Step 1b: Mockup form
 
-Run this only when the caller passed `MOCKUP: true`. Spawn the same agent with the same inputs and four changes to its prompt:
+Run this only when the caller passed `MOCKUP: true`. Spawn the same agent, again **light (mid)**, with the same inputs and four changes to its prompt:
 
 - **Deliverable.** It returns a working HTML mockup of the UI *and* the digest. The mockup is one self-contained block — inline CSS, inline SVG, no external requests, no scripts — with every rule scoped under a single container id, so its styles and the host page's cannot bleed into each other.
 - **The six sections become coverage, not format.** The mockup shows what they describe: every component rendered once per visible state (default, hover, focus, disabled, loading, error, empty) as labelled variants, every breakpoint as its own labelled frame, and the focus order marked on the elements it runs through. The digest then restates the same six headings compactly.
@@ -90,7 +90,7 @@ A reply that isn't A, B, or C — a question back, off-topic text, anything that
 ### Step 3: Revision loop (only if user picked B)
 
 1. Fire a follow-up `AskUserQuestion` with header "Your version" offering two meaningful options: "Rewrite the whole description — I'll describe it fresh" / "Add targeted changes — I'll list specific edits". The user can also type freely via "Other". Capture the user's text from whichever option they pick.
-2. Re-spawn the UI description agent with the captured text appended as `USER GUIDANCE: <text>` in the "Prior user guidance" input. If the user picked "Add targeted changes", instruct the agent to apply those edits to the prior description rather than starting over.
+2. Re-spawn the UI description agent (**light (mid)**) with the captured text appended as `USER GUIDANCE: <text>` in the "Prior user guidance" input. If the user picked "Add targeted changes", instruct the agent to apply those edits to the prior description rather than starting over.
 3. Re-present (Step 2) with the revised description — in mockup form the caller republishes the revised mockup first, so each round is judged against the rendered page.
 4. **Max 3 revision rounds.** After round 3, fire `AskUserQuestion` with header "UI preview" and options: "Proceed with latest version" / "Adjust the plan instead". Do NOT loop a 4th time.
 
@@ -110,7 +110,7 @@ Write the approved text where the caller designates, or hold it in-memory when t
 |---|---|
 | "The plan already describes the UI, skip the preview" | Plans describe files and steps. They do not describe what the user will see. The preview gate surfaces visual intent BEFORE code is written — that is its whole job. |
 | "The user will approve anyway — skip" | Preview is cheap. Rebuilding UI after approval is expensive. Never skip when the rule matches. |
-| "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (tier per the procedure above). Orchestrator tokens are the most expensive resource. |
+| "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (cost class per the procedure above). Orchestrator tokens are the most expensive resource. |
 | "3 revision rounds isn't enough, keep looping" | If 3 rounds did not converge, the real issue is plan-level, not preview-level. Route to plan adjustment. |
 | "I'll tack on a 'also note X' after the approved description" | Rewrite the description in full via another revision round. Appended notes rot and get missed by implementation agents. |
 | "The mockup is on the page, so the digest is redundant" | The persisted text is what the caller's downstream sections cite, and a page URL cannot be cited — dropping the digest leaves those sections with nothing to author from. Emit both: the page carries the detail, the digest carries the record. |

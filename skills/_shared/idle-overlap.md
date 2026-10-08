@@ -46,4 +46,4 @@ Overlap is safe ONLY when the branches are provably independent, not merely like
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §"Turn-completion guard" — render-then-ask for Shape A.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` — registration ladder for every spawn.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — OMIT `model=`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes (session unless a site names a light class).

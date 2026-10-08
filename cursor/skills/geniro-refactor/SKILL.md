@@ -137,11 +137,11 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 ## Subagent model tiering
 
-OMIT `model=` at every plugin-agent spawn site, per the canonical rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md`. Spawn plugin-defined subagents (reviewer-agent, custom reviewers) through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` under Claude Code → bare `<agent>` where the host lists it → `general-purpose` with body inlined); cache the resolved rung for the rest of the session.
+Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn plugin-defined subagents through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` under Claude Code → bare `<agent>` where the host lists it → `general-purpose` with body inlined); cache the resolved rung for the session.
 
 Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies every pre-inlined field, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
-Smell detection and per-step execution run orchestrator-inline (no spawn, no tiering decision). The Phase 3 reviewer-agent and custom reviewers (Medium+ only) inherit the orchestrator's tier, so the user's session-level `/model` choice propagates.
+Smell detection and per-step execution run orchestrator-inline (no spawn, no tiering decision). The Phase 3 reviewer-agent and custom reviewers (Medium+ only) are **session**, so the user's session-level `/model` choice propagates.
 
 ## Agent failure handling
 
@@ -165,7 +165,7 @@ Route every user-facing choice in this skill through the `AskQuestion` tool per 
 
 **Phase 1 (Plan):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / AskQuestion.
-- Allowed subagent spawns: `codebase-research-agent` for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
+- Allowed subagent spawns: `codebase-research-agent` (**light (smallest)**) for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
 - Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`.
 
 **Phase 2 (Apply):**
