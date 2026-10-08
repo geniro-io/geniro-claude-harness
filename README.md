@@ -367,6 +367,25 @@ The status line shows an arrow when your version is behind, and names the step t
 
 The repository ships runtime ports for Cursor under `cursor/`: `cursor/skills/` — generated `geniro-<slug>`-prefixed copies of the 14 skills, prefixed because Cursor has no plugin namespace and some bare names collide with its built-ins or reserved CLI commands; `cursor/agents/` — generated Cursor-frontmatter copies of the 7 agents; `cursor/hooks.json` — the safety and session-restore hooks adapted through `cursor/hooks/claude-hook-shim.sh`. Install with `scripts/install-cursor.sh`, which symlinks these into your Cursor user profile (`~/.cursor/skills/`, `~/.cursor/agents/`) — not as a Cursor plugin: `cursor-agent`'s CLI and ACP load no plugin components at all, so a plugin install leaves those surfaces with none of this. Driven over ACP, `cursor-agent` never reads `~/.cursor/agents/` — only Cursor's built-in agents and the workspace's own reach it — so the profile install's agent piece reaches the IDE and `cursor-agent -p` only, and an ACP run spawns through the general-purpose fallback. Full install steps, what works, and what stays Claude-Code-only (`/reflect`'s past-session shapes, `/update`, structured decision gates): [`cursor/README.md`](cursor/README.md).
 
+## Using with Codex
+
+The plugin installs on OpenAI Codex — the CLI and the ChatGPT desktop app — straight from the same marketplace, with no port or build step. The Codex IDE extension does not support plugins.
+
+```bash
+codex plugin marketplace add geniro-io/geniro-claude-harness
+codex plugin add geniro@geniro-claude-harness
+```
+
+You can also browse it from `/plugins` inside Codex.
+
+- **Invoking.** Skills run with `$`, not `/`: `$geniro:implement <task>`, or pick one from the `/skills` list. Codex applies a skill only in the turn that names it, so when a gate asks a question in chat, answer with the skill name plus your choice (`$geniro:implement B`).
+- **Hooks.** Codex loads the plugin's hooks but runs them only after you trust them in `/hooks`, and asks again when a hook changes. Until then they do not fire, and the skills apply the same checks themselves.
+- **Agents.** Codex plugins cannot ship agents, so each Geniro agent runs as Codex's default subagent with the agent's instructions passed in; they follow the same contracts, with tool restrictions stated as instructions rather than enforced. Codex runs only a few subagents at once (3 by default), so wide parallel reviews run in waves and take longer.
+- **Project rules.** Codex reads `AGENTS.md`, not `CLAUDE.md` or `.claude/rules/`. To have it load a project's `CLAUDE.md` where no `AGENTS.md` exists, add `project_doc_fallback_filenames = ["CLAUDE.md"]` to `~/.codex/config.toml`. The skills that need `.claude/rules/` files read them directly.
+- **Updating.** Run `codex plugin marketplace upgrade geniro-claude-harness`; it reinstalls the installed plugin from the refreshed marketplace.
+- **Don't use `/import`.** Codex's Claude importer copies only the skill folders into `.agents/skills`, away from the plugin's shared files, and rewrites "claude" in the text as it goes: `.claude-plugin/plugin.json` — the marker every skill uses to find the plugin root — becomes `.Codex-plugin/plugin.json`, and `.claude/rules/` becomes `.Codex/rules/`. Install it as a plugin.
+- **Claude-Code-only.** `geniro:update`, and `geniro:reflect` given a search string or no argument — both read Claude Code's own on-disk data. `--this-session` reflect works.
+
 ## Plugin Structure
 
 ```

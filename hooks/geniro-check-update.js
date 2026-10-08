@@ -8,15 +8,24 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// Codex exports PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT with the same value to plugin hooks;
+// Claude Code exports only CLAUDE_PLUGIN_ROOT. Requiring both to match keeps an unrelated
+// PLUGIN_ROOT in the user's shell from disabling the check. Only Claude Code's statusline
+// reads the cache this hook refreshes, so under Codex there is nothing to do.
+const UNDER_CODEX = Boolean(process.env.PLUGIN_ROOT) &&
+  process.env.PLUGIN_ROOT === process.env.CLAUDE_PLUGIN_ROOT;
+
 // Detach into background on first run
-if (!process.env.GENIRO_UPDATE_BG) {
-  const child = spawn(process.execPath, [__filename], {
-    detached: true,
-    stdio: 'ignore',
-    env: { ...process.env, GENIRO_UPDATE_BG: '1' }
-  });
-  child.unref();
-  // Consume stdin and exit immediately so Claude Code isn't blocked
+if (UNDER_CODEX || !process.env.GENIRO_UPDATE_BG) {
+  if (!UNDER_CODEX) {
+    const child = spawn(process.execPath, [__filename], {
+      detached: true,
+      stdio: 'ignore',
+      env: { ...process.env, GENIRO_UPDATE_BG: '1' }
+    });
+    child.unref();
+  }
+  // Consume stdin and exit immediately so session start isn't blocked
   process.stdin.resume();
   process.stdin.on('data', () => {});
   process.stdin.on('end', () => process.exit(0));

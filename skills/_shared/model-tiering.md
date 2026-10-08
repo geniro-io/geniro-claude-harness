@@ -64,19 +64,21 @@ Two conditions bound a down-pick, and every category 2-4 site already satisfies 
 
 ## Runtime resolution — how each host spells these tiers
 
-`haiku` / `sonnet` / `opus` are Claude Code model ids, and `skills/` is shared by both runtimes — so a spawn site written above is read verbatim under Cursor, whose roster carries no `sonnet`. The tiers name INTENTS; each host spells them its own way:
+`haiku` / `sonnet` / `opus` are Claude Code model ids, and `skills/` is shared by every runtime — so a spawn site written above is read verbatim under hosts whose roster carries no `sonnet`. The tiers name INTENTS; each host spells them its own way:
 
-| Intent | Claude Code | Cursor |
-|---|---|---|
-| Judgment-grade — the tier the user chose | OMIT `model=` | omit the model argument |
-| Mechanical / execution (categories 2-4) | `model="sonnet"`, or the cheaper tier §Sizing picked | `model="auto"` — the host's selector is Cursor's version of §Sizing |
-| One-shot escalation after a failure (§Runtime escalation) | `model="opus"` | omit the model argument — inheriting the session tier IS the step up from `auto` |
+| Intent | Claude Code | Cursor | Codex |
+|---|---|---|---|
+| Judgment-grade — the tier the user chose | OMIT `model=` | omit the model argument | omit `model` |
+| Mechanical / execution (categories 2-4) | `model="sonnet"`, or the cheaper tier §Sizing picked | `model="auto"` — the host's selector is Cursor's version of §Sizing | omit `model` |
+| One-shot escalation after a failure (§Runtime escalation) | `model="opus"` | omit the model argument — inheriting the session tier IS the step up from `auto` | omit `model` |
 
 `auto` is Cursor's own selector (first entry in `cursor-agent --list-models`, and its default): a server-side classifier picks per task. **Never substitute a pinned Cursor model id instead.** The roster turns over constantly, and an id that is unavailable or blocked by team policy falls back silently to something else — `auto` is the only stable way to say "this workload is mechanical, spend accordingly". It means "the host decides", not "always cheaper": a session already on a cheap model can see `auto` pick something dearer. That is still the right semantic, because the point is that the tier stops being the user's reasoning-grade choice. This rule binds the plugin's own category 2-4 spawn sites, which pick a tier on the user's behalf — it says nothing about the user naming a model for their own run, which `--subagent-model` (below) exists to do.
 
 Agent frontmatter needs no per-site handling — `scripts/build-cursor-agents.sh` applies this same table when it generates `cursor/agents/` from `agents/*.md`, and rejects a tier the table cannot express.
 
 **Cursor subagent model field.** Cursor's subagent frontmatter takes `model: inherit` (default) or a specific model ID, but whether a declared model takes effect depends on the plan: without Max Mode, Cursor forces subagents onto the Composer family regardless of the field, and a team-blocked or off-plan model falls back silently, with nothing in the transcript distinguishing the two. Treat a declared subagent `model:` as real but conditional. What works unconditionally is setting the SESSION model, which propagates to every subagent — the reliable lever to tell a Cursor user about.
+
+**Codex.** A spawn naming a Claude tier fails outright (they are not on Codex's roster), Codex has no host-side selector to stand in for "mechanical", and its spawn tool says to set a model only when the user asks. Unless `[agents] default_subagent_model` / `default_subagent_reasoning_effort` are set, the subagent inherits the session's model and reasoning effort. A user-elected tier (`--subagent-model`, or a custom reviewer's `model:`) has no Codex spelling: announce once that it is not applied and name `[agents] default_subagent_model` (§`--subagent-model`, Codex route), rather than dropping it silently. Codex registers no plugin agents, so agent frontmatter `model:` never reaches it either.
 
 ## `--subagent-model` — user-elected run-wide override
 
@@ -86,10 +88,11 @@ A run-scoped flag on `/geniro:implement` and `/geniro:review` (values `sonnet` /
 
 This is not the paternalism the anti-rationalization table forbids below: that rule stops the *plugin* choosing a cheaper tier on the user's behalf, unprompted. `--subagent-model` is the user's own declaration for one run — the same shape as category 1's custom reviewer, which already overrides inherit by declaring `model:` in its own file. What the rule tracks is who decided, not which tier came out.
 
-**Expressible values only.** The value has to be one the Agent tool's `model=` argument can actually carry — the closed `sonnet|opus|haiku|fable` enum from §The rule, the same set `inherit` can't join either, which is why inherit is propagated by omitting the argument rather than passing the word. A `--subagent-model` value outside those four hits the identical wall: no spawn-site argument expresses it. A run given such a value does not drop it silently — it says so and names the two routes that still work:
+**Expressible values only.** The value has to be one the Agent tool's `model=` argument can actually carry — the closed `sonnet|opus|haiku|fable` enum from §The rule, the same set `inherit` can't join either, which is why inherit is propagated by omitting the argument rather than passing the word. A `--subagent-model` value outside those four hits the identical wall: no spawn-site argument expresses it. A run given such a value does not drop it silently — it says so and names the routes that still work:
 
 - **Claude Code:** `CLAUDE_CODE_SUBAGENT_MODEL`, a session-wide environment variable that overrides every subagent's model — it takes precedence over both frontmatter and the spawn argument, but must be set before the session starts, so a mid-run request can only be relayed to the user, not applied live. A non-Anthropic model id passes through this variable only behind a gateway or non-Anthropic provider; Anthropic documents routing to non-Claude models this way as unsupported.
 - **Cursor:** the agent file's own `model:` frontmatter (subject to the plan gating in §Runtime resolution above), or — as an explicit escape hatch — spawning via `cursor-agent -p --model <id> --output-format text` from Bash instead of the Task tool. This bypasses the plugin's agent registry and the `Context loaded:` reporting contract, so the caller owns output parsing and failure handling; treat it as the escape hatch, not the default route.
+- **Codex:** `[agents] default_subagent_model` in `~/.codex/config.toml`, a session-wide default that must be set before the session starts, so a mid-run request can only be relayed to the user. Its values are Codex model ids, so the flag's Claude tier names have no meaning there.
 
 **`effort`** (`low` / `medium` / `high` / `xhigh` / `max`), a Claude Code agent-frontmatter field, is a second cost lever independent of model choice — a tier and an effort level compose rather than substitute.
 

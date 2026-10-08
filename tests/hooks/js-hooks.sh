@@ -14,6 +14,9 @@
 #     - The synchronous branch (GENIRO_UPDATE_BG=1) end-to-end against a temp
 #       config dir with curl stubbed: cache written, fields correct.
 #     - A failing fetch writes NO cache (a stale "up to date" is worse than none).
+#     - Under Codex (PLUGIN_ROOT equal to CLAUDE_PLUGIN_ROOT, as Codex exports them) it is
+#       a no-op: no config dir, no cache, no fetch. A PLUGIN_ROOT that differs from
+#       CLAUDE_PLUGIN_ROOT, or with CLAUDE_PLUGIN_ROOT unset, takes the normal path.
 #   geniro-statusline.js
 #     - The pure formatting helpers only (clip / fmtEta / visLen / justify /
 #       modelLabel). The full render reads a transcript and the todo dir; it is
@@ -21,8 +24,10 @@
 #
 # Hermetic: the config dir, the fake plugin root and the curl stub all live in a
 # mktemp sandbox, and PATH is prefixed with the stub — NO real network call is
-# ever made. The detach-into-background branch is deliberately not exercised: it
-# spawns a child that outlives the assertion and would race it.
+# ever made. The Claude Code detach-into-background branch is deliberately not
+# exercised: it spawns a child that outlives the assertion and would race it. For the
+# same reason the Codex entry-point case proves only rc 0, empty output and nothing
+# written at exit; a stray detached child is caught by the GENIRO_UPDATE_BG=1 cases.
 
 set -uo pipefail
 
@@ -234,6 +239,10 @@ PLUGIN="$TMPDIR_BASE/plugin"
 STUB="$TMPDIR_BASE/stub"
 mkdir -p "$CFG" "$PLUGIN/.claude-plugin" "$STUB"
 echo '{"name":"geniro","version":"5.0.1"}' > "$PLUGIN/.claude-plugin/plugin.json"
+# PLUGIN_ROOT equal to CLAUDE_PLUGIN_ROOT marks a Codex hook process, where the hook is
+# a deliberate no-op; the cases below exercise the Claude Code path, so a stray value
+# from the runner's env must not leak in.
+unset PLUGIN_ROOT CLAUDE_PLUGIN_ROOT
 
 # The hook shells out through `curl`; a stub earlier on PATH intercepts both the
 # release-API call and the raw-plugin.json fallback.
@@ -364,6 +373,80 @@ if [ "$rc" -eq 0 ] && [ -f "$CACHE" ] \
 else
   fail "check-update missing-manifest path; rc=$rc cache-exists=$([ -f "$CACHE" ] && echo y || echo n)"
 fi
+
+# ===== 2c. check-update is a no-op under Codex =====
+# Codex auto-loads hooks/hooks.json and exports PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT with
+# the same value to plugin hooks (Claude Code exports only CLAUDE_PLUGIN_ROOT), but only
+# Claude Code's statusline reads the cache. The curl stub below would produce a cache if
+# the fetch were reached, so an untouched config dir proves no fetch.
+CODEX_CFG="$TMPDIR_BASE/codex-config"
+CODEX_HOME="$TMPDIR_BASE/codex-home"
+mkdir -p "$CODEX_CFG" "$CODEX_HOME"
+write_curl_stub 0 '{"tag_name":"v9.9.9"}'
+
+out=$(GENIRO_UPDATE_BG=1 PLUGIN_ROOT="$PLUGIN" CLAUDE_CONFIG_DIR="$CODEX_CFG" CLAUDE_PLUGIN_ROOT="$PLUGIN" \
+  PATH="$STUB:$PATH" node "$REPO_ROOT/hooks/geniro-check-update.js" 2>&1 </dev/null)
+rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ] && [ -z "$(ls -A "$CODEX_CFG")" ]; then
+  pass "check-update: under Codex (PLUGIN_ROOT == CLAUDE_PLUGIN_ROOT) it exits 0 silently and writes nothing under CLAUDE_CONFIG_DIR"
+else
+  fail "check-update under Codex; rc=$rc output='$out' config-dir-contents='$(ls -A "$CODEX_CFG" | tr '\n' ' ')' (expect 0/empty/empty)"
+fi
+
+# With no CLAUDE_CONFIG_DIR the hook falls back to ~/.claude — on a Codex-only machine
+# that directory must not be created from nothing.
+out=$(env -u CLAUDE_CONFIG_DIR GENIRO_UPDATE_BG=1 PLUGIN_ROOT="$PLUGIN" HOME="$CODEX_HOME" CLAUDE_PLUGIN_ROOT="$PLUGIN" \
+  PATH="$STUB:$PATH" node "$REPO_ROOT/hooks/geniro-check-update.js" 2>&1 </dev/null)
+rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ] && [ -z "$(ls -A "$CODEX_HOME")" ]; then
+  pass "check-update: under Codex it does not create ~/.claude on a machine without one"
+else
+  fail "check-update under Codex without CLAUDE_CONFIG_DIR; rc=$rc output='$out' home-contents='$(ls -A "$CODEX_HOME" | tr '\n' ' ')' (expect 0/empty/empty)"
+fi
+
+# The real entry point is the detaching parent, fed a hook payload on stdin. The folder is
+# checked the instant the parent exits, so a detached child would not have written yet:
+# this proves only rc 0, empty output and nothing written at exit (the GENIRO_UPDATE_BG=1
+# cases above are what catch a regression that reaches the fetch).
+out=$(printf '{"hook_event_name":"SessionStart"}' | env -u GENIRO_UPDATE_BG PLUGIN_ROOT="$PLUGIN" \
+  CLAUDE_CONFIG_DIR="$CODEX_CFG" CLAUDE_PLUGIN_ROOT="$PLUGIN" \
+  PATH="$STUB:$PATH" node "$REPO_ROOT/hooks/geniro-check-update.js" 2>&1)
+rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ] && [ -z "$(ls -A "$CODEX_CFG")" ]; then
+  pass "check-update: under Codex the detaching entry point drains stdin, exits 0 with no output and nothing written at exit"
+else
+  fail "check-update under Codex via the detaching entry point; rc=$rc output='$out' config-dir-contents='$(ls -A "$CODEX_CFG" | tr '\n' ' ')' (expect 0/empty/empty)"
+fi
+
+# Control: the identical invocation minus PLUGIN_ROOT reaches the normal path and writes
+# the cache into the same dir — so the empty-dir assertions above are not vacuous.
+GENIRO_UPDATE_BG=1 CLAUDE_CONFIG_DIR="$CODEX_CFG" CLAUDE_PLUGIN_ROOT="$PLUGIN" \
+  PATH="$STUB:$PATH" node "$REPO_ROOT/hooks/geniro-check-update.js" >/dev/null 2>&1 </dev/null
+if [ -f "$CODEX_CFG/cache/geniro-update-check.json" ]; then
+  pass "check-update: without PLUGIN_ROOT the same invocation still writes the cache (Codex cases are not vacuous)"
+else
+  fail "check-update control: no cache written without PLUGIN_ROOT — the Codex no-op assertions prove nothing"
+fi
+
+# PLUGIN_ROOT is a generic name: a user may export it for an unrelated tool. Only a value
+# equal to CLAUDE_PLUGIN_ROOT (what Codex exports) may silence the hook — a different
+# value, or CLAUDE_PLUGIN_ROOT absent, must still refresh the cache under Claude Code.
+for variant in different unset; do
+  rm -rf "$CODEX_CFG"
+  mkdir -p "$CODEX_CFG"
+  if [ "$variant" = different ]; then
+    GENIRO_UPDATE_BG=1 PLUGIN_ROOT="$TMPDIR_BASE/unrelated-tool" CLAUDE_CONFIG_DIR="$CODEX_CFG" CLAUDE_PLUGIN_ROOT="$PLUGIN" \
+      PATH="$STUB:$PATH" node "$REPO_ROOT/hooks/geniro-check-update.js" >/dev/null 2>&1 </dev/null
+  else
+    env -u CLAUDE_PLUGIN_ROOT GENIRO_UPDATE_BG=1 PLUGIN_ROOT="$TMPDIR_BASE/unrelated-tool" CLAUDE_CONFIG_DIR="$CODEX_CFG" \
+      PATH="$STUB:$PATH" node "$REPO_ROOT/hooks/geniro-check-update.js" >/dev/null 2>&1 </dev/null
+  fi
+  if [ -f "$CODEX_CFG/cache/geniro-update-check.json" ]; then
+    pass "check-update: a PLUGIN_ROOT that does not match CLAUDE_PLUGIN_ROOT (CLAUDE_PLUGIN_ROOT: $variant) still writes the cache"
+  else
+    fail "check-update: PLUGIN_ROOT with CLAUDE_PLUGIN_ROOT $variant silenced the hook — an unrelated PLUGIN_ROOT must not disable update checks"
+  fi
+done
 
 # ===== 3. geniro-statusline.js end-to-end: the update banner =====
 # Simulates the real sequence the banner got wrong: the session starts on 5.6.1,
