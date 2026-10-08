@@ -18,6 +18,9 @@ Stack: node/npm + jest tests + ESLint
 Default branch: main (auto-detected)
 
 Cursor: installed the Geniro skills, subagents, and hooks into ~/.cursor/   (only when §3.7 ran)
+Codex: installed Geniro — trust its hooks once in /hooks; run skills as $geniro:<slug>   (only when §3.8 installed it)
+Codex: Geniro is already installed   (only when §3.8 found it installed)
+Codex: not installed — <the error | no plugin checkout to install from>; install by hand per the plugin README, "Using with Codex"   (only when §3.8 failed or found no source)
 
 Next:
 • Commit: git add CLAUDE.md
