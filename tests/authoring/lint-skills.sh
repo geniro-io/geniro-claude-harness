@@ -325,21 +325,24 @@ done <<< "$(grep -rnE 'subagent_type[=:][[:space:]]*"?geniro:' skills agents 2>/
 # No file is exempt: load-custom-reviewers.md describes the Cursor-only `auto` a
 # USER-declared reviewer `model:` maps to without the literal `model="auto"`
 # form, so a family planted there fails like anywhere else.
+# A function, not inline in the $( ) below: bash 3.2 (macOS /bin/bash) misparses a
+# `case … )` pattern inside a command substitution and loses the loop variable.
+_model_name_hits() {
+  grep -rnE "(^|[^A-Za-z0-9_-])model[[:space:]]*=[[:space:]]*[\"']?(haiku|sonnet|opus|fable|auto)([^A-Za-z]|\$)" skills agents 2>/dev/null \
+    | cut -d: -f1,2
+  local f
+  for f in agents/*.md; do
+    [ -f "$f" ] || continue
+    case "$f" in *-reference.md) continue ;; esac
+    awk -v f="$f" 'c<2 && /^---$/ {c++; next} c==1 && /^model:/ && $0 !~ /^model:[[:space:]]*["\047]?inherit["\047]?[[:space:]]*$/ {print f ":" NR}' "$f"
+  done
+}
 model_hits=0
 while IFS= read -r hit; do
   [ -z "$hit" ] && continue
   report_fail "model name at a spawn site (state a cost class; agents declare model: inherit): $hit"
   model_hits=$((model_hits + 1))
-done <<< "$(
-  {
-    grep -rnE "(^|[^A-Za-z0-9_-])model[[:space:]]*=[[:space:]]*[\"']?(haiku|sonnet|opus|fable|auto)([^A-Za-z]|\$)" skills agents 2>/dev/null \
-      | cut -d: -f1,2
-    for f in agents/*.md; do
-      case "$f" in *-reference.md) continue ;; esac
-      awk -v f="$f" 'c<2 && /^---$/ {c++; next} c==1 && /^model:/ && $0 !~ /^model:[[:space:]]*["\047]?inherit["\047]?[[:space:]]*$/ {print f ":" NR}' "$f"
-    done
-  }
-)"
+done <<< "$(_model_name_hits)"
 [ "$model_hits" -eq 0 ] && echo "OK: no model names at spawn sites (agents all declare model: inherit)"
 
 # 4. Reference-graph inversion — skill-structure.md §Reference graph: skills cite
