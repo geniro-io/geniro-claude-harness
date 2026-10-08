@@ -26,6 +26,7 @@ User content: <UNCHANGED | CHANGED — see /tmp/geniro-content-diff.log>
 Update cache: <refreshed | refresh failed — "update available" may still show>
 Statusline: <refreshed | not installed — no prior /geniro:setup>
 Cursor profile: <re-pointed at the new install | not installed — nothing to refresh>
+Codex: <refreshed to <version> | refresh failed — <error> | installed but disabled — left as is | not installed — nothing to refresh>
 Migration walked: <N changes — M applied, K skipped, L deferred, J noted>
 <one "  noted: <change-name> — <the action>" line per noted entry; omit when J is 0>
 

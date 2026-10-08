@@ -40,9 +40,10 @@ Generated CLAUDE.md sections:
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` — when invoked from a linked worktree these differ, and rehydration + cleanup both look in the main worktree.
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
 - `$CLAUDE_USER_DIR/settings.json` — `statusLine` entry (§3.6); edited only with the user's confirmation when an entry already points elsewhere.
-- `$HOME/.cursor/{skills,agents}/` and `$HOME/.cursor/hooks.json` — the Cursor profile install (§3.7): symlinks to the plugin's generated Cursor skill and subagent copies, plus its hook entries merged into an existing `hooks.json`. A user-config write outside PROJECT_ROOT, listed only when §3.7's condition holds.
+- `$HOME/.cursor/{skills,agents}/` and `$HOME/.cursor/hooks.json` — the Cursor profile install (§3.7): symlinks to the plugin's generated Cursor skill and subagent copies, plus its hook entries merged into an existing `hooks.json`. A user-config write outside PROJECT_ROOT, listed when `$HOME/.cursor/` exists and the plugin root carries `cursor/skills/`.
+- `$CODEX_HOME/config.toml` and `$CODEX_HOME/plugins/cache/` (`CODEX_HOME` defaults to `~/.codex`) — the Codex install (§3.8): the marketplace entry the `codex` CLI records, plus a copy of the plugin. A user-config write outside PROJECT_ROOT, listed when `codex` is on PATH and the plugin isn't installed there.
 
-Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, the statusline install, and the §3.7 Cursor profile install when that step's condition holds — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit"). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
+Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, the statusline install, and the §3.7 Cursor profile and §3.8 Codex installs when Cursor or Codex is present for them to install into — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit", with "+ Cursor skills" / "+ Codex plugin" added before the "?" when §3.7 / §3.8 applies). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
 
 ### 3.4 Conflict-resolution merge rules (re-run only)
 
@@ -75,7 +76,7 @@ Check `$CLAUDE_USER_DIR/settings.json` for a `statusLine` entry. If absent, add 
 
 ### 3.7 Install Geniro into the Cursor profile (conditional)
 
-Fires only when this machine has a Cursor install (`$HOME/.cursor/` exists) AND the resolved plugin root carries `cursor/skills/`. Skip silently when either is absent — there is nothing to install into, or nothing to install.
+Fires only when this machine has a Cursor install (`$HOME/.cursor/` exists) AND the resolved plugin root carries `cursor/skills/` AND it was not dropped at the §3.3 batch approval. Skip silently when any of these fails — there is nothing to install into, nothing to install, or the user declined it.
 
 `cursor-agent` loads no plugin components at all, so a plugin install alone leaves every Cursor CLI and ACP session with no Geniro skills, no Geniro subagents, and none of the hooks; the IDE is unaffected. The per-component profile directories are the only route that reaches both surfaces. `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §Install carries the evidence, the source threads, and the condition for removing this step once Cursor fixes the bug.
 
@@ -84,6 +85,16 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-cursor.sh"
 ```
 
 The script is idempotent and touches only what it owns in those shared destinations, so a re-run costs nothing. It also picks its own link target: invoked from a versioned install cache it links to the marketplace checkout instead, so the install survives plugin updates. Report the source line it prints, and pass on every `WARNING:` and `SKIP:` line it emits — a version-carrying link, a Cursor plugin install that will now double every skill, a `hooks.json` left untouched because `jq` is missing — rather than dropping them. Record the outcome for the §5.1 report.
+
+### 3.8 Install Geniro into Codex (conditional)
+
+Fires only when the `codex` CLI is on PATH AND this plugin is not already installed there AND it was not dropped at the §3.3 batch approval. Skip silently when Codex is absent or the user declined it. `<plugin>` and `<marketplace>` are the `name` fields of the `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` the plugin root carries.
+
+Check with `codex plugin list --json -m <marketplace>` — the plain-text `codex plugin list` also pulls OpenAI's remote catalog. The plugin in `installed` means it is already installed: record "already installed" for the §5.1 report and change nothing. The plugin in `available` means the marketplace is configured; both lists empty means it is not. A non-zero exit or unparsable output is a failure to report, not an absent install.
+
+Install from a local source: it needs no network (this phase allows no network egress), and `/geniro:update` re-copies the install from that same source on every run. Take the source from `installLocation` in `$CLAUDE_USER_DIR/plugins/known_marketplaces.json`, for the marketplace whose checkout's `.claude-plugin/plugin.json` names this plugin; otherwise use the resolved plugin root. Accept a source only when it is a checkout — never one under `plugins/cache/`: Codex records the path, and a removed versioned cache dir breaks every `codex plugin` command. With no such source, skip the install and record that for the §5.1 report, which sends the user to `${CLAUDE_PLUGIN_ROOT}/README.md` §Using with Codex to install by hand.
+
+Run `codex plugin marketplace add "<source>"` — skipped when the marketplace is already configured — then `codex plugin add <plugin>@<marketplace>`. Report the "Installed plugin root" line it prints, and pass on any error output rather than dropping it. Record the outcome for the §5.1 report. A failed Codex install is reported and does not block the phase.
 
 Transition to Phase 4.
 

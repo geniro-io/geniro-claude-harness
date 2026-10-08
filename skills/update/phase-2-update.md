@@ -73,18 +73,24 @@ NEW_VERSION=$(cat "$PLUGIN_PATH/.claude-plugin/plugin.json" \
 | python3 -c "import json,sys; print(json.load(sys.stdin).get('version','unknown'))")
 
 if [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
-echo "[info] already on latest version (v$NEW_VERSION) — nothing to do."
+echo "[info] already on latest version (v$NEW_VERSION)"
 # Same refresh as phase-3-postcheck.md §Refresh update cache. The status line renders straight from this cache and
 # nothing else rewrites it before the next session start — exiting without it leaves the
 # "update available" arrow lit for the rest of the session, in the run meant to clear it.
+# Run phase-3-postcheck.md Steps 5 and 6 next for the same reason: Claude Code's own auto-update (or a hand-run
+# `claude plugin update`) lands the version without this skill, and the Cursor hooks.json entries and the Codex copy
+# are copies that nothing else refreshes.
 GENIRO_UPDATE_BG=1 CLAUDE_PLUGIN_ROOT="$PLUGIN_PATH" \
 node "$PLUGIN_PATH/hooks/geniro-check-update.js"
+echo "PLUGIN_PATH=$PLUGIN_PATH"
 exit 0
 fi
 
 echo "PLUGIN_PATH=$PLUGIN_PATH"
 echo "NEW_VERSION=$NEW_VERSION"
 ```
+
+On the already-on-latest exit, run `phase-3-postcheck.md` Step 5 and Step 6 with the `PLUGIN_PATH` it just echoed — both are no-ops when nothing is installed — then print their outcomes after the info message as the final report's `Cursor profile` and `Codex` lines.
 
 Carry both echoed values forward by literal substitution: every later fenced block re-assigns them at its top, because each Bash call runs in a fresh shell and nothing else recomputes them.
 

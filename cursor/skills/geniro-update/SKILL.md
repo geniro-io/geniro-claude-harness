@@ -67,7 +67,8 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 - [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit
 - [ ] `phase-3-postcheck.md` §Refresh statusline stable copy (conditional) ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
 - [ ] `phase-3-postcheck.md` §Re-point the Cursor profile install (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
-- [ ] The final report's `Update cache`, `Statusline`, and `Cursor profile` lines state each refresh's actual outcome
+- [ ] `phase-3-postcheck.md` §Refresh the Codex install (conditional) ran when `codex plugin list --json` already showed the plugin installed
+- [ ] The final report's `Update cache`, `Statusline`, `Cursor profile`, and `Codex` lines state each refresh's actual outcome
 
 ## Budgets — quality-first
 
@@ -78,8 +79,8 @@ No hard kill caps. Class-B gates: 4-retry network backoff, hash-diff and per-mig
 | Phase | Allowed | Forbidden |
 |---|---|---|
 | `pre-check` | `Read`, `Bash` (`cat`, `grep`, `find`, `shasum`/`sha256sum`, `stat`, `python3 -c "json.load"`, plus the one sanctioned write: the `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content baseline snapshot redirected into `/tmp`), `Glob`, `AskQuestion` | `Write`, `Edit`, any mutating `Bash` outside that snapshot write, `Agent`, all `mcp__*` |
-| `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
-| `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh, the Cursor link script), `Glob`, `AskQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
+| `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry, plus the already-on-latest branch's post-check Step 5 link script and `codex plugin` commands) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
+| `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh, the Cursor link script, the `codex plugin` commands), `Glob`, `AskQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
 | `migration` | `Read`, `AskQuestion`, `Bash` (detect commands from MIGRATION.md + the fix when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
 
@@ -96,7 +97,7 @@ External sends: not in `/geniro:update` ACI ever.
 | User-content tampering detected | AUQ surfaces; user picks Continue or Abort |
 | MIGRATION.md walked successfully | `done` |
 | MIGRATION.md walked, user aborted mid-walk | `aborted: user aborted migration walk at step <N>` |
-| Already on latest version | `info: already on latest version (<version>)` — done |
+| Already on latest version | `info: already on latest version (<version>)`, followed by the `Cursor profile` and `Codex` lines — done |
 | Hooks/registry write blocked | `aborted: blocked by hook — see <hint>` |
 
 ## Memory I/O
@@ -113,11 +114,11 @@ Steps: `phase-1-precheck.md`. Load custom instructions, read `CURRENT_VERSION`, 
 
 ## Phase 2 — update
 
-Steps: `phase-2-update.md`. Run the marketplace + plugin update with exponential backoff, repair a dropped global-scope install, then discover and echo the new `PLUGIN_PATH` / `NEW_VERSION` (or exit early when already on latest). Exit when `PLUGIN_PATH` and `NEW_VERSION` are both echoed.
+Steps: `phase-2-update.md`. Run the marketplace + plugin update with exponential backoff, repair a dropped global-scope install, then discover and echo the new `PLUGIN_PATH` / `NEW_VERSION` (or, when already on latest, refresh the update cache and the Cursor and Codex installs, then exit early). Exit when `PLUGIN_PATH` and `NEW_VERSION` are both echoed.
 
 ## Phase 3 — post-check
 
-Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), diff a fresh user-content snapshot against the Phase 1 baseline (AUQ on any change), refresh the update cache, and refresh the statusline copy and re-point the Cursor profile install when those already exist. Exit when both AUQ-gated checks have resolved and the refresh outcomes are recorded for the final report.
+Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), diff a fresh user-content snapshot against the Phase 1 baseline (AUQ on any change), refresh the update cache, and refresh the statusline copy, re-point the Cursor profile install, and refresh the Codex install when those already exist. Exit when both AUQ-gated checks have resolved and the refresh outcomes are recorded for the final report.
 
 ## Phase 4 — migration
 

@@ -77,5 +77,16 @@ Only when `$HOME/.cursor/skills/` already holds `geniro-*` symlinks, re-run `bas
 
 The script normally links to a path with no version in it — a checkout, or the marketplace checkout — and those links need nothing after an update, so this step is usually a no-op. It earns its place in the case that is left: links that do carry a version (no marketplace checkout was available when they were made) resolve to the old plugin after an update, or to nothing once that version is cleaned up. Re-running re-points them, and refreshes the `~/.cursor/hooks.json` entries, which are copied values rather than links and so do go stale on their own. Record the outcome for the final report's `Cursor profile` line.
 
+### Step 6 — Refresh the Codex install (conditional)
+
+Only when `codex` is on PATH and `codex plugin list --json -m <marketplace>` shows this plugin in `installed`. `<plugin>` and `<marketplace>` are the `name` fields of the `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` under `$PLUGIN_PATH`. The plain-text `codex plugin list` is the wrong query: it also pulls OpenAI's remote catalog and shows a filesystem path for Git installs too, so it cannot tell the source type. Absence from `installed` means the user never installed it into Codex, and installing here would write into a Codex config they never asked to touch. A non-zero exit or unparsable output is a failed refresh to report, not an absent install.
+
+When the entry has `enabled: false`, report "installed but disabled — left as is" and change nothing: `codex plugin add` re-enables a disabled plugin. Otherwise branch on the entry's `marketplaceSource.sourceType`:
+
+- `local` (the install `/geniro:setup` makes from Claude Code's marketplace checkout): run `codex plugin add <plugin>@<marketplace>`, which re-copies what the update just put there.
+- `git`: run `codex plugin marketplace upgrade <marketplace>`, which refreshes the marketplace and reinstalls the plugin.
+
+Re-run the `--json` query and record the version it then shows — or the error on failure — for the final report's `Codex` line.
+
 Transition to Phase 4.
 

@@ -376,13 +376,15 @@ codex plugin marketplace add geniro-io/geniro-claude-harness
 codex plugin add geniro@geniro-claude-harness
 ```
 
+`/geniro:setup` also offers to install Geniro into Codex when the `codex` CLI is present and Geniro isn't installed there yet.
+
 You can also browse it from `/plugins` inside Codex.
 
 - **Invoking.** Skills run with `$`, not `/`: `$geniro:implement <task>`, or pick one from the `/skills` list. Codex applies a skill only in the turn that names it, so when a gate asks a question in chat, answer with the skill name plus your choice (`$geniro:implement B`).
 - **Hooks.** Codex loads the plugin's hooks but runs them only after you trust them in `/hooks`, and asks again when a hook changes. Until then they do not fire, and the skills apply the same checks themselves.
 - **Agents.** Codex plugins cannot ship agents, so each Geniro agent runs as Codex's default subagent with the agent's instructions passed in; they follow the same contracts, with tool restrictions stated as instructions rather than enforced. Codex runs only a few subagents at once (3 by default), so wide parallel reviews run in waves and take longer.
 - **Project rules.** Codex reads `AGENTS.md`, not `CLAUDE.md` or `.claude/rules/`. To have it load a project's `CLAUDE.md` where no `AGENTS.md` exists, add `project_doc_fallback_filenames = ["CLAUDE.md"]` to `~/.codex/config.toml`. The skills that need `.claude/rules/` files read them directly.
-- **Updating.** Run `codex plugin marketplace upgrade geniro-claude-harness`; it reinstalls the installed plugin from the refreshed marketplace.
+- **Updating.** A GitHub install (the commands above) updates with `codex plugin marketplace upgrade geniro-claude-harness`, which reinstalls the installed plugin from the refreshed marketplace. An install `/geniro:setup` made, from Claude Code's local marketplace checkout, refreshes through `/geniro:update`, or by hand with `codex plugin add geniro@geniro-claude-harness`.
 - **Don't use `/import`.** Codex's Claude importer copies only the skill folders into `.agents/skills`, away from the plugin's shared files, and rewrites "claude" in the text as it goes: `.claude-plugin/plugin.json` — the marker every skill uses to find the plugin root — becomes `.Codex-plugin/plugin.json`, and `.claude/rules/` becomes `.Codex/rules/`. Install it as a plugin.
 - **Claude-Code-only.** `geniro:update`, and `geniro:reflect` given a search string or no argument — both read Claude Code's own on-disk data. `--this-session` reflect works.
 
