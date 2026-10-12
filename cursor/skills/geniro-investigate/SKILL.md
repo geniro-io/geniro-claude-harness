@@ -32,7 +32,7 @@ context: main
 
 ## State machine
 
-state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only`, `routed` (the SessionStart recovery treats all as "task complete — no resume"). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) — written via `atomic_state_set_field` before the Phase 1 Step 2.5 glossary gate and the Phase 2 Step 3 missing-data gate fire their question — surface to the user as "task was paused — your previous options:" so the user re-picks without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up (max 2 rounds).
+state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only` (SessionStart recovery treats all as complete — no resume). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) — written via `atomic_state_set_field` before the Phase 1 Step 2.5 glossary gate and the Phase 2 Step 3 missing-data gate fire their question — surface to the user as "task was paused — your previous options:" for a re-pick without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up.
 
 Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §1.
 
@@ -44,7 +44,7 @@ Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigat
 
 The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` apply, with two investigate-specific bindings:
 
-- **Invariant #4 (bounded structured tool results)** — the Codebase Analyst is `codebase-research-agent`, whose report cap its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` §Output Schema); the Git Historian and Internet Researcher are general-purpose spawns, capped at ~8K chars each. Either way, overflow truncates with a marker.
+- **Invariant #4 (bounded structured tool results)** — the Codebase Analyst is `codebase-research-agent`, whose report cap its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md` §Output Schema); the Git Historian, Internet Researcher, and External-codebase researcher are general-purpose spawns, capped at ~8K chars each. Either way, overflow truncates with a marker.
 - **Invariant #7 (errors → structured observations)** — web fetch/search failures, permission errors, agent registration "not found" fallbacks all become structured `## Tool log` or `## Errors` entries.
 
 This skill adds one invariant:
@@ -55,25 +55,25 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 **Compaction.** The host re-attaches only the first portion of this file, so its later sections arrive missing, with a truncation marker standing in for them. Treat that marker as an instruction: in the turn you notice it, re-read this file and the running phase's body before relying on anything the truncation removed. When you compose a compaction summary, record state — what ran, what remains, what the user decided — never a directive to yourself about stopping, confirming, or awaiting direction. A resumed session reads its summary as fact and will honour it over this file, so work still to do is recorded as work still to do, not as something to ask permission for.
 
-**`## Tool log` section in state.md:** selective logging — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier), L2 emits (`discovery` calls), and escalation entries. Routine reads, shell calls, and web searches skipped.
+**`## Tool log` section in state.md:** selective — subagent spawn outcomes (1-3 research agents + Phase 3 fresh verifier), L2 `discovery` emits, escalations; routine reads, shell calls, and web searches skipped.
 
 ## Anti-rationalization
 
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I already know the answer from reading the code" | You read one perspective. Parallel agents catch what you missed — git history reveals intent, internet reveals context. |
-| "I'll spawn all 3 (or add an agent the classification excluded) to be safe" | The Phase 1 Step 1 classification table is the LITERAL spawn set; irrelevant agents are net-negative — they consume tokens and their off-target findings force the synthesizer to filter noise. If the criteria look wrong for this question, revise classification — don't silently add. |
+| "I'll spawn all 3 (or add an agent the classification excluded) to be safe" | The Phase 1 Step 1 classification table is the LITERAL spawn set; irrelevant agents are net-negative — they cost tokens and force the synthesizer to filter off-target noise. If the criteria look wrong for this question, revise classification — don't silently add. |
 | "Self-review is overkill for a question" | Wrong answers cost more than the review; file references go stale and claims drift from evidence. |
-| "I'll spawn agents one at a time to save tokens" | Spawn parallel agents in ONE response (multiple Agent calls in the same assistant turn); sequential turns waste wall-clock time for no token savings. |
+| "I'll spawn agents one at a time to save tokens" | Spawn parallel agents in ONE response (multiple Agent calls in one assistant turn); sequential turns waste wall-clock time for no token savings. |
 | "All three agents converge on the same claim — that's confirmed" | Convergent self-reports are still self-reports. Phase 2 Step 2 re-verify requires the orchestrator to independently re-read / re-run / re-grep before treating any agent claim as evidence. |
-| "The reasoning chain is tight, that's enough evidence" | Reasoning is hypothesis, not evidence. Only the artifact kinds (file:line snippet, captured output, log line, query result, user data) clear the Evidence Standard. |
+| "The reasoning chain is tight, that's enough evidence" | Reasoning is hypothesis, not evidence. Only artifact kinds (file:line snippet, captured output, log line, query result, user data) clear the Evidence Standard. |
 | "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence — route the claim through Phase 2 Step 2 §Route unverified claims, which has no "ship with caveat" exit: a claim shipped under a label still reads as an answer, and the reader acts on it. |
 | "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
-| "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. A WebFetch result with matching code is verified evidence; a WebFetch result alone is retrieved evidence — note it as such and do not promote it to verified without code grounding. |
-| "The answer touched architecture — I'll write it up as an ADR or a project rule before closing." | /geniro:investigate answers questions; it writes no rule, ADR, or CLAUDE.md section. Its durable output is the Step 5 learning. A user who wants the answer promoted into project rules runs `/geniro:reflect`, where the candidate faces the full worth bar instead of riding an investigation's momentum. |
+| "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. A WebFetch result with matching code is verified evidence; a WebFetch result alone is retrieved evidence — label it so; promote to verified only with code grounding. |
+| "The answer touched architecture — I'll write it up as an ADR or a project rule before closing." | /geniro:investigate answers questions; it writes no rule, ADR, or CLAUDE.md section. Its durable output is the Step 5 learning. A user who wants the answer promoted into project rules runs `/geniro:reflect`, where it faces the full worth bar instead of riding an investigation's momentum. |
 | "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5 — threads hold speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating one as load-bearing. |
 | "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field; later retrieval and telemetry filter on it, so a missing label silently loses source-confidence info. |
-| "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | When CLAUDE.md has a Domain Context section the check is a cheap grep against pre-loaded content; skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. |
+| "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | With a CLAUDE.md Domain Context section the check is a cheap grep of pre-loaded content; skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. |
 | "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | Step 2.6 is the audit trail that makes the 5-step cadence reviewable; dropping it lets claims drift from evidence. |
 
 ## Quality-first budgets
@@ -84,18 +84,18 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 |---|---|---|---|
 | Dive-deeper rounds | 2 | Phase 3 Step 4 follow-up AUQ | At max, suggest fresh `/geniro:investigate` with refined question; do not silently re-loop. |
 | Fresh-verifier re-review rounds | 1 | Phase 3 Step 2 | At max, present to user with remaining blockers flagged. |
-| Research-agent output size | Codebase: the agent contract's own cap · Git / Internet: ~8K chars each | Loop invariant #4 | Truncation with marker. |
+| Research-agent output size | Codebase: the agent contract's own cap · Git / Internet / External: ~8K chars each | Loop invariant #4 | Truncation with marker. |
 
 **Architecture constraints (design intent, not budget):**
 - Parallel research agents — 1 to 3 per Phase 1 classification.
 
 ## Subagent model tiering
 
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, spawns are `session` unless a site names a light class: Git Historian **light (smallest)**, Internet Researcher **light (mid)**. Codebase Analyst and fresh verifier decide the answer and stay `session`.
+Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, spawns are `session` unless a site names a light class: Git Historian **light (smallest)**, Internet Researcher **light (mid)**. Codebase Analyst, External-codebase researcher, and fresh verifier decide the answer and stay `session`.
 
 ## Subagent spawn contract
 
-Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet), Phase 3 Step 2 fresh verifier agent — satisfies every pre-inlined field in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`, because a spawn missing a field makes the subagent re-discover scope from scratch and drift. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; the Git Historian, Internet Researcher, and fresh verifier are general-purpose spawns.
+Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codebase / Git / Internet / External-codebase), Phase 3 Step 2 fresh verifier agent — satisfies every pre-inlined field in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md`, because a spawn missing a field makes the subagent re-discover scope from scratch and drift. Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` for runtime degradation when invoking plugin-defined agents: the plugin-defined `codebase-research-agent` (Phase 2 Codebase Analyst, plus codebase-locator side queries during Phase 3 synthesis) is spawned via this ladder; every other spawn is general-purpose.
 
 ## Evidence Standard
 
@@ -104,18 +104,18 @@ A claim is evidence-backed only when it cites a canonical artifact kind, per `${
 ## ACI per-phase tool surface
 
 **Phase 1 (Classify+Scope):**
-- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; `atomic_state_write` for the state checkpoint and the Step 2.5 escalation write; the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare for Phase 1 prelim) / AskQuestion.
+- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; state helpers per taxonomy §2; a shallow scratchpad `git clone` of a Compare alternative (never the worktree); the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare) / AskQuestion.
 - Allowed subagent spawns: none yet.
 - Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
 
 **Phase 2 (Investigate+Verify):**
-- Allowed: AskQuestion (Step 3 missing-data gate).
-- Allowed subagent spawns: Codebase Analyst / Git Historian / Internet Researcher (per Phase 1 classification).
+- Allowed: AskQuestion (Step 3 missing-data gate); state helpers per taxonomy §2; a loaded `After worktree-setup` step.
+- Allowed subagent spawns: the researchers Phase 1 classification selects.
 - Each spawned agent's tool whitelist is set in its Phase 2 Step 1 spawn template (Codebase: the `tools:` frontmatter of `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md`); all are read-only.
 - Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
 
 **Phase 3 (Synthesize+Review+Present):**
-- Allowed: Read (for re-reading cited files during synthesis) / AskQuestion (Step 4 dive-deeper follow-up) / Bash (`atomic_state_write` to persist `dive_round:`; Step 6 cleanup of the run's scratch state).
+- Allowed: Read (for re-reading cited files during synthesis) / AskQuestion (Step 4 dive-deeper follow-up) / Bash (state helpers per taxonomy §2 for `dive_round:` and the terminal `phase:`; Step 6 cleanup of the run's scratch state).
 - Allowed subagent spawns: fresh verifier agent (inherits orchestrator session tier).
 - Fresh verifier agent: Read / Grep (no Edit / Write).
 
@@ -131,11 +131,11 @@ A claim is evidence-backed only when it cites a canonical artifact kind, per `${
 | Phase 3 Step 0 | `load-custom-instructions` | read L4 | `refresh` |
 | Phase 3 Step 5 (conditional) | `emit-learning` | write L2 | n/a (type `discovery` with `ext.{area, insight}`, trust label required — Phase 3 Step 5 trigger) |
 
-`update-semantic` is not called. /geniro:investigate answers questions; it does not write `_project.md` or `_CODEBASE_MAP.md`.
+`update-semantic` is not called: investigate writes neither `_project.md` nor `_CODEBASE_MAP.md`.
 
 ## Git constraint
 
-Do not run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+Do not run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation, plus the Phase 1 shallow scratchpad `git clone`. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 ## Definition of done
 
@@ -172,18 +172,18 @@ Classify the question into one of the types below. The "Agents needed" column is
 | **How (forward-looking)** | How CAN X be done / connect X to Y / integrate W? Requires evidence from current code (what's already there to build on), git (what's been tried before), and internet (external interfaces, library capabilities). Skip Internet ONLY when both X and Y are fully internal — rare edge case, e.g. "connect table A to table B inside the same DB". | Codebase + Git + Internet |
 | **Why** | Why was X chosen? Design rationale requires current code patterns + history + industry context. | Codebase + Git + Internet |
 | **What-if** | What happens if X changes? Impact in the codebase + external compatibility. | Codebase + Internet |
-| **Compare** | Compare approaches for X (the project's approach vs alternatives). | Codebase + Internet |
+| **Compare** | Compare approaches for X (the project's approach vs alternatives). | Codebase + Internet. Public-repository alternative: External-codebase researcher takes the Internet slot; Internet also runs when web sources are needed |
 | **Risk** | What are the risks of X? Evidence needed from all three. | Codebase + Git + Internet |
 
 A question that classifies **External docs lookup** routes through a `/deep-research` offer before Phase 2 spawns, when your environment provides that workflow.
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-1-classify.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — Steps 0, 1.5, 2, 2.5, 2.6: the memory-layer load, the `/deep-research` routing offer, scope identification, the glossary-mismatch gate, and the JIT retrieval cadence. Read it again on any resumption of the phase, including after a compaction.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-1-classify.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — Steps 0, 0.5, 1.5, 2, 2.5, 2.6: the memory-layer load, the resume check, the `/deep-research` routing offer, scope identification, the glossary-mismatch gate, and the JIT retrieval cadence. Read it again on any resumption of the phase, including after a compaction.
 
 ## Phase 2: Investigate+Verify
 
 State.md `phase: investigate`. Exits to Phase 3 only when every load-bearing claim is verified, dropped, or routed through missing-data gate.
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-2-investigate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — Steps 1-3: the parallel research-agent spawns (Codebase Analyst / Git Historian / Internet Researcher), the orchestrator's own re-verification pass, and the missing-data gate. Read it again on any resumption of the phase, including after a compaction.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/investigate/phase-2-investigate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — Steps 1-3: the parallel research-agent spawns (Codebase Analyst / Git Historian / Internet Researcher / External-codebase researcher), the orchestrator's own re-verification pass, and the missing-data gate. Read it again on any resumption of the phase, including after a compaction.
 
 ## Phase 3: Synthesize+Review+Present
 
@@ -195,7 +195,7 @@ State.md `phase: present`.
 
 ## State file schema
 
-T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Write via `atomic_state_write`. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires, and category `duplicate_answer` populated when Phase 1 Step 2.6's duplicate-answer check fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Termination reason / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
+T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Create and update it with the helpers the taxonomy reference §2 names for each kind of change. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires, and category `duplicate_answer` populated when Phase 1 Step 2.6's duplicate-answer check fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
 
 ## State recovery
 

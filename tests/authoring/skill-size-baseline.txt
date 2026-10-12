@@ -15,11 +15,11 @@ skills/audit-instructions/SKILL.md 3320
 skills/debug/SKILL.md 2733
 skills/implement/SKILL.md 2778
 skills/instructions/SKILL.md 2173
-skills/investigate/SKILL.md 3320
+skills/investigate/SKILL.md 3352
 skills/onboard/SKILL.md 3210
 skills/plan/SKILL.md 2868
 skills/refactor/SKILL.md 3212
-skills/reflect/SKILL.md 2978
+skills/reflect/SKILL.md 3004
 skills/resolve/SKILL.md 3483
 skills/review/SKILL.md 2814
 skills/setup/SKILL.md 2342

@@ -193,7 +193,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 - **Keep steps actionable** — each step describes a concrete action
 - **Limit to 2-3 steps per phase** — too many slow down workflow and dilute attention
 - **The legal anchors:** `After explore` (plan, post-research and pre-grill), `After user-approve` (plan, post-approval), `After analyze` (implement, pre-code), `After ship` (implement, post-ship follow-up), `After verify` (refactor wrap-up)
-- **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after any skill creates a new worktree and before subagent fan-out
+- **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after any skill creates a new worktree, or before the first subagent fan-out of a run that starts inside an existing one
 
 ### Constraint writing
 
@@ -239,7 +239,7 @@ An `Additional Steps` subsection must name a phase that a skill actually reads c
 | `plan` | `After explore` (post-research, pre-grill — e.g. a discovery stage the approaches must be sized against) | `plan/loop-phase-1-explore.md` §1.5 "Custom post-explore steps" |
 | `plan` | `After user-approve` (post-approval/commit — e.g. duplicate the plan into OpenSpec) | `plan/loop-phase-8-user-approval.md` §8.6 |
 | `refactor` | `After verify` | `refactor/phase-3-verify.md` §3.6 |
-| `global` | `After worktree-setup` (cross-skill; fires once, in the orchestrator, right after any skill creates a new worktree) | branch-freshness §3.1 and review triage |
+| `global` | `After worktree-setup` (cross-skill; fires once, in the orchestrator, right after any skill creates a new worktree or before the first fan-out of a run that starts inside one) | branch-freshness §3.1, debug Step 0.2, review triage, and investigate Phase 2 |
 | `review`, `resolve`, `debug`, `onboard`, `investigate`, `reflect` | none — Rules and Constraints only, no Additional Steps anchor | n/a |
 
 Free-form subsections raise `LOW`. Subsections naming a real phase this skill has (or a dropped one, e.g. `After Phase 4 (Implement)`) that isn't in this table raise `MEDIUM` — that phase exists or existed, but nothing reads a custom step there.

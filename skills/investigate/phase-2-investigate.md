@@ -2,15 +2,17 @@
 
 Phase file for `/geniro:investigate`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md`.
 
-State.md `phase: investigate`. Parallel research-agent spawns + orchestrator re-verify. Exits to Phase 3 only when every load-bearing claim is verified, dropped, or routed through missing-data gate.
+State.md `phase: investigate` on the first pass; a dive-deeper re-entry from Phase 3 leaves it at `present` (taxonomy reference §1). Parallel research-agent spawns + orchestrator re-verify. Exits to Phase 3 only when every load-bearing claim is verified, dropped, or routed through missing-data gate.
 
 ### Step 1: Parallel research agents
+
+Before the spawns, when the loaded instructions carry an `After worktree-setup` step and the run starts inside an existing linked worktree, run it now, once, in the orchestrator.
 
 Spawn 1-3 agents in ONE response — all Agent calls in the same assistant turn, NOT one per turn — matching the literal "Agents needed" set from Phase 1 Step 1. No agent is unconditional; each must pass the Phase 1 Step 2 skip criteria. When only one agent is spawned, it is still spawned via `Agent(...)` (not inlined) so the Phase 3 Step 2 fresh verifier can check its findings against a fresh transcript.
 
 Every spawn below follows §Subagent spawn contract. Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
 
-The Codebase Analyst spawn IS `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research — Phase 2's findings-list deliverable maps onto the agent's `DELIVERABLE_SHAPE` slot in the spawn template (§3 Agent A). Git Historian and Internet Researcher remain `general-purpose` spawns (different tool surfaces — git read-verbs / web search and fetch respectively). For narrow codebase-locator side queries during synthesis (Phase 3) — "where is the cache-key builder defined?" / "find all call sites of X" — also spawn `codebase-research-agent`.
+The Codebase Analyst spawn IS `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research — Phase 2's findings-list deliverable maps onto the agent's `DELIVERABLE_SHAPE` slot in the spawn template (§3 Agent A). Git Historian and Internet Researcher remain `general-purpose` spawns (different tool surfaces — git read-verbs / web search and fetch respectively). The taxonomy reference §3 Agent C variant says when the External-codebase researcher is spawned. For narrow codebase-locator side queries during synthesis (Phase 3) — "where is the cache-key builder defined?" / "find all call sites of X" — also spawn `codebase-research-agent`.
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
@@ -32,7 +34,7 @@ As the research agents return, read each report for its `Context loaded:` line a
 
 #### Extract load-bearing claims
 
-From the agent findings, list each claim that would appear as `Evidence:` in the synthesized answer — file:line references, command outputs, commit hashes, package versions, behavior descriptions.
+List each claim that would appear as `Evidence:` in the synthesized answer — from the agent findings and from the orchestrator's own probes alike — file:line references, command outputs, commit hashes, package versions, behavior descriptions, absences.
 
 #### Re-verify each claim against ground truth
 
@@ -41,12 +43,12 @@ For each claim, materialize its applicable-source list — the matching built-in
 | Claim kind | Re-verification |
 |---|---|
 | File:line snippet | Read the file, confirm the snippet text matches at the cited lines |
-| Grep / search result | Re-run the grep yourself, compare hit count and matched lines |
+| Search result | Re-run the search through the loaded search policy (the project's declared tool, else plain search); compare hit count and matched lines. An absence ("0 hits") is verified only when the same probe is shown to return a hit on a case that must match, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` §Evidence ladder; truncated output or unexamined hits are not zero |
 | Command output | Re-run the command, compare output |
 | Commit / blame | Run `git show <hash>` or `git blame -L <range> <file>`, compare |
 | External fact (library version, API behavior) | Re-fetch the source URL or re-search; compare wording |
 
-A claim is **verified** when the orchestrator's re-run, or an applicable source, matches the agent's report. A claim is **unverified** in one of two shapes: no applicable source exists to settle it, or a matching declared source existed and did not return — name that source and the failure (data-sources.md §6). An untried check is not an unverified claim: run it first.
+A claim is **verified** when the orchestrator's re-run, or an applicable source, matches the report it came from. A claim is **unverified** in one of two shapes: no applicable source exists to settle it, or a matching declared source existed and did not return — name that source and the failure (data-sources.md §6). An untried check is not an unverified claim: run it first.
 
 #### Route unverified claims
 
@@ -62,6 +64,6 @@ If Step 2 left any load-bearing claim unverified AND only the user can supply th
 
 An empty or absent answer is not a user pick — `AskUserQuestion` can auto-resolve with nothing when no one is present to answer it. Treat it exactly like the exhausted loop below: drop the claim and name the gap in the final answer.
 
-If the user picks "I don't have it / skip", drop the corresponding claim — do NOT synthesize around it. If the user picks the sign-in option, re-enter Step 2 to resolve that source and re-verify the claim. If the user provides data, write `phase: investigate` back, treat the data as evidence kind (5) per the Evidence Standard, and re-enter Step 2 to re-verify the claim against the new artifact. Loop max twice; if still unverified, drop the claim and explicitly note the gap in the final answer.
+If the user picks "I don't have it / skip", drop the corresponding claim — do NOT synthesize around it. If the user picks the sign-in option, re-enter Step 2 to resolve that source and re-verify the claim. If the user provides data, write the phase it held before the gate back, treat the data as evidence kind (5) per the Evidence Standard, and re-enter Step 2 to re-verify the claim against the new artifact. Loop max twice; if still unverified, drop the claim and explicitly note the gap in the final answer.
 
 State.md `## Open Questions` body section logs missing-data gate question + user pick. State.md transitions: `investigate` → `present` once all claims verified or routed.

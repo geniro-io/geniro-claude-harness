@@ -66,8 +66,13 @@ def _local_roots():
 
 EXTRA_ROOTS = [p for p in os.environ.get("FIND_THREADS_EXTRA_ROOTS", "").split(":") if p.strip()] or _local_roots()
 
-CODE_SIGNAL = re.compile(r'"name":"(?:Edit|Write|MultiEdit|NotebookEdit)"')
-WORK_SIGNAL = re.compile(r'"name":"(?:Agent|Task|Skill)"')  # read-only agentic work: a spawned subagent or a Skill tool call
+# Anchored on the tool_use block prefix: a bare `"name":"Edit"` also matches the tool DEFINITIONS in the
+# prompt_snapshot attachment line every current session log carries, which tags tool-less threads.
+# Real calls are `{"type":"tool_use","id":"toolu_…","name":"X"`; definitions never carry "tool_use".
+_TOOL_CALL = r'"type":"tool_use","id":"[^"]{1,128}","name":"(?:%s)"'
+CODE_SIGNAL = re.compile(_TOOL_CALL % "Edit|Write|MultiEdit|NotebookEdit")
+WORK_SIGNAL = re.compile(_TOOL_CALL % "Agent|Task|Skill")  # read-only agentic work: a spawned subagent or a Skill tool call
+SIGNAL_TAIL = 256                         # chunk-boundary carry; longer than the widest _TOOL_CALL match (175 chars: 128-char id cap + "NotebookEdit")
 OVERSIZE_BYTES = 5 * 1024 * 1024          # /analyze-thread's hard cap
 SIGNAL_SCAN_CAP = 20 * 1024 * 1024        # scan at most 20 MB for the work signals
 TITLE_SCAN_CAP = 2 * 1024 * 1024          # window into the head read for the ai-title line (~1.5 MB deep)
@@ -120,7 +125,7 @@ def classify_thread(path, size):
                     return "edited"
                 if not work and WORK_SIGNAL.search(text):
                     work = True
-                tail = text[-64:]  # carry a boundary so a split signal still matches
+                tail = text[-SIGNAL_TAIL:]  # carry a boundary so a split signal still matches
     except OSError:
         return None
     return "read-only" if work else None

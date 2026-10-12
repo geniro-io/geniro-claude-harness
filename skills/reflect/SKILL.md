@@ -114,10 +114,10 @@ Collect every such directory that exists, across each config dir in turn — `$C
 ### Step 3: Classify and select
 
 1. **Record sizes.** `wc -c` every candidate `*.jsonl` — used in step 4.
-2. **Keep work-bearing sessions.** A session did agentic work when its transcript contains a code-edit tool call or a subagent/skill invocation. Grep needs `-a`: transcripts embed base64 images, which make grep silently classify them as binary and skip them.
+2. **Keep work-bearing sessions.** A session did agentic work when its transcript contains a code-edit tool call or a subagent/skill invocation. Grep needs `-a`: transcripts embed base64 images, which make grep silently classify them as binary and skip them. Anchor on the `tool_use` block: a bare `"name":"Edit"` also matches the tool definitions every session log carries in its prompt snapshot, so it passes every transcript.
 
    ```bash
-   grep -la '"name":"Edit"\|"name":"Write"\|"name":"MultiEdit"\|"name":"NotebookEdit"\|"name":"Agent"\|"name":"Task"\|"name":"Skill"' "$D"/*.jsonl
+   grep -laE '"type":"tool_use","id":"[^"]{1,128}","name":"(Edit|Write|MultiEdit|NotebookEdit|Agent|Task|Skill)"' "$D"/*.jsonl
    ```
 
 3. **Search mode:** additionally filter with `grep -lia '<search string>'` over the survivors, keep the 8 newest by mtime, and report how many were dropped ("12 sessions matched; analyzing the 8 newest"). Empty mode: keep the 5 newest survivors.

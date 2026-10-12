@@ -83,7 +83,7 @@ EOF
 ```
 
 **Trust label:**
-- `trust: verified` — investigation was code-grounded only (no web-research agents spawned, OR web results were not load-bearing to the final answer).
+- `trust: verified` — investigation was code-grounded only (no web-research agents spawned, OR web results were not load-bearing to the final answer); code the orchestrator re-read in a shallow clone of an external repository at its recorded commit sha counts as code-grounded.
 - `trust: retrieved` — web-research findings were load-bearing to the final answer.
 - `trust: inferred` — N/A for /geniro:investigate (model-deduced claims do not pass Evidence Standard's confidence-driven action).
 
@@ -93,7 +93,7 @@ No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS 
 
 ### Step 6: Cleanup
 
-Every terminal exit runs this — `done` after a "Done — answer is sufficient" pick, `present-summary-only` after the "I have a follow-up question" pick, `routed` from the Phase 1 Step 1.5 external-lookup exit. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
+Every terminal exit runs this — `done` after a "Done — answer is sufficient" pick, `present-summary-only` after the "I have a follow-up question" pick. The `/geniro:update` migration walk scans only `.geniro/planning`, so a terminal that skips this leaks the run's scratch directory with nothing to sweep it later. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract. Write the terminal `phase:` first: the `|| true` below swallows a failed delete, and a surviving state file marked terminal reads as complete to SessionStart recovery instead of being resumed. When state.md `## Scope` recorded a `CLONE_ROOT`, read it before the delete and remove that clone directory too.
 
 ```bash
 rm -rf .geniro/state/investigate/<slug>/ 2>/dev/null || true
