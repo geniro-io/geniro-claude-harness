@@ -77,16 +77,22 @@ Only when `$HOME/.cursor/skills/` already holds `geniro-*` symlinks, re-run `bas
 
 The script normally links to a path with no version in it — a checkout, or the marketplace checkout — and those links need nothing after an update, so this step is usually a no-op. It earns its place in the case that is left: links that do carry a version (no marketplace checkout was available when they were made) resolve to the old plugin after an update, or to nothing once that version is cleaned up. Re-running re-points them, and refreshes the `~/.cursor/hooks.json` entries, which are copied values rather than links and so do go stale on their own. Record the outcome for the final report's `Cursor profile` line.
 
-### Step 6 — Refresh the Codex install (conditional)
+### Step 6 — Refresh or offer the Codex install (conditional)
 
-Only when `codex` is on PATH and `codex plugin list --json -m <marketplace>` shows this plugin in `installed`. `<plugin>` and `<marketplace>` are the `name` fields of the `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` under `$PLUGIN_PATH`. The plain-text `codex plugin list` is the wrong query: it also pulls OpenAI's remote catalog and shows a filesystem path for Git installs too, so it cannot tell the source type. Absence from `installed` means the user never installed it into Codex, and installing here would write into a Codex config they never asked to touch. A non-zero exit or unparsable output is a failed refresh to report, not an absent install.
+Only when `codex` is on PATH; otherwise record "Codex CLI not found" for the final report's `Codex` line. Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codex-install.md` §Detect, reading the names from `$PLUGIN_PATH`.
 
-When the entry has `enabled: false`, report "installed but disabled — left as is" and change nothing: `codex plugin add` re-enables a disabled plugin. Otherwise branch on the entry's `marketplaceSource.sourceType`:
+- **Detect failed** → record `Codex check failed — <error>` and change nothing.
+- **Installed** → §Refresh.
+- **Not installed** → when Detect found the marketplace not configured, resolve §Install source (from this skill only `installLocation` can qualify, since `$PLUGIN_PATH` is the versioned cache); with none, record that and ask nothing. In every other case fire an AUQ: the install writes Codex user config (`$CODEX_HOME/config.toml` and `$CODEX_HOME/plugins/cache/`, `CODEX_HOME` defaulting to `~/.codex`) outside the project, which the update-confirmation answer did not cover.
+  - **Header:** `Codex`
+  - **Question:** `Codex is installed on this machine but Geniro isn't installed in it — install Geniro into Codex?`
+  - **Options:**
+  - `Install into Codex (Recommended)` — Install Geniro into Codex; this writes Codex's own config, outside this project
+  - `Skip` — Leave Codex as is; the next `/geniro:update` asks again
 
-- `local` (the install `/geniro:setup` makes from Claude Code's marketplace checkout): run `codex plugin add <plugin>@<marketplace>`, which re-copies what the update just put there.
-- `git`: run `codex plugin marketplace upgrade <marketplace>`, which refreshes the marketplace and reinstalls the plugin.
+  On `Install into Codex`, run §Install.
 
-Re-run the `--json` query and record the version it then shows — or the error on failure — for the final report's `Codex` line.
+Record the outcome for the final report's `Codex` line.
 
 Transition to Phase 4.
 

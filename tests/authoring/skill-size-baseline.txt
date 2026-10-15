@@ -23,4 +23,4 @@ skills/reflect/SKILL.md 3004
 skills/resolve/SKILL.md 3483
 skills/review/SKILL.md 2814
 skills/setup/SKILL.md 2342
-skills/update/SKILL.md 1816
+skills/update/SKILL.md 1884

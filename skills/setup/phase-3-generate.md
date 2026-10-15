@@ -88,13 +88,9 @@ The script is idempotent and touches only what it owns in those shared destinati
 
 ### 3.8 Install Geniro into Codex (conditional)
 
-Fires only when the `codex` CLI is on PATH AND this plugin is not already installed there AND it was not dropped at the §3.3 batch approval. Skip silently when Codex is absent or the user declined it. `<plugin>` and `<marketplace>` are the `name` fields of the `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` the plugin root carries.
+Fires only when the `codex` CLI is on PATH AND this plugin is not already installed there AND it was not dropped at the §3.3 batch approval. Skip silently when Codex is absent or the user declined it.
 
-Check with `codex plugin list --json -m <marketplace>` — the plain-text `codex plugin list` also pulls OpenAI's remote catalog. The plugin in `installed` means it is already installed: record "already installed" for the §5.1 report and change nothing. The plugin in `available` means the marketplace is configured; both lists empty means it is not. A non-zero exit or unparsable output is a failure to report, not an absent install.
-
-Install from a local source: it needs no network (this phase allows no network egress), and `/geniro:update` re-copies the install from that same source on every run. Take the source from `installLocation` in `$CLAUDE_USER_DIR/plugins/known_marketplaces.json`, for the marketplace whose checkout's `.claude-plugin/plugin.json` names this plugin; otherwise use the resolved plugin root. Accept a source only when it is a checkout — never one under `plugins/cache/`: Codex records the path, and a removed versioned cache dir breaks every `codex plugin` command. With no such source, skip the install and record that for the §5.1 report, which sends the user to `${CLAUDE_PLUGIN_ROOT}/README.md` §Using with Codex to install by hand.
-
-Run `codex plugin marketplace add "<source>"` — skipped when the marketplace is already configured — then `codex plugin add <plugin>@<marketplace>`. Report the "Installed plugin root" line it prints, and pass on any error output rather than dropping it. Record the outcome for the §5.1 report. A failed Codex install is reported and does not block the phase.
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codex-install.md` §Names, §Detect, §Install source, and §Install. When Detect finds the plugin already installed, record "already installed" and change nothing. Install from a local source, because this phase allows no network egress. Record every outcome, a missing source included, for the §5.1 report; a failed Codex install is reported and does not block the phase.
 
 Transition to Phase 4.
 

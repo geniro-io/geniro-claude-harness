@@ -90,7 +90,7 @@ echo "PLUGIN_PATH=$PLUGIN_PATH"
 echo "NEW_VERSION=$NEW_VERSION"
 ```
 
-On the already-on-latest exit, run `phase-3-postcheck.md` Step 5 and Step 6 with the `PLUGIN_PATH` it just echoed — both are no-ops when nothing is installed — then print their outcomes after the info message as the final report's `Cursor profile` and `Codex` lines.
+On the already-on-latest exit, run `phase-3-postcheck.md` Step 5 and Step 6 with the `PLUGIN_PATH` it just echoed — Step 5 is a no-op when nothing is installed, and Step 6 may offer the Codex install — then print their outcomes after the info message as the final report's `Cursor profile` and `Codex` lines.
 
 Carry both echoed values forward by literal substitution: every later fenced block re-assigns them at its top, because each Bash call runs in a fresh shell and nothing else recomputes them.
 

@@ -31,7 +31,7 @@ argument-hint: "[--dry-run]"
 
 **Runtime requirement.** This skill drives the `claude plugin` CLI and the Claude Code install registry, and functions only under Claude Code. When invoked from another runtime (e.g. Cursor), state that updates are managed by that runtime's own plugin mechanism and exit without side effects.
 
-**Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/update/`: `phase-1-precheck.md` · `phase-2-update.md` · `phase-3-postcheck.md` · `phase-4-migration.md` · `done-final-report.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (the update-confirmation AUQ, the hash-check and tamper-diff AUQs, the per-entry migration AUQ) and their helper call sites, so work started before the Read runs outside them. With no state file, recover from a compaction by re-Reading the phase you were in (named from this spine's headings), not by re-invoking the skill.
+**Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/update/`: `phase-1-precheck.md` · `phase-2-update.md` · `phase-3-postcheck.md` · `phase-4-migration.md` · `done-final-report.md`. That Read is the phase's physically-first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold this skill's gates (the update-confirmation AUQ, the hash-check and tamper-diff AUQs, the Codex install AUQ, the per-entry migration AUQ) and their helper call sites, so work started before the Read runs outside them. With no state file, recover from a compaction by re-Reading the phase you were in (named from this spine's headings), not by re-invoking the skill.
 
 ## Path constraints
 
@@ -42,7 +42,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or a fully resolved absolute pat
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five update-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
-- **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one example among this skill's several (the hash-check and tamper-diff AUQs in `phase-3-postcheck.md`, the per-entry migration AUQ in `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskUserQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
+- **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one example among this skill's several (the hash-check, tamper-diff, and Codex install AUQs in `phase-3-postcheck.md`, the per-entry migration AUQ in `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskUserQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 - **Invariant #4 (bounded structured tool results)** — the migration-step AUQ truncates auto-detect output to its first ~10 lines; the full content diff goes to a log file.
 - **Invariant #5 (escalation gates, not silent abort)** — 4-retry exponential-backoff on network errors; abort after the 4th retry. (`phase-2-update.md` §Marketplace refresh + plugin update owns the exact delays.)
 - **Invariant #7 (errors → structured observations)** — stateless, so errors surface inline in the run's output; no silent skips.
@@ -68,7 +68,7 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 - [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit
 - [ ] `phase-3-postcheck.md` §Refresh statusline stable copy (conditional) ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
 - [ ] `phase-3-postcheck.md` §Re-point the Cursor profile install (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
-- [ ] `phase-3-postcheck.md` §Refresh the Codex install (conditional) ran when `codex plugin list --json` already showed the plugin installed
+- [ ] `phase-3-postcheck.md` §Refresh or offer the Codex install (conditional) ran whenever `codex` was on PATH — refreshing an existing install, or offering the install when Codex had none and the install was possible
 - [ ] The final report's `Update cache`, `Statusline`, `Cursor profile`, and `Codex` lines state each refresh's actual outcome
 
 ## Budgets — quality-first
@@ -80,7 +80,7 @@ No hard kill caps. Class-B gates: 4-retry network backoff, hash-diff and per-mig
 | Phase | Allowed | Forbidden |
 |---|---|---|
 | `pre-check` | `Read`, `Bash` (`cat`, `grep`, `find`, `shasum`/`sha256sum`, `stat`, `python3 -c "json.load"`, plus the one sanctioned write: the `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content baseline snapshot redirected into `/tmp`), `Glob`, `AskUserQuestion` | `Write`, `Edit`, any mutating `Bash` outside that snapshot write, `Agent`, all `mcp__*` |
-| `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry, plus the already-on-latest branch's post-check Step 5 link script and `codex plugin` commands) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
+| `update` | `Bash` (`claude plugin marketplace update`, `claude plugin update --scope user`, `claude plugin install --scope user` for the global-install repair, `python3 -c` to parse registry, plus the already-on-latest branch's post-check Step 5 link script and `codex plugin` commands), `AskUserQuestion` (that branch's Codex install offer) | `Read`/`Write`/`Edit` on project files, `Agent`, `mcp__github__*` |
 | `post-check` | `Read`, `Bash` (`sha256sum` or `shasum -a 256` on macOS, `stat`, `cp` for statusline refresh, the Cursor link script, the `codex plugin` commands), `Glob`, `AskUserQuestion` | `Edit` on project files outside `$CLAUDE_USER_DIR/hooks/`, `mcp__*` |
 | `migration` | `Read`, `AskUserQuestion`, `Bash` (detect commands from MIGRATION.md + the fix when user picks "Fix it for me"), `Glob`, `Write`, `Edit` (only when user picks "Fix it for me" per-entry) | `Agent`, `mcp__*` |
 | `done` | (terminal report) | (none) |
@@ -115,11 +115,11 @@ Steps: `phase-1-precheck.md`. Load custom instructions, read `CURRENT_VERSION`, 
 
 ## Phase 2 — update
 
-Steps: `phase-2-update.md`. Run the marketplace + plugin update with exponential backoff, repair a dropped global-scope install, then discover and echo the new `PLUGIN_PATH` / `NEW_VERSION` (or, when already on latest, refresh the update cache and the Cursor and Codex installs, then exit early). Exit when `PLUGIN_PATH` and `NEW_VERSION` are both echoed.
+Steps: `phase-2-update.md`. Run the marketplace + plugin update with exponential backoff, repair a dropped global-scope install, then discover and echo the new `PLUGIN_PATH` / `NEW_VERSION` (or, when already on latest, refresh the update cache and the Cursor install, and refresh an existing Codex install or offer one when Codex has none, then exit early). Exit when `PLUGIN_PATH` and `NEW_VERSION` are both echoed.
 
 ## Phase 3 — post-check
 
-Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), diff a fresh user-content snapshot against the Phase 1 baseline (AUQ on any change), refresh the update cache, and refresh the statusline copy, re-point the Cursor profile install, and refresh the Codex install when those already exist. Exit when both AUQ-gated checks have resolved and the refresh outcomes are recorded for the final report.
+Steps: `phase-3-postcheck.md`. Hash-check the new install (AUQ on failure), diff a fresh user-content snapshot against the Phase 1 baseline (AUQ on any change), refresh the update cache, refresh the statusline copy and re-point the Cursor profile install when those already exist, and refresh an existing Codex install or offer the install when Codex has none. Exit when every question this phase raised has resolved and the refresh outcomes are recorded for the final report.
 
 ## Phase 4 — migration
 
@@ -136,3 +136,4 @@ Steps: `done-final-report.md`. Decide whether to append the `/geniro:setup` re-r
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — Mode A resolver for `PRIMARY_ROOT` (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check).
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — Phase 4 parse / auto-detect / classify / re-verify procedure shared with the `/geniro:setup` re-run sweep.
 - `${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md` — the `_gu_snapshot` / `_gu_snapshot_file` shell functions §User-content snapshot pastes into Phase 1 and Phase 3.
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codex-install.md` — the Codex detect / install / refresh mechanics `phase-3-postcheck.md` Step 6 applies, shared with `/geniro:setup` §3.8.

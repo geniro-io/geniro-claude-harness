@@ -26,7 +26,7 @@ User content: <UNCHANGED | CHANGED — see /tmp/geniro-content-diff.log>
 Update cache: <refreshed | refresh failed — "update available" may still show>
 Statusline: <refreshed | not installed — no prior /geniro:setup>
 Cursor profile: <re-pointed at the new install | not installed — nothing to refresh>
-Codex: <refreshed to <version> | refresh failed — <error> | installed but disabled — left as is | not installed — nothing to refresh>
+Codex: <refreshed to <version> | refresh failed — <error> | installed but disabled — left as is | installed <version> — trust its hooks once in /hooks; run skills as $geniro:<slug> | install failed — <error> | not installed — you skipped the install | not installed — no local marketplace checkout to install from; see the plugin README, "Using with Codex" | Codex CLI not found | Codex check failed — <error>>
 Migration walked: <N changes — M applied, K skipped, L deferred, J noted>
 <one "  noted: <change-name> — <the action>" line per noted entry; omit when J is 0>
 
