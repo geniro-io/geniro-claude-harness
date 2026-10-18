@@ -10,7 +10,7 @@ Literal `AskQuestion` templates and state-schema blocks for the `/geniro:plan` l
 1b. Artifact opt-in question — Phase 0, asked once when `--artifact` is absent
 2. Phase 3 grill AUQ — message-first, one round at a time
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
-4. Phase 5 cluster AUQ — message-first cluster approval (3 dependency-ordered gates) + milestone-mode
+4. Phase 5 milestone-mode AUQ (Big tasks only)
 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
 5b. Phase 8 launch-config AUQ — pre-define implement settings (opt-in)
 
@@ -57,7 +57,7 @@ The visual-artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/
 ## Open Questions
 ```
 
-Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections approved in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered — assemble per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: both the approved-text form and the routed-out sentinel assemble into the spec verbatim, since a dropped sentinel reads identically to Phase 2 never having triggered at all — indistinguishable to every downstream reader of spec.md; drop the section only when the heading is absent or present-but-bare, meaning the producing step did not run), `## Considered Alternatives` (Phase 4.4).
+Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections authored in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered — assemble per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: both the approved-text form and the routed-out sentinel assemble into the spec verbatim, since a dropped sentinel reads identically to Phase 2 never having triggered at all — indistinguishable to every downstream reader of spec.md; drop the section only when the heading is absent or present-but-bare, meaning the producing step did not run), `## Considered Alternatives` (Phase 4.4).
 
 ### `approvals[]` entry shape — every gate below writes this
 
@@ -235,7 +235,7 @@ Chat message rendered before the AUQ:
 
 ```markdown
 Plan approval — choosing the approach
-● Approach · ○ Goal & scope · ○ Steps · ○ Safety · ○ Final approval
+● Approach · ○ Final approval
 
 **In one sentence:** picking how to rebuild drifted telemetry counts — two ways to build it; I recommend the first.
 
@@ -282,20 +282,50 @@ options:
 
 ---
 
-## 4. Phase 5 cluster AUQ — message-first cluster approval (3 dependency-ordered gates) + milestone-mode
+## 4. Phase 5 milestone-mode AUQ (Big tasks only)
 
-### 4.1 Cluster authoring procedure — message-first, one decision per cluster
+Fires per `loop-phase-5-section-approval.md` §5.3:
 
-The cluster set, per-cluster procedure, section examples, and tier-scaling are `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-5-section-approval.md` §5.2; this section holds the literal templates.
+```yaml
+header: "Milestones"
+question: "This task is large enough to slice into milestones. Slice it now or keep as a single spec?"
+options:
+  - label: "Slice into milestones"            # Recommended for Big
+    description: "Splits into 3-7 milestone files instead of one spec.md — you approve each one's deliverable and dependencies, then build and ship each as its own /geniro:implement session."
+  - label: "Keep as a single spec"
+    description: "The spec write step emits only spec.md; /geniro:implement consumes the whole thing."
+```
 
-Literal cluster-1 chat message (rendered before the AUQ):
+Persistence of the pick (both options) is §5.3.
+
+If "Slice into milestones" picked:
+
+Propose the milestones as vertical slices: each cuts a narrow but complete path through every affected layer (schema, API, UI, tests), is demoable or verifiable on its own, and fits one fresh /geniro:implement session; prefactoring that eases later milestones lands in milestone-1. A layer-per-milestone split leaves nothing verifiable until the last milestone lands — the failure mode vertical slicing prevents. A wide mechanical refactor that cannot slice vertically sequences expand–contract instead, per the Big-tier row in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`.
+
+1. Render the breakdown to a chat message first: each milestone with its name, its deliverable (what is demoable or verifiable once it lands), and its `blocked_by` edges. Then fire a lean AUQ — header "Breakdown", options: "Approve this breakdown" (Recommended) / "Merge milestones" / "Split a milestone". A merge or split pick opens a picker of the milestone names (multi-select for merge, single for split, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`); re-propose the breakdown, re-render it, and re-ask until approved — a breakdown the user never saw as deliverables gets approved as names, and the mismatch surfaces mid-build. Persist the approval to `approvals[]` with category `milestone_breakdown`, so a compaction between approval and Phase 6 cannot lose it.
+2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own copy of the standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) scoped to the milestone. A milestone that depends on specific earlier milestones (not merely everything before it) lists them in its `blocked_by:` frontmatter, and the `## Milestones` index mirrors those edges (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §Milestone-mode).
+
+---
+
+## 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
+
+Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.2.
+
+Chat message rendered before the AUQ — the Goal & scope cluster shown in full; the other two clusters follow the same shape:
 
 ```markdown
-Plan approval — step 1 of 3
-✔ Approach · ● Goal & scope · ○ Steps · ○ Safety · ○ Final approval
+Plan approval — final step
+✔ Approach · ● Final approval
 
-**In one sentence:** we're agreeing on what the backfill feature will do, what's
-included, and what stays out.
+**In one sentence:** the full spec is written and checked — this is the last look
+before it's committed and handed to implementation: <section 1 Objective in plain words>.
+
+**⚠️ Risk level:** <the highest per-risk severity in section 5, raised one level
+when frontmatter forbidden_actions is non-empty> — <one-line why, naming the risk
+that set the level>
+**⏳ Still waiting on others:** <each `pending: <owner>` assumption from section 4, by owner — omit when none; questions in `.geniro/planning/<slug>/questionnaire.md`; an answer replaces its `pending:` line in the spec before /geniro:implement runs>
+
+## Goal & scope
 
 ┌─ In scope ──────────────────────┐   ┌─ Out of scope ──────────────┐
 │ + src/jobs/BackfillQueue.ts     │   │ x event-schema migration    │
@@ -328,81 +358,21 @@ Changing how events are stored, and any admin screen for triggering this.
   its own tracked piece of work.
 - **You'll see:** nothing in the database schema or the admin area changes.
 - **Technical detail:** src/db/schema.ts and src/admin/ untouched after implementation.
-```
 
-Then the LEAN AUQ:
+## Approach & steps
 
-```yaml
-header: "Goal & scope"
-question: "Approve the Goal & scope step (3 sections above)?"
-options:
-  - label: "Approve all (3 sections) (Recommended)"
-    description: "Objective + In scope + Out of scope as rendered."
-  - label: "Explain a section further"
-    description: "Pick a section; I'll walk through it in more depth, then re-ask."
-  - label: "Revise specific sections"
-    description: "Pick which of the 3 to change; I'll re-author and re-ask."
-  - label: "Cancel planning"
-    description: "Abort; spec not written."
-```
+<public-surface block, then the steps flow diagram, then sections 4-7 — one icon-headed digest each>
 
-### 4.2 Milestone-mode AUQ (Big tasks only)
+## Safety & done
 
-Fires per `loop-phase-5-section-approval.md` §5.3:
-
-```yaml
-header: "Milestones"
-question: "This task is large enough to slice into milestones. Slice it now or keep as a single spec?"
-options:
-  - label: "Slice into milestones"            # Recommended for Big
-    description: "Splits into 3-7 milestone files instead of one spec.md — you approve each one's deliverable and dependencies, then build and ship each as its own /geniro:implement session."
-  - label: "Keep as a single spec"
-    description: "The spec write step emits only spec.md; /geniro:implement consumes the whole thing."
-```
-
-Persistence of the pick (both options) is §5.3.
-
-If "Slice into milestones" picked:
-
-Propose the milestones as vertical slices: each cuts a narrow but complete path through every affected layer (schema, API, UI, tests), is demoable or verifiable on its own, and fits one fresh /geniro:implement session; prefactoring that eases later milestones lands in milestone-1. A layer-per-milestone split leaves nothing verifiable until the last milestone lands — the failure mode vertical slicing prevents. A wide mechanical refactor that cannot slice vertically sequences expand–contract instead, per the Big-tier row in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md`.
-
-1. Render the breakdown to a chat message first: each milestone with its name, its deliverable (what is demoable or verifiable once it lands), and its `blocked_by` edges. Then fire a lean AUQ — header "Breakdown", options: "Approve this breakdown" (Recommended) / "Merge milestones" / "Split a milestone". A merge or split pick opens a picker of the milestone names (multi-select for merge, single for split, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md`); re-propose the breakdown, re-render it, and re-ask until approved — a breakdown the user never saw as deliverables gets approved as names, and the mismatch surfaces mid-build. Persist the approval to `approvals[]` with category `milestone_breakdown`, so a compaction between approval and Phase 6 cannot lose it.
-2. After approval, Phase 6 writes the top-level spec.md (with section 6 "Steps" listing milestones and a new body section `## Milestones` indexing the sibling files) PLUS each `milestone-N.md` with its own copy of the standard spec schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`) scoped to the milestone. A milestone that depends on specific earlier milestones (not merely everything before it) lists them in its `blocked_by:` frontmatter, and the `## Milestones` index mirrors those edges (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §Milestone-mode).
-
----
-
-## 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
-
-Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.2.
-
-Chat message rendered before the AUQ:
-
-```markdown
-Plan approval — final step
-✔ Approach · ✔ Goal & scope · ✔ Steps · ✔ Safety · ● Final approval
-
-**In one sentence:** the full spec is written and checked — this is the last look
-before it's committed and handed to implementation.
-
-**🎯 The goal:** <section 1 body — single sentence>
-**📦 In / out:** <section 2 Included bullets + section 3 Excluded summary — reuse
-the in/out scope map from the Goal & scope step>
-**🙋 Where you'll be asked mid-build:** <section 8 list, max 5 shown with
-"... and N more" if >5>
-**⚠️ Risk level:** <the highest per-risk severity in section 5, raised one level
-when frontmatter forbidden_actions is non-empty> — <one-line why, naming the risk
-that set the level>
-**⏳ Still waiting on others:** <each `pending: <owner>` assumption from section 4, by owner — omit when none; questions in `.geniro/planning/<slug>/questionnaire.md`; an answer replaces its `pending:` line in the spec before /geniro:implement runs>
-**↩️ If something goes wrong:** <section 10 summary, 1-2 sentences>
-**✅ How we'll know it's done:**
-☐ <section 11 — one checkbox per observable signal, e.g. "all 5 acceptance tests green">
-☐ <"telemetry shows ≥1 successful event insert">
-
-**Technical detail:** spec on disk at `.geniro/planning/<slug>/spec.md`;
-<glob count from section 2 Scope.Included> files in the touched surface.
+<test-seams block, then the done-condition checklist — ☐ one box per observable signal, e.g.
+"all 5 acceptance tests green" — then sections 8-11, one icon-headed digest each>
 
 Approval is valid for this planning session; re-approval is needed if the spec is
 edited after this point.
+
+**Technical detail:** spec on disk at `.geniro/planning/<slug>/spec.md`;
+<glob count from section 2 Scope.Included> files in the touched surface.
 ```
 
 Then the LEAN AUQ — `question` is a one-line recap pointing at the message:
@@ -414,9 +384,9 @@ options:
   - label: "Approve — commit the plan"   # Recommended
     description: "Commits spec.md and prints the /geniro:implement command to build it."
   - label: "Request changes — I'll describe"
-    description: "Describe what needs to change — I'll revise and re-check just the affected sections."
-  - label: "Abort — discard spec"
-    description: "Stops planning here — spec.md stays on disk but nothing is committed."
+    description: "Name the sections to change and what to change — I'll revise and re-check just those."
+  - label: "Abort — stop planning"
+    description: "Ends planning here — nothing is committed, and spec.md stays on disk for you to keep or delete."
 ```
 
 ---
@@ -425,7 +395,7 @@ options:
 
 Fires per `loop-phase-8-user-approval.md` §8.3.5 (after the spec is approved, before the §8.4 commit; the flag-driven build replaces it when launch modifiers were passed). Field semantics, enum values, and the doctrine boundary are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` — this section is the question wording only.
 
-Two steps: a gate question, then (only on "Yes") a batched capture.
+Each field has a recommended default: `workspace: new-branch`, `branch_freshness: rebase`, `ship_mode: draft-pr`, and — only when the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty) — `tracker_status: move-to-in-progress`. Two steps: a gate question, then (only on "Let me choose each setting") a batched capture.
 
 ### Step 1 — gate question
 
@@ -435,17 +405,19 @@ A lean single-question AUQ (§8.3.5 owns the never-auto-default rule):
 header: "Setup"
 question: "Pre-define the implementation settings now, so /implement can run on its own?"
 options:
-  - label: "Yes — set them now"
+  - label: "Yes — use the recommended settings"
+    description: "A new branch, rebase when behind, and a draft PR; /implement skips those questions and runs on its own."   # with a linked tracker ticket, the list also names moving the task to In Progress
+  - label: "Let me choose each setting"
     description: "Pick the workspace, branch handling, and ship mode here; /implement skips those questions and runs on its own."
   - label: "No — /implement will ask when it runs"
     description: "Leave the settings unset; /implement asks them interactively at start, exactly as it does today."
 ```
 
-On "No" → write no `launch_config:` block; persist the declined gate answer to `approvals[]` (Step 3) and proceed to §8.4 with the spec unchanged. On "Yes" → fire Step 2.
+On "No" → write no `launch_config:` block; persist the declined gate answer to `approvals[]` (Step 3) and proceed to §8.4 with the spec unchanged. On "Yes — use the recommended settings" → hold the block of recommended defaults and skip Step 2. On "Let me choose each setting" → fire Step 2.
 
-### Step 2 — batched capture (only on "Yes")
+### Step 2 — batched capture (only on "Let me choose each setting")
 
-A batched capture. The three always-present settings (workspace / branch handling / ship mode), plus — when the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty) — the kickoff tracker-status setting, all fit inside the 4-question-per-call tool cap and fire together in ONE AUQ call; with no linked tracker ticket only the three always-present questions fire. Each field carries a recommended default; an empty answer on a field falls back to that field's recommended value (the user already opted in by picking "Yes"), so no field can block. Recommended defaults: `new-branch`, `rebase`, `draft-pr`, and (when offered) `move-to-in-progress`.
+A batched capture. The three always-present settings (workspace / branch handling / ship mode), plus — when the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty) — the kickoff tracker-status setting, all fit inside the 4-question-per-call tool cap and fire together in ONE AUQ call; with no linked tracker ticket only the three always-present questions fire. An empty answer on a field falls back to that field's recommended default (the user already opted in), so no field can block.
 
 ```yaml
 questions:
@@ -499,8 +471,8 @@ Append one entry to `approvals[]` with category `launch_config`, `asked_in_phase
 approvals:
   - category: launch_config
     prompt: "Pre-define the implementation settings now, so /implement can run on its own?"
-    options: ["Yes — set them now", "No — /implement will ask when it runs"]
-    picked: "Yes — set them now"
+    options: ["Yes — use the recommended settings", "Let me choose each setting", "No — /implement will ask when it runs"]
+    picked: "Let me choose each setting"
     launch_config:
       workspace: new-branch
       branch_freshness: rebase

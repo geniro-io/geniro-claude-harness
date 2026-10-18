@@ -19,7 +19,7 @@ This file is the single source of truth for the visual language. Calling contrac
 
 Any gate that presents rich multi-part content before a decision:
 
-- `/geniro:plan` approval gates — Phase 4 approaches, Phase 5 section clusters, Phase 8 final approval.
+- `/geniro:plan` approval gates — Phase 4 approaches, Phase 8 final approval.
 - Finding and product-decision gates under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` — /geniro:review decision gates and PR-comment per-finding gates, /geniro:implement self-review decision resolution, /geniro:refactor product-decision escalation.
 - Run-outcome and investigation gates — /geniro:review's report wrap-up (Action gate) and round-escalation, /geniro:debug's stall / fix-fail / open-question gates, /geniro:refactor's HIGH-risk step approval and blocked/regression escalations, /geniro:resolve's Phase 3 ship gate (items fixed, items declined, the test result, and the exact replies about to be posted).
 - Rule-improvement candidate gates — /geniro:reflect's per-candidate "write this project rule?" walk (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation). No other skill fires one.
@@ -46,7 +46,7 @@ Omit the technical block entirely at a gate with nothing to cite — a workspace
 Every gate message in this language carries these elements, so the user always knows where they are in the decision flow and what they are deciding — without reading a wall of text:
 
 - **Progress tracker.** The first line places the gate on its journey: `✔` decided · `●` deciding now · `○` still ahead. The stops are the calling flow's journey:
-  - /geniro:plan uses its approval stops: `✔ Approach · ● Goal & scope (step 1 of 3) · ○ Steps · ○ Safety · ○ Final approval`.
+  - /geniro:plan uses its approval stops: `✔ Approach · ● Final approval`.
   - Finding gates use the decision queue, with short plain-English tags per stop: `✔ Decision 1 — auth bypass · ● Decision 2 of 4 — export filter · ○ Decision 3 · ○ Decision 4`.
 
   Derive the denominator from already-persisted state — the kept-finding set, the open-questions list, the queued gate items. The tracker is presentation-only: never add a state-file field to carry it. Render the tracker only when the queue holds ≥2 decisions — a one-stop tracker is noise, not orientation.
@@ -91,7 +91,7 @@ The lean question that follows carries only the title, the `path:lines`, and the
 
 ## Plan-unit visual map
 
-The visual shape per spec section, for a `/geniro:plan` section-approval gate. Three sections carry the centerpiece visual of their cluster — the scope map, the data-flow diagram, and the done-condition checklist; the rest are lighter.
+The visual shape per spec section, for the `/geniro:plan` final-approval gate. Three sections carry the centerpiece visual of their cluster — the scope map, the data-flow diagram, and the done-condition checklist; the rest are lighter.
 
 | Section | Visual shape |
 |---|---|

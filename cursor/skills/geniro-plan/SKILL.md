@@ -56,7 +56,7 @@ Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator ha
 ## Phase 4 — Approaches
 `loop-phase-4-approaches.md`
 
-## Phase 5 — Section approval
+## Phase 5 — Section authoring
 `loop-phase-5-section-approval.md`
 
 ## Phase 6 — Write spec.md
@@ -82,7 +82,7 @@ Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator ha
 
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across every phase, with plan-specific bindings:
 
-- **Invariant #1 (one result per tool call)** — a failed `AskQuestion` (the empty-answer bug) is re-asked per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which also owns the rule that every user-facing choice routes through this tool — Phase 0 mode-detect, Phase 1 branch-freshness, Phase 3 grill, Phase 4 approach choice, Phase 5 cluster approval + milestone-mode, Phase 7 validator hard-fail, Phase 7.5 milestone re-open, and Phase 8 final approval are this skill's gates; never auto-default.
+- **Invariant #1 (one result per tool call)** — a failed `AskQuestion` (the empty-answer bug) is re-asked per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which also owns the rule that every user-facing choice routes through this tool — Phase 0 mode-detect, Phase 1 branch-freshness, Phase 3 grill, Phase 4 approach choice, Phase 5 milestone-mode, Phase 7 validator hard-fail, Phase 7.5 milestone re-open, and Phase 8 final approval are this skill's gates; never auto-default.
 - **Invariant #3 (permission before side-effect)** — Phase 6's `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the loop's only mutation, and `git commit` is deferred to Phase 8 post-approval.
 - **Invariant #4 (bounded results)** — Phase 1 research-agent output carries the per-spawn cap declared in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2, which owns that value; schema `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
 - **Invariant #6 (grounded in observations)** — Phase 5 section content cites Phase 1 explore findings by `file:line`, not generic prose; the Phase 7 validator's citation check fails an uncited section.
@@ -123,7 +123,6 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 |---|---|---|---|
 | Phase 3 grill checkpoint | the checkpoint trigger per §3.4 — no fixed question cap | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
 | Phase 3 grill exit | none — fires whenever the tree exhausts | §3.4 | Render closing summary → AUQ: Start building / Keep grilling deeper / Keep grilling on a named area. Keep-grilling reopens the walk and the gate re-fires at the next termination. Skipped when a checkpoint Wrap up / Skip pick ended the grill. |
-| Phase 5 per-cluster revision rounds | §5.2 owns the count | §5.2 | Cluster AUQ re-fires without Revise — approve-as-rendered / explain-further / cancel; an unresolved change carries to the Phase 8 gate. |
 | Phase 7 → Phase 6 auto-revision rounds | §7.3 owns the count | §7.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | §8.3 owns the count | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 
@@ -148,7 +147,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 | Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
 | Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / AskQuestion / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn) / tracker MCP read (the tool named in `.geniro/workflow/<kind>.md`) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt) | Edit / Write outside state.md |
 | Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskQuestion / atomic_state_write (state.md `## UI Preview`) / native `Artifact` calls + scratchpad `Write`† | Edit / Write outside state.md and the artifact scratchpad |
-| Phase 3-5 (Clarify / Approaches / Section approve) | Read / Grep / Glob / AskQuestion / atomic_state_write (state.md; Phase 3 questionnaire.md) / emit_learning (Phase 3 glossary) / Agent (Phase 3 research + Phase 4 design-generator and critic spawns) / native `Artifact` calls + scratchpad `Write`† | Edit / mutating Bash |
+| Phase 3-5 (Clarify / Approaches / Section authoring) | Read / Grep / Glob / AskQuestion / atomic_state_write (state.md; Phase 3 questionnaire.md) / emit_learning (Phase 3 glossary) / Agent (Phase 3 research + Phase 4 design-generator and critic spawns) / native `Artifact` calls + scratchpad `Write`† | Edit / mutating Bash |
 | Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) / native `Artifact` call + scratchpad `Write`† | Edit / direct Write outside the artifact scratchpad / mutating Bash |
 | Phase 7 (Validate) | Read / AskQuestion / atomic_state_write (state.md `## Open Questions`; spec.md re-author of failing sections only, §7.3 step 2) | All other mutations |
 | Phase 7.5 (Spec challenge) | Read / Grep / Glob / Bash (read-only) / AskQuestion / Agent (claim-verifier spawn) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
@@ -180,6 +179,6 @@ Spawns are `session` unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/s
 
 1. **Validate state.md if found** (§State persistence). On fail, open the recovery AUQ.
 
-2. **Todo-list checklist.** Add: Detect mode / Offer the plan artifact / Explore codebase / Visual companion / Grill the design decisions / Propose approaches / Approve plan in groups / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The conditional items — plan artifact, visual companion — are marked completed-skipped when their trigger (spine §Phase files) does not fire, so a skipped phase reads as a decision rather than an omission.
+2. **Todo-list checklist.** Add: Detect mode / Offer the plan artifact / Explore codebase / Visual companion / Grill the design decisions / Propose approaches / Author plan sections / Write spec / Validate spec / Challenge spec / User approval / Handoff. Mark the first item in_progress; update each as it completes. The conditional items — plan artifact, visual companion — are marked completed-skipped when their trigger (spine §Phase files) does not fire, so a skipped phase reads as a decision rather than an omission.
 
 3. **Begin Phase 0.** Read the spine `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`, then `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-0-mode-detect.md`, and run Phase 0. Each phase file ends by naming the next `phase:` value.

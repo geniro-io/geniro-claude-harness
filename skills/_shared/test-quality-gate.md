@@ -28,8 +28,8 @@ From the Phase 3 `tests`-dimension output (and the tests that Phase 3's own inli
 - **Zero found (audit clean).** No question. Record one plain-English confirmation line in the ship report, e.g. `Audited the N tests this run added/changed against the spec — no coverage gaps or loose assertions.` Visible confirmation, no forced click.
 - **Found, all auto-fixed, none open.** No question. Record the confirmation line plus a one-line summary of what was tightened, e.g. `Audited N added/changed tests; tightened M loose assertions (listed in the review summary).`
 - **Open findings exist.** Render the open findings message-first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Message-first rendering" — decision-queue tracker when there are two or more, a one-sentence opener, a conversational per-finding digest that expands the reviewer shorthand into plain English, a `**Technical detail:**` block per finding carrying the file:line evidence cite and the test names (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers), and a visual per finding — as a self-contained chat block. Then fire ONE lean AskUserQuestion (header: `Test quality`):
-  - **Tighten all** — apply the recommended assertion/coverage fixes for every open finding (re-enter the inline fix sub-loop; re-run the suite after).
-  - **Let me pick** — present the open findings for selection; fix the chosen ones.
+  - **Tighten all** — apply the recommended assertion/coverage fixes for every open finding (re-enter the inline fix sub-loop; re-run the suite after; refresh `reviewed_file_set` / `reviewed_file_hashes` for the files edited, so Ship's coverage guard doesn't report them as unreviewed).
+  - **Let me pick** — present the open findings for selection; fix the chosen ones, with the same suite re-run and refresh.
   - **Ship as-is** — accept the open findings; record them in the ship report's deferred list.
 
   An empty answer means an upstream tool bug, not a user choice — re-ask per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.

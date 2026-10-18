@@ -12,19 +12,20 @@
 # recorded as data precisely so it can be argued with one line at a time. The
 # script contributes only the arithmetic; it holds no numbers of its own.
 #
-# R1 — the floor. Six always-fire dimensions plus the broad-trigger `optimizations`
-#      conditional, no spec, no PR, no verifiers, no custom
-#      reviewers. No other conditional is triggered.
-# R2 — the ceiling for built-in dimensions. All ten fire (six always-fire
+# R1 — the lightest run of the full always-fire set (at or over the size boundary in
+#      skills/_shared/review-grid-scaling.md): seven always-fire dimensions plus the
+#      broad-trigger `optimizations` conditional, no spec, no PR, no verifiers, no
+#      custom reviewers. No other conditional is triggered. A diff under the boundary
+#      fires only five dimensions (bugs, security, tests, conventions, intent) and
+#      costs less than R1; no profile pins it.
+# R2 — the ceiling for built-in dimensions. All eleven fire (seven always-fire
 #      dimensions plus the broad-trigger `optimizations` conditional, and design,
 #      pr-metadata and spec-compliance), a spec and a PR are present, and the
 #      survivor set draws five verifier spawns.
 #
-# On the spec's "11 dimensions" for R2: the built-in grid at
-# skills/review/phase-2-spawns.md §2.1 holds ten rows, so eleven counts one
-# custom reviewer. A custom reviewer's criteria file is user-authored and lives
-# outside this repo, so its words cannot be measured here. R2 therefore pins the
-# ten built-ins and says so, rather than inventing a row.
+# R2 pins the eleven built-in rows of the grid at skills/review/phase-2-spawns.md
+# §2.1. A custom reviewer's criteria file is user-authored and lives outside this
+# repo, so its words cannot be measured here, and R2 invents no row for one.
 #
 # Excluded from both profiles, deliberately: memory-backend.md (loaded only
 # when a project declares a backend), and spawn-agent.md / model-tiering.md —
@@ -64,7 +65,7 @@ R1	orchestrator	1	skills/_shared/emit-learning.md
 R1	orchestrator	1	skills/_shared/runtime-portability.md
 R1	orchestrator	1	skills/_shared/flags-reference.md
 
-# ---- R1: per-dimension criteria (six always-fire dims plus the broad-trigger `optimizations` conditional; conventions owns three files) ----
+# ---- R1: per-dimension criteria (seven always-fire dims plus the broad-trigger `optimizations` conditional; conventions owns three files) ----
 R1	criteria	1	skills/_shared/review-criteria/bugs-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/security-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/architecture-criteria.md
@@ -74,9 +75,10 @@ R1	criteria	1	skills/_shared/review-criteria/guidelines-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/conventions-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/rules-compliance-criteria.md
 R1	criteria	1	skills/_shared/review-criteria/regressions-criteria.md
+R1	criteria	1	skills/_shared/review-criteria/intent-criteria.md
 
-# ---- R1: agent bodies (7 dimension spawns, no verifiers) ----
-R1	agent-body	7	agents/reviewer-agent.md
+# ---- R1: agent bodies (8 dimension spawns, no verifiers) ----
+R1	agent-body	8	agents/reviewer-agent.md
 
 # ---- R2: orchestrator (R1's set plus what a spec, a PR and a verify pass add) ----
 R2	orchestrator	1	skills/review/SKILL.md
@@ -111,7 +113,7 @@ R2	orchestrator	1	skills/_shared/plan-context.md
 R2	orchestrator	1	skills/_shared/workflow-refs-schema.md
 R2	orchestrator	1	skills/_shared/ui-preview-gate.md
 
-# ---- R2: per-dimension criteria (all ten built-in dims) ----
+# ---- R2: per-dimension criteria (all eleven built-in dims) ----
 R2	criteria	1	skills/_shared/review-criteria/bugs-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/security-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/architecture-criteria.md
@@ -121,10 +123,11 @@ R2	criteria	1	skills/_shared/review-criteria/guidelines-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/conventions-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/rules-compliance-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/regressions-criteria.md
+R2	criteria	1	skills/_shared/review-criteria/intent-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/design-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/pr-metadata-criteria.md
 R2	criteria	1	skills/_shared/review-criteria/spec-compliance-criteria.md
 
-# ---- R2: agent bodies (10 dimension spawns + 5 verifier spawns) ----
-R2	agent-body	10	agents/reviewer-agent.md
+# ---- R2: agent bodies (11 dimension spawns + 5 verifier spawns) ----
+R2	agent-body	11	agents/reviewer-agent.md
 R2	agent-body	5	agents/finding-verifier-agent.md

@@ -152,7 +152,7 @@ For obvious bug fixes. The user already showed what's broken.
 2. Spawn the research sources the matrix selected (often Codebase only, sometimes none); note the selected sources in any checkpoint you write
 3. Present the fix with evidence, then use the `AskUserQuestion` tool to ask "Approve this fix or investigate deeper?" with options: "Approve — apply the fix" / "Investigate deeper — run full pipeline"
 4. If approved: apply the fix (directly if 1-2 lines, subagent if more)
-5. Spawn a fresh review agent (Phase 5 Step 1) to verify
+5. Spawn a fresh review agent (Phase 5 Step 1) to verify, passing the approved fix as the approved set
 6. Skip to Phase 6
 
 ---

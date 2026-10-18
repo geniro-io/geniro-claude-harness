@@ -4,7 +4,7 @@ Single source for the description a skill writes when it opens a pull request. T
 
 ## Sections, in order
 
-1. **Why + ticket (first line).** One or two sentences of motivation in product words, then the ticket reference. Previews (Slack, email) show the first characters, so the body never opens with a code fence or a heading.
+1. **Why + ticket (first line).** One or two sentences in product words stating the problem: what was wrong or needed, and how it is known (the ticket, a repro, a failing test, the user's report). Then the ticket reference. Previews (Slack, email) show the first characters, so the body never opens with a code fence or a heading. A short list follows with the premises the change relies on as the run recorded them, each a checkable claim with `file:line`, and for a bug fix the root cause.
 2. **Summary.** Prose first. Add ONE visual from the menu below only when it clarifies the change beyond the prose. Mermaid renders on GitHub but not in every tracker or preview; prefer a text tree when the body is read elsewhere.
 3. **Evidence.** Built only from what the run recorded:
    - the tests added, by name, each with the behavior it pins. Say a test failed before and passes now only when the run's records show it failing against the base code (a reproduction test authored before the fix); a test written against this run's own new code carries no before/after claim;

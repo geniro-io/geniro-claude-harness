@@ -49,7 +49,7 @@ Investigate → Filter → Implement pipeline.
 
 ### Phase C: Review (fresh agent)
 
-Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt. Review checklist for create-skill is:
+Run the standard Phase 5 self-review with a fresh agent that did NOT see the author prompt, passing the Phase A interview answers as its approved set. Review checklist for create-skill is:
 - All Phase A interview answers reflected in the SKILL.md
 - Description meets the description-format checks (`phase-4-6-implement-review.md` §Description-format validator)
 - No invented tools (every tool in `allowed-tools` actually exists in Claude Code's tool surface)

@@ -4,15 +4,15 @@ Canonical scaling table for the always-fire reviewer-dimension set. `/geniro:imp
 
 ## The rule
 
-Scale the always-fire dimension set by the run's own size signal. A conditional dimension — one with its own trigger, independent of size (`optimizations`, `design`, `pr-metadata`, `spec-compliance`, `custom:*` in `/geniro:review`) — is untouched by this table and keeps firing on its own trigger at every tier.
+Scale the always-fire dimension set by the run's own size signal, except `intent`, which fires in every row below — a false premise is no smaller in a small diff. A conditional dimension — one with its own trigger, independent of size (`optimizations`, `design`, `pr-metadata`, `spec-compliance`, `custom:*` in `/geniro:review`) — is untouched by this table and keeps firing on its own trigger at every tier.
 
 **`/geniro:implement`** reads a four-level `change_scope` estimate from the codebase-explorer-agent (Step 6, `${CLAUDE_PLUGIN_ROOT}/agents/codebase-explorer-agent.md` §Output Schema):
 
 | `change_scope` | Dimensions fired |
 |---|---|
-| `trivial` | `bugs`, `tests` |
-| `small` | `bugs`, `security`, `tests`, `code-quality` — plus `architecture` when a real spec.md resolved (see the spec-driven override below) |
-| `medium` / `big` | Full always-fire set — `bugs`, `security`, `architecture`, `tests`, `code-quality` |
+| `trivial` | `bugs`, `tests`, `intent` |
+| `small` | `bugs`, `security`, `tests`, `code-quality`, `intent` — plus `architecture` when a real spec.md resolved (see the spec-driven override below) |
+| `medium` / `big` | Full always-fire set — `bugs`, `security`, `architecture`, `tests`, `code-quality`, `intent` |
 
 **Spec-driven `small`-tier override.** When the run resolved a real spec.md (not an inline task) and the resolved grid is the `small` row, `/geniro:implement` Phase 3 adds `architecture` regardless — it is the sole carrier of spec-compliance and docs-staleness checks in that skill, so the `small` row's drop of it would leave those checks silently uncovered on exactly the tier a spec-driven small diff lands in (`${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-3-ship.md` §Steps, Step 1). An inline-task run (no spec) keeps the table row unchanged.
 
@@ -20,8 +20,8 @@ Scale the always-fire dimension set by the run's own size signal. A conditional 
 
 | Size signal (§12 boundary) | Dimensions fired |
 |---|---|
-| Under boundary | `bugs`, `security`, `tests`, `conventions` |
-| At or over boundary | Full always-fire set — `bugs`, `security`, `architecture`, `tests`, `conventions`, `regressions` |
+| Under boundary | `bugs`, `security`, `tests`, `conventions`, `intent` |
+| At or over boundary | Full always-fire set — `bugs`, `security`, `architecture`, `tests`, `conventions`, `regressions`, `intent` |
 
 **Risk overrides — both skills have one, from a different field each.** `risk-tier: high` forces `/geniro:review`'s full always-fire set regardless of its size signal — a small diff that trips a hard escalation signal (an auth/permissions change, a new external integration, a schema or migration, …) still gets full coverage, because size alone under-counts a high-stakes small diff; `phase-1-triage-reference.md` §9 computes this field from the hard escalation signals in `effort-scaling.md` §"Step 1: Check for hard escalation signals". `/geniro:implement` gets the equivalent override from a different field it already has: any matched signal in the codebase-explorer's `Risk flags` (Step 6, same Output Schema) forces its full always-fire set regardless of `change_scope`.
 

@@ -110,6 +110,9 @@ Agent(prompt="""
 Review changes made to the Geniro plugin template. You were NOT involved in
 researching or implementing these changes — review with fresh eyes.
 
+### Approved set (claims to check, not facts):
+{{per change approved at the Phase 3 gate: what was to change, the evidence it was approved on, its target files — table rows only, never research transcripts or implementation prompts}}
+
 ### Changes made:
 {{git diff output of all changes}}
 
@@ -117,12 +120,14 @@ researching or implementing these changes — review with fresh eyes.
 Commit {{pre-change sha from Phase 4 Step 0}}; files {{paths from Phase 4 Step 0}}. Run `git show <sha>:<path>` for any of them you need in full.
 
 ### Review checklist:
-1. **Correctness:** Do the changes do what they claim? Any logic errors?
+1. **Correctness:** Does each change do exactly what its approved item asked, no less and no more?
+   Does the item's stated reason still hold in the current code — re-check its evidence rather than
+   trusting it? Any logic errors?
 2. **Consistency:** Do changes match patterns used elsewhere in the template?
    - Phase structure consistent with other skills?
    - Spawn syntax matches template conventions?
    - Anti-rationalization tables present where needed?
-3. **Scope creep:** Were any changes made beyond what was approved?
+3. **Scope creep:** Compare the diff against the approved set — report any change or touched file that no approved item asked for.
 4. **Edit-in-place:** Were original instructions rewritten to be explicit, or were
    notes/exceptions/caveats added separately? Separate notes = blocker.
 5. **Regressions:** Compare the diff against the baseline. Check:
@@ -179,7 +184,7 @@ Use the `AskUserQuestion` tool to ask:
   - "Let me pick which ones to fix"
   - "Skip — focus on the current changes only"
 
-- If **fix all**: spawn implementation agents for the pre-existing fixes (same Phase 4 flow), then re-run Phase 5 review on the new changes only.
+- If **fix all**: spawn implementation agents for the pre-existing fixes (same Phase 4 flow), then re-run Phase 5 review on the new changes only, with the fixed bugs as the approved set.
 - If **pick**: walk the bugs one at a time — render each row, then fire its own lean `AskUserQuestion` (header: `"This bug"`) — "Fix it" / "Skip it" / "Skip the rest" — matching `skills/reflect/phase-4-present.md`'s per-candidate walk — then implement the ones fixed.
 - If **skip**: proceed to Phase 6.
 

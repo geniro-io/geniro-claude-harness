@@ -167,7 +167,7 @@ approvals:
 
 Field names are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §"T1.5 optional `approvals` array". The timestamp key is `at`, not `timestamp` — the SessionStart restore hook reads `.at` when it renders the entry, so an entry keyed `timestamp` loses its time to every later reader.
 
-Workflow status transitions are NOT part of Step 0 — /geniro:review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture + regressions) per §3.5; they are not user-prompted in Step 0.
+Workflow status transitions are NOT part of Step 0 — /geniro:review is a read-only reporter and never mutates external tracker state. Tracker IDs detected from `$ARGUMENTS` / PR body / spec.md frontmatter are read-only context for downstream reviewer dimensions (spec-compliance + pr-metadata + architecture + regressions + intent) per §3.5; they are not user-prompted in Step 0.
 
 ### 0d — Execution of the workspace decision
 
@@ -217,6 +217,8 @@ PR-ref runs only — see `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-referen
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md`. The base branch is whatever scope-anchor resolves (PR base, remote `origin/HEAD`, or local `main`/`master` fallback) — do NOT hardcode `main`. Report the resolved target on its own (e.g., "Reviewing working tree — 3 files" or "Reviewing branch diff against `origin/master` — 2 commits, 5 files"). Resolve the target from the explicit PR ref the user gave; discovering one via `gh pr list` reviews a diff the user never asked about, so PR mode triggers on explicit PR-ref forms only.
 
 Read-only `gh pr list` / `gh pr view` / `gh pr diff` calls that gather peer-PR context for an *already-named* target ARE allowed.
+
+**Commit messages.** Capture the reviewed range's commit messages — subjects and bodies, bounded to ~3000 chars with bodies trimmed before subjects — as the stated reason that travels with PR metadata (`phase-2-spawns.md` §2.3). A branch or diff-range run reads them with `git log <base>..HEAD` (the typed range for a diff-range input); a PR run takes them from the `phase-1-pr-reference.md` §3 fetch; a working-tree or file-list run has none.
 
 **Harness Auto Mode.** `/geniro:review` has NO auto mode of its own. Do NOT promote an "Auto Mode Active" reminder into transcript framing.
 
@@ -297,6 +299,7 @@ Total cap ~2000 chars — trim Description first, then AC list (keep first 5 ACs
 - **pr-metadata** — Title/body alignment with issue title; issue ID prefix presence enhanced from regex-only to verified-existence check.
 - **architecture** — Parent epic + sibling sub-task IDs enable cross-PR coordination signals (see expanded peer-PR scout).
 - **regressions** — the issue's stated intent is one of the intent sources this dim classifies a behavior change against, alongside spec.md, PR body, and commit message.
+- **intent** — the issue's stated problem and acceptance criteria are the reason this dim checks the change's premises and fit against.
 
 Other dims (bugs / security / tests / optimizations / conventions / design) do NOT see LINEAR CONTEXT — they review the code under per-file rubrics where tracker context is noise.
 
@@ -355,7 +358,7 @@ Schema-aware:
 3. Read the sibling `state.md`'s `## Spec Divergences` section when one exists next to the resolved spec, and carry it with the PLAN CONTEXT body. It lists the spec claims a prior `/geniro:implement` run established were false, with the evidence. A spec is the plan of record, not a record of fact: the implement run is forbidden from editing it, so a claim disproved during implementation stays on disk exactly as written. Without this section the spec-compliance reviewer scores the diff against claims already known to be wrong and reports the correct implementation as a deviation.
 4. Persist `plan-context-ref:` to state.md frontmatter — the resolved spec/plan's absolute path, or `null` when nothing resolved.
 
-PLAN CONTEXT body inlined in the spec-compliance and regressions reviewer spawn prompts (Phase 2), the divergence list alongside it. Other dimensions don't see it.
+PLAN CONTEXT body inlined in the spec-compliance, regressions, and intent reviewer spawn prompts (Phase 2), the divergence list alongside it. Other dimensions don't see it.
 
 ---
 
@@ -370,7 +373,7 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 
 **Downstream knobs:**
 - Phase 1.5 mechanical pre-pass secret scan strictness — risk-tier:high adds the strict-mode patterns (`phase-1-triage.md` §1.5.3).
-- Phase 2's always-fire dimension grid — risk-tier:high forces the full six-dimension set regardless of the §12 size signal (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`).
+- Phase 2's always-fire dimension grid — risk-tier:high forces the full always-fire set regardless of the §12 size signal (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`).
 
 **Not tier-scaled:** Phase 4.1 admission reads severity and the Evidence-Block check only, and neither varies by `risk-tier` — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5 is the single source for every admission signal, so do not reintroduce a tier-varying threshold here. Phase 4.2 verifier coverage is the same: every §4.1 survivor (CRITICAL / HIGH / MEDIUM) is verified at both tiers — no tier-scaling, no severity-scaling.
 

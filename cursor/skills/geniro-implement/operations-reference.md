@@ -83,7 +83,8 @@ spawn_dims_declared: []   # Phase 3 Round 1 declare-before-fire list — resolve
 spawn_dims_count: <int>   # count of spawn_dims_declared[], written alongside it in the same atomic_state_write
 todos_declared: []        # Phase 2 decomposition declare-before-edit list — one short slug per authored todo (phase-2-implement.md Step 2)
 todos_declared_count: <int>  # count of todos_declared[], set alongside it; the Ship pre-terminal check reads both
-reviewed_file_set: []     # union of every fix-loop round's CHANGED FILES (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
+reviewed_file_set: []     # union of every fix-loop round's CHANGED FILES plus every path a fix, nit, or authored test touched (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
+reviewed_file_hashes: []  # <path>@<hash> per reviewed file (hash defined at that loop exit), set at the same exit; Ship's guard treats a hash mismatch as a diverged file
 ---
 ```
 
