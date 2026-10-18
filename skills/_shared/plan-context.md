@@ -1,6 +1,6 @@
 # Plan context reference
 
-How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions dimensions. Schema-aware loader that parses the sectioned `spec.md` format when present, falling back to prose detection when no frontmatter is found.
+How `/geniro:review` ingests and threads plan/spec intent through reviewers, the relevance filter, and the spec-compliance + regressions + intent dimensions. Schema-aware loader that parses the sectioned `spec.md` format when present, falling back to prose detection when no frontmatter is found.
 
 ## Contents
 
@@ -105,7 +105,7 @@ lifecycle: approved
 
 Fence mechanism, including the collision rule for a payload that contains the marker text itself: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` §Untrusted-content fence.
 
-**Cap:** structured mode honors a ~6000-char total cap (2× the prose mode's 3000 char cap; rationale in §6). Truncation policy: if total exceeds cap, drop bodies of sections 4 (Assumptions) and 5 (Risks) first (less critical for diff-completeness checks); keep section 1, 2, 3, 6, 9, 11 always.
+**Cap:** structured mode honors a ~6000-char total cap (2× the prose mode's 3000 char cap; rationale in §6). Truncation policy: if total exceeds cap, drop the optional `## Considered Alternatives` body and the body of section 5 (Risks) first (less critical for diff-completeness and premise checks), then the bodies of sections 7 (Tools Required), 8 (Approval Points), and 10 (Rollback-Recovery); keep section 1, 2, 3, 4, 6, 9, 11 always — section 4's Assumptions are the premises the `intent` reviewer checks against the code.
 
 ### Why structured wins
 
@@ -139,7 +139,7 @@ In prose mode, the spec-compliance reviewer runs the reduced check set defined i
 
 ## 5. Decision-marker convention
 
-Project plans commonly label decisions with markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning with such a marker as an authoritative intent statement. This applies in both structured mode (markers may appear in any section body) and prose mode.
+Project plans commonly label decisions with markers like `D-XX:` or `[D09]`. Reviewers should treat any line beginning with such a marker as an authoritative statement of what to build — a decision, not a claim about the code as it stands, in both structured mode (markers may appear in any section body) and prose mode. The `intent` dimension still checks any fact such a line asserts about existing code, and applies neither the `[ALIGNS-WITH-PLAN]` nor the `[DIVERGES-FROM-PLAN]` tag to its findings.
 
 **Example marker line in a plan:**
 
@@ -169,7 +169,7 @@ Schema-mode ~6000-char total cap exists because:
 
 Prose-mode 3000-char cap preserved (each reviewer prompt already carries criteria + changed files + diff + project context).
 
-**If your spec exceeds the 6000-char cap:** drop the optional body section `## Considered Alternatives` AND/OR shrink section 4 (Assumptions) / section 5 (Risks) bodies. The orchestrator does NOT auto-summarize — it just truncates with `[…truncated…]`.
+**If your spec exceeds the 6000-char cap:** shrink the optional `## Considered Alternatives` and section 5 (Risks) bodies — truncation drops them first, and section 4 (Assumptions) stays whole. The orchestrator does NOT auto-summarize — it just truncates with `[…truncated…]`.
 
 ---
 

@@ -17,9 +17,6 @@ The sites, in loop order — a site missing from this table is an artifact updat
 | §3.4 on grill termination, once the exit gate resolves toward Phase 4 | Update (`clarify`) | the decision log |
 | §4.3 before the approach question | Before-gate (`approach`) | approach write-ups, stress-test evidence, data-flow diagram |
 | §4.4 after the approach pick persists | Update (`approach`) | chosen approach + considered alternatives |
-| §5.2 step 1, before each cluster gate | Before-gate (`sections`) | the cluster's section digests + steps-flow diagram; on cluster 2, its public-contract-surface block too |
-| §5.2 Revise path, after re-authoring | Before-gate (`sections`) | the revised sections — refresh the panel, don't blank it; the gate is being re-presented |
-| §5.2's next-cluster authoring, after a cluster's picks persist | Update (`sections`) | that cluster's approved sections |
 | §6.1 after spec.md is written | Update (`spec`) | steps / validation / done conditions |
-| §8.2 before the final-approval question | Before-gate (`approval`) | the pending approval decision, per option |
+| §8.2 before the final-approval question, each time it is presented | Before-gate (`approval`) | the pending approval decision, per option; the section digests, steps-flow diagram, and public-contract-surface block — on a revision round refresh the panel, don't blank it |
 | §8.4's artifact finalize, after approval | Update (`approval`) | approved state — status badge approved, every tracker stop done |

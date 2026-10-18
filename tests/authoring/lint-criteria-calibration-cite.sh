@@ -4,8 +4,8 @@
 # Run: bash tests/authoring/lint-criteria-calibration-cite.sh
 #
 # Why this exists: `severity-calibration.md` is the canonical CRITICAL/HIGH/
-# MEDIUM/LOW rubric every review dimension specializes from — eleven of the
-# twelve `review-criteria/*.md` files say so explicitly ("Canonical decision
+# MEDIUM/LOW rubric every review dimension specializes from — twelve of the
+# thirteen `review-criteria/*.md` files say so explicitly ("Canonical decision
 # rules: `.../severity-calibration.md` §1"). A file with zero citations has no
 # tether to the shared rubric at all, and it shows: `spec-compliance-
 # criteria.md` drifted its own CRITICAL tier to admit classes the canonical

@@ -103,6 +103,14 @@ The plugin has no separate NIT tier — LOW covers both "minor real issue" and "
 - MEDIUM: Off-by-one in a paginator when item count is exactly equal to page size
 - LOW: Unused import that triggers a lint warning
 
+### intent
+
+Severity follows the impact of the false premise, the surviving cause, or the uncovered path, as for any bug; only a product-intent question carries a ceiling.
+
+- HIGH: A parser rewritten on the belief that a field is always a string while a cited caller passes an array — the new path throws on a common input
+- MEDIUM: A fix patches the endpoint the ticket names while a second path reaching the same cause stays reachable but rarely used
+- MEDIUM (ceiling): The facts hold and the chosen behavior for existing consumers is debatable — `INTENT-CHECK`, never higher
+
 ### pr-metadata
 
 The dim's ceiling is LOW: every check it runs is PR-prose (title, description, test-plan mention, template field) rather than a code defect, and §1's MEDIUM/HIGH/CRITICAL exclusion lists already name that whole class out — documentation polish, PR-description verbosity, and process recommendations are excluded from MEDIUM by name, and §6 forbids a per-dim file widening it.

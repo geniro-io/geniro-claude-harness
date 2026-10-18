@@ -4,7 +4,7 @@
 
 The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
-State.md `phase: write-spec` during this phase.
+State.md `phase: write-spec` during this phase. Enter with every section authored in Phase 5 — all eleven headers, "none — task scope precludes" bodies included.
 
 ### 6.0 Refresh custom instructions
 
@@ -44,7 +44,7 @@ If `approvals[]` carries a `milestone_slice` entry picked "Slice into milestones
 ### 6.4 Idempotent re-entry (compaction-safe)
 
 If Phase 6 is re-entered after compaction, the model:
-1. Reads state.md `approvals[]` — every `section_<id>` approval is present per Phase 5.
-2. Re-authors spec.md content from the persisted approvals.
+1. Reads state.md `approvals[]` — the clarify answers, `approach_choice`, any milestone entries persisted in Phases 3-5, and every `revision_request` entry from Phase 8.
+2. Re-authors every section from those decisions, applying each `revision_request` in order to the sections it names — without them the rebuild reverts the user's requested changes.
 3. Re-writes spec.md (overwrite via `atomic_state_write`, since this is idempotent regeneration).
 4. Re-appends a `## Tool log` entry with note `(re-entry — post-compaction regeneration)`.

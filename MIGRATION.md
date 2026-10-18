@@ -10,6 +10,48 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### `intent` is a reserved reviewer name; `/geniro:review` and `/geniro:implement` run one more reviewer
+
+A new always-fire `intent` reviewer joins `/geniro:review` Phase 2 and `/geniro:implement` Phase 3. It judges the change against its own stated reason — the PR title and body, commit messages, linked ticket, and plan or spec, plus the inline plan's new `Premises:` line under `/geniro:implement` — asking whether each fact the change relies on is true in the code, whether it fixes the root cause rather than a symptom, and whether its scope covers the whole stated problem (`skills/_shared/review-criteria/intent-criteria.md`). It fires at every size, so every run spends one more reviewer: `/geniro:review`'s always-fire set is now five under its size boundary and seven at or over it.
+
+`intent` is now a built-in dimension name, so `skills/_shared/load-custom-reviewers.md` rejects a custom reviewer whose slug is `intent`, as it does for `bugs` or `conventions`: `.geniro/instructions/review-extra/intent.md` is skipped with a one-line warning and stops running.
+
+Related: a finding that the stated reason's factual premise is false is no longer rerouted to "needs you to confirm intent", or kept off the PR at MEDIUM, because the PR or plan describes the behavior as deliberate. A statement of fact the code contradicts is the defect's cause, not a choice.
+
+**Action required:** None for most installs. If `.geniro/instructions/review-extra/` holds a reviewer named `intent`, rename the file and its `slug:` field together (the slug must match the filename) to a name that is not reserved, for example `intent-fit`; until then it does not run.
+
+**Auto-detect:**
+
+```bash
+find .geniro/instructions/review-extra -maxdepth 1 -iname 'intent.md' 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — the new name is the author's choice.
+
+**Severity:** LOW — only an install with a custom reviewer of that exact name is affected, and it gets a warning; the built-in review is unaffected.
+
+---
+
+### `/geniro:plan` asks one approval instead of four
+
+Phase 5 now authors the three section clusters (Goal & scope / Approach & steps / Safety & done) without a question per cluster, and no longer writes `section_<id>` entries to `approvals[]`. The Phase 8 final approval renders the full spec digest in one chat message — scope map, public surface, steps, test seams, done checklist, and a digest of every section — and "Request changes" names the sections to revise. The cluster gate's "Explain a section further" and "Revise specific sections" picks went with it. The `phase: section-approve` value and the phase file's name are unchanged, and a state file carrying `section_<id>` approvals from an earlier run resumes fine: nothing reads them.
+
+The launch-settings gate at the end of the plan also gains "Yes — use the recommended settings", which pre-sets every field to its default without asking each one; "Let me choose each setting" and "No" are unchanged. A "Request changes" pick is now saved as a `revision_request` entry in `approvals[]`, and the final approval's "Abort — discard spec" becomes "Abort — stop planning", which ends the run cleanly and leaves the uncommitted spec.md on disk.
+
+**Action required:** None for a normal install. If `.geniro/instructions/plan.md` or `global.md` holds a rule or `## Additional Steps` block written around the section-approval or per-cluster gates — a step that runs after each cluster is approved, say — it no longer has a gate to hang on. `/geniro:instructions validate` only ever accepted `After explore` and `After user-approve` as plan anchors, so re-anchor such a step to `### After user-approve` (it runs against the approved, committed spec), or move the intent into a `## Rules` entry.
+
+**Auto-detect:**
+
+```bash
+grep -nEi 'section-approve|section approval|cluster (gate|approval)|each cluster|every cluster' .geniro/instructions/plan.md .geniro/instructions/global.md 2>/dev/null
+```
+
+**Auto-fix:** Manual-only — whether a gate-shaped rule moves to `After user-approve` or becomes a rule is a judgment call.
+
+**Severity:** LOW — plans still complete and approve; the only loss is a user-authored step or rule that expected a pause after each cluster.
+
+---
+
 ### Subagent models are now cost classes (session / light); `GENIRO_CURSOR_SUBAGENT_MODEL` is removed
 
 Every subagent spawn runs at one of two cost classes (`skills/_shared/model-tiering.md` §Cost classes): `session`, the model you chose for the session, or `light`, for work that applies a decision already made or gathers evidence the orchestrator re-checks. Light has two sizes. For example, the test runner and the setup verifier run on the host's smallest current model (`light (smallest)`), and the memory sweep, code delegates, ad-hoc research and the `/geniro:audit-instructions` verifiers run on its mid current model (`light (mid)`); `model-tiering.md` §Cost classes lists every site. Reviewers, finding verifiers and the codebase explorer stay on your session model. A light class never runs above your session model, except on Cursor, where `auto` lets the host decide.

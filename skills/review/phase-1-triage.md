@@ -26,8 +26,8 @@ Run these in order (`§` anchors are sections of the triage reference):
 
 1. **Set up the workspace** — settle which working tree the rest of the phase inspects, before anything reads the repo · §0.
 2. **Parse the input** — strip `--focus <text>`, `--subagent-model <tier>`, and `--brief` / `--no-brief` first, then resolve the review-target shape from the remaining `$ARGUMENTS`. When it resolves to a PR ref, also Read `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-pr-reference.md` — it carries the whole PR-side contract (thread-state fetch, existing-review ingest, metadata fetch, peer-PR scout) and no other input shape loads it · §1.
-3. **Resolve the scope** — the reviewed file set, the scope-exclusion note, and the sanity gate that aborts an unresolvable ref or an empty diff before any reviewer spawns · §2 + §2.1.
-4. **Fetch the pull-request metadata** (PR ref only) — diff, base/head refs, title/body, head SHA, URL, draft state, author, labels · `phase-1-pr-reference.md` §3.
+3. **Resolve the scope** — the reviewed file set, the commit messages of a non-PR range, the scope-exclusion note, and the sanity gate that aborts an unresolvable ref or an empty diff before any reviewer spawns · §2 + §2.1.
+4. **Fetch the pull-request metadata** (PR ref only) — diff, base/head refs, title/body, commit messages, head SHA, URL, draft state, author, labels · `phase-1-pr-reference.md` §3.
 5. **Fetch the linked issue** — workflow-file detection, tracker-ID match, spec-frontmatter ref merge, and the `LINEAR CONTEXT:` block · §3.5.
 6. **Count the review round** — the round counter, the round-3 escalation question, and the re-review scope question on a fresh second-or-later round · §7. The reviewed range is final once this step settles, so start the lint and schema checks in the background now (§1.5).
 7. **Load the custom instructions** · §6.

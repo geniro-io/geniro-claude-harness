@@ -4,7 +4,7 @@
 #
 # Run: bash tests/authoring/lint-criteria-anchors.sh
 #
-# Why this exists: the twelve `review-criteria/*.md` dimension bodies cite
+# Why this exists: the `review-criteria/*.md` dimension bodies cite
 # their own numbered sub-sections constantly — "per §1.5 Caller-Blast Check",
 # "CRITICAL for §1 AND HIGH for §3" — and nothing checks that the number still
 # names a real heading. A section gets renumbered or compressed out and every
