@@ -72,13 +72,14 @@ It prints every tracked `.md` file under the given paths (whole repo when no pat
 
 Before adding text meant to make a run catch or decide more, read `.claude/rules/skill-prose.md` §"What adding instructions buys" — measured on this repo, that lever is close to inert, and the section names what to reach for instead.
 
-Every improvement pass also SUBTRACTS: apply `.claude/rules/skill-prose.md` §"Assume a capable model" to the sections touched — remove over-detailed mechanics the model derives itself (platform command recipes, shell hand-holding, chewed-up substeps); excess detail primes the wrong mechanism and confuses runs. Improving a module means leaving it leaner than found, not only longer. Editing a rule file itself carries the same discipline one level up — the rule ships, the case for it does not: `.claude/rules/rule-writing.md`.
+Every pass over plugin instructions ends net ≤ 0 words: `scripts/word-delta.sh <base>` measures it and exits 1 when the pass grew. Pay for each addition in the sections touched — mechanics the model derives itself, restated rules, reason clauses it does not need (`.claude/rules/skill-prose.md` §"Assume a capable model"). Growth ships only on the user's yes for named files; a run never approves its own. Subagents do not load these rules, so a brief that edits instructions states the budget. A rule file carries the same discipline one level up: `.claude/rules/rule-writing.md`.
 
 ## Testing & CI
 
 ```bash
 bash tests/run-all.sh                 # every tests/**/*.sh suite
-bash tests/authoring/lint-skills.sh   # authoring lint (hard failures + advisory warnings)
+bash tests/authoring/lint-skills.sh   # integrity lint: frontmatter, plugin-root refs, spawn names
+scripts/word-delta.sh <base>          # instruction word budget — a pass ends net <= 0
 ```
 
 `.github/workflows/ci.yml` runs `tests/run-all.sh` plus ShellCheck on every pull request and on pushes to `main`.

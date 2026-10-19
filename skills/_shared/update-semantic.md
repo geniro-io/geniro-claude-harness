@@ -71,10 +71,8 @@ update_semantic --file features \
 
 The expected pattern is **defer-and-retry-at-skill-end**: rc=11 means the lock is held, not that the write failed, so queue the call and drain the queue at skill completion rather than dropping the write. Argument boundaries must survive the deferral — a multi-word `--append` / `--replace` value has to replay as ONE argument, never re-split into several.
 
-For high-concurrency contention scenarios, callers can implement bounded retry with backoff — but typically L3 writes are once-per-skill-phase, and contention is rare.
-
 ## Known limitations
 
-- **Stale-lock recovery is time-bounded, not manual.** A SIGKILL/crash leaves the lock file, but the next writer auto-reclaims it once its mtime exceeds the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, per `lib/lock-reclaim.sh`). The leak is therefore limited to a lock younger than that window.
+- **Stale-lock recovery is time-bounded.** A SIGKILL/crash leaves the lock file until its mtime exceeds the reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, per `lib/lock-reclaim.sh`); the next writer then reclaims it.
 - **One call, one atomic unit.** An append carries as much as fits under the byte ceiling; past it the caller splits into further calls.
 - **Replace is first-match only.** If the target file has multiple lines matching the prefix, only the first is rewritten. This is the intended guarantee — single-line replacement, no mass rewrites — not a bug.

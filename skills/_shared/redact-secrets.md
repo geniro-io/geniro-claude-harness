@@ -6,7 +6,7 @@
 
 L2 episodic memory (`.geniro/knowledge/learnings.jsonl`) is append-only and shareable. A leaked JWT or AWS key written into a `summary` or `body` field stays forever and propagates to every teammate who clones the repo. Sanitization runs on every write; the audit log makes redaction observable.
 
-The same helper is reusable from any future skill that wants to sanitize free-form text before persisting (e.g. `/geniro:debug` writing a diagnosis to L2, `/geniro:review` recording a finding).
+Any skill can reuse it to sanitize free-form text before persisting.
 
 ## API
 
@@ -16,7 +16,7 @@ sanitized=$(printf '%s' "$raw" | redact_secrets <producer> <field> <dedup_key>)
 ```
 
 - **Input:** arbitrary text on stdin (may contain newlines).
-- **Output:** sanitized text on stdout. The helper itself does NOT add a trailing newline, but note that command-substitution capture (`$(redact_secrets ...)`) always strips trailing newlines per POSIX shell semantics. Callers that need byte-exact preservation should pipe to a file or `xxd`/`od` rather than capture via `$(...)`.
+- **Output:** sanitized text on stdout. The helper adds no trailing newline, and `$(redact_secrets ...)` capture strips trailing newlines; callers needing byte-exact output pipe to a file.
 - **Side effect:** for each built-in pattern that fires AND for each safety.json `additional_pattern` that fires, one JSONL line is appended to `.geniro/knowledge/.redaction-log.jsonl` (unless `audit_log_enabled: false`).
 - **Args:** producer (skill name), field (e.g. `summary`, `ext.body`), dedup_key (the L2 entry's dedup_key — links the audit row to the entry being sanitized). All three are echoed verbatim into the audit log.
 
@@ -34,9 +34,9 @@ The helper never errors out — it falls through to passthrough if `git`, `jq`, 
 | `api-key:pk_live` | `pk_live_[A-Za-z0-9_]+` | `[REDACTED:api-key:stripe-live]` |
 | `api-key:pk_test` | `pk_test_[A-Za-z0-9_]+` | `[REDACTED:api-key:stripe-test]` |
 | `api-key:ghp` | `ghp_[A-Za-z0-9_-]+` | `[REDACTED:api-key:github]` |
-| `api-key:gh-other` | `gh[ousr]_[A-Za-z0-9_-]+` (`gho_` OAuth — what `gh auth token` prints — plus `ghu_`, `ghs_`, `ghr_`; `ghp_` stays its own row above) | `[REDACTED:api-key:github]` |
+| `api-key:gh-other` | `gh[ousr]_[A-Za-z0-9_-]+` (`gho_` — what `gh auth token` prints — `ghu_`, `ghs_`, `ghr_`; `ghp_` has its own row) | `[REDACTED:api-key:github]` |
 | `api-key:github-pat` | `github_pat_[A-Za-z0-9_]+` | `[REDACTED:api-key:github-fine-grained]` |
-| `api-key:npm` | `npm_[A-Za-z0-9]{36,}` (36-char floor so `npm_config_*` / `npm_package_*` environment-variable names never match) | `[REDACTED:api-key:npm]` |
+| `api-key:npm` | `npm_[A-Za-z0-9]{36,}` (36-char floor keeps `npm_config_*` / `npm_package_*` variable names out) | `[REDACTED:api-key:npm]` |
 | `api-key:gitlab` | `glpat-[A-Za-z0-9_-]+` | `[REDACTED:api-key:gitlab]` |
 | `api-key:xoxb` | `xoxb-[A-Za-z0-9_-]+` | `[REDACTED:api-key:slack-bot]` |
 | `api-key:xox` | `xox[a-z]-[A-Za-z0-9_-]+` (user/app/refresh Slack tokens; runs after the more specific `xoxb`) | `[REDACTED:api-key:slack]` |
@@ -89,7 +89,7 @@ Schema (one JSONL line per `(pattern, entry)` fire):
 ## Known limitations
 
 - **Greedy multiline PEM match.** If the input contains two PEM blocks with content between them, the regex `.*` greedily matches from BEGIN-of-first to END-of-second, collapsing the intervening content into the single redaction. Over-redaction is preferred over under-redaction; teach producers not to concatenate raw PEMs.
-- **URL with `@` in password.** `https://user:p@ss@host/` matches the first `@`, leaving `ss@host/` visible. Real producers should URL-encode credentials anyway. Document for clarity; a cleverer regex here isn't worth the added complexity.
-- **AWS secret exactly 40 chars.** Pattern matches `{40}` exactly. A 39- or 41-char secret slips through. Matches AWS's documented secret-key length; no looser counterpart needed.
-- **`sed` and `grep` portability.** Helper uses POSIX `-E` (extended) regex syntax; works on Linux GNU and macOS BSD. Backreferences (`\1`) are GNU sed and BSD sed compatible.
-- **Byte-wise matching.** The helper runs its `grep`, `sed` and `tr` calls under `LC_ALL=C` (per command; the caller's locale is untouched), so an invalid UTF-8 byte in the input cannot abort a rewrite and leave the text unredacted. A non-ASCII literal in a custom `additional_patterns` regex therefore matches byte-by-byte, and a bracket expression holding a non-ASCII character matches either of its bytes.
+- **URL with `@` in password.** `https://user:p@ss@host/` matches the first `@`, leaving `ss@host/` visible. Producers should URL-encode credentials; a cleverer regex isn't worth the complexity.
+- **AWS secret exactly 40 chars.** Pattern matches `{40}` exactly. A 39- or 41-char secret slips through. Matches AWS's documented secret-key length.
+- **`sed` and `grep` portability.** POSIX `-E` regex syntax, including `\1` backreferences, works on GNU and BSD.
+- **Byte-wise matching.** The helper runs `grep`, `sed` and `tr` under `LC_ALL=C` (per command), so an invalid UTF-8 byte cannot abort a rewrite and leave text unredacted. A non-ASCII literal in a custom `additional_patterns` regex therefore matches byte-by-byte, and a bracket expression holding a non-ASCII character matches either of its bytes.

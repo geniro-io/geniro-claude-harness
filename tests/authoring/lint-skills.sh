@@ -1,55 +1,34 @@
 #!/usr/bin/env bash
-# Authoring lint — mechanizes the manual greps in .claude/rules/skill-structure.md
-# §Pre-commit verification and .claude/rules/skill-authoring.md §Hard exclusions.
+# Authoring lint — the structural breakage a run actually hits: a skill that does
+# not load, a path that does not resolve, a spawn that names no agent. Wording,
+# size and style are not checked here (.claude/rules/tests.md).
 #
 # Run:    bash tests/authoring/lint-skills.sh
-# Accept: bash tests/authoring/lint-skills.sh --accept <path>...   (one file's size)
-#         bash tests/authoring/lint-skills.sh --accept-anchors     (the anchor figure)
-#         bash tests/authoring/lint-skills.sh --update-baseline    (everything)
 #
 # Two severities:
 #   HARD (exit non-zero) — zero-false-positive correctness checks:
-#     1. Non-ASCII letters (Cyrillic, Greek words, Han, Hiragana, accented
-#        Latin, ...) in skills/ or agents/ bodies.
 #     1b. Frontmatter required fields on every SKILL.md (name, description,
 #        context, model, allowed-tools, argument-hint), minus the documented
 #        exemption (skills/actions has no allowed-tools).
+#     1c. No XML/HTML tag shape (`<letter`) in a skills/*/SKILL.md `description:`
+#        — the one field the host parses to decide whether to trigger a skill.
 #     2. Dangling plugin-root file references — ${CLAUDE_PLUGIN_ROOT}/<path> and the
 #        $PLUGIN_PATH/<path> form (target must exist).
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
-#     3c. Model names at spawn sites — a literal model="<family>" in skills/ or
-#        agents/, or an agents/*.md frontmatter model: other than inherit.
-#     4. Reference-graph inversion — a skills/<other-skill>/ path inside skills/_shared/.
-#     4b. Cross-skill reference-graph inversion — a skills/<a>/ file sourcing a
-#        runtime rule from a DIFFERENT skills/<b>/ body (b != a, b != _shared).
 #     5. Rootless agents/ or skills/ file references in skills/ or agents/.
-#     12. Anchor-ratchet stale-high baseline — the recorded dangling-anchor
-#        figure sits ABOVE the live count, silently re-permitting that many new
-#        dangling anchors before the growth-direction check (10) would ever fire.
-#   ADVISORY (warn only, exit 0 contribution) — guideline checks the maintainer
-#   reads but never auto-trims to satisfy (size targets are guidelines, not limits):
-#     6. SKILL.md word count vs the front-load budget and whole-file guideline,
-#        across BOTH skill populations (shipped skills/ and internal .claude/skills/),
-#        plus agents/*.md against their own whole-file guideline.
-#     7. Anti-rationalization tables over the 15-row guideline.
-#     8. Decaying line-number cross-references (file.md:NNN).
-#     9. Normative sentences repeated across 3+ files (say it once, in one place).
-#     10. Section-anchor citations resolving to no heading — count ratchet
-#        (growth direction; see hard check 12 for the stale-high direction).
+#     11. ${CLAUDE_PLUGIN_ROOT} inside .claude/skills/ (unset for project-local skills).
+#   ADVISORY (warn only, exit 0 contribution):
+#     6. Compaction boundary — a SKILL.md longer than the host's re-attach window
+#        (REATTACH_CHARS characters), naming the last section that survives it.
 #
 # Portability: POSIX-ish bash + BSD/GNU-portable grep (no -P / PCRE) and awk.
-# The two checks that need Unicode awareness (check 1's "any non-ASCII letter" and
-# the compaction cut, which counts characters, not bytes) use perl -CSD, present
-# by default on macOS and every CI image, because a byte-class grep cannot tell
-# a letter from a symbol and BSD/GNU awk disagree on whether length() counts
-# bytes or characters. Check 1 allows what skill-authoring.md §1 allows — the
-# em-dash, curly quotes, arrows, § and mathematical symbols — because those are
-# symbols, not letters; a lone Greek letter (the delta and tau in a decay
-# formula) is a mathematical symbol too and passes, while a Greek WORD fails.
+# The compaction cut counts characters, not bytes, so it uses perl -CSD, present
+# by default on macOS and every CI image: BSD/GNU awk disagree on whether
+# length() counts bytes or characters.
 #
-# The checks above carry self-tests at the bottom of the file (check 1, 1b and
-# the compaction cut), run on every invocation against fixtures in a scratch
-# directory: each proves a seeded violation red and the allowed shapes green.
+# The checks carry self-tests at the bottom of the file (1b, 1c and the compaction
+# cut), run on every invocation against fixtures in a scratch directory: each
+# proves a seeded violation red and the allowed shapes green.
 
 set -uo pipefail
 
@@ -62,237 +41,7 @@ report_fail() { HARD_FAILS=$((HARD_FAILS + 1)); echo "FAIL: $1" >&2; }
 report_warn() { WARNS=$((WARNS + 1)); echo "WARN: $1"; }
 rel() { printf '%s' "${1#"$REPO_ROOT"/}"; }
 
-SIZE_BASELINE="tests/authoring/skill-size-baseline.txt"
-ANCHOR_BASELINE="tests/authoring/anchor-baseline.txt"
-
-# Emit `<cited-path><TAB><anchor>` for every PATH-ADJACENT section citation whose
-# anchor resolves to no heading in the cited file. Used by check 10.
-#
-# Scoped to path-adjacent citations on purpose. A `§` sitting next to a file path
-# names a section in THAT file, which is decidable. A bare `§` — the larger half
-# of the anchors in this repo — may name a section in the citing file, in a file
-# named a paragraph earlier, or in none; `skills/setup/SKILL.md` cites one file and
-# then writes an anchor that resolves only in itself. That binding is not
-# mechanically recoverable, so bare anchors are out of scope here and belong to
-# /audit-plugin's read-based dimensions.
-#
-# The anchor's right boundary is also undecidable — prose continues past it with
-# no delimiter — so this function matches on the anchor's first two words against
-# heading lines only. That yields a count with some noise in it, which is exactly
-# why check 10 is a RATCHET on the count rather than a report of sites: a constant
-# offset does not matter when only a CHANGE is actionable.
-#
-# Only REAL headings resolve an anchor. A heading-shaped line inside a fenced code
-# block is not one, and accepting it is the one error a ratchet cannot survive: a
-# false negative books a deleted heading as still present, so the count does not move
-# and the breakage the check exists to catch passes silently. This corpus carries 520
-# heading-shaped lines inside fences against 2,048 real headings — a fifth of the
-# population — and `# Cleanup contract: rm -rf …` in a bash block is exactly the shape
-# that resolves a citation whose heading was renamed away. Check 9 below tracks fence
-# state with the same toggle for the same reason.
-_real_headings() {
-  awk '
-    /^[ \t]*```/ { fence = 1 - fence; next }
-    fence        { next }
-    /^# |^## |^### |^#### / { print }
-  ' "$1" 2>/dev/null
-}
-
-anchor_unresolved() {
-  # No -h: each hit carries the file that cites it, because a citation written as a
-  # bare basename (`review-handoff.md §…`, the sibling shape) resolves against the
-  # citing file's own directory, not the repo root. 121 of 666 hits are that shape,
-  # and testing them only against the root skipped every one of them.
-  grep -roE '[A-Za-z0-9_${}/.-]+\.md`?[^§]{0,3}§[^`",;)]{1,48}' \
-    skills agents .claude/skills 2>/dev/null \
-    | sed 's|\${CLAUDE_PLUGIN_ROOT}/||' \
-    | while IFS= read -r _line; do
-        _citer=${_line%%:*}
-        _hit=${_line#*:}
-        _p=$(printf '%s\n' "$_hit" | sed 's|\.md.*|\.md|')
-        if [ ! -f "$_p" ]; then
-          if [ -f "$(dirname "$_citer")/$_p" ]; then
-            _p="$(dirname "$_citer")/$_p"
-          elif [ -f "skills/_shared/$_p" ]; then
-            _p="skills/_shared/$_p"
-          else
-            continue
-          fi
-        fi
-        # Strip the quotes some citations wrap the anchor in, then the sentence
-        # punctuation that follows it. Without the trailing-punctuation strip a
-        # citation reading "§Codebase research." never matches "### Codebase
-        # research", and the residue fills with hits that are only punctuation
-        # deep — noise that would blunt the ratchet it is measured against.
-        _a=$(printf '%s\n' "$_hit" \
-          | sed 's|.*§||; s|^"||; s|".*||; s|^[[:space:]]*||; s|[[:space:]]*$||; s|[.,:;]*$||')
-        [ -n "$_a" ] || continue
-        _h=$(_real_headings "$_p")
-        case "$_a" in
-          [0-9]*)
-            _n=$(printf '%s' "$_a" | sed 's|[^0-9.].*||; s|\.$||')
-            printf '%s\n' "$_h" | grep -qE "^#{2,4} ${_n}[.):[:space:]]" && continue
-            ;;
-          *)
-            # Punctuation is stripped AFTER the truncation as well as before it. A
-            # period lands mid-string whenever prose continues past the anchor
-            # ("§Output Format. The block …"), where the trailing strip above cannot
-            # reach it — it survives into the two-word key and "Output Format." then
-            # matches no heading. That artifact alone accounted for roughly half the
-            # unresolved count, which is the difference between a ratchet guarding
-            # real breakage and one padded with its own noise.
-            _s=$(printf '%s' "$_a" \
-              | awk '{ printf "%s", $1; if (NF > 1) printf " %s", $2 }' \
-              | sed 's|[.,:;]*$||')
-            [ -n "$_s" ] || continue
-            # `--`: an anchor beginning with a dash (a future `§--deep mode`) otherwise
-            # reaches grep as an option, exits 2, and books a verbatim-matching
-            # citation as dangling — a warning blaming a rename that never happened.
-            printf '%s\n' "$_h" | grep -qiF -- "$_s" && continue
-            ;;
-        esac
-        printf '%s\t%s\n' "$_p" "$_a"
-      done
-}
-
-# The script's single word-count rule. `wc -w` cannot be it, despite being the
-# obvious choice: GNU wc decides whether a run of non-blank bytes counts as a word
-# using the locale's character classification, so a standalone `—`, `§`, `·`, or `→`
-# — which this repo's prose uses constantly as separators — is a word under
-# C.UTF-8 and nothing at all under C. The same unchanged file then measures ~3%
-# larger for a contributor who exports a UTF-8 locale than for one who does not,
-# which silently breaks the ratchet in both directions: a recorded baseline reads as
-# phantom growth on one machine, and real growth hides under a too-high baseline on
-# the other (measured: audit-plugin/SKILL.md grew past its baseline unreported).
-# awk splits fields on ASCII blanks only, so its count is the same everywhere, and
-# it is already what frontload_cut uses to locate the compaction boundary — before
-# this, the boundary heading was computed on a different scale than the budget it
-# was compared against.
-words_in() { awk '{ w += NF } END { print w + 0 }' "$1"; }
-
-baseline_words() {  # <relpath> -> its accepted word count, or empty if unrecorded
-  [ -f "$SIZE_BASELINE" ] || return 0
-  # The count must be numeric: the baseline is a hand-editable tracked file, and a
-  # malformed row would otherwise reach `[ -le ]` and leak a raw shell diagnostic
-  # into the lint output. A bad row degrades to "unrecorded", which warns.
-  awk -v p="$1" '$1 == p && $2 ~ /^[0-9]+$/ { print $2; exit }' "$SIZE_BASELINE"
-}
-
-# The baseline writers. All of them record and exit before any check runs, so a
-# recorded number can never be one a check just failed on. They live in this script
-# rather than a sibling so a recorded number can never be produced by a different
-# word-count rule than the one that reads it back — which is why every count goes
-# through words_in, never a bare wc.
-#
-# Three of them, because "accept this size" and "accept every size" are different
-# decisions and only one of them is usually meant. --update-baseline rewrites all 27
-# rows and the anchor figure together, so a refresh performed to accept ONE file's
-# growth silently accepts every other file that grew since, plus any new dangling
-# anchor — unreviewed, and invisible in a diff that was expected to move one line.
-# That is not hypothetical: 14 of this repo's first 30 baseline transitions moved
-# 10-25 rows at once, riding inside commits about unrelated work. So the targeted
-# forms are the default gesture and the blanket one is for a genuine repo-wide pass.
-#
-#   --accept <path>...   record just these files' sizes
-#   --accept-anchors     record just the anchor figure
-#   --update-baseline    record everything (a repo-wide compression round)
-
-# Rewrite one row of the size baseline in place, preserving every other row and the
-# file's LC_ALL=C sort order. Writes through a temp file and renames: a run
-# interrupted mid-write leaves the old baseline intact rather than a truncated one,
-# and a truncated baseline reads as "every file unrecorded", which warns on all 27.
-accept_one() {
-  local f r n tmp
-  f="$1"
-  r="$(rel "$f")"
-  if [ ! -f "$f" ]; then
-    echo "$(basename "$0"): no such file: $f" >&2
-    return 1
-  fi
-  # Only the measured population has rows. Accepting anything else writes a row no
-  # check ever reads, which looks like an accepted size and is not one.
-  case "$r" in
-    skills/*/SKILL.md|.claude/skills/*/SKILL.md|agents/*.md) ;;
-    *)
-      echo "$(basename "$0"): $r is not size-checked (skills/*/SKILL.md, .claude/skills/*/SKILL.md, agents/*.md)" >&2
-      return 1
-      ;;
-  esac
-  n="$(words_in "$f")"
-  local was
-  was="$(baseline_words "$r")"
-  tmp="$(mktemp)" || return 1
-  { [ -f "$SIZE_BASELINE" ] && awk -v p="$r" '$1 != p' "$SIZE_BASELINE"
-    printf '%s %s\n' "$r" "$n"
-  } | LC_ALL=C sort > "$tmp" && mv "$tmp" "$SIZE_BASELINE" || { rm -f "$tmp"; return 1; }
-  if [ -n "$was" ]; then
-    echo "Accepted $r at $n words (was $was)."
-  else
-    echo "Accepted $r at $n words (previously unrecorded)."
-  fi
-}
-
-case "${1:-}" in
-  --accept)
-    shift
-    [ $# -gt 0 ] || { echo "$(basename "$0"): --accept needs at least one path" >&2; exit 64; }
-    rc=0
-    for f in "$@"; do accept_one "$f" || rc=1; done
-    exit "$rc"
-    ;;
-  --accept-anchors)
-    anchor_unresolved | grep -c . > "$ANCHOR_BASELINE"
-    echo "Recorded $(cat "$ANCHOR_BASELINE") unresolved path-adjacent section anchors in $ANCHOR_BASELINE"
-    exit 0
-    ;;
-  --update-baseline)
-    for f in skills/*/SKILL.md .claude/skills/*/SKILL.md agents/*.md; do
-      [ -f "$f" ] && printf '%s %s\n' "$(rel "$f")" "$(words_in "$f")"
-    done | LC_ALL=C sort > "$SIZE_BASELINE"
-    echo "Recorded $(grep -c . "$SIZE_BASELINE") skill and agent sizes in $SIZE_BASELINE"
-    anchor_unresolved | grep -c . > "$ANCHOR_BASELINE"
-    echo "Recorded $(cat "$ANCHOR_BASELINE") unresolved path-adjacent section anchors in $ANCHOR_BASELINE"
-    exit 0
-    ;;
-esac
-
 echo "=== HARD checks ==="
-
-# 1. Non-ASCII letters — skill-authoring.md §1: "any letter outside basic Latin"
-# is disallowed, "Allowed: em-dash, curly quote, → in a diagram, mathematical
-# symbols". The check is therefore on LETTERS, not on non-ASCII bytes: a symbol
-# (— § → ≥ ·, box-drawing, emoji) is not a letter and never matches, so this
-# stays zero-false-positive over the corpus's 7,800 em-dashes. A lone Greek
-# letter is a mathematical symbol (Δdays / τ in the decay formula) and is
-# removed before the letter test; two or more adjacent Greek letters are a word
-# and fail. This replaces a byte-class match on Cyrillic lead bytes, which let
-# Greek, Han, Hiragana and accented Latin through while the rule sentence
-# promised all of them.
-# Emits `<file>:<first line>` once per offending file.
-non_ascii_letter_hits() {
-  perl -CSD -MFile::Find -e '
-    my %first;
-    find({ no_chdir => 1, wanted => sub {
-      return unless -f $_;
-      open(my $fh, "<", $_) or return;
-      while (my $line = <$fh>) {
-        (my $t = $line) =~ s/(?<!\p{Greek})\p{Greek}(?!\p{Greek})//g;
-        if ($t =~ /(?=[^\x00-\x7F])\p{L}/) { $first{$_} = $. unless exists $first{$_}; last; }
-      }
-    } }, @ARGV);
-    print "$_:$first{$_}\n" for sort keys %first;
-  ' "$@" 2>/dev/null
-}
-
-letter_hits=$(non_ascii_letter_hits skills agents)
-if [ -n "$letter_hits" ]; then
-  while IFS= read -r h; do
-    [ -z "$h" ] && continue
-    report_fail "non-ASCII letter at $h — skill/agent bodies must be English-only (symbols such as — § → are fine; a letter outside basic Latin is not)"
-  done <<< "$letter_hits"
-else
-  echo "OK: no non-ASCII letters in skills/ or agents/ (symbols and lone Greek math letters allowed)"
-fi
 
 # 1b. Frontmatter required fields (skill-structure.md §Frontmatter hygiene). A
 # SKILL.md missing `model`, `context` or `argument-hint` loads with the host's
@@ -338,6 +87,39 @@ for f in skills/*/SKILL.md .claude/skills/*/SKILL.md; do
 done
 [ "$fm_problems" -eq 0 ] && echo "OK: every SKILL.md frontmatter carries the required fields"
 
+# 1c. No XML tags in a SKILL.md `description:` (skill-structure.md §Frontmatter
+# hygiene description rule 4). The description is the ONE field Claude Code parses
+# to decide whether to trigger a skill, so a stray `<branch>` placeholder (copied
+# from a file-path example elsewhere in the body, e.g.
+# `.geniro/state/handoff/from-debug-<branch>.md`) reads as an opening tag to
+# anything that treats the field as markup.
+# Detection: `<` immediately followed by a Latin letter anywhere in the
+# description line — the shape an XML/HTML opening tag and a `<placeholder>` both
+# take, so there is no "legitimate placeholder" carve-out to construct. `<` before
+# a non-letter (a comparison, "latency < 200ms") does not match.
+# <file>... -> file:line:description-line for every description: line carrying one.
+_check_descriptions() {
+  local f line
+  for f in "$@"; do
+    [ -f "$f" ] || continue
+    line=$(grep -n '^description:' "$f" | head -1)
+    [ -n "$line" ] || continue
+    if printf '%s\n' "$line" | grep -qE '<[A-Za-z]'; then
+      printf '%s\n' "$line" | sed "s#^#$f:#"
+    fi
+  done
+}
+
+desc_problems=0
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  fl="${hit%%:*}:$(printf '%s' "${hit#*:}" | cut -d: -f1)"
+  snippet=$(printf '%s' "${hit#*:}" | cut -d: -f2- | sed 's/^[[:space:]]*//')
+  report_fail "$fl — description: contains an angle-bracket placeholder (reads as an XML/HTML tag): $snippet"
+  desc_problems=$((desc_problems + 1))
+done < <(_check_descriptions skills/*/SKILL.md)
+[ "$desc_problems" -eq 0 ] && echo "OK: no skills/*/SKILL.md description: contains a '<letter' angle-bracket placeholder"
+
 # 2. Dangling plugin-root file references. Both spellings of the plugin root are
 # scanned: ${CLAUDE_PLUGIN_ROOT}/<path>, and the $PLUGIN_PATH/<path> form /geniro:update
 # uses against the freshly-installed tree — a rename that leaves one of those behind
@@ -367,134 +149,6 @@ done <<< "$spawns"
 rm -f "$valid_agents"
 [ "$unknown" -eq 0 ] && echo "OK: all subagent_type spawns resolve to a real agent or builtin"
 
-# 3b. Prefixed spawn form stated without its non-Claude-Code counterpart.
-# `geniro:` is the namespace Claude Code prefixes onto a marketplace-installed
-# plugin's agents. No other host has a plugin namespace, so under Cursor (and
-# every other runtime) the prefixed form resolves nowhere — and because
-# spawn-agent.md §Parallel-spawn sites degrades a batch as a unit, a fan-out
-# that opens at the prefixed rung there burns one dead spawn PER AGENT plus a
-# whole turn before any real work starts (observed: an 11-reviewer
-# /geniro-review fan-out). spawn-agent.md now reads the entry rung from the
-# host's agent list, but that file is a deferred read the happy path never
-# opens: what a run actually obeys is the spawn form written at the call site.
-# So every call site naming the prefixed form must name the bare one beside it.
-# spawn-agent.md itself is exempt — it is where the distinction is defined.
-missing_bare=0
-while IFS= read -r hit; do
-  [ -z "$hit" ] && continue
-  report_fail "prefixed-only spawn form (no bare-name counterpart for non-Claude-Code hosts): ${hit%%:*} — ${hit#*:}"
-  missing_bare=$((missing_bare + 1))
-done <<< "$(grep -rnE 'subagent_type[=:][[:space:]]*"?geniro:' skills agents 2>/dev/null \
-  | grep -v '^skills/_shared/spawn-agent\.md:' \
-  | grep -vE 'bare `?subagent_type|bare name|Claude Code only|bare `<agent>`|→ bare' \
-  | cut -d: -f1,2)"
-[ "$missing_bare" -eq 0 ] && echo "OK: every prefixed spawn form names its bare non-Claude-Code counterpart"
-
-# 3c. Model names at spawn sites (skill-authoring.md §7). A spawn states a cost
-# class (session, light (smallest), light (mid)) and never a model family, id or
-# version; skills/_shared/model-tiering.md §Runtime resolution is where a class
-# meets a host's models. Agent frontmatter is always `model: inherit`, bare or
-# quoted (the build script rejects anything else for Cursor).
-# The spawn-argument pattern takes optional spaces around `=` and a quoted or
-# bare value. It needs a non-name character before `model`, so the user's flag
-# written `--subagent-model=opus` is not a spawn argument and stays silent. No
-# line is skipped for mentioning that flag: a `model="haiku"` planted beside it
-# still fails.
-# No file is exempt: load-custom-reviewers.md describes the Cursor-only `auto` a
-# USER-declared reviewer `model:` maps to without the literal `model="auto"`
-# form, so a family planted there fails like anywhere else.
-# A function, not inline in the $( ) below: bash 3.2 (macOS /bin/bash) misparses a
-# `case … )` pattern inside a command substitution and loses the loop variable.
-_model_name_hits() {
-  grep -rnE "(^|[^A-Za-z0-9_-])model[[:space:]]*=[[:space:]]*[\"']?(haiku|sonnet|opus|fable|auto)([^A-Za-z]|\$)" skills agents 2>/dev/null \
-    | cut -d: -f1,2
-  local f
-  for f in agents/*.md; do
-    [ -f "$f" ] || continue
-    case "$f" in *-reference.md) continue ;; esac
-    awk -v f="$f" 'c<2 && /^---$/ {c++; next} c==1 && /^model:/ && $0 !~ /^model:[[:space:]]*["\047]?inherit["\047]?[[:space:]]*$/ {print f ":" NR}' "$f"
-  done
-}
-model_hits=0
-while IFS= read -r hit; do
-  [ -z "$hit" ] && continue
-  report_fail "model name at a spawn site (state a cost class; agents declare model: inherit): $hit"
-  model_hits=$((model_hits + 1))
-done <<< "$(_model_name_hits)"
-[ "$model_hits" -eq 0 ] && echo "OK: no model names at spawn sites (agents all declare model: inherit)"
-
-# 4. Reference-graph inversion — skill-structure.md §Reference graph: skills cite
-# DOWNWARD into skills/_shared/, never the reverse. A helper that names a skill
-# body as the canonical home of a rule it consumes inverts the graph: the helper
-# is loaded by skills that have no reason to read that skill, and the rule then
-# lives in a file its own consumers do not open. This class recurred across three
-# consecutive audits because nothing mechanized it.
-# `_shared/` peers citing each other is the intended shape and must not fire.
-#
-# What is flagged is the AUTHORITY shape only — a helper introducing a skill path
-# as the source of a rule ("per <path>", "see <path>", "defined in <path>").
-# §Reference graph forbids pulling runtime instructions upward while explicitly
-# allowing topological context, so the naming-a-consumer shape ("Consumer:
-# <path>", "Referenced from <path>", "the Phase 3 filter in <path> dedups") is
-# correct and must stay silent: 20 of the 21 hits a bare path-shape match
-# produced on this corpus were that shape, and a check that cries wolf 20 times
-# is one maintainers learn to route around rather than obey.
-# A rule sourced upward without an introducing preposition is not mechanically
-# distinguishable from a consumer note; /audit-plugin's D4 dimension covers that
-# residue by reading, which is the right tool for a semantic distinction.
-inversions=0
-inv_hits=$(grep -rnoiE '(per|see|defined in|specified in|documented in|canonical in|authoritative in|owned by)[[:space:]]+`?(\$\{CLAUDE_PLUGIN_ROOT\}/)?skills/[A-Za-z0-9_-]+/' skills/_shared 2>/dev/null \
-  | awk -F: '{ m = $0; sub(/^[^:]*:[^:]*:/, "", m); if (m !~ /skills\/_shared\//) print $1 ":" $2 ": " m }' \
-  | while IFS=: read -r f l rest; do
-      # A "see <path>" INSIDE a consumer annotation points at where the consumer
-      # applies the rule, not at where the rule is defined — the helper still owns
-      # it. Judge the whole line, not the preposition.
-      sed -n "${l}p" "$f" 2>/dev/null | grep -qiE '^[[:space:]]*[-*]?[[:space:]]*(consumers?:|referenced from)' && continue
-      printf '%s:%s:%s\n' "$f" "$l" "$rest"
-    done || true)
-while IFS= read -r h; do
-  [ -z "$h" ] && continue
-  report_fail "reference-graph inversion: $h — a skills/_shared/ helper cites a skill body as the SOURCE of a rule it consumes; re-home the rule into _shared/ and have the skill cite downward"
-  inversions=$((inversions + 1))
-done <<< "$inv_hits"
-[ "$inversions" -eq 0 ] && echo "OK: no skills/_shared/ helper sources a rule from a skill body"
-
-# 4b. Skill-to-skill reference-graph inversion (C7, plugin-audit 2026-09-23,
-# fix-plan §O / T2-7) — the same AUTHORITY shape as check 4, extended from
-# "a _shared/ helper sources a rule from a skill body" to "a skill sources a
-# runtime rule from a DIFFERENT skill's own body". skill-structure.md §Reference
-# graph: SKILL.md may link to a sibling `*-reference.md` or to `_shared/`; it
-# may not pull runtime instructions from another skill's body, because that
-# skill has no reason to load a rule that lives somewhere its own consumers
-# never read. `skills/debug/adversarial-mode.md` cited implement-reference.md's
-# flake-check procedure this way; `skills/debug/phase-0-mode-detect.md` cited
-# implement-reference.md's BRANCH_FORMAT_RULE the same way.
-#
-# Self-citation (a skill citing its own sibling reference file) and citing
-# `_shared/` (the correct direction, already check 4's territory) are both
-# excluded — only `skills/<a>/...` citing `skills/<b>/...` with a != b and
-# b != _shared counts.
-cross_skill_inversions=0
-cs_hits=$(grep -rnoiE '(per|see|defined in|specified in|documented in|canonical in|authoritative in|owned by)[[:space:]]+`?(\$\{CLAUDE_PLUGIN_ROOT\}/)?skills/[A-Za-z0-9_-]+/' skills 2>/dev/null \
-  | awk -F: '{ m = $0; sub(/^[^:]*:[^:]*:/, "", m); print $1 ":" $2 ": " m }' \
-  | while IFS=: read -r f l rest; do
-      citer="${f#skills/}"; citer="${citer%%/*}"
-      [ "$citer" = "_shared" ] && continue
-      cited=$(printf '%s' "$rest" | grep -oE 'skills/[A-Za-z0-9_-]+/' | head -1)
-      cited="${cited#skills/}"; cited="${cited%/}"
-      [ -z "$cited" ] && continue
-      [ "$cited" = "_shared" ] && continue
-      [ "$cited" = "$citer" ] && continue
-      sed -n "${l}p" "$f" 2>/dev/null | grep -qiE '^[[:space:]]*[-*]?[[:space:]]*(consumers?:|referenced from)' && continue
-      printf '%s:%s:%s\n' "$f" "$l" "$rest"
-    done || true)
-while IFS= read -r h; do
-  [ -z "$h" ] && continue
-  report_fail "cross-skill reference-graph inversion: $h — a skill body sources a runtime rule from a DIFFERENT skill's own body; move the rule into skills/_shared/ and have both skills cite it downward"
-  cross_skill_inversions=$((cross_skill_inversions + 1))
-done <<< "$cs_hits"
-[ "$cross_skill_inversions" -eq 0 ] && echo "OK: no skill body sources a rule from a different skill's own body"
-
 # 5. Rootless agent/skill file references. A bare `agents/<name>.md` or
 # `skills/<x>/<y>.md` resolves against the CONSUMER's repo, where neither
 # directory exists, so the runtime Read silently misses. Only ${CLAUDE_PLUGIN_ROOT}/
@@ -513,49 +167,36 @@ while IFS= read -r h; do
 done <<< "$rootless_hits"
 [ "$rootless" -eq 0 ] && echo "OK: every agents/ and skills/ file reference is plugin-root-rooted"
 
+# 11. `${CLAUDE_PLUGIN_ROOT}` inside `.claude/skills/`. That variable is set by
+#     Claude Code only for plugin skills under skills/ — it is unset for the
+#     project-local skills under .claude/skills/, so a citation there resolves
+#     against an empty prefix (a Read silently misses; a Bash `source` fails
+#     outright). Check 2 above cannot catch this: its scope is `skills agents`,
+#     and it also requires a trailing /path, which a bare `${CLAUDE_PLUGIN_ROOT}`
+#     mention skips. The token has no legitimate use inside .claude/skills/ at
+#     all, so the bar here is absolute — zero is the only passing count.
+meta_root_refs=$(grep -rlF '${CLAUDE_PLUGIN_ROOT}' .claude/skills 2>/dev/null || true)
+if [ -n "$meta_root_refs" ]; then
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    report_fail "$(rel "$f") references \${CLAUDE_PLUGIN_ROOT}, which is unset for project-local skills — use a repo-relative path"
+  done <<< "$meta_root_refs"
+else
+  echo "OK: .claude/skills/ carries no \${CLAUDE_PLUGIN_ROOT} references"
+fi
+
 echo
 echo "=== ADVISORY checks (warn only) ==="
 
-# 6. SKILL.md size, measured in WORDS per skill-structure.md §File-size limits.
-#    Not lines: a skill body here runs 9-21 words/line depending on table density,
-#    so a line count ranks files backwards (setup 571L/5267W vs resolve 142L/3044W).
-#    The front-load budget is the load-bearing figure — Claude Code re-attaches only
-#    the first 5,000 tokens of a skill after compaction (~3,000 words of table-dense
-#    markdown), so anything past it is absent for the rest of a compacted session.
+# 6. Compaction boundary. Claude Code re-attaches only the first 5,000 tokens of a
+#    skill after compaction, so anything past it is absent for the rest of a
+#    compacted session. Measured over BOTH skill populations: skills/ (shipped to
+#    users) and .claude/skills/ (this repo's internal meta-skills), which Claude
+#    Code loads and compacts identically.
 #
-#    Measured over BOTH skill populations: skills/ (shipped to users) and
-#    .claude/skills/ (this repo's internal meta-skills — audit-plugin,
-#    improve-template, analyze-thread, find-threads). Claude Code loads and
-#    compacts them identically, so an unmeasured meta-skill silently drops its
-#    own user gates, anti-rationalization table and Definition of Done past the
-#    boundary — exactly the failure the check exists to surface.
-#    Reported as a RATCHET against `tests/authoring/skill-size-baseline.txt`, not
-#    as an absolute bar. The rule this check mechanizes says an oversize file is
-#    "a signal to check what is load-bearing and where it sits, not a defect in
-#    itself" — so re-reporting the same accepted size every run is noise, and a
-#    warning that can never go green stops being read at all. The baseline IS the
-#    record that a size was checked and accepted; the warning fires when a file
-#    grows past it, or when a file with no recorded baseline exceeds the
-#    guideline. Accept a growth with `--accept <path>` after deciding it is
-#    load-bearing — never by trimming content to make the number go away, and
-#    never with the blanket `--update-baseline` unless every row is meant.
-FRONTLOAD_WORDS=3000
-WHOLEFILE_WORDS=5000
-# Agents get their own, tighter whole-file guideline and NO front-load budget:
-# an agent body is injected whole as a subagent system prompt, not Read, so there
-# is no compaction boundary to fall past — the entire file is either in the
-# prompt or the spawn never happened. What the number bounds is per-spawn prompt
-# cost, and a reviewer body is re-injected 7-11 times in one /review run.
-AGENT_WHOLEFILE_WORDS=2500
-
-
 # The host re-attaches a TRUNCATED skill body after a compaction, and it cuts by
 # CHARACTERS, not words: measured at exactly 20,000 in a live session, landing
-# mid-sentence with a truncation marker in place of the rest. FRONTLOAD_WORDS is the
-# authoring budget; this is the runtime one. They rank files differently, because
-# characters-per-word swings several-fold with how much of a body is tables and
-# fenced blocks — the word proxy named a boundary for 3 of the 12 shipped skills
-# that actually lose sections.
+# mid-sentence with a truncation marker in place of the rest.
 REATTACH_CHARS=20000
 
 # The host cuts by CHARACTERS, so everything here counts characters. wc -c and an
@@ -586,32 +227,11 @@ frontload_cut() {
   ' "$REATTACH_CHARS" "$1" 2>/dev/null
 }
 
-check_skill_sizes() {
-  local f n r base cut chars lost pct
+check_compaction_boundaries() {
+  local f r chars cut lost pct
   for f in "$@"; do
     [ -f "$f" ] || continue
     r=$(rel "$f")
-    n=$(words_in "$f")
-    base=$(baseline_words "$r")
-    if [ -n "$base" ]; then
-      # Recorded: a maintainer already judged this size, so only growth past it is news.
-      if [ "$n" -gt "$base" ]; then
-        report_warn "$r: grew to $n words (accepted baseline $base) — re-check what is load-bearing and where it sits, then '--accept $r'; do not trim to the number"
-      fi
-    elif [ "$n" -gt "$WHOLEFILE_WORDS" ]; then
-      report_warn "$r: $n words (whole-file guideline <=$WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then '--accept $r'"
-    fi
-    # The compaction-boundary notice is UNCONDITIONAL on baseline/growth status, on
-    # purpose: an accepted SIZE and where its compaction BOUNDARY falls are different
-    # signals. The ratchet above exists so an accepted size is not re-reported every
-    # run; the boundary notice has no such reason to go silent for a file sitting AT
-    # its baseline — it still drops every section past ~$FRONTLOAD_WORDS words once
-    # the session compacts, and "re-check what is load-bearing" needs to say where
-    # that line falls whether or not the size itself is news this run. Gating this on
-    # `[ -n "$base" ] && [ "$n" -le "$base" ]` used to `continue` before this block ever
-    # ran, so a file oversize-but-stable at its recorded baseline never learned its own
-    # boundary (skills/implement/SKILL.md, skills/investigate/SKILL.md,
-    # .claude/skills/improve-template/SKILL.md all sat in that blind spot).
     chars=$(char_count "$f")
     if [ "$chars" -gt "$REATTACH_CHARS" ]; then
       cut=$(frontload_cut "$f")
@@ -625,256 +245,7 @@ check_skill_sizes() {
   done
 }
 
-check_skill_sizes skills/*/SKILL.md .claude/skills/*/SKILL.md
-
-# Same ratchet, agent guideline, no compaction-boundary line — see AGENT_WHOLEFILE_WORDS.
-check_agent_sizes() {
-  local f n r base
-  for f in "$@"; do
-    [ -f "$f" ] || continue
-    r=$(rel "$f")
-    n=$(words_in "$f")
-    base=$(baseline_words "$r")
-    if [ -n "$base" ]; then
-      [ "$n" -le "$base" ] && continue
-      report_warn "$r: grew to $n words (accepted baseline $base) — an agent body is re-injected on every spawn; re-check what is load-bearing, then '--accept $r'"
-    elif [ "$n" -gt "$AGENT_WHOLEFILE_WORDS" ]; then
-      report_warn "$r: $n words (agent whole-file guideline <=$AGENT_WHOLEFILE_WORDS) with no accepted baseline — decide what is load-bearing, then '--accept $r'"
-    fi
-  done
-}
-check_agent_sizes agents/*.md
-
-# Corpus shape, not per-file compliance: a median that creeps up is the signal to
-# act on, and one oversize skill among lean ones is a different problem from all of
-# them drifting together. INFO, not a warning — it never needs "fixing" on its own.
-# Reported per population: the two have different sizes and different owners, so a
-# single merged median would hide a drift in either one.
-corpus_info() {
-  local label="$1" lim="$2" limname="$3"; shift 3
-  local f words
-  words=$(for f in "$@"; do [ -f "$f" ] && words_in "$f"; done)
-  [ -n "$words" ] || return 0
-  echo "INFO: $label word counts — $(printf '%s\n' "$words" | sort -n | awk -v lim="$lim" -v limname="$limname" '
-    {a[NR]=$1; if ($1 > lim) over++}
-    END {printf "median %d, range %d-%d, %d of %d over the ~%d-word %s",
-         (NR%2 ? a[(NR+1)/2] : int((a[NR/2]+a[NR/2+1])/2)), a[1], a[NR], over+0, NR, lim, limname}')"
-}
-corpus_info "skills/*/SKILL.md (shipped)" "$FRONTLOAD_WORDS" "front-load budget" skills/*/SKILL.md
-corpus_info ".claude/skills/*/SKILL.md (internal meta-skills)" "$FRONTLOAD_WORDS" "front-load budget" .claude/skills/*/SKILL.md
-corpus_info "agents/*.md (spawn system prompts)" "$AGENT_WHOLEFILE_WORDS" "whole-file guideline" agents/*.md
-
-# 7. Anti-rationalization tables over the 15-row guideline.
-for f in skills/*/SKILL.md; do
-  [ -f "$f" ] || continue
-  rows=$(sed -n '/^## [Aa]nti-[Rr]ationalization/,/^## /p' "$f" | grep -cE '^\|' || true)
-  if [ "$rows" -gt 2 ]; then
-    rows=$((rows - 2))  # subtract header + separator rows
-    if [ "$rows" -gt 15 ]; then report_warn "$(rel "$f"): anti-rationalization table has $rows rows (guideline ≤15)"; fi
-  fi
-done
-
-# 8. Decaying line-number cross-references (file.md:NNN) — section/content anchors survive edits; line numbers do not.
-# -o extracts just the `file.md:NNN` match (with a grep file:line locator prefix);
-# advisory only, so a rare URL-with-port (foo.md:8080) miscount is acceptable.
-linerefs=$(grep -rnoE '[A-Za-z0-9_-]+\.md:[0-9]+' skills 2>/dev/null || true)
-if [ -n "$linerefs" ]; then
-  count=$(printf '%s\n' "$linerefs" | grep -c . || true)
-  report_warn "found $count line-number cross-reference(s) (file.md:NNN) in skills/ — prefer content anchors"
-fi
-
-# 9. The same normative sentence in 3+ files — the mechanical form of "say it
-#    once, in the right place". Redundancy across layers costs context budget
-#    twice and, when the copies drift apart, forces the model to deliberate over
-#    which one governs instead of acting. A cross-reference to the canonical file
-#    is the fix; a second copy is the defect.
-#    Advisory and deliberately blunt: it cannot tell a deliberate restatement at
-#    a load-bearing seam from an accidental copy-paste, so it reports and the
-#    maintainer judges. One WARN carries the whole cluster set (a WARN per
-#    cluster would drown the per-file warnings above), with the top offenders
-#    listed by how many files carry them.
-dup_files="$(mktemp)"
-dup_hits="$(mktemp)"
-trap 'rm -f "$dup_files" "$dup_hits"' EXIT
-find skills agents .claude/skills -type f -name '*.md' 2>/dev/null | LC_ALL=C sort > "$dup_files"
-
-# awk reads the file LIST as its input and getline-s each path, so no shell
-# word-splitting of a 100+ entry argv and no mapfile/readarray (bash 3.2).
-# Sentence split is on ". " / "! " / "? " only — never a bare "." — so file.md
-# and v1.2 stay intact. Table cell walls become sentence breaks because in this
-# corpus a rule is as often a table cell as a paragraph. Fenced code is skipped.
-LC_ALL=C awk '
-  function norm(s,   t) {
-    gsub(/`/, "", s); gsub(/\*\*/, "", s)
-    t = tolower(s)
-    gsub(/[ \t]+/, " ", t); sub(/^ +/, "", t); sub(/ +$/, "", t)
-    return t
-  }
-  # Normative force, not boilerplate: punctuation is flattened to spaces first so
-  # the keyword test is whole-word (else "per" matches inside "paper") and so both
-  # the straight and curly apostrophe in do-not contractions land on " don t ".
-  function normative(t,   p) {
-    p = " " t " "
-    gsub(/[^a-z0-9]/, " ", p)
-    gsub(/  +/, " ", p)
-    return (p ~ / (never|always|must|only|via|per) / || p ~ / do not / || p ~ / don t /)
-  }
-  {
-    path = $0; fence = 0
-    # agents/*.md are injected whole as a subagent system prompt. skill-structure.md
-    # §File-size limits: relocating a rule there to a cited file "converts free prompt
-    # tokens into the same tokens plus a Read the agent may skip — and a rule it skips
-    # is silently gone". So a rule shared by N agents MUST be restated in each of them;
-    # counting those restatements as duplication argues for the unsafe fix.
-    if (path ~ /^agents\//) next
-    while ((getline line < path) > 0) {
-      if (line ~ /^[ \t]*```/) { fence = 1 - fence; continue }
-      if (fence) continue
-      sub(/^[ \t]*#+[ \t]*/, "", line)          # heading marker
-      sub(/^[ \t]*>[ \t]*/, "", line)           # block quote
-      sub(/^[ \t]*[-*+][ \t]+/, "", line)       # bullet
-      sub(/^[ \t]*[0-9]+\.[ \t]+/, "", line)    # ordered list
-      gsub(/\|/, ". ", line)                    # table cell wall -> sentence break
-      s = line " "
-      gsub(/[.!?] +/, "@@S@@", s)
-      n = split(s, part, "@@S@@")
-      for (i = 1; i <= n; i++) {
-        t = norm(part[i])
-        if (length(t) < 40) continue            # too short to be a real rule
-        if (!normative(t)) continue
-        # A sentence that is ONLY a pointer at the canonical file is the prescribed fix,
-        # not the defect. But "cite the helper AND restate its parameters" is the
-        # commonest duplication shape in this corpus, and skipping on the mere presence
-        # of a citation would hide exactly that. So strip the citation and judge what is
-        # left: a bare pointer collapses below the length/normative bar and drops out,
-        # while a restated rule survives and is counted. Clustering keys on the stripped
-        # form too, so two copies that cite the same helper with different wording around
-        # it still land in one cluster.
-        # The §anchor is a multi-word title, so strip to the first punctuation rather
-        # than the first space — otherwise the tail of the anchor name survives and
-        # reads as rule text. Anything AFTER that punctuation is real content: a
-        # trailing "(3 latest per …, flip the oldest … via …)" is a restatement and
-        # must stay visible to the count.
-        # Take the introducing preposition with the citation ("per <path>", "see <path>"):
-        # left behind, that bare "per" reads as normative force and every pointer would
-        # score as a rule. A "via" that belongs to the rule text is not adjacent to a
-        # path, so it survives.
-        bare = t
-        gsub(/(per|see|via|from|at|in) +\$\{claude_plugin_root\}[^ ]*/, " ", bare)
-        gsub(/\$\{claude_plugin_root\}[^ ]*/, " ", bare)
-        gsub(/\302\247[^,.;(]*/, " ", bare)
-        gsub(/  +/, " ", bare); sub(/^ +/, "", bare); sub(/ +$/, "", bare)
-        if (length(bare) < 40 || !normative(bare)) continue
-        t = bare
-        # A trailing colon marks a label introducing a list ("Quality gates (escalate
-        # to user, do not abort):"), not a rule stated in that file.
-        if (t ~ /:$/) continue
-        # Self-referential sentences ("Skills cite this file; do NOT inline-paste the
-        # procedure") resolve to a different subject in every file that carries them,
-        # so counting them across files is a category error — 14 _shared helpers each
-        # declaring their own load contract is the convention, not one rule copied 14
-        # times. A genuinely duplicated rule does not say "this file".
-        if (index(t, "this file")) continue
-        if ((t SUBSEP path) in seen) continue   # count FILES, not occurrences
-        seen[t SUBSEP path] = 1
-        cnt[t]++
-        flist[t] = (t in flist) ? flist[t] ", " path : path
-      }
-    }
-    close(path)
-  }
-  END { for (k in cnt) if (cnt[k] >= 3) printf "%d\t%s\t%s\n", cnt[k], k, flist[k] }
-' "$dup_files" > "$dup_hits"
-
-dup_total=$(awk 'END {print NR + 0}' "$dup_hits")
-if [ "$dup_total" -gt 0 ]; then
-  report_warn "$dup_total normative sentence(s) repeated across 3+ files — say it once in the canonical file and cross-reference it. Top 10 by file count:"
-  LC_ALL=C sort -rn "$dup_hits" | head -10 | awk -F'\t' '
-    {
-      txt = $2
-      if (length(txt) > 100) { txt = substr(txt, 1, 100); sub(/[^ ]*$/, "", txt); txt = txt "..." }
-      n = split($3, fs, ", "); l = ""
-      for (i = 1; i <= n && i <= 4; i++) l = l (i > 1 ? ", " : "") fs[i]
-      if (n > 4) l = l ", +" (n - 4) " more"
-      printf "        %dx  \"%s\"\n             %s\n", $1, txt, l
-    }'
-else
-  echo "OK: no normative sentence repeated across 3+ files"
-fi
-
-# 10. Section-anchor citations that resolve to no heading — ratchet, not a report.
-#     Step 12-class breakage: a commit deletes or renames a heading and every `§`
-#     citation aimed at it dangles silently. No existing check sees it — the
-#     plugin-root check above proves the FILE exists, never that the section does.
-#
-#     ADVISORY by construction, and it must stay that way. HARD is defined at the
-#     top of this file as zero-false-positive, and this check cannot clear that
-#     bar: the anchor's right boundary is undecidable, so its count carries noise
-#     it has no way to remove.
-#
-#     The ratchet is what makes a noisy count useful. A recorded figure turns the
-#     residue into a constant and reports only movement, so the check says "you
-#     broke one" rather than re-reading the same standing list every run — the
-#     cries-wolf failure noted further up, which maintainers learn to route
-#     around. Accept a new figure with --accept-anchors, the same deliberate
-#     gesture the size ratchet uses — and one that leaves the size rows alone,
-#     so accepting a rename never quietly accepts every file that grew with it.
-anchor_out="$(mktemp)"
-anchor_unresolved > "$anchor_out" 2>/dev/null || true
-anchor_now=$(grep -c . "$anchor_out" || true)
-anchor_was=""
-[ -f "$ANCHOR_BASELINE" ] && anchor_was=$(awk 'NR == 1 && $1 ~ /^[0-9]+$/ { print $1; exit }' "$ANCHOR_BASELINE")
-
-if [ -z "$anchor_was" ]; then
-  report_warn "no recorded section-anchor figure — $anchor_now path-adjacent anchor(s) resolve to no heading; run --accept-anchors to start the ratchet"
-elif [ "$anchor_now" -gt "$anchor_was" ]; then
-  report_warn "path-adjacent section anchors resolving to no heading rose to $anchor_now (recorded $anchor_was) — a heading was renamed or deleted and its citers now dangle"
-  sort "$anchor_out" | uniq -c | sort -rn | head -5 | awk '{
-    n = $1; f = $2; $1 = ""; $2 = ""; sub(/^  */, "")
-    printf "        %dx  %s  §%s\n", n, f, $0
-  }'
-else
-  echo "OK: no new dangling section anchors ($anchor_now vs recorded $anchor_was)"
-fi
-
-# 12. Anchor-ratchet STALE-HIGH baseline (C12, plugin-audit 2026-09-23, fix-plan
-#     §O / T4-62) — HARD, unlike check 10 above. Check 10's ratchet only ever
-#     compares "did the count grow" — it has no branch for the mirror direction,
-#     a recorded figure sitting ABOVE the live count. That is not merely stale:
-#     it silently re-permits that many new dangling anchors, because the "did
-#     it grow" test stays quiet right up until growth pushes the live count
-#     PAST the inflated baseline. A row recorded at 64 against a real count of
-#     60 hides four already-broken anchors from every run until a 5th happens
-#     to land. `lint-size-ratchet.sh` test 4 already enforces this exact
-#     direction for the SIZE baseline ("no recorded baseline row is above its
-#     file's true size"); this is that same invariant for the anchor baseline.
-#     Unlike the noisy resolver count itself (why check 10 stays advisory), a
-#     baseline sitting above a freshly-recomputed live count is a plain
-#     integer compare with no boundary-recovery ambiguity in it — decidable.
-if [ -n "$anchor_was" ] && [ "$anchor_was" -gt "$anchor_now" ]; then
-  report_fail "anchor-baseline.txt records $anchor_was dangling section anchor(s) but the live count is only $anchor_now — a stale-high baseline silently re-permits $((anchor_was - anchor_now)) new dangling anchor(s) before check 10's growth check would ever fire; run --accept-anchors to refresh it down to $anchor_now"
-elif [ -n "$anchor_was" ]; then
-  echo "OK: anchor-baseline.txt is not stale-high ($anchor_was recorded, $anchor_now live)"
-fi
-rm -f "$anchor_out"
-
-# 11. `${CLAUDE_PLUGIN_ROOT}` inside `.claude/skills/`. That variable is set by
-#     Claude Code only for plugin skills under skills/ — it is unset for the
-#     project-local skills under .claude/skills/, so a citation there resolves
-#     against an empty prefix (a Read silently misses; a Bash `source` fails
-#     outright). Check 2 above cannot catch this: its scope is `skills agents`,
-#     and it also requires a trailing /path, which a bare `${CLAUDE_PLUGIN_ROOT}`
-#     mention skips. The token has no legitimate use inside .claude/skills/ at
-#     all, so the bar here is absolute — zero is the only passing count.
-meta_root_refs=$(grep -rlF '${CLAUDE_PLUGIN_ROOT}' .claude/skills 2>/dev/null || true)
-if [ -n "$meta_root_refs" ]; then
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    report_fail "$(rel "$f") references \${CLAUDE_PLUGIN_ROOT}, which is unset for project-local skills — use a repo-relative path"
-  done <<< "$meta_root_refs"
-else
-  echo "OK: .claude/skills/ carries no \${CLAUDE_PLUGIN_ROOT} references"
-fi
+check_compaction_boundaries skills/*/SKILL.md .claude/skills/*/SKILL.md
 
 # === SELF-TESTS ===========================================================
 # Each fixture lives in a scratch directory and drives the same functions the
@@ -882,35 +253,9 @@ fi
 # shapes prove it green. A self-test failure is a hard failure: a lint whose
 # matcher silently stopped matching is worse than no lint.
 echo
-echo "=== SELF-TESTS (check 1, check 1b, compaction cut) ==="
+echo "=== SELF-TESTS (check 1b, check 1c, compaction cut) ==="
 ST="$(mktemp -d)"
-trap 'rm -f "$dup_files" "$dup_hits"; rm -rf "$ST"' EXIT
-mkdir -p "$ST/bad" "$ST/ok"
-
-# Check 1 — a letter outside basic Latin fails whatever the script; symbols and a
-# lone Greek math letter pass. Bytes are spelled with \x escapes so this file
-# itself stays ASCII.
-printf 'Cyrillic word: \xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82\n'                       > "$ST/bad/cyrillic.md"
-printf 'Greek word: \xce\xba\xce\xb1\xce\xbb\xce\xb7\xce\xbc\xce\xad\xcf\x81\xce\xb1\n'     > "$ST/bad/greek-word.md"
-printf 'Han: \xe4\xb8\xad\xe6\x96\x87\n'                                                    > "$ST/bad/han.md"
-printf 'Hiragana: \xe3\x81\xb2\xe3\x82\x89\xe3\x81\x8c\xe3\x81\xaa\n'                       > "$ST/bad/hiragana.md"
-printf 'Accented Latin: caf\xc3\xa9\n'                                                    > "$ST/bad/accent.md"
-printf 'em-dash \xe2\x80\x94 section \xc2\xa7 arrow \xe2\x86\x92 ge \xe2\x89\xa5 dot \xc2\xb7 box \xe2\x94\x80\xe2\x94\x82 check \xe2\x9c\x85 quotes \xe2\x80\x9cx\xe2\x80\x9d\n' > "$ST/ok/symbols.md"
-printf 'recency_decay = exp(-\xce\x94days / \xcf\x84), \xcf\x84 set by GENIRO_DECAY_TAU_DAYS\n'    > "$ST/ok/lone-greek.md"
-printf 'plain ASCII only\n'                                                              > "$ST/ok/ascii.md"
-
-n_bad="$(non_ascii_letter_hits "$ST/bad" | grep -c . || true)"
-n_ok="$(non_ascii_letter_hits "$ST/ok" | grep -c . || true)"
-if [ "$n_bad" -eq 5 ]; then
-  echo "OK: self-test — Cyrillic, a Greek word, Han, Hiragana and accented Latin are all detected"
-else
-  report_fail "self-test — check 1 expected 5 offending fixture files, got $n_bad"
-fi
-if [ "$n_ok" -eq 0 ]; then
-  echo "OK: self-test — em-dash, section sign, arrows, box-drawing, emoji, curly quotes and a lone Greek math letter pass"
-else
-  report_fail "self-test — check 1 false-positived on $n_ok allowed fixture(s): $(non_ascii_letter_hits "$ST/ok" | tr '\n' ' ')"
-fi
+trap 'rm -rf "$ST"' EXIT
 
 # Check 1b — frontmatter required fields.
 cat > "$ST/fm-complete.md" <<'EOF'
@@ -957,6 +302,37 @@ if frontmatter_exempt skills/actions/SKILL.md allowed-tools \
   echo "OK: self-test — the allowed-tools exemption covers skills/actions only, and only that field"
 else
   report_fail "self-test — the frontmatter exemption is wider or narrower than skills/actions allowed-tools"
+fi
+
+# Check 1c — red on a seeded '<branch>'-style description, green on a clean one.
+mkdir -p "$ST/desc-violation" "$ST/desc-clean"
+cat > "$ST/desc-violation/SKILL.md" <<'EOF'
+---
+name: probe
+description: "Use when probing. Writes a handoff to .geniro/state/handoff/from-debug-<branch>.md."
+context: main
+---
+
+# Probe
+EOF
+cat > "$ST/desc-clean/SKILL.md" <<'EOF'
+---
+name: probe
+description: "Use when probing. Writes a handoff to .geniro/state/handoff/from-debug-{branch}.md. Latency < 200ms."
+context: main
+---
+
+# Probe
+EOF
+if [ "$(_check_descriptions "$ST/desc-violation/SKILL.md" | grep -c .)" -ge 1 ]; then
+  echo "OK: self-test — a seeded '<branch>' placeholder in description: is detected"
+else
+  report_fail "self-test — seeded '<branch>' violation in description: was NOT detected"
+fi
+if [ "$(_check_descriptions "$ST/desc-clean/SKILL.md" | grep -c .)" -eq 0 ]; then
+  echo "OK: self-test — a '{branch}' placeholder and a '< 200ms' comparison do not false-positive"
+else
+  report_fail "self-test — the clean description fixture ('{branch}' + '< 200ms') false-positived"
 fi
 
 # Compaction cut — characters, not bytes. The multibyte fixture is ~10,000

@@ -80,7 +80,7 @@ worktree: <abs-path>
 ---
 ```
 
-`approvals[]` categories: `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `existing_fix_pr`, `debug_workspace_setup`. `baseline-dirty-paths` is the `git status --porcelain` changed-path list captured at Phase 0 entry (Step 0.1), before this run touches anything; Phase 3 §3.1's working-tree check consumes it, Scientific Mode only — Adversarial Mode's ship path never reads it. `open_questions` is present from creation because the append helper fails on an absent key: the Phase 1 missing-data and stall gates and the Phase 3 cannot-verify pick all append to it, and the Phase 3 pre-gate reads it. Entry fields: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 `open_questions`.
+`approvals[]` categories: `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `existing_fix_pr`, `debug_workspace_setup`. `baseline-dirty-paths` is the `git status --porcelain` changed-path list captured at Phase 0 entry (Step 0.1), before this run touches anything; Phase 3 §3.1's working-tree check consumes it (Scientific Mode only). `open_questions` exists from creation because the append helper fails on an absent key; the Phase 1 missing-data and stall gates and the Phase 3 cannot-verify pick append to it, and the Phase 3 pre-gate reads it. Entry fields: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 `open_questions`.
 
 Body sections (Scientific Mode):
 
@@ -139,7 +139,7 @@ Secrets are redacted from the whole file at write time (`phase-3-ship.md` §3.1)
 
 Body: full content of findings template + body sections (`## Tool log` / `## Errors` / `## Open Questions` (human-readable mirror of frontmatter) / `## Resolved Questions` / `## Persisted approvals`).
 
-`original_repro` is /geniro:implement's post-fix re-run of the user's actual scenario — minimising can drop a second cause, so the minimised reproduction test going green does not prove it; handoffs predating the field simply lack it. Both arrays are present on every handoff and may be empty `[]`; the per-field schema, enums, and producer/consumer responsibilities live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — `open_questions[]` under §T2, `authored_tests[]` under §Producer-specific extensions. Restating the fields here is what lets them drift out of step with /geniro:implement's consumer, so read the schema there rather than from a copy.
+`original_repro` is /geniro:implement's post-fix re-run of the user's actual scenario — minimising can drop a second cause, so the minimised reproduction test going green does not prove it; handoffs predating the field simply lack it. Both arrays are present on every handoff and may be empty `[]`; the per-field schema, enums, and producer/consumer responsibilities live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — `open_questions[]` under §T2, `authored_tests[]` under §Producer-specific extensions. Read the schema there, not from a copy here.
 
 Debug-specific values within those schemas: `mode:` matches the handoff's top-level `mode:` discriminator (`scientific` here, `adversarial` for the adversarial handoff); `source:` names the gate that raised the question (`phase-1-stall-gate`, `phase-1-missing-data-gate`, `phase-3-cannot-verify`); `resolution.resolved_by:` is `debug`, `implement`, or `manual`.
 
@@ -219,7 +219,7 @@ After the A4 step 3 authoring-and-verification loop, present this block directly
 
 ## 8. Open-PR scan — already fixed elsewhere?
 
-Phase 1 (Scientific Mode) sub-step referenced from `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.2. Checks whether an open PR already fixes the bug under investigation, so a debug session does not re-investigate something a teammate is already patching. The probe itself — the query, relevance scoring, the top-5 cap, and unreachable-source handling — is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` §2 (Open pull requests) / §3 (Bounds) / §4 (On a hit) / §5 (Unreachable handling); this section covers only the inputs debug feeds it and what debug does with a hit. Read-only; never opens, edits, or comments on a PR (debug's no-ship boundary holds).
+Phase 1 (Scientific Mode) sub-step referenced from `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-1-investigate.md` §1.2. Checks whether an open PR already fixes the bug under investigation. The probe itself — the query, relevance scoring, the top-5 cap, and unreachable-source handling — is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` §2 (Open pull requests) / §3 (Bounds) / §4 (On a hit) / §5 (Unreachable handling); this section covers only the inputs debug feeds it and what debug does with a hit. Read-only; never opens, edits, or comments on a PR (debug's no-ship boundary holds).
 
 **When it runs.** After §1.2 Observe & repro, once the symptom and suspect files are known, before §1.4 Hypothesize — those are exactly the inputs the scan needs, and Adversarial Mode's diff-only flow (no symptom, no Observe & repro) never produces them. Scientific Mode only, for that reason.
 
@@ -262,7 +262,7 @@ emit_learning <<'EOF'
 EOF
 ```
 
-Substitute the run's real values: `scope` = the affected file/module path glob; `summary` = the one-line root-cause statement; `tags` inferred from affected files + hypothesis category; `ext.symptom` / `ext.root_cause` / `ext.fix` = the confirmed observation, isolated cause, and proposed patch. After a successful emit, echo `Recorded learning: <summary>` — the helper writes silently, so the echo is the only in-session proof it ran.
+Substitute the run's real values: `scope` = the affected file/module path glob; `summary` = the one-line root-cause statement; `tags` inferred from affected files + hypothesis category; `ext.symptom` / `ext.root_cause` / `ext.fix` = the confirmed observation, isolated cause, and proposed patch.
 
 ### `discarded_hypothesis` (Phase 1 §1.5)
 
@@ -301,4 +301,4 @@ Same invocation form. One entry per RED test kept after the A4 step 3 F→P and 
 }
 ```
 
-Substitute the run's real values: `scope` = the production source path the kept test targets (its `targeted_source`); `summary` = the defect in one line (mirrors the A6 **Hypothesis** line); `tags` inferred from the A6 **Category** column plus the changed files. `trust: verified` — the F→P and flake-check run (A4 step 3) is the captured artifact. After each successful emit, echo `Recorded learning: <summary>`.
+Substitute the run's real values: `scope` = the production source path the kept test targets (its `targeted_source`); `summary` = the defect in one line (mirrors the A6 **Hypothesis** line); `tags` inferred from the A6 **Category** column plus the changed files. `trust: verified` — the F→P and flake-check run (A4 step 3) is the captured artifact.

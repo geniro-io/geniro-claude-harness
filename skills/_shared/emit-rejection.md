@@ -9,7 +9,7 @@
 | T1 `approvals[]` frontmatter | Task-scoped record of every AUQ resolution; survives compaction but deleted on Ship | One task |
 | L2 `user_rejected_suggestion` (via this helper) | Cross-session pattern signal — "user typically rejects X" | Forever (or until pruned) |
 
-The two layers complement: `approvals[]` stays the authoritative within-task record; L2 captures **only** rejection-signal subset for future-session pattern matching. Acceptance (picked == recommended, no explicit-no signal) is not recorded to L2 — no rejection signal to learn from.
+`approvals[]` stays the authoritative within-task record; L2 captures **only** the rejection-signal subset. Acceptance (picked == recommended, no explicit-no signal) is not recorded — nothing to learn from.
 
 ## API
 
@@ -35,7 +35,7 @@ emit_rejection_if_signal \
 
 ## Caller contract — the helper reports its own outcome
 
-Unlike `emit_learning`, this helper prints one line on the emit path: `Recorded a rejection pattern: <suggestion>`. It stays silent on the no-op path. So a caller passes the user's pick and surfaces whatever the helper printed — there is no rule to remember about when to echo, because the caller cannot know which path ran and the helper can.
+Unlike `emit_learning`, this helper prints one line on the emit path: `Recorded a rejection pattern: <suggestion>`. It stays silent on the no-op path. So a caller passes the user's pick and surfaces whatever the helper printed — the caller cannot know which path ran, the helper can.
 
 **Surface a non-zero return.** `rc=64` (missing arg) and `rc=1` (emit-learning helper error) both mean the pick was never recorded; print one line naming the loss rather than swallowing the return code.
 
@@ -64,7 +64,7 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 
 ## Read-side status
 
-`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `refactor_intentional` entries have one too — `/geniro:refactor` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag refactor_intentional`) and §1.5 skips those patterns. `approach_choice` entries have one — `/geniro:plan` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag approach_choice`) and the approach step re-ranks or omits a previously-rejected approach. `ship_mode` and `library_adoption` entries accumulate with no reader.
+`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `refactor_intentional` entries have one too — `/geniro:refactor` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag refactor_intentional`) and §1.5 skips those patterns. `approach_choice` entries have one — `/geniro:plan` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag approach_choice`) and re-ranks or omits a previously-rejected approach. `ship_mode` and `library_adoption` entries accumulate with no reader.
 
 ## Example flow
 

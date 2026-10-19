@@ -20,13 +20,13 @@ A file is a UI file if its path matches `**/components/**`, `**/pages/**`, `**/a
 
 ## When to run
 
-The caller owns the trigger and enters the procedure only when it fires. The standard trigger is at least one file in the predicted affected-files list matching the §UI-file detection rule above; a caller whose own contract fires on a wider signal (`/geniro:plan` Phase 2 also fires on a UI noun in the topic) enters on that signal. Once entered, run end to end — do NOT re-check the file rule here: a re-check skips the gate on exactly the wider triggers, and the caller's exit condition then can never be met.
+The caller owns the trigger: a predicted affected file matching the §UI-file detection rule above, or a wider signal of its own (`/geniro:plan` Phase 2 also fires on a UI noun in the topic). Once entered, run end to end — do NOT re-check the file rule here, which would skip the gate on the wider triggers.
 
 ## Procedure
 
 ### Step 1: Spawn the UI description agent
 
-Spawn a general-purpose subagent for the description as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: the spec already decided what the UI does, and this spawn only transforms it into a structured description. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site — a spawn has no tool-withholding parameter, so restate the read/transform-only constraint (no file writes, edits, or notebook edits) inside the prompt body per that file's §Required pre-inlined context, "Prohibited tools list".
+Spawn a general-purpose subagent for the description as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: the spec already decided what the UI does, and this spawn only transforms it into a structured description. If the spawn returns an empty result, apply the empty-result fallback in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`. Satisfy the pre-inlined-context contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at this spawn site: a spawn cannot withhold tools, so restate the read/transform-only constraint inside the prompt body per that file's "Prohibited tools list".
 
 ```
 Agent(prompt="""
@@ -37,7 +37,7 @@ Produce a textual, structured description of how the UI will LOOK after this cha
 ## Inputs (from the caller)
 - Spec or change request: [pre-inlined]
 - Plan or predicted affected files: [pre-inlined]
-- Exemplar UI files from the same area (1-2 paths, for style reference — read them yourself): [paths]
+- Exemplar UI file paths from the same area (1-2, for style — read them): [paths]
 - Prior user guidance, if a revision round: [pre-inlined or "none"]
 
 ## Output sections
@@ -72,9 +72,9 @@ Things you could not infer from the inputs — as crisp questions. If none, writ
 
 Run this only when the caller passed `MOCKUP: true`. Spawn the same agent, again **light (mid)**, with the same inputs and four changes to its prompt:
 
-- **Deliverable.** It returns a working HTML mockup of the UI *and* the digest. The mockup is one self-contained block — inline CSS, inline SVG, no external requests, no scripts — with every rule scoped under a single container id, so its styles and the host page's cannot bleed into each other.
+- **Deliverable.** It returns a working HTML mockup of the UI *and* the digest. The mockup is one self-contained block — inline CSS, inline SVG, no external requests, no scripts — with every rule scoped under a single container id so its styles and the host page's cannot bleed.
 - **The six sections become coverage, not format.** The mockup shows what they describe: every component rendered once per visible state (default, hover, focus, disabled, loading, error, empty) as labelled variants, every breakpoint as its own labelled frame, and the focus order marked on the elements it runs through. The digest then restates the same six headings compactly.
-- **What the mockup claims.** It encodes structure, hierarchy, and states — not the final visual design. Put that in a caption on the mockup itself, so an implementer reading it later builds the structure the plan approved instead of treating its spacing, color, and type as decisions the plan made.
+- **What the mockup claims.** It encodes structure, hierarchy, and states — not the final visual design. Say so in a caption on the mockup itself, so an implementer does not treat its spacing, color, and type as decisions the plan made.
 - **Constraint swap.** "Do NOT write code" still bars production source — no framework components, no imports, no file writes anywhere in the project; the mockup is markup returned in the response. Step 1's line cap applies to the digest, not to the markup.
 
 ### Step 2: Present to user
@@ -96,7 +96,7 @@ A reply that isn't A, B, or C — a question back, off-topic text, anything that
 
 ### Step 4: Emit approved description
 
-Write the approved text where the caller designates, or hold it in-memory when the caller requests it. `/geniro:plan` Phase 2 holds it in-memory and persists it to state.md `## UI Preview` rather than a standalone file. In mockup form the digest is that text; the mockup itself already lives on the caller's page, so it gets no second copy on disk. Return control to the caller along with the file path or content.
+Write the approved text where the caller designates, or hold it in-memory when the caller requests it. `/geniro:plan` Phase 2 holds it in-memory and persists it to state.md `## UI Preview` rather than a standalone file. In mockup form the digest is that text; the mockup already lives on the caller's page and gets no second copy on disk. Return control to the caller along with the file path or content.
 
 ## Caller contract
 
@@ -113,4 +113,4 @@ Write the approved text where the caller designates, or hold it in-memory when t
 | "I'll describe the UI myself as the orchestrator" | Delegate to the description subagent (cost class per the procedure above). Orchestrator tokens are the most expensive resource. |
 | "3 revision rounds isn't enough, keep looping" | If 3 rounds did not converge, the real issue is plan-level, not preview-level. Route to plan adjustment. |
 | "I'll tack on a 'also note X' after the approved description" | Rewrite the description in full via another revision round. Appended notes rot and get missed by implementation agents. |
-| "The mockup is on the page, so the digest is redundant" | The persisted text is what the caller's downstream sections cite, and a page URL cannot be cited — dropping the digest leaves those sections with nothing to author from. Emit both: the page carries the detail, the digest carries the record. |
+| "The mockup is on the page, so the digest is redundant" | The persisted text is what the caller's downstream sections cite, and a page URL cannot be cited — dropping the digest leaves them nothing to author from. Emit both: the page carries the detail, the digest the record. |

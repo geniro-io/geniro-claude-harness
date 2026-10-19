@@ -94,9 +94,9 @@ EOF
 - Stages through a `mktemp` file beside the target, named `<target>.tmp.<hostname>.<random>`.
 - Cleans up tmp on failure.
 
-**Empty stdin leaves the target alone and reports rc 70.** A failed upstream pipe (a generator that errored before producing output) must not truncate an existing state file to zero bytes — but it must not read as success either. In `producer | atomic_state_write target` the helper is the pipeline's last element, so the pipeline's rc *is* the helper's: an rc 0 here reports "state written" for a run that wrote nothing, and the step's own gate passes on it. A caller that genuinely wants an empty file uses `truncate -s 0 <target>` directly.
+**Empty stdin leaves the target alone and reports rc 70.** A failed upstream pipe must not truncate an existing state file to zero bytes, nor read as success: in `producer | atomic_state_write target` the pipeline's rc *is* the helper's, so rc 0 would report "state written" for a run that wrote nothing. A caller that genuinely wants an empty file uses `truncate -s 0 <target>`.
 
-**This helper cannot see a producer that dies mid-stream.** A generator that emits half its output and then exits non-zero leaves `cat` a short but perfectly valid payload, which is then renamed over good state at rc 0 — atomically committed corruption. The empty-stdin guard does not catch it, because the payload is not empty. Any whole-file content produced by a program goes through `atomic_state_write_cmd`, which runs the producer itself and can read its exit status. Reserve `atomic_state_write` for content written literally in the call (a heredoc), where there is no producer to fail.
+**This helper cannot see a producer that dies mid-stream.** A generator that emits half its output and exits non-zero leaves a short but valid payload that is renamed over good state at rc 0 — atomically committed corruption, and not empty, so the empty-stdin guard misses it. Whole-file content produced by a program goes through `atomic_state_write_cmd`, which runs the producer and reads its exit status; reserve `atomic_state_write` for content written literally in the call (a heredoc).
 
 ### `atomic_state_write_cmd <target> <command> [args...]`
 
@@ -169,7 +169,7 @@ atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Tool log" 
   "- [$(date -u +%H:%M:%SZ)] test-runner: 42 passed, 0 failed"
 ```
 
-`--create` is a flag, accepted in any position among the arguments. Pass it for a section a run creates on demand (`## Deferred Findings`, `## Visual Baseline`, `## Authored Tests` — the ones no state.md template declares up front): it appends the heading at end of file on the first call and behaves normally after that. Without it, a missing heading is rc 77, not a silent create — a typo would otherwise grow a second, near-identical section that nothing reads.
+`--create` is a flag, accepted in any position among the arguments. Pass it for a section a run creates on demand (`## Deferred Findings`, `## Visual Baseline`, `## Authored Tests` — the ones no state.md template declares up front): it appends the heading at end of file on the first call. Without it, a missing heading is rc 77, not a silent create — a typo would otherwise grow a second, near-identical section that nothing reads.
 
 ```bash
 atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Deferred Findings" \
@@ -187,7 +187,7 @@ atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Deferred F
 
 ### `atomic_state_append_list_item <target> <key> <item>`
 
-Appends one item to the YAML list under frontmatter `<key>`. Pass `<item>` the way the schema shows it — without the leading `- ` and without indentation; the helper indents it (`  - ` on the first line, four spaces on the rest). An empty `key: []` becomes a block list; an existing block list gains the item after its last line. A trailing `# comment` after `[]` (or after a bare `key:`) is not part of the value — a template can annotate the empty list — and the comment is dropped when `[]` becomes a block list. A key holding any other scalar is refused rather than converted.
+Appends one item to the YAML list under frontmatter `<key>`. Pass `<item>` the way the schema shows it — without the leading `- ` and without indentation; the helper indents it (`  - ` on the first line, four spaces on the rest). An empty `key: []` becomes a block list; an existing block list gains the item after its last line. A trailing `# comment` after `[]` or a bare `key:` is not part of the value and is dropped when the list becomes a block. A key holding any other scalar is refused rather than converted.
 
 This is the shape `atomic_state_set_field` cannot write: `approvals[]` entries are multi-line mappings, and a `set_field` value must be one line.
 
@@ -243,7 +243,7 @@ printf '%s' '{"ts":"2026-05-19T14:30:00Z","producer":"/geniro:implement","scope"
 
 ## Timestamp sourcing
 
-Every `timestamp:` / `completed-at:` / time-bearing field comes from a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured in the same Bash call that writes — never a copied example literal, a remembered value, or a rounded estimate. Timestamps in this doc and in `state-tier-spec.md` are illustrative; an unquoted heredoc as in §API interpolates the live read at write time. These fields order decisions across rounds and compactions, and the restore hook renders `completed-at` when warning about already-fired external actions — an invented time corrupts the audit trail the field exists to provide.
+Every `timestamp:` / `completed-at:` / time-bearing field comes from a live clock read (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured in the same Bash call that writes — never a copied example literal, a remembered value, or a rounded estimate. Timestamps in this doc and in `state-tier-spec.md` are illustrative; an unquoted heredoc as in §API interpolates the live read. An invented time corrupts the audit trail: these fields order decisions across rounds and compactions, and the restore hook renders `completed-at` when warning about fired external actions.
 
 ---
 
@@ -259,11 +259,11 @@ atomic_state_set_field "$S" phase user-approve
 atomic_state_set_field "$S" timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
-**Regenerating the whole file to change one field re-writes every other field at its old value.** That is the failure this section exists to prevent: a `phase:` or `status:` a step was meant to advance moves only inside a write that moves it, so a regeneration driven by a body edit carries the previous value forward silently. The result validates clean — `validate_state_file` checks a field is present and non-empty, never that it agrees with the body — and stays invisible until a resume routes on the stale value. A scoped set cannot produce it: the untouched fields are never rewritten at all.
+**Regenerating the whole file to change one field re-writes every other field at its old value.** A `phase:` or `status:` a step was meant to advance moves only inside a write that moves it, so a regeneration driven by a body edit carries the previous value forward silently — and validates clean, since `validate_state_file` checks a field is present and non-empty, never that it agrees with the body. The stale value surfaces when a resume routes on it. A scoped set never rewrites the untouched fields.
 
 The escape hatch is a genuine whole-file regeneration — a renderer producing the file from scratch, a migration rewriting its whole shape. Route those through `atomic_state_write_cmd` so a producer that dies mid-render cannot commit a half-file over good state.
 
-Editing in place by other means — `sed -i`, an interpreter's `open(p,'w')`, an `Edit` call — is the truncate-and-rewrite this helper exists to replace, and a later `atomic_state_write` over the result does not undo it: the unprotected write already happened, so the helper copies damage rather than preventing it.
+Editing in place by other means — `sed -i`, an interpreter's `open(p,'w')`, an `Edit` call — is the truncate-and-rewrite this helper exists to replace; a later `atomic_state_write` over the result does not undo it.
 
 ---
 
@@ -300,4 +300,4 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 
 ## Portability notes
 
-Per-file fsync is Linux-only (`sync -d` under GNU coreutils; BSD/macOS `sync` ignores its operands and returns 0, so on Linux the helper detects support from `sync --help` rather than from an rc, and on macOS it does not probe at all — there `sync --help` runs a real whole-disk sync). Where it is unavailable the helper syncs nothing — a whole-disk fallback cost 164 ms per write and bought nothing, since macOS `sync(2)` only schedules the flush. Atomicity (the rename) holds on every platform; durability across power loss is Linux-only in practice, and nothing in the state model depends on surviving a power cut.
+Per-file fsync is Linux-only (`sync -d` under GNU coreutils). BSD/macOS `sync` ignores its operands and returns 0, so the helper detects support from `sync --help` on Linux and does not probe on macOS, where `sync --help` runs a real whole-disk sync. Where unavailable the helper syncs nothing — a whole-disk fallback cost 164 ms per write and bought nothing, since macOS `sync(2)` only schedules the flush. Atomicity (the rename) holds everywhere; durability across power loss is Linux-only, and nothing in the state model depends on it.

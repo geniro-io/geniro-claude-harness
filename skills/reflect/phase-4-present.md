@@ -6,9 +6,9 @@ Phase file for `/geniro:reflect`. The spine — role, phases overview, stateless
 
 ## Phase 4: Present and route
 
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: reflect`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Phases 2-3 ingest whole transcripts and pre-inlined extracts, exactly the kind of load that triggers a mid-run compaction; this phase writes rules and dedupes against the project's existing ones, so it needs them current.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: reflect`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction may have silently dropped the rules — re-Read all files and echo per the helper's contract. Phases 2-3 ingest whole transcripts, a mid-run compaction trigger, and this phase dedupes against the project's existing rules, so it needs them current.
 
-An `ADD` / `UPDATE` candidate carrying `Recurrence-eligible: yes` whose target is `.geniro/instructions/<skill>.md` or `code-style.md` never enters the walk — its lesson has already been seen 3+ times, so hand it to `/geniro:instructions create`, which collects its own approval; walking it here would be the second prompt for the same rule. A recurrence-eligible candidate for any other target (CLAUDE.md, `.claude/rules/`, an ADR, Memory, learnings) walks like the rest, because `/geniro:instructions` writes only `.geniro/instructions/` and would drop it (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Recurrence-eligible candidates").
+An `ADD` / `UPDATE` candidate carrying `Recurrence-eligible: yes` whose target is `.geniro/instructions/<skill>.md` or `code-style.md` never enters the walk — seen 3+ times, it goes to `/geniro:instructions create`, which collects its own approval (walking it here would double-prompt). A recurrence-eligible candidate for any other target (CLAUDE.md, `.claude/rules/`, an ADR, Memory, learnings) walks like the rest, since `/geniro:instructions` writes only `.geniro/instructions/` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §"Recurrence-eligible candidates").
 
 Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Presentation — render each candidate as a self-contained chat message first: the exact rule text in a fenced code block (for a `REMOVE`, the rule being deleted; for a `WIRE`, the config change), where it lands, and the transcript evidence behind it as a quoted block — then fire its own lean `AskUserQuestion`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering and the visual language in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. Options per candidate: **Write this rule** (**Remove this rule** for a `REMOVE`, **Wire this check** for a `WIRE`) / **Skip this rule** / **Skip the rest**. A rule is removed only on that approval — a `REMOVE` is never applied unasked, batched, or folded into another candidate's write.
 
@@ -27,7 +27,7 @@ source "${CLAUDE_PLUGIN_ROOT}/lib/emit-rejection.sh"
 emit_rejection_if_signal "/geniro:reflect" global rule_candidate "<candidate one-liner>" "<picked option>"
 ```
 
-**Zero candidates passing the bar** is a valid, common outcome. Say so plainly in one sentence; do not pad the result. Whether the walk ran or not, close with the echo line `Reviewed for improvements: <N> candidate(s)` plus one line naming what was mined — the sessions analyzed, or this session when `--this-session` ran — so a zero is distinguishable from a dropped step.
+**Zero candidates passing the bar** is a valid, common outcome. Say so in one sentence; do not pad. Whether the walk ran or not, close with the echo line `Reviewed for improvements: <N> candidate(s)` plus one line naming what was mined — the sessions analyzed, or this session when `--this-session` ran — so a zero is distinguishable from a dropped step.
 
 ## Definition of done
 

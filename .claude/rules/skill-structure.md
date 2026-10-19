@@ -21,7 +21,7 @@ Mechanical structure rules for every skill / agent / reference file. Companions:
 
 The ~3,000-word front-load budget approximates the compaction re-attach boundary, canonical in `skill-prose.md` §Rule placement — the boundary itself is measured in characters, not words, because characters-per-word swings several-fold with table density. The whole-file numbers are guidelines. An oversize file is a signal to check what is load-bearing and where it sits, not a defect — never trim load-bearing content to hit a number.
 
-The lint therefore measures **growth, not absolute size**: `tests/authoring/skill-size-baseline.txt` records the size each skill was last accepted at, and the warning fires only when a file exceeds its own record (or an unrecorded file exceeds the guideline). Accept a load-bearing growth with `bash tests/authoring/lint-skills.sh --accept <path>`, which rewrites only the row you name; the blanket `--update-baseline` silently accepts every neighbour that grew, so save it for a repo-wide pass where every row is meant. Accept after a trim too — `tests/authoring/lint-size-ratchet.sh` fails on a row recorded above its file's real size, since a stale-high row re-permits that much unreviewed growth.
+Growth is measured per pass, not per file: `scripts/word-delta.sh <base>` reports a pass's net word change across the instruction files, and `CLAUDE.md` §Editing plugin content sets the bar.
 
 ## Reference graph
 
@@ -127,7 +127,7 @@ Each row is `| reasoning the model might generate | why that reasoning is wrong 
 
 ## Pre-commit verification
 
-1. **Run `bash tests/authoring/lint-skills.sh`.** It hard-fails on non-English letters, missing SKILL.md frontmatter fields, dangling `${CLAUDE_PLUGIN_ROOT}` references, and unknown spawn names; it warns on anti-rationalization tables over 15 rows, line-number cross-refs, and any SKILL.md grown past its recorded size. Read a growth warning as "check what is load-bearing and where it sits", not "cut until the number goes away" — then `--accept <path>` for that file alone.
+1. **Run `bash tests/authoring/lint-skills.sh`** — it hard-fails on SKILL.md frontmatter that would not load, dangling `${CLAUDE_PLUGIN_ROOT}` references and unknown spawn names, and names the last section that survives compaction — **then `scripts/word-delta.sh <base>`** for the pass's word budget.
 2. **Reference depth.** Any file this edit makes a skill cite must not itself pull runtime instructions from another skill's body (§Reference graph).
 3. **TOC presence.** A runtime-Read file past ~1,200 words has a Contents block near the top. `agents/*.md` are exempt.
 4. **No pseudo-code duplication.** A block added to SKILL.md must not also live in the sibling reference file.

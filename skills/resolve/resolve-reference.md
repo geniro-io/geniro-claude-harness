@@ -42,7 +42,7 @@ Build rules:
 - Drop threads with `isResolved == true` (idempotency).
 - Carry the thread's `isOutdated` into `is_outdated` — Phase 2 Step 1 routes on it before falling back to the normal rubric, and records the addressing commit in `addressed_by` when it finds one.
 - A conversation-tab comment (`pr-comment`) becomes an item that can produce a fix and a line in the final report — it carries no thread and no file position, so it never gets a reply and is never resolved through the API.
-- A formal review's body becomes a `review-body` item with `thread_id: null` only for what its own inline threads do not already carry — a review whose body merely summarizes threads that are themselves items adds nothing and is not a separate item. This holds whatever the review's state: an approving review can carry substantive body text and open new inline threads in the same submission, and a commenting review carries a body while changing no merge status, so gating this on one state alone drops the others. A body that clears the bar cannot be replied to or resolved through the API, so it can still produce a fix, but its outcome reaches the user through the final report rather than the PR.
+- A formal review's body becomes a `review-body` item with `thread_id: null` only for what its own inline threads do not already carry — a review whose body merely summarizes threads that are themselves items adds nothing and is not a separate item. This holds whatever the review's state — approving and commenting reviews both carry substantive bodies, so gating on one state drops the others. A body that clears the bar cannot be replied to or resolved through the API, so it can still produce a fix, but its outcome reaches the user through the final report rather than the PR.
 - Group items by `path` so one read of a file in Phase 2 serves every item citing it; CI items with `path: null` form their own group.
 - Phase 1 records a `feedback-snapshot` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-threads.md` §2.5) alongside the inventory, because Phase 3 re-reads the PR before any outward action and set-diffs against it.
 
@@ -50,12 +50,7 @@ Build rules:
 
 The first of the two Phase 1 sync offers (the second — branch vs its base — is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`). The comments are anchored to the PR head (`pr-head-sha` = `headRefOid`); if the local tree sits on a different commit, the analysis reads code the comments do not describe and the fixes land somewhere other than the PR branch.
 
-```bash
-LOCAL_HEAD="$(git rev-parse HEAD 2>/dev/null)"
-# pr-head-sha captured in Phase 1 Step 1 from gh pr view --json headRefOid
-```
-
-- `LOCAL_HEAD == pr-head-sha` → already on the PR head; skip silently, no question.
+- `git rev-parse HEAD` equals `pr-head-sha` (Phase 1 Step 1) → already on the PR head; skip silently, no question.
 - Differs → fire ONE AskUserQuestion:
 
 ```
@@ -66,8 +61,8 @@ options:
   - "Keep my current checkout"             -> no git action
 ```
 
-- `gh pr checkout <number>` handles both cases — on the PR branch but behind (fast-forwards), or not on the PR branch at all (creates/switches to it). It refuses on a dirty tree; when `git status --porcelain` is non-empty, chain the §5 dirty-tree offer from `branch-freshness.md` (stash → checkout → pop) rather than forcing it.
-- Fail-open: any non-zero `gh`/`git` exit → surface a one-line caveat ("Couldn't switch to the PR head — working against your current checkout; some comments may reference code you don't have locally, and any fix will land here rather than on the PR branch.") and proceed. Hold the pick in memory and write it to `approvals[]` (category `branch_freshness`) when Phase 1 Step 3 creates state.md.
+- `gh pr checkout <number>` covers both a behind PR branch and a different branch. It refuses on a dirty tree; when `git status --porcelain` is non-empty, chain the §5 dirty-tree offer from `branch-freshness.md` (stash → checkout → pop) rather than forcing it.
+- Fail-open: any non-zero `gh`/`git` exit → surface a one-line caveat ("Couldn't switch to the PR head — working against your current checkout; some comments may reference code you don't have locally, and any fix will land here rather than on the PR branch.") and proceed. Hold the pick; write it to `approvals[]` (category `branch_freshness`) at Phase 1 Step 3.
 
 Run this BEFORE the branch-vs-base offer (Step 2b): land on the PR head first, then bring that up to date with the base.
 
@@ -115,7 +110,7 @@ The chat message that precedes it (§Message-first rendering in the same file) i
 **The single-item gate — one call per ambiguous item.** Shape per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate. Options are the item's competing readings plus two standing aids:
 
 - **"Explain further"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option. Renders a deeper walkthrough and re-fires the same question; writes nothing, consumes no cap slot.
-- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (**session**) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate; a `clarified` result is written back to the item and re-routes it, per `${CLAUDE_PLUGIN_ROOT}/skills/resolve/phase-2-decide.md` Step 6.
+- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (**session**) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate; a `clarified` result is written back and re-routes the item (`phase-2-decide.md` Step 6).
 
 Persist every pick to `approvals[]` (category `comment_decision`). An unpicked `ask` sets `picked: false` and stops there — no edit, no reply, thread untouched — and appears in the final report under what was left for the user.
 

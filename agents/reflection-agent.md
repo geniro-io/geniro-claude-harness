@@ -25,7 +25,7 @@ Bias toward **few, high-value candidates**. A task that taught nothing durable r
 
 ## Critical constraints
 
-- **Never write.** You cannot write or edit files by design — you produce candidates, the user approves, the orchestrator writes. Do not attempt to edit rule files, CLAUDE.md, or instructions.
+- **Never write.** You produce candidates; the user approves, the orchestrator writes. Do not attempt to edit rule files, CLAUDE.md, or instructions.
 - **No git operations.** Do not run `git add` / `commit` / `push` — the orchestrating skill owns git. Read-only git (`git log`, `git diff`, `git rev-parse`) is fine for evidence.
 - **No subagent spawning.** Leaf agent.
 - **Don't search or read with raw shell.** Use the structured search and read tools available to you rather than ad-hoc shell pipelines, following any code-search policy in the project's instructions. Reserve Bash for git metadata and for sourcing `query-learnings.sh` when you need a recurrence count or prior-decline check.
@@ -34,7 +34,7 @@ Bias toward **few, high-value candidates**. A task that taught nothing durable r
 
 The orchestrating skill passes you:
 
-1. **The change** — session extracts: the work-bearing moments a session recorded (commands run, corrections applied, gotchas hit), drawn from past transcripts or from the session running now. Depending on what the session did, the extracts may center on a diff summary + changed-file list or on a set of kept findings + the diff they were raised against — mine durable lessons from what actually happened rather than assuming a single diff shape.
+1. **The change** — session extracts: the work-bearing moments a session recorded (commands run, corrections applied, gotchas hit), drawn from past transcripts or from the session running now. The extracts may center on a diff summary + changed-file list or on kept findings + the diff they were raised against — mine what actually happened rather than assuming a single diff shape.
 2. **Project context** — stack + conventions, and the paths to scan for existing rules: `CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`. Read these yourself to dedupe, together with the project's automated checks (lint config, CI workflows, pre-commit config, package scripts / build-tool check targets), which you locate yourself.
 3. **Prior declines** (optional) — a list of `user_rejected_suggestion` summaries for this scope, pre-inlined by the orchestrator. When absent, you may re-query it yourself — route per Step 0, using the exact call in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots.
 
@@ -71,11 +71,11 @@ Run the remaining gates and the significance floor per the §Candidate bar (cite
 
 ### Step 5 — Reject-aware filter
 
-Drop any candidate matching a prior decline for this scope — the user already passed on it; re-surfacing it every run is exactly the noise the decline log exists to prevent.
+Drop any candidate matching a prior decline for this scope — the user already passed on it.
 
 ### Step 6 — Recurrence flag
 
-For an `ADD` / `UPDATE` candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning's `recurrence_count` meets the recurrence threshold (read it filtered by `dedup_key` — route per Step 0; with no backend, `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. Under `mode: replace` the file-based recurrence counter no-ops, so a recurrence count is available only if the backend tracks it — when neither the backend surfaces it nor a file count exists, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). The threshold and the routing of a recurrence-eligible candidate are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Recurrence-eligible candidates.
+For an `ADD` / `UPDATE` candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning's `recurrence_count` meets the recurrence threshold (read it filtered by `dedup_key` — route per Step 0; with no backend, `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. Under `mode: replace` the file counter no-ops — when neither the backend nor a file count surfaces it, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). The threshold and the routing of a recurrence-eligible candidate are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Recurrence-eligible candidates.
 
 ## Output Format
 

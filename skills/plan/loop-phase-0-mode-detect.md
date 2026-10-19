@@ -10,7 +10,7 @@ State.md `phase: mode-detect` during this phase. Light cost — a single design-
 
 - **`--artifact`** → `artifact_mode: true` + `artifact_status: pending`. Turns on the live visual plan artifact (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) and IS the opt-in, so §0.2.5 skips its question. Absent: the §0.2.5 question decides whether artifact mode turns on.
 
-**Launch-modifier detection (opt-in pre-fill of `launch_config`).** `/geniro:plan` also recognizes the `/geniro:implement` launch modifiers so a `/plan <topic> worktree ship:draft` invocation pre-fills the plan's `launch_config` block instead of discarding them. Semantic-parse `$ARGUMENTS` for the workspace modifiers (`new-branch` / `current-branch` / `worktree` / `no-worktree` / `here`), the ship modifiers (`don't push` / `no push` / `commit only` → commit-no-push, `draft only` → draft-pr, `ready-for-review` → ready-for-review, `stop after review` → stop-after-review), and a `freshness:merge` / `freshness:rebase` / `freshness:skip` modifier (colon form only — bare `merge` / `skip` are too ambiguous inside a free-text planning topic). Strip the matched tokens from the topic text before mode detection, then carry the recognized set forward to two places: the `freshness:` token feeds §1.1b (the Phase 1 branch-freshness step applies the strategy directly), and the full launch-modifier set feeds §8.3.5 to pre-fill `launch_config` non-interactively. When no launch modifier is present, both steps run their interactive paths.
+**Launch-modifier detection (opt-in pre-fill of `launch_config`).** `/geniro:plan` also recognizes the `/geniro:implement` launch modifiers so a `/plan <topic> worktree ship:draft` invocation pre-fills the plan's `launch_config` block instead of discarding them. Semantic-parse `$ARGUMENTS` for the workspace modifiers (`new-branch` / `current-branch` / `worktree` / `no-worktree` / `here`), the ship modifiers (`don't push` / `no push` / `commit only` → commit-no-push, `draft only` → draft-pr, `ready-for-review` → ready-for-review, `stop after review` → stop-after-review), and a `freshness:merge` / `freshness:rebase` / `freshness:skip` modifier (colon form only — bare `merge` / `skip` are too ambiguous inside a free-text planning topic). Strip the matched tokens from the topic text before mode detection, then carry the recognized set forward: the `freshness:` token feeds §1.1b (applied directly), and the full set feeds §8.3.5 to pre-fill `launch_config` non-interactively. With no launch modifier, both steps run interactively.
 
 Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged. Returns:
 
@@ -21,7 +21,7 @@ Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged
  - `header`: "Topic"
  - `question`: "What do you want to plan?"
  - `options[]` (single-select, 3 options + Other free-text): "New feature" / "Existing problem to solve" / "Cancel"
- - A free-text Other answer is the topic → IDEA mode. "New feature" / "Existing problem to solve" name only the kind of work, not its subject: ask what it is next, in a plain chat question ("What feature do you want to plan?" / "What problem should it solve?"), wait for the reply, and use that reply as the topic — handing the option label on would plan a task called "New feature". "Cancel" → terminal without state.md.
+ - A free-text Other answer is the topic → IDEA mode. "New feature" / "Existing problem to solve" name only the kind of work: ask what it is in a plain chat question, wait, and use the reply as the topic — the option label would plan a task called "New feature". "Cancel" → terminal without state.md.
  - Persist outcome to `approvals[]` with `category: disambiguate_arguments` .
 
 ### 0.2 DESIGN_DOC mode question
@@ -37,13 +37,13 @@ Fire `AskUserQuestion` with:
 
 **On "Cancel"** → exit immediately. Surface terminal message: "Cancelled before planning started".
 
-There is no in-loop edit-existing-sections mode. To surgically revise an existing design doc, edit it directly and re-run `/geniro:plan` only when ready to re-emit.
+There is no in-loop edit-existing-sections mode: edit an existing design doc directly and re-run `/geniro:plan` only to re-emit.
 
 ### 0.2.5 Visual artifact opt-in
 
 After mode resolves (IDEA or DESIGN_DOC) and before the §0.3 state.md write. When the `--artifact` flag was present in §0.1, skip this question — the flag is the opt-in, the run is in artifact mode. When the flag was absent, fire the single opt-in `AskUserQuestion` — literal template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b. On the "Yes" pick (or flag present) the run is in artifact mode — the §0.3 frontmatter gets `artifact_mode: true` + `artifact_status: pending`; on "No" artifact mode stays off and no artifact fields are written. Persist the pick to `approvals[]` category `artifact_choice` so a resume doesn't re-ask.
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` only when the run is in artifact mode — the user picked "Yes" or the `--artifact` flag was passed — starting from the §1.5 `loop-artifact-call-sites.md` read; a run that declines the page never loads the lifecycle helper.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` only when the run is in artifact mode, starting from the §1.5 `loop-artifact-call-sites.md` read; a run that declines the page never loads it.
 
 ### 0.3 Task-dir + state.md creation
 
@@ -51,9 +51,9 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `artifact_mode: true`, `artifact_status: pending`, and an empty `artifact_url: ""` placeholder written together when artifact mode is on (the `--artifact` flag was present OR the §0.2.5 opt-in answered Yes), all three omitted otherwise — the empty placeholder is required because `atomic_state_set_field` only replaces an existing key: without it, the first-publish write of the real URL fails outright and the page is never findable from state.md again; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `artifact_mode: true`, `artifact_status: pending`, and an empty `artifact_url: ""` placeholder written together when artifact mode is on (the `--artifact` flag or a §0.2.5 Yes), all three omitted otherwise — the placeholder is required because `atomic_state_set_field` only replaces an existing key, so without it the first-publish write of the real URL fails; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
 4. **Transition.** Set `phase: explore` via `atomic_state_set_field` and proceed to Phase 1.
 
 ### 0.4 Cancel handling
 
-If state.md already created when user cancels (e.g., deep cancel via Other): append `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_append_section` with a trailing `--create` (the section does not exist yet; without it the helper refuses the write), THEN set `phase: aborted` via `atomic_state_set_field`, before exit. Reason first: a crash between the two then leaves a run that still reads as in-progress rather than one marked aborted with no reason recorded.
+If state.md already created when user cancels (e.g., deep cancel via Other): append `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_append_section --create` (the section is new), THEN set `phase: aborted` via `atomic_state_set_field`, before exit. Reason first: a crash between the two then leaves a run reading as in-progress, not aborted with no reason recorded.

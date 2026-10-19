@@ -77,7 +77,7 @@ The four weight definitions and the τ default are single-sourced in `lib/score-
 
 Defaults: missing `ts` or unparseable → `recency_decay = 0.5` (mid-range); missing `trust` → `inferred`; missing `access_count` → 0; missing `recurrence_count` → 1. `_score` is internal — stripped before output.
 
-**Recurrence is dampened on purpose.** `recurrence_count` (how many times a learning has recurred — see `emit-learning.md`) feeds the score through a natural-log curve, so a frequently-repeated learning ranks higher without swamping recency and trust: count 1 → factor 1.0, 2 → ~1.69, 5 → ~2.61, 20 → ~4.0. A count of 1 (or an absent field, treated as 1) yields factor 1.0, i.e. no change — entries written before this field existed score exactly as they did before.
+**Recurrence is dampened on purpose.** `recurrence_count` (see `emit-learning.md`) feeds the score through a natural-log curve, so a frequently-repeated learning ranks higher without swamping recency and trust: count 1 → factor 1.0, 2 → ~1.69, 5 → ~2.61, 20 → ~4.0. A count of 1 (or absent) changes nothing — entries written before this field existed score as before.
 
 **Threshold guidance (callers pick their own):**
 - `--score-min 0.5` — high-signal only (recently-emitted verified entries)
@@ -96,8 +96,8 @@ record_access "<dedup_key>"
 - Returns 0 on success or no-op (no log file, no matching entry).
 - Returns 1 on IO error, OR when the log contains a line `jq` cannot parse — the rewrite is refused so the malformed line is preserved (never-deletes invariant; the best-effort counter bump is skipped, matching the refuse-on-corruption guard in `archive-stale`).
 - Returns 64 if no key supplied.
-- Best-effort, lock-aware: takes the shared knowledge-rewrite mkdir lock (`.geniro/knowledge/.archive-stale.lock` — the same lock the auto-archive path uses) and SKIPS the bump (rc=0) when the lock is already held, so two whole-file rewriters cannot overwrite each other's changes. A skipped bump is acceptable (counter, not ledger). Uses POSIX `rename(2)` for atomicity, and carries any line `emit_learning` appended while the rewrite ran (appenders take no lock) into the new file before the rename.
-- No shipped skill calls `record_access` yet. A caller that wants to feed access frequency into `--score-min` calls it after surfacing a query result it actually used.
+- Best-effort, lock-aware: takes the shared knowledge-rewrite mkdir lock (`.geniro/knowledge/.archive-stale.lock` — the same lock the auto-archive path uses) and SKIPS the bump (rc=0) when the lock is already held, so two whole-file rewriters cannot overwrite each other's changes. A skipped bump is acceptable (counter, not ledger). Uses POSIX `rename(2)` for atomicity, and carries any line `emit_learning` appended during the rewrite (appenders take no lock) into the new file before the rename.
+- No shipped skill calls `record_access` yet; call it after surfacing a query result actually used.
 
 ## Memory backend override
 

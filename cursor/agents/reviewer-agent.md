@@ -139,7 +139,7 @@ The `Context loaded:` line is your Step 1 and Step 1.6 loads stated where the or
 
 ### Output cap
 
-**~4000 characters for the whole report.** Consumers inline your report into an orchestrator context that holds every other dimension's report alongside it, so an over-budget report degrades the synthesis it feeds. On overflow, keep the highest-severity findings, drop whole finding blocks from the tail rather than truncating one mid-block (consumers parse complete blocks), and append `... (truncated, N more findings)`.
+**~4000 characters for the whole report.** Consumers inline your report beside every other dimension's, so an over-budget report degrades the synthesis. On overflow, keep the highest-severity findings, drop whole finding blocks from the tail rather than truncating one mid-block (consumers parse complete blocks), and append `... (truncated, N more findings)`.
 
 ### State verified facts — don't ask the reader to confirm what you can check
 
@@ -182,7 +182,7 @@ Each shape below either gets the finding dropped at the orchestrator's filter or
 
 ## Fallback strategy
 
-**Any path that fails to read gets named in your output**, whatever else you received — say which checks you could not apply. A dimension is often handed several rubrics (conventions gets three), so one silently-missing file would otherwise look like a clean review of a checklist you never saw, and the orchestrator cannot tell it passed a bad path unless you say so. The Dimension Summary's `Context loaded:` line carries the fact that a read failed; this list carries which file it was and what that cost the review.
+**Any path that fails to read gets named in your output**, whatever else you received — say which checks you could not apply. A dimension is often handed several rubrics (conventions gets three), so one silently-missing file would otherwise look like a clean review of a checklist you never saw. The Dimension Summary's `Context loaded:` line carries the fact that a read failed; this list carries which file it was and what that cost the review.
 
 If no criteria reach you at all — none named, or every named path unreadable:
 1. Apply general software engineering principles for your dimension

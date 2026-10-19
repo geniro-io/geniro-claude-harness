@@ -19,7 +19,7 @@ Strip each of the following before the edit completes.
 
 - No Cyrillic, Greek, Han, Hiragana, or other non-Latin script anywhere in a body, comment, or error message — including mixed-language phrasing.
 - AskUserQuestion `question:` / `description:` / `header:` are English-only.
-- Mechanized in `tests/authoring/lint-skills.sh` as a hard failure. Allowed: em-dash, curly quote, `→` in a diagram, mathematical symbols. Disallowed: any letter outside basic Latin.
+- Allowed: em-dash, curly quote, `→` in a diagram, mathematical symbols. Disallowed: any letter outside basic Latin.
 
 ### 2. Plugin-author-internal references
 
@@ -77,7 +77,6 @@ Literal names belong in the four places where the name is data rather than instr
 A light spawn in a skill or agent names its class — `light (smallest)` or `light (mid)` — defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. A site that names none is `session` and omits the model. A spawn never names a model family, a model id or a version; that file's §Runtime resolution is the only place a class meets a host's models.
 
 - Agent frontmatter is always `model: inherit`; the class lives at the spawn site.
-- `tests/authoring/lint-skills.sh` fails a literal `model=<family>` (quoted, spaced or bare) and any agent declaring other than `inherit`.
 
 ## Soft preferences (apply where reasonable)
 

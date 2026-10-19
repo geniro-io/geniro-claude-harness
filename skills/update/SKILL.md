@@ -42,7 +42,7 @@ Pass `${CLAUDE_PLUGIN_ROOT}` (for plugin files) or a fully resolved absolute pat
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five update-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
-- **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one example among this skill's several (the hash-check, tamper-diff, and Codex install AUQs in `phase-3-postcheck.md`, the per-entry migration AUQ in `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskUserQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
+- **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one of this skill's several (the others sit in `phase-3-postcheck.md` and `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskUserQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 - **Invariant #4 (bounded structured tool results)** — the migration-step AUQ truncates auto-detect output (bound set in `phase-4-migration.md`); the full content diff goes to a log file.
 - **Invariant #5 (escalation gates, not silent abort)** — network errors retry with exponential backoff, then abort once the retry cap is spent. (`phase-2-update.md` §Marketplace refresh + plugin update owns the cap.)
 - **Invariant #7 (errors → structured observations)** — stateless, so errors surface inline in the run's output; no silent skips.
@@ -63,15 +63,15 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 
 ## Definition of done
 
-- [ ] `phase-1-precheck.md` §Confirm the update with the user resolved: `Confirm update`, or `--dry-run` printed its preview and exited
-- [ ] `phase-2-update.md` ran the marketplace and plugin update and echoed `PLUGIN_PATH` / `NEW_VERSION` (or took the already-on-latest exit after its refreshes)
+- [ ] `phase-1-precheck.md` §Confirm the update with the user resolved: `Confirm update`, or the `--dry-run` preview and exit
+- [ ] `phase-2-update.md` echoed `PLUGIN_PATH` / `NEW_VERSION` (or took the already-on-latest exit after its refreshes)
 - [ ] `phase-3-postcheck.md` §Plugin file hash-check (sanity mode) ran; `HASH_FAIL` resolved (PASS, or the user picked Continue anyway at the AUQ)
 - [ ] `phase-3-postcheck.md` §User-content survival check ran; any non-empty diff was surfaced via AUQ and resolved
 - [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit
 - [ ] `phase-3-postcheck.md` §Refresh statusline stable copy (conditional) ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
 - [ ] `phase-3-postcheck.md` §Re-point the Cursor profile install (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
-- [ ] `phase-3-postcheck.md` §Refresh or offer the Codex install (conditional) ran whenever `codex` was on PATH — refreshing an existing install, or offering the install when Codex had none and the install was possible
-- [ ] `phase-4-migration.md` walked every `MIGRATION.md` entry (or cleanly skipped an absent file) and met `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` §8 Definition of Done; a cancel stopped the walk and still printed the report
+- [ ] `phase-3-postcheck.md` §Refresh or offer the Codex install (conditional) ran whenever `codex` was on PATH (refresh an existing install, else offer one when possible)
+- [ ] `phase-4-migration.md` walked every `MIGRATION.md` entry (or skipped an absent file) and met `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` §8 Definition of Done; a cancel stopped the walk and still printed the report
 - [ ] The final report's `Update cache`, `Statusline`, `Cursor profile`, and `Codex` lines state each refresh's actual outcome
 
 ## Budgets — quality-first
@@ -106,11 +106,11 @@ External sends: not in `/geniro:update` ACI ever.
 
 ## Memory I/O
 
-Reads and writes no memory layer: no CLAUDE.md (`/geniro:setup re-run` owns its refresh; this skill only recommends it when the project's CLAUDE.md may be stale), no L2 learnings (operational, not knowledge-producing), no L3 files. It snapshots and integrity-checks `.geniro/instructions/*.md` and `.geniro/actions/*.md` (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check), and writes them ONLY when the user picks "Fix it for me" per entry — the entry's command or described edit, on the detected files only.
+Reads and writes no memory layer: no CLAUDE.md (`/geniro:setup re-run` owns its refresh; this skill only recommends it when it may be stale), no L2 learnings, no L3 files. It snapshots and integrity-checks `.geniro/instructions/*.md` and `.geniro/actions/*.md` (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check), and writes them ONLY when the user picks "Fix it for me" per entry — the entry's command or described edit, on the detected files only.
 
 ## User-content snapshot
 
-One definition, used by `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content (baseline) and `phase-3-postcheck.md` §User-content survival check (comparison). Both must run identical code — a copy that drifted by one flag raises a tamper alarm over content nothing touched. Shell state does not persist between Bash calls, so each phase pastes the functions from `${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md` into its own call, passing the `PRIMARY_ROOT` it just re-resolved.
+One definition, used by `phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content (baseline) and `phase-3-postcheck.md` §User-content survival check (comparison). Both must run identical code (a drifted copy raises a false tamper alarm), so each phase pastes the functions from `${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md` into its own Bash call — shell state does not persist — passing the `PRIMARY_ROOT` it just re-resolved.
 
 ## Phase 1 — pre-check
 
@@ -136,7 +136,7 @@ Steps: `done-final-report.md`. Decide whether to append the `/geniro:setup` re-r
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` — the canonical loop invariants the §Loop invariants bindings extend.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — `phase-1-precheck.md` §Load custom instructions rules load.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — Mode A resolver for `PRIMARY_ROOT` (`phase-1-precheck.md` §Resolve `$PRIMARY_ROOT` and snapshot user content; `phase-3-postcheck.md` §User-content survival check).
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` — Mode A resolver for `PRIMARY_ROOT`, used by both snapshot steps.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — Phase 4 parse / auto-detect / classify / re-verify procedure shared with the `/geniro:setup` re-run sweep.
 - `${CLAUDE_PLUGIN_ROOT}/skills/update/user-content-snapshot.md` — the `_gu_snapshot` / `_gu_snapshot_file` shell functions §User-content snapshot pastes into Phase 1 and Phase 3.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codex-install.md` — the Codex detect / install / refresh mechanics `phase-3-postcheck.md` Step 6 applies, shared with `/geniro:setup` §3.8.

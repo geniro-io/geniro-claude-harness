@@ -176,8 +176,7 @@ fi
 
 # awk NF, not `wc -w`: GNU wc classifies words by locale, so a standalone `—` / `§`
 # / `·` counts under C.UTF-8 and not under C, and the same file measures ~3% apart
-# on two machines. awk splits on ASCII blanks only. Same rule as lint-skills.sh
-# §words_in — a load figure and a size baseline that disagree are worse than either.
+# on two machines. awk splits on ASCII blanks only.
 _words_in() { awk '{ w += NF } END { print w + 0 }' "$1"; }
 README_WORDS=$(_words_in README.md)
 CLAUDE_WORDS=$(_words_in CLAUDE.md)

@@ -191,7 +191,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 - **Keep steps actionable** — each step describes a concrete action
 - **Limit to 2-3 steps per phase** — too many slow down workflow and dilute attention
 - **The legal anchors:** `After explore` (plan, post-research and pre-grill), `After user-approve` (plan, post-approval), `After analyze` (implement, pre-code), `After ship` (implement, post-ship follow-up), `After verify` (refactor wrap-up)
-- **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after a skill creates a new worktree; `/geniro:investigate` also runs it before its first fan-out when the run starts inside an existing linked worktree, and no other skill fires it for a worktree that already existed
+- **Per-worktree bootstrap:** put a setup command that a fresh worktree needs (e.g. building a per-worktree code index for an MCP) under `### After worktree-setup` in `global.md` — it runs once, in the orchestrator, right after a skill creates a new worktree, and `/geniro:investigate` also runs it before its first fan-out inside an existing linked worktree (no other skill fires it for one that already existed)
 
 ### Constraint writing
 

@@ -67,11 +67,11 @@ Apply the following approved changes:
   notes, exceptions, caveats, or conditions below/after the original. Adding
   "NOTE: also handle X" or "Exception: when Y, do Z" creates context distance and
   instruction rot. The original instruction should read correctly on its own.
-- **Minimum tokens:** read `.claude/rules/skill-prose.md` §"Assume a capable model" before you edit
-  (repo-relative path, you have Read access) and apply it to every section you touch. That section is
-  the only source for what counts as removable detail and for what earns its place — do not restate
-  its list into the file you edit. Prefer tightening an existing line over adding a new one, and
-  subtract in the sections you touch; signal density, not size, is the target.
+- **Word budget:** your edits end net ≤ 0 words across the instruction files you touch
+  (`scripts/word-delta.sh <base>`). Pay for each addition by tightening the sections you touch, per
+  `.claude/rules/skill-prose.md` §"Assume a capable model" (repo-relative path, you have Read access) —
+  the only source for what is removable; do not restate its list. Growth you cannot pay for is
+  reported back, not shipped.
 - **Adding text meant to change what a run finds or does:** read the same file's §"What adding
   instructions buys" first. It carries when wording is the wrong tool for the change you were handed,
   and what to reach for instead. Report back if the change you were given is one it rules out.
@@ -82,7 +82,7 @@ Apply the following approved changes:
 
 Orchestrator runs these checks directly (no subagent). All must pass before Phase 5:
 
-1. **Authoring lint:** `bash tests/authoring/lint-skills.sh` — a hard failure fails this check; its size warning is advisory, judged against `.claude/rules/skill-structure.md` § File-size limits, which says what to do with an over-target file; its duplication warning is judged against § Reference graph's single-source-of-truth rule. Most hard checks scan `skills/` and `agents/` only; on `.claude/skills/` just two are hard (the SKILL.md frontmatter fields, and the ban on the plugin-root variable, which is unset there), so a `.claude/skills/`-only change otherwise gets the advisory half alone.
+1. **Integrity lint:** `bash tests/authoring/lint-skills.sh` — a hard failure fails this check.
 2. **Outbound references:** Glob for every path/agent/skill name mentioned in changed files — all must exist
 3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
 4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
@@ -90,9 +90,9 @@ Orchestrator runs these checks directly (no subagent). All must pass before Phas
 6. **Description-format checks:** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks, their warning/blocker levels, and the procedure are in § Description-format validator below; its YAML-validity check overlaps with #4 above and counts once.
 7. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md`, whose § Skill routing says which skills ship code and which are read-only. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
    **Generated Cursor agents — blocker, not a warning:** when the change edited any `agents/*.md`, run `scripts/build-cursor-agents.sh` and include the regenerated `cursor/agents/*.md` in the same change set. `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift between the two, so omitting it ships a red build. Fix it by re-running the script rather than spawning a fix agent, and never hand-edit `cursor/agents/`.
-8. **Compaction & redundancy (added text):** judge the lines this change ADDED against the Minimum-tokens principle in the Phase 4 Step 2 constraint set, plus hedges carrying no condition (the `description` field is out of scope here — § Description-format validator owns it). Warning-level — surfaces in the Phase 6 Step 1 Summary, does NOT trigger the fix agent.
+8. **Word budget:** `scripts/word-delta.sh <base>` exits 0 — a positive total fails this check unless the user approved that named growth at the Phase 3 approval.
 
-If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (#1 lint advisories, the warning-level description-format checks, #7 README/docs drift, and #8 compaction/redundancy) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
+If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (the warning-level description-format checks, #7 README/docs drift) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
 ---
 
@@ -135,12 +135,9 @@ Commit {{pre-change sha from Phase 4 Step 0}}; files {{paths from Phase 4 Step 0
    - Are cross-references that worked before still valid?
    - Could downstream skills/agents behave differently due to these changes?
 6. **Pre-existing bugs:** While reviewing the changed files, also note any bugs, inconsistencies, or broken patterns that existed BEFORE this change. Report these separately — they are opportunities, not blockers.
-7. **Subtraction:** an improvement pass removes as well as adds (the Minimum-tokens
-   constraint the implementers were given). Report what this diff REMOVED — deleted rows, restatements
-   collapsed into a citation, hand-holding the model derives itself, rules the change superseded. If
-   the diff is purely additive, say so in those words and judge whether that was right: a genuinely
-   new gate or phase adds without removing, but a pass that reworded an instruction while leaving the
-   detail it replaced in place has left the file heavier and more contradictory than it found it.
+7. **Subtraction:** report what this diff REMOVED — deleted rows, restatements collapsed into a
+   citation, hand-holding the model derives itself, rules the change superseded — and quote
+   `scripts/word-delta.sh <base>`'s total. Unapproved growth is a blocker.
 
 ### For each issue found, report:
 - File and line

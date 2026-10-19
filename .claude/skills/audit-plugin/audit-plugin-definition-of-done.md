@@ -13,5 +13,6 @@ The run-completion checklist of `.claude/skills/audit-plugin/SKILL.md`. Read at 
 - [ ] Action gate fired; fixes (if approved) applied, battery re-run green, findings re-checked, and every `§` citation into a changed file re-resolved
 - [ ] Every fix to a hook, a `lib/` helper, or a test carries a test that fails without it
 - [ ] Every behavioral instruction fix carries a measurement, or is reported as an unmeasured change
-- [ ] Every finding survived the oracle test; every decidable class the round found either ships a hard check or is named in the report as one nobody built
+- [ ] Every finding survived the oracle test; no check the round built greps instruction prose
+- [ ] `scripts/word-delta.sh <base>` exits 0, or the user approved the named growth
 - [ ] State cleaned up; commit offered

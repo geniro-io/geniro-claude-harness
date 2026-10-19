@@ -80,7 +80,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Budget | Value |
 |---|---|
-| Reviewer spawns per batch | dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns; shards count against the cap. The cap exists because Phase 3 re-reads every spawn's table by hand — the full-audit dimension list already leaves headroom for at most a few shards, so when sharding every dimension would exceed it, shard the dimensions with the largest candidate lists first rather than breaching the cap; scoped runs spawn only the relevant subset |
+| Reviewer spawns per batch | dimension reviewers (accuracy, consistency, bloat, structure, coverage) + shard splits, hard cap 8 spawns, shards included (Phase 3 re-reads every table by hand); when sharding every dimension would exceed it, shard those with the largest candidate lists first; scoped runs spawn only the relevant subset |
 | Shards per dimension | ≤2, both in the same batch; split threshold per `dimensions-reference.md` §Reviewer spawn template |
 | Findings per reviewer | ranked by impact; cap per `dimensions-reference.md` §Finding output contract |
 | Fix rounds at Phase 5 | 1 (failed re-verification escalates to the user, not a second silent round) |
@@ -88,7 +88,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## ACI per-phase tool surface
 
-The report-before-fix invariant ("Report before fix") is a prose rule; this table is its per-phase contract (`allowed-tools` pre-approves tools; it never withholds one). Direct edits and writes to any repo file (state-file writes go through `atomic_state_write` in a shell call, never a direct file write) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
+The report-before-fix invariant ("Report before fix") is a prose rule; this table is its per-phase contract, since `allowed-tools` pre-approves and never withholds. Direct edits and writes to any repo file (state-file writes go through `atomic_state_write` in a shell call, never a direct file write) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
@@ -103,7 +103,7 @@ External sends are not part of `/geniro:audit-instructions` ACI.
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers are `session` (OMIT `model=`), so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 3's T0/T1 cold-verify (`finding-verifier-agent` ladder) is `session` too (OMIT `model=`): its verdict decides whether a safety or correctness finding is admitted. Phase 5 fix agents are **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: they apply findings the user already approved within a file allowlist. The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
+All reviewers and fix agents are `subagent_type="general-purpose"`. Reviewers are `session` (OMIT `model=`), so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 3's T0/T1 cold-verify (`finding-verifier-agent` ladder) is `session` too: its verdict decides whether a safety or correctness finding is admitted. Phase 5 fix agents are **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: they apply findings the user already approved within a file allowlist. The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
 
 ---
 
@@ -149,7 +149,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 5 — Action gate
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` and `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md` as this phase's first actions, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the §Deletion gate walk for whole-surface removals (the no-blanket-deletion invariant), the disjoint-allowlist fix path with the finding-ownership invariant's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, every deletion proposal has had its own gate, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the §Deletion gate walk for whole-surface removals (the no-blanket-deletion invariant), the disjoint-allowlist fix path with the finding-ownership invariant's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, every deletion proposal has had its own gate, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
 
 ## State recovery
 
@@ -157,13 +157,12 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 
 ## Definition of done
 
-The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md`. Read it at Phase 5 entry, and walk it before the cleanup-and-commit step closes the run.
+The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md`, Read at Phase 5 entry.
 
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` — surface inventory, dimension rubrics, severity tiers, output contract, do-not-flag list, spawn template, fix-round execution
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-3-merge-verify.md` / `phase-4-report.md` / `phase-5-action-gate.md` — the Phase 3, Phase 4 and Phase 5 steps, read on phase entry
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md` — the run-completion checklist (Read on entry to Phase 5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-write helper API and exit codes

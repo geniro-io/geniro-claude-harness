@@ -17,23 +17,23 @@ State.md `phase: approaches` during this phase.
 
 ### 4.1 Approach generation
 
-Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches when the design genuinely admits more than one shape; when it admits exactly one, present that one and name why the alternatives collapse. A filler alternative is worse than a single option — it turns the gate into a choice between the real approach and a strawman, and it flips the §8.5 `≤1 approach` skip so a fabricated option set is written to past learnings and read back in later sessions. Each approach:
+Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches when the design genuinely admits more than one shape; when it admits exactly one, present that one and name why the alternatives collapse. A filler alternative is worse than a single option — the gate becomes a choice between the real approach and a strawman, and it flips the §8.5 `≤1 approach` skip so a fabricated option set is written to past learnings. Each approach:
 - **Name** (3-5 word label)
 - **Summary** (2-3 sentences)
 - **Trade-off** (1 sentence: gain vs give-up)
 - **Effort estimate** (Trivial / Small / Medium / Big per effort-scaling.md)
 
-**A materially cheaper shape is a real approach, not filler.** Price the objective at less than full scope as one of the 2-3 candidates, not a fourth: a strict subset carrying most of the value, or reaching it through configuration or an existing mechanism instead of new code. Include one whenever it is genuinely on the table. The filler bar above rejects a strawman *of the same shape*, built to pad the option count; a cheaper shape is its opposite — the only candidate that can shrink the work rather than plan it, and the one nobody proposes because the request already implies the full build. Give it the same `Trade-off:` line as every other approach, naming what it gives up, so the user weighs a real option rather than reading a suggestion to do nothing. Every candidate here still has to be buildable — this phase's output becomes a spec, so "build nothing" is not an approach but a Phase 3 conclusion, routed at §3.1.
+**A materially cheaper shape is a real approach, not filler.** Price the objective at less than full scope as one of the 2-3 candidates, not a fourth: a strict subset carrying most of the value, or reaching it through configuration or an existing mechanism instead of new code. Include one whenever it is genuinely on the table. The filler bar rejects a strawman *of the same shape*, built to pad the option count; a cheaper shape is its opposite — the only candidate that can shrink the work, and the one nobody proposes because the request implies the full build. Give it the same `Trade-off:` line as every other approach, naming what it gives up. Every candidate here still has to be buildable — this phase's output becomes a spec, so "build nothing" is not an approach but a Phase 3 conclusion, routed at §3.1.
 
 ### 4.1.5 Design it twice (Big tier, interface shape)
 
 Runs before the §4.1 approach list is finalised — numbered after §4.1 but feeding it. Fires only when the tier is Big AND the decision is the shape of an interface or module boundary (a new public contract, a module's seam, a service API) — the one decision where the first design in mind is rarely the best and rework is costliest. Spawn 3 `codebase-research-agent` generators in ONE assistant response, per the spine §Spawn contract (OMIT `model=`), each designing under a different constraint so the designs differ in kind rather than in detail: minimal surface (1-3 entry points), maximal flexibility (many callers, extension points), optimized for the most common caller (the default case trivial). Slots as in §4.2: `RESEARCH_QUESTION` is the boundary, the constraint, and the Phase 3 decisions it must honor; `DELIVERABLE_SHAPE` is the interface (signatures, invariants, error modes), a caller usage example, what it hides, and trade-offs; `PRE_INLINED_CONTEXT` carries the Phase 1 surface, the Phase 3 closing summary, and the run's canonical terms, plus this line in every brief: "The proposed design is exempt from the file:line citation requirement — it does not exist yet; only claims about existing code cite file:line"; `OUTPUT_PATH` is `<task-dir>/.research-design-<constraint-slug>.md`.
 
-The designs feed §4.1: the distinct ones (or a hybrid) become the interface shape of the 2-3 approaches, ahead of the §4.2 critics, which stress-test them like any other approach. Append a `## Tool log` Echo entry per spawn; on a failed spawn log a `## Errors` entry and generate from the surviving designs, or from your own when none returned.
+The designs feed §4.1: the distinct ones (or a hybrid) become the interface shape of the 2-3 approaches, ahead of the §4.2 critics, which stress-test them like any other approach. Append a `## Tool log` Echo entry per spawn; on a failed spawn log a `## Errors` entry and generate from the surviving designs, or your own when none returned.
 
 ### 4.2 Independent stress-test (adversarial weighing)
 
-The model that generated the approaches in §4.1 also ranks them in the §4.3 AUQ — same context, same blind spots, so its `Recommended` pick just re-confirms its own bias. Before ranking, get an independent challenge grounded in the actual codebase, so the `Recommended` marker reflects feasibility evidence rather than the author's confidence.
+The model that generated the §4.1 approaches also ranks them in the §4.3 AUQ — same context, same blind spots, so its `Recommended` pick re-confirms its own bias. Before ranking, get an independent challenge grounded in the codebase, so `Recommended` reflects feasibility evidence rather than the author's confidence.
 
 Effort-tier-scaled (tier already detected in Phase 1.2 — the critic cost lands only where a wrong approach is expensive):
 
@@ -55,7 +55,7 @@ Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` 
 
 After the batch returns, fold the critiques into the ranking — trust a verdict only as far as its evidence:
 
-- **Verify before demoting.** A `blocking` verdict demotes only on verified evidence: read the cited `file:line` (one targeted Read) and confirm the quoted code grounds the risk. A `blocking` row with no `file:line` citation, or whose citation does not hold on read, downgrades to `major` with the note `evidence did not verify` — an unanchored blocker is a hypothesis, not a risk, and demoting the strongest approach on a hypothesis is the over-flagging failure this bar exists to stop.
+- **Verify before demoting.** A `blocking` verdict demotes only on verified evidence: read the cited `file:line` (one targeted Read) and confirm the quoted code grounds the risk. A `blocking` row with no `file:line` citation, or whose citation does not hold on read, downgrades to `major` with the note `evidence did not verify` — an unanchored blocker is a hypothesis, not a risk, and demoting the strongest approach on one is the over-flagging failure this bar stops.
 - An approach carrying a verified `blocking` risk is never the `Recommended` option — demote it. If every approach carries a verified blocking risk, loop back to Phase 3 with a tighter scope question rather than recommend a non-viable plan.
 - `major` / `minor` risks annotate an approach but do not bar recommendation.
 - **A clean verdict needs a checked account.** A critique reporting no risks for an approach without its `Checked:` line is silence, not feasibility evidence — treat that approach as un-stress-tested (note "stress-test inconclusive" on it in the §4.3 chat message) rather than feasibility-confirmed.
@@ -95,7 +95,7 @@ emit_rejection_if_signal \
 
 Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op. A free-text answer overriding the question is a divergent pick like any other and fires the signal. After a fired signal, echo `Recorded learning: <summary>` — the same echo §8.5 makes, so a skipped emit shows up as a missing line instead of leaving no trace at all.
 
-**Read side:** the Phase 1 §1.1 second past-learnings query (`--type user_rejected_suggestion --tag approach_choice`) already surfaces any prior `approach_choice` rejection for this topic — use it here to re-rank or omit the previously-rejected approach from the §4.3 AUQ.
+**Read side:** the Phase 1 §1.1 second past-learnings query already surfaces any prior `approach_choice` rejection for this topic — use it to re-rank or omit that approach from the §4.3 AUQ.
 
 Example body:
 
@@ -113,4 +113,4 @@ Why rejected: violates new boundary established in Q3 2026 architecture review.
 
 **Artifact** — after the approach pick persists, fire the update for this site (call-site table in `loop-artifact-call-sites.md`).
 
-**Transition.** With the pick persisted, the rejection signal recorded, and the artifact update fired, write `phase: section-approve` via `atomic_state_set_field` and proceed to Phase 5.
+**Transition.** Once the pick, rejection signal, and artifact update are done, write `phase: section-approve` via `atomic_state_set_field` and proceed to Phase 5.

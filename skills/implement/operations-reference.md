@@ -36,8 +36,8 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 |---|---|---|---|
 | Fix-loop retries per phase | RETRY_CAP (Phase 2) / ROUND_CAP (Phase 3, lower when the task input states a limit) — both canonical in `SKILL.md` §Loop invariants, invariant 5 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. Fires early (before the cap) when the loop is not converging — early-escalation triggers in `phase-2-implement.md` §Step 6, reused by the Phase 3 loop. |
 | Edge-case hypotheses | up to 12 per run, scaled to the diff (a ceiling, not a floor) | Phase 3 edge-case test-authoring step (`implement-reference.md` §"Phase 3: Edge-case test authoring") | Stop generating; surface what survived |
-| Edge-case authored tests | 10 per run | Phase 3 edge-case test-authoring step (same reference) | Stop authoring; surface the tests kept so far |
-| Edge-case consecutive discards | 5 consecutive | Phase 3 edge-case test-authoring step (same reference) | Stop hypothesis generation; surface partial |
+| Edge-case authored tests | 10 per run | same | Stop authoring; surface the tests kept so far |
+| Edge-case consecutive discards | 5 consecutive | same | Stop hypothesis generation; surface partial |
 
 **Architecture constraint (design intent, not budget):** the Phase 1 knowledge-retrieval + codebase-explorer pair is a fixed spawn set, not size-scaled (skip conditions per `SKILL.md` §Anti-rationalization; store-empty gate at `phase-1-analyze.md` Step 7). The Phase 3 Round 1 reviewer grid scales by `change_scope` — the tier-to-dimension mapping is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`; the resolved set is always announced to the user and recorded in `spawn_dims_declared[]` before firing, plus any custom dimensions from `.geniro/instructions/review-extra/` (path-filtered and capped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6).
 
@@ -49,7 +49,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 **Light spawns.** `test-runner-agent` runs as **light (smallest)** on every run, the first included. `knowledge-retrieval-agent` (the Phase 1 memory sweep), the Phase 2 code delegates (one class for the whole batch), the `codebase-research-agent` side queries of loop invariant S3, and the library-reuse-audit web-research spawn run as **light (mid)**. Every other spawn is `session`: the codebase-explorer, the spec-challenge verifiers, every Phase 3 reviewer-agent, `finding-verifier-agent`.
 
-**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** Every spawn site reads the tier from state.md frontmatter `subagent-model:` first and falls back to the `$ARGUMENTS` flag where the field is absent (Phase 1 before Step 4 writes it). When the run carries a tier, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. The flag has no chooser question: it is parsed at Phase 1 Step 1 and persisted to state.md frontmatter `subagent-model:` at Step 4, so a compaction before Phase 2 or Phase 3 does not silently revert every spawn back to its class.
+**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** Every spawn site reads the tier from state.md frontmatter `subagent-model:`, falling back to the `$ARGUMENTS` flag where the field is absent (Phase 1 before Step 4 writes it). When the run carries a tier, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. The flag has no chooser question: Phase 1 Step 1 parses it and Step 4 persists it, so a compaction does not revert spawns to their class.
 
 ---
 
@@ -93,13 +93,13 @@ reviewed_file_hashes: []
 ---
 ```
 
-**Write contract.** Route every state.md mutation through the `atomic-state-write` helpers — a direct `Edit` or `Write` on a canonical state path truncates and rewrites in place, so a crash mid-write leaves a partial file, whereas the helpers do tmp + fsync + rename and a reader never sees a torn one. Nothing blocks a direct write; the contract is yours. Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
+**Write contract.** Route every state.md mutation through the `atomic-state-write` helpers — a direct `Edit` or `Write` truncates and rewrites in place, so a crash mid-write leaves a partial file, whereas the helpers do tmp + fsync + rename. Nothing blocks a direct write; the contract is yours. Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`.
 
 ---
 
 ## Memory I/O
 
-Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in this table — its decision picks the worktree the rest of Phase 1 inspects, so a snapshot or drift check run first inspects the wrong tree.
+Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in this table, since its decision picks the worktree the rest of Phase 1 inspects.
 
 | Phase | Calls |
 |---|---|
@@ -127,7 +127,7 @@ Detail behind the `SKILL.md` §Loop invariants and §State machine, read here at
 
 **Ship exception to S5.** When the Ship sub-step's review-coverage guard finds staged files the fix loop's last round never reviewed, editing reopens once for those diverged files only: fixes go through the fix loop's existing inline-fix rule, a fresh full-suite test run covers any fix it makes before staging whenever an edit landed after the last full run, it counts against neither the round cap nor a new one, and `phase:` stays `ship` throughout. An unbuilt spec requirement the Ship reconciliation step catches is not a second exception — it rolls the run back to `phase: implement` for that requirement and flows forward through Phase 3 again, never an inline edit at Ship.
 
-**`## Tool log` section in state.md.** Invariants 1 and 7 motivate persisting subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into that body section — shape in `implement-reference.md` §"Phase 2: Implement — error-handling". Routine Read/Edit/Bash on local files need no logging: the tool_result return is sufficient.
+**`## Tool log` section in state.md.** Persist subagent-spawn outcomes and side-effect tool calls (`git push`, `gh pr create`, file deletions) into that body section — shape in `implement-reference.md` §"Phase 2: Implement — error-handling". Routine Read/Edit/Bash on local files need no logging.
 
 **Custom-instruction load is mandatory in full at every phase entry.** The pipeline load set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Procedure, with one observable Echo line per file, fires at Phase 1 entry, again at Phase 2 entry, and again at Phase 3 entry.
 

@@ -59,10 +59,10 @@ Also: spec.md section 6 (Steps) cites ≥1 file:line reference per non-trivial s
 
 Then, per matched citation, decide two things a presence match cannot:
 
-- **Does it resolve?** The path exists and the file is at least that long. A citation into a file that has since moved, shrunk, or never existed is a dangling coordinate that reads as grounding — and the executor follows it into nothing. Cheap to settle; settle it.
-- **Does it cover what the step asserts?** Read the cited span and compare it against the step's claim. A citation spanning two of the six blocks a step depends on passes a presence match while supporting a claim about all six, and a citation anchored one line off the branch that decides the behavior confirms a line that is true and a step that is wrong. Where a step asserts a quantity, the cited span must be the population that quantity was counted from, or the step needs a second citation that is.
+- **Does it resolve?** The path exists and the file is at least that long. A citation into a file that has moved, shrunk, or never existed is a dangling coordinate that reads as grounding. Cheap to settle; settle it.
+- **Does it cover what the step asserts?** Read the cited span and compare it against the step's claim. A citation spanning two of six blocks passes a presence match while supporting a claim about all six, and one anchored a line off the deciding branch confirms a true line and a wrong step. Where a step asserts a quantity, the cited span must be the population that quantity was counted from, or the step needs a second citation that is.
 
-**Naming the exemptions is part of the check.** "Non-trivial" is this check's own judgment, so a run can pass it by quietly reclassifying the steps it could not ground. Report every step treated as meta or trivial by number, with the one-line reason, in the same output as the verdict. An exemption a reader can see is a decision; an exemption only the deciding run knew about is the check exempting itself.
+**Naming the exemptions is part of the check.** "Non-trivial" is this check's own judgment, so a run can pass it by quietly reclassifying the steps it could not ground. Report every step treated as meta or trivial by number, with a one-line reason, in the verdict's output. An exemption a reader can see is a decision; one only the deciding run knew about is the check exempting itself.
 
 **Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit "scope-bound, no exploration needed" entry to ## Tool log."
 
@@ -82,11 +82,11 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 6. `budget`
 
-*Scripted.* The frontmatter `budget` block carries `max_files_to_edit` and `max_lines_changed` — the two sizes `/geniro:implement`'s scope-drift trigger reads — and an absent block or key is a `fail`. A missing `time_budget` is only a `warn`: no later phase reads it. Key presence only — `null` is a legal value for an unbounded key, an absent key is not.
+*Scripted.* The frontmatter `budget` block carries `max_files_to_edit` and `max_lines_changed` (the sizes `/geniro:implement`'s scope-drift trigger reads); an absent block or key is a `fail`, a missing `time_budget` only a `warn` (nothing reads it). Key presence only — `null` is legal for an unbounded key, an absent key is not.
 
 ### 7. `checkpoints`
 
-*Scripted, advisory.* When section 6 (Steps) has ≥5 steps, frontmatter `checkpoints` is a non-empty list and every `step_anchor: step-N` resolves to a real step; a miss is a `warn`, never a `fail` — no later phase reads checkpoints, so a gap costs the reader a pause point and blocks nothing. Steps are counted by their `- [ ] N.` checkbox lines, equivalently by `<!-- step-N -->` anchors — not by a bare leading digit. Under 5 steps the check passes without requiring checkpoints. A checkpoint naming a section rather than a step anchor is left to the reader.
+*Scripted, advisory.* When section 6 (Steps) has ≥5 steps, frontmatter `checkpoints` is a non-empty list and every `step_anchor: step-N` resolves to a real step; a miss is a `warn`, never a `fail`: no later phase reads checkpoints. Steps are counted by their `- [ ] N.` checkbox lines, equivalently by `<!-- step-N -->` anchors — not by a bare leading digit. Under 5 steps the check passes without requiring checkpoints. A checkpoint naming a section rather than a step anchor is left to the reader.
 
 ### 8. `validation_method`
 
@@ -110,7 +110,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 **Fix hint on fail:** "Section 11 (Done Condition) doesn't match an observable-signal phrase. Rewrite as a concrete completion criterion (e.g., '<observable signal> AND <verification>')."
 
-**A quantity written to satisfy this check is a claim, not a formatting fix.** The auto-revision round that repairs a section-11 failure is the one place in the loop where a check's own demand for a machine-checkable signal invites inventing the value that makes it checkable — a suite count, a row count, a duration nobody measured. The observed shape is a done condition naming a number the project never produces: perfectly checkable, permanently false, and reported by this check as a pass. So when a revision introduces or changes a quantity here, derive it from the project rather than from the sentence that needs filling, and enter it into the spec-challenge claim set as a `quantity` claim (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §3 item 5). Where the value cannot be derived at spec time, write the condition against the signal instead of the number — "the suite is green" beats "48 suites pass" and cannot go stale. A baseline or target in the section's outcome clause (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §"Section 11") is a `quantity` claim on the same terms: it was either read through a declared source or it was invented, and the claim set is where that gets settled.
+**A quantity written to satisfy this check is a claim, not a formatting fix.** The auto-revision round that repairs a section-11 failure invites inventing the value that makes the signal checkable — a suite count, a row count, a duration nobody measured. The observed shape is a done condition naming a number the project never produces: perfectly checkable, permanently false, and reported by this check as a pass. So when a revision introduces or changes a quantity here, derive it from the project rather than from the sentence that needs filling, and enter it into the spec-challenge claim set as a `quantity` claim (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §3 item 5). Where the value cannot be derived at spec time, write the condition against the signal — "the suite is green" beats "48 suites pass" and cannot go stale. A baseline or target in the section's outcome clause (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §"Section 11") is a `quantity` claim on the same terms: read through a declared source or invented, and the claim set settles which.
 
 ### 10. `placeholder_scan`
 
@@ -130,13 +130,13 @@ Then, per matched citation, decide two things a presence match cannot:
 
 *Scripted.* Skipped entirely when `launch_config:` is absent — older specs without the block stay valid, mirroring the `m5-v1` skip above, and its absence is the default (`/geniro:implement` then asks its Step 0 setup questions interactively). When present, each of the three core keys (`workspace` / `branch_freshness` / `ship_mode`) is set to one of its enum values, case-sensitively, and the optional `tracker_status` is checked only when the key is there. Shape-only; nothing is executed. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
 
-**Ordering note:** the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so Phase 7 never sees it. This check's present-branch fires twice: at write time, when `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.4 runs the script against the rewritten spec before committing it, and on RE-validation of an existing spec in a later /geniro:plan run over the same task-dir.
+**Ordering note:** the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so Phase 7 never sees it. The present-branch fires at write time (`${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.4 runs the script on the rewritten spec before committing) and on RE-validation in a later /geniro:plan run over the same task-dir.
 
 ### 14. `effort_tier`
 
 *Scripted.* Frontmatter carries `effort_tier`, set to one of `trivial` / `small` / `medium` / `big`, lowercase. Fails on an absent field and on any other value, `Trivial` included.
 
-The field is not a label: Phase 5 milestone-mode fires off the Big tier, and check `source_materials`'s research-agent threshold is read per tier. Both read it by comparing against the lowercase enum, so an absent or miscased value relaxes both without saying so — the shape of failure a shipped spec cannot show you.
+The field is not a label: Phase 5 milestone-mode fires off the Big tier, and `source_materials`'s research-agent threshold is read per tier. Both compare against the lowercase enum, so an absent or miscased value relaxes both silently.
 
 ---
 

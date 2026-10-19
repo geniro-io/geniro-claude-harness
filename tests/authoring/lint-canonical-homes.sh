@@ -13,12 +13,11 @@
 # fix pass; the same round shipped two citations of a `§Constraints` heading
 # that had not existed for weeks.
 #
-# Why HARD rather than a count ratchet: lint-skills.sh check 10 counts
-# unresolved section anchors because a BARE `§` has no mechanically recoverable
+# Why only canonical declarations: a BARE `§` has no mechanically recoverable
 # binding — it may name a section in the citing file, in a file named a
 # paragraph earlier, or in none. A canonical declaration is the decidable case:
 # the owning path sits inside the same sentence, so the binding is explicit and
-# a failure names its site instead of moving a number.
+# a failure names its site.
 #
 # Coverage:
 #   1. Every declared owner path resolves to a real file.

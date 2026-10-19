@@ -29,7 +29,7 @@ E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package ma
 
 Use `AskUserQuestion` header "Tracker". The recommended default is whichever tracker Phase 1 detected (else Skip) — e.g. `.github/ISSUE_TEMPLATE/` signals GitHub Issues, a `.gitlab/` directory signals GitLab Issues, a Linear ID or URL in recent commit messages signals Linear.
 
-- Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates. The six options exceed the question tool's option cap, so chain a follow-up question per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension, rather than dropping a tracker from the offer — e.g. fill the first question with the detected default and the next most likely trackers, keeping a `Something else` slot that opens the remaining ones.
+- Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates. The six options exceed the question tool's option cap, so chain a follow-up question per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension, rather than dropping a tracker from the offer — e.g. the detected default plus the likeliest others, with `Something else` opening the rest.
 
 Record the pick as `$ISSUE_TRACKER_CHOICE` for Phase 3 and write nothing here: Interview is read-only (§ACI per-phase tool surface), and §3.3 installs the workflow file under the batch approval gate invariant #3 requires.
 

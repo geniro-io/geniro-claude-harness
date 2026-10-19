@@ -8,7 +8,7 @@
 # exits 0 when exactly 256 assertions fail (and 1 when 257 do), so the one
 # state a suite exists to report — "something failed" — reads as green. Three
 # suites ended that way (tests/cursor/hook-shim.sh, tests/cursor/manifest-sync.sh,
-# tests/authoring/lint-spawn-anchor.sh). The fix is `[ "$TESTS_FAILED" -eq 0 ]`
+# and a since-deleted authoring lint). The fix is `[ "$TESTS_FAILED" -eq 0 ]`
 # as the last command, or `exit 1` behind an `if`.
 #
 # Detection: a line that is only `exit` plus a variable whose whole name is a

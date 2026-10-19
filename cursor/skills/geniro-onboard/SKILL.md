@@ -90,8 +90,8 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | "I need more detail on this module" | The codebase map captures architecture, not implementation. Module-level detail belongs in the code; the map's job is orientation. |
 | "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
 | "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
-| "The repo has 5000 files but I'll just scan everything — better safe than sorry" (or "it's monorepo-scale, so bypass the cap silently" / "add a wall-time kill cap so long discovery aborts cleanly") | Both directions break the same contract. The read budget — not a hard abort — is what bounds cost: sample the most relevant files and record what was covered in `## Scope`. Expansion is explicit (`--cap N` up front, or the §1.3 Step 2 AUQ), so raising it on your own authority defeats the cost control; a wall-time kill cap would abort legitimate complex discovery mid-stride, and a repo too large for the sample to represent already escalates via that AUQ. |
-| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`. Without them, compaction mid-scan loses scan progress and the user re-runs from scratch. The `## Tool log` in particular is what records the scan process — which directories were covered, which raised permission errors — so a failed onboard stays diagnosable without repeating the whole scan. |
+| "The repo has 5000 files but I'll just scan everything — better safe than sorry" (or "it's monorepo-scale, so bypass the cap silently" / "add a wall-time kill cap so long discovery aborts cleanly") | Both directions break the same contract. The read budget — not a hard abort — is what bounds cost: sample the most relevant files and record what was covered in `## Scope`. Expansion is explicit (`--cap N` up front, or the §1.3 Step 2 AUQ), so raising it on your own authority defeats the cost control; a wall-time kill cap would abort legitimate complex discovery mid-stride. |
+| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`. Without them, compaction mid-scan loses scan progress and the user re-runs from scratch. The `## Tool log` records which directories were covered and which raised permission errors, so a failed onboard stays diagnosable. |
 
 ## Quality-first budgets
 
@@ -112,7 +112,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 **Phase 2 (Map):**
 - Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskQuestion / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
-- Explicitly blocked: a direct write or edit to `_CODEBASE_MAP.md` (route through `update-semantic`, which holds the `.codebase-map.lock` a direct write would skip), production-source writes and edits, `git add` / `git commit` / `git push`.
+- Explicitly blocked: a direct write or edit to `_CODEBASE_MAP.md` (route through `update-semantic`, which holds the `.codebase-map.lock`), production-source writes and edits, `git add` / `git commit` / `git push`.
 
 ---
 
@@ -127,7 +127,7 @@ These are the load-bearing exit gates — the invariants that, if skipped, make 
 - [ ] Project-snapshot fingerprint refreshed via `update_fingerprint` (per §2.2)
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)
-- [ ] State.md cleaned up per §2.5 after every terminal `phase:` write (`done`, `map-truncated`, `routed`, `aborted`), never before it
+- [ ] State.md cleaned up per §2.5 after every terminal `phase:` write, never before it
 
 ---
 
@@ -201,7 +201,7 @@ Call it with `--file codebase-map` per its §API; the branch this skill has to d
 
 Exit codes (including the over-ceiling and lock-held cases) and the defer-and-retry pattern for a held lock belong to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/update-semantic.md` §API — apply them from there rather than from memory.
 
-After the map persists, refresh the project-snapshot fingerprint — `update_fingerprint` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` §API. Every other skill's staleness check compares the current stack files against that fingerprint; leaving it stale keeps the "re-run /geniro:onboard" warning firing after a successful onboard, which teaches users to ignore the one signal that says the map is out of date.
+After the map persists, refresh the project-snapshot fingerprint — `update_fingerprint` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` §API. Every other skill's staleness check compares the current stack files against it; a stale fingerprint keeps the "re-run /geniro:onboard" warning firing after a successful onboard.
 
 ### 2.3 Record what the scan learned
 
@@ -225,7 +225,7 @@ After the map ships, end the onboarding report with a printed "Next steps" block
 
 ### 2.5 Cleanup
 
-Run this after EVERY terminal `phase:` write — `done`, `map-truncated`, `routed`, and `aborted` alike, not only the happy path — never before: the write's own `mkdir -p` would silently recreate a slug dir a preceding cleanup just removed, leaving it behind despite cleanup having "run". The migration walk scans `.geniro/planning`, never `.geniro/state`, so a slug directory left behind by an early exit has no later sweep and persists indefinitely.
+Run this after EVERY terminal `phase:` write — `done`, `map-truncated`, `routed`, and `aborted` alike, not only the happy path — never before: the write's own `mkdir -p` would recreate a slug dir a preceding cleanup just removed. A slug directory left behind by an early exit has no later sweep (the migration walk scans `.geniro/planning`, never `.geniro/state`).
 
 State.md `phase: map` → `done` on the happy path. Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Cleanup contract:
 

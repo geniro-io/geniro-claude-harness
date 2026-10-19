@@ -28,7 +28,7 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 
 ### Step 1.5: External-lookup routing (Internet-only → consider /deep-research)
 
-When the question classifies as **External docs lookup** (Internet only — no project code or git evidence needed), a `/deep-research` workflow, when your environment provides one, runs deeper multi-source web research than this skill's single Internet Researcher: it fans out searches across several angles, cross-checks the sources against each other, and votes on each claim before reporting. Offer it before spawning Phase 2.
+When the question classifies as **External docs lookup** (Internet only — no project code or git evidence needed), a `/deep-research` workflow, when your environment provides one, runs deeper multi-source web research than this skill's single Internet Researcher. Offer it before spawning Phase 2.
 
 Fire `AskUserQuestion` (header "Research"):
 - **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"

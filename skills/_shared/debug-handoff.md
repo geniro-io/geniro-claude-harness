@@ -2,11 +2,11 @@
 
 **Status:** Authoritative for consuming `/geniro:debug` T2 handoff files.
 
-When `/geniro:debug` ran earlier in the same project, it left T2 handoff files at `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (scientific mode — canonical) and/or `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-adversarial-<branch>.md` (adversarial mode — canonical) — and authored regression tests at the project's normal test paths. Consumer skills detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations) — an implementation about to start cannot run a regression test absent from its working tree.
+When `/geniro:debug` ran earlier in the same project, it left T2 handoff files in the primary worktree — `from-debug-<branch>.md` (scientific mode) and/or `from-debug-adversarial-<branch>.md` (adversarial mode; paths in Step 1) — and authored regression tests at the project's normal test paths. Consumer skills detect those artifacts on startup and, if the authored tests are missing from the user's current working tree, surface a relocation suggestion (suggest only — never auto-execute cross-branch git operations) — an implementation about to start cannot run a regression test absent from its working tree.
 
 ## Step 1: Scan
 
-Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` as the branch the consumer started on: the `CURRENT_BRANCH` it recorded before any workspace switch (`/geniro:implement` Step 0a), else `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Debug named its handoff for the branch it ran on, so a key taken after the consumer's workspace step has switched branches would never find it. Glob the canonical paths; for each that exists, read fully.
+Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` as the branch the consumer started on: the `CURRENT_BRANCH` it recorded before any workspace switch (`/geniro:implement` Step 0a), else `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`) — debug named its handoff for the branch it ran on, so a key taken after a workspace switch never finds it. Glob the canonical paths; for each that exists, read fully.
 
 **Canonical paths:**
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`
@@ -19,7 +19,7 @@ If neither exists, this whole file is a no-op — skip to your next step.
 **Source-branch / source-worktree** (both handoff variants):
 - frontmatter `branch:` field → record as `debug-source-branch`. Falls back to body `**Source branch:**` line for legacy files.
 - frontmatter `worktree:` field → record as `debug-source-worktree`. Falls back to body `**Source worktree:**` line for legacy files.
-- When both variants are present, prefer values from `from-debug-<branch>.md` (scientific) over the adversarial variant for consistency; only fall back to adversarial values when the scientific field is absent.
+- When both variants are present, prefer the scientific `from-debug-<branch>.md` values; fall back to adversarial only when the scientific field is absent.
 
 **Original reproduction** (scientific handoff only): frontmatter `original_repro:` → record as `debug-original-repro`, the un-minimised command that reproduced the bug before debug shrank it. Absent on older handoffs and on runs with no runnable command — skip silently. The consumer runs it once after the fix (`/geniro:implement` Phase 2 §5.5); a non-zero exit means the bug still reproduces and is a failed check.
 
@@ -31,7 +31,7 @@ If neither exists, this whole file is a no-op — skip to your next step.
    - `from-debug-<branch>.md`: body `**Reproduction test:**` line → strip the path token (everything before the first comma or first `(`); trim whitespace. Skip if value is `none` or starts with `escape hatch:`.
    - `from-debug-adversarial-<branch>.md`: for each body `**Test file:**` line → strip path token (everything before the first ` (` or first `:`); trim whitespace.
 
-**When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on a single line, and `Original-repro:` as the command verbatim when present (never split on `,`). Consumers split `Authored-tests:` on `,` and trim each token before re-resolving. Optionally also persist `Authored-tests-intent:` as a parallel comma-separated list of intents (one per path, same order) when consumed from m7-v2+ frontmatter — preserves the producer's per-test annotation for downstream Phase 2 todo-decomposition.
+**When persisting to a state file** (e.g., implement's `<task-dir>/state.md` keys `Authored-tests:` / `Debug-source-branch:`): write `Authored-tests:` as comma-separated relative paths on one line (consumers split on `,` and trim each token before re-resolving) and `Original-repro:` as the command verbatim when present (never split on `,`). Optionally persist `Authored-tests-intent:` as a parallel comma-separated list (one per path, same order) from m7-v2+ frontmatter, so Phase 2 todo-decomposition keeps the per-test annotation.
 
 ## Step 3: Verify
 
@@ -39,9 +39,7 @@ For each path in `authored-test-paths`, resolve relative to the current `git rev
 
 ## Step 4: Decide and surface
 
-`<current-branch>` and "current branch" below mean the live branch now, after any workspace switch — the comparison with `debug-source-branch` is what separates Case A from Case B2.
-
-The cases:
+"Current branch" below is the live branch now, after any workspace switch — it separates Case A from Case B2. The cases:
 
 **Case A — All PRESENT and `debug-source-branch` matches current branch.** Tests are already where they need to be. Surface a one-line acknowledgment in the Phase 1 context summary: `Debug findings detected (<source-branch>); <N> authored test(s) present in current working tree.` No further action.
 
@@ -62,7 +60,7 @@ Or copy directly if the source worktree is on disk:
 Skip if you intend to re-author them in this branch instead.
 ```
 
-The user runs the commands themselves — never invoke them in a shell call. Cross-branch / cross-worktree file operations have no plugin precedent and conflict with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` "Forbidden discovery moves".
+The user runs the commands themselves — never invoke them in a shell call. Cross-branch / cross-worktree file operations conflict with `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` "Forbidden discovery moves".
 
 **Case B2 — All PRESENT but `debug-source-branch` differs from current branch.** Typical of implement's "New feature branch" workspace pick (`git checkout -b <new-branch>`) where uncommitted test files follow the working tree to the new branch. Surface a one-line note in the Phase 1 context summary: `Debug ran on '<debug-source-branch>'; you are now on '<current-branch>'; all <N> authored test(s) carried over to the new working tree.` No commands suggested — the tests are already where they need to be.
 
