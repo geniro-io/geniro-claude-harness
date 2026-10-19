@@ -53,7 +53,7 @@ Record the user's selection AND rationale in state.md `## Reproduction Test` bod
 
 Do NOT run the full project test suite here — that's the receiving skill's responsibility. Phase 2's goal is the F→P-verified test artifact + evidence the proposed patch turns it green. If the project uses code generation (check CLAUDE.md) AND the proposed fix touches DTOs/schemas/controllers, note this in the findings template "Special handling" field.
 
-### 2.5 Fix-loop escalation (2 fix attempts failed → AUQ)
+### 2.5 Fix-loop escalation (2 fix attempts failed → ask the user)
 
 When 2 distinct fix proposals fail F→P verification (each pre/post-fix monkey-patch round counts as one), surface to user:
 

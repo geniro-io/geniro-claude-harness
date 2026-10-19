@@ -1703,6 +1703,189 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 24. Standing rules (Block 1b) must describe the state-write contract as it is:
+#     no hook checks state writes, so routing them through the helpers is on the
+#     writer. The guard the old text named was deleted; the re-injected rule is
+#     what a resumed session actually follows. The helper list must name every
+#     helper a writer can reach for, including the two entry appenders.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+ac=$(run_hook compact "$sandbox" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -qF "No hook checks state writes" <<<"$ac" \
+   && ! grep -qF "A hook blocks" <<<"$ac"; then
+  pass "Block 1b: states that no hook checks state writes (no phantom guard)"
+else
+  fail "Block 1b: still describes a hook that blocks state writes, or omits the no-hook statement"
+fi
+missing=""
+for helper in atomic_state_write atomic_state_write_cmd atomic_state_edit atomic_state_set_field \
+              atomic_state_append_section atomic_state_append_list_item atomic_state_append; do
+  grep -qF "$helper" <<<"$ac" || missing="$missing $helper"
+done
+if [ -z "$missing" ]; then
+  pass "Block 1b: names every state-write helper"
+else
+  fail "Block 1b: helper list is missing:$missing"
+fi
+
+# ---------------------------------------------------------------------------
+# 25. LOAD_TIER in the resume protocol follows the skill's own load site. Every
+#     skill that loads custom instructions at the pipeline tier gets the
+#     pipeline tier on resume — a rules-only refresh drops the per-skill file
+#     and code-style.md. The skills that load rules-only stay rules-only.
+# ---------------------------------------------------------------------------
+
+for producer in implement plan review debug refactor resolve onboard investigate reflect; do
+  sandbox=$(new_sandbox)
+  sed "s/^producer: implement$/producer: $producer/" "$sandbox/.geniro/planning/feature-x/state.md" \
+    > "$sandbox/.geniro/planning/feature-x/state.md.new" \
+    && mv "$sandbox/.geniro/planning/feature-x/state.md.new" "$sandbox/.geniro/planning/feature-x/state.md"
+  ac=$(run_hook compact "$sandbox" | jq -r '.hookSpecificOutput.additionalContext // ""')
+  if grep -qF "SKILL_SLUG: $producer, LOAD_TIER: pipeline," <<<"$ac"; then
+    pass "resume protocol: $producer reloads at LOAD_TIER: pipeline"
+  else
+    fail "resume protocol: $producer should reload at LOAD_TIER: pipeline — got: $(grep -o 'SKILL_SLUG: [^,]*, LOAD_TIER: [a-z-]*' <<<"$ac")"
+  fi
+done
+for producer in setup audit-instructions; do
+  sandbox=$(new_sandbox)
+  sed "s/^producer: implement$/producer: $producer/" "$sandbox/.geniro/planning/feature-x/state.md" \
+    > "$sandbox/.geniro/planning/feature-x/state.md.new" \
+    && mv "$sandbox/.geniro/planning/feature-x/state.md.new" "$sandbox/.geniro/planning/feature-x/state.md"
+  ac=$(run_hook compact "$sandbox" | jq -r '.hookSpecificOutput.additionalContext // ""')
+  if grep -qF "SKILL_SLUG: $producer, LOAD_TIER: rules-only," <<<"$ac"; then
+    pass "resume protocol: $producer stays at LOAD_TIER: rules-only"
+  else
+    fail "resume protocol: $producer should stay at LOAD_TIER: rules-only — got: $(grep -o 'SKILL_SLUG: [^,]*, LOAD_TIER: [a-z-]*' <<<"$ac")"
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 26. Recovery question — the canonical fourth option, "Update worktree path", is
+#     the only fix for validator exit 8 (the saved worktree left `git worktree
+#     list`), so it is offered for that failure and for no other.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+cat > "$sandbox/.geniro/planning/feature-x/state.md" <<'EOF'
+---
+tier: T1.5
+producer: implement
+schema-version: 1
+branch: feature/x
+worktree: /no/such/worktree/anywhere
+timestamp: 2026-05-19T15:00:00Z
+phase: implement
+status: in-progress
+non-resumable-actions: []
+---
+
+body
+EOF
+ac=$(run_hook compact "$sandbox" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -qF "STATE FILE FAILED VALIDATION" <<<"$ac" \
+   && grep -qE "^  4\. Update worktree path" <<<"$ac" \
+   && grep -qE "^  1\. Delete state file" <<<"$ac" \
+   && grep -qE "^  3\. Skip validation" <<<"$ac"; then
+  pass "recovery question: a stale worktree: path (validator rc 8) also offers 'Update worktree path'"
+else
+  fail "recovery question: rc 8 should list options 1-3 plus 'Update worktree path' — got: $(grep -A8 'STATE FILE FAILED' <<<"$ac")"
+fi
+
+sandbox=$(new_sandbox)
+printf 'not-a-frontmatter\nfoo: bar\n' > "$sandbox/.geniro/planning/feature-x/state.md"
+ac=$(run_hook compact "$sandbox" | jq -r '.hookSpecificOutput.additionalContext // ""')
+if grep -qF "STATE FILE FAILED VALIDATION" <<<"$ac" \
+   && ! grep -qF "Update worktree path" <<<"$ac" \
+   && grep -qE "^  3\. Skip validation" <<<"$ac"; then
+  pass "recovery question: an unrelated validation failure does not offer 'Update worktree path'"
+else
+  fail "recovery question: a non-worktree failure must not offer 'Update worktree path'"
+fi
+
+# ---------------------------------------------------------------------------
+# 27. jq missing → the hook announces its own inactivity instead of silently
+#     restoring nothing. PATH carries only dirname, so `command -v jq` fails.
+# ---------------------------------------------------------------------------
+
+sandbox=$(new_sandbox)
+nojq="$TMPDIR_BASE/nojq-bin"
+mkdir -p "$nojq"
+ln -sf "$(command -v dirname)" "$nojq/dirname"
+bash_bin="$(command -v bash)"
+out=$(printf '{"source":"compact","cwd":"%s"}' "$sandbox" | env PATH="$nojq" "$bash_bin" "$HOOK" 2>/dev/null)
+rc=$?
+if [ "$rc" -eq 0 ] \
+   && [ "$(jq -r '.systemMessage // ""' <<<"$out" 2>/dev/null)" != "" ] \
+   && jq -r '.systemMessage' <<<"$out" | grep -qF "Geniro hook inactive: jq not found" \
+   && [ -z "$(jq -r '.hookSpecificOutput.additionalContext // ""' <<<"$out" 2>/dev/null)" ]; then
+  pass "jq missing: exit 0 with a systemMessage naming the inactive hook, nothing restored"
+else
+  fail "jq missing: rc=$rc out='$out'"
+fi
+
+# ---------------------------------------------------------------------------
+# 28. Numeric sanitizers. A value `[ -gt ]` cannot use must fall back to the
+#     default instead of reaching the test: 0 would archive on every session
+#     start, and an all-digit value past the shell's integer range makes the
+#     test error out, which silently disables auto-archive (or lock reclaim).
+# ---------------------------------------------------------------------------
+
+# 28a. GENIRO_AUTO_ARCHIVE_THRESHOLD=0 → default 5000, so a 2-line log is below it.
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+printf '%s\n%s\n' '{"type":"discovery","dedup_key":"a"}' '{"type":"discovery","dedup_key":"b"}' \
+  > "$sandbox/.geniro/knowledge/learnings.jsonl"
+printf '{"source":"startup","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=0 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK" >/dev/null 2>&1
+if [ ! -f "$sandbox/.geniro/knowledge/.archive-stale.hash" ]; then
+  pass "auto-archive threshold 0 falls back to the default (a 2-entry log is not archived)"
+else
+  fail "auto-archive threshold 0 was honoured: a 2-entry log was archived"
+fi
+
+# 28b. A threshold past the integer range → default 5000, so a 5001-line log IS
+#      archived (the broken test used to evaluate false and skip it forever).
+sandbox=$(new_sandbox)
+mkdir -p "$sandbox/.geniro/knowledge"
+awk 'BEGIN { for (i = 1; i <= 5001; i++) printf "{\"type\":\"discovery\",\"dedup_key\":\"k%d\"}\n", i }' \
+  > "$sandbox/.geniro/knowledge/learnings.jsonl"
+printf '{"source":"startup","cwd":"%s"}' "$sandbox" \
+  | GENIRO_AUTO_ARCHIVE_THRESHOLD=99999999999999999999 CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK" >/dev/null 2>&1
+if [ -f "$sandbox/.geniro/knowledge/.archive-stale.hash" ]; then
+  pass "auto-archive threshold past the integer range falls back to the default (a 5001-entry log is archived)"
+else
+  fail "auto-archive threshold past the integer range disabled auto-archive on a 5001-entry log"
+fi
+
+# 28c. The hook's inline lock-reclaim fallback (a vendored install ships hooks/
+#      without lib/) rejects 0 and an overlong digit string like it rejects junk.
+FALLBACK=$(awk '
+  /^if ! command -v _geniro_lock_reclaim_secs /{inb=1; next}
+  inb && /^fi$/{exit}
+  inb{print}
+' "$HOOK")
+if [ -z "$FALLBACK" ]; then
+  fail "hook carries an inline _geniro_lock_reclaim_secs fallback"
+else
+  bad=""
+  for v in 0 00 99999999999999999999 abc ""; do
+    got=$(GENIRO_LOCK_RECLAIM_SECS="$v" bash -c "$FALLBACK
+_geniro_lock_reclaim_secs")
+    [ "$got" = "600" ] || bad="$bad '$v'->'$got'"
+  done
+  got=$(GENIRO_LOCK_RECLAIM_SECS=45 bash -c "$FALLBACK
+_geniro_lock_reclaim_secs")
+  [ "$got" = "45" ] || bad="$bad '45'->'$got'"
+  if [ -z "$bad" ]; then
+    pass "inline lock-reclaim fallback: 0, overlong and junk values resolve to 600; a valid value is kept"
+  else
+    fail "inline lock-reclaim fallback sanitizer:$bad"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 

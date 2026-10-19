@@ -19,7 +19,7 @@ Mechanical structure rules for every skill / agent / reference file. Companions:
 | Reference file (`*-reference.md`) | n/a | none | Split by phase / concern. Add a Contents block past ~1,200 words (§Reference graph). |
 | Agent file (`agents/*.md`) | whole file | ~2,500 words | Tighten or cut in place. An agent body is injected whole as the subagent's system prompt, so moving content to `agents/<name>-reference.md` converts free prompt tokens into the same tokens plus a Read the agent may skip — and a skipped rule is silently gone rather than merely late. Move only content some runs need and others don't. |
 
-The ~3,000-word front-load budget is the one figure with a mechanism behind it — the compaction re-attach boundary, canonical in `skill-prose.md` §Rule placement. The whole-file numbers are guidelines. An oversize file is a signal to check what is load-bearing and where it sits, not a defect — never trim load-bearing content to hit a number.
+The ~3,000-word front-load budget approximates the compaction re-attach boundary, canonical in `skill-prose.md` §Rule placement — the boundary itself is measured in characters, not words, because characters-per-word swings several-fold with table density. The whole-file numbers are guidelines. An oversize file is a signal to check what is load-bearing and where it sits, not a defect — never trim load-bearing content to hit a number.
 
 The lint therefore measures **growth, not absolute size**: `tests/authoring/skill-size-baseline.txt` records the size each skill was last accepted at, and the warning fires only when a file exceeds its own record (or an unrecorded file exceeds the guideline). Accept a load-bearing growth with `bash tests/authoring/lint-skills.sh --accept <path>`, which rewrites only the row you name; the blanket `--update-baseline` silently accepts every neighbour that grew, so save it for a repo-wide pass where every row is meant. Accept after a trim too — `tests/authoring/lint-size-ratchet.sh` fails on a row recorded above its file's real size, since a stale-high row re-permits that much unreviewed growth.
 
@@ -28,6 +28,7 @@ The lint therefore measures **growth, not absolute size**: `tests/authoring/skil
 - **Depth ≤ 1 hop from SKILL.md to reference / helper.** SKILL.md may link to `*-reference.md` or to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/*.md`. Those targets may not link back into another skill body for runtime instructions — cross-skill coordination lives in `_shared/`. **Inside `_shared/`, peers cross-link freely**: it is a flat namespace whose helpers navigate among themselves, and the 1-hop ceiling constrains the SKILL → reference edge only. Claude does partial reads on transitively-discovered files, so chains past ~3 hops to a leaf degrade — avoid those.
 - **TOC required** for any file over ~1,200 words **that is Read at runtime** — SKILL.md bodies, `*-reference.md`, `_shared/*.md`. Place a 5-15 line "Contents" block right after the H1 so partial-read previews see the full scope. `agents/*.md` are exempt: injected in full, so there is no preview for a TOC to widen and the bullets cost their tokens on every spawn.
 - **Single source of truth.** Pseudo-code blocks, slot tables, and schema definitions live in exactly one file. Cross-reference the source; never inline a copy.
+- **One exemption — the turn-boundary rule** is inlined verbatim in every pipeline `SKILL.md` instead of referenced, and the lint's cross-file duplication warning is expected to name it. Across 20 measured `/geniro:implement` runs, `_shared/loop-invariants.md` was read 0 times and `gate-rendering.md` once: a rule behind a pointer the run never opens does not exist at runtime. Keep the copies in step when editing one, and re-measure that the target is actually read before collapsing any of them back to a citation.
 
 ### Reference classes
 
@@ -48,7 +49,7 @@ Where a contract's *shape* can carry a rule, prefer that to prose stating the ru
 
 - **Enumerate instead of demonstrating.** Listing a field's legal values (`confirmed` / `clarified` / `refuted` / `unverified`) teaches usage without a worked example, and without constraining the model to the one case the example showed.
 - **Name the field for what it does.** A name implying a behavior the field lacks costs more than it saves: every consumer then needs a sentence undoing the implication, and those sentences are what drift.
-- **Let the tool surface state the boundary where the surface actually is one.** A plugin-defined agent's own `tools:` frontmatter withholds a tool outright, so it expresses read-only discipline structurally — the Agent tool itself takes no `tools=` or `disallowedTools=` argument, so a spawn cannot restrict a generic subagent this way. A skill's `allowed-tools` does not withhold anything either: it pre-approves tools for the turn so they skip a permission prompt, and an unlisted tool stays callable. So a skill's read-only rule is prose plus the PreToolUse hooks, and citing its `allowed-tools` as enforcement states a guarantee the field never made. Keep prose for what no surface expresses — a `Bash`-issued `git push` is not covered by withholding `Edit`.
+- **Let the tool surface state the boundary where the surface actually is one.** A plugin-defined agent's own `tools:` frontmatter withholds a tool outright, so it expresses read-only discipline structurally — the Agent tool itself takes no `tools=` or `disallowedTools=` argument, so a spawn cannot restrict a generic subagent this way. A skill's `allowed-tools` does not withhold anything either: it pre-approves tools for the turn so they skip a permission prompt, and an unlisted tool stays callable. So a skill's read-only rule is prose, and citing its `allowed-tools` as enforcement states a guarantee the field never made. Keep prose for what no surface expresses — a `Bash`-issued `git push` is not covered by withholding `Edit`.
 - **Return the value instead of asking the caller to remember it.** A helper that echoes its own result needs no rule telling callers to echo it.
 - **A slot buys auditability, not depth.** A required output section reliably comes back filled, which makes a step's output checkable; it does not make the work behind it deeper (`skill-prose.md` §What adding instructions buys). Add one to expose what a step did, never to raise how well it did it.
 
@@ -61,20 +62,22 @@ When you find yourself writing a second sentence to clarify how a field should b
 ```yaml
 ---
 name: <slug>                       # bare slug — Claude Code prefixes the plugin name (`geniro`)
-description: "Use when ..."        # third-person, what + when, slightly pushy, <=1024 chars, no XML
+description: "Use when ..."        # third-person, trigger + optional "Skip for ...", <=250 chars, no XML
 context: main                      # or fork (for subagent-isolation skills)
-model: inherit                     # default; per ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md
+model: inherit                     # always inherit (agents too); the cost class is set at the spawn site — ${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md §Cost classes
 allowed-tools: [Read, Write, ...]  # explicit allowlist
 argument-hint: "[shape | empty]"   # one-line cue
 ---
 ```
 
-Description rules:
+All six fields are required; `tests/authoring/lint-skills.sh` (check 1b) fails a SKILL.md missing one. The single exception is `/geniro:actions`, which declares no `allowed-tools` — the field only pre-approves tools and never restricts them, and an action's own steps decide which tools a run needs.
+
+Description rules — every description loads into every session's skill listing, so each word is paid on every turn:
 1. **Third person.** Good: "Processes Excel files." Bad: "I can help you" / "You can use this."
-2. **What + when.** Don't describe behavior without saying when to invoke.
-3. **Slightly pushy** — lead with `Use when <trigger phrase>.` to combat under-triggering.
-4. **No reserved words** (`anthropic`, `claude`) in `name:`.
-5. **No XML tags** anywhere in the description.
+2. **≤250 characters, "Use when …" opener, optional "Skip for …" tail.** One trigger per branch; cut identity and process summary the body already carries.
+3. **No reserved words** (`anthropic`, `claude`) in `name:`.
+4. **No XML tags** anywhere in the description.
+5. **Hand-only skills** — one that only ever starts by hand (no other skill invokes it inline) — set `disable-model-invocation: true` so its description stops loading every session. A skill another skill hands off to stays model-invoked.
 
 ### `maxTurns` on agent frontmatter
 
@@ -108,7 +111,7 @@ Sections 1-9 are the spine — what the model checks every turn and what has to 
 |---|---|---|
 | Reference a sibling skill | `/geniro:plan` | `skills/plan/SKILL.md:319` |
 | Reference a phase | `/geniro:plan Phase 5` | `plan-loop.md:319-322` |
-| Reference a sub-step | content-anchored: "the Phase 4.3 F→P invariant" | "step at line 350" |
+| Reference a sub-step | content-anchored: "the implement Phase 3 F→P invariant" | "step at line 350" |
 | Reference a shared helper | `${CLAUDE_PLUGIN_ROOT}/skills/_shared/<name>.md` | bare filename without root |
 | Reference an agent contract | `${CLAUDE_PLUGIN_ROOT}/agents/<name>.md` §Output Format — open the agent and cite the heading it carries | line-numbered ref |
 
@@ -124,8 +127,8 @@ Each row is `| reasoning the model might generate | why that reasoning is wrong 
 
 ## Pre-commit verification
 
-1. **Run `bash tests/authoring/lint-skills.sh`.** It hard-fails on non-Latin text, dangling `${CLAUDE_PLUGIN_ROOT}` references, and unknown spawn names; it warns on anti-rationalization tables over 15 rows, line-number cross-refs, and any SKILL.md grown past its recorded size. Read a growth warning as "check what is load-bearing and where it sits", not "cut until the number goes away" — then `--accept <path>` for that file alone.
+1. **Run `bash tests/authoring/lint-skills.sh`.** It hard-fails on non-English letters, missing SKILL.md frontmatter fields, dangling `${CLAUDE_PLUGIN_ROOT}` references, and unknown spawn names; it warns on anti-rationalization tables over 15 rows, line-number cross-refs, and any SKILL.md grown past its recorded size. Read a growth warning as "check what is load-bearing and where it sits", not "cut until the number goes away" — then `--accept <path>` for that file alone.
 2. **Reference depth.** Any file this edit makes a skill cite must not itself pull runtime instructions from another skill's body (§Reference graph).
 3. **TOC presence.** A runtime-Read file past ~1,200 words has a Contents block near the top. `agents/*.md` are exempt.
 4. **No pseudo-code duplication.** A block added to SKILL.md must not also live in the sibling reference file.
-5. **Frontmatter description** is third-person, "Use when …" form, within the length limit.
+5. **Frontmatter description** is third-person, "Use when …" form, within the 250-character budget.

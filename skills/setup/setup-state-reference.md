@@ -11,12 +11,15 @@ Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1
 tier: T1.5
 producer: setup
 schema-version: 1
-branch: <git-branch> # may be empty if not a git repo
+# detached-unknown when the project is not a git repo — the validator rejects an empty branch
+branch: <git-branch>
 timestamp: 2026-05-19T14:32:00Z # last-updated ISO-8601 UTC
 phase: detect # pre-flight|detect|interview|generate|validate|done|failed
 status: in-progress # in-progress|done|failed
-non-resumable-actions: [] # typically empty (/geniro:setup ships no external sends)
-approvals: [] # no preference questions; AUQ-only for detection confirm + onboard prompt
+# typically empty (/geniro:setup ships no external sends)
+non-resumable-actions: []
+# no preference questions; AUQ-only for detection confirm + onboard prompt
+approvals: []
 geniro_kind: setup-state
 geniro_schema_version: m10a-v1
 worktree: /absolute/path # cross-check on rehydration

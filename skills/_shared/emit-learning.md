@@ -65,7 +65,7 @@ The bookkeeping types (`retry_failure_sequence`, `discarded_hypothesis`) accumul
 
 **On overflow, flip the oldest matching entry's `deprecated: true` BEFORE appending the new one.** That mutates an existing line in `.geniro/knowledge/learnings.jsonl`, which the append-only helper does not do — rewrite the file per the JSONL locked-rewrite exception in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §When to use, never a direct `Edit`/`Write` (those truncate and rewrite in place, so a crash mid-write leaves a partial log). Prune before appending: appending first leaves the window over-full for any reader that queries in between.
 
-Hold the shared knowledge-rewrite lock across the read-modify-write — the same one the archival path and the access-counter bump take. A whole-file rewrite that skips it silently discards every append another session made between the read and the rename.
+Hold the shared knowledge-rewrite lock across the read-modify-write — the same one the archival path and the access-counter bump take. The lock keeps rewriters from overwriting each other; it does not stop appends, because `emit_learning` never takes it, so a line can land between your read and your rename. Read only the first N bytes (`n=$(_geniro_log_size "$log")`, then `head -c "$n"`) and run `_geniro_log_carry_appends "$log" "$tmp" "$n"` just before the rename — both in `${CLAUDE_PLUGIN_ROOT}/lib/lock-reclaim.sh`, as `archive-stale` and `record_access` do. A rewrite without that step silently discards every append made between its read and its rename; an append landing between the carry and the rename can still be lost, so keep that gap to the single `mv`.
 
 That lock is a **directory**, created with `mkdir "<repo-root>/.geniro/knowledge/.archive-stale.lock"` and released with `rmdir` on exit; `mkdir` failing IS the "already held" signal, which is what makes the acquisition atomic. The mechanism is load-bearing, not an implementation detail: creating a *file* at that path leaves `mkdir` failing forever while the staleness check (`[ -d ]`) never sees a lock to reclaim, so every later rewrite in the repo wedges. When the lock is already held, skip the prune and append anyway — an over-full window self-corrects at the next emit, whereas a clobbered append is unrecoverable.
 
@@ -128,7 +128,7 @@ The counter rides the supersede chain (absent counts as `1`), so a first re-emit
 
 ## Per-line byte ceiling
 
-A JSONL line over the append helper's ceiling aborts with rc=68 rather than risk a torn write; the value (`GENIRO_APPEND_MAX_BYTES`) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`. The ceiling bounds line length but is not an atomicity guarantee — `PIPE_BUF` is 4096 on Linux and only 512 on macOS (see that file's §Known limitations). Keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put large content in a separate file referenced by `scope`.
+A JSONL line over the append helper's ceiling aborts with rc=68 rather than risk a torn write; the value (`GENIRO_APPEND_MAX_BYTES`) is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` §`atomic_state_append <target>`. The ceiling bounds line length but is not an atomicity guarantee — the platform's `PIPE_BUF` is the real bound (same section). Keep `body` short (≤ ~3.5KB), use `links` for full PRs/commits instead of inlining diffs, and put large content in a separate file referenced by `scope`.
 
 ## Example callers
 

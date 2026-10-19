@@ -64,7 +64,7 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 
 ## Read-side status
 
-`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `refactor_intentional` entries have one too — `/geniro:refactor` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag refactor_intentional`) and §1.5 skips those patterns. `approach_choice`, `ship_mode`, and `library_adoption` entries accumulate with no reader.
+`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `refactor_intentional` entries have one too — `/geniro:refactor` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag refactor_intentional`) and §1.5 skips those patterns. `approach_choice` entries have one — `/geniro:plan` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag approach_choice`) and the approach step re-ranks or omits a previously-rejected approach. `ship_mode` and `library_adoption` entries accumulate with no reader.
 
 ## Example flow
 

@@ -11,6 +11,7 @@ State.md `phase: section-approve` during this phase.
 - 5.1 Section template — the required sections and their order
 - 5.2 Cluster authoring — dependency order, public surface, test seams, tier-scaling, concrete example per section type
 - 5.3 Milestone-mode
+- 5.4 Transition
 
 ### 5.1 Section template
 
@@ -30,7 +31,7 @@ Group the section schema into 3 dependency-ordered clusters, authored in order:
 | 2 | Approach & steps | 4 Assumptions, 5 Risks, 6 Steps, 7 Tools Required |
 | 3 | Safety & done | 8 Approval Points, 9 Validation, 10 Rollback-Recovery, 11 Done Condition |
 
-Author cluster N+1 grounded in cluster N's content, and all three before Phase 6. No approval question fires in this phase — Phase 8 renders every cluster for the one final approval (§8.2). A Phase 8 revision round re-enters here: apply only the newest `revision_request` entry in `approvals[]` (earlier ones are already in the sections) to the sections it names and the sections that depend on them.
+Author cluster N+1 grounded in cluster N's content, and all three before Phase 6. No question gates the section content — Phase 8 renders every cluster for the one final approval (§8.2); the only questions in this phase are the §5.3 milestone ones. A Phase 8 revision round re-enters here: apply only the newest `revision_request` entry in `approvals[]` (earlier ones are already in the sections) to the sections it names and the sections that depend on them.
 
 Author each cluster's sections inline using Phase 1 research + Phase 3 clarifying answers + Phase 4 picked approach + Phase 2's `## UI Preview`, read against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: approved text is substrate; the routed-out sentinel means Phase 2 ran but produced nothing to build from, so author as if Phase 2 never fired; the heading absent, or present but bare, means the producing step's outcome is unknown — re-check the §2.1 trigger against Phase 1's research before authoring as no-UI, since a Phase 2 that ran and skipped its own exit-condition write would otherwise read identically to a task with no UI at all. Cluster 2's section 4 (Assumptions) starts from the Phase 3 termination ledger — one checkable predicate per branch the grill closed without an answer (a `pending: <owner>` branch keeps its `pending:` line) — plus any further premise the picked approach rests on.
 
@@ -58,3 +59,7 @@ Author each cluster's sections inline using Phase 1 research + Phase 3 clarifyin
 ### 5.3 Milestone-mode
 
 Fires BEFORE Phase 6 entry when the canonical milestone-output condition in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` is met (the Big-tier milestone threshold). AUQ header "Milestones" with options "Slice into milestones" (Recommended for Big) and "Keep as a single spec"; persist to `approvals[]` with category `milestone_slice` on EITHER pick, recording which was chosen — a Phase 7.5 milestone re-open (§7.5) reads this entry's presence, so "Keep as a single spec" has to settle the decision as durably as "Slice" does. On slice pick, a follow-up renders 3-7 milestones with each one's deliverable and `blocked_by`, then asks Approve / Merge / Split (header "Breakdown", distinct from this step's "Milestones" question) until approved, persisting the approval to `approvals[]` with category `milestone_breakdown`; Phase 6 emits sibling `milestone-N.md` files alongside spec.md. Handoff (Phase 9) then prints `/geniro:implement .geniro/planning/<slug>/milestone-1.md`. Full AUQ shape + follow-up procedure in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §4.
+
+### 5.4 Transition
+
+With all three clusters authored, and §5.3 settled whenever it fires, write `phase: write-spec` via `atomic_state_set_field` and proceed to Phase 6.

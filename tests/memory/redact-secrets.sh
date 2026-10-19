@@ -101,6 +101,38 @@ assert_eq "$(redact 'ghp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AB')" \
           '[REDACTED:api-key:github]' \
           'api-key:ghp'
 
+# The other GitHub token families (`gh auth token` prints gho_) and npm tokens.
+# Values are obviously fake; only the prefix and body shape matter.
+new_sandbox
+assert_eq "$(redact 'gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000')" \
+          '[REDACTED:api-key:github]' \
+          'api-key:gh-other — gho_ (OAuth token, what `gh auth token` prints)'
+
+new_sandbox
+assert_eq "$(redact 'ghs_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000')" \
+          '[REDACTED:api-key:github]' \
+          'api-key:gh-other — ghs_ (server-to-server token)'
+
+new_sandbox
+assert_eq "$(redact 'ghu_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000')" \
+          '[REDACTED:api-key:github]' \
+          'api-key:gh-other — ghu_ (user-to-server token)'
+
+new_sandbox
+assert_eq "$(redact 'ghr_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000')" \
+          '[REDACTED:api-key:github]' \
+          'api-key:gh-other — ghr_ (refresh token)'
+
+new_sandbox
+assert_eq "$(redact 'npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000')" \
+          '[REDACTED:api-key:npm]' \
+          'api-key:npm — npm_ access token (36 alphanumerics)'
+
+new_sandbox
+assert_eq "$(redact 'token=gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000 npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000 done')" \
+          'token=[REDACTED:api-key:github] [REDACTED:api-key:npm] done' \
+          'api-key:gh-other + api-key:npm — both fire in one input, surrounding text intact'
+
 new_sandbox
 assert_eq "$(redact 'xoxb-12345-67890-ABCDEFGHIJKLMNOPQRSTUVWX')" \
           '[REDACTED:api-key:slack-bot]' \
@@ -190,6 +222,13 @@ assert_eq "$(redact 'the task-dir path is set correctly')" \
           'the task-dir path is set correctly' \
           'false-positive — sk- inside task-dir left alone (118x in this repo)'
 
+# `npm_` also opens ordinary npm environment-variable names; the 36-char tail
+# floor is what keeps them out of the match.
+new_sandbox
+assert_eq "$(redact 'echo $npm_config_registry and npm_package_version and npm_lifecycle_event')" \
+          'echo $npm_config_registry and npm_package_version and npm_lifecycle_event' \
+          'false-positive — npm_config_* / npm_package_* env-var names left alone'
+
 new_sandbox
 assert_eq "$(redact 'visit https://example.com/docs for more info')" \
           'visit https://example.com/docs for more info' \
@@ -253,6 +292,59 @@ case "$out" in
   *'[REDACTED:'*'[REDACTED'*) fail "sk-ant nested label (got '$out')" ;;
   *) pass "sk-ant precedence — no nested REDACTED label" ;;
 esac
+
+# ---------------------------------------------------------------------------
+# Locale: an invalid UTF-8 byte must not defeat redaction. Under a UTF-8 locale
+# BSD sed and tr abort on the byte; the guarded sed assignment then keeps the
+# UNREDACTED input. The helper pins LC_ALL=C for its own grep/sed/tr calls.
+# ---------------------------------------------------------------------------
+
+utf8_avail="$(locale -a 2>/dev/null)"
+utf8_locale=""
+for cand in en_US.UTF-8 en_US.utf8 C.UTF-8 C.utf8; do
+  case $'\n'"$utf8_avail"$'\n' in
+    *$'\n'"$cand"$'\n'*) utf8_locale="$cand"; break ;;
+  esac
+done
+
+# Run redact under the UTF-8 locale in a subshell (the locale never leaks into
+# the rest of the suite). Input is a printf format so tests can embed \xff.
+redact_utf8() {
+  local in
+  in="$(printf "$1")"
+  ( export LC_ALL="$utf8_locale"; printf '%s' "$in" | redact_secrets test-producer test-field test-key )
+}
+
+fake_gh='ghp_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE0000'
+
+if [ -z "$utf8_locale" ]; then
+  echo "SKIP: no UTF-8 locale installed — invalid-byte cases not exercised"
+else
+  new_sandbox
+  assert_eq "$(redact_utf8 "x\\xffy $fake_gh z"; echo x)" \
+            "$(printf 'x\xffy [REDACTED:api-key:github] z'; echo x)" \
+            "invalid byte — token on the SAME line still redacts under $utf8_locale"
+
+  new_sandbox
+  assert_eq "$(redact_utf8 "bad \\xff byte\\n$fake_gh"; echo x)" \
+            "$(printf 'bad \xff byte\n[REDACTED:api-key:github]'; echo x)" \
+            "invalid byte — token on ANOTHER line still redacts under $utf8_locale"
+
+  new_sandbox
+  assert_eq "$(redact_utf8 'a\xffb\n-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----\nafter'; echo x)" \
+            "$(printf 'a\xffb\n[REDACTED:private-key]\nafter'; echo x)" \
+            "invalid byte — multiline PEM branch redacts and keeps the text after it under $utf8_locale"
+
+  new_sandbox
+  assert_eq "$(redact_utf8 "caf\\xc3\\xa9 $fake_gh z"; echo x)" \
+            "$(printf 'caf\xc3\xa9 [REDACTED:api-key:github] z'; echo x)" \
+            "valid multibyte text survives next to a redacted token under $utf8_locale"
+
+  new_sandbox
+  caller_locale="$(export LC_ALL="$utf8_locale"; printf '%s' 'x' | redact_secrets t f k >/dev/null; printf '%s' "$LC_ALL")"
+  assert_eq "$caller_locale" "$utf8_locale" \
+            "caller's LC_ALL is untouched by redact_secrets (the pin is per-command)"
+fi
 
 # ---------------------------------------------------------------------------
 # Audit log

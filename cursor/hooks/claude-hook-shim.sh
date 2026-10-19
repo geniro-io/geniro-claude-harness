@@ -120,14 +120,17 @@ fi
 # The script's stderr is the block reason. Without the /dev/null fallback a
 # failed mktemp turns the `2>"$STDERR_FILE"` redirect below into an error that
 # skips the script, so a guard would never run; with it, only the reason text
-# is lost and the generic deny message covers that. The trap carries INT and
-# TERM too: Cursor kills a hook that overruns its timeout, and a signal death
-# skips an EXIT-only trap.
+# is lost and the generic deny message covers that. INT and TERM exit as well as
+# clean up: Cursor kills a hook that overruns its timeout, a trap that only
+# cleaned up would let the shim carry on and answer after the kill, and a signal
+# death skips an EXIT-only trap. The exit runs the EXIT trap.
 STDERR_FILE="$(mktemp 2>/dev/null || true)"
 if [ -z "$STDERR_FILE" ] || [ ! -f "$STDERR_FILE" ]; then
   STDERR_FILE="/dev/null"
 fi
-trap '[ "$STDERR_FILE" = "/dev/null" ] || rm -f "$STDERR_FILE"' EXIT INT TERM
+trap '[ "$STDERR_FILE" = "/dev/null" ] || rm -f "$STDERR_FILE"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # A here-string, not a pipe: RC must be the script's own exit status. Under
 # pipefail a script that exits before draining stdin kills the writer with

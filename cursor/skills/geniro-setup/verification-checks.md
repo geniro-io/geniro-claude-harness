@@ -15,7 +15,7 @@ The orchestrator reads it too, at Phase Generate: §Excluded content is the sing
 - Geniro skill table (already in plugin SKILL.md files)
 - Path rules / `~` expansion warning (already in plugin CLAUDE.md)
 - Safety hooks summary or allowlist (already in plugin hooks/)
-- MCP dependencies table (already in plugin settings.json)
+- MCP dependencies table (already in the plugin's `${CLAUDE_PLUGIN_ROOT}/ARCHITECTURE.md` §Optional MCP companions)
 - Agent invocation ladder (already in plugin spawn-agent.md)
 - Updating instructions (already in plugin update/SKILL.md)
 - Any `<!-- geniro-setup-managed -->` markers (CLAUDE.md is user-owned)

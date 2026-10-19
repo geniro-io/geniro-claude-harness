@@ -22,4 +22,4 @@ All three callers detect the same four the same way, and they must: implement an
 
 The set is fixed. There is no `protected_branches` key and no reader for one — `.geniro/safety.json`'s `allow_patterns` only waives the force-add guard's bypass ID. A skill that offers to honor a per-project override is promising a configuration surface that does not exist, which is worse than silence: the user edits a file, nothing changes, and the failure is invisible.
 
-No per-project setting adds a branch to the set. If a real override is ever wanted, it needs a key, a reader in every consuming skill, and a row here — not a parenthetical in one skill's table.
+No per-project setting adds a branch to the set.

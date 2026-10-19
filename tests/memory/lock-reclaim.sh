@@ -43,6 +43,15 @@ check "empty override falls back"        "600" "$(GENIRO_LOCK_RECLAIM_SECS='' _g
 check "negative override falls back"     "600" "$(GENIRO_LOCK_RECLAIM_SECS=-30 _geniro_lock_reclaim_secs)"
 check "float override falls back"        "600" "$(GENIRO_LOCK_RECLAIM_SECS=1.5 _geniro_lock_reclaim_secs)"
 check "whitespace override falls back"   "600" "$(GENIRO_LOCK_RECLAIM_SECS='6 00' _geniro_lock_reclaim_secs)"
+# Zero would make every lock older than a second "stale" (a live writer's lock
+# stolen); an overlong digit string overflows the shell's arithmetic and wraps
+# negative (reclaim never fires). Both fall back; the longest accepted value is 9 digits.
+check "zero override falls back"         "600" "$(GENIRO_LOCK_RECLAIM_SECS=0 _geniro_lock_reclaim_secs)"
+check "all-zero override falls back"     "600" "$(GENIRO_LOCK_RECLAIM_SECS=000 _geniro_lock_reclaim_secs)"
+check "10-digit override falls back"     "600" "$(GENIRO_LOCK_RECLAIM_SECS=1234567890 _geniro_lock_reclaim_secs)"
+check "overflowing override falls back"  "600" "$(GENIRO_LOCK_RECLAIM_SECS=99999999999999999999 _geniro_lock_reclaim_secs)"
+check "1 is the smallest honoured value" "1"   "$(GENIRO_LOCK_RECLAIM_SECS=1 _geniro_lock_reclaim_secs)"
+check "9-digit override is honoured"     "123456789" "$(GENIRO_LOCK_RECLAIM_SECS=123456789 _geniro_lock_reclaim_secs)"
 
 # The sanitized value must survive as an integer test operand — the failure mode
 # the sanitation exists to prevent is `[ -gt ]` erroring on a junk value.
@@ -79,6 +88,12 @@ _geniro_lock_reclaim_secs")"
 _geniro_lock_reclaim_secs")"
   check "inline fallback honours a numeric override" "45" \
     "$(GENIRO_LOCK_RECLAIM_SECS=45 bash -c "$FALLBACK
+_geniro_lock_reclaim_secs")"
+  check "inline fallback rejects zero like the helper" "600" \
+    "$(GENIRO_LOCK_RECLAIM_SECS=0 bash -c "$FALLBACK
+_geniro_lock_reclaim_secs")"
+  check "inline fallback rejects an overlong digit string like the helper" "600" \
+    "$(GENIRO_LOCK_RECLAIM_SECS=99999999999999999999 bash -c "$FALLBACK
 _geniro_lock_reclaim_secs")"
 fi
 

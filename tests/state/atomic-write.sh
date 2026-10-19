@@ -932,6 +932,18 @@ else
   fail "NUL file: set_field rc=$rc_s edit rc=$rc_e, bytes $before_bytes -> $after_bytes"
 fi
 
+# An empty target holds no anchor, so the edit is rc 71 — not a silent rc 0 over
+# nothing (awk, given zero records, never ran the replacement rule).
+target="$TMPDIR/edit-empty.md"
+: > "$target"
+atomic_state_edit "$target" "anything" "else" 2>/dev/null
+rc=$?
+if [ "$rc" -eq 71 ] && [ ! -s "$target" ]; then
+  pass "atomic_state_edit — an empty file → rc 71, file still empty"
+else
+  fail "atomic_state_edit — empty file: rc=$rc (want 71), size $(wc -c < "$target" | tr -d ' ')"
+fi
+
 # ---------------------------------------------------------------------------
 # atomic_state_append_section / atomic_state_append_list_item
 # ---------------------------------------------------------------------------
@@ -1094,6 +1106,41 @@ else
 $(cat "$target")"
 fi
 
+# --create in ANY position (call sites write it before the target as well as after
+# the text). Read only as a fourth positional, the leading form took `--create` for
+# the target path and failed rc 73 without writing the section.
+target="$TMPDIR/sec8.md"
+mk_state "$target"
+atomic_state_append_section --create "$target" "## Deferred Findings" "- F1" 2>/dev/null
+rc1=$?
+atomic_state_append_section "$target" --create "## Deferred Findings" "- F2" 2>/dev/null
+rc2=$?
+atomic_state_append_section "$target" "## Deferred Findings" "- F3" --create 2>/dev/null
+rc3=$?
+entries=$(awk '/^## Deferred Findings$/{f=1;next} /^## /{f=0} f && /^- /{printf "%s|", $0}' "$target")
+if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && [ "$rc3" -eq 0 ] && [ "$entries" = "- F1|- F2|- F3|" ] \
+   && [ "$(awk '$0 == "## Deferred Findings" {c++} END {print c+0}' "$target")" -eq 1 ]; then
+  pass "append_section — --create works leading, between the arguments, and trailing"
+else
+  fail "append_section --create positions: rc=$rc1/$rc2/$rc3 entries='$entries'"
+fi
+
+# A flag-first call without the section still never invents one when --create is
+# absent, and the flag alone is a caller error (no target), not a file named --create.
+target="$TMPDIR/sec9.md"
+mk_state "$target"
+before="$(cat "$target")"
+atomic_state_append_section "$target" "## Nope" "- x" 2>/dev/null
+rc_missing=$?
+( cd "$TMPDIR" && atomic_state_append_section --create 2>/dev/null )
+rc_flag_only=$?
+if [ "$rc_missing" -eq 77 ] && [ "$(cat "$target")" = "$before" ] && [ "$rc_flag_only" -eq 64 ] \
+   && [ ! -e "$TMPDIR/--create" ]; then
+  pass "append_section — no flag keeps rc 77; the bare flag is rc 64 and creates no file"
+else
+  fail "append_section --create edge cases: missing rc=$rc_missing (want 77), flag-only rc=$rc_flag_only (want 64)"
+fi
+
 # --- atomic_state_append_list_item -----------------------------------------
 
 # An empty inline list becomes a block list carrying the item, indented for YAML.
@@ -1178,6 +1225,50 @@ if [ "$rc" -eq 74 ] && [ "$(cat "$target")" = "$before" ]; then
   pass "append_list_item — a body key of the same name is not touched (rc 74)"
 else
   fail "append_list_item — body key: rc=$rc (want 74)"
+fi
+
+# A trailing YAML comment is not part of the value. Templates annotate the empty
+# list (`approvals: []  # why`); read as a scalar, that line refused every later
+# append with rc 79 while validate_state_file passed the same file.
+target="$TMPDIR/li7.md"
+printf -- '---\ntier: T1.5\nphase: explore\nnon-resumable-actions: [] # appended after each push\napprovals: []   # appended after each answer\nopen: # block list follows\n  - a: 1\n---\n\nbody\n' > "$target"
+atomic_state_append_list_item "$target" approvals 'category: c1
+picked: "P"'
+rc_a1=$?
+atomic_state_append_list_item "$target" approvals 'category: c2
+picked: "Q"'
+rc_a2=$?
+atomic_state_append_list_item "$target" non-resumable-actions 'pushed x'
+rc_n=$?
+atomic_state_append_list_item "$target" open 'b: 2'
+rc_o=$?
+if [ "$rc_a1" -eq 0 ] && [ "$rc_a2" -eq 0 ] && [ "$rc_n" -eq 0 ] && [ "$rc_o" -eq 0 ] \
+   && grep -qxF -- 'approvals:' "$target" \
+   && grep -qxF -- '  - category: c1' "$target" \
+   && grep -qxF -- '  - category: c2' "$target" \
+   && grep -qxF -- 'non-resumable-actions:' "$target" \
+   && grep -qxF -- '  - pushed x' "$target" \
+   && ! grep -q -- '\[\] *#' "$target" \
+   && [ "$(awk '/^open:/{f=1;next} /^---$/{f=0} f' "$target" | grep -c '^  - ')" -eq 2 ]; then
+  pass "append_list_item — a key annotated with a trailing comment ([] or bare) takes appends"
+else
+  fail "append_list_item — commented list values: rc=$rc_a1/$rc_a2/$rc_n/$rc_o
+$(cat "$target")"
+fi
+
+# A comment must not turn a real scalar into a list, and a non-empty inline list
+# with a comment is still a scalar to this helper.
+target="$TMPDIR/li8.md"
+printf -- '---\ntier: T1.5\nphase: explore # not a list\ntags: [a, b] # inline items\n---\n' > "$target"
+before="$(cat "$target")"
+atomic_state_append_list_item "$target" phase 'x: 1' 2>/dev/null
+rc_p=$?
+atomic_state_append_list_item "$target" tags 'x: 1' 2>/dev/null
+rc_t=$?
+if [ "$rc_p" -eq 79 ] && [ "$rc_t" -eq 79 ] && [ "$(cat "$target")" = "$before" ]; then
+  pass "append_list_item — a commented scalar or non-empty inline list is still refused (rc 79)"
+else
+  fail "append_list_item — commented scalar: rc=$rc_p/$rc_t (want 79/79)"
 fi
 
 # Missing arguments are caller errors, like every sibling function.
@@ -1297,6 +1388,40 @@ else
   fail "atomic_state_append_list_item under caller's set -e — rc=$rc leftover=$leftover"
 fi
 
+# --- Per-file sync probe (T4-55) ------------------------------------------
+#
+# Only Linux is probed. On BSD/macOS `sync --help` is not a help request: it runs a
+# real whole-disk sync, so probing there pays that cost at every source of the
+# library for an answer that is already "no per-file sync". Shim `uname` and `sync`
+# on PATH so the case runs the same on every host.
+shim="$TMPDIR/syncshim"
+mkdir -p "$shim"
+cat > "$shim/sync" <<SHIM
+#!/bin/sh
+echo "\$*" >> "$shim/sync.calls"
+[ "\$1" = "--help" ] && echo "  -d, --data  sync only file data, no unneeded metadata"
+exit 0
+SHIM
+printf '#!/bin/sh\necho Darwin\n' > "$shim/uname"
+chmod +x "$shim/sync" "$shim/uname"
+
+rm -f "$shim/sync.calls"
+has_d=$(PATH="$shim:$PATH" bash -c 'source "$1"; echo "$_ATOMIC_SYNC_HAS_D"' _ "$REPO_ROOT/lib/atomic-state-write.sh")
+if [ "$has_d" = "0" ] && [ ! -s "$shim/sync.calls" ]; then
+  pass "sync probe — on a non-Linux host no sync is executed while sourcing, no per-file sync assumed"
+else
+  fail "sync probe (Darwin): HAS_D=$has_d, sync calls: $(cat "$shim/sync.calls" 2>/dev/null)"
+fi
+
+printf '#!/bin/sh\necho Linux\n' > "$shim/uname"
+rm -f "$shim/sync.calls"
+has_d=$(PATH="$shim:$PATH" bash -c 'source "$1"; echo "$_ATOMIC_SYNC_HAS_D"' _ "$REPO_ROOT/lib/atomic-state-write.sh")
+if [ "$has_d" = "1" ] && grep -qx -- '--help' "$shim/sync.calls"; then
+  pass "sync probe — on Linux a GNU-style sync is detected from sync --help"
+else
+  fail "sync probe (Linux): HAS_D=$has_d, sync calls: $(cat "$shim/sync.calls" 2>/dev/null)"
+fi
+
 # --- Scale -----------------------------------------------------------------
 
 # The editors were quadratic: 21 s for one 200 KB replacement, past the default
@@ -1321,7 +1446,7 @@ echo "Tests failed: $TESTS_FAILED"
 
 # An expected total: deleting a case would otherwise report a smaller green run.
 # Update this number in the same commit that adds or removes a case.
-EXPECTED_TESTS=95
+EXPECTED_TESTS=102
 if [ "$TESTS_RUN" -ne "$EXPECTED_TESTS" ]; then
   echo "FAIL: expected $EXPECTED_TESTS assertions, ran $TESTS_RUN — a case was added or dropped without updating EXPECTED_TESTS" >&2
   exit 1

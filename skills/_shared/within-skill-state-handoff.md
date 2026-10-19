@@ -24,16 +24,11 @@ Two terminals open in the same `pwd` on different branches both write `.geniro/<
 The branch slug is the suffix on every within-skill state file path. Compute it once at producer-write time and again at consumer-read time; both sites must produce the same string, or the producer writes under one slug while the consumer reads from another and silently misses the state file.
 
 ```bash
-branch="$(git branch --show-current 2>/dev/null)"
-if [ -z "$branch" ]; then
- branch="detached-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-fi
-slug="$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+##; s#-+$##')"
-slug="${slug:0:60}"
-slug="${slug%-}"
+source "${CLAUDE_PLUGIN_ROOT}/lib/branch-slug.sh"
+slug="$(_geniro_branch_slug)"    # the current branch; pass a branch name to derive from that one instead
 ```
 
-This derivation is single-sourced for shell consumers in `${CLAUDE_PLUGIN_ROOT}/lib/branch-slug.sh` (`_geniro_branch_slug`); the session-start-restore hook sources it (with an inline fallback for vendored installs). The block above is the canonical spec an orchestrator follows when it computes the slug itself.
+`${CLAUDE_PLUGIN_ROOT}/lib/branch-slug.sh` is the only home of the derivation, so a producer and the session-start-restore hook (which sources it, with an inline fallback for vendored installs) cannot disagree. It lowercases the branch, collapses each run of non-alphanumeric characters to one dash, strips leading and trailing dashes, truncates to 60 characters, and strips a dash the truncation leaves at the boundary. A detached HEAD slugs as `detached-<short-sha>`.
 
 When `git` is unavailable or the project isn't a git repo, the fallback chain produces slug `detached-unknown` — the file still works for single-session use; collision is impossible without branches.
 
@@ -107,7 +102,7 @@ put those changes somewhere they weren't meant to go.
  2. **"Discard and start fresh on <current-branch>"** — delete the conflicting state file; begin a new pipeline scoped to current branch.
  3. **"Continue anyway"** — proceed; changes will land on `<current-branch>` regardless of what the state file claims. WARN that downstream cross-references in the state file (e.g., `changed-files:`) may be wrong.
 
-**Case D — Non-scoped state file at an older path.** Surface a one-line migration note: `Old state file at <path>; scoping to current branch slug.` Then either (a) read it as if Case A/B/C using its frontmatter `branch:` field if present, or (b) treat as Case C if the file lacks a `branch:` field. After successful resume, the producer rewrites at the slug-scoped path on the next checkpoint, and the old file becomes orphaned (cleaned at next pipeline-end).
+**Case D — Non-scoped state file at an older path.** Surface a one-line migration note: `Old state file at <path>; scoping to current branch slug.` Then either (a) read it as if Case A/B/C using its frontmatter `branch:` field if present, or (b) treat as Case C if the file lacks a `branch:` field. After successful resume, the producer rewrites at the slug-scoped path on the next checkpoint, and the old file is left orphaned on disk — no pass removes it (§Cleanup contract, Old path cleanup).
 
 ## Cleanup contract
 

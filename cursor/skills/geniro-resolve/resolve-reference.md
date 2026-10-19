@@ -69,7 +69,7 @@ options:
 ```
 
 - `gh pr checkout <number>` handles both cases — on the PR branch but behind (fast-forwards), or not on the PR branch at all (creates/switches to it). It refuses on a dirty tree; when `git status --porcelain` is non-empty, chain the §5 dirty-tree offer from `branch-freshness.md` (stash → checkout → pop) rather than forcing it.
-- Fail-open: any non-zero `gh`/`git` exit → surface a one-line caveat ("Couldn't switch to the PR head — working against your current checkout; some comments may reference code you don't have locally, and any fix will land here rather than on the PR branch.") and proceed. Persist the pick to `approvals[]` (category `branch_freshness`).
+- Fail-open: any non-zero `gh`/`git` exit → surface a one-line caveat ("Couldn't switch to the PR head — working against your current checkout; some comments may reference code you don't have locally, and any fix will land here rather than on the PR branch.") and proceed. Hold the pick in memory and write it to `approvals[]` (category `branch_freshness`) when Phase 1 Step 3 creates state.md.
 
 Run this BEFORE the branch-vs-base offer (Step 2b): land on the PR head first, then bring that up to date with the base.
 
@@ -106,7 +106,7 @@ Two rules keep this from becoming a way to avoid work: a `decline` is only ever 
 
 - `multiSelect: true`; `question`: "Pick the changes to apply".
 - One option per `ask` item. `label`: the change in the user's terms ("Retry default 3 → 5"). `description`: one line naming the consequence and who is exposed to it. `preview`: empty or a one-line recap.
-- Past 4 items, chain per that file's §Cap-extension — never drop an item to fit the call.
+- Past the question tool's option cap, chain per that file's §Cap-extension — never drop an item to fit the call.
 
 The chat message that precedes it (§Message-first rendering in the same file) is the rendering surface, and it carries all three groups, in this order:
 
@@ -117,7 +117,7 @@ The chat message that precedes it (§Message-first rendering in the same file) i
 **The single-item gate — one call per ambiguous item.** Shape per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate. Options are the item's competing readings plus two standing aids:
 
 - **"Explain further"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option. Renders a deeper walkthrough and re-fires the same question; writes nothing, consumes no cap slot.
-- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (**session**) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate.
+- **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (**session**) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate; a `clarified` result is written back to the item and re-routes it, per `${CLAUDE_PLUGIN_ROOT}/skills/resolve/phase-2-decide.md` Step 6.
 
 Persist every pick to `approvals[]` (category `comment_decision`). An unpicked `ask` sets `picked: false` and stops there — no edit, no reply, thread untouched — and appears in the final report under what was left for the user.
 

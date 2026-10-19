@@ -14,7 +14,7 @@ Every audit-shaped skill runs under these. A consuming skill cites this section 
 6. **Every approved finding has an owner.** Before spawning fix agents, assert that the union of their finding lists equals the approved set, and echo any finding with no owner. A finding assigned to nobody is work the user approved and never received.
 7. **A whole mechanism is never removed on a blanket approval.** A subtraction proposal to delete an entire mechanic — a phase, gate, step, spawn, check, surface, or section — gets its own gate and its own explanation, whatever the user picked at the action gate. Every other finding changes something the user can inspect afterwards; a deleted gate leaves nothing behind to inspect, because the run that would have objected is the one removed.
 
-The consuming skill binds invariants 4, 5 and 7 to its own vocabulary — which list is the do-not-flag list, which dimension is the subtraction sweep, and what counts as a whole mechanism in its domain — beside its citation of this section.
+The consuming skill binds **The do-not-flag list is binding**, **Every run sweeps for subtraction** and **A whole mechanism is never removed on a blanket approval** to its own vocabulary — which list is the do-not-flag list, which dimension is the subtraction sweep, and what counts as a whole mechanism in its domain — beside its citation of this section.
 
 ## Finding output contract
 

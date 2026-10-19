@@ -1,6 +1,6 @@
 # `.gitignore` re-include — keep a `.geniro/` subdirectory committed
 
-Canonical procedure for keeping one or more `.geniro/` subdirectories tracked in git while the rest of that tree stays ignored. Consumers: `/geniro:setup` (the `workflow` + `instructions` directories it creates) and `/geniro:actions` (the `actions` directory). Define once here; each consumer passes its own directory list rather than inlining a second copy.
+Canonical procedure for keeping one or more `.geniro/` subdirectories tracked in git while the rest of that tree stays ignored. Consumers: `/geniro:setup` (the `workflow` + `instructions` directories it creates) and `/geniro:actions` (the `actions` directory). Each consumer passes its own directory list rather than inlining a second copy.
 
 ## Caller contract
 

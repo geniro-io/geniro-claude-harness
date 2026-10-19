@@ -25,6 +25,9 @@
 #      real one.
 #   4. Every hook the wiring exec's directly is tracked executable — a guard the
 #      OS refuses to run fails open exactly like one nothing registers.
+#   5. The force-add guard's PreToolUse matcher covers every tool that runs
+#      tool_input.command as a shell command (Bash and Monitor) — a tool left off
+#      the matcher is a tool the guard never sees.
 
 set -uo pipefail
 
@@ -180,6 +183,68 @@ for wiring in hooks/hooks.json cursor/hooks.json; do
 done
 if [ "$exec_checked" -gt 0 ] && [ "$FAILS" -eq "$exec_fails_before" ]; then
   echo "OK: $exec_checked directly-invoked hook script(s) are executable"
+fi
+
+# --- 5. The force-add guard is registered for every shell-executing tool ------
+# The guard reads tool_input.command, so any tool that runs that field as a shell
+# command needs the guard on its PreToolUse matcher. The guard was first matched
+# to `Bash` alone while Claude Code's `Monitor` tool ran commands it never saw.
+# Cursor has no such tool (its shell event is beforeShellExecution), so only
+# hooks/hooks.json is checked.
+SHELL_EXECUTING_TOOLS="Bash Monitor"
+GUARD_SCRIPT="block-geniro-force-add.sh"
+
+_matcher_covers() {  # <matcher> <tool>: Claude Code matches a tool name against the matcher as an anchored pattern
+  case "$1" in
+    ""|"*") return 0 ;;
+  esac
+  printf '%s' "$2" | grep -qE "^($1)\$"
+}
+
+_guard_coverage_gaps() {  # <hooks.json> -> one line per tool the guard's PreToolUse entries do not match
+  local matchers tool covered m
+  matchers="$(jq -r --arg s "$GUARD_SCRIPT" \
+    '.hooks.PreToolUse[]? | select(any(.hooks[]?; (.command // "") | contains($s))) | (.matcher // "")' "$1" 2>/dev/null)"
+  if ! jq -e --arg s "$GUARD_SCRIPT" \
+       'any(.hooks.PreToolUse[]?; any(.hooks[]?; (.command // "") | contains($s)))' "$1" >/dev/null 2>&1; then
+    echo "$GUARD_SCRIPT is not registered under PreToolUse at all"
+    return 0
+  fi
+  for tool in $SHELL_EXECUTING_TOOLS; do
+    covered=0
+    while IFS= read -r m || [ -n "$m" ]; do
+      _matcher_covers "$m" "$tool" && covered=1
+    done <<< "$matchers"
+    [ "$covered" -eq 1 ] || echo "$tool"
+  done
+}
+
+guard_gaps="$(_guard_coverage_gaps hooks/hooks.json)"
+if [ -n "$guard_gaps" ]; then
+  while IFS= read -r gap; do
+    report_fail "hooks/hooks.json: the $GUARD_SCRIPT PreToolUse matcher does not cover \`$gap\` — a shell-executing tool the guard never sees (add it to the matcher, e.g. \"Bash|Monitor\")"
+  done <<< "$guard_gaps"
+else
+  echo "OK: $GUARD_SCRIPT is registered for every shell-executing tool ($SHELL_EXECUTING_TOOLS)"
+fi
+
+# Self-test: a matcher that omits Monitor must be reported, one that lists it must not.
+_gap_probe="$(mktemp 2>/dev/null || true)"
+if [ -n "$_gap_probe" ]; then
+  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"x/block-geniro-force-add.sh"}]}]}}' > "$_gap_probe"
+  _gap_narrow="$(_guard_coverage_gaps "$_gap_probe")"
+  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash|Monitor","hooks":[{"type":"command","command":"x/block-geniro-force-add.sh"}]}]}}' > "$_gap_probe"
+  _gap_wide="$(_guard_coverage_gaps "$_gap_probe")"
+  printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"x/other.sh"}]}]}}' > "$_gap_probe"
+  _gap_missing="$(_guard_coverage_gaps "$_gap_probe")"
+  rm -f "$_gap_probe"
+  if [ "$_gap_narrow" = "Monitor" ] && [ -z "$_gap_wide" ] && printf '%s' "$_gap_missing" | grep -q 'not registered'; then
+    echo "OK: self-test — the matcher check flags a Bash-only matcher and an unregistered guard"
+  else
+    report_fail "self-test: the matcher check is not catching a guard that omits Monitor (narrow=[$_gap_narrow] wide=[$_gap_wide] missing=[$_gap_missing])"
+  fi
+else
+  echo "SKIP: self-test — could not create a probe file for the matcher check"
 fi
 
 # --- self-test: check 3 does not read untracked/ignored files -----------------

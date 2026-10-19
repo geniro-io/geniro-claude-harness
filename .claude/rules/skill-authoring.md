@@ -66,7 +66,7 @@ Instruct by capability, not by tool name — "keep a todo list", "read the file"
 Literal names belong in the four places where the name is data rather than instruction:
 
 - `allowed-tools:` and agent `tools:` frontmatter.
-- Call syntax a run copies verbatim — `Agent(subagent_type=...)`, `disallowedTools=[...]`, `Workflow(...)`.
+- Call syntax a run copies verbatim — `Agent(subagent_type=...)`, `Workflow(...)`.
 - A sentence naming a specific parameter to pass or omit (`model=`, `run_in_background`).
 - A guard description quoting what a hook matcher matches, and the Tool substitutions table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`, whose whole job is mapping names across hosts.
 

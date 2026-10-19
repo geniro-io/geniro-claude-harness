@@ -1,6 +1,6 @@
 # Library reuse audit (build-vs-buy)
 
-Canonical procedure for "before hand-writing code, check whether a maintained EXTERNAL library already solves it." Defined ONCE here; referenced by `/geniro:plan` (approach design), `/geniro:implement` (candidate research + adoption gate), `/geniro:review` (reinvented-wheel finding), and `/geniro:refactor` (detection-only). This is the external-registry counterpart to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`, which covers in-repo reuse.
+Canonical procedure for "before hand-writing code, check whether a maintained EXTERNAL library already solves it." Callers: `/geniro:plan` (approach design), `/geniro:implement` (candidate research + adoption gate), `/geniro:review` (reinvented-wheel finding), and `/geniro:refactor` (detection-only). This is the external-registry counterpart to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`, which covers in-repo reuse.
 
 The two are a funnel, never a parallel duplicate: Steps 1-4 fire only after an in-repo `NO-ANALOGUE` result, so a hand-written candidate is checked against the repo first, then the ecosystem.
 

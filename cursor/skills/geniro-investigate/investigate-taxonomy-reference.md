@@ -37,7 +37,7 @@ Terminal/escalation semantics live in SKILL.md §State machine. Reference-only n
 
 ## 2. State file schema
 
-Path: `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules — derived from question hash + first significant words).
+Path: `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` § Slug rules).
 
 Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`, each kind of update has one helper: `atomic_state_write` creates the file (below); `atomic_state_set_field "<path>" <field> <value>` changes an existing frontmatter field, every `phase:` and `dive_round:` update included; `atomic_state_append_list_item "<path>" approvals "<entry>"` adds an `approvals[]` entry (a multi-line mapping `set_field` cannot write); `atomic_state_append_section "<path>" "## <Section>" "<entry>"` appends to a body section (Tool log, JIT Cadence, Agent Findings, Verified Claims, Verifier Findings, Errors, Open Questions, Persisted approvals as the body render of an `approvals[]` entry); `atomic_state_edit "<path>" "<old>" "<new>"` replaces a span of body text (Draft Answer, Final Answer):
 

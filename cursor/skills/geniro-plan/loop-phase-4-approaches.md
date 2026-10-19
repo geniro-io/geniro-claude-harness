@@ -77,7 +77,7 @@ Apply the Gate presentation contract.
 
 1. **Render the approaches to a chat message in the Visual rendering language** (Gate presentation contract): open with the progress tracker (`● Approach` current) and a one-sentence opener naming the decision. For each of the 2-3 approaches, the two layers of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers: name, a plain-English 1-2 sentence summary of what the user would get, and `Trade-off:` (gain vs give-up in plain words) — then a `**Technical detail:**` block holding the ASCII data-flow / architecture diagram (5-10 lines), `What changes:` (the key new/edited files), and the approach's `Stress-test:` verdict line from §4.2 (top risk + evidence `file:line`). Lead with the Recommended approach. Where no usable verdict exists, render the note in the verdict line's place: "stress-test unavailable" on an approach whose §4.2 critique did not return, "stress-test inconclusive" on an approach whose no-risks critique lacked its `Checked:` account.
 
-2. **Fire ONE lean AUQ.** Single-select; header "Approach"; one option per approach, `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). Option `label` = approach name; `description` = 1-line summary + trade-off; `preview` empty or a one-line recap. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a verified blocking feasibility risk is never Recommended. With a single approach the gate is a confirm, not a pick: options are "Go with this approach" / "Explain further" (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option) / "I want a different shape — I'll describe".
+2. **Ask one lean question.** Single-select; header "Approach"; one option per approach, `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). Option `label` = approach name; `description` = 1-line summary + trade-off; `preview` empty or a one-line recap. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a verified blocking feasibility risk is never Recommended. With a single approach the gate is a confirm, not a pick: options are "Go with this approach" / "Explain further" (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option) / "I want a different shape — I'll describe".
 
 Full literal example (chat message + lean AUQ: Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §3.
 
@@ -95,7 +95,7 @@ emit_rejection_if_signal \
 
 Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op. A free-text answer overriding the question is a divergent pick like any other and fires the signal. After a fired signal, echo `Recorded learning: <summary>` — the same echo §8.5 makes, so a skipped emit shows up as a missing line instead of leaving no trace at all.
 
-**Read side:** the Phase 1 §1.1 past-learnings query already surfaces any prior `user_rejected_suggestion` entry for this topic's `approach_choice` — use it here to re-rank or omit the previously-rejected approach from the §4.3 AUQ.
+**Read side:** the Phase 1 §1.1 second past-learnings query (`--type user_rejected_suggestion --tag approach_choice`) already surfaces any prior `approach_choice` rejection for this topic — use it here to re-rank or omit the previously-rejected approach from the §4.3 AUQ.
 
 Example body:
 
@@ -112,3 +112,5 @@ Why rejected: violates new boundary established in Q3 2026 architecture review.
 `## Considered Alternatives` is copied to spec.md body verbatim in Phase 6. /geniro:implement reads but not gates on it.
 
 **Artifact** — after the approach pick persists, fire the update for this site (call-site table in `loop-artifact-call-sites.md`).
+
+**Transition.** With the pick persisted, the rejection signal recorded, and the artifact update fired, write `phase: section-approve` via `atomic_state_set_field` and proceed to Phase 5.

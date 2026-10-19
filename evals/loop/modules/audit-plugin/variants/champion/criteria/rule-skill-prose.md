@@ -23,7 +23,7 @@ How prose inside a skill / agent / reference file is written so the orchestrator
 | Bare imperative that invites drift | Reframed with the reason |
 |---|---|
 | "NEVER skip the test run." | "Run the test suite once at end-of-phase. The Phase 3 review pre-condition assumes green tests; skipping leaves the review reading stale code." |
-| "ALWAYS use atomic_state_write." | "Write state.md via `atomic_state_write` — direct `Edit`/`Write` bypasses the state-helper enforcement hook and corrupts mid-crash." |
+| "ALWAYS use atomic_state_write." | "Write state.md via `atomic_state_write` — direct `Edit`/`Write` truncates and rewrites in place, so a crash mid-write leaves a partial file." |
 | "Spawn the reviewers in parallel." | "Spawn every reviewer dimension in ONE assistant response — separate turns serialize execution and double wall-time." |
 
 Routine procedure needs none of it: "Read `<task-dir>/.kr-out.md`." / "Set `phase: ship` on entry."
@@ -73,10 +73,10 @@ When one quality gets restated at every step ("fast, deterministic, low-overhead
 
 ## Rule placement
 
-**Front-load everything the model must check every turn; keep the tail for detail it can look up.** The mechanism is compaction: Claude Code re-attaches only the first 5,000 tokens of each skill after a summary, and re-attached skills share a 25,000-token budget filled most-recent-first ([skills reference](https://code.claude.com/docs/en/skills)). So a skill over ~5,000 tokens loses its tail for the rest of the session at the first compaction, and one invoked early in a busy session can be dropped in full — while a long, subagent-heavy run is exactly where compaction is the expected case.
+**Front-load everything the model must check every turn; keep the tail for detail it can look up.** The mechanism is compaction: Claude Code re-attaches only the first ~20,000 characters of each skill after a summary (measured at that exact cutoff — `tests/authoring/lint-skills.sh`'s `REATTACH_CHARS`), and re-attached skills share a 25,000-token budget filled most-recent-first ([skills reference](https://code.claude.com/docs/en/skills)). So a skill over ~20,000 characters loses its tail for the rest of the session at the first compaction, and one invoked early in a busy session can be dropped in full — while a long, subagent-heavy run is exactly where compaction is the expected case.
 
 Placement for a SKILL.md:
-- **Top (first ~5,000 tokens):** role statement, phases overview, loop invariants, budgets, tool surface, cross-skill contract vocabulary, anti-rationalization table.
+- **Top (first ~20,000 characters):** role statement, phases overview, loop invariants, budgets, tool surface, cross-skill contract vocabulary, anti-rationalization table.
 - **Below:** per-phase Steps with detail, REFERENCE list, state recovery. Cite them by name from the invariants so the model jumps to a phase rather than scanning for it.
 
 An invariant that would land past the boundary moves into Loop invariants and gets cited by `#N` from the phase that needs it.
@@ -144,6 +144,10 @@ Both dimensions must pass:
 
 - **No untranslated identifiers.** `T2` / `FIX-NOW` / `phase: triage` restated inline or dropped.
 - **No assumed hidden context.** The string explains the situation it is about. A review gate asking *"How should we handle the implicit entity-default @Filter at the 3 call sites?"* fails even though every word is plain English — the user was never shown what that code does, why it is a concern, or what the options mean. For decisions carrying finding or investigation context, render the self-contained explanation to a chat message first, then fire a lean question, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering.
+
+### Explanations are layered, plain before technical
+
+Any explanation a skill renders before a decision splits into a plain layer and a `**Technical detail:**` block, in that order — the shape, the two properties that keep the layers honest, and when to omit the technical block are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers. Authoring consequence: when a render template in a skill or reference enumerates its slots, the slot list names both layers and puts the cites in the second, so a run instantiating the template does not merge them back. A slot list ending at `**Why it matters:** … (evidence: path:lines)` is the shape this rule replaces.
 
 Applies to everything the orchestrator surfaces: chat narration, todo-list labels, `AskUserQuestion` `header` / `question` / `description` / option `label` / `preview`, status echoes, final report sections, and errors surfaced to chat (not the state-file `## Errors` body section — that is a structured artifact for downstream consumers).
 

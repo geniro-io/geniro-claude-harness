@@ -17,7 +17,7 @@ Mode body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on Phas
 
 Scan `"$PRIMARY_ROOT"/.geniro/instructions/` and its `review-extra/` subdirectory for the set to check, and read each target at that same prefix — Phase 1 Step 0.5 resolved it. Validating cwd from a linked worktree grades a different file set than the one `create`/`edit` write and every skill's fallback loads, and an empty worktree directory reports a clean run over rules never checked.
 
-**flag:** `--max-lines N` overrides the default 300-LOC threshold the Step 2 script applies. Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
+**flag:** `--max-lines N` overrides the default length threshold the Step 2 script applies. Use `--max-lines 0` to disable the length check entirely. Env override: `GENIRO_INSTRUCTIONS_MAX_LINES`.
 
 ### Step 2 — Lint rule set
 

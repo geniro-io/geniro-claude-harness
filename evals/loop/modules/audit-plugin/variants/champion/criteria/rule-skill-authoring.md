@@ -66,11 +66,18 @@ Instruct by capability, not by tool name — "keep a todo list", "read the file"
 Literal names belong in the four places where the name is data rather than instruction:
 
 - `allowed-tools:` and agent `tools:` frontmatter.
-- Call syntax a run copies verbatim — `Agent(subagent_type=...)`, `disallowedTools=[...]`, `Workflow(...)`.
+- Call syntax a run copies verbatim — `Agent(subagent_type=...)`, `Workflow(...)`.
 - A sentence naming a specific parameter to pass or omit (`model=`, `run_in_background`).
 - A guard description quoting what a hook matcher matches, and the Tool substitutions table in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md`, whose whole job is mapping names across hosts.
 
 `Artifact` and `Workflow` stay named as Claude Code features: each has a substitutions row and an explicit not-available-here path, and their names are also section anchors and call syntax.
+
+### 7. Model names at spawn sites
+
+A light spawn in a skill or agent names its class — `light (smallest)` or `light (mid)` — defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. A site that names none is `session` and omits the model. A spawn never names a model family, a model id or a version; that file's §Runtime resolution is the only place a class meets a host's models.
+
+- Agent frontmatter is always `model: inherit`; the class lives at the spawn site.
+- `tests/authoring/lint-skills.sh` fails a literal `model=<family>` (quoted, spaced or bare) and any agent declaring other than `inherit`.
 
 ## Soft preferences (apply where reasonable)
 

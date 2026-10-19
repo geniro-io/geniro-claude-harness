@@ -278,6 +278,61 @@ for ARG_CASE in "missing script arg|" "nonexistent script arg|no-such-hook.sh" "
   fi
 done
 
+# --- INT / TERM: the shim cleans up its capture file AND stops ---
+# Cursor kills a hook that overruns its timeout. A trap that only removed the
+# stderr capture let the shim carry on and answer after the kill; it must exit
+# 130 / 143 with no verdict, leaving no capture file behind. A stub mktemp puts
+# the capture file in a directory the test can inspect (BSD mktemp ignores
+# TMPDIR). `set -m` gives the background shim default signal dispositions, since a
+# non-interactive shell starts background jobs with SIGINT ignored and an ignored
+# signal cannot be trapped.
+SIG_CAP="$TMPDIR_BASE/sig-cap"
+SIG_BIN="$TMPDIR_BASE/sig-bin"
+mkdir -p "$SIG_CAP" "$SIG_BIN"
+REAL_MKTEMP="$(command -v mktemp)"
+printf '#!/bin/sh\nexec "%s" "%s/cap.XXXXXXXX"\n' "$REAL_MKTEMP" "$SIG_CAP" > "$SIG_BIN/mktemp"
+chmod +x "$SIG_BIN/mktemp"
+cat > "$FAKE_ROOT/hooks/slow.sh" <<'STUB'
+#!/usr/bin/env bash
+: > "${BASH_SOURCE[0]%/*}/slow-started"
+sleep 1
+STUB
+jq -nc '{hook_event_name:"beforeShellExecution", command:"ls", cwd:"."}' > "$TMPDIR_BASE/sig-payload"
+# A suite that itself started with SIGINT ignored (tests/run-all.sh runs every
+# suite as a background job) keeps it ignored in its children even under
+# `set -m`, so no INT trap can fire there. Probe whether a job can receive
+# SIGINT at all; where it cannot, the INT case is skipped and TERM still covers
+# the trap's exit path.
+set -m
+bash -c 'trap "exit 7" INT; sleep 3' &
+INT_PROBE=$!
+set +m
+sleep 0.3
+kill -s INT "$INT_PROBE" 2>/dev/null || true
+INT_PROBE_RC=0; wait "$INT_PROBE" 2>/dev/null || INT_PROBE_RC=$?
+for SIG_CASE in "TERM 143" "INT 130"; do
+  SIG="${SIG_CASE% *}"; WANT_RC="${SIG_CASE#* }"
+  if [ "$SIG" = INT ] && [ "$INT_PROBE_RC" -ne 7 ]; then
+    skip "INT mid-script — this shell started with SIGINT ignored, so no job it spawns can trap SIGINT; the TERM case covers the trap"
+    continue
+  fi
+  rm -f "$FAKE_ROOT/hooks/slow-started" "$TMPDIR_BASE/sig-out"
+  set -m
+  PATH="$SIG_BIN:$PATH" bash "$FAKE_SHIM" slow.sh < "$TMPDIR_BASE/sig-payload" > "$TMPDIR_BASE/sig-out" 2>/dev/null &
+  SIG_PID=$!
+  set +m
+  for _ in $(seq 1 50); do [ -e "$FAKE_ROOT/hooks/slow-started" ] && break; sleep 0.1; done
+  SIG_HAD_CAPTURE="$(ls -A "$SIG_CAP" | wc -l | tr -d ' ')"
+  kill -s "$SIG" "$SIG_PID" 2>/dev/null
+  RC=0; wait "$SIG_PID" 2>/dev/null || RC=$?
+  if [ "$SIG_HAD_CAPTURE" -eq 1 ] && [ "$RC" -eq "$WANT_RC" ] && [ ! -s "$TMPDIR_BASE/sig-out" ] && [ -z "$(ls -A "$SIG_CAP")" ]; then
+    pass "$SIG mid-script -> exit $WANT_RC, no verdict, capture file removed"
+  else
+    fail "$SIG mid-script -> expected one capture file while running, then rc=$WANT_RC, no output, none left; got captures=$SIG_HAD_CAPTURE rc=$RC out=$(cat "$TMPDIR_BASE/sig-out" 2>/dev/null) left=$(ls -A "$SIG_CAP" | tr '\n' ' ')"
+  fi
+  rm -f "$SIG_CAP"/*
+done
+
 # --- cursor/hooks.json integrity ---
 HOOKS_JSON="$REPO_ROOT/cursor/hooks.json"
 if jq -e '.version == 1 and (.hooks | type == "object")' "$HOOKS_JSON" >/dev/null 2>&1; then
@@ -314,4 +369,4 @@ fi
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
-exit "$TESTS_FAILED"
+[ "$TESTS_FAILED" -eq 0 ]

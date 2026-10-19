@@ -4,7 +4,7 @@ Phase file for `/geniro:update`. The spine — invariants, budgets, tool surface
 
 ### Step 1 — Marketplace refresh + plugin update (exponential backoff)
 
-Run the marketplace update, then the plugin update, each retried up to 4× on network error with 2s / 4s / 8s / 16s backoff between attempts; abort with a non-zero exit if either still fails after the 4th attempt (Termination case: network error after 4 retries):
+Run the marketplace update, then the plugin update, each retried on network error with exponential backoff, at most 4 retries; abort with a non-zero exit if either still fails after the last retry (Termination case: network error after the retry cap):
 
 1. `claude plugin marketplace update geniro-claude-harness`
 2. `claude plugin update geniro@geniro-claude-harness --scope user`

@@ -29,8 +29,6 @@ On Phase 3 entry, single `load-custom-instructions(SKILL_SLUG: refactor, LOAD_TI
 
 Run `git diff --name-only` and `git diff --stat`. Cross-check state.md `## Plan steps` rows' `files_affected` aggregated list against the actual diff — flag mismatches.
 
-If final regression failed AND user picked "Revert all changes", state.md is already `phase: reverted` — skip to cleanup (no review needed).
-
 ### 3.2 Independent reviewer-agent + custom reviewers (Medium+)
 
 Skipped for Trivial and Small per Step 3.
@@ -57,11 +55,11 @@ Gate every PRODUCT-DECISION finding per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/pe
 
 **Approvals-persistence:** before firing the PRODUCT-DECISION AUQ, check state.md frontmatter `approvals[]` for a prior entry with `category: refactor_product_decision` matching the finding (use finding `path:lines` + decision-type as disambiguator). If found, use prior `picked` value. If not found, fire AUQ → on user pick, append to `approvals[]` via `atomic_state_append_list_item` BEFORE executing the chosen action.
 
-Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings — never batch multiple findings into a single question.
+Fire one `AskUserQuestion` per PRODUCT-DECISION finding; chain across findings — never batch multiple findings into a single question. A Revert pick ends the loop: once the diff is restored, skip the remaining PRODUCT-DECISION questions and the fix loop below, since they describe changes that no longer exist.
 
 **CRITICAL or HIGH (non-PRODUCT-DECISION) findings → fix loop (max 1 round):**
 
-Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — state.md → `verify-escalated` (this write is the mid-run pause, not the run's terminal) with timestamp + 1-round fix attempt summary, then surface to user via AUQ header "Findings remain" with options: "Escalate to /geniro:implement" (record outcome `routed`) / "Document remaining findings and keep the diff as-is" (record outcome `verify-summary-only`) / "Revert all changes" (`git restore --source=HEAD -- <paths>` per SKILL.md §Git constraint; record outcome `reverted`) — each written at the single §3.6 terminal-write point.
+Orchestrator-inline addresses specific findings (Edit per finding); then re-spawn reviewer-agent fresh on the updated diff. After 1 round, if still failing — state.md → `verify-escalated` (this write is the mid-run pause, not the run's terminal) with timestamp + 1-round fix attempt summary, then surface to user via AUQ header "Unresolved" with options: "Escalate to /geniro:implement" (record outcome `routed`) / "Document remaining findings and keep the diff as-is" (record outcome `verify-summary-only`) / "Revert all changes" (`git restore --source=HEAD -- <paths>` per SKILL.md §Git constraint; record outcome `reverted`) — each written at the single §3.6 terminal-write point.
 
 **MEDIUM findings only → note in completion summary; proceed** (outcome `done`, written at the §3.6 point).
 
@@ -86,12 +84,12 @@ On the Trivial and Small tiers, smell detection never runs (§1.3.1), so neither
 
 ### Filtered smells (intentional patterns) (N)
 - [smell] — [reason filtered]
-- [Trivial/Small tier: "Not run — <tier> tier skips smell detection (§1.3.1)." Medium/Big: omit this line; N counts the filtered smells above.]
+- [Trivial/Small tier: "Not run — <tier> tier skips smell detection." Medium/Big: omit this line; N counts the filtered smells above.]
 
 ### Review Findings
 - CRITICAL: N, HIGH: M, MEDIUM: K
 - Disposition: [proceeded / 1-round fix loop / escalated]
-- [Trivial/Small tier: replace the two lines above with "Not run — <tier> tier skips the independent reviewer + custom reviewers (§1.3.1)."]
+- [Trivial/Small tier: replace the two lines above with "Not run — <tier> tier skips the independent reviewer + custom reviewers."]
 
 ### Validation
 - Tests: PASS/FAIL
@@ -122,7 +120,7 @@ Execute any user-authored post-verify steps from the L4 `<skill>.md` (`.geniro/i
 
 Treat each bullet as an imperative to execute in order, honoring any `AskUserQuestion` the user's step prescribes. §Git constraint still binds here: a post-verify step never runs `git add` / `git commit` / `git push` even when the user's instruction names one — refactor ships no commits regardless of what triggers the step.
 
-**Write the terminal phase.** Once custom post-verify steps have run (or there were none to run), write state.md `phase:` via `atomic_state_set_field` to the outcome recorded in §3.3 — `done` when no PRODUCT-DECISION or fix-loop exhaustion picked otherwise. This is the single point in Phase 3 where the terminal is written; §3.3 only records which one, so a resume anywhere before this point still runs the completion summary, the learning emit, and any custom post-verify steps rather than skipping them (SKILL.md §Terminal states). A `reverted` / `routed` / `aborted` outcome also carries a `## Termination reason` body line naming what ended the run.
+**Write the terminal phase.** Once custom post-verify steps have run (or there were none to run), write state.md `phase:` via `atomic_state_set_field` to the outcome recorded in §3.3 — `done` when no PRODUCT-DECISION or fix-loop exhaustion picked otherwise. When the picks recorded different outcomes (one per PRODUCT-DECISION finding, plus the fix-loop pick), the first that applies wins: `reverted`, then `routed`, then `verify-summary-only`, then `done` — a revert removes the diff every other outcome describes, and a handoff to /geniro:implement outranks keeping the diff as-is because the decision it carries is still open. This is the single point in Phase 3 where the terminal is written; §3.3 only records which one, so a resume anywhere before this point still runs the completion summary, the learning emit, and any custom post-verify steps rather than skipping them (SKILL.md §Terminal states). A `reverted` / `routed` / `aborted` outcome also carries a `## Termination reason` body line naming what ended the run.
 
 ### 3.7 Cleanup
 

@@ -92,6 +92,8 @@ grep -lE '"(write-[a-z-]+|safety-json-edit|sec-[a-z-]+|force-push[a-z-]*|reset-h
 
 ### Hook guards close several bypass classes; Cursor gains `Delete` coverage and fail-closed; two stale behavior claims corrected
 
+> **Superseded — historical record only.** Every guard this entry hardens — `file-protection.sh`, `security-pattern-check.sh`, `block-dangerous-git.sh`, `block-geniro-deletion.sh` (all but its `.geniro/` force-add check) and `enforce-state-helper.sh` — was removed; see "Five guard hooks are removed; only the `.geniro/` force-add check remains" above. None of the bypass classes below is blocked any more, no `allow_patterns` ID except `git-add-force-geniro` is read, and the Cursor `Delete` routing went with the guards; `cursor/hooks.json` keeps `"failClosed": true` on the one remaining force-add entry. The two corrected behavior claims at the end (review resume, `/geniro:setup`'s restart-session warning) still stand.
+
 A plugin-audit round closed a set of guard gaps that had reopened one hop from earlier fixes, and corrected two doc-only claims that had drifted from what the skills actually do. Nothing here is opt-in — every change either blocks a command that previously passed, or removes a claim that was never true.
 
 **Hook guards now also block:**
@@ -197,6 +199,8 @@ failure is inaction (the handoff is ignored) rather than a broken run.
 
 ### `hooks/file-protection.sh` no longer protects env files
 
+> **Superseded — historical record only.** `hooks/file-protection.sh` itself was removed — see "Five guard hooks are removed; only the `.geniro/` force-add check remains" above. No `write-env` pattern exists to relax and nothing guards env-file writes; `hooks/security-pattern-check.sh`, which this entry says still scans written content, was removed with it. A leftover `write-env` entry in `allow_patterns` is inert.
+
 The `write-env` pattern is removed. Writing, copying, or redirecting into an env file in any
 spelling — the populated one, `.env.local`, `.env.production` — is no longer blocked, and the pattern ID
 `write-env` no longer exists.
@@ -255,6 +259,8 @@ grep -rl "adversarial-tester-agent" .geniro/actions .geniro/instructions 2>/dev/
 
 ### The state-helper guard no longer matches `Bash`
 
+> **Superseded — historical record only.** `hooks/enforce-state-helper.sh` was removed outright — see "Five guard hooks are removed; only the `.geniro/` force-add check remains" above — so neither branch is enforced any more: a state-file write from the shell or through `Edit`/`Write` goes unchecked, and routing it through `atomic_state_write` / `atomic_state_append` is the writer's contract (`CLAUDE.md` §State Files). The `enforce-state-helper` entry in `allow_patterns` that this entry says still governs the file-tool branch is inert, and the T1 dot-prefix scratch exemption described below went with the guard.
+
 `hooks/enforce-state-helper.sh` is registered under the `Edit|Write|MultiEdit|NotebookEdit`
 matcher only. Its shell-side branch — redirection, `tee`, `sed -i`, `cp`/`mv` destinations,
 `dd of=`, interpreter-mediated writes, and the seven shell-indirection channels it re-ran
@@ -292,6 +298,8 @@ depends on why it was added.
 ---
 
 ### Three guards stop firing on files that were never the risk
+
+> **Superseded — historical record only.** All three guards named below (`file-protection.sh`, `security-pattern-check.sh`, and `block-geniro-deletion.sh` apart from its `.geniro/` force-add check) were removed — see "Five guard hooks are removed; only the `.geniro/` force-add check remains" above. The carve-outs describe code that no longer ships, and the `write-env`, `write-lockfile`, `worktree-remove-with-state` and `sec-*` IDs in `allow_patterns` are inert.
 
 Each carve-out below comes from a measured false positive, not a theory:
 
@@ -725,7 +733,7 @@ grep -l "Validation: unverified" .geniro/state/handoff/from-review-*.md 2>/dev/n
 
 ### State-helper enforcement now hard-blocks direct writes to `.geniro/` state paths (incl. Bash-side)
 
-> **Superseded — behavior changed in v5.0.0.** The Bash-side coverage this entry describes was removed — see "The state-helper guard no longer matches `Bash`" above. `hooks/enforce-state-helper.sh` is file-tool-only now (`Edit`/`Write`/`MultiEdit`/`NotebookEdit`); a shell-side write to a canonical `.geniro/` state path is unenforced (prose contract only, per `CLAUDE.md` §State Files), not hard-blocked as this entry says. The file-tool hard-block itself is still current.
+> **Superseded — historical record only.** The hard-block this entry describes no longer exists. `hooks/enforce-state-helper.sh` first lost its Bash-side coverage ("The state-helper guard no longer matches `Bash`" above), then was removed with the other guards — see "Five guard hooks are removed; only the `.geniro/` force-add check remains" above. No hook checks a write to a canonical `.geniro/` state path, from the shell or the file tools; routing it through `atomic_state_write` / `atomic_state_append` is the writer's contract (`CLAUDE.md` §State Files), and an `enforce-state-helper` entry in `allow_patterns` is inert.
 
 `hooks/enforce-state-helper.sh` flips from warn-mode to hard-block, and now also covers the `Bash` tool. Direct `Edit`/`Write`/`MultiEdit` to a canonical state path under `.geniro/` (`.geniro/state/`, `.geniro/planning/`, `.geniro/knowledge/`, `.geniro/instructions/`, `.geniro/actions/`, `.geniro/workflow/`, `.geniro/.geniro-state.json`) is blocked (exit 2), as are Bash-side writes into the same paths (redirection `>`/`>>`, `tee`, in-place `sed -i`, `cp`/`mv` destinations, `dd of=`). Reads stay allowed, commands invoking the sanctioned helpers (`atomic_state_write` / `atomic_state_append`) are allowed, and paths under `.geniro/state/tdd/` are exempt (the TDD cycle's own RED-phase state file, written via its own mktemp + mv procedure, per `skills/_shared/tdd-cycle.md` §State file contract). The prior warn-mode let a consumer session ignore 42 warnings in one run; the block makes the contract enforceable.
 
@@ -850,7 +858,7 @@ fi
 
 ### `/review` handoff per-finding body gains verification fields (schema m6-v1 → m6-v2)
 
-> **Always-fire count since changed — the schema bump above is current; the dimension count below is not.** The always-fire set has since been reduced: it reads `bugs / security / architecture / tests / conventions / regressions` (6 dims) today, with `optimizations` demoted to a broad-trigger conditional (skipped only when every changed file is documentation or a generated lockfile) — see the `/review` MANDATORY spawn list entry below. `regressions` did join the always-fire set as this entry records; the "8th always-fire dim" framing and the "bump to 8" guidance in Severity below no longer match the current split.
+> **Always-fire count since changed — the schema bump above is current; the dimension count below is not.** The always-fire set has been reshaped more than once since and now scales with the run's size; `skills/_shared/review-grid-scaling.md` holds the current set. `regressions` did join the always-fire set as this entry records; the "8th always-fire dim" framing and the "bump to 8" guidance in Severity below no longer match it.
 
 `/geniro:review` Phase 4.2 was rewritten to spawn one fresh `reviewer-agent` per HIGH-severity finding (no tier-scaling — ALL HIGHs verified). Each verifier emits `Validation: confirmed | refuted | clarified`, `Recommended-action`, `Verification-confidence` (1-5 coarse scale), and `Verification-evidence` (literal file:line quote). (A fourth `Validation:` value, `unverified`, was added later — orchestrator-assigned when the verifier failed to spawn, never agent-emitted; see the dedicated entry above.) These 4 fields persist into the T2 handoff per-finding body schema. The `geniro_schema_version` field in `.geniro/state/handoff/from-review-<branch>.md` bumps from `m6-v1` to `m6-v2`; downstream consumers (Phase 6 §7.0 fail-closed guard, /implement Phase 1 Step 12) accept both. Legacy `m6-v1` handoffs read by an `m6-v2` consumer treat the 4 missing fields on HIGH findings as `Validation: confirmed + warn` (mirrors the `step0_status: pending` back-compat pattern).
 
@@ -902,7 +910,7 @@ Any user `.geniro/instructions/plan.md` rule referencing the dropped pre-fill ba
 
 ### `/review` MANDATORY spawn list + post-spawn verification gate
 
-> **Dimension names since changed — the gate mechanism below is current.** `guidelines` was folded into `conventions` by *"`/geniro:review` merges the `guidelines` and `rules-compliance` dimensions into `conventions`"* (above), and `regressions` has since joined the always-fire set; the always-fire list reads `bugs / security / architecture / tests / conventions / regressions` today, plus `optimizations` as a broad-trigger conditional (skipped only when every changed file is documentation or a generated lockfile).
+> **Dimension names since changed — the gate mechanism below is current.** `guidelines` was folded into `conventions` by *"`/geniro:review` merges the `guidelines` and `rules-compliance` dimensions into `conventions`"* (above), and the always-fire set has been reshaped since; `skills/_shared/review-grid-scaling.md` holds the current set.
 
 `/geniro:review` Phase 2 step 2.2 now writes `spawn_dims_declared: [...]` + `spawn_dims_count: N` to state.md frontmatter at spawn-batch entry; Phase 4 §4.0 verifies actual spawns match the declaration (catches the silent-skip bug where reviewers reasoned themselves into dropping dimensions). The spawn list is MANDATORY: 7 always (bugs / security / architecture / tests / optimizations / guidelines / conventions) + up to 3 conditional (design / pr-metadata / spec-compliance) + N custom from `.geniro/instructions/review-extra/`. Custom-reviewer discovery moved from Phase 2 entry into Phase 1.5 mechanical pre-pass so Phase 2 has zero cognitive load for it.
 
@@ -1141,7 +1149,7 @@ rm -rf .geniro/state/{follow-up,brainstorm,decompose,learnings,deep-simplify,cle
 rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adversarial.md 2>/dev/null
 ```
 
-(Per-subdir `rm -rf .geniro/state/<x>/` and per-file `rm -f` allowed by `.geniro/`-deletion guard; bulk `rm -rf .geniro/state/` blocked.)
+(Per-subdir `rm -rf .geniro/state/<x>/` and per-file `rm -f` only — never a bulk `rm -rf .geniro/state/`.)
 
 **Severity:** LOW — orphan files inert; new skills read the current paths only. Cleanup purely cosmetic. See also v2.4.0 entries for additional orphan paths (root-level `.geniro/debug/`, `.geniro/review-findings-state.md`, `.geniro/.geniro-state.json`, non-canonical knowledge subdirs, state-root loose files).
 
@@ -1149,7 +1157,7 @@ rm -f .geniro/state/review-findings-state.md .geniro/state/review-findings-adver
 
 ### New safety hooks may block unfamiliar operations
 
-> **Superseded — behavior changed in v3.0.0.** `enforce-state-helper.sh` no longer warns; it hard-blocks (exit 2) direct `Edit`/`Write`/`MultiEdit` to `.geniro/` state paths — see "The state-helper guard no longer matches `Bash`" above for the current, file-tool-only scope. `CLAUDE.md` documents the hard-block behavior as current.
+> **Superseded — historical record only.** Of the hooks this entry introduces, only `session-start-restore.sh` (read-only, never blocks) still ships. `enforce-state-helper.sh` and `block-geniro-deletion.sh` were removed — see "Five guard hooks are removed; only the `.geniro/` force-add check remains" above — and no hook checks direct writes to `.geniro/` state paths. The `.geniro/` force-add check survives as `hooks/block-geniro-force-add.sh`, which still blocks `git add -f` on `.geniro/` paths.
 
 New safety hooks added: `enforce-state-helper.sh` (warns on direct `Edit`/`Write` to `.geniro/` state paths — suggests `atomic_state_write`), `block-geniro-deletion.sh` extended (now blocks `git add -f` on `.geniro/` paths because IDE "Discard All Changes" becomes one-click data-loss), `session-start-restore.sh` (compaction-restore — read-only, never blocks).
 

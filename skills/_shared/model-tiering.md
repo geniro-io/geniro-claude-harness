@@ -26,7 +26,7 @@ Agent frontmatter never pins a model: every `agents/*.md` declares `model: inher
 **Roles that are light** — the sites that name a light class. The list describes them; a site that names none is session.
 
 - light (smallest): the `/geniro:review`, `/geniro:refactor` and `/geniro:onboard` "where is X" locator lookups, the test runner, the scoped learnings read in `/geniro:review`, the setup checklist verifier, the git-history extractor.
-- light (mid): applying a decided code slice, applying approved instruction fixes, the UI description, the library web search, the memory sweep and the other scoped learnings reads, ad-hoc research during implementation, grill fact lookups, the internet researcher, the transcript analysts, the `/geniro:audit-instructions` verifiers.
+- light (mid): applying a decided code slice, applying approved instruction fixes, the UI description, the library web search, the memory sweep and the other scoped learnings reads, ad-hoc research during implementation, grill fact lookups, the internet researcher, the transcript analysts.
 
 **Fallbacks.**
 

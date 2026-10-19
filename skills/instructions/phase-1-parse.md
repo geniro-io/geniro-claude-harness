@@ -44,7 +44,7 @@ A `create`/`edit` request implies WHICH block to author, not just which scope. O
 
 ## Ambiguity resolution
 
-Ask via `AskUserQuestion`, offering the candidates that survive from `SKILL.md` §Valid scope set — each option labelled with the scope name and described by what loads it. When more than four candidates survive, chain follow-up questions per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Cap-extension for >4 options" rather than dropping a scope from the offer. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
+Ask via `AskUserQuestion`, offering the candidates that survive from `SKILL.md` §Valid scope set — each option labelled with the scope name and described by what loads it. When the candidates outnumber the question tool's option cap, chain follow-up questions per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension, rather than dropping a scope from the offer. **Cap retry at 3 rounds**; after the third, abort with "Could not narrow down — try `/geniro:instructions list` for the exact set."
 
 ## Scope validation
 
@@ -54,7 +54,7 @@ For `review-extra`, slug-bearing variants of `create`/`edit`/`delete` ALSO requi
 
 - `create review-extra` no slug → ask via `AskUserQuestion` "Other" path (free-form text).
 - `edit review-extra` / `delete review-extra` no slug AND one file exists → default to that file.
-- `edit review-extra` / `delete review-extra` no slug AND multiple files exist → AUQ which slug. If >4 files, chain follow-ups per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` cap-extension rule.
+- `edit review-extra` / `delete review-extra` no slug AND multiple files exist → AUQ which slug. If the files outnumber the option cap, chain follow-ups per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension.
 - `validate review-extra` ignores slug — always validates the whole directory. Print one-line notice if a slug was passed.
 
 ## Dispatch

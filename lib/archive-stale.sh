@@ -19,6 +19,9 @@
 # auto-locks; the direct-invocation branch at the bottom of this file takes
 # the same lock itself (rc=3 when held), so manual runs cannot interleave
 # with the hook or with record_access counter rewrites of the same log.
+# emit_learning appends WITHOUT that lock, so the rewrite reads a byte-bounded
+# prefix of the log and carries any lines appended after it into the new file
+# before the rename (lib/lock-reclaim.sh) — an append mid-run survives.
 # Idempotent: already-deprecated entries skipped.
 #
 # API:
@@ -73,6 +76,17 @@ archive_stale_learnings() {
     echo "archive-stale: no learnings.jsonl found (nothing to archive)" >&2
     return 1
   fi
+
+  # emit_learning appends WITHOUT the rewrite lock, so a line can land between
+  # this read and the rename below. Pin the read to the first $orig_size bytes
+  # (every pass below reads exactly that prefix) and carry whatever the log
+  # gained past it into the new file just before the rename — see
+  # lib/lock-reclaim.sh for the protocol.
+  local orig_size
+  orig_size=$(_geniro_log_size "$log") || {
+    echo "archive-stale: cannot read the size of $log" >&2
+    return 2
+  }
 
   # Single home for BOTH the stale-criteria thresholds and their prose. The jq
   # filter below reads $stale_age_days/$stale_score_max (passed as --argjson),
@@ -136,13 +150,13 @@ archive_stale_learnings() {
   '
 
   local processed
-  processed=$(jq -Rc \
+  processed=$(head -c "$orig_size" "$log" | jq -Rc \
       --argjson now "$now" \
       --argjson tau_days "$tau" \
       --argjson dry "$dry_run" \
       --argjson stale_age_days "$stale_age_days" \
       --argjson stale_score_max "$stale_score_max" \
-      "$stale_filter" "$log" 2>/dev/null) || {
+      "$stale_filter" 2>/dev/null) || {
     echo "archive-stale: jq failed processing $log" >&2
     return 2
   }
@@ -175,14 +189,14 @@ archive_stale_learnings() {
   # normalization — there is no phantom "absent" bucket. n/a guards the
   # zero-live divide-by-zero.
   local coverage_line
-  coverage_line=$(jq -Rsr '
+  coverage_line=$(head -c "$orig_size" "$log" | jq -Rsr '
         [splits("\n") | select(length > 0) | fromjson?
          | select((.deprecated // false) == false)] as $live
         | ($live | length) as $total
         | ([$live[] | select((.trust // "inferred") == "verified")] | length) as $verified
         | if $total == 0 then "coverage: n/a"
           else "coverage: verified \($verified)/\($total) (\(($verified * 100 / $total) | round)%)"
-          end' "$log" 2>/dev/null)
+          end' 2>/dev/null)
   [ -z "$coverage_line" ] && coverage_line="coverage: n/a"
 
   if [ "$stale_count" -eq 0 ]; then
@@ -214,7 +228,7 @@ archive_stale_learnings() {
   # Count non-blank records the way jq -Rc reads them: awk processes a final line
   # even without a trailing newline (grep -c does not), so a valid log that simply
   # lacks a trailing \n is not mistaken for a corrupt one.
-  raw_lines=$(awk 'NF{c++} END{print c+0}' "$log" 2>/dev/null || echo 0)
+  raw_lines=$(head -c "$orig_size" "$log" | awk 'NF{c++} END{print c+0}' 2>/dev/null || echo 0)
   if [ -z "$processed" ]; then
     parsed_lines=0
   else
@@ -252,6 +266,16 @@ archive_stale_learnings() {
   printf '%s\n' "$processed" | jq -c 'del(._is_stale)' > "$tmp" 2>/dev/null || {
     rm -f "$tmp"
     echo "archive-stale: failed to prepare new log content" >&2
+    return 2
+  }
+
+  # Carry forward lines appended while this run was in flight (emit_learning
+  # takes no lock): the rename would otherwise discard them at rc 0. Only an
+  # append landing between this copy and the rename can still be lost — a
+  # microsecond window, not the whole run.
+  _geniro_log_carry_appends "$log" "$tmp" "$orig_size" || {
+    rm -f "$tmp"
+    echo "archive-stale: failed to carry concurrent appends into the new log" >&2
     return 2
   }
 

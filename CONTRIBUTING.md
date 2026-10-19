@@ -50,7 +50,7 @@ We especially welcome:
 
 - **New agents** — workflow roles the skills can spawn (in the mold of `reviewer-agent` or `codebase-explorer-agent`)
 - **New skills** — reusable workflows that solve common development tasks
-- **Hook improvements** — better safety patterns, new protection categories
+- **Hook improvements** — guards that read a declared target, with measured blocks (`HOOKS.md` §Removed guards says why broad command-string guards are gone)
 - **Bug fixes** — especially in the `/setup` skill's detection and generation logic
 - **Documentation** — clearer explanations, more examples, better onboarding
 

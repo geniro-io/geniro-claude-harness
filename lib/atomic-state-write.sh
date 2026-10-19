@@ -16,7 +16,7 @@
 #   atomic_state_write_cmd <target> <cmd...> — same, but commits ONLY if the producer exits 0
 #   atomic_state_edit <target> <old> <new>   — literal exactly-once replace, atomic commit
 #   atomic_state_set_field <target> <k> <v>  — set one frontmatter field, atomic commit
-#   atomic_state_append_section <t> <h> <x>  — append an entry to the end of a body section
+#   atomic_state_append_section <t> <h> <x> [--create] — append an entry to the end of a body section
 #   atomic_state_append_list_item <t> <k> <i> — append an item to a frontmatter YAML list
 #   atomic_state_append <target>             — POSIX O_APPEND for ≤4KB lines (T3 append-only / JSONL)
 #
@@ -63,8 +63,8 @@ esac
 #
 # `sync -d <path>` fsyncs one file on GNU coreutils. BSD/macOS `sync` takes no
 # options and IGNORES every operand, returning 0 regardless — so an rc-based probe
-# reads macOS as "per-file sync succeeded". `sync --help` is the honest
-# discriminator: GNU prints an options list naming `--data`, BSD prints nothing.
+# reads macOS as "per-file sync succeeded". On Linux `sync --help` is the honest
+# discriminator: GNU prints an options list naming `--data`.
 # Here-string, not a pipe: under `pipefail` a matching `grep -q` can exit 141 when
 # it closes the pipe early (tests/authoring/lint-pipefail-grep.sh).
 #
@@ -76,13 +76,13 @@ esac
 # §Portability notes.
 # Probed HERE, at source time, not lazily inside a helper: every public function
 # runs its body in a subshell, so a lazy probe's result would die with that
-# subshell and re-run on every single write — and on BSD `sync --help` ignores the
-# operand and performs a real whole-disk sync, so the probe itself was the cost it
-# existed to avoid.
-if grep -q -- '--data' <<< "$(sync --help 2>&1)"; then
+# subshell and re-run on every single write.
+# Only Linux is probed: on BSD/macOS `sync --help` is not a help request but a
+# real whole-disk sync, paid at every source of this file, and the answer is
+# already known to be "no per-file sync".
+_ATOMIC_SYNC_HAS_D=0
+if [ "$(uname -s 2>/dev/null)" = "Linux" ] && grep -q -- '--data' <<< "$(sync --help 2>&1)"; then
   _ATOMIC_SYNC_HAS_D=1
-else
-  _ATOMIC_SYNC_HAS_D=0
 fi
 _atomic_state_sync_file() {
   [ "$_ATOMIC_SYNC_HAS_D" = "1" ] || return 0
@@ -347,6 +347,9 @@ atomic_state_edit() {
 
         printf "%s%s%s", substr($0, 1, i - 1), n, rest
       }
+      # An empty file yields no record at all, so the rule above never ran and the
+      # edit would "succeed" over nothing — the anchor is absent from it, rc 71.
+      END { if (NR == 0) { exit 71 } }
     ' "$target" > "$tmp" || arc=$?
 
     if [ "$arc" -ne 0 ]; then
@@ -471,7 +474,7 @@ atomic_state_set_field() {
   )
 }
 
-# atomic_state_append_section <target> <heading> <text> [--create]
+# atomic_state_append_section <target> <heading> <text> [--create]   (--create: any position)
 #
 # Appends <text> at the END of the body section introduced by the exact heading
 # line <heading> (for example `## Tool log`), keeping the section's own trailing
@@ -491,9 +494,18 @@ atomic_state_set_field() {
 # demand (`## Deferred Findings`, `## Visual Baseline`, `## Authored Tests` — the
 # ones no state.md template declares up front) pass `--create`, which appends the
 # heading at end of file on the first call and behaves normally after that.
+#
+# `--create` is recognised in ANY argument position. Call sites write it both after
+# the text and before the target; read only as a fourth positional, the leading form
+# parsed `--create` as the target path and failed rc 73 without writing the section.
+# The flag is removed here, before the positionals are read.
 atomic_state_append_section() {
-  local target="${1:-}" heading="${2:-}" text="${3:-}" create=0
-  [ "${4:-}" = "--create" ] && create=1
+  local create=0 a n="$#"
+  while [ "$n" -gt 0 ]; do
+    a="${1:-}"; shift; n=$((n - 1))
+    if [ "$a" = "--create" ]; then create=1; else set -- "$@" "$a"; fi
+  done
+  local target="${1:-}" heading="${2:-}" text="${3:-}"
   if [ -z "$target" ] || [ -z "$heading" ]; then
     echo "atomic_state_append_section: target path and heading required" >&2
     return 64
@@ -608,8 +620,10 @@ atomic_state_append_section() {
 # rather than counting spaces.
 #
 # Both list shapes are handled: an empty `key: []` becomes a block list, and an
-# existing block list gains the item after its last line. A key holding any other
-# scalar is refused (rc 79) rather than turned into a list.
+# existing block list gains the item after its last line. A trailing `# comment`
+# after `[]` (or after a bare `key:`) is ignored; the comment describes the empty
+# placeholder, so it is dropped when `[]` becomes a block list. A key holding any
+# other scalar is refused (rc 79) rather than turned into a list.
 #
 # This is the shape `atomic_state_set_field` cannot write — `approvals[]`,
 # `non-resumable-actions[]`, `workflow_refs[]` are multi-line mappings, and a
@@ -681,9 +695,12 @@ atomic_state_append_list_item() {
         if (fence == 1 && state == 0 && substr(line, 1, length(k) + 1) == k ":") {
           rest = substr(line, length(k) + 2)
           sub(/^[ \t]+/, "", rest)
-          if (rest == "[]") { out(k ":"); state = 1; next }        # empty inline list
-          if (rest == "")   { out(line);  state = 1; next }        # block list follows
-          bad = 1; out(line); next                                  # a scalar — refuse
+          # A trailing YAML comment is not part of the value: templates annotate
+          # the empty list as `key: []  # why`, and read as a scalar that line
+          # refused every later append (rc 79).
+          if (rest ~ /^\[\][ \t]*(#.*)?$/) { out(k ":"); state = 1; next }   # empty inline list
+          if (rest ~ /^(#.*)?$/)           { out(line);  state = 1; next }   # block list follows
+          bad = 1; out(line); next                                            # a scalar — refuse
         }
         if (state == 1) {
           # The block ends at the first line that is not indented under the key.

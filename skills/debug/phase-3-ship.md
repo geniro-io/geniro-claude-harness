@@ -8,7 +8,7 @@ state.md `phase: ship`. Findings handoff to downstream skill OR user-handles —
 
 ## Contents
 
-- §3.0 Pre-gate — resolve open questions · §3.1 Present findings · §3.2 Escalation AUQ
+- §3.0 Pre-gate — resolve open questions · §3.1 Present findings · §3.2 Escalation question
 - §3.3 Emit learnings · §3.4 Cleanup · Tool surface
 - Definition of done — Scientific Mode
 
@@ -92,9 +92,9 @@ Output the markdown block directly in chat AND write the same content (with full
 
 The receiving skill pre-loads findings from `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` — the state file is the handoff channel, not a chat paste. Do NOT re-derive, reword, or inline the summary into the escalation command; the file path IS the contract.
 
-### 3.2 Escalation AUQ
+### 3.2 Escalation question
 
-Only after the summary above is visible AND persisted, `AskUserQuestion` with header "Escalate" and these options:
+Only after the summary above is visible AND persisted, and after the §3.3 `diagnosis` emit has fired and been echoed (the picks below write the terminal `phase:`, and an emit left until after that write is the one that gets dropped), `AskUserQuestion` with header "Escalate" and these options:
 
 - **Run `/geniro:implement`** — the receiving skill pre-loads findings from the handoff file written above (`from-debug-<branch>.md`) and resolves that path itself, so the label stays free of internal path placeholders; the option's description tells the user the handoff file carries everything /geniro:implement needs, so it can start on a fresh context — run `/clear` first; run it from the worktree and branch named in **Source worktree** / **Source branch** above when this investigation ran somewhere other than where you started. How large the fix is rides in the handoff's **Why escalating** line, not in the option set. state.md transitions to `phase: done` (terminal).
 - **Cannot verify — request specific data from user** — pick this when one or more hypotheses are unverified because a probe you actually ran failed to reach the artifact (§1.5 — an assumed limit is not a reason to route). Trigger a follow-up `AskUserQuestion` with concrete options for the missing data. When data arrives, return to the §3.0 Pre-gate, do NOT escalate yet — state.md stays `phase: ship` (non-terminal) until a later pick resolves to one of the other two terminals.
@@ -104,9 +104,9 @@ Do NOT auto-invoke the next skill — surface the suggestion only.
 
 ### 3.3 Emit learnings
 
-At Phase 3 exit, fire the `diagnosis` emit below. Sequence the emit before the phase is declared done — a diagnosis emit left trailing after the handoff is persisted and the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing). The echo and ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
+Fire the `diagnosis` emit below once per run, after §3.1 persists the handoff and before §3.2's question — a re-entry through §3.2 after a "Cannot verify" pick does not emit again. A diagnosis emit left trailing after the handoff is persisted and the answer is delivered is the documented drop vector that kept L2 sparse (confirmed root causes recorded nothing); firing ahead of the question keeps the record independent of which option the user picks. The echo and ordering rules bind here: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §"Caller contract".
 
-**`diagnosis`** (fires at Phase 3 exit on confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` — the helper writes silently, so the echo is the only in-session proof it ran. The other two types fire earlier: `discarded_hypothesis` per rejection in §1.5, `retry_failure_sequence` at Phase 2 exit in §2.5.
+**`diagnosis`** (fires ahead of the §3.2 question, on a confirmed root cause) — every confirmed root cause emits one entry with summary, tags (inferred from affected-files + hypothesis category), scope (project-relative path glob), and required `ext.{symptom, root_cause, fix}` per typed-extension table. Default trust `verified`. Canonical call shape (single JSON object on stdin — a YAML payload exits 64) in `${CLAUDE_PLUGIN_ROOT}/skills/debug/debug-state-reference.md` §9. After a successful emit, echo `Recorded learning: <summary>` — the helper writes silently, so the echo is the only in-session proof it ran. The other two types fire earlier: `discarded_hypothesis` per rejection in §1.5, `retry_failure_sequence` at Phase 2 exit in §2.5.
 
 ### 3.4 Cleanup
 
@@ -140,7 +140,7 @@ The load-bearing exit gates and safety invariants for the mode that ran — the 
 - [ ] Findings handoff persisted to `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md` (`<branch>` = state.md frontmatter `branch:`, the Phase 0-recorded workspace) via `atomic_state_write_cmd` through `redact_secrets` BEFORE the escalation question, with the authored test's secret scan run before it
 - [ ] Escalation decision made via AskUserQuestion
 - [ ] Working-tree check (§3.1) ran before the handoff was persisted — every non-test path debug recorded touching (experiments, tagged debug logging, escape-hatch edits) was reverted or explicitly user-accepted and recorded in the evidence line, and the reproduction test was confirmed present rather than reverted; everything else changed since the Phase 0 baseline was reported for awareness only, not attributed to debug
-- [ ] L2 emit fired with `diagnosis` type + `ext.{symptom, root_cause, fix}`
+- [ ] L2 emit fired with `diagnosis` type + `ext.{symptom, root_cause, fix}` for a confirmed root cause, before the escalation question
 - [ ] Cleanup completed
 
 Adversarial Mode's checklist lives in `${CLAUDE_PLUGIN_ROOT}/skills/debug/adversarial-mode.md`.

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# C11 (plugin-audit 2026-09-23, fix-plan §O / T3-18, T3-19, T3-29) — no shipped
-# skills/, agents/, or cursor/README.md file carries a leftover reference to a
-# removed mechanism: deep mode, debug depth, a depth pick/gate/question,
-# a "skeptic" agent, or a write-env flag.
+# C11 (plugin-audit 2026-09-23, fix-plan §O / T3-18, T3-19, T3-29; widened
+# 2026-10-19, T3-1 / T3-2) — no shipped skills/, agents/, or cursor/README.md
+# file carries a leftover reference to a removed mechanism: deep mode, debug
+# depth, a depth pick/gate/question, a "skeptic" agent, or a write-env flag.
+# A second token class covers the deleted guard hooks (below).
 #
 # Run: bash tests/authoring/lint-removed-tokens.sh
 #
@@ -48,7 +49,18 @@
 #   legitimate) — generalized here per-line rather than per-file, since a
 #   skill body can carry the identical correct "§11 reserved — the
 #   review-depth question is removed" shape MIGRATION.md and README use.
-
+#
+# Deleted guard hooks (T3-1 / T3-2). HOOKS.md §Removed guards records the six
+# scripts deleted on 2026-09-29. Prose that still says a hook blocks a direct
+# state write ("A hook blocks a direct Edit or Write", "trips the state-helper
+# hook", "hook-protected") tells a run about a guard that no longer exists, so
+# it plans around a protection that is not there — and the same stale claim
+# was found in four files in one audit. The class is scanned in skills/,
+# agents/, hooks/ and .claude/skills/. MIGRATION.md and HOOKS.md are out of
+# scope on purpose: they carry the removal history, and lint-migration-
+# superseded.sh owns the MIGRATION side. The same removal-notice carve-out
+# applies ("deleted" / "removed" / "dropped" on the line), so a code comment
+# that says what a guard "was deleted" for stays legal.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -58,6 +70,11 @@ FAILS=0
 report_fail() { FAILS=$((FAILS + 1)); echo "FAIL: $1" >&2; }
 
 TOKENS='deep mode|debug depth|depth (pick|gate|question)|\bskeptic\b|write-env'
+
+# The six scripts HOOKS.md §Removed guards lists, plus the four phrases that
+# describe a hook-enforced state write. `.` in a script name is escaped so
+# `file-protection.sh` does not match `file-protection-sh`.
+GUARD_TOKENS='file-protection\.sh|security-pattern-check\.sh|block-dangerous-git\.sh|block-geniro-deletion\.sh|enforce-state-helper\.sh|write-vectors\.sh|state-helper hook|A hook blocks a direct (Edit|Write)|hook-protected|guarded persistent path'
 
 # README.md's "## Skills deleted" section's line range (start, and the next
 # H2 after it) — excluded from the scan. Empty when the section is absent.
@@ -69,12 +86,13 @@ _readme_exempt_range() {
   ' README.md 2>/dev/null
 }
 
-# <dirs/files...> -> file:line:match, skipping a line that documents its own
-# removal ("removed"/"deleted"/"dropped" on the same line).
+# <tokens-regex> <dirs/files...> -> file:line:match, skipping a line that
+# documents its own removal ("removed"/"deleted"/"dropped" on the same line).
 _removed_token_hits() {
-  local exempt_range
+  local tokens="$1" exempt_range
+  shift
   exempt_range="$(_readme_exempt_range)"
-  grep -rnoiE "$TOKENS" "$@" 2>/dev/null | while IFS=: read -r f l m; do
+  grep -rnoiE "$tokens" "$@" 2>/dev/null | while IFS=: read -r f l m; do
     if [ "$f" = "README.md" ] && [ -n "$exempt_range" ]; then
       case "$exempt_range" in
         *,'$')
@@ -98,16 +116,30 @@ while IFS= read -r hit; do
   checked=$((checked + 1))
   f="${hit%%:*}"; rest="${hit#*:}"; l="${rest%%:*}"; m="${rest#*:}"
   report_fail "$f:$l — leftover reference to a removed mechanism: \"$m\" — remove it, or if the token is another mechanism's coincidental name, drop it from this check's list with evidence"
-done < <(_removed_token_hits skills agents cursor/README.md README.md)
+done < <(_removed_token_hits "$TOKENS" skills agents cursor/README.md README.md)
 
 if [ "$FAILS" -eq 0 ]; then
   echo "OK: no leftover 'deep mode' / 'debug depth' / depth-gate / skeptic / write-env reference found ($checked hit(s))"
 fi
 
+guard_checked=0
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  guard_checked=$((guard_checked + 1))
+  f="${hit%%:*}"; rest="${hit#*:}"; l="${rest%%:*}"; m="${rest#*:}"
+  report_fail "$f:$l — names a deleted guard hook or describes hook-enforced state writes: \"$m\" — no hook checks state writes any more (HOOKS.md §Removed guards); state the real reason (torn-write atomicity) or drop the sentence"
+done < <(_removed_token_hits "$GUARD_TOKENS" skills agents hooks .claude/skills)
+
+if [ "$guard_checked" -eq 0 ]; then
+  echo "OK: no skills/, agents/, hooks/ or .claude/skills/ file names a deleted guard hook or a hook-enforced state write"
+fi
+
 # --- self-test: red on a seeded live leftover, green on a removal notice + "skeptical" ----
+# Each scenario runs the real _removed_token_hits inside a scratch tree, so the
+# self-test exercises the same matcher, carve-out and README handling as the scan.
 SELFTEST_DIR="$(mktemp -d)"
 trap 'rm -rf "$SELFTEST_DIR"' EXIT
-mkdir -p "$SELFTEST_DIR/skills/probe" "$SELFTEST_DIR/agents"
+mkdir -p "$SELFTEST_DIR/skills/probe" "$SELFTEST_DIR/agents" "$SELFTEST_DIR/hooks" "$SELFTEST_DIR/.claude/skills/probe"
 
 cat > "$SELFTEST_DIR/skills/probe/violation.md" <<'EOF'
 Ask the debug depth question before Phase 1: how deep should this investigation go?
@@ -122,24 +154,43 @@ cat > "$SELFTEST_DIR/agents/clean.md" <<'EOF'
 Review with skeptical, fresh eyes. Do not rubber-stamp.
 EOF
 
+# Real shapes from the audit: the stale claims that tell a run a hook guards state writes.
+cat > "$SELFTEST_DIR/skills/probe/guard-violation.md" <<'EOF'
+Write the state file via the helper (a direct Write to a state path trips the state-helper hook).
+A hook blocks a direct Edit or Write on these paths, so route every change through the helper.
+The `_*.md` snapshots are a hook-protected persistent path.
+A direct edit is refused because `.geniro/planning/_*.md` is a guarded persistent path.
+See file-protection.sh for the list of guarded paths.
+EOF
+cat > "$SELFTEST_DIR/.claude/skills/probe/guard-violation.md" <<'EOF'
+Source `lib/atomic-state-write.sh` — a direct `Write` trips the State-Helper Hook.
+EOF
+cat > "$SELFTEST_DIR/hooks/guard-violation.sh" <<'EOF'
+# Mirrors enforce-state-helper.sh: block a direct Write to a state path.
+EOF
+
+# Clean: removal notices for the same scripts, and the live force-add guard's own name.
+cat > "$SELFTEST_DIR/hooks/guard-clean.sh" <<'EOF'
+# The one check kept from block-geniro-deletion.sh, which was deleted on 2026-09-29.
+# block-geniro-force-add.sh blocks only a force-add of an ignored .geniro/ path.
+EOF
+cat > "$SELFTEST_DIR/skills/probe/guard-clean.md" <<'EOF'
+The state-helper guard was removed; writes go through the helpers and no hook checks them.
+The file protection helper and the geniro-deletion check are unrelated live names here.
+EOF
+
 ( cd "$SELFTEST_DIR" || exit 1
-  v=$(grep -rnoiE 'deep mode|debug depth|depth (pick|gate|question)|\bskeptic\b|write-env' skills 2>/dev/null | while IFS=: read -r f l m; do
-    sed -n "${l}p" "$f" | grep -qiE '\b(removed|deleted|dropped)\b' && continue
-    echo hit
-  done | grep -c . || true)
-  if [ "$v" -ge 2 ]; then
+  v=$(_removed_token_hits "$TOKENS" skills/probe/violation.md | grep -c . || true)
+  if [ "$v" -eq 2 ]; then
     echo "OK: self-test — a seeded 'debug depth question' and 'skeptic agent' leftover are both detected ($v hit(s))"
   else
-    echo "FAIL: self-test — expected >=2 seeded leftover hits, got $v" >&2
+    echo "FAIL: self-test — expected 2 seeded leftover hits, got $v" >&2
     exit 1
   fi
 ) || report_fail "self-test — the seeded-violation scenario did not detect as expected"
 
 ( cd "$SELFTEST_DIR" || exit 1
-  c=$(grep -rnoiE 'deep mode|debug depth|depth (pick|gate|question)|\bskeptic\b|write-env' skills/probe/clean.md agents/clean.md 2>/dev/null | while IFS=: read -r f l m; do
-    sed -n "${l}p" "$f" | grep -qiE '\b(removed|deleted|dropped)\b' && continue
-    echo hit
-  done | grep -c . || true)
+  c=$(_removed_token_hits "$TOKENS" skills/probe/clean.md agents/clean.md | grep -c . || true)
   if [ "$c" -eq 0 ]; then
     echo "OK: self-test — a removal-documentation line ('...is removed') and 'skeptical, fresh eyes' do not false-positive"
   else
@@ -148,9 +199,29 @@ EOF
   fi
 ) || report_fail "self-test — the clean (removal-notice + skeptical) scenario false-positived"
 
+( cd "$SELFTEST_DIR" || exit 1
+  g=$(_removed_token_hits "$GUARD_TOKENS" skills/probe/guard-violation.md .claude/skills/probe/guard-violation.md hooks/guard-violation.sh | grep -c . || true)
+  if [ "$g" -eq 7 ]; then
+    echo "OK: self-test — all 7 seeded deleted-guard claims (4 phrases, a script name, a mixed-case phrase, a hook comment) are detected"
+  else
+    echo "FAIL: self-test — expected 7 seeded deleted-guard hits, got $g" >&2
+    exit 1
+  fi
+) || report_fail "self-test — the seeded deleted-guard scenario did not detect as expected"
+
+( cd "$SELFTEST_DIR" || exit 1
+  gc=$(_removed_token_hits "$GUARD_TOKENS" skills/probe/guard-clean.md hooks/guard-clean.sh | grep -c . || true)
+  if [ "$gc" -eq 0 ]; then
+    echo "OK: self-test — removal notices and the live block-geniro-force-add.sh name do not false-positive"
+  else
+    echo "FAIL: self-test — the deleted-guard clean fixture false-positived ($gc hit(s))" >&2
+    exit 1
+  fi
+) || report_fail "self-test — the clean deleted-guard scenario false-positived"
+
 echo
 if [ "$FAILS" -gt 0 ]; then
   echo "FAILED: $FAILS removed-mechanism leftover reference problem(s)." >&2
   exit 1
 fi
-echo "OK: skills/, agents/, cursor/README.md, and README.md carry no leftover removed-mechanism reference."
+echo "OK: skills/, agents/, hooks/, .claude/skills/, cursor/README.md, and README.md carry no leftover removed-mechanism reference."

@@ -82,11 +82,11 @@ Then, per matched citation, decide two things a presence match cannot:
 
 ### 6. `budget`
 
-*Scripted.* The frontmatter `budget` block carries all three sub-fields (`max_files_to_edit` / `max_lines_changed` / `time_budget`). Key presence only — `null` is a legal value for an unbounded key, an absent key is not.
+*Scripted.* The frontmatter `budget` block carries `max_files_to_edit` and `max_lines_changed` — the two sizes `/geniro:implement`'s scope-drift trigger reads — and an absent block or key is a `fail`. A missing `time_budget` is only a `warn`: no later phase reads it. Key presence only — `null` is a legal value for an unbounded key, an absent key is not.
 
 ### 7. `checkpoints`
 
-*Scripted.* When section 6 (Steps) has ≥5 steps, frontmatter `checkpoints` is a non-empty list and every `step_anchor: step-N` resolves to a real step. Steps are counted by their `- [ ] N.` checkbox lines, equivalently by `<!-- step-N -->` anchors — not by a bare leading digit. Under 5 steps the check passes without requiring checkpoints. A checkpoint naming a section rather than a step anchor is left to the reader.
+*Scripted, advisory.* When section 6 (Steps) has ≥5 steps, frontmatter `checkpoints` is a non-empty list and every `step_anchor: step-N` resolves to a real step; a miss is a `warn`, never a `fail` — no later phase reads checkpoints, so a gap costs the reader a pause point and blocks nothing. Steps are counted by their `- [ ] N.` checkbox lines, equivalently by `<!-- step-N -->` anchors — not by a bare leading digit. Under 5 steps the check passes without requiring checkpoints. A checkpoint naming a section rather than a step anchor is left to the reader.
 
 ### 8. `validation_method`
 
@@ -130,7 +130,7 @@ Then, per matched citation, decide two things a presence match cannot:
 
 *Scripted.* Skipped entirely when `launch_config:` is absent — older specs without the block stay valid, mirroring the `m5-v1` skip above, and its absence is the default (`/geniro:implement` then asks its Step 0 setup questions interactively). When present, each of the three core keys (`workspace` / `branch_freshness` / `ship_mode`) is set to one of its enum values, case-sensitively, and the optional `tracker_status` is checked only when the key is there. Shape-only; nothing is executed. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
 
-**Ordering note:** the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so this check's present-branch fires on RE-validation of an existing spec — a later /geniro:plan run over the same task-dir. The write-time enum assertion lives in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md`, §8.4's launch-config enum assertion.
+**Ordering note:** the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so Phase 7 never sees it. This check's present-branch fires twice: at write time, when `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.4 runs the script against the rewritten spec before committing it, and on RE-validation of an existing spec in a later /geniro:plan run over the same task-dir.
 
 ### 14. `effort_tier`
 

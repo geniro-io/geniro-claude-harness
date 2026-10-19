@@ -10,7 +10,7 @@ Detail sections the `${CLAUDE_PLUGIN_ROOT}/skills/debug/SKILL.md` spine and the 
 5. Stall diagnosis taxonomy — 8-component missing-component table
 6. Adversarial Mode template — A6 findings template
 8. Open-PR scan — check open PRs for an existing fix (Scientific Mode Phase 1)
-9. L2 emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5, `pitfall` Adversarial Mode A4 step 5)
+9. Learning emit payload shapes — canonical `emit_learning` call shapes (`diagnosis` Phase 3 §3.3, `discarded_hypothesis` Phase 1 §1.5, `pitfall` Adversarial Mode A4 step 5)
 
 ---
 
@@ -69,8 +69,9 @@ timestamp: <ISO-8601 UTC>
 phase: <enum per State Machine above>
 status: <in-progress|done|failed>
 non-resumable-actions: []
-approvals: []                         # categories: branch_freshness, disambiguate_mode, multi_path_fix, verification_stalled, existing_fix_pr, debug_workspace_setup
-baseline-dirty-paths: []              # git status --porcelain changed-path list captured at Phase 0 entry (Step 0.1), before this run touches anything; consumed by Phase 3 §3.1's working-tree check, Scientific Mode only — Adversarial Mode's ship path never reads it
+approvals: []
+baseline-dirty-paths: []
+open_questions: []
 geniro_kind: debug-state
 geniro_schema_version: m7-v1
 mode: <scientific|adversarial>
@@ -78,6 +79,8 @@ task_slug: <slug>
 worktree: <abs-path>
 ---
 ```
+
+`approvals[]` categories: `branch_freshness`, `disambiguate_mode`, `multi_path_fix`, `verification_stalled`, `existing_fix_pr`, `debug_workspace_setup`. `baseline-dirty-paths` is the `git status --porcelain` changed-path list captured at Phase 0 entry (Step 0.1), before this run touches anything; Phase 3 §3.1's working-tree check consumes it, Scientific Mode only — Adversarial Mode's ship path never reads it. `open_questions` is present from creation because the append helper fails on an absent key: the Phase 1 missing-data and stall gates and the Phase 3 cannot-verify pick all append to it, and the Phase 3 pre-gate reads it. Entry fields: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T2 `open_questions`.
 
 Body sections (Scientific Mode):
 
@@ -232,7 +235,7 @@ Persist the pick to state.md frontmatter `approvals[]` category `existing_fix_pr
 
 ---
 
-## 9. L2 emit payload shapes — canonical `emit_learning` call shapes
+## 9. Learning emit payload shapes — canonical `emit_learning` call shapes
 
 `emit_learning` reads a single JSON object on stdin; a YAML payload exits 64, and mis-named or missing `ext` sub-fields silently drop the typed extension. Mirror the shapes below exactly — the field names match the helper contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` §Example callers; the echo and non-zero-return rules for every emit are its §Caller contract.
 

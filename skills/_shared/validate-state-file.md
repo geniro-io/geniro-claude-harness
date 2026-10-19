@@ -15,7 +15,6 @@
 | Skill resume after compaction (SessionStart hook re-enters task) | Verify state.md survived intact before continuing |
 | Task-dir handoff (`/geniro:plan` writes `spec.md`, `/geniro:implement` reads it) | Catch malformed handoff early — fail fast at consumer entry |
 | Optional sanity check after `atomic_state_write` | Belt-and-suspenders; not required (write helper guarantees atomicity) |
-| Validator unit-test (`tests/state/validate-frontmatter.sh`) | Regression coverage |
 
 Producers do NOT need to validate the file they just wrote — the write helper guarantees the bytes hit disk atomically and the producer controls the content.
 

@@ -117,9 +117,9 @@ Run this once per spawn-spec whose `requires-context` is non-null, AFTER Step 7 
 
 For each spec the helper returns, the consumer skill appends one spawn to its parallel reviewer batch. The `model=` argument is **conditionally included**:
 
-- When the run carries `--subagent-model` → PASS `model="<tier>"` verbatim, beating every case below including a custom reviewer's own declared `model:` — the flag is the user's own run-wide election (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`).
+- When the run carries `--subagent-model` → PASS `model="<tier>"` verbatim, beating every case below including a custom reviewer's own declared `model:` — the flag is the user's own run-wide election (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`). On Codex a Claude model name fails the spawn: OMIT `model=` and take the Codex route in that section (announce once that the value is not applied).
 - Otherwise, when `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument entirely. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit` directive.
-- Otherwise, when `spec.model ∈ {haiku, sonnet, opus, fable}` (the user explicitly declared a model in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. The user's own declaration overrides the class.
+- Otherwise, when `spec.model ∈ {haiku, sonnet, opus, fable}` (the user explicitly declared a model in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. The user's own declaration overrides the class. On Codex the declaration has no spelling: OMIT `model=` and take the same Codex route.
 - Otherwise, when `spec.model == "auto"` → PASS `auto` as the model argument under a host whose spawn facility takes it (Cursor); under Claude Code there is no such selector, so OMIT the argument and treat it as `inherit`. Either way the user's intent — "let the host pick" — is honored rather than silently replaced by a tier of ours.
 
 Inherit form (default — user did not declare `model:`):
@@ -142,7 +142,7 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """)
 ```
 
-User-explicit form (user declared `model: haiku|sonnet|opus`, or `auto` on a host that takes it): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=`.
+User-explicit form (user declared `model: haiku|sonnet|opus`, or `auto` on a host that takes it): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=` (not on Codex, per the bullets above).
 
 When the consumer writes a review packet for its batch (`/geniro:review` Phase 2, `/geniro:implement` Phase 3), a custom spawn names it exactly as its built-in siblings do: a `REVIEW PACKET:` line — the shared file, plus the plan's own file where the consumer keeps PLAN CONTEXT in one — and the one-line search-policy binding stand in for `PROJECT SEARCH POLICY`, `CHANGED FILES`, `PROJECT CONTEXT`, `DIFF CONTEXT`, and `PLAN CONTEXT` above. `DIMENSION`, `CRITERIA`, `CUSTOM CONTEXT`, `SEVERITY DEFAULT`, and the closing instructions stay inline — each belongs to this spawn alone — and so do `WORKTREE` and its anchor line, since a subagent's starting directory depends on the host.
 

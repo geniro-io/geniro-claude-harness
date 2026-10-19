@@ -35,7 +35,8 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
 | Fix-loop retries per phase | RETRY_CAP (Phase 2) / ROUND_CAP (Phase 3, lower when the task input states a limit) — both canonical in `SKILL.md` §Loop invariants, invariant 5 | (Phase 2 test fix), (Phase 3 review round) | AUQ — debug-handoff / accept-failure / abort. User picks. Fires early (before the cap) when the loop is not converging — early-escalation triggers in `phase-2-implement.md` §Step 6, reused by the Phase 3 loop. |
-| Edge-case authored tests | 10 per run | Phase 3 edge-case test-authoring step (`implement-reference.md` §"Phase 3: Edge-case test authoring") | Stop authoring; surface the tests kept so far |
+| Edge-case hypotheses | up to 12 per run, scaled to the diff (a ceiling, not a floor) | Phase 3 edge-case test-authoring step (`implement-reference.md` §"Phase 3: Edge-case test authoring") | Stop generating; surface what survived |
+| Edge-case authored tests | 10 per run | Phase 3 edge-case test-authoring step (same reference) | Stop authoring; surface the tests kept so far |
 | Edge-case consecutive discards | 5 consecutive | Phase 3 edge-case test-authoring step (same reference) | Stop hypothesis generation; surface partial |
 
 **Architecture constraint (design intent, not budget):** the Phase 1 knowledge-retrieval + codebase-explorer pair is a fixed spawn set, not size-scaled (skip conditions per `SKILL.md` §Anti-rationalization; store-empty gate at `phase-1-analyze.md` Step 7). The Phase 3 Round 1 reviewer grid scales by `change_scope` — the tier-to-dimension mapping is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-grid-scaling.md`; the resolved set is always announced to the user and recorded in `spawn_dims_declared[]` before firing, plus any custom dimensions from `.geniro/instructions/review-extra/` (path-filtered and capped per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` §Step 6).
@@ -48,7 +49,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 **Light spawns.** `test-runner-agent` runs as **light (smallest)** on every run, the first included. `knowledge-retrieval-agent` (the Phase 1 memory sweep), the Phase 2 code delegates (one class for the whole batch), the `codebase-research-agent` side queries of loop invariant S3, and the library-reuse-audit web-research spawn run as **light (mid)**. Every other spawn is `session`: the codebase-explorer, the spec-challenge verifiers, every Phase 3 reviewer-agent, `finding-verifier-agent`.
 
-**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** When `$ARGUMENTS` carries the flag, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. The flag has no chooser question: it is parsed at Phase 1 Step 1 and persisted to state.md frontmatter `subagent-model:` at Step 4, so a compaction before Phase 2 or Phase 3 does not silently revert every spawn back to its class.
+**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** Every spawn site reads the tier from state.md frontmatter `subagent-model:` first and falls back to the `$ARGUMENTS` flag where the field is absent (Phase 1 before Step 4 writes it). When the run carries a tier, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. The flag has no chooser question: it is parsed at Phase 1 Step 1 and persisted to state.md frontmatter `subagent-model:` at Step 4, so a compaction before Phase 2 or Phase 3 does not silently revert every spawn back to its class.
 
 ---
 
@@ -74,15 +75,21 @@ worktree: <git-rev-parse-show-toplevel>
 timestamp: <ISO-8601 UTC>
 phase: <state-machine-enum>
 status: in-progress
-non-resumable-actions: [] # appended after each git push / gh pr create / posted comment
-approvals: [] # appended after each one-time AUQ resolution
+# appended after each git push / gh pr create / posted comment
+non-resumable-actions: []
+# appended after each one-time AUQ resolution
+approvals: []
 subagent-model: <tier>    # set by --subagent-model (Phase 1 Step 1 parse); missing reads as inherit
-spawn_dims_declared: []   # Phase 3 Round 1 declare-before-fire list — resolved reviewer grid + custom:<slug> entries (phase-3-ship.md Step 1)
+# Phase 3 Round 1 declare-before-fire list — resolved reviewer grid + custom:<slug> entries (phase-3-ship.md Step 1)
+spawn_dims_declared: []
 spawn_dims_count: <int>   # count of spawn_dims_declared[], written alongside it in the same atomic_state_write
-todos_declared: []        # Phase 2 decomposition declare-before-edit list — one short slug per authored todo (phase-2-implement.md Step 2)
+# Phase 2 decomposition declare-before-edit list — one short slug per authored todo (phase-2-implement.md Step 2)
+todos_declared: []
 todos_declared_count: <int>  # count of todos_declared[], set alongside it; the Ship pre-terminal check reads both
-reviewed_file_set: []     # union of every fix-loop round's CHANGED FILES plus every path a fix, nit, or authored test touched (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
-reviewed_file_hashes: []  # <path>@<hash> per reviewed file (hash defined at that loop exit), set at the same exit; Ship's guard treats a hash mismatch as a diverged file
+# union of every fix-loop round's CHANGED FILES plus every path a fix, nit, or authored test touched (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
+reviewed_file_set: []
+# <path>@<hash> per reviewed file (hash defined at that loop exit), set at the same exit; Ship's guard treats a hash mismatch as a diverged file
+reviewed_file_hashes: []
 ---
 ```
 
@@ -126,6 +133,6 @@ Detail behind the `SKILL.md` §Loop invariants and §State machine, read here at
 
 **A declared memory backend redirects every learnings read.** When `memory.md` carries a `## Memory Backend` block for `learnings`, query the declared read tool instead of the file helper per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" — under `mode: replace` the local `learnings.jsonl` is never written, so the file query returns nothing and only the backend read recalls anything. Absent block → the file query is correct, unchanged.
 
-**Termination reason.** On `phase: aborted`, write one line under `## Termination reason` in the state.md body: `repeated-failure: phase-N retry-limit` / `safety-denied: <rule>` / `tool-unavailable: <tool>` / `user-cancelled: <wrong-worktree | no-ticket-id | spec-replan | pending-decision>` (the last four are the Phase 1 cancel picks). The SessionStart hook re-injects it on resume. A Step 0 cancel that fires before Phase 1 Step 4 created the task directory has no state.md to write — say so in plain English and exit; nothing was mutated and there is nothing to resume.
+**Termination reason.** On `phase: aborted`, write one line under `## Termination reason` in the state.md body: `repeated-failure: phase-N retry-limit` / `safety-denied: <rule>` / `tool-unavailable: <tool>` / `user-cancelled: <wrong-worktree | no-ticket-id | spec-replan | pending-decision>` (the last four are the Phase 1 cancel picks). A Step 0 cancel that fires before Phase 1 Step 4 created the task directory has no state.md to write — say so in plain English and exit; nothing was mutated and there is nothing to resume.
 
 **Escalation (paused) states.** `phase-2-escalated` and `phase-3-escalated` mean a fix loop is exhausted and an AUQ is open. On resume the recovery re-surfaces "task was paused — your previous options:" so the user re-picks without losing context.

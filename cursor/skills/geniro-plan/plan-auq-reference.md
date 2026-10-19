@@ -133,7 +133,7 @@ Two decisions I can ask now — neither depends on the other:
 ➡️ 90 days, matching the existing events table.
 ```
 
-Then ONE lean AUQ carrying the round's questions (up to 4 per call; a larger round chains further calls from the same message). Options are short selectors carrying the plain layer only (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions); the identifiers live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, each question's first option carries the `(Recommended)` marker:
+Then ONE lean AUQ carrying the round's questions (`loop-phase-3-grill.md` §3.2 sizes the call; a larger round chains further calls from the same message). Options are short selectors carrying the plain layer only (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions); the identifiers live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, each question's first option carries the `(Recommended)` marker:
 
 ```yaml
 questions:

@@ -276,15 +276,23 @@ hooks_apply() {
 # literal quote character in from bash (`--arg q "'"`) rather than being
 # spelled inside the jq program text itself, which stays inside ordinary
 # bash single quotes throughout.
+#
+# A single quote INSIDE the root (`~/O'Brien/checkout`) would end the quoted
+# string early, leaving the rest of the path as bare shell words — a command
+# that fails to start, or runs the wrong thing. The POSIX way to put a quote in
+# a single-quoted word is to close it, emit an escaped quote, and reopen it
+# (`'\''`); `$esc` carries that replacement in from bash for the same reason
+# `$q` does.
 hooks_ours() {
   local src="$1/cursor/hooks.json"
   [ -f "$src" ] || { printf '{}\n'; return 0; }
   command -v jq >/dev/null 2>&1 || { printf '{}\n'; return 0; }
-  jq --arg root "$1" --arg q "'" '
-    .hooks |= with_entries(
+  jq --arg root "$1" --arg q "'" --arg esc "'\\''" '
+    ($root | gsub($q; $esc)) as $r
+    | .hooks |= with_entries(
       .value |= map(.command |= sub(
         "^\\./(?<rel>\\S+)(?<rest>(\\s.*)?)$";
-        "\($q)\($root)/\(.rel)\($q)\(.rest // "")"
+        "\($q)\($r)/\(.rel)\($q)\(.rest // "")"
       ))
     )' "$src" 2>/dev/null || printf '{}\n'
 }

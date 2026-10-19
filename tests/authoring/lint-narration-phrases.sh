@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# C5 (plugin-audit 2026-09-23, fix-plan §O / T2-5) — no skills/ or agents/ body
-# carries author-facing narration or a maintainer note: "Define ONCE ...
-# reference from N consumers", "previously specified inline" / "previously
-# borrowed", "reserved ... not yet routed", "in v1", or a design-doc "Block 5b"
-# style code.
+# C5 (plugin-audit 2026-09-23, fix-plan §O / T2-5; widened 2026-10-19, T2-4) —
+# no skills/ or agents/ body carries author-facing narration or a maintainer
+# note: "Define ONCE ... reference from N consumers" (any case, "Define" or
+# "Defined"), "previously specified inline" / "previously borrowed", "reserved
+# ... not yet routed", "in v1", or a design-doc "Block 5b" style code.
 #
 # Run: bash tests/authoring/lint-narration-phrases.sh
 #
@@ -37,7 +37,14 @@ cd "$REPO_ROOT" || exit 1
 FAILS=0
 report_fail() { FAILS=$((FAILS + 1)); echo "FAIL: $1" >&2; }
 
-PHRASES='Define ONCE|previously (specified|borrowed)|not yet routed|\bin v1\b|Block 5[a-z]'
+# "Define ONCE" is matched case-insensitively and with the past-tense spelling:
+# a maintainer note reads "Defined ONCE here; referenced by ..." as often as
+# "Define ONCE here", and the exact-case form let the variants through. Only the
+# self-referential "… once here" is the note: "defined once in <file>" names a
+# canonical home, which is a rule, not narration. The bracket classes keep the
+# other phrases case-sensitive, so "in V1" or a lower-case "block 5b" stay out of
+# scope.
+PHRASES='[Dd][Ee][Ff][Ii][Nn][Ee][Dd]? [Oo][Nn][Cc][Ee] [Hh][Ee][Rr][Ee]|previously (specified|borrowed)|not yet routed|\bin v1\b|Block 5[a-z]'
 
 # <dirs...> -> file:line:match for every narration-phrase hit.
 _narration_hits() {
@@ -68,18 +75,21 @@ This dim previously borrowed that inclusion rule.
 - layer: learnings          # learnings (L2). snapshot (L3) reserved — not yet routed
 - **layer** — `learnings` (L2) in v1.
 ## Errors # Block 5b (only on failure)
+Canonical procedure for the reuse check. Defined ONCE here; referenced by the planner and the reviewer.
+The field is therefore defined once here and not restated per producer section.
 EOF
 
 cat > "$SELFTEST_DIR/skills/_shared/clean.md" <<'EOF'
 Single source of truth for the data-source verification primitive. Skills cite this file; do NOT inline-paste the procedure.
 This file is the single source of truth. Skills cite this file; do NOT inline-paste the cycle steps or the state-file contract.
+The four decision-type values are defined once in `agents/reviewer-agent.md` — cite it, never restate it.
 EOF
 
 v=$(_narration_hits "$SELFTEST_DIR/skills/_shared/violation.md" | grep -c .)
-if [ "$v" -ge 5 ]; then
-  echo "OK: self-test — all 5 seeded narration phrases are detected ($v hit(s))"
+if [ "$v" -eq 8 ]; then
+  echo "OK: self-test — all 8 seeded narration phrases are detected ($v hit(s)), including \"Defined ONCE\" and lower-case \"defined once\""
 else
-  report_fail "self-test — expected >=5 seeded narration hits, got $v"
+  report_fail "self-test — expected 8 seeded narration hits, got $v"
 fi
 
 c=$(_narration_hits "$SELFTEST_DIR/skills/_shared/clean.md" | grep -c .)

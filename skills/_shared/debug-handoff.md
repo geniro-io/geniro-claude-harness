@@ -6,7 +6,7 @@ When `/geniro:debug` ran earlier in the same project, it left T2 handoff files a
 
 ## Step 1: Scan
 
-Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` = `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Glob the canonical paths; for each that exists, read fully.
+Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — the handoff files always live in the primary worktree's `.geniro/state/handoff/` regardless of where this scan runs from. Compute `<branch>` as the branch the consumer started on: the `CURRENT_BRANCH` it recorded before any workspace switch (`/geniro:implement` Step 0a), else `git branch --show-current` (fall back to detached-<short-sha> per the slug rules in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Debug named its handoff for the branch it ran on, so a key taken after the consumer's workspace step has switched branches would never find it. Glob the canonical paths; for each that exists, read fully.
 
 **Canonical paths:**
 - `<PRIMARY_ROOT>/.geniro/state/handoff/from-debug-<branch>.md`
@@ -39,7 +39,9 @@ For each path in `authored-test-paths`, resolve relative to the current `git rev
 
 ## Step 4: Decide and surface
 
-Three cases:
+`<current-branch>` and "current branch" below mean the live branch now, after any workspace switch — the comparison with `debug-source-branch` is what separates Case A from Case B2.
+
+The cases:
 
 **Case A — All PRESENT and `debug-source-branch` matches current branch.** Tests are already where they need to be. Surface a one-line acknowledgment in the Phase 1 context summary: `Debug findings detected (<source-branch>); <N> authored test(s) present in current working tree.` No further action.
 

@@ -133,6 +133,57 @@ else
   fail "failure-branch pipefail survival (T4-62e) — rc=$rc out='$out'"
 fi
 
+# T4-53: a SIGINT/SIGTERM while the wrapped command runs must remove the capture
+# file AND end the run with the signal's status (130 / 143). A trap that only
+# cleaned up let the caller go on: run_silent printed a verdict for the
+# interrupted command and the next line of the script ran. A stub mktemp puts the
+# capture file in a directory the test can inspect (BSD mktemp ignores TMPDIR).
+# `set -m` gives the background shell default signal dispositions, since a
+# non-interactive shell starts background jobs with SIGINT ignored and an ignored
+# signal cannot be trapped.
+BP_CAP="$(mktemp -d)"; BP_BIN="$(mktemp -d)"; BP_MARK="$(mktemp -d)"
+REAL_MKTEMP="$(command -v mktemp)"
+printf '#!/bin/sh\nexec "%s" "%s/cap.XXXXXXXX"\n' "$REAL_MKTEMP" "$BP_CAP" > "$BP_BIN/mktemp"
+chmod +x "$BP_BIN/mktemp"
+# A suite that itself started with SIGINT ignored (tests/run-all.sh runs every
+# suite as a background job) keeps it ignored in its children even under
+# `set -m`, so no INT trap can fire there. Probe whether a job can receive
+# SIGINT at all; where it cannot, the INT case is skipped and TERM still covers
+# the trap's exit path.
+set -m
+bash -c 'trap "exit 7" INT; sleep 3' &
+INT_PROBE=$!
+set +m
+sleep 0.3
+kill -s INT "$INT_PROBE" 2>/dev/null || true
+INT_PROBE_RC=0; wait "$INT_PROBE" 2>/dev/null || INT_PROBE_RC=$?
+for SIG_CASE in "TERM 143" "INT 130"; do
+  SIG="${SIG_CASE% *}"; WANT_RC="${SIG_CASE#* }"
+  if [ "$SIG" = INT ] && [ "$INT_PROBE_RC" -ne 7 ]; then
+    echo "SKIP: INT mid-run — this shell started with SIGINT ignored, so no job it spawns can trap SIGINT; the TERM case covers the trap"
+    continue
+  fi
+  rm -f "$BP_MARK"/* "$BP_CAP"/*
+  set -m
+  PATH="$BP_BIN:$PATH" bash -c '
+    source "$1/hooks/backpressure.sh"
+    run_silent "Slow" "sleep 1"
+    : > "$2/reached-next-line"
+  ' _ "$REPO_ROOT" "$BP_MARK" >/dev/null 2>&1 &
+  BP_PID=$!
+  set +m
+  for _ in $(seq 1 50); do [ -n "$(ls -A "$BP_CAP")" ] && break; sleep 0.1; done
+  BP_HAD_CAPTURE="$(ls -A "$BP_CAP" | wc -l | tr -d ' ')"
+  kill -s "$SIG" "$BP_PID" 2>/dev/null || true
+  rc=0; wait "$BP_PID" 2>/dev/null || rc=$?
+  if [ "$BP_HAD_CAPTURE" -eq 1 ] && [ "$rc" -eq "$WANT_RC" ] && [ ! -e "$BP_MARK/reached-next-line" ] && [ -z "$(ls -A "$BP_CAP")" ]; then
+    pass "$SIG mid-run: capture file removed, run ends with $WANT_RC, caller's next line not reached"
+  else
+    fail "$SIG mid-run — captures-while-running=$BP_HAD_CAPTURE rc=$rc (want $WANT_RC) next-line-reached=$([ -e "$BP_MARK/reached-next-line" ] && echo yes || echo no) leftover=$(ls -A "$BP_CAP" | tr '\n' ' ')"
+  fi
+done
+rm -rf "$BP_CAP" "$BP_BIN" "$BP_MARK"
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

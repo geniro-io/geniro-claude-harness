@@ -117,7 +117,9 @@ _RED_NAMES=(
   api-key:pk_live
   api-key:pk_test
   api-key:ghp
+  api-key:gh-other
   api-key:github-pat
+  api-key:npm
   api-key:gitlab
   api-key:xoxb
   api-key:xox
@@ -141,7 +143,13 @@ _RED_REGEXES=(
   'pk_live_[A-Za-z0-9_]+'
   'pk_test_[A-Za-z0-9_]+'
   'ghp_[A-Za-z0-9_-]+'
+  # gho_ (OAuth — what `gh auth token` prints), ghu_ (user-to-server), ghs_
+  # (server-to-server), ghr_ (refresh): the other GitHub token prefixes, same body.
+  'gh[ousr]_[A-Za-z0-9_-]+'
   'github_pat_[A-Za-z0-9_]+'
+  # npm access tokens are `npm_` + 36 alphanumerics. The length floor keeps the
+  # `npm_config_*` / `npm_package_*` environment-variable names out of the match.
+  'npm_[A-Za-z0-9]{36,}'
   'glpat-[A-Za-z0-9_-]+'
   'xoxb-[A-Za-z0-9_-]+'
   'xox[a-z]-[A-Za-z0-9_-]+'
@@ -174,7 +182,9 @@ _RED_REPLACEMENTS=(
   '[REDACTED:api-key:stripe-live]'
   '[REDACTED:api-key:stripe-test]'
   '[REDACTED:api-key:github]'
+  '[REDACTED:api-key:github]'
   '[REDACTED:api-key:github-fine-grained]'
+  '[REDACTED:api-key:npm]'
   '[REDACTED:api-key:gitlab]'
   '[REDACTED:api-key:slack-bot]'
   '[REDACTED:api-key:slack]'
@@ -183,7 +193,7 @@ _RED_REPLACEMENTS=(
   '\1://[REDACTED:url-cred]@'
   '[REDACTED:private-key]'
 )
-_RED_MULTILINE=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1)
+_RED_MULTILINE=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1)
 
 redact_secrets() {
   local producer="${1:-unknown}" field="${2:-unknown}" dedup_key="${3:-unknown}"
@@ -263,14 +273,19 @@ redact_secrets() {
     fi
 
     total=0
+    # Every grep/sed/tr below runs under `LC_ALL=C` (set per command, so the
+    # caller's locale is untouched). Each built-in pattern is ASCII, and under a
+    # UTF-8 locale BSD sed and tr abort on the first invalid byte — the sed
+    # failure is swallowed by the guarded assignment below, so the input would
+    # pass through UNREDACTED, and tr truncates the multiline branch after it.
     # `-e <regex>` is required because some patterns start with `-` (e.g. the
     # PEM `-----BEGIN ... PRIVATE KEY-----` regex), which `grep -oE "$regex"`
     # would otherwise misinterpret as a CLI option flag.
     if [ "$ml" = "1" ]; then
       # Multiline: collapse newlines to NUL byte for sed/grep, restore after.
-      matches=$(printf '%s' "$input" | tr '\n' '\001' | grep -oE -e "$regex" 2>/dev/null || true)
+      matches=$(printf '%s' "$input" | LC_ALL=C tr '\n' '\001' | LC_ALL=C grep -oE -e "$regex" 2>/dev/null || true)
     else
-      matches=$(printf '%s' "$input" | grep -oE -e "$regex" 2>/dev/null || true)
+      matches=$(printf '%s' "$input" | LC_ALL=C grep -oE -e "$regex" 2>/dev/null || true)
     fi
 
     if [ -z "$matches" ]; then
@@ -305,11 +320,11 @@ redact_secrets() {
     # break the s/// command. Guard the assignment: if sed exits non-zero
     # (malformed user regex), keep the prior input rather than blanking it.
     if [ "$ml" = "1" ]; then
-      new=$(printf '%s' "$input" | tr '\n' '\001' \
-        | sed -E "s${delim}${regex}${delim}${replacement}${delim}g") \
-        && input=$(printf '%s' "$new" | tr '\001' '\n')
+      new=$(printf '%s' "$input" | LC_ALL=C tr '\n' '\001' \
+        | LC_ALL=C sed -E "s${delim}${regex}${delim}${replacement}${delim}g") \
+        && input=$(printf '%s' "$new" | LC_ALL=C tr '\001' '\n')
     else
-      new=$(printf '%s' "$input" | sed -E "s${delim}${regex}${delim}${replacement}${delim}g") \
+      new=$(printf '%s' "$input" | LC_ALL=C sed -E "s${delim}${regex}${delim}${replacement}${delim}g") \
         && input="$new"
     fi
 

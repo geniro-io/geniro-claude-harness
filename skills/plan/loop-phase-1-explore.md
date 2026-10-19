@@ -4,7 +4,7 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 
 ## Contents
 
-- 1.1 Memory layer loading
+- 1.1 Load project snapshot and past learnings
 - 1.1b Branch freshness
 - 1.2 Effort-tier-scaled research spawns
 - 1.3 Echo contract (in the spine)
@@ -13,13 +13,13 @@ The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries
 
 State.md `phase: explore` during this phase.
 
-### 1.1 Memory layer loading
+### 1.1 Load project snapshot and past learnings
 
 At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 
 - **Custom instructions:** apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`.
 - **Project snapshot:** `source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh" && load_semantic`. Default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Fingerprint drift check fires; surface drift to user.
-- **Past learnings:** route the read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the file is empty under `mode: replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic to infer tags. Include any matching `type=user_rejected_suggestion AND tags includes 'approach_choice'` entry for the current topic in the results — display as "User previously rejected <suggestion> on <ts>" so Phase 4's approach AUQ (§4.3/§4.4) can re-rank or omit the previously-rejected approach.
+- **Past learnings:** route the read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the file is empty under `mode: replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic to infer tags. Then run a second query, routed the same way and not skipped on a generic topic, for the approaches earlier runs declined — `--type user_rejected_suggestion --tag approach_choice`, no `--tag <inferred>` or `--scope` filter, because a rejection carries only its category tags and the topic string of the run that recorded it, which rarely repeats verbatim. Keep the entries whose suggestion concerns the current topic and display each as "User previously rejected <suggestion> on <ts>" so Phase 4's approach AUQ (§4.3/§4.4) can re-rank or omit the previously-rejected approach.
 - **Cross-layer resolution:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
 
 ### 1.1b Branch freshness

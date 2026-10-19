@@ -2,7 +2,7 @@
 
 # Update — user-content snapshot
 
-Sibling reference for `${CLAUDE_PLUGIN_ROOT}/skills/update/SKILL.md` §User-content snapshot. `phase-1-precheck.md` (baseline) and `phase-3-postcheck.md` (comparison) each paste these definitions verbatim into their own Bash call. Both phases must paste byte-identical code: a drifted second copy would make the survival diff raise a false tamper alarm over content nothing touched. Change it here, then re-paste into both phase files in the same edit.
+Sibling reference for `${CLAUDE_PLUGIN_ROOT}/skills/update/SKILL.md` §User-content snapshot. `phase-1-precheck.md` (baseline) and `phase-3-postcheck.md` (comparison) each paste these definitions verbatim into their own Bash call. Both phases must paste byte-identical code: a drifted second copy would make the survival diff raise a false tamper alarm over content nothing touched.
 
 ```bash
 # One "<sha256> <mtime> <path>" line per user-authored file, sorted. $1 = PRIMARY_ROOT.

@@ -20,7 +20,7 @@ Cursor speaks a different hook dialect, so its manifest points every entry at [`
 
 | Direction | Claude Code dialect | Cursor dialect |
 |---|---|---|
-| Event names | `PreToolUse` with a `Bash` matcher; `SessionStart` | `beforeShellExecution` / `sessionStart` (camelCase). Any other event reaching the shim runs nothing; a permission event among them is answered allow. |
+| Event names | `PreToolUse` with a `Bash\|Monitor` matcher; `SessionStart` | `beforeShellExecution` / `sessionStart` (camelCase). Any other event reaching the shim runs nothing; a permission event among them is answered allow. |
 | Stdin payload | `{tool_name, tool_input, cwd}` | `{command, cwd}` for shell events, folded to `{tool_name:"Bash", tool_input:{command}, cwd}` |
 | Working directory | guards walk up from `$PWD` | the shim `cd`s into the payload's `cwd` first, so the walk-up lands in the project the action targets |
 | Block signal | `exit 2` + reason on stderr | `{"permission":"deny","agent_message":"<reason>"}` + exit 0, so the reason reaches the Cursor agent |
@@ -35,7 +35,7 @@ Wired for Cursor: the force-add guard on `beforeShellExecution` (with `"failClos
 
 | Script | Event | Blocking | Description |
 |---|---|---|---|
-| [`block-geniro-force-add.sh`](hooks/block-geniro-force-add.sh) | PreToolUse `Bash` | exit 2 = block | Blocks `git add -f` / `--force` (and `git update-index --force`) on `.geniro/` paths. Bypass: `git-add-force-geniro` |
+| [`block-geniro-force-add.sh`](hooks/block-geniro-force-add.sh) | PreToolUse `Bash\|Monitor` | exit 2 = block | Blocks `git add -f` / `--force`, its synonym `git stage -f`, and `git update-index --add` on `.geniro/` paths. Bypass: `git-add-force-geniro` |
 | [`session-start-restore.sh`](hooks/session-start-restore.sh) | SessionStart `matcher: "compact\|resume\|startup"` | non-blocking | Compaction-survival. Resolves the active T1.5 state.md across all three layouts (planning task-dir / state-per-skill / state singleton); skips state.md candidates already in a terminal `phase:`/`status:` during resolution, so a finished task is never surfaced as resumable AND cannot shadow an in-flight task on the same branch in a later resolution tier; pre-flights `validate_state_file`; emits an `additionalContext` block-set (per-source prefix · suggested files · validation-failure recovery · helper-missing notice · non-resumable-actions warning · `## Errors` / `## Open Questions` / persisted `approvals:` from state.md frontmatter · resume protocol). Also runs L2 auto-archive. Read-only on state.md; the only writes are `learnings.jsonl` (auto-archive flip) + `.archive-stale.{hash,lock}`. |
 | [`geniro-check-update.js`](hooks/geniro-check-update.js) | SessionStart | non-blocking, detached | Background-checks GitHub for plugin updates; exits as a no-op under Codex |
 | [`geniro-statusline.js`](hooks/geniro-statusline.js) | `statusLine.command` (settings.json) | non-blocking | Two-row width-justified status line (model — effort · task · topic · 5h limit · cost · update / dir · context · last prompt) |
@@ -43,13 +43,18 @@ Wired for Cursor: the force-add guard on `beforeShellExecution` (with `"failClos
 
 ### block-geniro-force-add.sh
 
-**Event:** PreToolUse `Bash`. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`.
+**Event:** PreToolUse `Bash|Monitor` — every tool that runs `tool_input.command` as a shell command; the script reads that field and never looks at the tool name. **Stdin:** `jq -r '.tool_input.command // ""'`. **Block exit:** `exit 2`. Cursor has no `Monitor` tool, so `cursor/hooks.json` wires only its shell event.
 
 Force-adding a gitignored file puts it in the IDE's Source Control panel, where one "Discard All Changes" click deletes it — a real incident wiped force-added `.geniro/actions/*.md` that way. Track a `.geniro/` subdir by negating it in `.gitignore` instead (`!.geniro/actions/` plus `!.geniro/actions/**`).
 
-Blocks a command segment that runs `git add` or `git update-index` with `-f` (alone or in a short-flag cluster), `--force`, or an unambiguous prefix of it (`--f` … `--forc`), AND names a `.geniro/` path. The `git` word matches in any case and path-qualified; git's global options (`-C <path>`, `-c k=v`, `--git-dir`, …) are skipped. Heredoc bodies are dropped and quoted spans containing whitespace are blanked first, so a commit message or a handoff that merely mentions the rule passes.
+Blocks a command segment that stages a `.geniro/` path past the ignore rules. The segment's `git` word must stand in command position — after assignments, redirections, shell keywords and wrappers such as `sudo`, `env`, `time`, `xargs` — so `echo git add -f .geniro/x` only prints the words and passes. The forms:
 
-It reads the command as written — no variable resolution, no `bash -c` / `eval` payloads, no interpreter calls. That literalness is the design, not a gap to close: the deleted guards chased those channels and blocked read-only commands far more often than they caught a real write (§Removed guards).
+- `git add` or its built-in synonym `git stage` with `-f` (alone or in a short-flag cluster), `--force`, or an unambiguous prefix of it (`--f` … `--forc`).
+- `git update-index` with `--add`, `--cacheinfo` or `--index-info` (or an unambiguous prefix); git rejects `--force` there, so it is not a staging form.
+
+AND a `.geniro/` path, which is `.geniro` as a whole path component: in a path argument, behind pathspec magic (`:(top).geniro/…` — folded to a bare `:` before the command is split on parentheses), or in the value of `-C`, `--work-tree` or `--git-dir` (`git -C .geniro add -f actions/x.md` stages the file with no `.geniro` in its path argument). The `git` word matches in any case, path-qualified or backslash-escaped; git's other global options (`-c k=v`, `--namespace`, …) are skipped with their values. Heredoc bodies are dropped by their full delimiter word (`<<END-NOTE`, quoted or backslashed tags, `<<-`, several heredocs on one line) and quoted spans containing whitespace are blanked first, so a commit message or a handoff that merely mentions the rule passes. A `<<` whose closing line never appears — an arithmetic shift, a `<<EOF` quoted in prose — drops nothing: its lines are scanned.
+
+It reads the command as written — no variable resolution, no `bash -c` / quoted `eval` payloads, no interpreter calls. That literalness is the design, not a gap to close: the deleted guards chased those channels and blocked read-only commands far more often than they caught a real write (§Removed guards). A force-add that never writes `.geniro` in the command (`git add -f .`, `cd .geniro && git add -f x`, a path piped to `xargs git add -f`) is outside it for the same reason.
 
 **Per-project allowlist:** walks up from cwd (then, from a linked worktree, the main checkout) looking for `.geniro/safety.json` and honors `"git-add-force-geniro"` in `allow_patterns[]`. A malformed `safety.json` does not allow. On block, the message names the `.gitignore` negation and the exact snippet to add.
 
@@ -145,9 +150,12 @@ echo '{"tool_input":{"command":"git add -f .geniro/actions/x.md"}}' | ./hooks/bl
 echo "exit=$?"
 
 # Full smoke-test suites
-bash tests/hooks/block-geniro-force-add.sh
+bash tests/hooks/block-geniro-force-add.sh   # git-parity matrix: each spelling run through real git
 bash tests/cursor/hook-shim.sh
+bash tests/authoring/lint-hook-wiring.sh     # includes: the guard matcher covers Bash and Monitor
 ```
+
+The guard suite is a **git-parity matrix**: every command spelling runs through real git in a scratch repo whose `.gitignore` ignores `.geniro/`, and the guard must block exactly when that command leaves an ignored `.geniro/` file in the index. A new bypass is one new row in `tests/hooks/block-geniro-force-add.sh`, not a new test shape.
 
 ## Key Safety Principles
 

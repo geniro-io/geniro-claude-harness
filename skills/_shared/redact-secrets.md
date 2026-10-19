@@ -34,7 +34,9 @@ The helper never errors out — it falls through to passthrough if `git`, `jq`, 
 | `api-key:pk_live` | `pk_live_[A-Za-z0-9_]+` | `[REDACTED:api-key:stripe-live]` |
 | `api-key:pk_test` | `pk_test_[A-Za-z0-9_]+` | `[REDACTED:api-key:stripe-test]` |
 | `api-key:ghp` | `ghp_[A-Za-z0-9_-]+` | `[REDACTED:api-key:github]` |
+| `api-key:gh-other` | `gh[ousr]_[A-Za-z0-9_-]+` (`gho_` OAuth — what `gh auth token` prints — plus `ghu_`, `ghs_`, `ghr_`; `ghp_` stays its own row above) | `[REDACTED:api-key:github]` |
 | `api-key:github-pat` | `github_pat_[A-Za-z0-9_]+` | `[REDACTED:api-key:github-fine-grained]` |
+| `api-key:npm` | `npm_[A-Za-z0-9]{36,}` (36-char floor so `npm_config_*` / `npm_package_*` environment-variable names never match) | `[REDACTED:api-key:npm]` |
 | `api-key:gitlab` | `glpat-[A-Za-z0-9_-]+` | `[REDACTED:api-key:gitlab]` |
 | `api-key:xoxb` | `xoxb-[A-Za-z0-9_-]+` | `[REDACTED:api-key:slack-bot]` |
 | `api-key:xox` | `xox[a-z]-[A-Za-z0-9_-]+` (user/app/refresh Slack tokens; runs after the more specific `xoxb`) | `[REDACTED:api-key:slack]` |
@@ -90,3 +92,4 @@ Schema (one JSONL line per `(pattern, entry)` fire):
 - **URL with `@` in password.** `https://user:p@ss@host/` matches the first `@`, leaving `ss@host/` visible. Real producers should URL-encode credentials anyway. Document for clarity; a cleverer regex here isn't worth the added complexity.
 - **AWS secret exactly 40 chars.** Pattern matches `{40}` exactly. A 39- or 41-char secret slips through. Matches AWS's documented secret-key length; no looser counterpart needed.
 - **`sed` and `grep` portability.** Helper uses POSIX `-E` (extended) regex syntax; works on Linux GNU and macOS BSD. Backreferences (`\1`) are GNU sed and BSD sed compatible.
+- **Byte-wise matching.** The helper runs its `grep`, `sed` and `tr` calls under `LC_ALL=C` (per command; the caller's locale is untouched), so an invalid UTF-8 byte in the input cannot abort a rewrite and leave the text unredacted. A non-ASCII literal in a custom `additional_patterns` regex therefore matches byte-by-byte, and a bracket expression holding a non-ASCII character matches either of its bytes.

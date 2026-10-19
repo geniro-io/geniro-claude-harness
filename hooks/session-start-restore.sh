@@ -98,7 +98,8 @@ fi
 if ! command -v _geniro_lock_reclaim_secs >/dev/null 2>&1; then
   _geniro_lock_reclaim_secs() {
     local secs="${GENIRO_LOCK_RECLAIM_SECS:-600}"
-    case "$secs" in ''|*[!0-9]*) secs=600 ;; esac
+    case "$secs" in ''|*[!0-9]*|??????????*) secs=600 ;; esac
+    [ "$secs" -lt 1 ] && secs=600
     printf '%s' "$secs"
   }
 fi
@@ -401,6 +402,7 @@ fi
 
 validation_status="not-applicable"  # values: pass | fail | skipped | not-applicable
 validation_error=""
+validation_rc=0                      # validate_state_file's exit code when validation_status=fail
 
 if [ -n "$state_file" ]; then
   _vsf_helper="${CLAUDE_PLUGIN_ROOT:-$_GENIRO_PLUGIN_ROOT_FALLBACK}/lib/validate-state-file.sh"
@@ -421,6 +423,7 @@ if [ -n "$state_file" ]; then
         validation_error=""
       else
         validation_status="fail"
+        validation_rc="$_vsf_rc"
         validation_error=$(printf '%s' "$validation_error" | head -n 1)
       fi
     fi
@@ -742,6 +745,7 @@ if [ -n "$state_file" ]; then
     non_resumable_count=0
     validation_status="not-applicable"
     validation_error=""
+    validation_rc=0
   fi
 fi
 
@@ -750,7 +754,7 @@ fi
 # ---------------------------------------------------------------------------
 
 case "$active_skill" in
-  implement|plan|review|debug|refactor)
+  implement|plan|review|debug|refactor|resolve|onboard|investigate|reflect)
     load_tier="pipeline"
     ;;
   *)
@@ -822,9 +826,10 @@ drops them while keeping file pointers):
 - State files under .geniro/ are written through the atomic-write helpers,
   called from Bash: atomic_state_write / atomic_state_write_cmd for a whole
   file, atomic_state_edit / atomic_state_set_field to change part of one that
-  exists, atomic_state_append for JSONL. A hook blocks a direct Edit or Write.
-  It does NOT see shell redirection (> / >> / tee) — that route is undetected,
-  so routing it through a helper is on you.
+  exists, atomic_state_append_section / atomic_state_append_list_item to add an
+  entry to a body section or a frontmatter list, atomic_state_append for JSONL.
+  No hook checks state writes (an Edit, a Write, a redirection or tee all go
+  through unnoticed), so routing them through the helpers is on you.
 - Every outward-facing action — git push (including pushing to a feature branch
   that has an open PR), opening a pull request, posting a PR comment, posting a
   tracker comment — needs its own explicit approval in THIS session, or a
@@ -888,13 +893,21 @@ fi
 # Block 3 — validation-failure recovery.
 BLOCK3=""
 if [ "$validation_status" = "fail" ]; then
+  # Exit code 8 = the saved `worktree:` is no longer in `git worktree list`; the
+  # fourth canonical recovery option (validate-state-file.md §Recovery AUQ
+  # template) is the only fix for it, so it is offered for that code alone.
+  _recovery_extra=""
+  if [ "$validation_rc" -eq 8 ]; then
+    _recovery_extra="
+  4. Update worktree path to this checkout            (the saved worktree no longer exists; rewrites worktree: and retries)"
+  fi
   BLOCK3="⚠️ STATE FILE FAILED VALIDATION
 State file at $state_file failed validation: $validation_error.
 Do NOT resume from it.
 On next turn, fire AskUserQuestion with the recovery options:
   1. Delete state file and restart skill from spec   (lose in-flight state)
   2. Open file in editor and fix manually            (skill pauses; retry validation)
-  3. Skip validation and continue (emergency)        (risk: silent corruption)
+  3. Skip validation and continue (emergency)        (risk: silent corruption)${_recovery_extra}
 After user picks, follow the validation-helper recovery flow.
 Suppress all state.md Reads below — pointer was withheld for safety."
 fi
@@ -994,9 +1007,12 @@ ARCHIVED_COUNT=0
 _learnings_log="$GENIRO_ROOT/.geniro/knowledge/learnings.jsonl"
 _threshold="${GENIRO_AUTO_ARCHIVE_THRESHOLD:-5000}"
 # Sanitize — a non-numeric override (e.g. "5k") would make the `-gt` test below
-# error to stderr and evaluate false, silently disabling auto-archive. Mirror
-# the numeric-input sanitization used elsewhere in this hook.
-case "$_threshold" in ''|*[!0-9]*) _threshold=5000 ;; esac
+# error to stderr and evaluate false, silently disabling auto-archive — and so
+# would an all-digit value too large for the shell's integer arithmetic (10+
+# digits), while 0 would archive on every session start. Mirror the numeric-input
+# sanitization used elsewhere in this hook.
+case "$_threshold" in ''|*[!0-9]*|??????????*) _threshold=5000 ;; esac
+[ "$_threshold" -lt 1 ] && _threshold=5000
 
 if [ -f "$_learnings_log" ]; then
   # Opt-out check (default ON; user sets false to disable).

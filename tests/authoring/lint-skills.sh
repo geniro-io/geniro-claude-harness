@@ -9,7 +9,11 @@
 #
 # Two severities:
 #   HARD (exit non-zero) — zero-false-positive correctness checks:
-#     1. Non-Latin (Cyrillic) letters in skills/ or agents/ bodies.
+#     1. Non-ASCII letters (Cyrillic, Greek words, Han, Hiragana, accented
+#        Latin, ...) in skills/ or agents/ bodies.
+#     1b. Frontmatter required fields on every SKILL.md (name, description,
+#        context, model, allowed-tools, argument-hint), minus the documented
+#        exemption (skills/actions has no allowed-tools).
 #     2. Dangling plugin-root file references — ${CLAUDE_PLUGIN_ROOT}/<path> and the
 #        $PLUGIN_PATH/<path> form (target must exist).
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
@@ -33,14 +37,19 @@
 #     10. Section-anchor citations resolving to no heading — count ratchet
 #        (growth direction; see hard check 12 for the stale-high direction).
 #
-# Portability: pure POSIX-ish bash + BSD/GNU-portable grep (no -P / PCRE).
-# Cyrillic detection uses a byte-class match (UTF-8 lead bytes 0xD0/0xD1) so it
-# is precise (does not flag the allowed em-dash / arrows / § / ≥ / curly quotes,
-# whose lead bytes are 0xC2/0xC3/0xE2) and runs identically on macOS and Linux.
-# Scope note: only Cyrillic (the documented real contamination risk for this
-# repo) is hard-gated. Greek/Han/Hiragana are intentionally NOT gated — a broad
-# non-ASCII check would false-positive on the very glyphs the repo allows, which
-# is exactly why the precise byte-class is used over rule §1's broader net.
+# Portability: POSIX-ish bash + BSD/GNU-portable grep (no -P / PCRE) and awk.
+# The two checks that need Unicode awareness (check 1's "any non-ASCII letter" and
+# the compaction cut, which counts characters, not bytes) use perl -CSD, present
+# by default on macOS and every CI image, because a byte-class grep cannot tell
+# a letter from a symbol and BSD/GNU awk disagree on whether length() counts
+# bytes or characters. Check 1 allows what skill-authoring.md §1 allows — the
+# em-dash, curly quotes, arrows, § and mathematical symbols — because those are
+# symbols, not letters; a lone Greek letter (the delta and tau in a decay
+# formula) is a mathematical symbol too and passes, while a Greek WORD fails.
+#
+# The checks above carry self-tests at the bottom of the file (check 1, 1b and
+# the compaction cut), run on every invocation against fixtures in a scratch
+# directory: each proves a seeded violation red and the allowed shapes green.
 
 set -uo pipefail
 
@@ -249,16 +258,85 @@ esac
 
 echo "=== HARD checks ==="
 
-# 1. Non-Latin (Cyrillic) letters — the documented real contamination risk.
-cyr_files=$(LC_ALL=C grep -ralE $'[\xd0\xd1]' skills agents 2>/dev/null || true)
-if [ -n "$cyr_files" ]; then
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    report_fail "non-Latin (Cyrillic) bytes in $(rel "$f") — skill/agent bodies must be English-only"
-  done <<< "$cyr_files"
+# 1. Non-ASCII letters — skill-authoring.md §1: "any letter outside basic Latin"
+# is disallowed, "Allowed: em-dash, curly quote, → in a diagram, mathematical
+# symbols". The check is therefore on LETTERS, not on non-ASCII bytes: a symbol
+# (— § → ≥ ·, box-drawing, emoji) is not a letter and never matches, so this
+# stays zero-false-positive over the corpus's 7,800 em-dashes. A lone Greek
+# letter is a mathematical symbol (Δdays / τ in the decay formula) and is
+# removed before the letter test; two or more adjacent Greek letters are a word
+# and fail. This replaces a byte-class match on Cyrillic lead bytes, which let
+# Greek, Han, Hiragana and accented Latin through while the rule sentence
+# promised all of them.
+# Emits `<file>:<first line>` once per offending file.
+non_ascii_letter_hits() {
+  perl -CSD -MFile::Find -e '
+    my %first;
+    find({ no_chdir => 1, wanted => sub {
+      return unless -f $_;
+      open(my $fh, "<", $_) or return;
+      while (my $line = <$fh>) {
+        (my $t = $line) =~ s/(?<!\p{Greek})\p{Greek}(?!\p{Greek})//g;
+        if ($t =~ /(?=[^\x00-\x7F])\p{L}/) { $first{$_} = $. unless exists $first{$_}; last; }
+      }
+    } }, @ARGV);
+    print "$_:$first{$_}\n" for sort keys %first;
+  ' "$@" 2>/dev/null
+}
+
+letter_hits=$(non_ascii_letter_hits skills agents)
+if [ -n "$letter_hits" ]; then
+  while IFS= read -r h; do
+    [ -z "$h" ] && continue
+    report_fail "non-ASCII letter at $h — skill/agent bodies must be English-only (symbols such as — § → are fine; a letter outside basic Latin is not)"
+  done <<< "$letter_hits"
 else
-  echo "OK: no Cyrillic in skills/ or agents/"
+  echo "OK: no non-ASCII letters in skills/ or agents/ (symbols and lone Greek math letters allowed)"
 fi
+
+# 1b. Frontmatter required fields (skill-structure.md §Frontmatter hygiene). A
+# SKILL.md missing `model`, `context` or `argument-hint` loads with the host's
+# defaults instead of the declared ones, and nothing else looks at the block —
+# the audit's frontmatter check was a manual D1 step. Zero false positives by
+# construction: key presence at column 0 inside the first `---` block, over the
+# 14 shipped and 5 internal SKILL.md files that all carry the six fields today.
+FRONTMATTER_REQUIRED="name description context model allowed-tools argument-hint"
+
+# <rel path> <field> -> 0 when that skill is the documented exception. The only
+# one is /geniro:actions and `allowed-tools`: the field pre-approves tools and
+# restricts nothing, so the skill declares none (skill-structure.md
+# §Frontmatter hygiene records the exemption).
+frontmatter_exempt() {
+  [ "${1:-}:${2:-}" = "skills/actions/SKILL.md:allowed-tools" ]
+}
+
+# <file> -> one missing field name per line; "(no frontmatter block)" or
+# "(unterminated frontmatter block)" when the block itself is absent.
+frontmatter_missing() {
+  awk -v req="$FRONTMATTER_REQUIRED" '
+    BEGIN { n = split(req, r, " ") }
+    NR == 1 { if ($0 != "---") { print "(no frontmatter block)"; bad = 1; exit } next }
+    $0 == "---" { closed = 1; exit }
+    { if (match($0, /^[A-Za-z][A-Za-z0-9_-]*:/)) have[substr($0, 1, RLENGTH - 1)] = 1 }
+    END {
+      if (bad) exit
+      if (!closed) { print "(unterminated frontmatter block)"; exit }
+      for (i = 1; i <= n; i++) if (!(r[i] in have)) print r[i]
+    }
+  ' "$1"
+}
+
+fm_problems=0
+for f in skills/*/SKILL.md .claude/skills/*/SKILL.md; do
+  [ -f "$f" ] || continue
+  while IFS= read -r field; do
+    [ -z "$field" ] && continue
+    frontmatter_exempt "$f" "$field" && continue
+    report_fail "$f: frontmatter lacks required field \`$field\` (skill-structure.md §Frontmatter hygiene)"
+    fm_problems=$((fm_problems + 1))
+  done <<< "$(frontmatter_missing "$f")"
+done
+[ "$fm_problems" -eq 0 ] && echo "OK: every SKILL.md frontmatter carries the required fields"
 
 # 2. Dangling plugin-root file references. Both spellings of the plugin root are
 # scanned: ${CLAUDE_PLUGIN_ROOT}/<path>, and the $PLUGIN_PATH/<path> form /geniro:update
@@ -480,15 +558,32 @@ AGENT_WHOLEFILE_WORDS=2500
 # that actually lose sections.
 REATTACH_CHARS=20000
 
+# The host cuts by CHARACTERS, so everything here counts characters. wc -c and an
+# awk length() both count bytes under some locales (an em-dash is 3 bytes; this
+# corpus has ~7,800 of them), which put the cut in the wrong place: it named
+# "Phase 4" (1 section lost) as the last surviving section of reflect when the
+# real figure is REFERENCE (0 lost), and "Memory I/O" (5 lost) for refactor when
+# it is Definition of done (4 lost). perl -CSD decodes UTF-8 on read, so
+# length() is characters on macOS and Linux alike.
+char_count() {
+  perl -CSD -0777 -ne 'print length($_)' "$1" 2>/dev/null
+}
+
 # Name the last H2 that still fits inside the re-attach window and how many fall past
 # it, so the warning says WHICH sections stop being re-attached, not just that the
 # file is big. Output: "<last surviving H2>|<count lost>", empty when nothing is lost.
 frontload_cut() {
-  awk -v lim="$REATTACH_CHARS" '
-    /^## / { if (c >= lim) lost++; else last = $0 }
-    { c += length($0) + 1 }
-    END { if (lost > 0) printf "%s|%d\n", last, lost }
-  ' "$1"
+  perl -CSD -e '
+    my ($lim, $file) = @ARGV;
+    open(my $fh, "<", $file) or exit 0;
+    my ($c, $lost, $last) = (0, 0, "");
+    while (my $line = <$fh>) {
+      chomp $line;
+      if ($line =~ /^## /) { if ($c >= $lim) { $lost++ } else { $last = $line } }
+      $c += length($line) + 1;
+    }
+    printf "%s|%d\n", $last, $lost if $lost > 0;
+  ' "$REATTACH_CHARS" "$1" 2>/dev/null
 }
 
 check_skill_sizes() {
@@ -517,7 +612,7 @@ check_skill_sizes() {
     # ran, so a file oversize-but-stable at its recorded baseline never learned its own
     # boundary (skills/implement/SKILL.md, skills/investigate/SKILL.md,
     # .claude/skills/improve-template/SKILL.md all sat in that blind spot).
-    chars=$(wc -c < "$f" | tr -d ' ')
+    chars=$(char_count "$f")
     if [ "$chars" -gt "$REATTACH_CHARS" ]; then
       cut=$(frontload_cut "$f")
       if [ -n "$cut" ]; then
@@ -779,6 +874,105 @@ if [ -n "$meta_root_refs" ]; then
   done <<< "$meta_root_refs"
 else
   echo "OK: .claude/skills/ carries no \${CLAUDE_PLUGIN_ROOT} references"
+fi
+
+# === SELF-TESTS ===========================================================
+# Each fixture lives in a scratch directory and drives the same functions the
+# checks above run, so a seeded violation proves the matcher red and the allowed
+# shapes prove it green. A self-test failure is a hard failure: a lint whose
+# matcher silently stopped matching is worse than no lint.
+echo
+echo "=== SELF-TESTS (check 1, check 1b, compaction cut) ==="
+ST="$(mktemp -d)"
+trap 'rm -f "$dup_files" "$dup_hits"; rm -rf "$ST"' EXIT
+mkdir -p "$ST/bad" "$ST/ok"
+
+# Check 1 — a letter outside basic Latin fails whatever the script; symbols and a
+# lone Greek math letter pass. Bytes are spelled with \x escapes so this file
+# itself stays ASCII.
+printf 'Cyrillic word: \xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82\n'                       > "$ST/bad/cyrillic.md"
+printf 'Greek word: \xce\xba\xce\xb1\xce\xbb\xce\xb7\xce\xbc\xce\xad\xcf\x81\xce\xb1\n'     > "$ST/bad/greek-word.md"
+printf 'Han: \xe4\xb8\xad\xe6\x96\x87\n'                                                    > "$ST/bad/han.md"
+printf 'Hiragana: \xe3\x81\xb2\xe3\x82\x89\xe3\x81\x8c\xe3\x81\xaa\n'                       > "$ST/bad/hiragana.md"
+printf 'Accented Latin: caf\xc3\xa9\n'                                                    > "$ST/bad/accent.md"
+printf 'em-dash \xe2\x80\x94 section \xc2\xa7 arrow \xe2\x86\x92 ge \xe2\x89\xa5 dot \xc2\xb7 box \xe2\x94\x80\xe2\x94\x82 check \xe2\x9c\x85 quotes \xe2\x80\x9cx\xe2\x80\x9d\n' > "$ST/ok/symbols.md"
+printf 'recency_decay = exp(-\xce\x94days / \xcf\x84), \xcf\x84 set by GENIRO_DECAY_TAU_DAYS\n'    > "$ST/ok/lone-greek.md"
+printf 'plain ASCII only\n'                                                              > "$ST/ok/ascii.md"
+
+n_bad="$(non_ascii_letter_hits "$ST/bad" | grep -c . || true)"
+n_ok="$(non_ascii_letter_hits "$ST/ok" | grep -c . || true)"
+if [ "$n_bad" -eq 5 ]; then
+  echo "OK: self-test — Cyrillic, a Greek word, Han, Hiragana and accented Latin are all detected"
+else
+  report_fail "self-test — check 1 expected 5 offending fixture files, got $n_bad"
+fi
+if [ "$n_ok" -eq 0 ]; then
+  echo "OK: self-test — em-dash, section sign, arrows, box-drawing, emoji, curly quotes and a lone Greek math letter pass"
+else
+  report_fail "self-test — check 1 false-positived on $n_ok allowed fixture(s): $(non_ascii_letter_hits "$ST/ok" | tr '\n' ' ')"
+fi
+
+# Check 1b — frontmatter required fields.
+cat > "$ST/fm-complete.md" <<'EOF'
+---
+name: probe
+description: "Use when probing."
+context: main
+model: inherit
+allowed-tools: [Read]
+argument-hint: "[x]"
+---
+# Probe
+EOF
+cat > "$ST/fm-partial.md" <<'EOF'
+---
+name: probe
+description: "Use when probing."
+allowed-tools: [Read]
+---
+# Probe
+model: inherit  (a body line is not frontmatter)
+EOF
+printf '# No frontmatter at all\n' > "$ST/fm-none.md"
+printf -- '---\nname: probe\ncontext: main\n' > "$ST/fm-unterminated.md"
+
+if [ -z "$(frontmatter_missing "$ST/fm-complete.md")" ]; then
+  echo "OK: self-test — a SKILL.md carrying all six fields reports nothing missing"
+else
+  report_fail "self-test — the complete frontmatter fixture reported: $(frontmatter_missing "$ST/fm-complete.md" | tr '\n' ' ')"
+fi
+if [ "$(frontmatter_missing "$ST/fm-partial.md" | tr '\n' ' ')" = "context model argument-hint " ]; then
+  echo "OK: self-test — missing context / model / argument-hint are named (a body line 'model: inherit' does not count)"
+else
+  report_fail "self-test — partial frontmatter fixture reported: $(frontmatter_missing "$ST/fm-partial.md" | tr '\n' ' ')"
+fi
+if [ "$(frontmatter_missing "$ST/fm-none.md")" = "(no frontmatter block)" ] && [ "$(frontmatter_missing "$ST/fm-unterminated.md")" = "(unterminated frontmatter block)" ]; then
+  echo "OK: self-test — a file with no frontmatter block and one with an unterminated block are both reported"
+else
+  report_fail "self-test — absent/unterminated frontmatter blocks were not reported"
+fi
+if frontmatter_exempt skills/actions/SKILL.md allowed-tools \
+   && ! frontmatter_exempt skills/actions/SKILL.md model \
+   && ! frontmatter_exempt skills/plan/SKILL.md allowed-tools; then
+  echo "OK: self-test — the allowed-tools exemption covers skills/actions only, and only that field"
+else
+  report_fail "self-test — the frontmatter exemption is wider or narrower than skills/actions allowed-tools"
+fi
+
+# Compaction cut — characters, not bytes. The multibyte fixture is ~10,000
+# characters but ~30,000 bytes: counting bytes puts its second section past the
+# 20,000 cut and invents a loss; counting characters reports none.
+perl -CSD -e 'print "## A\n", "\x{2014}" x 10000, "\n## B\nbody\n"' > "$ST/cut-multibyte.md"
+perl -e 'print "## A\n", "x" x 20100, "\n## B\n## C\n"' > "$ST/cut-ascii.md"
+if [ "$(char_count "$ST/cut-multibyte.md")" = "10016" ] && [ -z "$(frontload_cut "$ST/cut-multibyte.md")" ]; then
+  echo "OK: self-test — a 10,016-character / ~30,000-byte file is measured in characters and loses no section"
+else
+  report_fail "self-test — multibyte cut fixture: chars=$(char_count "$ST/cut-multibyte.md") (want 10016), cut=[$(frontload_cut "$ST/cut-multibyte.md")] (want empty)"
+fi
+if [ "$(frontload_cut "$ST/cut-ascii.md")" = "## A|2" ]; then
+  echo "OK: self-test — the cut names the last section that fits ('## A') and counts the 2 sections after it"
+else
+  report_fail "self-test — ascii cut fixture reported [$(frontload_cut "$ST/cut-ascii.md")], want [## A|2]"
 fi
 
 echo

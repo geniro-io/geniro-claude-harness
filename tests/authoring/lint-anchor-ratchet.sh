@@ -58,6 +58,10 @@ cite() {
 ---
 name: probe
 description: Use when probing the anchor resolver.
+context: main
+model: inherit
+allowed-tools: [Read]
+argument-hint: "[x]"
 ---
 
 # Probe

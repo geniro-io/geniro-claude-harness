@@ -89,8 +89,6 @@ EOF
 - `trust: retrieved` — web-research findings were load-bearing to the final answer.
 - `trust: inferred` — N/A for /geniro:investigate (model-deduced claims do not pass Evidence Standard's confidence-driven action).
 
-No `<untrusted_external_data>` envelope wrapping — trust-label propagation IS sufficient for baseline awareness.
-
 **Trigger:** emit when the investigation produced a substantive structured answer (not a quick reference lookup). Heuristic: ≥2 agents spawned OR question type is one of How / Why / What-if / Compare / Risk. Skip for "quick lookup" classifications (Current-code trace / Commit archaeology / External docs lookup).
 
 ### Step 6: Cleanup

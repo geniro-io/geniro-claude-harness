@@ -77,6 +77,10 @@ new_tree() {
 ---
 name: probe
 description: Use when probing the size ratchet.
+context: main
+model: inherit
+allowed-tools: [Read]
+argument-hint: "[x]"
 ---
 
 # Probe
@@ -90,6 +94,10 @@ EOF
 ---
 name: probe2
 description: Use when probing that a neighbouring row stays put.
+context: main
+model: inherit
+allowed-tools: [Read]
+argument-hint: "[x]"
 ---
 
 # Probe two

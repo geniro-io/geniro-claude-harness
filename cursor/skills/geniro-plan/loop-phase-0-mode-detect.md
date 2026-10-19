@@ -23,13 +23,13 @@ Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged
  - `header`: "Topic"
  - `question`: "What do you want to plan?"
  - `options[]` (single-select, 3 options + Other free-text): "New feature" / "Existing problem to solve" / "Cancel"
- - Non-empty answer (via a picked option OR free-text Other) → IDEA mode; "Cancel" → terminal without state.md.
+ - A free-text Other answer is the topic → IDEA mode. "New feature" / "Existing problem to solve" name only the kind of work, not its subject: ask what it is next, in a plain chat question ("What feature do you want to plan?" / "What problem should it solve?"), wait for the reply, and use that reply as the topic — handing the option label on would plan a task called "New feature". "Cancel" → terminal without state.md.
  - Persist outcome to `approvals[]` with `category: disambiguate_arguments` .
 
-### 0.2 DESIGN_DOC mode AUQ
+### 0.2 DESIGN_DOC mode question
 
 Fire `AskQuestion` with:
-- `header`: "Existing design doc"
+- `header`: "Design doc"
 - `question`: "Design doc already exists at `<path>`. What now?"
 - `options[]` (single-select, 2 options):
  - **Start fresh with this as context** (Recommended) — load the doc into Phase 1 explore context; run the full planning loop (Phases 0–9; Phase 2 fires only when the UI trigger matches per §"Phase 2 — Visual Companion"); emit a new spec.md at a fresh task-dir.
@@ -58,4 +58,4 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 ### 0.4 Cancel handling
 
-If state.md already created when user cancels (e.g., deep cancel via Other): append `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_append_section`, THEN set `phase: aborted` via `atomic_state_set_field`, before exit. Reason first: a crash between the two then leaves a run that still reads as in-progress rather than one marked aborted with no reason recorded.
+If state.md already created when user cancels (e.g., deep cancel via Other): append `## Termination reason: user-cancelled-at-phase-0` via `atomic_state_append_section` with a trailing `--create` (the section does not exist yet; without it the helper refuses the write), THEN set `phase: aborted` via `atomic_state_set_field`, before exit. Reason first: a crash between the two then leaves a run that still reads as in-progress rather than one marked aborted with no reason recorded.

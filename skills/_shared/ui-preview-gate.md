@@ -1,6 +1,6 @@
 # UI preview gate
 
-A pre-approval procedure that produces a preview of how the UI will look after a change, lets the user critique or rewrite it in their own words, and only then returns control to the caller's approval flow. Callers invoke this when a change touches UI files so the user shapes visual intent BEFORE any code is written.
+A pre-approval procedure that produces a preview of how the UI will look after a change, lets the user critique or rewrite it in their own words, and only then returns control to the caller's approval flow. Callers invoke this when their UI trigger fires so the user shapes visual intent BEFORE any code is written.
 
 The preview has two forms. Default: a structured text description. When the caller passes `MOCKUP: true` — it has a live page to publish to — the agent renders a working HTML mockup and emits a compact text digest beside it, because a rendered page carries a UI far more reliably than a paragraph describing one — the digest, not the page, is what the caller persists and its downstream sections cite.
 
@@ -20,7 +20,7 @@ A file is a UI file if its path matches `**/components/**`, `**/pages/**`, `**/a
 
 ## When to run
 
-Skip entirely unless at least one file in the predicted affected-files list matches the §UI-file detection rule above. Callers must check this condition before entering the procedure — do NOT re-check here.
+The caller owns the trigger and enters the procedure only when it fires. The standard trigger is at least one file in the predicted affected-files list matching the §UI-file detection rule above; a caller whose own contract fires on a wider signal (`/geniro:plan` Phase 2 also fires on a UI noun in the topic) enters on that signal. Once entered, run end to end — do NOT re-check the file rule here: a re-check skips the gate on exactly the wider triggers, and the caller's exit condition then can never be met.
 
 ## Procedure
 
@@ -34,10 +34,10 @@ Agent(prompt="""
 
 Produce a textual, structured description of how the UI will LOOK after this change — so the user can review it and request changes BEFORE any code is written.
 
-## Inputs (pre-inlined by caller)
+## Inputs (from the caller)
 - Spec or change request: [pre-inlined]
 - Plan or predicted affected files: [pre-inlined]
-- Exemplar UI files from the same area (1-2, for style reference): [pre-inlined]
+- Exemplar UI files from the same area (1-2 paths, for style reference — read them yourself): [paths]
 - Prior user guidance, if a revision round: [pre-inlined or "none"]
 
 ## Output sections
@@ -100,7 +100,7 @@ Write the approved text where the caller designates, or hold it in-memory when t
 
 ## Caller contract
 
-- **Callers provide:** predicted affected-files list, spec/change-request, 1-2 exemplar UI files, destination path for the approved text, and `MOCKUP: true` when they have a live page to publish the mockup to (omit it and the text form runs).
+- **Callers provide:** predicted affected-files list, spec/change-request, 1-2 exemplar UI file paths, destination path for the approved text, and `MOCKUP: true` when they have a live page to publish the mockup to (omit it and the text form runs).
 - **Callers receive:** the approved text — the description, or the digest in mockup form — plus the mockup markup when they asked for it, OR a routing signal "adjust plan" when the user picked option C at any round.
 - **Callers are responsible for:** consuming the approved text per their own procedure — e.g. `/geniro:plan` feeds it into spec.md section 6 (Steps) + section 9 (Validation) as authoring substrate — and, in mockup form, publishing and republishing the mockup around each round.
 

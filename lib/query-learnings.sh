@@ -270,6 +270,61 @@ query_learnings() {
   fi
 }
 
+# The rewrite itself, run by record_access while it holds the lock: bump
+# access_count on the entry matching <key> and commit the file. $3 is the temp
+# path record_access's interrupt traps clean up. Returns 0 on success, 1 on
+# write error or when the rewrite is refused.
+_ql_bump_access_count() {
+  local log="$1" key="$2" tmp="$3"
+
+  # emit_learning appends WITHOUT the rewrite lock, so a line can land between
+  # this read and the rename below. Pin every read to the first $orig_size bytes
+  # and carry whatever the log gained past it into the new file just before the
+  # rename (protocol: lib/lock-reclaim.sh).
+  local orig_size
+  orig_size=$(_geniro_log_size "$log") || return 1
+
+  # Read raw and `fromjson?` per line: a malformed line yields no output for that
+  # line rather than aborting jq. The post-jq count guard below then refuses the
+  # rewrite so the unparseable line is preserved (never-deletes invariant — the
+  # same guarantee archive-stale.sh enforces on this same file).
+  head -c "$orig_size" "$log" | jq -Rc --arg k "$key" '
+    fromjson?
+    | if (.dedup_key // "") == $k then
+        . + {access_count: ((.access_count // 0) + 1)}
+      else
+        .
+      end
+  ' > "$tmp" 2>/dev/null || {
+    rm -f "$tmp"
+    return 1
+  }
+
+  # Refuse the rewrite if `fromjson?` dropped any line (parsed count < input
+  # count) — losing an audit-trail entry to bump a best-effort counter is the
+  # wrong trade. awk (not grep -c) counts a final line lacking a trailing
+  # newline, matching how jq -Rc reads the log.
+  local raw_n parsed_n
+  raw_n=$(head -c "$orig_size" "$log" | awk 'NF{c++} END{print c+0}' 2>/dev/null || echo 0)
+  parsed_n=$(awk 'NF{c++} END{print c+0}' "$tmp" 2>/dev/null || echo 0)
+  if [ "$raw_n" -ne "$parsed_n" ]; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  _geniro_log_carry_appends "$log" "$tmp" "$orig_size" || {
+    rm -f "$tmp"
+    return 1
+  }
+
+  # POSIX rename(2) — atomic on same filesystem. -f so an unwritable target
+  # cannot prompt and hang a tty session.
+  mv -f "$tmp" "$log" || {
+    rm -f "$tmp"
+    return 1
+  }
+}
+
 # Increment access_count of entry matching dedup_key. Best-effort,
 # lock-aware: takes the shared knowledge-rewrite mkdir lock and skips the bump
 # (rc=0) when it is already held — a skipped bump is acceptable (access_count
@@ -293,12 +348,12 @@ record_access() {
   # Take the shared knowledge-rewrite lock (the same mkdir lock the
   # auto-archive path uses) so two whole-file rewriters cannot overwrite each
   # other's changes (e.g. erase freshly-flipped deprecated flags — both
-  # rewrites preserve the line count, so the count guard below cannot catch
-  # rewriter-vs-rewriter races). Held lock → another rewrite is in flight; skip
-  # the bump (best-effort counter). The RETURN trap releases the lock on every
-  # exit path and self-clears (bash RETURN traps are not function-scoped by
-  # default — without `trap - RETURN` it would linger in the caller's shell),
-  # mirroring update-semantic.sh.
+  # rewrites preserve the line count, so the count guard in the rewrite cannot
+  # catch rewriter-vs-rewriter races). Held lock → another rewrite is in flight;
+  # skip the bump (best-effort counter). The lock is released EXPLICITLY after
+  # the rewrite returns, not by a RETURN trap: zsh has no RETURN trap (`trap …
+  # RETURN` is an error there, so the lock — and the INT/TERM traps below —
+  # would leak on every call).
   local lock="$root/.geniro/knowledge/.archive-stale.lock"
   # Pre-acquire stale-lock reclaim: a SIGKILL/crash while another rewriter held
   # the lock leaves the dir behind with no trap to clear it, which would wedge
@@ -318,32 +373,7 @@ record_access() {
   if ! mkdir "$lock" 2>/dev/null; then
     return 0
   fi
-  # Also clears INT/TERM (installed just below) on a NORMAL return: those two
-  # traps only self-clear when the signal itself actually fires, and this
-  # function runs directly in the caller's shell (no subshell) — without this,
-  # every completed call left them armed here, referencing this invocation's
-  # $lock/$tmp, so the caller's next Ctrl-C would run stale cleanup and exit
-  # outright instead of behaving normally.
-  trap 'rmdir "$lock" 2>/dev/null; trap - INT TERM RETURN' RETURN
-  # A SIGINT/SIGTERM mid-rewrite would skip the RETURN trap and orphan the lock
-  # for up to the TTL. Release it on interrupt too, mirroring update-semantic.sh.
-  # Split by signal and exit explicitly — cleanup alone does not terminate the
-  # process, so without the exit bash would resume mid-rewrite with the lock
-  # already released for a concurrent writer.
-  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN; exit 130' INT
-  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM RETURN; exit 143' TERM
 
-  # Deliberate carve-out from atomic_state_write (CLAUDE.md §State Files): the
-  # INT/TERM traps set just above are keyed to THIS $tmp and release $lock via
-  # `return` (which fires the RETURN trap). atomic_state_write installs its
-  # own INT/TERM trap on entry — traps are process-global, not function-scoped
-  # — and its handler calls `exit` directly rather than `return`, which skips
-  # the RETURN trap above and would leak $lock (orphaned until the reclaim
-  # TTL) if a signal landed mid-write. The `mv -f` rename below is still
-  # atomic and keeps concurrent readers safe; only power-loss durability in
-  # the narrow post-rename window is traded away, and that trade is
-  # intentional here — this is a best-effort counter bump, not a primary
-  # write path.
   # Hostname suffix (not just $$) prevents an NFS-shared .geniro/ from letting
   # two hosts race to the SAME tmp name — _atomic_state_tmp_name adds it
   # for the identical reason; this rewrite's own PID-only name was invisible
@@ -353,38 +383,36 @@ record_access() {
   local host="${HOSTNAME:-localhost}"
   host="${host//[^A-Za-z0-9.-]/_}"
   local tmp="${log}.tmp.$$.${host}"
-  # Read raw and `fromjson?` per line: a malformed line yields no output for that
-  # line rather than aborting jq. The post-jq count guard below then refuses the
-  # rewrite so the unparseable line is preserved (never-deletes invariant — the
-  # same guarantee archive-stale.sh enforces on this same file).
-  jq -Rc --arg k "$key" '
-    fromjson?
-    | if (.dedup_key // "") == $k then
-        . + {access_count: ((.access_count // 0) + 1)}
-      else
-        .
-      end
-  ' "$log" > "$tmp" 2>/dev/null || {
-    rm -f "$tmp"
-    return 1
-  }
 
-  # Refuse the rewrite if `fromjson?` dropped any line (parsed count < input
-  # count) — losing an audit-trail entry to bump a best-effort counter is the
-  # wrong trade. awk (not grep -c) counts a final line lacking a trailing
-  # newline, matching how jq -Rc reads the log.
-  local raw_n parsed_n
-  raw_n=$(awk 'NF{c++} END{print c+0}' "$log" 2>/dev/null || echo 0)
-  parsed_n=$(awk 'NF{c++} END{print c+0}' "$tmp" 2>/dev/null || echo 0)
-  if [ "$raw_n" -ne "$parsed_n" ]; then
-    rm -f "$tmp"
-    return 1
-  fi
+  # A SIGINT/SIGTERM mid-rewrite would skip the explicit release below and
+  # orphan the lock for up to the TTL. Release it on interrupt too, mirroring
+  # update-semantic.sh. Split by signal and exit explicitly — cleanup alone does
+  # not terminate the process, so without the exit bash would resume mid-rewrite
+  # with the lock already released for a concurrent writer.
+  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM; exit 130' INT
+  trap 'rmdir "$lock" 2>/dev/null; rm -f "${tmp:-}" 2>/dev/null; trap - INT TERM; exit 143' TERM
 
-  # POSIX rename(2) — atomic on same filesystem. -f so an unwritable target
-  # cannot prompt and hang a tty session.
-  mv -f "$tmp" "$log" || {
-    rm -f "$tmp"
-    return 1
-  }
+  # Deliberate carve-out from atomic_state_write (CLAUDE.md §State Files): the
+  # INT/TERM traps set just above are keyed to THIS $tmp and release $lock.
+  # atomic_state_write installs its own INT/TERM trap on entry — traps are
+  # process-global, not function-scoped — and its handler calls `exit` directly
+  # without releasing $lock, which would leak it (orphaned until the reclaim
+  # TTL) if a signal landed mid-write. The `mv -f` rename in the rewrite is still
+  # atomic and keeps concurrent readers safe; only power-loss durability in the
+  # narrow post-rename window is traded away, and that trade is intentional here
+  # — this is a best-effort counter bump, not a primary write path.
+  #
+  # `|| rc=$?`, not a bare `rc=$?` on the next line: this function runs directly
+  # in the caller's shell, so a failing rewrite under a caller's `set -e` would
+  # abort right here and skip the release below.
+  local rc=0
+  _ql_bump_access_count "$log" "$key" "$tmp" || rc=$?
+
+  # Release the lock and clear INT/TERM: those two traps only self-clear when the
+  # signal itself fires, and this function runs in the caller's shell — left
+  # armed, they would reference this invocation's $lock/$tmp, and the caller's
+  # next Ctrl-C would run stale cleanup and exit outright.
+  rmdir "$lock" 2>/dev/null
+  trap - INT TERM
+  return "$rc"
 }

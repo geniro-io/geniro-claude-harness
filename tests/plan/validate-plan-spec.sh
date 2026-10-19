@@ -271,10 +271,23 @@ expect_status tools-block.md allowed_tools pass "block-list tools_required count
 # 6. budget
 # ---------------------------------------------------------------------------
 
+# time_budget is advisory: no later phase reads it, so its absence warns and the run still exits 0.
 reset_spec; BUDGET_BLOCK='budget:
   max_files_to_edit: 8
   max_lines_changed: null'; mk_spec budget-partial.md
-expect_status budget-partial.md budget fail "budget block missing time_budget"
+expect_status budget-partial.md budget warn "budget block missing only time_budget is advisory"
+expect_rc budget-partial.md 0 "a missing time_budget alone does not fail the run"
+
+# max_files_to_edit / max_lines_changed are read by /geniro:implement's scope-drift trigger: still hard.
+reset_spec; BUDGET_BLOCK='budget:
+  max_files_to_edit: 8
+  time_budget: null'; mk_spec budget-nolines.md
+expect_status budget-nolines.md budget fail "budget block missing max_lines_changed"
+expect_rc budget-nolines.md 1 "a missing max_lines_changed fails the run"
+
+reset_spec; BUDGET_BLOCK='budget:
+  max_lines_changed: null'; mk_spec budget-nofiles.md
+expect_status budget-nofiles.md budget fail "budget block missing max_files_to_edit and time_budget is still a fail"
 
 reset_spec; BUDGET_BLOCK='forbidden_actions: null'; mk_spec budget-absent.md
 expect_status budget-absent.md budget fail "no budget block at all"
@@ -296,13 +309,16 @@ CKPT_BLOCK='checkpoints: null'
 mk_spec ckpt-short.md
 expect_status ckpt-short.md checkpoints pass "under 5 steps needs no checkpoints"
 
+# checkpoints are advisory: no later phase reads them, so a gap warns and the run still exits 0.
 reset_spec; CKPT_BLOCK='checkpoints: null'; mk_spec ckpt-missing.md
-expect_status ckpt-missing.md checkpoints fail "5 steps with no checkpoints"
+expect_status ckpt-missing.md checkpoints warn "5 steps with no checkpoints is advisory"
+expect_rc ckpt-missing.md 0 "missing checkpoints alone do not fail the run"
 
 reset_spec; CKPT_BLOCK='checkpoints:
   - step_anchor: step-9
     name: "Nowhere"'; mk_spec ckpt-dangling.md
-expect_status ckpt-dangling.md checkpoints fail "checkpoint pointing at a step that does not exist"
+expect_status ckpt-dangling.md checkpoints warn "checkpoint pointing at a step that does not exist is advisory"
+expect_rc ckpt-dangling.md 0 "a dangling checkpoint anchor alone does not fail the run"
 
 reset_spec; CKPT_BLOCK='checkpoints:
   - step_anchor: step-5

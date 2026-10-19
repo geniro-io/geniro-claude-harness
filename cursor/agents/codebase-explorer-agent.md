@@ -46,8 +46,8 @@ Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-
 ### Step 1 — Identify the change area
 
 Read SPEC_CONTENT and SEMANTIC_MAP. Extract:
-- Files explicitly named in `## Touchpoints` (or equivalent) section of the spec
-- Modules referenced by `## Acceptance Criteria`
+- Files explicitly named in the spec's `## 2. Scope — Included` and `## 6. Steps` sections
+- Modules referenced by its `## 9. Validation` section
 - Codebase-map rows describing the change area's module(s)
 
 This becomes your initial file set.

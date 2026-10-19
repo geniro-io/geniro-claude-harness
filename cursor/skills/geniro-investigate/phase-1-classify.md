@@ -26,13 +26,13 @@ Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `S
 1. **Resume check** — run `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md` §State recovery. A run resumed past Phase 1 continues from that phase; otherwise (a fresh start, a resume at `classify`, or a Case choice that starts fresh) continue with items 2-4.
 2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). `_CODEBASE_MAP.md` content (if present) primes Phase 2's Codebase Analyst — pre-inline relevant sections into the spawn prompt.
 3. **Query past learnings** — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (a declared `## Memory Backend` block redirects this to its read tool; the file is empty under `mode: replace`), else `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"` and run one `query_learnings --tag <kw> --scope global --limit 5` call per keyword inferred from $ARGUMENTS, unioning the results — `--tag` is single-valued, so a repeated flag on one call overwrites rather than accumulates. To find prior answers and avoid duplicate research.
-4. **Cross-layer conflict resolution** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
+4. **Reconcile custom instructions, snapshot and past learnings** — `resolve-conflicts` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
 
 ### Step 1.5: External-lookup routing (Internet-only → consider /deep-research)
 
 When the question classifies as **External docs lookup** (Internet only — no project code or git evidence needed), a `/deep-research` workflow, when your environment provides one, runs deeper multi-source web research than this skill's single Internet Researcher: it fans out searches across several angles, cross-checks the sources against each other, and votes on each claim before reporting. Offer it before spawning Phase 2.
 
-Fire `AskQuestion` (header "Research depth"):
+Fire `AskQuestion` (header "Research"):
 - **Question**: "This looks like a purely external question. `/deep-research <question>` cross-checks more web sources than a single research agent. How do you want to proceed?"
 - **Options**: "Run /deep-research instead" / "Continue with /geniro:investigate"
 

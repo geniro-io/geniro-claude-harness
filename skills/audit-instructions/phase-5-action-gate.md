@@ -1,6 +1,6 @@
 # Phase 5 — Action gate (steps)
 
-Read on Phase 5 entry from `/geniro:audit-instructions` SKILL.md; the spine's invariants and budgets stay binding here.
+Read on Phase 5 entry from `/geniro:audit-instructions` SKILL.md; the spine's invariants and budgets stay binding here. Phase 5 is the terminal phase, reached last in a long run, which is exactly when a compaction has dropped the end of SKILL.md: on the same entry, also Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md` and walk it before the cleanup-and-commit step below closes the run.
 
 Use AskUserQuestion: "The audit found N issues across your AI instruction files (N₀ leaked secrets or unsafe directives, N₁ instructions that mislead agents, N₂ cross-tool contradictions, ...). How should I proceed?" with options: "Fix critical issues now (Recommended)" (secrets, unsafe directives, and misleading instructions — the top two tiers just rendered) / "Fix everything — every tier" / "Let me pick findings" / "Report only — I'll handle fixes separately".
 
@@ -8,7 +8,7 @@ The critical-only option carries `(Recommended)` because it is the smallest chan
 
 - **Deletion path (D4's surface-level-subtraction proposals):** these split off from whatever the user chose above and are walked one at a time per §Deletion gate below — including under "Fix everything", which approves fixes, not removals (the no-blanket-deletion invariant). Approved deletions then join the fix path as their own scope.
 - **Fix path:** group approved findings into **strictly disjoint file scopes** — two agents editing one file overwrite each other, and a shared instruction file is where a fix round loses work silently. Name each agent's scope as an allowlist and name the files other agents hold, so a finding that spans a boundary gets reported back rather than reached for. Then run the finding-ownership invariant's ownership check before spawning: every approved finding appears in exactly one agent's list, every file the findings touch falls inside exactly one allowlist, and any finding or file with no owner is echoed and assigned. Spawn one agent per group in ONE response (**light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes), with the finding rows, the report path as the finding source of truth, and the constraint set: edit only the approved findings, no scope creep, preserve each file's format contract (frontmatter fields, glob syntax). Max 1 fix round — surviving failures go back to the user. Then run the round out per the reference §Fix-round execution.
-- **Pick path:** present findings per tier with multi-select AskUserQuestion calls (≤4 options per call; chain calls past the cap), then run the fix path on the selection.
+- **Pick path:** present findings per tier with multi-select AskUserQuestion calls (chain calls past the question tool's option cap, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension), then run the fix path on the selection.
 - **Report only:** proceed to cleanup.
 
 ## Deletion gate

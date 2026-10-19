@@ -74,7 +74,7 @@ Drop any candidate matching a prior decline for this scope — the user already 
 
 ### Step 6 — Recurrence flag
 
-For an `ADD` / `UPDATE` candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning carries `recurrence_count >= 3` (read it filtered by `dedup_key` — route per Step 0; with no backend, `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. Under `mode: replace` the file-based recurrence counter no-ops, so a recurrence count is available only if the backend tracks it — when neither the backend surfaces it nor a file count exists, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). Routing for a recurrence-eligible candidate is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Recurrence-eligible candidates.
+For an `ADD` / `UPDATE` candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning's `recurrence_count` meets the recurrence threshold (read it filtered by `dedup_key` — route per Step 0; with no backend, `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. Under `mode: replace` the file-based recurrence counter no-ops, so a recurrence count is available only if the backend tracks it — when neither the backend surfaces it nor a file count exists, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). The threshold and the routing of a recurrence-eligible candidate are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Recurrence-eligible candidates.
 
 ## Output Format
 
@@ -91,7 +91,7 @@ Return this exact structure (the orchestrator parses it). Emit the summary even 
 - **Why:** <1 sentence — the durable value for a future session>
 - **Significance:** critical | general
 - **Dedupe:** ADD | UPDATE <file:line> | WIRE <file> | REMOVE <rule location> | NOOP (record what you greped and read)
-- **Recurrence-eligible:** yes (underlying learning seen >=3x) | no
+- **Recurrence-eligible:** yes (underlying learning meets the recurrence threshold) | no
 - **Routing rationale:** <which improvement-routing.md ladder step matched, one clause>
 
 ### [TARGET] Next candidate...
@@ -108,7 +108,7 @@ The `Context loaded:` line states your Step 0 loads where the orchestrator can r
 
 ## Candidate bar
 
-The bar is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar — four binary gates (Evidence / Counterfactual / Generality / Dedup verdict), the per-gate procedure (each gate is its own binary judgment, reasoning written before the verdict; an uncertain gate fails), the `Significance: critical | general` floor, and the ≤3-candidate cap. Read that section and apply it; do not work from a remembered paraphrase of it.
+The bar is canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Candidate bar — four binary gates (Evidence / Counterfactual / Generality / Dedup verdict), the per-gate procedure (each gate is its own binary judgment, reasoning written before the verdict; an uncertain gate fails), the `Significance: critical | general` floor, and the candidate cap. Read that section and apply it; do not work from a remembered paraphrase of it.
 
 Agent-side note: apply the gates as separate per-gate judgments rather than one holistic pass — a single overall score lets a strong gate mask a failing one.
 

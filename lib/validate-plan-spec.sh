@@ -294,6 +294,9 @@ _vps_check_allowed_tools() {
 }
 
 # 6. budget
+# max_files_to_edit / max_lines_changed are read by /geniro:implement's
+# scope-drift trigger, so their absence fails. time_budget has no reader, so its
+# absence is advisory: a warn, never a fail.
 _vps_check_budget() {
   local fm="$1" sub missing=""
   local fix="Add each missing key with value null if unbounded — the check reads key presence, not value."
@@ -301,7 +304,7 @@ _vps_check_budget() {
     _vps_emit budget fail "Frontmatter has no budget block." "$fix"
     return
   fi
-  for sub in max_files_to_edit max_lines_changed time_budget; do
+  for sub in max_files_to_edit max_lines_changed; do
     if ! _vps_block_has "$fm" budget "$sub"; then
       missing="$missing $sub"
     fi
@@ -310,10 +313,16 @@ _vps_check_budget() {
     _vps_emit budget fail "Frontmatter budget block is missing key(s):${missing}." "$fix"
     return
   fi
+  if ! _vps_block_has "$fm" budget time_budget; then
+    _vps_emit budget warn "Advisory: frontmatter budget block has no time_budget key; no later phase reads it." \
+      "Add time_budget: null (or a duration such as \"4h\") to record the intended bound."
+    return
+  fi
   _vps_emit budget pass "" ""
 }
 
-# 7. checkpoints
+# 7. checkpoints — advisory: no later phase reads checkpoints, so every miss is
+# a warn (rc stays 0), never a fail.
 _vps_check_checkpoints() {
   local fm="$1" body="$2" sec6 steps state anchors a num unresolved=""
   sec6="$(_vps_section "$body" "6. Steps")"
@@ -327,7 +336,7 @@ _vps_check_checkpoints() {
   fi
   state="$(_vps_fm_list_state "$fm" checkpoints)"
   if [ "$state" != "nonempty" ]; then
-    _vps_emit checkpoints fail "Section 6 has $steps steps but frontmatter checkpoints is $state." \
+    _vps_emit checkpoints warn "Advisory: section 6 has $steps steps but frontmatter checkpoints is $state." \
       "Add at least one {step_anchor: step-N, name: ...} entry at a natural pause point (after a migration, at a test gate)."
     return
   fi
@@ -362,7 +371,7 @@ _vps_check_checkpoints() {
 $anchors
 VPS_ANCHORS
   if [ -n "$unresolved" ]; then
-    _vps_emit checkpoints fail "Frontmatter checkpoints reference step anchor(s) no section 6 step defines:${unresolved}." \
+    _vps_emit checkpoints warn "Advisory: frontmatter checkpoints reference step anchor(s) no section 6 step defines:${unresolved}." \
       "Point each step_anchor at a step that exists, or add the missing step and its <!-- step-N --> anchor."
     return
   fi

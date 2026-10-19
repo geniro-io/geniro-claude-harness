@@ -131,7 +131,7 @@ Dimensions are review lenses; tiers classify the output. Every finding gets exac
 | T3 | Staleness | References to removed code, tools, or workflows that decay rather than actively mislead; a legacy-format file coexisting with its replacement |
 | T4 | Bloat & maintainability | Restatements, model-known instruction, over-constraint, hand-maintained duplicates that still agree, oversized always-on files, scoping misuse, coverage gaps |
 
-**There is no cosmetic tier, and its absence is the rule.** Heading case, tone, phrasing that merely reads better — a run does not report these at all. Measured across repeated rounds of an audit pipeline of this shape, cosmetic edits survived at 6% against 86% for the mechanically decidable ones, so each sweep's rewrites were re-raised by the round after it. A cosmetic observation is not a small finding here; it is not a finding. Where such a class turns out to be mechanically decidable after all, it belongs in a linter, not in a tier.
+**There is no cosmetic tier, and its absence is the rule.** Heading case, tone, phrasing that merely reads better — a run does not report these at all. Measured across repeated rounds of an audit pipeline of this shape, prose edits survived at 6% against 86% for code edits, so each sweep's rewrites were re-raised by the round after it. A cosmetic observation is not a small finding here; it is not a finding. Where such a class turns out to be mechanically decidable after all, it belongs in a linter, not in a tier.
 
 The T1/T3 line is behavioral: T1 when an agent following the text does the wrong thing (runs a wrong command, edits a wrong path); T3 when the text merely wastes attention or gets ignored. When in doubt, ask what a fresh agent session would actually do with the sentence.
 
@@ -158,6 +158,8 @@ The table schema, row cap, and inadmissibility rule are canonical in `${CLAUDE_P
 | Unsafe-directive scan | Grep every surface for directives steering an agent around a safety mechanism: `--no-verify`, `--force` / `-f` on push, `rm -rf`, `git add -A`, `curl … \| sh`, TLS-verification opt-outs (`-k`, `--insecure`, `verify=False`, `NODE_TLS_REJECT_UNAUTHORIZED=0`), and permission- or hook-bypass flags | CANDIDATES for D6 (the same string is a warning against the practice as often as an instruction to use it — that split needs reading). Seeding matters most here: T0 is the one tier that must not depend on a reviewer happening to notice |
 
 Machine findings are pre-verified and skip Phase 3 re-reads; candidates are not findings until a reviewer adjudicates and the orchestrator verifies.
+
+**Under `--quick` no reviewer runs, and T0 must not depend on a reviewer noticing.** The orchestrator adjudicates the secret-scan and unsafe-directive candidates itself: Read each flagged location, keep a live credential or a real safety-bypass instruction as a T0 finding (a secret cited by location and shape, per invariant S1), and drop placeholders and warnings against the practice.
 
 ## D2 — Accuracy vs repo reality
 

@@ -6,6 +6,14 @@ Phase file for `/geniro:investigate`. The spine — invariants, budgets, tool su
 
 State.md `phase: investigate` on the first pass; a dive-deeper re-entry from Phase 3 leaves it at `present` (taxonomy reference §1). Parallel research-agent spawns + orchestrator re-verify. Exits to Phase 3 only when every load-bearing claim is verified, dropped, or routed through missing-data gate.
 
+## Contents
+
+- Step 1: Parallel research agents — Codebase Analyst (A), Git Historian (B), Internet Researcher (C)
+- Step 2: Verify — extract load-bearing claims, re-verify each against ground truth, route unverified claims
+- Step 3: Missing-data gate (wait for user data)
+
+---
+
 ### Step 1: Parallel research agents
 
 Before the spawns, when the loaded instructions carry an `After worktree-setup` step and the run starts inside an existing linked worktree, run it now, once, in the orchestrator.

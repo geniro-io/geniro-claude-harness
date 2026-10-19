@@ -70,6 +70,8 @@ argument-hint: "[shape | empty]"   # one-line cue
 ---
 ```
 
+All six fields are required; `tests/authoring/lint-skills.sh` (check 1b) fails a SKILL.md missing one. The single exception is `/geniro:actions`, which declares no `allowed-tools` — the field only pre-approves tools and never restricts them, and an action's own steps decide which tools a run needs.
+
 Description rules — every description loads into every session's skill listing, so each word is paid on every turn:
 1. **Third person.** Good: "Processes Excel files." Bad: "I can help you" / "You can use this."
 2. **≤250 characters, "Use when …" opener, optional "Skip for …" tail.** One trigger per branch; cut identity and process summary the body already carries.
@@ -125,7 +127,7 @@ Each row is `| reasoning the model might generate | why that reasoning is wrong 
 
 ## Pre-commit verification
 
-1. **Run `bash tests/authoring/lint-skills.sh`.** It hard-fails on non-Latin text, dangling `${CLAUDE_PLUGIN_ROOT}` references, and unknown spawn names; it warns on anti-rationalization tables over 15 rows, line-number cross-refs, and any SKILL.md grown past its recorded size. Read a growth warning as "check what is load-bearing and where it sits", not "cut until the number goes away" — then `--accept <path>` for that file alone.
+1. **Run `bash tests/authoring/lint-skills.sh`.** It hard-fails on non-English letters, missing SKILL.md frontmatter fields, dangling `${CLAUDE_PLUGIN_ROOT}` references, and unknown spawn names; it warns on anti-rationalization tables over 15 rows, line-number cross-refs, and any SKILL.md grown past its recorded size. Read a growth warning as "check what is load-bearing and where it sits", not "cut until the number goes away" — then `--accept <path>` for that file alone.
 2. **Reference depth.** Any file this edit makes a skill cite must not itself pull runtime instructions from another skill's body (§Reference graph).
 3. **TOC presence.** A runtime-Read file past ~1,200 words has a Contents block near the top. `agents/*.md` are exempt.
 4. **No pseudo-code duplication.** A block added to SKILL.md must not also live in the sibling reference file.

@@ -427,7 +427,7 @@ fi
 # installs INT/TERM traps (keyed to $lock_path / $_us_inflight_tmp) so a
 # signal mid-write still releases the lock. Those traps do NOT self-clear
 # when the function returns normally — only when the signal itself fires —
-# so without the RETURN trap also clearing them, every completed call left
+# so without an explicit release clearing them, every completed call left
 # them armed in this test script's own shell: the next Ctrl-C here would run
 # stale cleanup referencing values from a finished call and exit outright.
 new_sandbox
@@ -443,6 +443,34 @@ if [ "$int_trap" = "$int_before" ] && [ "$term_trap" = "$term_before" ]; then
   pass "update_semantic clears its INT/TERM traps in the caller's shell after a normal return"
 else
   fail "update_semantic leaked a trap into the caller's shell — INT: '$int_trap' TERM: '$term_trap'"
+fi
+
+# ---------------------------------------------------------------------------
+# Under zsh the release must not depend on the RETURN trap
+# ---------------------------------------------------------------------------
+#
+# zsh rejects `trap … RETURN` ("undefined signal"), so a release that lived only
+# in a RETURN trap left the INT/TERM traps armed (and printed an error on every
+# call). The helper releases explicitly and installs the RETURN trap only in bash.
+if command -v zsh >/dev/null 2>&1; then
+  new_sandbox
+  zsh_out=$(zsh -c "source '$REPO_ROOT/lib/update-semantic.sh'
+    update_semantic --file codebase-map --append '- zsh one'; print -r -- \"append-rc=\$?\"
+    update_semantic --file codebase-map --replace '- zsh one' '- zsh two'; print -r -- \"replace-rc=\$?\"
+    trap" 2>&1)
+  map=.geniro/planning/_CODEBASE_MAP.md
+  if printf '%s' "$zsh_out" | grep -q '^append-rc=0$' \
+     && printf '%s' "$zsh_out" | grep -q '^replace-rc=0$' \
+     && ! printf '%s' "$zsh_out" | grep -qi 'undefined signal' \
+     && [ "$(printf '%s\n' "$zsh_out" | grep -c 'INT\|TERM')" -eq 0 ] \
+     && [ ! -e .geniro/planning/.codebase-map.lock ] \
+     && [ "$(cat "$map" 2>/dev/null)" = "- zsh two" ]; then
+    pass "zsh: update_semantic appends, replaces, releases the lock and leaves no INT/TERM traps"
+  else
+    fail "zsh: update_semantic lock/trap hygiene; lock-left=$([ -e .geniro/planning/.codebase-map.lock ] && echo y || echo n) map='$(cat "$map" 2>/dev/null)' out='$zsh_out'"
+  fi
+else
+  echo "SKIP: zsh not available — update_semantic zsh check skipped."
 fi
 
 echo

@@ -36,7 +36,7 @@ Run these in order (`§` anchors are sections of the triage reference):
 8. **Scout sibling pull requests** (PR ref only, round 1) — scored, capped, and inlined as `PEER-PR CONTEXT:`; skipped from round 2 on, the scout already ran · `phase-1-pr-reference.md` §4.
 9. **Load the plan context** · §8.
 10. **Stratify by risk** — sets `risk-tier: standard | high`, which scales three downstream knobs · §9.
-11. **Load the memory layers** — project snapshot, past learnings, conflict resolution · §10.
+11. **Load the project snapshot and past learnings** — project snapshot, past learnings, conflict resolution · §10.
 12. **Triage by size** — Trivial / Substantive classification plus each reviewer's payload shape, measured on the range actually under review · §12.
 13. **Settle the orientation-brief opt-in** — the last thing Phase 1 does, so Phase 2 can fire the brief alongside the reviewer batch instead of behind it; rides along with an earlier §7 question when one is still ahead · §13.
 

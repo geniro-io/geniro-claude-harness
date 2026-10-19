@@ -134,7 +134,7 @@ atomic_state_edit ".geniro/state/handoff/from-review-main.md" \
 | 0 | Success |
 | 64 | Target path or `<old_text>` missing (an empty anchor matches everywhere) |
 | 66 / 67 | As `atomic_state_write` |
-| 71 | `<old_text>` not found — nothing changed |
+| 71 | `<old_text>` not found (an empty file holds none) — nothing changed |
 | 72 | `<old_text>` matched more than once — pass a longer, unique anchor |
 | 73 | Target does not exist, is unreadable, or contains a `0x04` byte (the helper's record separator) |
 | 76 | The file declares `checksum:` and the edit falls below the frontmatter, which would leave that seal stale |
@@ -169,7 +169,7 @@ atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Tool log" 
   "- [$(date -u +%H:%M:%SZ)] test-runner: 42 passed, 0 failed"
 ```
 
-`--create` is a fourth, trailing positional argument — never a flag-first form (`atomic_state_append_section --create ...` fails rc 73, since `--create` then parses as the target path). Pass it for a section a run creates on demand (`## Deferred Findings`, `## Visual Baseline`, `## Authored Tests` — the ones no state.md template declares up front): it appends the heading at end of file on the first call and behaves normally after that. Without it, a missing heading is rc 77, not a silent create — a typo would otherwise grow a second, near-identical section that nothing reads.
+`--create` is a flag, accepted in any position among the arguments. Pass it for a section a run creates on demand (`## Deferred Findings`, `## Visual Baseline`, `## Authored Tests` — the ones no state.md template declares up front): it appends the heading at end of file on the first call and behaves normally after that. Without it, a missing heading is rc 77, not a silent create — a typo would otherwise grow a second, near-identical section that nothing reads.
 
 ```bash
 atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Deferred Findings" \
@@ -187,7 +187,7 @@ atomic_state_append_section ".geniro/planning/dark-mode/state.md" "## Deferred F
 
 ### `atomic_state_append_list_item <target> <key> <item>`
 
-Appends one item to the YAML list under frontmatter `<key>`. Pass `<item>` the way the schema shows it — without the leading `- ` and without indentation; the helper indents it (`  - ` on the first line, four spaces on the rest). An empty `key: []` becomes a block list; an existing block list gains the item after its last line. A key holding any other scalar is refused rather than converted.
+Appends one item to the YAML list under frontmatter `<key>`. Pass `<item>` the way the schema shows it — without the leading `- ` and without indentation; the helper indents it (`  - ` on the first line, four spaces on the rest). An empty `key: []` becomes a block list; an existing block list gains the item after its last line. A trailing `# comment` after `[]` (or after a bare `key:`) is not part of the value — a template can annotate the empty list — and the comment is dropped when `[]` becomes a block list. A key holding any other scalar is refused rather than converted.
 
 This is the shape `atomic_state_set_field` cannot write: `approvals[]` entries are multi-line mappings, and a `set_field` value must be one line.
 
@@ -300,4 +300,4 @@ T1 and T2 paths are path-scoped (slug / branch) and don't need the check; same-b
 
 ## Portability notes
 
-Per-file fsync is Linux-only (`sync -d` under GNU coreutils; BSD/macOS `sync` ignores its operands and returns 0, so the helper detects support from `sync --help` rather than from an rc). Where it is unavailable the helper syncs nothing — a whole-disk fallback cost 164 ms per write and bought nothing, since macOS `sync(2)` only schedules the flush. Atomicity (the rename) holds on every platform; durability across power loss is Linux-only in practice, and nothing in the state model depends on surviving a power cut.
+Per-file fsync is Linux-only (`sync -d` under GNU coreutils; BSD/macOS `sync` ignores its operands and returns 0, so on Linux the helper detects support from `sync --help` rather than from an rc, and on macOS it does not probe at all — there `sync --help` runs a real whole-disk sync). Where it is unavailable the helper syncs nothing — a whole-disk fallback cost 164 ms per write and bought nothing, since macOS `sync(2)` only schedules the flush. Atomicity (the rename) holds on every platform; durability across power loss is Linux-only in practice, and nothing in the state model depends on surviving a power cut.

@@ -29,7 +29,7 @@ E.g., "Detect saw `pyproject.toml` AND `requirements.txt` — primary package ma
 
 Use `AskUserQuestion` header "Tracker". The recommended default is whichever tracker Phase 1 detected (else Skip) — e.g. `.github/ISSUE_TEMPLATE/` signals GitHub Issues, a `.gitlab/` directory signals GitLab Issues, a Linear ID or URL in recent commit messages signals Linear.
 
-- Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates. The six options overflow the 4-option cap, so chain a follow-up question per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §"Cap-extension for >4 options" rather than dropping a tracker from the offer — e.g. lead with the detected default plus three others, then `Something else` opens the remaining trackers.
+- Per-tracker mapping (Linear, GitHub Issues, GitLab Issues, Jira, Bitbucket, Skip) — see `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` for templates. The six options exceed the question tool's option cap, so chain a follow-up question per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Cap-extension, rather than dropping a tracker from the offer — e.g. fill the first question with the detected default and the next most likely trackers, keeping a `Something else` slot that opens the remaining ones.
 
 Record the pick as `$ISSUE_TRACKER_CHOICE` for Phase 3 and write nothing here: Interview is read-only (§ACI per-phase tool surface), and §3.3 installs the workflow file under the batch approval gate invariant #3 requires.
 
@@ -45,7 +45,7 @@ Record the pick as `$OPENSPEC_CHOICE` for Phase 3 and write nothing here — §3
 
 ### 2.5 Custom instructions
 
-AUQ: "Create a custom `.geniro/instructions/global.md` for project-wide workflow rules?" Default: no (avoid clutter). Users can run `/geniro:instructions create global` later. `global.md` also hosts the cross-skill `### After worktree-setup` step, if the project needs a per-worktree bootstrap (e.g. building a per-worktree code index for an MCP) to run whenever a skill creates a new worktree or a run starts inside an existing one.
+AUQ: "Create a custom `.geniro/instructions/global.md` for project-wide workflow rules?" Default: no (avoid clutter). Users can run `/geniro:instructions create global` later. `global.md` also hosts the cross-skill `### After worktree-setup` step, if the project needs a per-worktree bootstrap (e.g. building a per-worktree code index for an MCP) to run whenever a skill creates a new worktree (or `/geniro:investigate` starts inside an existing linked one).
 
 Transition to Phase 3.
 

@@ -25,7 +25,7 @@ Evidence Block schema + the cross-phase carry rule + per-skill consumption gates
 ## When evidence is required
 
 - Any "done", "passing", "validated", "ready to ship", "shipped" claim by the orchestrator or any subagent.
-- Every CRITICAL or HIGH finding emitted by reviewer agents (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`). MEDIUM findings should attach evidence when available. A CRITICAL or HIGH without evidence is still admitted at the Phase 4.1 gate on severity alone (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) — this standard binds at the post-verification step instead: the Phase 4.2 verifier is what supplies the missing quote, so an admitted-but-unevidenced finding is expected to carry evidence by the time it reaches the handoff, not at emit-time.
+- Every CRITICAL or HIGH finding emitted by reviewer agents (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md`). MEDIUM findings should attach evidence when available. The reviewer attaches the block when it emits; a CRITICAL or HIGH that arrives without one is still admitted at the Phase 4.1 gate on severity alone (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5), and the Phase 4.2 verifier supplies the missing quote, so the finding carries evidence by the time it reaches the handoff.
 - Every hypothesis confirmation in `/geniro:debug` — debug consumes this artifact-kind contract per its loop invariant #6.
 - Any PASS carried across a phase boundary. A build/lint/test PASS observed in an earlier phase stands as evidence only while nothing has changed since it was captured — any file edit, a different `HEAD`, a different command, or a non-clean exit from the agent that reported it means re-run rather than carry. A PASS is a pre-mutation snapshot, not a clock.
 - Any memory write claiming `trust: verified` — the captured-artifact bar governs L2 learnings too; see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` § Evidence bar for `trust: verified`.
@@ -85,7 +85,7 @@ A passing-test claim serves the same underlying requirement — show that the pr
 
 **A limit on your own reach is a claim and carries the same artifact requirement.** Attempt the read once with the tools you have and cite the failure before routing it to the user — the missing-data gates open on a failed attempt, not on an assumption, and the environment this session can reach — the repo, its logs, its configured services — is yours to probe before declaring the data out of reach.
 
-**Enforcement lives in consumption, not in a hook.** This standard is enforced where evidence is produced and read: every reviewer-agent finding requires an Evidence Block at emit-time, and an orchestrator re-runs validation itself rather than trusting a prior PASS report. Nothing inspects a completion claim after the fact, so an unbacked one is never caught later — the block has to be attached when the claim is written.
+**Enforcement lives in consumption, not in a hook.** This standard is enforced where evidence is produced and read: reviewer-agent findings carry their evidence at emit-time (§When evidence is required), and an orchestrator re-runs validation itself rather than trusting a prior PASS report. Nothing inspects a completion claim after the fact, so an unbacked one is never caught later — the block has to be attached when the claim is written.
 
 ## Forbidden phrases
 

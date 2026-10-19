@@ -4,6 +4,14 @@ Statistical pattern inference across siblings. Flags deviations from the modal p
 
 Find every real defect this dimension owns by reading the changed code and its callers directly — your own analysis is the detector. The sections below are the contract you are held to: what NOT to flag, and how severity is calibrated.
 
+## Contents
+
+- Methodology — modal pattern inference
+- What this dimension does NOT cover
+- Common false positives
+- Cross-PR convention drift (peer-PR context)
+- Severity guidelines
+
 ## Methodology — modal pattern inference
 
 Structural conventions emerge from repetition across a codebase, not from an external style guide. Infer them by sampling the existing code and codifying the dominant pattern.

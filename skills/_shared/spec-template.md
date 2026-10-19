@@ -127,7 +127,7 @@ launch_config: # optional, SEPARATE block (NOT goal-state) — present only when
 
 ## 8. Approval Points
 
-<Bullet list pointing to specific steps that require user-approval gates during /geniro:implement run. References step anchors. Use "none" if /geniro:implement may run autonomously start-to-finish.>
+<Bullet list of step anchors where a user-approval pause is advisable during the /geniro:implement run. Advisory goal-state documentation — /geniro:implement does not enforce it. Use "none" if no step warrants a pause.>
 
 ## 9. Validation
 

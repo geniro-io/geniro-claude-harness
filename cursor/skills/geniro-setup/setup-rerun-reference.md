@@ -2,7 +2,7 @@
 
 # Setup — re-run-only procedures
 
-Everything `/geniro:setup` does ONLY when §1.1 resolved `mode == re-run`. An `init` run — the skill's leading use case — never reads this file: a fresh install has no prior `CLAUDE.md` to merge, no prior schema to migrate, and no prior plugin version to compare against.
+Everything `/geniro:setup` does ONLY when §1.1 resolved `mode == re-run`. An `init` run — the skill's leading use case — never reads this file: a fresh install has no prior `CLAUDE.md` to merge and no prior schema to migrate.
 
 ## Contents
 

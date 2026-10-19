@@ -22,13 +22,12 @@
 #      lib/validate-state-file.sh already enforces the open_questions key-presence rule (rc 5), so we
 #      REUSE it (plan decision 15) rather than re-deriving it.
 #
-#   CORRECTION (surfaced to maintainer): the plan §11/§16 text says "open_questions[] / step0_status
-#      sentinels /implement consumes". Ground truth (recon): /implement consumes ONLY open_questions[].
-#      `step0_status` is a /review-INTERNAL per-finding field (skills/_shared/review-handoff.md:258,261)
-#      — /review's §3 gate flips pending→resolved and §7.0 Invariant B re-checks it before the PR post;
-#      `grep step0_status skills/implement/` = 0 hits. We therefore assert step0_status as a /review
-#      producer-side invariant (§7.0 Invariant B: a `report_status: final` handoff has no PRODUCT-DECISION
-#      finding left `pending`), NOT as an /implement-consumed sentinel, and pin that it stays review-internal.
+#   SEAM NOTE: /implement's handoff step consumes open_questions[] (the gate) AND each finding's
+#      disposition: a finding the user declined (`step0_status: wontfix`) or routed away
+#      (`post-disposition: off-pr` / `no-action`) is listed under `Not sent to the fix loop:` and never
+#      fixed. `step0_status` stays a /review producer-side invariant too (§7.0 Invariant B: a
+#      `report_status: final` handoff has no PRODUCT-DECISION finding left `pending`); C6 pins the
+#      consumer side so the filter cannot silently disappear.
 #
 # Plugin-developer / eval tooling only — not shipped to user projects.
 
@@ -611,11 +610,15 @@ grep -qE 'open_questions' "$REPO_ROOT/skills/_shared/state-tier-spec.md" \
   && pass "C5 _shared/state-tier-spec.md still defines the canonical open_questions schema" \
   || fail "C5 canonical open_questions schema missing from state-tier-spec.md"
 
-# C6: step0_status stays /review-internal — NOT consumed by /implement (pins the plan-text imprecision).
-if grep -rIlE 'step0_status' "$REPO_ROOT/skills/implement/" >/dev/null 2>&1; then
-  fail "C6 step0_status now appears in skills/implement/ — the review→implement seam changed; update this test + the plan §11/§16 text"
+# C6: /implement's handoff step filters findings the user declined or routed away out of the fix loop.
+PA="$REPO_ROOT/skills/implement/phase-1-analyze.md"
+if grep -qE 'Not sent to the fix loop:' "$PA" \
+  && grep -qE 'step0_status: wontfix' "$PA" \
+  && grep -qE 'post-disposition: off-pr' "$PA" \
+  && grep -qE 'no-action' "$PA"; then
+  pass "C6 /implement's handoff step keeps wontfix / off-pr / no-action findings out of the fix loop"
 else
-  pass "C6 step0_status remains /review-internal (absent from skills/implement/) — /implement consumes only open_questions[]"
+  fail "C6 /implement's handoff disposition filter is gone — declined review findings would be implemented (skills/implement/phase-1-analyze.md Step 12)"
 fi
 
 # C7 (m6-v3 seam): the handoff contract must keep naming the three-version acceptance sentence and the

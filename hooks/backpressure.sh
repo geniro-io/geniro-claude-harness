@@ -27,7 +27,12 @@ run_silent() {
     # so this one is cleared on both return paths (and self-clears when it fires)
     # rather than lingering in a caller that sourced this function and clobbering
     # its own INT trap — the same discipline lib/update-semantic.sh applies.
-    trap 'rm -f "$tmp_file"; trap - INT TERM' INT TERM
+    # A trap that only cleaned up would also swallow the signal: the run would go
+    # on to print a verdict for an interrupted command. Once the capture file is
+    # gone the trap ends the shell with the status the signal would have given it
+    # (130 / 143) — this file is sourced from the non-interactive shells skills run.
+    trap 'rm -f "$tmp_file"; trap - INT TERM; exit 130' INT
+    trap 'rm -f "$tmp_file"; trap - INT TERM; exit 143' TERM
     local output_cap="${GENIRO_BACKPRESSURE_CAP:-150}"
     # A non-numeric or <1 cap would make `head -"$output_cap"` diverge across platforms:
     # GNU `head -0` prints nothing and exits 0, but BSD/macOS `head -0` errors. Fall back

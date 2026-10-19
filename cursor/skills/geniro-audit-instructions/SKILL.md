@@ -20,7 +20,7 @@ context: main
 
 You are the audit orchestrator. The target is every AI-assistant instruction file in the current repo — the files steering Claude Code, Cursor, Copilot, and their peers on every run made here. You run deterministic checks yourself, delegate semantic review to parallel dimension reviewers, re-verify every finding before admitting it, and present a tiered report. Every run also sweeps the instruction set for subtraction and reports what it found — including nothing. Fixes are applied only after the user approves them at the action gate.
 
-**Runtime portability.** If Codex cut this file at 8,000 bytes, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
+**Runtime portability.** If Codex truncated this file, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
 ## Phases overview
 
@@ -87,7 +87,7 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## ACI per-phase tool surface
 
-The report-before-fix invariant ("Report before fix") is a prose rule; this table is its tool-level enforcement. Direct edits and writes to any repo file (state-file writes go through `atomic_state_write` in a shell call, never a direct file write) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
+The report-before-fix invariant ("Report before fix") is a prose rule; this table is its per-phase contract (`allowed-tools` pre-approves tools; it never withholds one). Direct edits and writes to any repo file (state-file writes go through `atomic_state_write` in a shell call, never a direct file write) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
 
 | Phase | Allowed | Forbidden |
 |---|---|---|
@@ -102,7 +102,7 @@ External sends are not part of `/geniro:audit-instructions` ACI.
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="generalPurpose"`. Reviewers are `session` (OMIT `model=`), so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 5 fix agents and Phase 3's T0/T1 cold-verify (`finding-verifier-agent` ladder) are **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: the fixes apply findings the user already approved within a file allowlist, and the verifier checks findings about instruction files, not code. The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
+All reviewers and fix agents are `subagent_type="generalPurpose"`. Reviewers are `session` (OMIT `model=`), so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 3's T0/T1 cold-verify (`finding-verifier-agent` ladder) is `session` too (OMIT `model=`): its verdict decides whether a safety or correctness finding is admitted. Phase 5 fix agents are **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: they apply findings the user already approved within a file allowlist. The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
 
 ---
 
@@ -111,7 +111,7 @@ All reviewers and fix agents are `subagent_type="generalPurpose"`. Reviewers are
 1. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: audit-instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. From the loaded `global.md` `## Rules`, extract the search-governing subset (a code index to query before plain-text search, a required lookup tool, an off-limits directory) into `$PROJECT_SEARCH_POLICY` for the Phase 2 spawn template — `none declared` when `global.md` declares nothing about searching.
 2. **Parse `$ARGUMENTS`:**
    - Empty → full audit (all dimensions, every surface found).
-   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings. The subtraction-sweep invariant still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
+   - `--quick` → Phase 1 battery only; skip Phases 2-3; Phases 4-5 still run on the machine findings and the T0 candidates adjudicated inline (Phase 1). The subtraction-sweep invariant still binds: sweep for bloat orchestrator-inline over the run's scope and report it.
    - A path (`docs/`, `.cursor/rules`) → restrict every dimension's scope to instruction files under it; the bloat sweep (the subtraction-sweep invariant) runs scoped to the same path.
    - A tool keyword (`claude`, `cursor`, `copilot`, `agents`, `windsurf`, `cline`, `gemini`, `aider`, `junie`, `zed`, `amazonq`, `geniro`) → restrict to that tool's surfaces per the reference §Surface inventory row.
    - A dimension name (`accuracy`, `consistency`, `bloat`, `structure`, `coverage`) → spawn that reviewer, plus the Phase 1 battery (which always runs) and the bloat sweep (the subtraction-sweep invariant) unless `bloat` already names it.
@@ -128,7 +128,7 @@ Sort the results into:
 - **Candidate lists** — pasted into the reviewer prompt of the dimension each one feeds (accuracy, consistency, coverage per the D1 table). A dimension with an enumerable surface and no seed spends its budget rediscovering what a grep already knew.
 - **Context notes** — battery summary pasted into every reviewer prompt (which surfaces exist, word counts, legacy formats found) so reviewers don't re-derive it.
 
-If `--quick`: run the inline bloat sweep, then jump to Phase 4 with the machine findings.
+If `--quick`: adjudicate the secret and unsafe-directive candidates yourself, per the reference §D1, run the inline bloat sweep, then jump to Phase 4 with the machine findings plus the T0 findings you kept.
 
 ## PHASE 2 — Parallel dimension reviewers
 
@@ -148,7 +148,7 @@ Collect all outputs. If a reviewer returns prose instead of the table, re-spawn 
 
 ## PHASE 5 — Action gate
 
-**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the §Deletion gate walk for whole-surface removals (the no-blanket-deletion invariant), the disjoint-allowlist fix path with the finding-ownership invariant's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, every deletion proposal has had its own gate, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
+**On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-5-action-gate.md` and `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md` as this phase's first actions, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — the gate question and options, the §Deletion gate walk for whole-surface removals (the no-blanket-deletion invariant), the disjoint-allowlist fix path with the finding-ownership invariant's ownership check, the pick path, re-verification, and cleanup + commit offer. Read it again on any resumption of the phase, including after a compaction. Phase complete when the gate has fired, every deletion proposal has had its own gate, approved fixes (if any) are applied and re-verified, the slug dir is cleaned up, and a commit was offered.
 
 ## State recovery
 
@@ -156,25 +156,16 @@ On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/withi
 
 ## Definition of done
 
-- [ ] Phase 1 battery ran; output captured in checkpoint
-- [ ] Selected reviewers spawned in one response; outputs collected
-- [ ] Every admitted finding re-verified by orchestrator Read (machine findings exempt); every kept T0/T1 carries a cold verifier verdict
-- [ ] No secret value reproduced in the report, the chat render, or any state file (invariant S1)
-- [ ] Subtraction sweep ran and is reported — what was examined and what was rejected — whether or not it yielded findings (the subtraction-sweep invariant)
-- [ ] Report written to `.geniro/state/audit-instructions/report-<date>.md` with health summary, tier tables, verdicts, filtered list, subtraction sweep
-- [ ] Every finding rendered to chat (all tiers, low included) before the gate — no tier collapsed to a bare count
-- [ ] Every approved finding assigned to exactly one fix agent, and every touched file to exactly one allowlist; unowned ones echoed (the finding-ownership invariant)
-- [ ] Every whole-surface deletion proposal put to its own gate with its explanation rendered, none carried by a blanket approval, and the ones kept recorded as considered-and-kept (the no-blanket-deletion invariant)
-- [ ] Action gate fired; fixes (if approved) applied, battery re-run clean, findings re-checked
-- [ ] Slug-scoped state cleaned up; commit offered for the fixed files only
+The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md`. Read it at Phase 5 entry, and walk it before the cleanup-and-commit step closes the run.
 
 ## REFERENCE
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/dimensions-reference.md` — surface inventory, dimension rubrics, severity tiers, output contract, do-not-flag list, spawn template, fix-round execution
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/phase-3-merge-verify.md` / `phase-4-report.md` / `phase-5-action-gate.md` — the Phase 3, Phase 4 and Phase 5 steps, read on phase entry
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/audit-instructions-definition-of-done.md` — the run-completion checklist (Read on entry to Phase 5)
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/audit-pipeline.md` — shared reviewer finding schema + fix-round discipline
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` — slug rules, producer/consumer/cleanup contracts
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — state-write helper API and exit codes
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` — resume validation and the recovery question
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes: `session` reviewers, light fix agents and verifier
+- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes: `session` reviewers and verifier, light fix agents
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` / `per-finding-question.md` — render-then-ask contract for the action gate and the per-proposal deletion gate

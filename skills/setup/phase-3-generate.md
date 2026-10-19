@@ -2,6 +2,21 @@
 
 Phase file for `/geniro:setup`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md`.
 
+## Contents
+
+- Refresh custom instructions
+- 3.0 Migration sweep (re-run only)
+- 3.1 Pre-write existing-content audit (re-run only)
+- 3.2 CLAUDE.md generation — project-only content
+- 3.3 Write targets — and the batch approval gate
+- 3.4 Conflict-resolution merge rules (re-run only)
+- 3.5 Runtime directories + gitignore
+- 3.6 Install statusline
+- 3.7 Install Geniro into the Cursor profile (conditional)
+- 3.8 Install Geniro into Codex (conditional)
+
+---
+
 **Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: setup`, `LOAD_TIER: rules-only`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. This is the phase that writes `CLAUDE.md` and `.gitignore` into the user's tree; the only prior load is Phase 0, before the Detect scan and the full Interview.
 
 ### 3.0 Migration sweep (re-run only)
@@ -43,7 +58,7 @@ Generated CLAUDE.md sections:
 - `$HOME/.cursor/{skills,agents}/` and `$HOME/.cursor/hooks.json` — the Cursor profile install (§3.7): symlinks to the plugin's generated Cursor skill and subagent copies, plus its hook entries merged into an existing `hooks.json`. A user-config write outside PROJECT_ROOT, listed when `$HOME/.cursor/` exists and the plugin root carries `cursor/skills/`.
 - `$CODEX_HOME/config.toml` and `$CODEX_HOME/plugins/cache/` (`CODEX_HOME` defaults to `~/.codex`) — the Codex install (§3.8): the marketplace entry the `codex` CLI records, plus a copy of the plugin. A user-config write outside PROJECT_ROOT, listed when `codex` is on PATH and the plugin isn't installed there.
 
-Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, the statusline install, and the §3.7 Cursor profile and §3.8 Codex installs when Cursor or Codex is present for them to install into — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit", with "+ Cursor skills" / "+ Codex plugin" added before the "?" when §3.7 / §3.8 applies). The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
+Render the write plan to chat first — every §3.3 target, the generated CLAUDE.md line count, the statusline install, and the §3.7 Cursor profile and §3.8 Codex installs when Cursor or Codex is present for them to install into — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering, in the visual language of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md`. All Writes are then AUQ-gated at **batch level** (one AUQ "Generate CLAUDE.md (X lines) + .geniro/ files + install statusline? Options: yes / edit / cancel", with "+ Cursor skills" / "+ Codex plugin" added before the "?" when §3.7 / §3.8 applies). On `cancel`, write nothing, record `phase: failed` with the matching `## Termination reason` from `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` §Termination case → state mapping, and stop. The statusline `settings.json` replacement (when an entry already points elsewhere) carries its own §3.6 confirm on top of this batch consent.
 
 ### 3.4 Conflict-resolution merge rules (re-run only)
 
@@ -78,7 +93,7 @@ Check `$CLAUDE_USER_DIR/settings.json` for a `statusLine` entry. If absent, add 
 
 Fires only when this machine has a Cursor install (`$HOME/.cursor/` exists) AND the resolved plugin root carries `cursor/skills/` AND it was not dropped at the §3.3 batch approval. Skip silently when any of these fails — there is nothing to install into, nothing to install, or the user declined it.
 
-`cursor-agent` loads no plugin components at all, so a plugin install alone leaves every Cursor CLI and ACP session with no Geniro skills, no Geniro subagents, and none of the hooks; the IDE is unaffected. The per-component profile directories are the only route that reaches both surfaces. `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §Install carries the evidence, the source threads, and the condition for removing this step once Cursor fixes the bug.
+`cursor-agent` loads no plugin components at all, so a plugin install alone leaves every Cursor CLI and ACP session with no Geniro skills, no Geniro subagents, and none of the hooks; the IDE is unaffected. The per-component profile directories are the only route that reaches both surfaces. `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §Install carries the evidence and the source threads.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-cursor.sh"

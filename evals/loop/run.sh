@@ -236,7 +236,6 @@ TASK_MANIFEST="$(for t in "${TASK_IDS[@]}"; do
 done | jq -s '.')"
 BENCH_HASH="$(printf '%s' "$TASK_MANIFEST" | sha)"
 
-N_FACETS="$(jq '.facets | length' "$FACETS_JSON")"
 if [ -n "$FACETS_FILTER" ]; then
   FACET_IDX="$(jq -r --arg f "$FACETS_FILTER" '($f | split(",")) as $want
     | .facets | to_entries[] | select(.value.name as $n | $want | index($n)) | .key' "$FACETS_JSON")"

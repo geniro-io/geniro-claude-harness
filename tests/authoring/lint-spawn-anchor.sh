@@ -132,4 +132,6 @@ fi
 
 echo
 echo "Tests run: $TESTS_RUN, failed: $TESTS_FAILED"
-exit "$TESTS_FAILED"
+# Not `exit "$TESTS_FAILED"`: an exit status wraps modulo 256, so exactly 256
+# failures would exit 0.
+[ "$TESTS_FAILED" -eq 0 ]

@@ -93,7 +93,7 @@ Every kept finding posts, apart from these exclusions.
 
 Chain a follow-up `AskUserQuestion` with header "Post mode":
 
-- **Question:** "Send all unposted findings (including LOW / deferred awareness items) in a single batched review, or pick which ones to post?"
+- **Question:** "Send all unposted findings (including the minor ones below the fix threshold) in a single batched review, or pick which ones to post?"
 - **Options:**
 - "Send all (Recommended)" — single batched review event minimizes per-finding AUQ calls and dodges secondary rate limits with a single POST.
 - "Pick one-by-one" — chained `multiSelect` prompts; you choose which findings to include.

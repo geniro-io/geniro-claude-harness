@@ -45,7 +45,7 @@ Commands change from /geniro-claude-plugin:geniro:<skill> to /geniro:<skill>.
 
 ### Step 2 — Resolve `$CLAUDE_USER_DIR`, `$PRIMARY_ROOT`, and snapshot user content
 
-Resolve `PRIMARY_ROOT` by running the Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (single-sourced there — do not inline a copy). The snapshot must capture user-authored content in the primary worktree, not whichever worktree the orchestrator currently sits in: `/geniro:update` is typically run from `main`, but a session in a linked worktree would otherwise compare the wrong tree.
+Resolve `PRIMARY_ROOT` by running the Mode A resolver in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (single-sourced there — do not inline a copy). The snapshot must capture user-authored content in the primary worktree, not whichever worktree the orchestrator currently sits in: `/geniro:update` is typically run from `main`, but a session in a linked worktree would otherwise compare the wrong tree. An unresolved `PRIMARY_ROOT` snapshots nothing, and Phase 3 then reports "snapshot missing or empty" — indistinguishable from a repo that never had user content — so confirm `PRIMARY_ROOT` resolved before taking the snapshot.
 
 Then take the baseline snapshot:
 

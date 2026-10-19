@@ -161,7 +161,7 @@ Use the `AskUserQuestion` tool — a plain-text option list bypasses the approva
 - **Question:** "How should I proceed with these findings?"
 - **Options (use these exactly):**
   - "Implement all findings" — every KEEP finding becomes the Phase 4 approved set
-  - "Let me pick which ones to implement" — walk the findings as multi-select `AskUserQuestion` calls (≤4 options per call, chaining past the cap), mirroring `.claude/skills/audit-plugin/phase-5-action-gate.md`'s pick path; the findings picked become the Phase 4 approved set
+  - "Let me pick which ones to implement" — walk the findings as multi-select `AskUserQuestion` calls (chaining past the question tool's option cap), mirroring `.claude/skills/audit-plugin/phase-5-action-gate.md`'s pick path; the findings picked become the Phase 4 approved set
   - "I disagree with some findings — let me challenge them" — go to Phase 3b
   - "Research deeper on specific items" — go to Phase 3b
 

@@ -42,8 +42,8 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 
 - **Invariant #2 (args validated before execution)** — every shell call has its prereq checked (registry exists, plugin.json parseable, network reachable).
 - **Invariant #3 (permission before side-effect)** — the pre-update AUQ (`phase-1-precheck.md` §Confirm the update with the user) is one example among this skill's several (the hash-check, tamper-diff, and Codex install AUQs in `phase-3-postcheck.md`, the per-entry migration AUQ in `phase-4-migration.md`) — any further pause this skill reaches is still routed through `AskQuestion`, never a plain-text y/n, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
-- **Invariant #4 (bounded structured tool results)** — the migration-step AUQ truncates auto-detect output to its first ~10 lines; the full content diff goes to a log file.
-- **Invariant #5 (escalation gates, not silent abort)** — 4-retry exponential-backoff on network errors; abort after the 4th retry. (`phase-2-update.md` §Marketplace refresh + plugin update owns the exact delays.)
+- **Invariant #4 (bounded structured tool results)** — the migration-step AUQ truncates auto-detect output (bound set in `phase-4-migration.md`); the full content diff goes to a log file.
+- **Invariant #5 (escalation gates, not silent abort)** — network errors retry with exponential backoff, then abort once the retry cap is spent. (`phase-2-update.md` §Marketplace refresh + plugin update owns the cap.)
 - **Invariant #7 (errors → structured observations)** — stateless, so errors surface inline in the run's output; no silent skips.
 
 This skill adds one invariant:
@@ -62,17 +62,20 @@ S1. **No subagent spawns.** `/geniro:update` does not spawn subagents — every 
 
 ## Definition of done
 
+- [ ] `phase-1-precheck.md` §Confirm the update with the user resolved: `Confirm update`, or `--dry-run` printed its preview and exited
+- [ ] `phase-2-update.md` ran the marketplace and plugin update and echoed `PLUGIN_PATH` / `NEW_VERSION` (or took the already-on-latest exit after its refreshes)
 - [ ] `phase-3-postcheck.md` §Plugin file hash-check (sanity mode) ran; `HASH_FAIL` resolved (PASS, or the user picked Continue anyway at the AUQ)
 - [ ] `phase-3-postcheck.md` §User-content survival check ran; any non-empty diff was surfaced via AUQ and resolved
 - [ ] `phase-3-postcheck.md` §Refresh update cache ran (`geniro-check-update.js` against the new `PLUGIN_PATH`) — skipping it leaves the "update available" indicator lit
 - [ ] `phase-3-postcheck.md` §Refresh statusline stable copy (conditional) ran when `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` already existed
 - [ ] `phase-3-postcheck.md` §Re-point the Cursor profile install (conditional) ran when `$HOME/.cursor/skills/` already held `geniro-*` links
 - [ ] `phase-3-postcheck.md` §Refresh or offer the Codex install (conditional) ran whenever `codex` was on PATH — refreshing an existing install, or offering the install when Codex had none and the install was possible
+- [ ] `phase-4-migration.md` walked every `MIGRATION.md` entry (or cleanly skipped an absent file) and met `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` §8 Definition of Done; a cancel stopped the walk and still printed the report
 - [ ] The final report's `Update cache`, `Statusline`, `Cursor profile`, and `Codex` lines state each refresh's actual outcome
 
 ## Budgets — quality-first
 
-No hard kill caps. Class-B gates: 4-retry network backoff, hash-diff and per-migration-step truncation. Not capped: migration walk step count, hash-check file count, total duration.
+No hard kill caps. Class-B gates: the network-retry cap, hash-diff and per-migration-step truncation. Not capped: migration walk step count, hash-check file count, total duration.
 
 ## ACI per-phase tool surface
 
@@ -90,7 +93,7 @@ External sends: not in `/geniro:update` ACI ever.
 
 | Cause | Message |
 |---|---|
-| Network error after the retry cap (cap and backoff ladder set in `phase-2-update.md` §Step 1) | `aborted: network error during plugin marketplace update after <cap> retries` |
+| Network error after the retry cap (cap set in `phase-2-update.md` §Step 1) | `aborted: network error during plugin marketplace update after <cap> retries` |
 | Install recorded under the legacy plugin id | `aborted: plugin renamed — reinstall required` (`phase-1-precheck.md` §Legacy install-id check prints the reinstall commands) |
 | Update succeeded but registry missing entry | `aborted: registry missing the geniro plugin entry — see ~/.claude/plugins/installed_plugins.json` |
 | Hash-check failed | `aborted: plugin integrity check failed — missing file(s) or manifest hash mismatch on <file>` |

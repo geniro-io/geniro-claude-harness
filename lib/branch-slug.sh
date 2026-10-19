@@ -9,10 +9,12 @@
 # branch. Keeping the derivation here is what guarantees producer and consumer
 # agree.
 #
-# Rules (kept in lockstep with skills/_shared/within-skill-state-handoff.md
-# §Slug rules): lowercase -> collapse non-alphanumeric runs to a single dash ->
+# Rules: lowercase -> collapse non-alphanumeric runs to a single dash ->
 # strip leading/trailing dashes -> truncate to 60 chars -> strip a dash the
-# truncation may have left at the boundary.
+# truncation may have left at the boundary. This file is the only home of the
+# derivation: skills/_shared/within-skill-state-handoff.md §Slug rules sources it
+# rather than restating it, and the hook's inline fallback is pinned to it by
+# tests/memory/branch-slug.sh.
 #
 # Usage:
 #   source "$_script_dir/branch-slug.sh"

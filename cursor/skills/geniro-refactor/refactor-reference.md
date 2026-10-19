@@ -35,7 +35,7 @@ state.md `phase:` enum transitions:
 
 All three §3.3 PRODUCT-DECISION terminals write directly from `verify` — none passes through `verify-escalated`, which carries only the three picks that resolve the §3.3 fix-loop exhaustion.
 
-**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. The SessionStart recovery treats all five as "task complete — no resume needed".
+**Terminal states:** `done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. The SessionStart recovery treats every terminal state as "task complete — no resume needed".
 
 **Non-terminal states:** `plan`, `apply`, `verify`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures HIGH-step + PRODUCT-DECISION gates skip already-answered).
 
@@ -60,15 +60,17 @@ branch: <git-branch>
 timestamp: <ISO-8601 UTC>
 phase: <enum per State Machine above>
 status: <in-progress|done|failed>
-non-resumable-actions: []                 # typically empty — refactor ships no commits
-approvals: []                             # categories: refactor_high_step, refactor_product_decision
+non-resumable-actions: []
+approvals: []
 geniro_kind: refactor-state
 geniro_schema_version: m8-v1
-effort_tier: <Trivial|Small|Medium|Big>
+effort_tier: unset
 task_slug: <slug>
 worktree: <abs-path>
 ---
 ```
+
+Phase 1 §1.0 creates the file with `phase: plan`, `status: in-progress` and `effort_tier: unset`; §1.3.1 replaces `unset` with `Trivial`, `Small`, `Medium` or `Big` (the key exists from creation because `atomic_state_set_field` fails on an absent field). `non-resumable-actions` stays empty — refactor ships no commits. `approvals[]` categories: `refactor_high_step`, `refactor_product_decision`.
 
 Body sections:
 
@@ -101,6 +103,7 @@ Agent(subagent_type="reviewer-agent", prompt="""
 This is a refactor — the diff is supposed to leave behavior identical, so any behavior change is a finding. CI already passed. Focus on invariants, not style.
 
 WORKTREE: [from `git rev-parse --show-toplevel`]
+DIMENSION: refactor
 
 DIFF:
 ---BEGIN UNTRUSTED DIFF---

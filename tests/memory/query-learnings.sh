@@ -370,7 +370,7 @@ else
 fi
 rmdir .geniro/knowledge/.archive-stale.lock
 
-# Lock is acquired for the bump and released afterwards (RETURN trap).
+# Lock is acquired for the bump and released afterwards (explicit release).
 set +e; record_access rl1; rc=$?; set -e
 cnt=$(jq -Rc 'fromjson? | select(.dedup_key=="rl1") | .access_count' .geniro/knowledge/learnings.jsonl)
 if [ "$rc" -eq 0 ] && [ "$cnt" = "1" ] && [ ! -d .geniro/knowledge/.archive-stale.lock ]; then
@@ -383,10 +383,10 @@ fi
 # after a normal return. It runs directly in the shell that sourced it (no
 # subshell) and installs INT/TERM traps keyed to $lock/$tmp so a signal
 # mid-rewrite still releases the lock; those two do NOT self-clear on a
-# normal return (only when the signal itself fires), so without the RETURN
-# trap also clearing them, every completed call left them armed here — the
-# next Ctrl-C in this shell would run stale cleanup from a finished call and
-# exit outright instead of behaving normally.
+# normal return (only when the signal itself fires), so without the explicit
+# `trap - INT TERM` after the rewrite, every completed call left them armed
+# here — the next Ctrl-C in this shell would run stale cleanup from a finished
+# call and exit outright instead of behaving normally.
 # Compare against the dispositions captured just before the call, not against
 # "no trap": a suite started in the background inherits SIGINT as ignored, and
 # `trap - INT` correctly restores that, so `trap -p INT` prints an ignore entry.
@@ -452,6 +452,63 @@ rmdir .geniro/knowledge/.archive-stale.lock 2>/dev/null || true
 # bash keeps a `VAR=v func` assignment set after the function returns — clear it
 # so it cannot leak into anything appended below.
 unset GENIRO_LOCK_RECLAIM_SECS
+
+# ===== An append landing mid-rewrite survives record_access (T1-2 twin) =====
+# emit_learning appends without the rewrite lock. The injection is an `awk`
+# function shadowing the binary: the rewrite's second awk call counts the new
+# file (its argument contains ".tmp."), which runs after the read and before the
+# rename — exactly the window an unlocked append can fall into.
+INJECT_MARK=""
+INJECT_FILE=""
+awk() {
+  if [ -n "$INJECT_MARK" ] && [ ! -e "$INJECT_MARK" ]; then
+    case "$*" in
+      *.tmp.*)
+        : > "$INJECT_MARK"
+        printf '%s\n' '{"ts":"2026-05-09T10:00:00Z","producer":"/d","scope":"s","summary":"late","tags":["x"],"dedup_key":"late1","access_count":0}' >> "$INJECT_FILE"
+        ;;
+    esac
+  fi
+  command awk "$@"
+}
+
+new_sandbox
+printf '%s\n' '{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"ra9","access_count":0}' \
+  > .geniro/knowledge/learnings.jsonl
+INJECT_FILE="$PWD/.geniro/knowledge/learnings.jsonl"
+INJECT_MARK="$TMPDIR_BASE/inject-ra"; rm -f "$INJECT_MARK"
+set +e; record_access ra9; rc=$?; set -e
+INJECT_MARK=""
+cnt=$(jq -Rc 'fromjson? | select(.dedup_key=="ra9") | .access_count' .geniro/knowledge/learnings.jsonl)
+late=$(jq -Rc 'fromjson? | select(.dedup_key=="late1") | .dedup_key' .geniro/knowledge/learnings.jsonl | wc -l | tr -d ' ')
+lines=$(command awk 'NF{c++} END{print c+0}' .geniro/knowledge/learnings.jsonl)
+if [ "$rc" -eq 0 ] && [ "$cnt" = "1" ] && [ "$late" = "1" ] && [ "$lines" -eq 2 ]; then
+  pass "an append between the read and the rename survives record_access (and the bump still lands)"
+else
+  fail "record_access lost a concurrent append; rc=$rc cnt=$cnt late-copies=$late lines=$lines (expect 0/1/1/2)"
+fi
+unset -f awk
+
+# ===== record_access under zsh releases the lock and clears its traps =====
+# zsh has no RETURN trap: `trap … RETURN` errors there, so a RETURN-trap-based
+# release leaked the lock directory and left the INT/TERM traps armed.
+if command -v zsh >/dev/null 2>&1; then
+  new_sandbox
+  printf '%s\n' '{"ts":"2026-05-01T10:00:00Z","producer":"/d","scope":"s","summary":"a","tags":["x"],"dedup_key":"rz1","access_count":0}' \
+    > .geniro/knowledge/learnings.jsonl
+  zsh_out=$(zsh -c "source '$REPO_ROOT/lib/query-learnings.sh'; record_access rz1; print -r -- \"rc=\$?\"; trap" 2>&1)
+  cnt=$(jq -Rc 'fromjson? | select(.dedup_key=="rz1") | .access_count' .geniro/knowledge/learnings.jsonl)
+  if [ ! -d .geniro/knowledge/.archive-stale.lock ] && [ "$cnt" = "1" ] \
+     && ! printf '%s' "$zsh_out" | grep -qi 'undefined signal' \
+     && printf '%s' "$zsh_out" | grep -q '^rc=0$' \
+     && [ "$(printf '%s\n' "$zsh_out" | grep -c "INT\|TERM")" -eq 0 ]; then
+    pass "zsh: record_access bumps, releases the lock, leaves no INT/TERM traps, prints no trap error"
+  else
+    fail "zsh: record_access lock/trap hygiene; lock-left=$([ -d .geniro/knowledge/.archive-stale.lock ] && echo y || echo n) cnt=$cnt out='$zsh_out'"
+  fi
+else
+  echo "SKIP: zsh not available — record_access zsh check skipped."
+fi
 
 echo
 echo "Tests run:    $TESTS_RUN"

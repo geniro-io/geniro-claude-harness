@@ -61,7 +61,7 @@ _US_STALE_LOCK_SECS="$(_geniro_lock_reclaim_secs)"
 # O_EXCL-style lock acquisition. Returns 0 on acquire, non-zero if held.
 # Before acquiring, reclaim a stale lock whose mtime is older than the stale
 # window — a SIGKILL/crash while holding the lock leaves the file behind with no
-# RETURN trap to clear it, which would wedge every future L3 write at rc=11
+# trap left to clear it, which would wedge every future L3 write at rc=11
 # forever. The reclaim removes the abandoned lock, then the O_EXCL create retries.
 _us_acquire_lock() {
   local path="$1"
@@ -75,6 +75,19 @@ _us_acquire_lock() {
   fi
   # `set -C` (noclobber) makes `:>` fail if the file exists.
   (set -C; : > "$path") 2>/dev/null
+}
+
+# Release the write lock and disarm the traps update_semantic armed. Called on
+# every exit path so the release does not depend on the RETURN trap: that trap
+# exists in bash only (zsh rejects `trap … RETURN` as an undefined signal), so on
+# zsh nothing else would clear the INT/TERM traps — or the lock.
+_us_release_lock() {
+  rm -f "${1:-}"
+  trap - INT TERM
+  if [ -n "${BASH_VERSION:-}" ]; then
+    trap - RETURN
+  fi
+  return 0
 }
 
 update_semantic() {
@@ -165,17 +178,21 @@ update_semantic() {
   fi
 
   # Release the lock on every function-return path (normal or early-error return)
-  # so a stale O_EXCL lock can't wedge all future L3 writes. Bash RETURN traps
-  # are NOT function-scoped by default — the trap self-clears (`trap - RETURN`)
-  # on first fire so it cannot linger in the caller's shell and clobber a
-  # caller's own RETURN trap. It also clears INT/TERM (installed just below):
-  # those do NOT self-clear on a normal return, only when the signal itself
-  # fires, so without this a completed call left them installed in the
-  # CALLER's shell — this function is not run in a subshell — armed against
-  # $lock_path/$_us_inflight_tmp values that no longer apply, so the next
-  # Ctrl-C in that shell would run stale cleanup and exit it outright instead
-  # of behaving normally.
-  trap 'rm -f "$lock_path"; trap - INT TERM RETURN' RETURN
+  # so a stale O_EXCL lock can't wedge all future L3 writes. Both exits below call
+  # _us_release_lock explicitly; under bash a RETURN trap backstops any path added
+  # later (zsh has no RETURN trap, so it is installed only there). Bash RETURN
+  # traps are NOT function-scoped by default — the trap self-clears
+  # (`trap - RETURN`) on first fire so it cannot linger in the caller's shell and
+  # clobber a caller's own RETURN trap. The release also clears INT/TERM
+  # (installed just below): those do NOT self-clear on a normal return, only when
+  # the signal itself fires, so without this a completed call left them installed
+  # in the CALLER's shell — this function is not run in a subshell — armed
+  # against $lock_path/$_us_inflight_tmp values that no longer apply, so the next
+  # Ctrl-C in that shell would run stale cleanup and exit it outright instead of
+  # behaving normally.
+  if [ -n "${BASH_VERSION:-}" ]; then
+    trap 'rm -f "$lock_path"; trap - INT TERM RETURN' RETURN
+  fi
 
   # A SIGINT/SIGTERM mid-write would skip the RETURN trap and leave the lock (and
   # any in-flight mktemp) behind. Clean both on interrupt so the next write isn't
@@ -184,8 +201,8 @@ update_semantic() {
   # alone does not terminate the process, so without the exit bash would resume
   # mid-write with the lock already released for a concurrent writer.
   local _us_inflight_tmp=""
-  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM RETURN; exit 130' INT
-  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM RETURN; exit 143' TERM
+  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM; exit 130' INT
+  trap 'rm -f "$lock_path" ${_us_inflight_tmp:+"$_us_inflight_tmp"}; trap - INT TERM; exit 143' TERM
 
   local rc=0
   case "$op" in
@@ -223,7 +240,7 @@ update_semantic() {
         # copy+delete that would break the atomicity this helper exists for.
         tmp="$(_atomic_state_mktemp "$target_path")"
         if [ -z "$tmp" ]; then
-          rm -f "$lock_path"
+          _us_release_lock "$lock_path"
           echo "update_semantic: failed to create tmp beside $target_path" >&2
           return 71
         fi
@@ -298,6 +315,6 @@ update_semantic() {
       ;;
   esac
 
-  rm -f "$lock_path"
+  _us_release_lock "$lock_path"
   return "$rc"
 }

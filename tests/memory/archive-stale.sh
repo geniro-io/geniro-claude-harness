@@ -285,6 +285,85 @@ else
 fi
 rmdir "$LOCK" 2>/dev/null || true
 
+# ===== An append landing mid-run survives the rewrite (T1-2) =====
+# emit_learning appends without the rewrite lock, so a line can arrive between
+# the rewriter's read and its rename. The injection is a `jq` function shadowing
+# the binary: on the call that prepares the new file (the last jq before the
+# rename) it appends a line first — exactly "between the count and the rename".
+INJECT_MARK=""
+INJECT_LINE=""
+INJECT_MATCH=""
+jq() {
+  if [ -n "$INJECT_MARK" ] && [ ! -e "$INJECT_MARK" ]; then
+    case "$*" in
+      *"$INJECT_MATCH"*)
+        : > "$INJECT_MARK"
+        printf '%s\n' "$INJECT_LINE" >> "$LOG"
+        ;;
+    esac
+  fi
+  command jq "$@"
+}
+late_line='{"producer":"/debug","scope":"x","summary":"late arrival","tags":["bug"],"type":"diagnosis","ts":"%s","trust":"inferred","access_count":0,"recurrence_count":1,"dedup_key":"late1"}'
+late_count() { grep -c '"dedup_key":"late1"' "$LOG" 2>/dev/null || true; }
+
+new_sandbox
+write_corpus
+INJECT_MARK="$TMPDIR_BASE/inject-1"; rm -f "$INJECT_MARK"
+INJECT_MATCH='del(._is_stale)'
+INJECT_LINE="$(printf "$late_line" "$NOW_TS")"
+set +e
+archive_stale_learnings >/dev/null 2>&1
+rc=$?
+set -e
+INJECT_MARK=""
+if [ "$rc" -eq 0 ] && [ "$(late_count)" -eq 1 ] && [ "$(line_count)" -eq 5 ] \
+   && [ "$(dep_of stale1)" = "true" ]; then
+  pass "an append between the count and the rename survives the rewrite (and the flip still lands)"
+else
+  fail "append lost or log damaged; rc=$rc late-copies=$(late_count) lines=$(line_count) stale1.deprecated=$(dep_of stale1)"
+fi
+
+# The same line is not DUPLICATED when it lands after the size was measured but
+# before the log was read: the read is bounded to the measured prefix, and the
+# carried tail picks the line up exactly once.
+new_sandbox
+write_corpus
+INJECT_MARK="$TMPDIR_BASE/inject-2"; rm -f "$INJECT_MARK"
+INJECT_MATCH='stale_score_max'
+INJECT_LINE="$(printf "$late_line" "$NOW_TS")"
+set +e
+archive_stale_learnings >/dev/null 2>&1
+rc=$?
+set -e
+INJECT_MARK=""
+if [ "$rc" -eq 0 ] && [ "$(late_count)" -eq 1 ] && [ "$(line_count)" -eq 5 ]; then
+  pass "an append between the size measurement and the read is kept exactly once"
+else
+  fail "append duplicated or lost; rc=$rc late-copies=$(late_count) lines=$(line_count)"
+fi
+
+# A log whose last record lacks a trailing newline: atomic_state_append adds the
+# missing newline before its own line, so the carried tail starts with one. The
+# appended entry must still survive.
+new_sandbox
+write_corpus
+printf '%s' "$(cat "$LOG")" > "$LOG"      # strip the trailing newline
+INJECT_MARK="$TMPDIR_BASE/inject-3"; rm -f "$INJECT_MARK"
+INJECT_MATCH='del(._is_stale)'
+INJECT_LINE="$(printf '\n'"$late_line" "$NOW_TS")"
+set +e
+archive_stale_learnings >/dev/null 2>&1
+rc=$?
+set -e
+INJECT_MARK=""
+if [ "$rc" -eq 0 ] && [ "$(late_count)" -eq 1 ] && [ "$(jq -c . "$LOG" 2>/dev/null | wc -l | tr -d ' ')" -eq 5 ]; then
+  pass "an append after an unterminated last record survives the rewrite"
+else
+  fail "append lost after an unterminated record; rc=$rc late-copies=$(late_count) records=$(jq -c . "$LOG" 2>/dev/null | wc -l | tr -d ' ')"
+fi
+unset -f jq
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

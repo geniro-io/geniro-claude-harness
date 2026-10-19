@@ -105,7 +105,7 @@ Resolve the `.geniro/` root via `lib/repo-root.sh::_geniro_repo_root` — never 
 
 | Field | Type | Example |
 |---|---|---|
-| `tier` | enum `T1\|T1.5\|T2\|T3` (T1 used for transient outputs that omit frontmatter; not enforced when present) | `T1.5` |
+| `tier` | enum `T1\|T1.5\|T2\|T3` (T1 transient outputs omit frontmatter, so the value seldom appears; a file that does declare `tier: T1` is validated against the T1.5 field set) | `T1.5` |
 | `producer` | string | `implement` |
 | `schema-version` | integer | `1` |
 | `branch` | string | `feature/dark-mode` |
@@ -159,7 +159,7 @@ approvals:
 - `evidence` — the ground truth the reason rested on: a `file:line`, a literal quote, or a command's output. This is what makes the entry falsifiable; a `why` with no `evidence` is an assertion.
 - `result` — what happened when the pick was acted on. Written after the action, so it commonly lands in a later write than the rest of the entry. Its absence on a resumed run is a signal in itself: the decision was recorded but its consequence was not, which is where an interrupted run left off.
 
-Omit any of the three when there is nothing real to put in it. An empty `why` is better than a restatement of `picked`, and a fabricated `evidence` is worse than none — see the provenance rule below, which governs all ten fields.
+Omit any of the three when there is nothing real to put in it. An empty `why` is better than a restatement of `picked`, and a fabricated `evidence` is worse than none — see the provenance rule below, which governs every field.
 
 **Provenance — every entry records a real decision.** Write an `approvals[]` entry only for a question actually asked and answered in a run (the AUQ's resolved answer), or as an explicitly-labeled inheritance of a prior recorded entry (e.g. `picked: "<value>" (carried from round 1)`). Never synthesize an entry for a question that was not asked: `approvals[]` is the compaction-safe record of user decisions, so a fabricated entry makes a later session auto-skip a gate against a decision the user never made — the exact failure this field exists to prevent. An inherited entry carries the inherited VALUE unchanged; recording a different value under an inheritance label is fabrication, not inheritance.
 
@@ -176,13 +176,13 @@ Each entry is `{action, completed-at, <action-specific-fields>}`, where `complet
 | `pr-comment-posted` | `/geniro:resolve` | `pr`, `comment-id` |
 | `pr-review-comment-batch` | `/geniro:review` | `pr-ref`, `finding-count`, `comment-ids` |
 | `pr-comment-amended` | `/geniro:review` (review-handoff.md §7.8) | `pr-ref`, `comment-id`, `kind: edit\|reply\|delete` |
-| `git-commit` | `/geniro:plan`, `/geniro:implement`, `/geniro:resolve` | `commit-sha` |
+| `git-commit` | `/geniro:plan`, `/geniro:resolve` | `commit-sha` |
 | `slack-notify-sent` | none today — reserved | `channel`, `ts` |
 | `release-tagged` | none today — reserved | `tag` |
 
 An unrecognized `action` renders via the hook's generic fallback.
 
-The last two carry no producer today; they stay listed because the table must match what the restore hook renders (`tests/hooks/session-start-restore.sh` pins it) — an enum value the hook handles but the table omits is lockstep breaking in the direction nothing detects.
+The last two carry no producer today; they stay listed because the table must match what the restore hook renders — an enum value the hook handles but the table omits is lockstep breaking in the direction nothing detects.
 
 ### T2 required `open_questions` array
 
@@ -264,7 +264,7 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 - `report_status: <draft|final>` — whole-report lifecycle. Phase 5.1 writes `draft` so a mid-gate compaction still recovers the findings; the Phase 6 finalize step (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3.5) flips it to `final` only after the Pre-gate (open questions) and the open-decision gate clear. The Action gate's handoff option and the §7.0 Post-drill guard both require `final`. **Back-compat (single source of this rule): a missing `report_status` reads as `final`** — mirrors the `step0_status: missing → resolved` precedent, so handoffs produced before this field exists are not retro-blocked. Other sites reference this rule; they do not restate it.
 - `steering-note: <text|none>` — this round's free-text steering from the user, captured at the re-review gate or the `--focus` flag (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 5); `none` when neither supplied text. Capped at ~500 chars, truncated with a `[…truncated…]` marker. Threaded into every Phase 2 reviewer prompt as the `USER STEERING:` slot — additive attention, never grounds to drop a dimension or a finding (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Input contract). Asked fresh every round like `rereview_scope_choice`, never inherited.
 - `brief: <artifact|file|off|pending>` — this run's brief opt-in, answered at the last step of Phase 1 so the brief can co-fire with the Phase 2 reviewer batch instead of starting after it (pre-settable via `--brief` / `--no-brief`, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md`). Persisted as soon as the answer lands and before the batch fires, so a compaction cannot drop it. `off` records a declined offer (a missing field reads as `off`). `pending` is the transient form — a `--brief` pre-answer whose medium is not settled — written at the Phase 1 flag parse; reaching Phase 2 still `pending` means a compaction skipped the opt-in, and the batch response co-fires the brief on the accept it already records while asking only the medium. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md`.
-- `subagent-model: <sonnet|opus|haiku|fable|inherit>` — set by the `--subagent-model` flag at its Phase 1 parse, announced once at run start. Missing reads as `inherit` (every spawn keeps its cost class). No AUQ backs this field — it is a pre-set the run reads once, not a persisted answer — so a compaction before the spawn batch fires re-applies it without an `approvals[]` entry rather than silently reverting every spawn to the default. Multiplies to every plugin spawn in the run per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. **Shared field:** `/geniro:implement` and `/geniro:review` are the two skills the flag targets; the field is therefore defined once here and not restated per producer section.
+- `subagent-model: <sonnet|opus|haiku|fable|inherit>` — set by the `--subagent-model` flag at its Phase 1 parse, announced once at run start. Missing reads as `inherit` (every spawn keeps its cost class). No AUQ backs this field — it is a pre-set the run reads once, not a persisted answer — so a compaction before the spawn batch fires re-applies it without an `approvals[]` entry rather than silently reverting every spawn to the default. Multiplies to every plugin spawn in the run per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. **Shared field:** written by both `/geniro:implement` and `/geniro:review`, so it is not restated per producer section.
 
 **`/geniro:implement` producer-specific fields:**
 
@@ -273,6 +273,8 @@ Producers MAY add fields (e.g., `task_slug`, `mode`, `effort_tier`, `round`, `ri
 - `reviewed_file_set: [<path>, ...]` and `reviewed_file_hashes: [<path>@<hash>, ...]` — frontmatter lists of every file the Phase 3 fix loop reviewed or edited (the union of every round's CHANGED FILES plus every path a fix, nit, or authored test touched) and each one's hash as the loop left it, set by `atomic_state_set_field` at the loop's exit once the `## Deferred Findings` body section has landed via `atomic_state_append_section` (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 3: Bounded fix loop"). Ship's commit-time review-coverage guard (same file, §"Commit + Push + PR" Step 2) treats a file missing from the set, or whose hash no longer matches, as diverged.
 - `## Authored Tests` body section — the tests Phase 3's inline edge-case authoring step wrote, tracked in the column set canonical at §`## Authored Tests` body table below (the same shape `/geniro:debug` Adversarial Mode's own body section uses), written as each authored test resolves so a compaction mid-step recovers the outcome instead of re-authoring hypotheses already tried.
 - `## Pruned Tests` body section — one line per pre-existing test case Phase 2 removes under `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §13, `<test file>: <removed case> → pinned by <surviving test>`, written inline as each prune resolves and folded in from a code-delegate's report via `atomic_state_append_section --create`. Read back into the Ship report, the PR body, and the commit message. Absent means nothing was pruned this run — no sentinel required.
+
+**`/geniro:debug` producer-specific `open_questions` array (T1.5 `state.md`):** `state.md` declares `open_questions: []` when it is created and gains entries in the §T2 `open_questions` shape — each carries `source` and `related_hypotheses` rather than `related_findings`. The Phase 1 stall gate, the missing-data gate and the Phase 3 cannot-verify path append them with `atomic_state_append_list_item`; the Phase 3 pre-gate (`${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-3-ship.md` §3.0) reads the `unresolved` ones. The key is seeded at creation because the append refuses a key the frontmatter lacks (rc 74), and a pre-gate reading a state file without the key would see no entries and skip.
 
 **`/geniro:debug` producer-specific `authored_tests` array (T2 handoff only):**
 

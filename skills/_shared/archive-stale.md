@@ -28,12 +28,12 @@ An entry becomes a stale candidate iff:
 
 1. **Score below the staleness floor** — using the same scoring formula as `query-learnings --score-min` (canonical definition in query-learnings.md §Score formula).
 2. **Age past the staleness horizon** — measured from the entry's `ts` field.
-3. **access_count == 0** — entry has never been returned by a query that called `record_access`. No shipped caller invokes `record_access` today — only `tests/memory/query-learnings.sh` exercises it directly — so every entry's `access_count` stays 0 in practice, and this criterion currently passes unconditionally rather than protecting frequently-accessed entries. The function itself is unchanged and ready for a real caller; wiring one is a separate, unshipped step.
+3. **access_count == 0** — entry has never been returned by a query that called `record_access`. No shipped caller invokes `record_access` today, so every entry's `access_count` stays 0 in practice and this criterion currently passes unconditionally rather than protecting frequently-accessed entries.
 4. **not already deprecated** — `(.deprecated // false) == false`. Already-deprecated entries are skipped so re-runs report 0 candidates (idempotency).
 
 The floor and the horizon are literals in `lib/archive-stale.sh`'s jq filter, stated there with the reasoning behind each; the helper echoes both in its own output (below), so read the numbers from the run rather than from this page.
 
-The four-way AND is conservative by design — high-trust or recent entries are protected even if individually old — but the access axis (#3) is currently inert per the caveat above; the working protection today is recency + trust, not access frequency.
+The four-way AND is conservative by design — high-trust or recent entries are protected even if individually old; with the access axis (#3) inert, recency and trust do the protecting.
 
 ## Output
 
@@ -70,7 +70,7 @@ archive-stale: 0 stale candidates (no entries match <score / age / access_count 
 - **Refuses to rewrite a corrupt log.** A real run aborts (rc=2) without writing if any line cannot be parsed as JSON, rather than silently dropping the unparseable line on the rewrite. This preserves the never-deletes guarantee even when the log is partially corrupt — fix or remove the malformed line, then re-run.
 - **Auto-runs on SessionStart** when threshold met AND file changed since last archive. Manual invocation also supported (typical: `--dry-run` to preview).
 - **Idempotent.** Already-deprecated entries are skipped (criterion 4 in §Criteria). Re-runs are safe and report 0 candidates.
-- **Atomic write.** Uses tmp + POSIX `rename(2)` for the final write. Mid-run interruption leaves either the old or new file, never a partial one.
+- **Atomic write.** Uses tmp + POSIX `rename(2)` for the final write. Mid-run interruption leaves either the old or new file, never a partial one. `emit_learning` appends without the lock, so the run reads a byte-bounded prefix of the log and copies any lines appended after it into the new file just before the rename — an append mid-run survives. One landing in the instant between that copy and the rename can still be lost.
 - **Multi-tab safe.** When invoked via hook, runs under a `mkdir`-acquired POSIX-atomic lock at `.geniro/knowledge/.archive-stale.lock`. Direct invocations acquire the same lock themselves (rc=3 when held), and `record_access` counter rewrites share it too — the hook, direct runs, and counter bumps are mutually excluded. A caller that *sources* this helper and calls `archive_stale_learnings()` directly owns locking itself (the function never auto-locks — see the header contract). Concurrent SessionStart events lose the race and skip silently; only one tab does work. A lock orphaned by a crashed process is reclaimed once its mtime exceeds the shared reclaim window (`GENIRO_LOCK_RECLAIM_SECS`, single-sourced with its rationale in `lib/lock-reclaim.sh`).
 
 ## Environment

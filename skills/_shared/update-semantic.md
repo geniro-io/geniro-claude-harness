@@ -1,6 +1,6 @@
 # L3 semantic-memory write helper
 
-**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries), `/geniro:refactor` (move/rename), and `/geniro:onboard` (writes its whole `_CODEBASE_MAP.md` through this helper). No skill currently writes `_FEATURES.md` through this helper — `--file features` stays supported, but `_FEATURES.md` itself is manual today.
+**Status:** Authoritative for bounded auto-incremental writes to `_CODEBASE_MAP.md` and `_FEATURES.md`. Used by `/geniro:implement` (adds module entries) and `/geniro:onboard` (writes its whole `_CODEBASE_MAP.md` through this helper). No skill currently writes `_FEATURES.md` through this helper — `--file features` stays supported, but `_FEATURES.md` itself is manual today.
 
 ## API
 
@@ -41,7 +41,7 @@ context-resident state, so re-invoking after a SessionStart event is always safe
 ## Lock semantics
 
 - **Acquire:** `(set -C; :>lock_path) 2>/dev/null` — POSIX-portable O_EXCL create. The shell with `noclobber` set refuses to write to an existing file.
-- **Release:** a `trap 'rm -f "$lock_path"; trap - RETURN' RETURN` installed inside the helper fires on every return path and then uninstalls itself — bash RETURN traps are not function-scoped by default, so without the self-clear it would linger in the caller's shell and clobber a caller's own RETURN trap (the explicit `rm -f` on the success path is a belt-and-braces duplicate). An INT/TERM trap removes the lock (and any in-flight `mktemp`) on interrupt, so a Ctrl-C mid-write no longer wedges the next call at rc=11. The only residual leak is a hard SIGKILL or a crash, which skips every trap — and that leak self-heals: before acquiring, the helper reclaims a lock whose mtime is older than the reclaim window (`GENIRO_LOCK_RECLAIM_SECS` — the shared knob every lock site reclaims by, single-sourced with its rationale in `lib/lock-reclaim.sh`), then retries the O_EXCL create.
+- **Release:** every exit path removes the lock file explicitly and clears the helper's INT/TERM traps, so nothing depends on the shell supporting a `RETURN` trap (zsh has none); under bash a `RETURN` trap also backstops any path added later. An INT/TERM trap removes the lock (and any in-flight `mktemp`) on interrupt, so a Ctrl-C mid-write does not wedge the next call at rc=11. The only residual leak is a hard SIGKILL or a crash, which skips every trap — and that leak self-heals: before acquiring, the helper reclaims a lock whose mtime is older than the reclaim window (`GENIRO_LOCK_RECLAIM_SECS` — the shared knob every lock site reclaims by, single-sourced with its rationale in `lib/lock-reclaim.sh`), then retries the O_EXCL create.
 - **Different files have independent locks.** A `_CODEBASE_MAP.md` write does not block a `_FEATURES.md` write.
 
 ## Replace semantics
