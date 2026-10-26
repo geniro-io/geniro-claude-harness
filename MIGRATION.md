@@ -10,6 +10,37 @@ For users installing the plugin fresh (no pre-existing `.geniro/`), this file is
 
 ## v5.0.0
 
+### Instruction scaffolds no longer write placeholder bullets
+
+The scaffolds `/geniro:setup` writes (`plan.md`, `implement.md`) and `/geniro:instructions create` writes (`code-style.md`, `implement.md`, `global.md`) are now section headings with no bullets under `## Rules`, `## Constraints` and each `### After <phase>`. Earlier scaffolds wrote placeholder bullets such as `- (none — add hard limits for /geniro:plan here)` and `- (example: "…")` into `.geniro/instructions/*.md`. The load echo counts every top-level bullet, so those placeholders surfaced as real rules and constraints: a file whose only Constraints bullet was the placeholder loaded as "1 constraint". The `implement.md` scaffold also wrote `- Maximum PR size: 500 lines changed (warn user if exceeded; do not block)` as a constraint, which the new scaffold no longer does.
+
+**Action required:** Delete the placeholder bullets from the main checkout's `.geniro/instructions/*.md`; the auto-fix does it. A file created from the old `implement.md` scaffold also carries "Maximum PR size: 500 lines changed" as a constraint — keep it only if your team chose that limit, since the auto-fix leaves that line alone.
+
+**Auto-detect:**
+
+```bash
+root="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+grep -HnE '^[-*] \((none (—|-) add |example: ")' "${root:-.}"/.geniro/instructions/*.md 2>/dev/null
+```
+
+**Auto-fix:**
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh" || exit 1
+root="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+for f in "${root:-.}"/.geniro/instructions/*.md; do
+  [ -f "$f" ] || continue
+  grep -qE '^[-*] \((none (—|-) add |example: ")' "$f" || continue
+  atomic_state_write_cmd "$f" grep -vE '^[-*] \((none (—|-) add |example: ")' "$f"
+done
+```
+
+Only the matched lines are removed; every other line stays as written.
+
+**Severity:** LOW — a placeholder is inert text, but the load echo overstates how many rules and constraints a project has, and the PR-size line states a limit nobody chose.
+
+---
+
 ### `intent` is a reserved reviewer name; `/geniro:review` and `/geniro:implement` run one more reviewer
 
 A new always-fire `intent` reviewer joins `/geniro:review` Phase 2 and `/geniro:implement` Phase 3. It judges the change against its own stated reason — the PR title and body, commit messages, linked ticket, and plan or spec, plus the inline plan's new `Premises:` line under `/geniro:implement` — asking whether each fact the change relies on is true in the code, whether it fixes the root cause rather than a symptom, and whether its scope covers the whole stated problem (`skills/_shared/review-criteria/intent-criteria.md`). It fires at every size, so every run spends one more reviewer: `/geniro:review`'s always-fire set is now five under its size boundary and seven at or over it.

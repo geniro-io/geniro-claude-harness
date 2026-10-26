@@ -70,7 +70,7 @@ worktree: <abs-path>
 ---
 ```
 
-Phase 1 §1.0 creates the file with `phase: plan`, `status: in-progress` and `effort_tier: unset`; §1.3.1 replaces `unset` with the tier (`atomic_state_set_field` fails on an absent key). `non-resumable-actions` stays empty — refactor ships no commits. `approvals[]` categories: `refactor_high_step`, `refactor_product_decision`.
+Phase 1 §1.0 creates the file with `phase: plan`, `status: in-progress` and `effort_tier: unset`; §1.3.1 replaces `unset` with the tier (`atomic_state_set_field` fails on an absent key). `non-resumable-actions` stays empty — refactor ships no commits. `approvals[]` categories: `refactor_high_step`, `refactor_product_decision`, `branch_freshness`.
 
 Body sections:
 

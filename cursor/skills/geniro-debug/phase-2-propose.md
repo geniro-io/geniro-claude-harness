@@ -14,7 +14,7 @@ state.md `phase: propose`. Output authoring: text fix proposal + F→P reproduct
 
 ### 2.1 Refresh custom instructions on entry
 
-On Phase 2 entry, re-fire `load-custom-instructions(SKILL_SLUG: debug, LOAD_TIER: pipeline, MODE: refresh)` once (pipeline tier's load set owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). The fix proposal and the reproduction test are both authored here, so the code-style rules have to be the ones on disk now — Phase 1's load can be many hypothesis rounds old.
+On Phase 2 entry, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Phase 1's load can be many hypothesis rounds old.
 
 ### 2.2 Multi-path fix gate (Always-WAIT)
 

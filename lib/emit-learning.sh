@@ -202,7 +202,7 @@ emit_learning() {
   # query_learnings then replays into context. Path labels use dotted
   # notation throughout (`ext.options.0`, `links.refs.1`, `tags.0`, or
   # `tags.0.k` for a string nested inside a non-string tag).
-  local dpaths_json dpath_count di
+  local dpaths_json dpath_count di dpath_arr dval dlabel dsan
   dpaths_json=$(printf '%s' "$rebuilt" | jq -c \
     '[paths(strings)
       | select(.[0] as $k
@@ -211,7 +211,6 @@ emit_learning() {
                | index($k) == null)]')
   dpath_count=$(printf '%s' "$dpaths_json" | jq 'length')
   for ((di = 0; di < dpath_count; di++)); do
-    local dpath_arr dval dlabel dsan
     dpath_arr=$(printf '%s' "$dpaths_json" | jq -c ".[$di]")
     dval=$(printf '%s' "$rebuilt" | jq -r --argjson p "$dpath_arr" 'getpath($p)')
     dlabel=$(printf '%s' "$dpath_arr" | jq -r 'map(tostring) | join(".")')

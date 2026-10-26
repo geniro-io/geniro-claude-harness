@@ -22,7 +22,7 @@ State.md `phase: analyze` on entry.
 
 ### Step 0 — Workspace setup
 
-Step 0 fires BEFORE any L4 / L3 / L2 helper call and BEFORE the Knowledge-Retrieval / Codebase-Explorer spawn. Workspace decision determines the worktree the rest of Phase 1 inspects; running L3 fingerprint drift checks against the wrong worktree is wasted work.
+Step 0 fires BEFORE any L4 / L3 / L2 helper call and BEFORE the Knowledge-Retrieval / Codebase-Explorer spawn — the workspace decision picks the worktree the rest of Phase 1 inspects.
 
 #### 0a — Detect current context (passive)
 
@@ -90,7 +90,7 @@ Decision tree (first match wins; evaluate top-down) — fires under Mode WORK-BA
    ⇒ Fire the full workspace AUQ (0c). Recommendation flips: "Current branch (Recommended)" since the user is on a feature branch already — unless CONCURRENT_ACTIVITY is set, in which case it is "Git worktree (Recommended)".
 ```
 
-On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both skip the AUQ), apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` right after the continue echo — offer to update a branch that is behind the default branch before Phase 1 begins. It skips silently when the branch is already current, and is skipped entirely on a compaction-resume (the branch was synced when the run first started).
+On any AUTO-CONTINUE path (rule 2, and rule 3 when it auto-continues — both skip the AUQ), apply 0e item 1's Mode FRESH-CONTINUE handling (an offer, never auto-run) right after the continue echo, before Phase 1 begins. It skips silently when the branch is already current, and is skipped entirely on a compaction-resume (the branch was synced when the run first started).
 
 **Inline modifier overrides** (parsed from `$ARGUMENTS` per the Phase 1 semantic-parse table; an explicit modifier wins over auto-detection, because the user's stated intent overrides an inferred signal):
 
@@ -119,7 +119,7 @@ Single `AskQuestion` call carrying up to 4 questions (always-WAIT, never auto-re
 
 **Question 2 — conditional on workflow_refs OR `.geniro/workflow/*.md` having an `### On task start` section:**
 
-Build the workflow-refs-to-process list from a tracker URL/ID in `$ARGUMENTS` plus the spec.md frontmatter `workflow_refs[]`, deduplicated by `(kind, issue_id)` — the `$ARGUMENTS` reference wins a collision, because the user just typed it.
+Build the workflow-refs-to-process list from a tracker URL/ID in `$ARGUMENTS` plus the spec.md frontmatter `workflow_refs[]`, deduplicated by `(kind, issue_id)` — the `$ARGUMENTS` reference wins a collision.
 
 For each entry, find the workflow file with primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A — try `./.geniro/workflow/<ref.kind>.md` (cwd-local; uncommitted local edits win) first; on file-not-found retry against `<PRIMARY_ROOT>/.geniro/workflow/<ref.kind>.md`. If both missing → log warning + skip (graceful degrade). Staleness check: a `fetched_at` stale or absent per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` → re-fetch via MCP (timeout 3s, fail-open), which also updates the cached `status`. Resolve the current `status` (re-fetched value, or cached when fresh) BEFORE applying the workflow block — the workflow file's `### On task start` section gates its question shape on that field. Apply the workflow file's `### On task start` block — it may append 0-2 questions to the AUQ batch depending on resolved status and assignee fields. Echo any "skipped — already in target state" cases to the user inline (not as an AUQ).
 
@@ -137,8 +137,8 @@ On compaction-resume, Step 0 reads `approvals[]` and re-applies prior answers wi
 
 #### 0e — Execution after the setup questions
 
-1. **Workspace action** — execute branch creation / worktree create / no-op per `implement_workspace_setup` pick (which a spec `launch_config.workspace` may have pre-answered at Step 0g). Slug source: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`. Branch and worktree creation cut from the latest default branch — apply Mode FRESH-BASE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md` so the new working tree starts from the freshest default-branch tip rather than the current HEAD. For the "Current branch" (no-op) pick, apply Mode FRESH-CONTINUE from the same helper — offer to bring the branch up to date before Phase 1 proceeds. When `launch_config.branch_freshness` is set, pass it as the pre-chosen strategy so a clean fast-forward applies it without asking; a real conflict still surfaces interactively.
-2. **Workflow status action** — for each `implement_workflow_status` entry held from 0d, follow the workflow file's `### On task start` instructions. Skill does NOT hardcode MCP call shape — workflow file owns that.
+1. **Workspace action** — execute branch creation / worktree create / no-op per `implement_workspace_setup` pick. Slug source: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-naming.md`. Branch and worktree creation apply Mode FRESH-BASE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`, cutting from the freshest default-branch tip. For the "Current branch" (no-op) pick, apply Mode FRESH-CONTINUE from the same helper. The update is an offer, never auto-run — an unasked merge moves the user's HEAD. Fire that file's update-default or catch-up question verbatim when behind; before any action that moves HEAD, run `git status --porcelain`, and any output chains its unsaved-work question first. Hold the pick and resolved `behind` count with the 0d entries (`approvals[]`, category `branch_freshness`). When `launch_config.branch_freshness` is set, pass it as the pre-chosen strategy so it applies without the question; a dirty tree or real conflict still surfaces interactively.
+2. **Workflow status action** — for each `implement_workflow_status` entry held from 0d, follow the workflow file's `### On task start` instructions. The workflow file owns the MCP call shape.
 3. **State.md frontmatter** — Step 4 writes `branch:` and `worktree:` for the working tree this step settled.
 
 #### 0f — Edge cases
@@ -163,7 +163,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
 3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Hold the outcome with the Step 0 picks; Step 4 writes it to `approvals[]` with `category: disambiguate_arguments`.
 4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail); if fresh, `mkdir -p`. With no state.md yet, create it here via `atomic_state_write`: frontmatter `branch:` / `worktree:` for the working tree Step 0 settled, the held Step 0 picks and the Step 3 pick as `approvals[]` entries, and `subagent-model: <tier>` when Step 1 parsed `--subagent-model <tier>` (else omitted; missing reads as `inherit`). The flag has no AUQ and no `approvals[]` entry, but persist it before Phase 3's reviewer batch or a compaction-resume drops the pin. When a validated state.md already exists, append the held entries with `atomic_state_append_list_item`.
 4.5. **Prior-work scan.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` against the spec / plan / DESIGN_DOC resolved at Step 2, or the inline task description in inline-task mode — already named, so this is the read-only carve-out `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §Forbidden discovery moves draws around an already-named target, not target discovery. Running before Step 7 settles `change_scope` lets a hit still narrow or redirect scope. On a hit, §4 owns the gate shape; persist the pick under `category: prior_work_scan` via `atomic_state_append_list_item`.
-5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. The helper's §Procedure prescribes imperative read directives on every file in the pipeline load set; the §Echo contract requires one observable line per file. Both are mandatory.
+5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Its §Procedure is one helper call, then a Read of every path it lists; both are mandatory.
 6. **Load project snapshot.** Phase 1 entry only — Phase 3 does not re-load it.
 
    ```bash

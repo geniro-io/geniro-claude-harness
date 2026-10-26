@@ -29,7 +29,7 @@ When the request does not already name a concrete rule, read enough of the proje
 
 ### Step 4 — Scope-specific scaffold + interview
 
-Each scope gets a **scope-specific scaffold** with example Rules to make the empty-file moment less confusing. The four scaffolds (`code-style` / `implement` / `global` / `memory`) plus their stub-inclusion notes live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — render the matching scaffold first, always.
+Each scope gets a **scope-specific scaffold** of section headings only — every bullet counts as a real rule, so bullets come from the user or this interview. The four scaffolds (`code-style` / `implement` / `global` / `memory`) plus their stub-inclusion notes live in `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` §1 — render the matching scaffold first, always.
 
 The interview is for requests that arrive vague. When the invocation already names an actionable rule ("add a rule that we run `pnpm test` before shipping"), place it in the scaffold under the block type Phase 1 resolved from `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` §Block-type detection and go straight to Step 5 — re-interviewing a user who already answered spends three questions to reach the line they handed over. Otherwise use `AskUserQuestion`:
 

@@ -125,6 +125,7 @@ _RED_NAMES=(
   api-key:xox
   api-key:google
   bearer
+  cookie
   url-cred
   private-key
 )
@@ -165,6 +166,12 @@ _RED_REGEXES=(
   # and an English word never does — so the token must contain at least one `[0-9._]`.
   # `-` is deliberately NOT in that set: it would re-admit hyphenated English.
   '(^|[^A-Za-z0-9_-])[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._-]*[0-9._][A-Za-z0-9._-]*'
+  # A `Cookie:` / `Set-Cookie:` header line, from the header name to end of line:
+  # a request header carries every cookie on one line, and a session cookie rides
+  # alongside harmless ones (`theme=dark; sid=...`). The line is redacted only when
+  # it holds a `name=` pair with a 16+ char token, so `Cookie: theme=dark` and prose
+  # such as "Cookie: oatmeal raisin" pass through. Same boundary anchor as bearer.
+  '(^|[^A-Za-z0-9_-])(([Ss][Ee][Tt]-)?[Cc][Oo][Oo][Kk][Ii][Ee])[[:space:]]*:[^[:cntrl:]]*=[A-Za-z0-9%+/=_.~-]{16,}[^[:cntrl:]]*'
   '(https?)://[^:/[:space:]]+:[^@/[:space:]]+@'
   '-----BEGIN [A-Z ]*PRIVATE KEY-----.*-----END [A-Z ]*PRIVATE KEY-----'
 )
@@ -190,10 +197,11 @@ _RED_REPLACEMENTS=(
   '[REDACTED:api-key:slack]'
   '[REDACTED:api-key:google]'
   '\1Bearer [REDACTED:bearer]'
+  '\1\2: [REDACTED:cookie]'
   '\1://[REDACTED:url-cred]@'
   '[REDACTED:private-key]'
 )
-_RED_MULTILINE=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1)
+_RED_MULTILINE=(0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1)
 
 redact_secrets() {
   local producer="${1:-unknown}" field="${2:-unknown}" dedup_key="${3:-unknown}"
@@ -256,7 +264,7 @@ redact_secrets() {
   local base=1
   [ "${_red_probe[0]:-}" = "first" ] && base=0
 
-  local i name regex replacement ml matches total new delim=$'\002'
+  local i name regex replacement ml matches total new m mlen delim=$'\002'
   local count="${#names[@]}"
   i=0
   while [ "$i" -lt "$count" ]; do
@@ -292,7 +300,6 @@ redact_secrets() {
       continue
     fi
 
-    local m mlen
     while IFS= read -r m; do
       mlen=${#m}
       # Patterns opening with the `(^|[^A-Za-z0-9_-])` boundary-anchor idiom

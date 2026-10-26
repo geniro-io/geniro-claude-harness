@@ -47,7 +47,7 @@ Give every kept finding exactly one `fix_kind` — the kind of environment chang
 | `REMOVE-RULE` | deleting or merging a rule or step that changes nothing or conflicts with another | delete `<rule>` at `<anchor>` — it changed nothing in N threads |
 | `PROSE` | rewriting or adding instruction text — only when no kind above fits | rewrite the instruction at `<anchor>` |
 
-A rule is **loaded** when its load echo is present in the trace — cite the echo line itself, not the check that flags a missing one. A loaded rule still violated in 2+ threads may not be `PROSE`: the text was in context and lost. Any other kind satisfies this; `REMOVE-RULE` only when the rule demonstrably changes nothing as written, never for a correct safety rule that was ignored (an approval gate, say), which takes `WIRE`, `DETERMINISTIC-CHECK`, or `TOOL-CHANGE` instead.
+A rule is **loaded** when its file was listed as `Read: <path>` and then Read (or was Read directly in a Read-only load) — cite that Read, not the check that flags a missing one. A loaded rule still violated in 2+ threads may not be `PROSE`: the text was in context and lost. Any other kind satisfies this; `REMOVE-RULE` only when the rule demonstrably changes nothing as written, never for a correct safety rule that was ignored (an approval gate, say), which takes `WIRE`, `DETERMINISTIC-CHECK`, or `TOOL-CHANGE` instead.
 
 Write Phase 3 checkpoint with `findings-kept: <count>`, `filtered: <count + reasons summary>`, and in a batch `merged: <raw count> → <merged count>`.
 

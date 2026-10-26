@@ -259,6 +259,44 @@ else
   fail "deleted-file false positive: '$err'"
 fi
 
+# ---------------------------------------------------------------------------
+# zsh: the parameter `path` is tied to PATH, so a function-local named `path`
+# blanks the command search path and every external command in its scope dies
+# with "command not found" (awk in the hasher, jq in the drift loop).
+# ---------------------------------------------------------------------------
+
+if command -v zsh >/dev/null 2>&1; then
+  new_sandbox
+  printf '{"name":"foo"}' > package.json
+  zerr=$(zsh -c "source '$REPO_ROOT/lib/load-semantic.sh'; update_fingerprint package.json" 2>&1 >/dev/null)
+  if [ -z "$zerr" ] && [[ "$(jq -r '.files["package.json"] // ""' "$fp" 2>/dev/null)" =~ ^sha256: ]]; then
+    pass "zsh: update_fingerprint hashes the file (external commands resolve)"
+  else
+    fail "zsh: update_fingerprint lost its commands — stderr: '$zerr' fingerprint: $(cat "$fp" 2>/dev/null)"
+  fi
+
+  new_sandbox
+  printf '{"name":"foo"}' > package.json
+  printf '{"target":"es2022"}' > tsconfig.json
+  update_fingerprint package.json tsconfig.json
+  printf '{"name":"changed"}' > package.json
+  printf '{"target":"es2024"}' > tsconfig.json
+  printf '# Project\nline2\nlast-line-no-newline' > .geniro/planning/_project.md
+  zsh -c "source '$REPO_ROOT/lib/load-semantic.sh'; load_semantic" >"$TMPDIR_BASE/z.out" 2>"$TMPDIR_BASE/z.err"
+  if grep -q 'Project snapshot may be out of date.*package.json.*tsconfig.json' "$TMPDIR_BASE/z.err"; then
+    pass "zsh: drift check reaches jq and lists every diverged file"
+  else
+    fail "zsh: drift warning missing — stderr: '$(cat "$TMPDIR_BASE/z.err")'"
+  fi
+  if [ "$(grep -vc '^$' "$TMPDIR_BASE/z.out")" = "4" ] \
+     && grep -qx '=== file: .geniro/planning/_project.md ===' "$TMPDIR_BASE/z.out" \
+     && grep -qx 'last-line-no-newline' "$TMPDIR_BASE/z.out"; then
+    pass "zsh: load_semantic stdout is the file alone — header, body, last line, no local-variable dump"
+  else
+    fail "zsh: load_semantic output incomplete: '$(cat "$TMPDIR_BASE/z.out")'"
+  fi
+fi
+
 echo
 echo "Tests run:    $TESTS_RUN"
 echo "Tests failed: $TESTS_FAILED"

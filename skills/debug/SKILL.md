@@ -146,7 +146,7 @@ T1.5 state.md frontmatter (categories `branch_freshness`, `disambiguate_mode`, `
 
 ## Phase 0 — mode detection ($ARGUMENTS routing)
 
-state.md `phase: mode-detect`. Loads custom instructions, records the starting working-tree state, decides where the investigation runs, checks branch freshness, and routes `$ARGUMENTS` to Scientific Mode or Adversarial Mode.
+state.md `phase: mode-detect`. Records the starting working-tree state, decides where the investigation runs, loads custom instructions, checks branch freshness, and routes `$ARGUMENTS` to Scientific Mode or Adversarial Mode.
 
 **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/debug/phase-0-mode-detect.md`** — Steps, routing table, anchored verify-keyword signals, this phase's tool surface.
 

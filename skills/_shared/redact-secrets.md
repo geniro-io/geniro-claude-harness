@@ -42,14 +42,15 @@ The helper never errors out — it falls through to passthrough if `git`, `jq`, 
 | `api-key:xox` | `xox[a-z]-[A-Za-z0-9_-]+` (user/app/refresh Slack tokens; runs after the more specific `xoxb`) | `[REDACTED:api-key:slack]` |
 | `api-key:google` | `AIza[0-9A-Za-z_-]{35}` | `[REDACTED:api-key:google]` |
 | `bearer` | `(^\|[^A-Za-z0-9_-])[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._-]*[0-9._][A-Za-z0-9._-]*` (case-insensitive scheme, boundary-anchored, and the token must contain a digit/dot/underscore so ordinary English like "bearer of" or "bearer certificate" never matches) | `Bearer [REDACTED:bearer]` (preceded by the captured boundary character) |
+| `cookie` | `(^\|[^A-Za-z0-9_-])(([Ss][Ee][Tt]-)?[Cc][Oo][Oo][Kk][Ii][Ee])[[:space:]]*:[^[:cntrl:]]*=[A-Za-z0-9%+/=_.~-]{16,}[^[:cntrl:]]*` (case-insensitive `Cookie:` / `Set-Cookie:` header; redacts to end of line, only when it holds a `name=` pair with a 16+ char token, so `Cookie: theme=dark` and plain `key=value` never match) | `Cookie: [REDACTED:cookie]` (header name as written, after the boundary character) |
 | `url-cred` | `(https?)://[^:/[:space:]]+:[^@/[:space:]]+@` | `\1://[REDACTED:url-cred]@` |
 | `private-key` | `-----BEGIN [A-Z ]*PRIVATE KEY-----.*-----END [A-Z ]*PRIVATE KEY-----` | `[REDACTED:private-key]` |
 
 ### Pattern label and order constraints
 
-**1. Use provider-name labels, not literal prefixes.** Emit `[REDACTED:api-key:anthropic]`, not `[REDACTED:api-key:sk-ant]`. A literal-prefix label `[REDACTED:api-key:sk-ant]` contains the substring `sk-ant`, which the next `sk-` pattern would re-match, producing nested gibberish like `[REDACTED:api-key:[REDACTED:api-key:openai-or-similar]]`. Provider names break the self-recursion and stay readable.
+**1. Use provider-name labels, not literal prefixes.** Emit `[REDACTED:api-key:anthropic]`, not `[REDACTED:api-key:sk-ant]`: the literal prefix contains `sk-ant`, which the next `sk-` pattern would re-match, nesting labels like `[REDACTED:api-key:[REDACTED:api-key:openai-or-similar]]`.
 
-**2. Keep `sk-ant-` ahead of `sk-` in pattern order.** Otherwise `sk-ant-foo` is redacted as if it were a generic OpenAI key. The built-in `_RED_NAMES` array order enforces this — do not reorder without re-running the test suite.
+**2. Keep `sk-ant-` ahead of `sk-` in pattern order.** Otherwise `sk-ant-foo` is redacted as a generic OpenAI key. The `_RED_NAMES` order enforces this — do not reorder without re-running the test suite.
 
 ## High-entropy warning
 

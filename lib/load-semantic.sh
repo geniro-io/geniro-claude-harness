@@ -58,9 +58,9 @@ _LS_DEFAULT_FINGERPRINT_FILES=(
 
 # Hash one file; emit `sha256:<hex>` or empty if missing / no hasher.
 _ls_hash_file() {
-  local path="$1" h
-  if [ -f "$path" ]; then
-    h="$(_geniro_sha256 "$path" 2>/dev/null | awk '{print $1}')"
+  local _ls_path="$1" h
+  if [ -f "$_ls_path" ]; then
+    h="$(_geniro_sha256 "$_ls_path" 2>/dev/null | awk '{print $1}')"
     # Emit the prefix only with a real digest. A degraded host with no hasher
     # otherwise yields a bogus `sha256:` (empty) that reads as a fingerprint
     # change on every load — false drift. Empty hash is skipped downstream.
@@ -70,24 +70,25 @@ _ls_hash_file() {
 
 # Emit one file's contents using shell builtins only, never an external command.
 #
-# `cat` is the obvious spelling and the wrong one here: the sandboxed shells
-# Claude Code runs strip PATH inside loop bodies, so a bare `cat` in the emit
-# loop below dies with `command not found` while the surrounding `printf`
-# (a builtin) keeps working. The caller then sees a file header with no body
-# and reports a successful load of an empty snapshot — the project's L3 state
-# silently absent for the whole run. Observed in two unrelated projects.
+# A bare `cat` here died with `command not found` while the surrounding `printf`
+# (a builtin) kept working, and the caller then saw a file header with no body
+# and reported a successful load of an empty snapshot — the project's L3 state
+# silently absent for the whole run. Observed in two unrelated projects. Cause:
+# under zsh the parameter `path` is tied to PATH, so a local named `path`
+# replaces the command search path; locals in this file carry the `_ls_` prefix
+# for that reason. Builtins stay so emission needs no PATH at all.
 #
 # Returns non-zero when the file cannot be opened, so the caller can say so.
 _ls_emit_file() {
-  local path="$1" line
-  [ -r "$path" ] || return 1
+  local _ls_path="$1" line
+  [ -r "$_ls_path" ] || return 1
   # A `while read` loop always exits non-zero (the EOF read), so its status says
   # nothing about success — readability is decided by the `-r` test above.
   # That same final read is why a last line with no trailing newline is emitted
   # after the loop rather than inside it.
   while IFS= read -r line; do
     printf '%s\n' "$line"
-  done < "$path"
+  done < "$_ls_path"
   [ -n "${line:-}" ] && printf '%s\n' "$line"
   return 0
 }
@@ -107,16 +108,15 @@ _ls_check_drift() {
   local captured_at
   captured_at=$(jq -r '.captured_at // "(unknown)"' "$fp" 2>/dev/null)
 
-  local entry
+  local entry _ls_path expected actual
   while IFS= read -r entry; do
-    local path expected actual
-    path=$(printf '%s' "$entry" | jq -r .key)
+    _ls_path=$(printf '%s' "$entry" | jq -r .key)
     expected=$(printf '%s' "$entry" | jq -r .value)
 
-    if [ -f "$root/$path" ]; then
-      actual=$(_ls_hash_file "$root/$path")
+    if [ -f "$root/$_ls_path" ]; then
+      actual=$(_ls_hash_file "$root/$_ls_path")
       if [ -n "$actual" ] && [ "$actual" != "$expected" ]; then
-        diverged+=("$path")
+        diverged+=("$_ls_path")
       fi
     fi
   done < <(jq -c '.files // {} | to_entries[]' "$fp" 2>/dev/null)
@@ -185,19 +185,19 @@ load_semantic() {
     fi
   fi
 
-  local n path rc=0
+  local n _ls_path rc=0
   for n in "${names[@]}"; do
-    path="$root/.geniro/planning/${n}.md"
-    if [ -f "$path" ]; then
+    _ls_path="$root/.geniro/planning/${n}.md"
+    if [ -f "$_ls_path" ]; then
       printf '=== file: .geniro/planning/%s.md ===\n' "$n"
-      if _ls_emit_file "$path"; then
+      if _ls_emit_file "$_ls_path"; then
         printf '\n'
       else
         # Header already printed, body did not follow. Say so on both streams:
         # a reader that sees only the header cannot distinguish an unreadable
         # file from an empty one, and the caller echoes "Loading complete."
         printf '=== ERROR: .geniro/planning/%s.md could not be read ===\n\n' "$n"
-        echo "load_semantic: failed to read $path" >&2
+        echo "load_semantic: failed to read $_ls_path" >&2
         rc=11
       fi
     fi
@@ -213,10 +213,10 @@ update_fingerprint() {
   # Collect files to hash: explicit args, or every default candidate that
   # actually exists at repo root.
   local -a candidates=()
+  local c hash
   if [ "$#" -gt 0 ]; then
     candidates=("$@")
   else
-    local c
     for c in "${_LS_DEFAULT_FINGERPRINT_FILES[@]}"; do
       [ -f "$root/$c" ] && candidates+=("$c")
     done
@@ -233,7 +233,6 @@ update_fingerprint() {
 
   local kv_pairs
   kv_pairs=$(jq -nc '{}')
-  local c hash
   for c in "${candidates[@]}"; do
     hash=$(_ls_hash_file "$root/$c")
     if [ -n "$hash" ]; then

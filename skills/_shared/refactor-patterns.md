@@ -26,7 +26,7 @@ Don't run `docker volume rm`, `podman volume rm`, `docker compose down -v`, `pod
 
 ### Step 0: Read Project Conventions
 
-Before analyzing code, read any project convention files referenced in the orchestrator's pre-inlined context or in CLAUDE.md (coding standards, architecture docs, project structure guides). The project's code-style rules (naming patterns, structure preferences, common idioms) arrive through the load-custom-instructions loader at refactor Phase 1 §1.1 and again at Phase 2 §2.1 — apply what it echoed instead of reading `code-style.md` yourself, since the loader resolves the external instructions directory and the primary-worktree fallback. These supplement CLAUDE.md conventions. If no references are provided, check for CONTRIBUTING.md, docs/architecture.md, or ADRs in adr/ or decisions/ directories. Understanding intentional project patterns prevents false-positive smell detection.
+Before analyzing code, read any project convention files referenced in the orchestrator's pre-inlined context or in CLAUDE.md (coding standards, architecture docs, project structure guides). The project's code-style rules (naming patterns, structure preferences, common idioms) arrive through the load-custom-instructions loader at refactor Phase 1 §1.1 and again at Phase 2 §2.1 — apply what it loaded instead of reading `code-style.md` yourself, since the loader resolves the external instructions directory and the primary-worktree fallback. These supplement CLAUDE.md conventions. If no references are provided, check for CONTRIBUTING.md, docs/architecture.md, or ADRs in adr/ or decisions/ directories. Understanding intentional project patterns prevents false-positive smell detection.
 
 ### Step 1: Scan for Smells
 

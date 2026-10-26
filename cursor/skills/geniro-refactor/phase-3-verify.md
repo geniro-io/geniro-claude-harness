@@ -25,7 +25,7 @@ state.md `phase: verify`. Diff sanity + independent review + completion summary 
 
 ### 3.0 Refresh custom instructions on entry
 
-On Phase 3 entry, single `load-custom-instructions(SKILL_SLUG: refactor, LOAD_TIER: pipeline, MODE: refresh)` call (pipeline tier's load set owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). The loader reads a project's `### After verify` steps as instruction content, not code — Phase 2's refresh loaded for code-editing, and a compaction since then drops that content, so this call makes it current again.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: refactor`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. The loader reads a project's `### After verify` steps as instruction content, not code; Phase 2's refresh loaded for code-editing.
 
 ### 3.1 Diff sanity (all tiers)
 

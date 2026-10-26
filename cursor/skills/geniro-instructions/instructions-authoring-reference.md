@@ -84,11 +84,7 @@ What to NOT flag:
 
 ## Rules
 
-- (none — add project-specific code-style rules here, e.g. file-naming or export conventions)
-
 ## Constraints
-
-- (none — add hard code-style limits here, e.g. type-safety requirements)
 ```
 
 **`implement.md` scaffold** (shows phase-boundary structure):
@@ -98,19 +94,13 @@ What to NOT flag:
 
 ## Rules
 
-- (none — add project-specific rules here)
-
 ## Additional Steps
 
 ### After analyze
-- (example: "When this run has no spec and the work is feature-shaped, run the project's product-discovery stage and record the approved direction into the inline plan before any code is written")
 
 ### After ship
-- (example: "Post a summary to #eng-ships and open a follow-up issue for any deferred TODO")
 
 ## Constraints
-
-- Maximum PR size: 500 lines changed (warn user if exceeded; do not block)
 
 ## Data Sources
 <!-- append the Data-Sources stub below -->
@@ -126,11 +116,7 @@ What to NOT flag:
 
 ## Rules
 
-- (none — add project-wide rules here)
-
 ## Constraints
-
-- (none — add project-wide hard limits here)
 
 ## Data Sources
 <!-- append the Data-Sources stub below -->
@@ -197,7 +183,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 
 ### Constraint writing
 
-- **Quantify where possible** — "Maximum 500 lines changed per PR" not "Keep PRs small"
+- **Quantify where possible** — "Reject uploads over 10 MB" not "Keep uploads small"
 - **State the consequence** — "Database migrations must be backwards-compatible — breaking migrations block deploy"
 - **Constraints are hard limits** — skills treat these as non-negotiable
 

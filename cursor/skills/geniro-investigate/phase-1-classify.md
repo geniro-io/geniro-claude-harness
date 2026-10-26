@@ -19,7 +19,7 @@ State.md `phase: classify`. Low cost — a semantic $ARGUMENTS classification + 
 
 ### Step 0: Load custom instructions
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load` on every run, fresh or resumed, before any other phase work. The helper's §Procedure owns the load set and its imperative reads; print each file's line per its §Echo contract immediately after that file's load attempt, before the next file.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: investigate`, `LOAD_TIER: pipeline`, `MODE: initial-load` on every run, fresh or resumed, before any other phase work. The helper's §Procedure owns the load set, the echo lines, and the Reads of every path it lists.
 
 ### Step 0.5: Resume check, then project snapshot + past learnings
 

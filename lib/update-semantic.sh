@@ -64,17 +64,17 @@ _US_STALE_LOCK_SECS="$(_geniro_lock_reclaim_secs)"
 # trap left to clear it, which would wedge every future L3 write at rc=11
 # forever. The reclaim removes the abandoned lock, then the O_EXCL create retries.
 _us_acquire_lock() {
-  local path="$1"
-  if [ -f "$path" ]; then
+  local _us_path="$1"
+  if [ -f "$_us_path" ]; then
     local lock_mtime now
-    lock_mtime=$(stat -c %Y "$path" 2>/dev/null || stat -f %m "$path" 2>/dev/null || echo 0)
+    lock_mtime=$(stat -c %Y "$_us_path" 2>/dev/null || stat -f %m "$_us_path" 2>/dev/null || echo 0)
     now=$(date +%s)
     if [ $(( now - lock_mtime )) -gt "$_US_STALE_LOCK_SECS" ]; then
-      rm -f "$path" 2>/dev/null
+      rm -f "$_us_path" 2>/dev/null
     fi
   fi
   # `set -C` (noclobber) makes `:>` fail if the file exists.
-  (set -C; : > "$path") 2>/dev/null
+  (set -C; : > "$_us_path") 2>/dev/null
 }
 
 # Release the write lock and disarm the traps update_semantic armed. Called on
