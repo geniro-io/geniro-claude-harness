@@ -1182,8 +1182,26 @@ if [ -z "$COVERAGE_SUFFIX" ]; then
   if [ -f "$_memory_md" ]; then
     # Fire only under `mode: replace` — that is the mode with no local file, so the
     # coverage line is genuinely absent. Scope the check to the block so an unrelated
-    # `layer:`/`mode:` line elsewhere in the file cannot false-positive.
-    _mb_block="$(awk '/^## Memory Backend/{f=1; next} /^## /{f=0} f' "$_memory_md" 2>/dev/null)"
+    # `layer:`/`mode:` line elsewhere in the file cannot false-positive. Fenced blocks
+    # and HTML comments (the scaffold's example entry) are dropped first; the same
+    # comment/fence stripping lives in lib/load-custom-instructions.sh, inlined so the hook stays self-contained.
+    _mb_block="$(awk '
+      { line = $0; sub(/\r$/, "", line) }
+      line ~ /^```/ { fence = !fence; next }
+      fence { next }
+      cm { if (match(line, /-->/)) { line = substr(line, RSTART + RLENGTH); cm = 0 } else { next } }
+      {
+        while (match(line, /<!--/)) {
+          pre = substr(line, 1, RSTART - 1)
+          rest = substr(line, RSTART + 4)
+          if (match(rest, /-->/)) { line = pre substr(rest, RSTART + RLENGTH) }
+          else { line = pre; cm = 1; break }
+        }
+      }
+      line ~ /^## Memory Backend/ { f = 1; next }
+      line ~ /^## / { f = 0; next }
+      f { print line }
+    ' "$_memory_md" 2>/dev/null)"
     # Here-string, not a pipe: under `pipefail` a `printf | grep -q` that
     # MATCHES early makes the producer die on SIGPIPE, so the pipeline itself
     # reports 141 instead of grep's own rc (2026-08-23 audit T0-5 class).
@@ -1204,7 +1222,7 @@ if [ -n "$state_file" ]; then
     _step2="2. Re-invoke the canonical instruction loader at
    \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md
    with SKILL_SLUG: $active_skill, LOAD_TIER: $load_tier, MODE: refresh.
-   The helper's Echo contract makes the re-Read user-visible."
+   Its helper prints the echo lines and the paths to re-Read."
     _step3="3. Invoke load-semantic with MODE: refresh:
    \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md (MODE: refresh).
    Fingerprint drift check fires; if drift detected, soft notice surfaces."
@@ -1212,7 +1230,7 @@ if [ -n "$state_file" ]; then
     _step2="2. Re-invoke the canonical instruction loader at
    \${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md
    with SKILL_SLUG: <active-skill>, LOAD_TIER: rules-only, MODE: refresh.
-   The helper's Echo contract makes the re-Read user-visible."
+   Its helper prints the echo lines and the paths to re-Read."
     _step3="3. (load-semantic refresh skipped — no active skill detected; invoke on demand if a phase explicitly needs the L3 module map.)"
   fi
 

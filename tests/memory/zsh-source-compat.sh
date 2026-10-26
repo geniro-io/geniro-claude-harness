@@ -148,17 +148,105 @@ fi
 
 # --- 3. redact_secrets under zsh walks the WHOLE pattern list: secrets from
 #        two different patterns (anthropic + AWS) both redacted in one pass.
+#        Output is compared EXACTLY (a trailing sentinel keeps `$(...)` from
+#        trimming it): zsh prints `name=value` for a `local name` that runs a
+#        second time in one scope, so a pattern loop that re-declares a local
+#        per matching pattern leaks lines ahead of the redacted text.
 new_sandbox
 out=$(cd "$SANDBOX_DIR" && printf '%s' 'a sk-ant-abc123 b AKIAAAAABBBBCCCCDDDD c' \
-  | zsh -c "source '$REPO_ROOT/lib/redact-secrets.sh' && redact_secrets test summary k1" 2>/dev/null)
-case "$out" in
-  *'sk-ant'*|*'AKIA'*)
-    fail "zsh redact: secret survived sanitization: '$out'" ;;
-  *'[REDACTED:api-key:anthropic]'*'[REDACTED:aws-key]'*)
-    pass "zsh redact: both patterns redacted in one pass" ;;
-  *)
-    fail "zsh redact: unexpected output: '$out'" ;;
-esac
+  | zsh -c "source '$REPO_ROOT/lib/redact-secrets.sh' && redact_secrets test summary k1" 2>/dev/null; printf x)
+out="${out%x}"
+want='a [REDACTED:api-key:anthropic] b [REDACTED:aws-key] c'
+if [ "$out" = "$want" ]; then
+  pass "zsh redact: both patterns redacted in one pass, nothing else printed"
+else
+  fail "zsh redact: output '$out', want '$want'"
+fi
+
+new_sandbox
+long_key="sk-ant-api03-$(printf 'a%.0s' $(seq 40))"
+out=$(cd "$SANDBOX_DIR" && printf 'key %s and AKIAIOSFODNN7EXAMPLE\n' "$long_key" \
+  | zsh -c "source '$REPO_ROOT/lib/redact-secrets.sh' && redact_secrets" 2>&1; printf x)
+out="${out%x}"
+want='key [REDACTED:api-key:anthropic] and [REDACTED:aws-key]'
+if [ "$out" = "$want" ]; then
+  pass "zsh redact: two secret families in one text give the redacted text and no stray lines"
+else
+  fail "zsh redact: output '$out', want '$want'"
+fi
+
+# --- 3b. emit_learning under zsh with several tags and two secret families in
+#         the summary: the per-leaf sanitize loop and the redact pattern loop
+#         both run more than once. Nothing may reach stdout/stderr, and the
+#         stored summary is the redacted input and nothing else.
+new_sandbox
+json=$(jq -nc --arg s "key $long_key and AKIAIOSFODNN7EXAMPLE" \
+  '{producer:"/debug",scope:"zsh-tags",summary:$s,tags:["alpha","beta","gamma"]}')
+emit_out=$(cd "$SANDBOX_DIR" && printf '%s' "$json" \
+  | zsh -c "source '$REPO_ROOT/lib/emit-learning.sh' && emit_learning" 2>&1)
+summary=$(jq -r '.summary' "$SANDBOX_DIR/.geniro/knowledge/learnings.jsonl" 2>/dev/null || echo "MISSING")
+tags=$(jq -c '.tags' "$SANDBOX_DIR/.geniro/knowledge/learnings.jsonl" 2>/dev/null || echo "MISSING")
+if [ -z "$emit_out" ] \
+   && [ "$summary" = "key [REDACTED:api-key:anthropic] and [REDACTED:aws-key]" ] \
+   && [ "$tags" = '["alpha","beta","gamma"]' ]; then
+  pass "zsh emit_learning: several tags and two secret families store the redacted summary, print nothing"
+else
+  fail "zsh emit_learning: out='$emit_out' summary='$summary' tags='$tags'"
+fi
+
+new_sandbox
+json=$(jq -nc '{producer:"/debug",scope:"zsh-tags",summary:"plain summary text",tags:["alpha","beta"]}')
+emit_out=$(cd "$SANDBOX_DIR" && printf '%s' "$json" \
+  | zsh -c "source '$REPO_ROOT/lib/emit-learning.sh' && emit_learning" 2>&1)
+summary=$(jq -r '.summary' "$SANDBOX_DIR/.geniro/knowledge/learnings.jsonl" 2>/dev/null || echo "MISSING")
+if [ -z "$emit_out" ] && [ "$summary" = "plain summary text" ]; then
+  pass "zsh emit_learning: two tags keep the summary intact and print nothing"
+else
+  fail "zsh emit_learning: out='$emit_out' summary='$summary'"
+fi
+
+# --- 3c. validate_instructions_file under zsh on a file with two `### After`
+#         subsections: the per-heading loop runs twice and a clean file must
+#         produce no output at all (a row-free run is the clean signal).
+new_sandbox
+cat > "$SANDBOX_DIR/implement.md" <<'EOF'
+# Custom Instructions
+
+## Rules
+
+- r
+
+## Additional Steps
+
+### After analyze
+- Run product discovery when no spec exists.
+
+### After ship
+- Post a summary to #eng-ships.
+
+## Constraints
+
+- c
+EOF
+out=$(cd "$SANDBOX_DIR" && zsh -c "source '$REPO_ROOT/lib/validate-instructions-file.sh' && validate_instructions_file implement.md implement; echo rc=\$?" 2>&1)
+if [ "$out" = "rc=0" ]; then
+  pass "zsh validate_instructions_file: two After subsections give a clean run with no stray lines"
+else
+  fail "zsh validate_instructions_file: output '$out', want 'rc=0' alone"
+fi
+
+# --- 3d. update_fingerprint under zsh with several default candidates present:
+#         the hashing loop must print nothing and record every file.
+new_sandbox
+: > "$SANDBOX_DIR/package.json"
+: > "$SANDBOX_DIR/go.mod"
+out=$(cd "$SANDBOX_DIR" && zsh -c "source '$REPO_ROOT/lib/load-semantic.sh' && update_fingerprint" 2>&1)
+files=$(jq -r '.files | keys | join(",")' "$SANDBOX_DIR/.geniro/planning/.fingerprint.json" 2>/dev/null || echo "MISSING")
+if [ -z "$out" ] && [ "$files" = "go.mod,package.json" ]; then
+  pass "zsh update_fingerprint: default candidates are all hashed and nothing is printed"
+else
+  fail "zsh update_fingerprint: out='$out' files='$files'"
+fi
 
 # --- 4. Seed under zsh, then query under zsh (exercises repo-root +
 #        score-formula chain in the read path).

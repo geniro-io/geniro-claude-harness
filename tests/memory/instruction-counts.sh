@@ -13,11 +13,15 @@
 # sourced-function call and the direct `bash lib/instruction-counts.sh
 # <path>` invocation, for both the success and the error path.
 #
+# Bullets inside an HTML comment (single- or multi-line) are not counted by
+# count_instruction_sections.
+#
 # Pins for count_additional_steps: scoped to `## Additional Steps` only (a
 # same-named `### After` heading elsewhere in the file must not count);
 # fence-aware; matches both `After` and `Before` case-insensitively and
-# names each match verbatim; same no-path / missing-path contract as
-# count_instruction_sections.
+# names each match verbatim; counts only subsections with real content (a
+# bare heading or a comment-only body is not a step); same no-path /
+# missing-path contract as count_instruction_sections.
 #
 # Run: bash tests/memory/instruction-counts.sh
 
@@ -165,6 +169,58 @@ EOF
 expect_counts "$zero_rules" "0 1 0" \
   "present-but-empty ## Rules section counts as 0, sibling section unaffected"
 
+# --- 6b. Bullets inside HTML comments are no entries: a multi-line comment of
+# example bullets, a single-line comment, and a comment left open by a bullet
+# line all hide their bullets; a fenced block holding `<!--` opens no comment;
+# a `## ` heading inside a comment starts no section.
+commented="$TMPDIR_BASE/commented.md"
+cat > "$commented" <<'EOF'
+# Custom Instructions
+
+## Rules
+<!--
+- example rule inside a multi-line comment (must not count)
+-->
+- Real rule
+- Rule with a trailing note <!-- inline -->
+<!-- - single-line commented bullet -->
+- Rule that opens a comment <!-- start
+- hidden by the open comment
+- hidden too
+end -->
+- Rule after the comment
+```
+<!--
+```
+- Rule after a fenced block holding an opener
+
+## Constraints
+<!--
+## Rules
+- decoy under a heading inside a comment
+## Data Sources
+- decoy
+-->
+- Real constraint
+
+## Data Sources
+<!-- - **source** (confirms: x) — cmd -->
+- **real source** (confirms: x) — cmd
+EOF
+expect_counts "$commented" "5 1 1" \
+  "bullets inside HTML comments (multi-line, single-line, left open, headings in them) are not counted"
+
+commented_only="$TMPDIR_BASE/commented-only.md"
+cat > "$commented_only" <<'EOF'
+## Rules
+<!--
+- example one
+- example two
+-->
+EOF
+expect_counts "$commented_only" "0 0 0" \
+  "a Rules section holding only a commented-out bullet block counts 0"
+
 # --- 7. Direct CLI invocation matches the sourced-function call.
 direct_got="$(bash "$LIB" "$fixture")"
 if [ "$direct_got" = "12 4 11" ]; then
@@ -264,6 +320,122 @@ if [ "$rc_missing" -eq "$_GIC_UNREADABLE" ] && [ -z "$got_missing" ]; then
 else
   fail "count_additional_steps: missing file — expected empty output and rc $_GIC_UNREADABLE, got '$got_missing' rc $rc_missing"
 fi
+
+# --- 14. count_additional_steps: a freshly scaffolded headings-only file
+# reports no steps — an empty subsection is not a step.
+scaffold="$TMPDIR_BASE/scaffold.md"
+cat > "$scaffold" <<'EOF'
+# Custom Instructions
+
+## Rules
+
+## Additional Steps
+
+### After analyze
+
+### After ship
+
+## Constraints
+
+## Data Sources
+<!-- append the Data-Sources stub below -->
+EOF
+expect_steps "$scaffold" "0" \
+  "count_additional_steps: headings-only subsections (blank bodies) → 0"
+
+# --- 15. count_additional_steps: a body that is only an HTML comment (one
+# line, or spanning lines, or blank lines around it) is not content.
+comment_only="$TMPDIR_BASE/comment-only.md"
+cat > "$comment_only" <<'EOF'
+## Additional Steps
+
+### After analyze
+<!-- add a pre-code step here -->
+
+### After ship
+
+<!--
+- example bullet inside a comment
+### After decoy
+-->
+   
+
+### After verify
+<!-- one --> <!-- two -->
+EOF
+expect_steps "$comment_only" "0" \
+  "count_additional_steps: comment-only bodies (single-line, multi-line, blank-padded) → 0"
+
+# --- 16. count_additional_steps: a subsection with a bullet is counted, and
+# so is one whose only content is a fenced block.
+with_bullet="$TMPDIR_BASE/with-bullet.md"
+cat > "$with_bullet" <<'EOF'
+## Additional Steps
+
+### After ship
+- Post a summary to the team channel
+
+### After verify
+```bash
+make smoke
+```
+EOF
+expect_steps "$with_bullet" "$(printf '2\nAfter ship\nAfter verify')" \
+  "count_additional_steps: bullet body and fenced-block body are both counted"
+
+# --- 17. count_additional_steps: mixed file — only content-bearing
+# subsections are counted and named, in order; a non-After subsection ends the
+# previous one; text beside a comment is content; a heading inside a comment
+# is not a heading; the last subsection at end of file is judged too.
+mixed="$TMPDIR_BASE/mixed.md"
+cat > "$mixed" <<'EOF'
+## Additional Steps
+
+### After explore
+
+### After user-approve
+<!-- placeholder -->
+
+### Notes
+- belongs to a non-After subsection, not to "After user-approve"
+
+### After analyze
+<!--
+### After decoy
+- inside a comment
+-->
+Run the product-discovery stage first <!-- inline note -->
+
+### Before ship
+- a Before subsection with content is named too
+
+### After verify
+<!-- trailing, empty -->
+EOF
+expect_steps "$mixed" "$(printf '2\nAfter analyze\nBefore ship')" \
+  "count_additional_steps: mixed file → only content-bearing subsections counted and named"
+
+# --- 18. A content-bearing last subsection at end of file, with no trailing
+# newline, is still counted.
+eof_fixture="$TMPDIR_BASE/eof.md"
+printf '## Additional Steps\n\n### After ship\n- last line, no trailing newline' > "$eof_fixture"
+expect_steps "$eof_fixture" "$(printf '1\nAfter ship')" \
+  "count_additional_steps: content-bearing last subsection at EOF without a newline → counted"
+
+# --- 19. A `<!--` quoted in a backtick code span opens no comment, and a
+# comment trailing a heading does not hide the heading.
+codespan="$TMPDIR_BASE/codespan.md"
+cat > "$codespan" <<'EOF'
+## Rules <!-- note -->
+- Never leave `<!--` placeholders in a file
+- second rule
+- third rule
+
+## Constraints
+- one constraint
+EOF
+expect_counts "$codespan" "3 1 0" \
+  "count_instruction_sections: backtick-quoted <!-- and a commented heading → nothing hidden"
 
 echo
 echo "Tests run:    $TESTS_RUN"

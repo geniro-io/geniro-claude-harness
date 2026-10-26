@@ -4,7 +4,7 @@ Phase file for `/geniro:debug`. The spine — invariants, budgets, anti-rational
 
 state.md `phase: ship`. Findings handoff to downstream skill OR user-handles — proposals + tests authored locally (no-ship boundary per SKILL.md § Your role). Exits when every `open_questions[]` entry reaches `resolved` or `wontfix` (§3.0) and the §3.2 escalation pick resolves to a terminal state — `phase: done` or `phase: ship-summary-only` — with the findings handoff already persisted (secrets redacted) before that question fired.
 
-**Refresh custom instructions on entry.** Re-fire `load-custom-instructions(SKILL_SLUG: debug, LOAD_TIER: pipeline, MODE: refresh)` once (pipeline tier's load set owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`), before §3.0 below. The Debug Findings summary and the escalation gate are both authored here, so the code-style and process rules have to be the ones on disk now — Phase 2's load can be several fix-loop rounds old.
+**Refresh custom instructions on entry.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: refresh`, before §3.0 below. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Phase 2's load can be several fix-loop rounds old.
 
 ## Contents
 

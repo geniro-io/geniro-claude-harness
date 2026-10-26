@@ -174,6 +174,31 @@ assert_eq "$(redact 'Authorization: Bearer abc.def_123-xyz')" \
           'bearer — Authorization header'
 
 new_sandbox
+assert_eq "$(redact 'Cookie: theme=dark; session=Zm9vYmFyYmF6cXV4MTIzNDU2')" \
+          'Cookie: [REDACTED:cookie]' \
+          'cookie — request header redacts the whole line, harmless cookies included'
+
+new_sandbox
+assert_eq "$(redact 'Set-Cookie: sid=0123456789abcdef0123; Path=/; HttpOnly')" \
+          'Set-Cookie: [REDACTED:cookie]' \
+          'cookie — Set-Cookie response header, attributes included'
+
+new_sandbox
+assert_eq "$(redact $'before\ncurl -H "cookie: sid=0123456789abcdef0123" https://x.test\nafter k=v')" \
+          $'before\ncurl -H "cookie: [REDACTED:cookie]\nafter k=v' \
+          'cookie — lowercase header mid-line; neighbouring lines untouched'
+
+new_sandbox
+assert_eq "$(redact 'retries=3 mode=fast key=value')" \
+          'retries=3 mode=fast key=value' \
+          'false-positive — plain key=value pairs are not credentials'
+
+new_sandbox
+assert_eq "$(redact $'Cookie: theme=dark\nCookie: oatmeal raisin')" \
+          $'Cookie: theme=dark\nCookie: oatmeal raisin' \
+          'false-positive — a Cookie: line with no long token stays'
+
+new_sandbox
 assert_eq "$(redact 'connect to https://user:pass@host.example.com/path')" \
           'connect to https://[REDACTED:url-cred]@host.example.com/path' \
           'url-cred — preserves scheme and host'

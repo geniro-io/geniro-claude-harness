@@ -61,7 +61,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | "I'll spawn a subagent to do the freeform rule synthesis" | `/geniro:instructions` is a small CRUD frontend; a subagent adds no parallelism benefit and complicates the stateless single-transaction model for no return. |
 | "I'll output the questions as plain text instead of `AskQuestion`" | A plain-text question has no structured answer to persist or resume against — the transaction stalls waiting on a reply the skill has no slot for. |
 | "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | A custom scope name resolves no loader path — no skill's Step 0 ever reads it, so the rules it holds silently never load. |
-| "I'll skip showing the scope-specific scaffold to save tokens" | An empty new file with no scaffold reads as a mistake rather than a starting point — the user abandons it or miswrites the section shape. |
+| "I'll skip showing the scope-specific scaffold to save tokens" | The scaffold is the section shape, headings only; without it the user miswrites the shape. Bullets come from the user or the interview. |
 
 ## Definition of done
 

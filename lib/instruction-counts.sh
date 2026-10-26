@@ -3,8 +3,9 @@
 # ## Additional Steps subsections, in a custom-instruction file.
 #
 # Spec: skills/_shared/load-custom-instructions.md §Echo contract — the load
-# echo quotes this helper's output instead of a model-counted tally, so a
-# miscounted echo now traces to one script instead of a per-invocation guess.
+# echo (printed by lib/load-custom-instructions.sh) quotes this helper's output
+# instead of a model-counted tally, so a miscounted echo traces to one script
+# instead of a per-invocation guess.
 # Producer schema: skills/instructions/instructions-authoring-reference.md §1.
 #
 # API: count_instruction_sections <path>
@@ -18,8 +19,8 @@
 #   A non-empty path that is missing, unreadable, or not a regular file
 #   prints nothing and returns $_GIC_UNREADABLE: that caller has a real path
 #   it could not open, which the echo consuming this output must not report
-#   as a legitimate zero count (skills/_shared/load-custom-instructions.md
-#   §Procedure step 2).
+#   as a legitimate zero count (lib/load-custom-instructions.sh reports it as
+#   a `Failed to load` echo line).
 # Or run it directly (same output, same exit code):
 #   bash "${CLAUDE_PLUGIN_ROOT}/lib/instruction-counts.sh" <path>
 #
@@ -27,13 +28,17 @@
 # (`## `) Rules / Constraints / Data Sources heading. An indented sub-bullet
 # and anything inside a fenced ``` code block are excluded — both are common
 # in a hand-edited instructions file (an explanatory sub-point, a pasted
-# example) and neither is a rule/constraint/source entry itself.
+# example) and neither is a rule/constraint/source entry itself. A bullet
+# inside an HTML comment (`<!-- … -->`, one line or several) is no entry
+# either, the scaffolded placeholder examples being the common case.
 #
 # API: count_additional_steps <path>
-#   Prints the count of `### After <phase>` / `### Before <phase>` subsections
-#   found directly under a top-level `## Additional Steps` heading as its
-#   first line, then one line per matched subsection's literal heading text
-#   (verbatim, as authored) in the order encountered. Matching is scoped to
+#   Prints, as its first line, the count of `### After <phase>` / `### Before
+#   <phase>` subsections found directly under a top-level `## Additional
+#   Steps` heading that carry content (a non-blank line outside HTML
+#   comments: a bare scaffolded heading is no step), then one line per
+#   counted subsection's literal heading text (verbatim, as authored) in the
+#   order encountered. Matching is scoped to
 #   that one section, fence-aware like count_instruction_sections above, and
 #   case-insensitive on the `After`/`Before` prefix — a hand-edited file may
 #   write `### after ship` and validate normalizes the case at authoring time
@@ -53,6 +58,38 @@ if [ -z "${_GIC_DEPS_LOADED:-}" ]; then
   # readable file) — one convention for "could not open this path" across
   # lib/, not a code invented for this helper alone.
   readonly _GIC_UNREADABLE=65
+  # Awk helper both counters prepend: the text of a line outside HTML comments,
+  # tracking a comment left open across lines in `in_comment`. A backtick code
+  # span is kept verbatim, so a `<!--` quoted inside one opens no comment.
+  _GIC_AWK_VISIBLE='
+    function visible(s,   out, p, q, b, rest, e) {
+      out = ""
+      while (s != "") {
+        if (in_comment) {
+          q = index(s, "-->")
+          if (q == 0) { return out }
+          s = substr(s, q + 3)
+          in_comment = 0
+        } else {
+          p = index(s, "<!--")
+          b = index(s, "`")
+          if (b > 0 && (p == 0 || b < p)) {
+            rest = substr(s, b + 1)
+            e = index(rest, "`")
+            if (e == 0) { return out s }
+            out = out substr(s, 1, b + e)
+            s = substr(rest, e + 1)
+            continue
+          }
+          if (p == 0) { return out s }
+          out = out substr(s, 1, p - 1)
+          s = substr(s, p + 4)
+          in_comment = 1
+        }
+      }
+      return out
+    }
+  '
   _GIC_DEPS_LOADED=1
 fi
 
@@ -69,15 +106,18 @@ count_instruction_sections() {
     return "$_GIC_UNREADABLE"
   fi
 
-  awk '
-    BEGIN { section = ""; fence = 0; rules = 0; constraints = 0; sources = 0 }
+  awk "$_GIC_AWK_VISIBLE"'
+    BEGIN { section = ""; fence = 0; in_comment = 0; rules = 0; constraints = 0; sources = 0 }
     {
       line = $0
       sub(/\r$/, "", line)
-      if (line ~ /^```/) { fence = !fence; next }
+      starts_in_comment = in_comment
+      if (!starts_in_comment && line ~ /^```/) { fence = !fence; next }
       if (fence) { next }
-      if (line ~ /^## /) {
-        heading = line
+      vis = visible(line)
+      if (starts_in_comment) { next }
+      if (vis ~ /^## /) {
+        heading = vis
         sub(/^## /, "", heading)
         gsub(/[ \t]+$/, "", heading)
         low = tolower(heading)
@@ -87,7 +127,7 @@ count_instruction_sections() {
         else { section = "" }
         next
       }
-      if (line ~ /^[-*] /) {
+      if (vis ~ /^[-*] /) {
         if (section == "rules") { rules++ }
         else if (section == "constraints") { constraints++ }
         else if (section == "sources") { sources++ }
@@ -110,31 +150,47 @@ count_additional_steps() {
     return "$_GIC_UNREADABLE"
   fi
 
-  awk '
-    BEGIN { in_section = 0; fence = 0; n = 0 }
+  awk "$_GIC_AWK_VISIBLE"'
+    # Ends the open subsection; it is reported only if it carried content.
+    function close_sub() {
+      if (in_sub && has_body) { n++; names[n] = open_name }
+      in_sub = 0
+      has_body = 0
+    }
+    BEGIN { in_section = 0; fence = 0; in_comment = 0; in_sub = 0; has_body = 0; n = 0 }
     {
       line = $0
       sub(/\r$/, "", line)
-      if (line ~ /^```/) { fence = !fence; next }
+      starts_in_comment = in_comment
+      if (!starts_in_comment && line ~ /^```/) {
+        if (!fence && in_sub) { has_body = 1 }
+        fence = !fence
+        next
+      }
       if (fence) { next }
-      if (line ~ /^## /) {
+      if (!starts_in_comment && line ~ /^## /) {
+        close_sub()
         heading = line
         sub(/^## /, "", heading)
         gsub(/[ \t]+$/, "", heading)
         in_section = (tolower(heading) == "additional steps")
         next
       }
-      if (in_section && line ~ /^### /) {
+      if (!starts_in_comment && in_section && line ~ /^### /) {
+        close_sub()
         heading = line
         sub(/^### /, "", heading)
         gsub(/[ \t]+$/, "", heading)
         if (tolower(heading) ~ /^(after|before)[ \t]/) {
-          n++
-          names[n] = heading
+          in_sub = 1
+          open_name = heading
         }
+        next
       }
+      if (visible(line) ~ /[^ \t]/) { has_body = 1 }
     }
     END {
+      close_sub()
       print n
       for (i = 1; i <= n; i++) print names[i]
     }

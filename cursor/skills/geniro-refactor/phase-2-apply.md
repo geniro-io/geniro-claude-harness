@@ -19,18 +19,18 @@ state.md `phase: apply`. The orchestrator executes the approved plan, one step a
 
 ### 2.1 Refresh custom instructions on entry
 
-On Phase 2 entry, single `load-custom-instructions(SKILL_SLUG: refactor, LOAD_TIER: pipeline, MODE: refresh)` call (pipeline tier's load set owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Phase 3 re-fires this call on its own entry (`phase-3-verify.md` §3.0) rather than inheriting this one.
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: refactor`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. Phase 3 re-fires this call on its own entry (`phase-3-verify.md` §3.0) rather than inheriting this one.
 
 ### 2.2 Per-step execution (orchestrator-inline)
 
-The orchestrator executes the approved plan inline, one step at a time — no subagent spawn. Sequential per-step refactoring needs continuous state across steps, which a spawned subagent loses; running inline preserves state continuity and halves test runs via the per-step regression-skip predicate.
+The orchestrator executes the approved plan inline, one step at a time — no subagent spawn: sequential steps need continuous state a spawned subagent loses, and inline execution halves test runs via the per-step regression-skip predicate.
 
 **Reference:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/refactor-patterns.md` § Atomic Application & Verification — full Step Execution Protocol + Blocked Step Protocol + skip-predicate rules. Bound by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`: Read it before the first transformation and echo it — it also carries the Data Safety Rule and the test-file approval gate, and a refactor that rewrote an assertion to make a step pass yields a green suite, which is the very evidence the behavior-preservation claim rests on. The orchestrator applies this verbatim inline.
 
 **Pre-loop setup:**
 
 - Read the approved plan from state.md `## Plan steps` (skipping any HIGH steps the user rejected in the Phase 1 §1.6 approval gate).
-- Read code-style content as echoed by the load-custom-instructions loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
+- Take code-style content as loaded by the load-custom-instructions loader (cwd OR primary-worktree fallback per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`). Use it inline when applying transformations. Skip when loader echoed `No code-style.md found — skipping.`
 - Resolve test commands: `<test_cmd_affected>` from CLAUDE.md's Essential Commands (per-step gate; falls back to `<test_cmd>` if undefined); `<test_cmd>` for final regression.
 - Anchor: verify `pwd && git branch --show-current` once at entry; abort if either differs from baseline.
 

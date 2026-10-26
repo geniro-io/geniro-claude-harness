@@ -1240,6 +1240,96 @@ fi
   || fail "all-deprecated learnings.jsonl on cold startup: systemMessage should be suppressed — '$sm'"
 
 # ---------------------------------------------------------------------------
+# 20f. Memory Backend notice reads only live entries of memory.md. The scaffold
+#      carries its example entry inside an HTML comment, and a documented example
+#      may sit in a fenced block; neither declares a backend. Cold startup with no
+#      learnings, so the notice is the only thing that can produce a systemMessage.
+# ---------------------------------------------------------------------------
+
+MB_N=0
+mb_case() {
+  local label="$1" want="$2" d sm got
+  MB_N=$((MB_N + 1))
+  d="$TMPDIR_BASE/mb-$$-$MB_N"
+  mkdir -p "$d/.geniro/instructions"
+  cat > "$d/.geniro/instructions/memory.md"
+  (cd "$d" && git init -q && git checkout -q -b "fresh" 2>/dev/null)
+  sm=$(cd "$d" && run_hook startup "$d" | jq -r '.systemMessage // ""')
+  if grep -q "memory backend active" <<<"$sm"; then got=yes; else got=no; fi
+  if [ "$got" = "$want" ]; then
+    pass "memory backend notice ($want): $label"
+  else
+    fail "memory backend notice: $label — wanted $want, got $got ('$sm')"
+  fi
+}
+
+mb_case "entry inside single-line HTML comments" no <<'EOF'
+# Memory
+
+## Memory Backend
+<!-- Optional. Route agent learnings (L2) through a custom backend. -->
+<!-- - layer: learnings -->
+<!--   mode: replace -->
+EOF
+
+mb_case "entry inside a multi-line HTML comment" no <<'EOF'
+## Memory Backend
+<!--
+- layer: learnings
+  mode: replace
+-->
+EOF
+
+mb_case "entry inside a fenced block" no <<'EOF'
+## Memory Backend
+Example:
+```yaml
+- layer: learnings
+  mode: replace
+```
+EOF
+
+mb_case "real entry" yes <<'EOF'
+## Memory Backend
+- layer: learnings
+  mode: replace
+  write: mcp tool `mcp__memory__upsert`
+EOF
+
+mb_case "real entry after a single-line comment" yes <<'EOF'
+## Memory Backend
+<!-- Optional. -->
+- layer: learnings
+  mode: replace
+EOF
+
+mb_case "real entry after a multi-line commented example" yes <<'EOF'
+## Memory Backend
+<!--
+- layer: learnings
+  mode: mirror
+-->
+- layer: learnings
+  mode: replace
+EOF
+
+mb_case "real entry after a fenced example" yes <<'EOF'
+## Memory Backend
+```yaml
+- layer: learnings
+  mode: mirror
+```
+- layer: learnings
+  mode: replace
+EOF
+
+mb_case "comment opened on the heading line, entry on the next" yes <<'EOF'
+## Memory Backend <!-- optional -->
+- layer: learnings
+  mode: replace
+EOF
+
+# ---------------------------------------------------------------------------
 # 21. memory.auto_archive_stale opt-out must actually disable. jq's `//` treats
 #     a boolean `false` as empty and falls through to the default, so a
 #     `.memory.auto_archive_stale // true` resolver would never disable the

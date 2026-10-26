@@ -46,7 +46,7 @@ The visual-artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/
 # State: <topic>
 
 ## Inputs
-- $ARGUMENTS: "<raw>"
+- $ARGUMENTS: "<$ARGUMENTS verbatim, before flag stripping>"
 - mode: <IDEA|DESIGN_DOC>
 - design-doc-path (if DESIGN_DOC): <abs-path>
 
@@ -57,7 +57,7 @@ The visual-artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/
 ## Open Questions
 ```
 
-Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections authored in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered — assemble per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: both the approved-text form and the routed-out sentinel assemble into the spec verbatim, since a dropped sentinel reads identically to Phase 2 never having triggered at all — indistinguishable to every downstream reader of spec.md; drop the section only when the heading is absent or present-but-bare, meaning the producing step did not run), `## Considered Alternatives` (Phase 4.4).
+Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections authored in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered — assemble per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: both the approved-text form and the routed-out sentinel assemble into the spec verbatim, since a dropped sentinel reads identically to Phase 2 never having triggered at all; drop the section only when the heading is absent or present-but-bare, meaning the producing step did not run), `## Considered Alternatives` (Phase 4.4).
 
 ### `approvals[]` entry shape — every gate below writes this
 

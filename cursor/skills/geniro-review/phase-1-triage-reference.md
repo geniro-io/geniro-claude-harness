@@ -383,7 +383,7 @@ Size-only triage (the §12 size threshold) misses high-stakes small diffs. Strat
 
 | Helper | Inputs | Outputs |
 |---|---|---|
-| `load-semantic` MODE: refresh | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + fingerprint drift check |
+| `load-semantic` | top-2: `_project.md` + `_CODEBASE_MAP.md` | inlined + fingerprint drift check |
 | `query-learnings` (route per `query-learnings.md` §"Memory backend override" — declared backend read tool under a `## Memory Backend` block; the file is empty under `replace`) | `--type pitfall --tag <tags inferred from changed-file paths> --score-min 0 --limit 5` | top 5 matching L2 entries by score (superseded/deprecated excluded by default) |
 | `resolve-conflicts` | transitive | hard conflict → AUQ |
 

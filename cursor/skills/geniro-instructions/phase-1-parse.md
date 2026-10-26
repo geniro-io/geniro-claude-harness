@@ -6,7 +6,7 @@ Phase body for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`. Read on ent
 
 ---
 
-**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Echo contract requires one observable line.
+**Step 0 — Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: instructions`, `LOAD_TIER: rules-only`, `MODE: initial-load`. The helper's §Echo contract: one line per file.
 
 **Step 0.5 — Locate the instructions directory.** Open every Bash call that touches an instruction path with the resolver, and prefix every `.geniro/instructions/...` path in the rest of this skill — read, scan, write, delete — with `"$PRIMARY_ROOT"/`:
 

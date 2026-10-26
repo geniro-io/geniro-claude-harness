@@ -13,16 +13,12 @@ The anchors below are the ones each skill actually fires. `/geniro:instructions 
 
 ## Rules
 
-- (none — add project-specific rules for /geniro:plan here)
-
 ## Additional Steps
 
 ### After user-approve
 <!-- Steps to run once the user has approved the spec -->
 
 ## Constraints
-
-- (none — add hard limits for /geniro:plan here)
 ```
 
 ## `implement.md` scaffold
@@ -32,14 +28,10 @@ The anchors below are the ones each skill actually fires. `/geniro:instructions 
 
 ## Rules
 
-- (none — add project-specific rules for /geniro:implement here)
-
 ## Additional Steps
 
 ### After ship
 <!-- Steps to run once the change has shipped -->
 
 ## Constraints
-
-- (none — add hard limits for /geniro:implement here)
 ```

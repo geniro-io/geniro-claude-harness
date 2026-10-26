@@ -194,7 +194,7 @@ Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 | Phase | Helper | Direction | MODE |
 |---|---|---|---|
 | Phase 1 entry | `load-custom-instructions` | read L4 | `refresh` |
-| Phase 1 entry | `load-semantic` | read L3 | `refresh` |
+| Phase 1 entry | `load-semantic` | read L3 | n/a |
 | Phase 1 entry | `query-learnings` | read L2 | n/a |
 | Phase 1 entry | `resolve-conflicts` | read L2/L3/L4 | n/a |
 | Phase 1 entry (conditional) | spec.md frontmatter `workflow_refs[]` | read external | fires only when `$ARGUMENTS` points to spec.md or task-dir; cached tracker `status` primes scope decisions |

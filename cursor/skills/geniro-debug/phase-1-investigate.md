@@ -16,17 +16,17 @@ state.md `phase: investigate`. An entry-gate + context load plus an inner hypoth
 
 On Phase 1 entry, in order:
 
-1. **Refresh custom instructions** — `load-custom-instructions(SKILL_SLUG: debug, LOAD_TIER: pipeline, MODE: refresh)` per Echo contract; the pipeline tier's load set is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`.
-2. **Refresh project snapshot** — `load-semantic(MODE: refresh, top-2 default)`.
-3. **Query past learnings** — `query-learnings(tags=<inferred from $ARGUMENTS>, scope=task path)` per "debug session start" trigger — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (under a declared `## Memory Backend` block routing `learnings`, delegate the read to a scoped `knowledge-retrieval-agent` spawn (**light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes) — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3; no block → the inline file query runs unchanged). The agent declares a `Context loaded:` line; the empty-vs-unread reading rule is single-sourced at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. Pass `--limit 5` and filter superseded + deprecated. Skipped if $ARGUMENTS too generic to infer tags. A matching prior diagnosis primes Phase 1 hypotheses.
-**surfacing convention:** when results include `discarded_hypothesis` entries, display them with a distinct label so the orchestrator can skip dead-ends faster:
+1. **Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: debug`, `LOAD_TIER: pipeline`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
+2. **Load project snapshot.** `source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh" && load_semantic` — default top-2 (`_project.md` + `_CODEBASE_MAP.md`); surface any fingerprint drift it reports.
+3. **Query past learnings.** Route the read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (under a declared `## Memory Backend` block routing `learnings`, delegate the read to a scoped `knowledge-retrieval-agent` spawn (**light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes) — `SCOPE: learnings-backend` — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3; no block → the file query: `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred from $ARGUMENTS> --limit 5`, tags only because `--scope` never matches a task path). The agent declares a `Context loaded:` line; the empty-vs-unread reading rule is single-sourced at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. Skipped if $ARGUMENTS too generic to infer tags. A matching prior diagnosis primes Phase 1 hypotheses.
+**surfacing convention:** when results include `discarded_hypothesis` entries, display them with a distinct label:
 ```
 Past investigations in this scope ruled out:
 - <ext.hypothesis> (tested <ts> by <ext.tested_by>)
 Past diagnoses:
 - <summary> (fixed <ts>)
 ```
-These get surfaced on hypothesis formation so that the orchestrator does NOT re-form a hypothesis equivalent to an already-ruled-out one without explicit re-justification.
+Surface these at hypothesis formation: do not re-form a hypothesis equivalent to a ruled-out one without explicit re-justification.
 4. **Reconcile custom instructions, snapshot and past learnings** — `resolve-conflicts(L2/L3/L4 loaded)` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md`. Echo lines per each helper's mandatory echo contract.
 
 5. **Workflow refs read (when spec.md is in scope).** When `$ARGUMENTS` points to a spec.md path OR a planning task-dir, parse spec.md frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md` — that file owns which schema versions a reader accepts and the rule that every consumer but /geniro:implement is tracker-read-only. Use the cached `status` field as hypothesis-priming context (in-flight vs already-shipped code). On `m5-v3` the cached parent-epic status and sibling sub-task statuses are also available to prime hypotheses (e.g. a sibling already shipped a related fix, so the regression may live in shared code). Skipped silently when no spec.md is in scope.

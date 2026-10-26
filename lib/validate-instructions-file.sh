@@ -88,10 +88,10 @@ _vif_row() {
 # Scope auto-detect: the parent directory basename "review-extra" wins over the
 # filename, else the filename minus ".md", lowercased.
 _vif_detect_scope() {
-  local path="$1" base parent
-  base="$(basename "$path")"
+  local _vif_path="$1" base parent
+  base="$(basename "$_vif_path")"
   base="${base%.md}"
-  parent="$(basename "$(dirname "$path")")"
+  parent="$(basename "$(dirname "$_vif_path")")"
   if [ "$parent" = "review-extra" ]; then
     printf '%s\n' "review-extra"
   else
@@ -168,10 +168,9 @@ validate_instructions_file() {
   # (real-phase-no-read-site or dropped — MEDIUM). Report the first hit of
   # each category, matching the first-occurrence convention every other
   # multi-match check here uses.
-  local freeform_line="" illegal_line="" illegal_msg=""
+  local freeform_line="" illegal_line="" illegal_msg="" lower phase
   while IFS=$'\t' read -r lineno heading; do
     [ -n "$lineno" ] || continue
-    local lower
     lower="$(printf '%s' "$heading" | tr '[:upper:]' '[:lower:]')"
     case "$lower" in
       before\ *)
@@ -181,7 +180,6 @@ validate_instructions_file() {
         fi
         ;;
       after\ *)
-        local phase
         phase="${lower#after }"
         phase="${phase%%\(*}"                    # drop a trailing parenthetical
         phase="$(printf '%s' "$phase" | sed -E 's/[[:space:]]+$//; s/^[[:space:]]+//')"
