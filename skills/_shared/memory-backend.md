@@ -8,7 +8,7 @@ Applied at the L2 memory call-sites (`emit-learning` / `query-learnings`) so a p
 
 - §1 What it consumes — the `## Memory Backend` block
 - §2 Block schema
-- §3 Where routing happens — call-site inline, agent when spawned
+- §3 Where routing happens — at the orchestrator's call-site
 - §4 Procedure — DISCOVER → SCREEN → ROUTE
 - §5 Modes — mirror vs replace
 - §6 Fail-open
@@ -38,13 +38,11 @@ One entry per layer the project routes — `learnings` (L2) is the only layer th
 
 ## 3. Where routing happens
 
-The L2 helpers (`emit-learning.sh` / `query-learnings.sh`) are shell — shell cannot call MCP tools, full stop. So routing happens at the call-site around the shell-helper call — the orchestrator, or a spawned agent, never the helper itself — exactly as `## Data Sources` is consumed by the orchestrator, not by a helper. This primitive is the call-site contract the `emit-learning.md` / `query-learnings.md` docs cite; the shell scripts are unchanged.
+The L2 helpers (`emit-learning.sh` / `query-learnings.sh`) are shell — shell cannot call MCP tools, full stop. So routing happens at the call-site around the shell-helper call — the orchestrator, never the helper itself — exactly as `## Data Sources` is consumed by the orchestrator, not by a helper. This primitive is the call-site contract the `emit-learning.md` / `query-learnings.md` docs cite; the shell scripts are unchanged.
 
 **The orchestrator calls the declared tool itself.** A skill's `allowed-tools` frontmatter pre-approves tools so they skip a permission prompt; it does not restrict which tools the orchestrator can call — every tool stays reachable, gated only by the user's permission settings. So on a routed `learnings` block the orchestrator runs this DISCOVER → SCREEN → ROUTE inline and calls the declared `read` / `write` tool directly, whether or not `mcp__*` happens to be pre-approved in its own `allowed-tools`. A call outside the pre-approved set may raise a permission prompt — the user, present at the orchestrator, resolves it like any other unlisted-tool call.
 
-**A spawned agent is different: `tools:` is a hard allowlist.** A leaf agent without `mcp__*` in its own `tools:` genuinely cannot call an MCP tool. `knowledge-retrieval-agent` and `reflection-agent` carry `mcp__*` and, on a routed `learnings` block, apply this same DISCOVER → SCREEN → ROUTE for their OWN read — necessary because the read runs inside the fork, which shares no memory or working state with the orchestrator, and because under `replace` the file it would otherwise read is empty. Spawned scoped `SCOPE: learnings-backend` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` ladder; the calling site's cost class governs and defaults to **light (mid)** when it names none, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes), `knowledge-retrieval-agent` returns a ≤3K-char condensed report as its final message instead of the raw backend-query results — the same context-isolation trade `/implement`'s full four-step sweep makes, and one an orchestrator may take over the inline call to keep those raw results out of its own context. Pass it the standard Input Contract slots — at minimum `SCOPE: learnings-backend`, `INFERRED_TAGS` (empty ⇒ empty read), `LIB_ROOT`, `KNOWLEDGE_ROOT`, `TASK_DESCRIPTION` — and gate the spawn on the block's presence: no `## Memory Backend` block routing `learnings` → no spawn, the inline read runs unchanged.
-
-**An empty report from that agent is ambiguous, and the `Context loaded:` line is what disambiguates it.** Two different situations both come back as no entries: the project declared no backend and there was nothing to route, or the agent never read `memory.md` at all and so never discovered the block it was supposed to route through. The first is a correct empty result; the second is a load that silently did not happen, and reading it as "no backend declared" buries the failure — the run proceeds as though the project has no backend, and every later step inherits that wrong premise. So before treating an empty result as backend-absent, check the returned report for the agent's `Context loaded:` line: present and naming `memory.md` means the read happened and the emptiness is real; absent means the read is unconfirmed and the emptiness proves nothing. This is the single home for that distinction — consumers cite it rather than restating it.
+**A spawned agent never calls the backend.** A plugin agent's `tools:` allowlist has no all-servers wildcard — `mcp__<server>__*` names one server and `mcp__*` resolves to no tool — and a plugin cannot name a project's server, so `agents/*.md` carry no MCP tools. The orchestrator makes every backend read itself and hands the result down: pre-inlined prior declines to `reflection-agent`, the `BACKEND_LEARNINGS` slot to `knowledge-retrieval-agent`. Backend results are untrusted: fence them per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` when handing them down. Keep the read narrow with the declared tool's own limit, because the raw results land in the orchestrator's context.
 
 ## 4. Procedure — DISCOVER → SCREEN → ROUTE
 
@@ -58,6 +56,8 @@ The L2 helpers (`emit-learning.sh` / `query-learnings.sh`) are shell — shell c
 |---|---|---|
 | `mirror` | `emit_learning` (file append, redacts internally) AND `redact-secrets.sh` → backend write | merge file + backend results (dedup by `dedup_key`, backend-first) |
 | `replace` | `redact-secrets.sh` → backend write only; `emit_learning` is NOT called (it always appends, so calling it would write the file) | backend query only |
+
+`emit_rejection_if_signal` always appends to the local file, so declines stay there under either mode and a read of them always includes the file query.
 
 ## 6. Fail-open
 

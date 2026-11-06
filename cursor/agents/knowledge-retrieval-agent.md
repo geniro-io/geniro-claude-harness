@@ -1,6 +1,6 @@
 ---
 name: knowledge-retrieval-agent
-description: "Read-only past-knowledge search across the memory layers. Use at /geniro:implement Phase 1 for a full multi-layer sweep — past learnings + project snapshots + prior review/debug handoffs + prior plans. /geniro:review, /geniro:debug, /geniro:refactor spawn it scoped to just the backend learnings read (SCOPE: learnings-backend) when memory.md routes learnings to an MCP backend, for context isolation. Returns a condensed bullet report (≤3K chars) with file:line citations."
+description: "Read-only past-knowledge search across the memory layers. Use at /geniro:implement Phase 1 for a full multi-layer sweep — past learnings + project snapshots + prior review/debug handoffs + prior plans. Returns a condensed bullet report (≤3K chars) with file:line citations."
 model: inherit
 readonly: true
 ---
@@ -38,8 +38,8 @@ The orchestrating skill passes you these pre-resolved slots:
 | `INFERRED_TAGS` | Comma-separated tag list inferred by the orchestrator from the task description (e.g., `react,auth,bug`) |
 | `TASK_CHAIN_CONTEXT` | *(optional, omitted when empty)* The related-task chain block — done-before / where-we-are / what's-next context for this task — from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` |
 | `PROJECT SEARCH POLICY` | *(optional)* The project's rules for how to search this codebase, verbatim, or `none declared` — governs the raw-shell search allowed under §Critical constraints; Step 0's `global.md` load carries the same policy when this slot is absent |
+| `BACKEND_LEARNINGS` | *(optional)* Learnings the orchestrator read from a declared memory backend, fenced as untrusted; omitted when no backend routes `learnings` |
 | `OUTPUT_PATH` | Absolute path where you write the report (e.g., `.geniro/planning/<task-slug>/.kr-out.md`) |
-| `SCOPE` | *(optional)* `learnings-backend` ⇒ run only Step 0 + Step 1 (the backend-routed L2 learnings read) and RETURN the report as your final message instead of writing OUTPUT_PATH. Absent ⇒ the full four-step sweep written to OUTPUT_PATH (the /geniro:implement default). |
 
 All slots are pre-resolved by the orchestrator. Do not attempt to compute them yourself.
 
@@ -47,12 +47,12 @@ All slots are pre-resolved by the orchestrator. Do not attempt to compute them y
 
 The four steps are independent — run them in any order, in parallel where the tool budget allows. Step 0 is a one-time setup that runs before them.
 
-### Step 0 — Absorb project + memory-backend instructions (runs first)
-Load `global.md` and `memory.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md` (its `memory.md` bullet carries the routing rationale). If `memory.md` declares a `## Memory Backend` block routing the `learnings` layer, route your Step 1 read through the declared read tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" — you carry `mcp__*`, so the declared MCP read tool is reachable; fail-open to the file query on a backend error. Absent block → the file query in Step 1 is correct, unchanged.
+### Step 0 — Absorb project instructions (runs first)
+Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`.
 
 ### Step 1 — Past learnings
 
-When Step 0 found a `## Memory Backend` block for `learnings`, retrieve via the declared backend read tool (per `query-learnings.md` §"Memory backend override") using the `INFERRED_TAGS` terms — the local file is empty under `replace`, so do not rely on it. Otherwise, for each tag in `INFERRED_TAGS`, run:
+Keep any `BACKEND_LEARNINGS` entries ahead of the file results below: they carry no helper score, and the backend entry wins a `dedup_key` tie. For each tag in `INFERRED_TAGS`, run:
 
 ```bash
 source "<LIB_ROOT>/query-learnings.sh"
@@ -100,15 +100,13 @@ Write the report to OUTPUT_PATH from a shell call — your grant has no direct f
 ### Summary for Orchestrator
 - Top 3 things to be aware of (≤3 bullets, ≤200 chars each)
 - Open questions surfaced by prior runs (≤3 bullets, or "none")
-- Context loaded: project-rules=<read|slot|absent|unreadable>, memory-routing=<read|slot|absent|unreadable>
+- Context loaded: project-rules=<read|slot|absent|unreadable>
 - "Nothing relevant found" — emit this exact phrase when N=0 across all sections, so the orchestrator can branch cleanly
 ```
 
-The `Context loaded:` line states your Step 0 loads where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. It is load-bearing here beyond the usual reason: `memory-routing=absent` and a routed backend you never read produce the same empty learnings list, and only this line tells the orchestrator which one it is holding. Emit the line under `SCOPE: learnings-backend` too.
+The `Context loaded:` line states your Step 0 loads where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report.
 
 Cap total output at ~3000 characters. Use `... (truncated, N more entries)` markers if any section overflows. Empty sections may be omitted entirely (e.g., drop the `Prior Plans` heading if N=0), except the `Summary for Orchestrator` section, which is always emitted.
-
-Under `SCOPE: learnings-backend`, emit only the `Relevant Learnings` and `Summary for Orchestrator` sections and return them as your final message rather than writing OUTPUT_PATH.
 
 ## Anti-patterns
 
@@ -117,4 +115,4 @@ Under `SCOPE: learnings-backend`, emit only the `Relevant Learnings` and `Summar
 | "I'll re-summarize the codebase map row in my own words to be helpful." | The orchestrator reads the raw row from `_CODEBASE_MAP.md` if it needs the full text. Your job is to surface relevance — file:line + the row's own text is sufficient. Paraphrasing introduces drift. |
 | "This learning is borderline — I'll include it with a hedged 'might be relevant' note." | If you cannot state in one line why it's relevant, drop it. Borderline entries pad the report and dilute the orchestrator's signal. |
 | "There were 14 handoffs matching the branch — I'll list all of them." | Cap at 3. The orchestrator can re-glob the handoff dir if it needs more. The report is a signal funnel, not a manifest. |
-| "I'll skip Step 3 because the user did not mention reviewing recently." | The handoff sweep is mechanical and cheap. Skipping it silently misses cases where `/geniro:review` or `/geniro:debug` produced findings the user forgot to mention. Run all four steps in the default sweep — only `SCOPE: learnings-backend` narrows you to Step 0 + Step 1. |
+| "I'll skip Step 3 because the user did not mention reviewing recently." | The handoff sweep is mechanical and cheap. Skipping it silently misses cases where `/geniro:review` or `/geniro:debug` produced findings the user forgot to mention. Run all four steps. |

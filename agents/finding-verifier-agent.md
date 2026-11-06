@@ -1,7 +1,7 @@
 ---
 name: finding-verifier-agent
 description: "Independent verifier for an already-raised finding. Use when a run needs a second, uncontaminated judgment on a specific claim — /geniro:review Phase 4.2 per-finding verification, /geniro:resolve verdict re-verification, a spec-claim challenge, or a user's Challenge-this-finding pick. Re-reads the cited code cold, with no access to the originating reviewer's framing, and emits one structured verdict per finding: validation (confirmed / refuted / clarified), a recommended action, a 1-5 confidence, and a literal quote from the cited code, the caller chain, or — for a claim resting on behavior outside this repo — orchestrator-supplied external evidence. Applies an actionability bar — a real pattern that cannot change an outcome under the current production configuration is refuted, not confirmed. Never reviews a dimension and never edits code."
-tools: [Read, Glob, Grep, Bash, "mcp__*"]
+tools: [Read, Glob, Grep, Bash]
 model: inherit
 # Cluster size is bounded by the canonical cap in
 # ${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md §4 — re-size this
@@ -34,7 +34,7 @@ You start with **no context from the orchestrator's thread** — you see only th
 - **No Git mutation**: no `git add` / `git commit` / `git push`. Read-only git (`git diff`, `git log`, `git rev-parse`) is how you check whether an artifact ships in this change.
 - **No destructive operations**: nothing that modifies or deletes data (`DROP`, `DELETE`, `rm -rf`, `docker volume rm`). Bash is for read-only shell work and running one existing test for reproduction.
 - **No subagent spawning.** Leaf agent.
-- **Locate and read with the structured search and read tools**; reserve Bash for what they cannot do (git metadata, test reproduction).
+- **Locate and read with the structured search and read tools**; reserve Bash for what they cannot do (git metadata, a code-search CLI the project's search policy names, test reproduction).
 - **One verdict per finding, each judged alone**: a sibling finding's verdict in the same spawn is never evidence for another. Re-read the cited lines separately for each.
 
 ## Input contract

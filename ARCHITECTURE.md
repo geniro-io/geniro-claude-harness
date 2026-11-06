@@ -196,7 +196,7 @@ Every flag and modifier `/plan`, `/implement`, and `/review` accept — `--artif
 3 phases: Plan → Apply → Verify. Zero-behavior-change guarantee.
 
 - Adopts canonical 4-tier effort-scaling (Trivial/Small/Medium/Big).
-- Core smell-detection and per-step execution run orchestrator-inline; Phase-3 review (`reviewer-agent`), on-demand `codebase-research-agent`, and the conditional backend-learnings read (`knowledge-retrieval-agent`, `SCOPE: learnings-backend`, only under a declared `## Memory Backend` block) use dedicated subagents.
+- Core smell-detection and per-step execution run orchestrator-inline; Phase-3 review (`reviewer-agent`) and on-demand `codebase-research-agent` use dedicated subagents.
 - Blocked-step protocol: max 3 retries per step → mark BLOCKED and continue; >=30% blocked → escalation AUQ.
 - PRODUCT-DECISION findings escalate to `/implement` via AUQ (always-wait, fixed option set).
 - NEVER ships code — diff is the deliverable.
@@ -312,11 +312,11 @@ Some skills unlock extra capability when a companion MCP server is present, and 
 
 | MCP | Used by | Enables | Install |
 |-----|---------|---------|---------|
-| **Browser control** — any tool that opens a URL and reports what rendered: Playwright MCP (`mcp__plugin_playwright_playwright__*` when it arrives as a sibling plugin), a Chrome DevTools or Puppeteer server, or an agent-browser tool the harness provides | `/geniro:implement` Phase 2 Step 2.5 (pre-change visual baseline) and Phase 3 Ship sub-step (Pre-Ship Visual Verification); `/geniro:review` design dimension (computed styles) | A before/after evidence pair — the pre-change surface shot before the first edit, re-shot at the same route and viewport at Ship and rendered into the ship report as durable `visual-*.png` artifacts — plus the walkthrough of the changed page at 375/768/1440, console and network sanity checks, keyboard-nav verification | Install any one of them; the Pre-Ship walkthrough matches on the capability, not the vendor, and picks whichever is in the tool list (preferring one that returns the page into context over a scripted end-to-end driver). With none present, the walkthrough is skipped automatically and the skip is disclosed in the ship report. |
+| **Browser control** — any tool that opens a URL and reports what rendered: Playwright MCP (`mcp__plugin_playwright_playwright__*` when it arrives as a sibling plugin), a Chrome DevTools or Puppeteer server, or an agent-browser tool the harness provides | `/geniro:implement` Phase 2 Step 2.5 (pre-change visual baseline) and Phase 3 Ship sub-step (Pre-Ship Visual Verification) | A before/after evidence pair — the pre-change surface shot before the first edit, re-shot at the same route and viewport at Ship and rendered into the ship report as durable `visual-*.png` artifacts — plus the walkthrough of the changed page at 375/768/1440, console and network sanity checks, keyboard-nav verification | Install any one of them; the Pre-Ship walkthrough matches on the capability, not the vendor, and picks whichever is in the tool list (preferring one that returns the page into context over a scripted end-to-end driver). With none present, the walkthrough is skipped automatically and the skip is disclosed in the ship report. |
 
-A companion MCP is never declared in this plugin's manifest — the user installs it as a sibling plugin. To see what is reachable in a given environment, look for the tool prefix in the agent's tool list at runtime.
+A companion MCP is never declared in this plugin's manifest — the user installs it as a sibling plugin. To see what is reachable in a given environment, look for the tool prefix in the session's tool list at runtime.
 
-The plugin agents also carry a broad `mcp__*` grant so a project-configured code-index or memory-backend MCP is reachable from a subagent without this plugin naming the server. That grant is read-only by contract: the inlined untrusted-content defense instructs agents to use MCP for read-only intelligence and never to call an egress or mutating MCP tool.
+Plugin agents carry no MCP tools: a `tools:` allowlist has no all-servers wildcard (`mcp__<server>__*` names one server, `mcp__*` resolves to no tool) and this plugin names no server. A project's code index reaches a subagent through its CLI, and a memory backend through the orchestrator (`skills/_shared/memory-backend.md` §3). Where a host does offer MCP tools to an agent, `skills/_shared/untrusted-content-defense.md` sets the read-only rule for them.
 
 ---
 

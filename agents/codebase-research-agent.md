@@ -1,7 +1,7 @@
 ---
 name: codebase-research-agent
 description: "Read-only general codebase research. Use when a skill needs to map a subsystem, trace a flow, locate a definition, or summarise behaviour across files — anywhere a multi-file investigation would otherwise flood the orchestrator's context with file contents. Returns a structured findings table with file:line citations per the Evidence Standard."
-tools: [Read, Glob, Grep, Bash, "mcp__*"]
+tools: [Read, Glob, Grep, Bash]
 model: inherit
 # THOROUGHNESS caps the search volume at ~5-60 Grep/Read calls; 80 turns covers
 # the "very thorough" ceiling plus the synthesis and emit steps.

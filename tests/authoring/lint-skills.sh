@@ -17,6 +17,8 @@
 #     3. Unknown subagent_type spawn names (must resolve to a real agent/builtin).
 #     5. Rootless agents/ or skills/ file references in skills/ or agents/.
 #     11. ${CLAUDE_PLUGIN_ROOT} inside .claude/skills/ (unset for project-local skills).
+#     12. A bare `mcp__*` entry in an agents/*.md frontmatter `tools:` list, in
+#        flow or block-list form.
 #   ADVISORY (warn only, exit 0 contribution):
 #     6. Compaction boundary — a SKILL.md longer than the host's re-attach window
 #        (REATTACH_CHARS characters), naming the last section that survives it.
@@ -26,7 +28,7 @@
 # by default on macOS and every CI image: BSD/GNU awk disagree on whether
 # length() counts bytes or characters.
 #
-# The checks carry self-tests at the bottom of the file (1b, 1c and the compaction
+# The checks carry self-tests at the bottom of the file (1b, 1c, 12 and the compaction
 # cut), run on every invocation against fixtures in a scratch directory: each
 # proves a seeded violation red and the allowed shapes green.
 
@@ -185,6 +187,40 @@ else
   echo "OK: .claude/skills/ carries no \${CLAUDE_PLUGIN_ROOT} references"
 fi
 
+# 12. Bare `mcp__*` in an agent's `tools:` frontmatter. A plugin agent's allowlist
+#     has no all-servers wildcard: the entry resolves to no tool, so the agent
+#     carries a grant that never works while its prose assumes it does.
+#     `mcp__<server>__*` names one server and stays allowed. The check matches the
+#     literal `mcp__*` token on the `tools:` line (`tools :` included) or on a list
+#     item under it, inside the first `---` block; `mcp__<server>__*` does not
+#     contain that token.
+# <file>... -> the path of every file whose `tools:` entry carries a bare `mcp__*`.
+_bare_mcp_agents() {
+  local f
+  for f in "$@"; do
+    [ -f "$f" ] || continue
+    if awk '
+      NR == 1 { if ($0 != "---") exit; next }
+      $0 == "---" { exit }
+      /^tools[[:space:]]*:/ { intools = 1; if ($0 ~ /(^|[^A-Za-z0-9_])mcp__\*/) found = 1; next }
+      intools && /^[[:space:]]*(#|$)/ { next }
+      intools && /^[[:space:]]*-/ { if ($0 ~ /(^|[^A-Za-z0-9_])mcp__\*/) found = 1; next }
+      { intools = 0 }
+      END { exit !found }
+    ' "$f"; then
+      printf '%s\n' "$f"
+    fi
+  done
+}
+
+bare_mcp=0
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  report_fail "$f: frontmatter \`tools:\` carries a bare \`mcp__*\` entry, which resolves to no tool — drop it or name a server (\`mcp__<server>__*\`)"
+  bare_mcp=$((bare_mcp + 1))
+done < <(_bare_mcp_agents agents/*.md)
+[ "$bare_mcp" -eq 0 ] && echo "OK: no agents/*.md tools: list carries a bare mcp__* entry"
+
 echo
 echo "=== ADVISORY checks (warn only) ==="
 
@@ -253,7 +289,7 @@ check_compaction_boundaries skills/*/SKILL.md .claude/skills/*/SKILL.md
 # shapes prove it green. A self-test failure is a hard failure: a lint whose
 # matcher silently stopped matching is worse than no lint.
 echo
-echo "=== SELF-TESTS (check 1b, check 1c, compaction cut) ==="
+echo "=== SELF-TESTS (check 1b, check 1c, check 12, compaction cut) ==="
 ST="$(mktemp -d)"
 trap 'rm -rf "$ST"' EXIT
 
@@ -333,6 +369,23 @@ if [ "$(_check_descriptions "$ST/desc-clean/SKILL.md" | grep -c .)" -eq 0 ]; the
   echo "OK: self-test — a '{branch}' placeholder and a '< 200ms' comparison do not false-positive"
 else
   report_fail "self-test — the clean description fixture ('{branch}' + '< 200ms') false-positived"
+fi
+
+# Check 12 — a bare mcp__* is red in flow and block-list form, a named server green.
+printf -- '---\nname: probe\ntools: Read, Glob, mcp__*\nmaxTurns: 40\n---\n' > "$ST/mcp-flow.md"
+printf -- '---\nname: probe\ntools:\n  - Read\n  - "mcp__*"\nmaxTurns: 40\n---\n' > "$ST/mcp-block.md"
+printf -- '---\nname: probe\ntools : Read, mcp__*\nmaxTurns: 40\n---\n' > "$ST/mcp-spaced.md"
+printf -- '---\nname: probe\ntools: Read, mcp__github__*\nmaxTurns: 40\n---\n' > "$ST/mcp-named-flow.md"
+printf -- '---\nname: probe\ntools:\n  - Read\n  - mcp__github__*\ndisallowedTools:\n  - mcp__*\n---\n' > "$ST/mcp-named-block.md"
+if [ "$(_bare_mcp_agents "$ST/mcp-flow.md" "$ST/mcp-block.md" "$ST/mcp-spaced.md" | tr '\n' ' ')" = "$ST/mcp-flow.md $ST/mcp-block.md $ST/mcp-spaced.md " ]; then
+  echo "OK: self-test — a bare mcp__* in the flow form, the block-list form and a 'tools :' key is detected"
+else
+  report_fail "self-test — bare mcp__* fixtures reported: $(_bare_mcp_agents "$ST/mcp-flow.md" "$ST/mcp-block.md" "$ST/mcp-spaced.md" | tr '\n' ' ')"
+fi
+if [ -z "$(_bare_mcp_agents "$ST/mcp-named-flow.md" "$ST/mcp-named-block.md")" ]; then
+  echo "OK: self-test — mcp__github__* in either form, and mcp__* under another key, do not false-positive"
+else
+  report_fail "self-test — named-server fixtures false-positived: $(_bare_mcp_agents "$ST/mcp-named-flow.md" "$ST/mcp-named-block.md" | tr '\n' ' ')"
 fi
 
 # Compaction cut — characters, not bytes. The multibyte fixture is ~10,000
