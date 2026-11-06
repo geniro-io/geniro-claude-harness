@@ -32,7 +32,7 @@ A list of **spawn-specs** — one dict per surviving custom reviewer — with th
 
 - `slug` (string) — the reviewer's slug from frontmatter
 - `dimension-label` (string) — `custom:<slug>` — used as the DIMENSION value in the spawn prompt
-- `model` (string) — one of `haiku`, `sonnet`, `opus`, `fable`, `auto`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; a declared value is the user's own choice and overrides the spawn's class, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. `auto` is the Cursor selector from that file's §Runtime resolution — accepted here so a Cursor user can declare a model at all)
+- `model` (string) — one of `haiku`, `sonnet`, `opus`, `fable`, `auto`, or `inherit` (the value defaults to `inherit` when frontmatter omits the field; a declared value is the user's own choice and overrides the spawn's class, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. `auto` is the Cursor selector from that file's §Runtime resolution, which the Task tool cannot spell, so it behaves as `inherit`)
 - `criteria-content` (string) — the body of the .md file (everything after the closing `---` of the frontmatter)
 - `severity-default` (string or null) — one of `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, or null when unset
 - `requires-context` (string or null) — the verbatim `requires-context:` frontmatter directive (natural-language description of the live external data the reviewer needs the orchestrator to fetch), or null when unset
@@ -117,15 +117,15 @@ Run this once per spawn-spec whose `requires-context` is non-null, AFTER Step 7 
 
 For each spec the helper returns, the consumer skill appends one spawn to its parallel reviewer batch. The `model=` argument is **conditionally included**:
 
-- When the run carries `--subagent-model` → PASS `model="<tier>"` verbatim, beating every case below including a custom reviewer's own declared `model:` — the flag is the user's own run-wide election (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`). On Codex a Claude model name fails the spawn: OMIT `model=` and take the Codex route in that section (announce once that the value is not applied).
-- Otherwise, when `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument entirely. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit` directive.
-- Otherwise, when `spec.model ∈ {haiku, sonnet, opus, fable}` (the user explicitly declared a model in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. The user's own declaration overrides the class. On Codex the declaration has no spelling: OMIT `model=` and take the same Codex route.
-- Otherwise, when `spec.model == "auto"` → PASS `auto` as the model argument under a host whose spawn facility takes it (Cursor); under Claude Code there is no such selector, so OMIT the argument and treat it as `inherit`. Either way the user's intent — "let the host pick" — is honored rather than silently replaced by a tier of ours.
+- When the run carries `--subagent-model` → PASS `model="<tier>"` verbatim, beating every case below including a custom reviewer's own declared `model:` — the flag is the user's own run-wide election (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`). A Claude model name fails the spawn on Codex, and on Cursor unless its model list carries it: OMIT `model=` and take that host's route in that section (announce once that the value is not applied).
+- Otherwise, when `spec.model == "inherit"` (the default when the user's custom-reviewer frontmatter omits `model:`) → OMIT the `model=` argument. The Agent tool's runtime resolves the model from the reviewer-agent's frontmatter `model: inherit`.
+- Otherwise, when `spec.model ∈ {haiku, sonnet, opus, fable}` (the user explicitly declared a model in their custom-reviewer frontmatter) → PASS `model="{spec.model}"` verbatim. The user's own declaration overrides the class. On Codex, or Cursor without the name in its list, OMIT `model=` and take the same route.
+- Otherwise, when `spec.model == "auto"` → OMIT the argument and treat it as `inherit`: neither Claude Code nor Cursor's Task tool has an `auto` spelling.
 
 Inherit form (default — user did not declare `model:`):
 
 ```
-Agent(subagent_type="geniro:reviewer-agent", prompt="""   # ladder rung 1 — Claude Code only; elsewhere the bare name if the host lists it, else general-purpose + body
+Agent(subagent_type="geniro:reviewer-agent", prompt="""   # ladder rung 1 — Claude Code only; elsewhere the bare name if the host lists it, else general-purpose + agent-file path
 DIMENSION: {spec.dimension-label}
 CRITERIA: {spec.criteria-content}
 PROJECT SEARCH POLICY: [verbatim global.md rules governing how to search this codebase, or `none declared` — governs every lookup the reviewer makes, not just its first]
@@ -142,13 +142,13 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """)
 ```
 
-User-explicit form (user declared `model: haiku|sonnet|opus`, or `auto` on a host that takes it): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=` (not on Codex, per the bullets above).
+User-explicit form (user declared `model: haiku|sonnet|opus|fable`): identical to the form above, with one extra argument `model="{spec.model}"` after `subagent_type=` (unless the bullets above omit it).
 
 When the consumer writes a review packet for its batch (`/geniro:review` Phase 2, `/geniro:implement` Phase 3), a custom spawn names it exactly as its built-in siblings do: a `REVIEW PACKET:` line — the shared file, plus the plan's own file where the consumer keeps PLAN CONTEXT in one — and the one-line search-policy binding stand in for `PROJECT SEARCH POLICY`, `CHANGED FILES`, `PROJECT CONTEXT`, `DIFF CONTEXT`, and `PLAN CONTEXT` above. `DIMENSION`, `CRITERIA`, `CUSTOM CONTEXT`, `SEVERITY DEFAULT`, and the closing instructions stay inline — each belongs to this spawn alone — and so do `WORKTREE` and its anchor line, since a subagent's starting directory depends on the host.
 
 The DIMENSION value uses the literal form `custom:<slug>` so that the reviewer-agent's output naturally carries the source — the agent emits findings under `## custom:<slug> Review — N findings` and the orchestrator's Phase 4 judge pass picks the source up directly from that header. No new finding-output fields are required.
 
-Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every custom-reviewer spawn site (same runtime-degradation ladder as the built-ins: prefixed → bare → general-purpose with body inlined). When the batch falls back to the next rung, all custom reviewers in that batch fall back together — do not mix ladder rungs (per `spawn-agent.md` §Parallel-spawn sites).
+Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` at every custom-reviewer spawn site (same runtime-degradation ladder as the built-ins: prefixed → bare → general-purpose reading the agent file). When the batch falls back to the next rung, all custom reviewers in that batch fall back together — do not mix ladder rungs (per `spawn-agent.md` §Parallel-spawn sites).
 
 ## Large-diff behavior (consumer: `/geniro:review` only)
 

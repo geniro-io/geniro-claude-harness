@@ -10,14 +10,14 @@ State.md `phase: visual-companion` during this phase. Fires only when a UI trigg
 
 Fire Phase 2 if **either** condition holds:
 
-- Phase 1 research surfaced any path matching a UI file — path matches `**/components/**`, `**/pages/**`, `**/app/**`, `**/views/**`, `**/ui/**`, OR extension is `.tsx` / `.jsx` / `.vue` / `.svelte` / `.css` / `.scss` / `.sass` / `.less` / `.styled.ts` / `.styled.tsx`, OR
-- $ARGUMENTS topic string contains a UI noun: `page`, `screen`, `modal`, `form`, `dashboard`, `button`, `view`, `panel`, `widget`.
+- Phase 1 research surfaced a UI file per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule, OR
+- $ARGUMENTS topic string contains a UI noun (`page`, `screen`, `modal`, `form`, `dashboard`, `button`, `view`, `panel`, `widget`) as a whole word, singular or plural, and the change builds or changes a screen in the project's own product UI, even before any UI file exists — not config for an ops or monitoring tool (Grafana JSON, Terraform, Helm values).
 
-No trigger → skip Phase 2 entirely. Transition `phase: clarify` and proceed to Phase 3.
+No trigger → skip Phase 2. Transition `phase: clarify` and proceed to Phase 3.
 
 ### 2.2 UI preview procedure
 
-Trigger fires → run the procedure documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` end-to-end. That helper spawns the UI description agent, presents the textual preview, runs the revision loop, bounded per `ui-preview-gate.md`, and returns the approved description.
+Trigger fires → run the procedure documented at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` end-to-end. That helper spawns the UI description agent, presents the preview, runs the bounded revision loop, and returns the approved description.
 
 Caller contract (this skill's side):
 - Provide the predicted affected-files list (from Phase 1 echo entries with UI-file matches), $ARGUMENTS topic, 1-2 exemplar UI files (path-only — agent reads them itself).

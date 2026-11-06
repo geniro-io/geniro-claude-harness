@@ -106,7 +106,7 @@ Write the report to OUTPUT_PATH from a shell call — your grant has no direct f
 
 The `Context loaded:` line states your Step 0 loads where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report.
 
-Cap total output at ~3000 characters. Use `... (truncated, N more entries)` markers if any section overflows. Empty sections may be omitted entirely (e.g., drop the `Prior Plans` heading if N=0), except the `Summary for Orchestrator` section, which is always emitted.
+Cap total output at ~3000 characters, written once to fit: never measure the length or rewrite to reach it. Use `... (truncated, N more entries)` markers if any section overflows. Empty sections may be omitted, except `Summary for Orchestrator`, which is always emitted.
 
 ## Anti-patterns
 

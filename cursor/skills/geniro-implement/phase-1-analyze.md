@@ -161,7 +161,7 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
 1. **Semantic-parse `$ARGUMENTS`.** Apply the table in `${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: $ARGUMENTS semantic-parse table".
 2. **Resolve spec source.** Walk the spec discovery list (`${CLAUDE_PLUGIN_ROOT}/skills/implement/implement-reference.md` §"Phase 1: Spec discovery walk-list"). If no spec.md, plan.md, or DESIGN_DOC frontmatter is found AND $ARGUMENTS is non-empty → inline-task mode (write `## Inline Plan` to state.md body).
 3. **Disambiguate if needed.** If $ARGUMENTS is ambiguous, fire AUQ per Phase 1 table. Hold the outcome with the Step 0 picks; Step 4 writes it to `approvals[]` with `category: disambiguate_arguments`.
-4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail); if fresh, `mkdir -p`. With no state.md yet, create it here via `atomic_state_write`: frontmatter `branch:` / `worktree:` for the working tree Step 0 settled, the held Step 0 picks and the Step 3 pick as `approvals[]` entries, and `subagent-model: <tier>` when Step 1 parsed `--subagent-model <tier>` (else omitted; missing reads as `inherit`). The flag has no AUQ and no `approvals[]` entry, but persist it before Phase 3's reviewer batch or a compaction-resume drops the pin. When a validated state.md already exists, append the held entries with `atomic_state_append_list_item`.
+4. **Resolve task slug.** Used for state.md path. If task-dir exists, validate state.md (recovery AUQ on validation fail); if fresh, `mkdir -p`. With no state.md yet, create it here via `atomic_state_write`: frontmatter `branch:` / `worktree:` for the working tree Step 0 settled, the held Step 0 picks, the Step 3 pick, and a ship modifier that pre-answers the ship question (`category: ship_mode`, `source: arguments`) as `approvals[]` entries (the `source: arguments` `ship_mode` entry wins and replaces Step 0g's `launch_config` one), `subagent-model: <tier>` when Step 1 parsed `--subagent-model <tier>` (else omitted; missing reads as `inherit`), and `no-adversarial: true` when it parsed `--no-adversarial`. The flags have no AUQ and no `approvals[]` entry, but persist them before Phase 3's reviewer batch or a compaction-resume drops them. When a validated state.md already exists, append the held entries with `atomic_state_append_list_item`.
 4.5. **Prior-work scan.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` against the spec / plan / DESIGN_DOC resolved at Step 2, or the inline task description in inline-task mode — already named, so this is the read-only carve-out `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §Forbidden discovery moves draws around an already-named target, not target discovery. Running before Step 7 settles `change_scope` lets a hit still narrow or redirect scope. On a hit, §4 owns the gate shape; persist the pick under `category: prior_work_scan` via `atomic_state_append_list_item`.
 5. **Load custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: implement`, `LOAD_TIER: pipeline`, `MODE: refresh`. Its §Procedure is one helper call, then a Read of every path it lists; both are mandatory.
 6. **Load project snapshot.** Phase 1 entry only — Phase 3 does not re-load it.
@@ -229,6 +229,8 @@ Field → decision it pre-answers: the map in reference §"Phase 1: Step 0 setup
 
 13. **State.md write.** Add the `phase: analyze` body sections to the state.md Step 4 created via `atomic_state_append_section --create` per section — a whole-file `atomic_state_write` regenerates the frontmatter and drops the `approvals[]` and `non-resumable-actions[]` entries Steps 4-12 appended. In inline-task mode the `## Inline Plan` ends with a `Premises:` line, the load-bearing facts about existing code the approach relies on, each with `file:line` from the exploration above, which the Phase 3 `intent` reviewer checks. Add a `Round cap: <N>` body line when $ARGUMENTS stated a self-review round limit lower than Phase 3's ROUND_CAP default (`SKILL.md` §Loop invariants); Phase 3's fix loop reads it back instead of re-parsing $ARGUMENTS after a compaction. Leave `phase:` at `analyze` — Phase 2 entry owns the advance to `implement`, so the file names the phase actually completed if the run stops between the two.
 
+   When the exit continues into Phase 2, its last action, in this same turn, is to Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md`, the Phase 2 entry.
+
 **Workflow plumbing.** Workflow integrations (`.geniro/workflow/*.md`) apply their argument-detection patterns BEFORE the semantic-parse table. Non-blocking — log warning if integration backend unavailable.
 
 ### Big-task notice
@@ -240,8 +242,6 @@ This is a large change. Consider running /geniro:plan in milestone mode to
 split it into separate milestone files before implementing. This run will
 proceed as a single pass with a step-by-step task list; splitting is cleaner.
 ```
-
-Milestone mode is the canonical answer for Big tasks (separate worktrees, separate runs); the user may cancel and re-run `/geniro:plan`, which emits milestone files for a Big task. Otherwise the run proceeds.
 
 ### Anti-rationalization (Phase 1)
 

@@ -47,11 +47,11 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 ## Subagent model tiering
 
-**Spawning rule — every spawn site in this skill applies it by citation.** Every spawn is `session` (pass no `model=`) unless this section names it light; the classes, the batch rule and the fallbacks are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, and §Runtime resolution there spells each light class for the host. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` on any other host whose agent-type list carries it, else that host's general-purpose type with the agent body inlined; on a spawn that fails to start or returns empty, Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` and apply its registration ladder and empty-result fallback, then cache the resolved rung for the session.
+**Spawning rule — every spawn site in this skill applies it by citation.** Every spawn is `session` (pass no `model=`) unless this section names it light; the classes, the batch rule and the fallbacks are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, and §Runtime resolution there spells each light class for the host. Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` on any other host whose agent-type list carries it, else that host's general-purpose type with the agent-file path. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` before the first spawn when the host's agent list carries no plugin agent (it enters the general-purpose rung with nothing failing), and on any spawn that fails to start or returns empty; apply its registration ladder and empty-result fallback, then cache the resolved rung for the session.
 
 **Light spawns.** `test-runner-agent` runs as **light (smallest)** on every run, the first included. `knowledge-retrieval-agent` (the Phase 1 memory sweep), the Phase 2 code delegates (one class for the whole batch), the `codebase-research-agent` side queries of loop invariant S3, and the library-reuse-audit web-research spawn run as **light (mid)**. Every other spawn is `session`: the codebase-explorer, the spec-challenge verifiers, every Phase 3 reviewer-agent, `finding-verifier-agent`.
 
-**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** Every spawn site reads the tier from state.md frontmatter `subagent-model:`, falling back to the `$ARGUMENTS` flag where the field is absent (Phase 1 before Step 4 writes it). When the run carries a tier, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start; phase files apply it without re-stating this rule. The flag has no chooser question: Phase 1 Step 1 parses it and Step 4 persists it, so a compaction does not revert spawns to their class.
+**`--subagent-model <tier>` pins the `session` spawns for this run and caps the light ones.** Every spawn site reads the tier from state.md frontmatter `subagent-model:`, falling back to the `$ARGUMENTS` flag where the field is absent (Phase 1 before Step 4 writes it). When the run carries a tier, pass `model="<tier>"` at every `session` spawn — codebase-explorer, every Phase 3 reviewer-agent (built-in and custom, beating a custom reviewer's own declared `model:`), `finding-verifier-agent`, the spec-challenge verifiers. Light spawns take it only as a cap, when it names a cheaper tier than their class resolves to: the flag buys reasoning depth, which light work does not need. Values, the per-batch caching rule, and the fallback routes when the value is inexpressible: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §`--subagent-model`. Announce the pinned tier once at run start. The flag has no chooser question: Phase 1 Step 1 parses it and Step 4 persists it, so a compaction does not revert spawns to their class.
 
 ---
 
@@ -82,12 +82,13 @@ non-resumable-actions: []
 # appended after each one-time AUQ resolution
 approvals: []
 subagent-model: <tier>    # set by --subagent-model (Phase 1 Step 1 parse); missing reads as inherit
+no-adversarial: true      # only when --no-adversarial was parsed; omit otherwise
 # Phase 3 Round 1 declare-before-fire list — resolved reviewer grid + custom:<slug> entries (phase-3-ship.md Step 1)
 spawn_dims_declared: []
 spawn_dims_count: <int>   # count of spawn_dims_declared[], written alongside it in the same atomic_state_write
 # Phase 2 decomposition declare-before-edit list — one short slug per authored todo (phase-2-implement.md Step 2)
 todos_declared: []
-todos_declared_count: <int>  # count of todos_declared[], set alongside it; the Ship pre-terminal check reads both
+todos_declared_count: <int>  # count of todos_declared[], set alongside it; Ship Step 2's check reads both
 # union of every fix-loop round's CHANGED FILES plus every path a fix, nit, or authored test touched (implement-reference.md §"Phase 3: Bounded fix loop" loop-exit); Ship's review-coverage guard diffs this against what is about to be staged
 reviewed_file_set: []
 # <path>@<hash> per reviewed file (hash defined at that loop exit), set at the same exit; Ship's guard treats a hash mismatch as a diverged file
@@ -101,7 +102,7 @@ reviewed_file_hashes: []
 
 ## Memory I/O
 
-Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in this table, since its decision picks the worktree the rest of Phase 1 inspects.
+Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in this table.
 
 | Phase | Calls |
 |---|---|
@@ -110,7 +111,7 @@ Which helper fires where. Step 0 workspace setup precedes every Phase 1 call in 
 | **Phase 3** | Entry: `load-custom-instructions` (`MODE: refresh`) + `load-custom-reviewers` (round 1 only). Fix loop: `query-learnings` per round. Ship sub-step: `emit-learning`, `update-semantic`, and the `non-resumable-actions[]` write via `atomic_state_write` |
 | **Any phase** | `resolve-conflicts` when the layers disagree — a soft conflict prints the notice and continues on the precedence-winning value; a hard conflict (a custom-instruction rule contradicts project reality) halts and asks. `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` |
 
-Each helper's arguments, echo contract, and failure semantics live with the step that calls it. Two rules span all of them — "Custom-instruction load is mandatory in full at every phase entry" and "A declared memory backend joins every learnings read", both in §Loop-invariant detail below.
+Two rules span all of these helpers — "Custom-instruction load is mandatory in full at every phase entry" and "A declared memory backend joins every learnings read", both in §Loop-invariant detail below.
 
 ---
 

@@ -56,7 +56,7 @@ Detail sections for `${CLAUDE_PLUGIN_ROOT}/skills/instructions/SKILL.md`: the pe
 ---
 slug: sql-bindings # REQUIRED; matches filename; must NOT collide with built-in dimensions
 description: All SQL queries use parameterized bindings, never string concatenation
-model: sonnet # OPTIONAL; haiku|sonnet|opus|fable|inherit (+ auto outside Claude Code); omitted = inherit (orchestrator tier)
+model: sonnet # OPTIONAL; haiku|sonnet|opus|fable|inherit (+ auto = inherit); omitted = inherit (orchestrator tier)
 paths: # OPTIONAL; list of globs; absent = always fires
 - "**/*.sql"
 - "**/dao/*.{ts,py}"

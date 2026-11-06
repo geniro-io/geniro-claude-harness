@@ -17,15 +17,15 @@ argument-hint: "[task description | spec.md path | empty to resume | 'continue']
 
 ---
 
-You are an autonomous executor. Consume an externally-provided spec (or inline task description), make every required code edit, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`. One orchestrator owns the Phase 2 edits; only a genuinely independent group is ever delegated.
+You are an autonomous executor. Consume an externally-provided spec (or inline task description), make every required code edit, run the test suite, then run a parallel self-review pass before shipping. Strategic concerns belong upstream in `/geniro:plan`.
 
 **Runtime portability.** If Codex truncated this file, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
 **Phases:**
 
 1. **Analyze (Phase 1)** — workspace setup; spec source (spec.md / plan.md / DESIGN_DOC frontmatter, else inline-task fallback); custom-instruction + project-snapshot loads; the knowledge-retrieval + codebase-explorer spawn pair; the handoff open-questions gate; a spec fact-check before any edit.
-2. **Implement (Phase 2)** — sequential todo-list decomposition (1-15 todos, one `in_progress` at a time inline); a pre-change screenshot of any UI surface; disjoint-file-set todo groups delegated in parallel by default, coupled work inline; one end-of-phase suite run via `test-runner-agent`; bounded fix loop → escalate-AUQ.
-3. **Self-review + Ship (Phase 3)** — parallel reviewer-agents for the `change_scope`-scaled grid plus any custom dimensions; an inline edge-case test-authoring pass; a cold `finding-verifier-agent` verdict on every CRITICAL/HIGH before the fix loop consumes it; bounded fix loop; the pre-ship minor-findings and test-quality gates; then the ship sub-step (visual verification, commit, ship-mode AUQ, learnings + snapshot writes, cleanup).
+2. **Implement (Phase 2)** — sequential todo-list decomposition; a pre-change screenshot of any UI surface; disjoint-file-set todo groups delegated in parallel by default, coupled work inline; one end-of-phase suite run via `test-runner-agent`; bounded fix loop → escalate-AUQ.
+3. **Self-review + Ship (Phase 3)** — parallel reviewer-agents for the `change_scope`-scaled grid plus any custom dimensions; an inline edge-case test-authoring pass; a cold `finding-verifier-agent` verdict on every CRITICAL/HIGH before the fix loop consumes it; bounded fix loop; the pre-ship minor-findings and test-quality gates; then the ship sub-step (visual verification, ship-mode AUQ, learnings).
 
 **REFERENCE.**
 
@@ -56,7 +56,8 @@ State.md `phase:` transitions (`from → to | trigger`):
 | self-review | self-review-only | "stop after review" modifier — exit before commit (terminal) |
 | self-review | implement | Phase 3 fix-loop re-spawn of `test-runner-agent` comes back non-green — rollback into the Phase 2 retry loop (`phase-3-ship.md` Step 3, `implement-reference.md` §"Phase 3: Bounded fix loop") |
 | self-review | phase-3-escalated | review fix-loop exhausted / not converging |
-| phase-3-escalated | debug-handoff \| ship \| aborted | the escalation AUQ pick: escalate to debug (terminal) \| accept findings, which appends a `## Accepted Findings` body block \| abort (terminal) |
+| phase-3-escalated | debug-handoff \| ship \| self-review-only \| aborted | the escalation AUQ pick: escalate to debug (terminal) \| accept findings, which appends a `## Accepted Findings` body block; the Ship sub-step then writes `ship`, or `self-review-only` (terminal) on "stop after review" \| abort (terminal) |
+| phase-3-escalated | implement | accept findings, final full-suite run non-green — Phase 2 rollback |
 | ship | implement | Ship's reconciliation finds an unbuilt spec requirement and the user picks "build it now" — rollback into Phase 2 (`phase-3-ship.md` Ship sub-step 0) |
 | ship | done | committed + pushed + PR (terminal) |
 | ship | ship-committed-only | "don't push" / "no push" / "commit only" modifier (terminal) |
@@ -65,7 +66,7 @@ Each `git push` / `gh pr create` / posted comment appends to `non-resumable-acti
 
 **Terminal states**: `done`, `ship-committed-only`, `self-review-only`, `debug-handoff`, `aborted`. Every transition into a terminal state runs the transient cleanup in `implement-reference.md` §"Cleanup" before the terminal `phase:` write — leftover transient files in a finished task-dir resurface as migration warnings on every plugin update.
 
-**Non-terminal states**: `analyze`, `implement`, `self-review`, `ship`. **Escalation (paused) states**: `phase-2-escalated`, `phase-3-escalated` (an AUQ is open; resume re-surfaces it). An aborted run writes a `## Termination reason` line — format and the pre-state.md cancel case in `operations-reference.md` §Loop-invariant detail.
+**Non-terminal states**: `analyze`, `implement`, `self-review`, `ship`. **Escalation (paused) states**: `phase-2-escalated`, `phase-3-escalated` (resume re-surfaces the open AUQ). An aborted run writes a `## Termination reason` line — format and the pre-state.md cancel case in `operations-reference.md` §Loop-invariant detail.
 
 ---
 
@@ -73,11 +74,11 @@ Each `git push` / `gh pr create` / posted comment appends to `non-resumable-acti
 
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across all 3 phases. Two apply with implementation-specific bounds: **Invariant #4 (bounded results)** binds reviewer-agent output to the per-dimension report cap its own contract declares (`${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap), and Bash output past 8000 chars is summarized before downstream use; **Invariant #5 (escalation gates)** bounds the retry loops at RETRY_CAP = 3 rounds in Phase 2; Phase 3's ROUND_CAP defaults to 3 rounds, or the lower limit the task input states, escalating early when the loop is not converging — canonical trigger list, and the once-per-run dedupe that spans both loops, in `phase-2-implement.md` §Step 6. This skill adds five invariants:
 
-S1. **Investigation reads delegated to subagents.** Phase 1 inline reads only the custom instructions (pipeline load set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`), the project snapshot (2 files), spec.md body, state.md, handoff files, the capped past-learnings query, and a declared memory backend's read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. `.claude/rules/*.md` bodies, exemplar source files, the full learnings sweep, and prior plans are spawned out to the `knowledge-retrieval-agent` + `codebase-explorer-agent` pair (the explorer takes spec.md and returns a REUSE/EXTEND/NO-ANALOGUE inventory) and read back as condensed reports. Inline-reading the rest is the documented context-bloat regression.
-S2. **One todo in_progress at a time in the orchestrator's own inline editing loop.** Marking a second todo `in_progress` while another is open inline is the documented anti-pattern. A delegated todo is marked `in_progress` when its delegate spawns and `completed` as that delegate's diff is read, so a parallel delegate batch holds several todos `in_progress` at once.
+S1. **Investigation reads delegated to subagents.** Phase 1 inline reads only the custom instructions (pipeline load set per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`), the project snapshot (2 files), spec.md body, state.md, handoff files, the capped past-learnings query, and a declared memory backend's read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3. `.claude/rules/*.md` bodies, exemplar source files, the full learnings sweep, and prior plans are spawned out to the `knowledge-retrieval-agent` + `codebase-explorer-agent` pair (the explorer takes spec.md and returns a REUSE/EXTEND/NO-ANALOGUE inventory) and read back as condensed reports.
+S2. **One todo in_progress at a time in the orchestrator's own inline editing loop.** A delegated todo is marked `in_progress` when its delegate spawns and `completed` as that delegate's diff is read, so a parallel delegate batch holds several at once.
 S3. **Codebase research spawns `codebase-research-agent` — never built-in `Explore`, never a project-local agent from `.claude/agents/`.** Spawn it as **light (mid)** (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes) for Phase 2's ad-hoc cross-file research ("trace this flow", "find every site calling this helper") that the Phase 1 inventory doesn't cover, overriding the system-prompt default and any project-authored substitute. Rationale + invocation contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 S4. **Every state.md mutation routes through the `atomic-state-write` helpers.** Advance one frontmatter field with `atomic_state_set_field`, append an entry with `atomic_state_append_section` / `atomic_state_append_list_item`, patch one span with `atomic_state_edit`, and reserve `atomic_state_write` for writing a whole file. A direct `Edit`/`Write` on a canonical state path truncates and rewrites in place, so a crash mid-write leaves a partial file. Invocation snippet: `${CLAUDE_PLUGIN_ROOT}/skills/implement/operations-reference.md` §State persistence "Write contract".
-S5. **Tool surface is phase-scoped — no source writes or edits outside Phase 2's inner loop, Phase 3's bounded fix loop, Phase 3's edge-case test-authoring step (test files only — never production source), or the Ship sub-step's review-coverage re-review, and no `git commit` / `git push` / `gh pr create` outside the Phase 3 Ship sub-step.** The Ship re-review is narrow (diverged files only, `phase:` stays `ship`); an unbuilt spec requirement caught at Ship rolls back to `phase: implement` instead — detail in `operations-reference.md` §Loop-invariant detail. Full per-phase allow/block table, with the leaf-agent tool ceilings: `operations-reference.md` §ACI per-phase tool surface and each phase body.
+S5. **Tool surface is phase-scoped — no source writes or edits outside Phase 2's inner loop, Phase 3's bounded fix loop, Phase 3's edge-case test-authoring step (test files only — never production source), or the Ship sub-step's review-coverage re-review, and no `git commit` / `git push` / `gh pr create` outside the Phase 3 Ship sub-step.** The Ship re-review is narrow (diverged files only, `phase:` stays `ship`) — detail in `operations-reference.md` §Loop-invariant detail. Full per-phase allow/block table, with the leaf-agent tool ceilings: `operations-reference.md` §ACI per-phase tool surface and each phase body.
 
 **Inbound handoff gate.** A `/geniro:review` or `/geniro:debug` handoff for the current branch — `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` and its `from-debug-` sibling — gates Phase 1 exit: every `open_questions[]` entry carrying `status: unresolved` must be resolved with the user and round-tripped back into the producer's file before the run transitions to `phase: implement`. Full contract: `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` §Step 12.
 
@@ -103,13 +104,13 @@ Rows guarding a single phase live in that phase file's own anti-rationalization 
 
 ## PHASE 1: ANALYZE
 
-State.md `phase: analyze` on entry. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — it carries the Steps. Step 0's workspace decision tree and the project-instruction load both live in it, so no `git` probe, branch creation, or source edit precedes the Read. Exit: `phase: implement`, which the handoff gate blocks while any `unresolved` open question remains.
+State.md `phase: analyze` on entry. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-1-analyze.md` as this phase's first action, then echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`** — it carries the Steps. Step 0's workspace decision tree and the project-instruction load both live in it, so no `git` probe, branch creation, or source edit precedes the Read. Phase 2's entry writes `phase: implement`, which the handoff gate blocks while any `unresolved` open question remains.
 
 ---
 
 ## PHASE 2: IMPLEMENT
 
-State.md `phase: implement` on entry — the execution phase. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md`** — it carries the Steps. Exit: `phase: self-review` on a green suite plus passing spec `verify:` checks, else `phase: phase-2-escalated`.
+State.md `phase: implement` on entry — the execution phase. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/implement/phase-2-implement.md`** — it carries the Steps. Exit: a green suite plus passing spec `verify:` checks hands on to Phase 3, whose entry writes `phase: self-review`; else `phase: phase-2-escalated`.
 
 ---
 
@@ -123,9 +124,9 @@ State.md `phase: self-review` on entry, `phase: ship` at the Ship sub-step. **On
 
 0. **Check for existing state.md.** Glob `<task-slug>/state.md`:
 - **No state.md** → fresh run. Proceed to Phase 1.
-- **state.md exists, phase reads as terminal** → task complete, surfaced to user (or, when `$ARGUMENTS` carries a new task description, derive a new slug and start fresh) — nothing further reads the file.
-- **state.md exists, phase reads as non-terminal (or unreadable)** → validate it first via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before trusting it for resume; on failure, open the recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency). On pass, resume from `phase:` — the SessionStart hook re-injects context.
+- **state.md exists, phase reads as terminal** → task complete, surfaced to user (or, when `$ARGUMENTS` carries a new task description, derive a new slug and start fresh).
+- **state.md exists, phase reads as non-terminal (or unreadable)** → validate it first via `validate_state_file` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` before trusting it for resume; on failure, open the recovery AUQ (delete-and-restart / open-in-editor / update-worktree-path / skip-emergency). On pass, append a `$ARGUMENTS` ship modifier as a `ship_mode` entry (`source: arguments`; the latest entry wins), then resume from `phase:`.
 
-1. **Todo-list checklist.** Add: Analyze / Implement / Self-review-and-Ship. Mark Analyze in_progress; update each as it completes.
+1. **Todo-list checklist.** Add the stage items Analyze / Implement / Self-review-and-Ship and mark Analyze `in_progress` now; each stays open while its phase runs, is `in_progress` while no work todo is, and is completed when it ends. Phase 2's work todos join these three, never replace them; Self-review-and-Ship stays open until Phase 3 reaches a terminal state.
 
 2. **Begin Phase 1.**

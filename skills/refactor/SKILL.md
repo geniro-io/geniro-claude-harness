@@ -85,7 +85,7 @@ This skill adds two invariants:
 
 S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`.** Overrides the system-prompt agent list's default codebase-research tool; rationale + invocation contract at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
-S2. **One todo in_progress at a time.** Use the todo-list tool to expose per-phase progress: at skill start, create phase-level todos (Plan, Apply, Verify); during Phase 2, add dynamic per-step todos derived from the approved plan; mark `in_progress` → `completed` as phases run.
+S2. **One todo in_progress at a time.** Expose progress in the todo list: phase-level todos (Plan, Apply, Verify) from skill start, each completed when its phase ends and `in_progress` only while no per-step todo is; in Phase 2, per-step todos from the approved plan, each `in_progress` → `completed` in turn.
 
 **Turn boundaries.** A turn ends in exactly three places: on a fired approval question, on reaching a terminal `phase:` state, or when the user asked something and is owed the answer. Everywhere else the next action follows in the same turn, with a tool call — between steps, after a check comes back green, after a state write, at a phase transition, and when a subagent's result lands. A status report, a checkpoint summary, and a list of what remains are continuations, not endings: write one where it helps the user follow along, then take the next action in that same turn. A decision that needs the user is asked as a real question in the turn that raises it, its render and the question inside that one turn (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard) — a question left in prose, or announced for a later message, leaves the run waiting on an answer the user was never asked for. Reversibility is not the test: a deviation from a rule this run loaded is a gate however cheap it is to undo.
 
@@ -124,7 +124,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 | Per-step retry (orchestrator-inline Blocked Step Protocol) | 3 | Mark BLOCKED, continue to next step |
 | Session-level blocked ratio | 30% (post-rejection denominator) | AUQ — keep what worked & escalate / revert / force-continue. User picks. |
 | Phase 3 fix-loop | 1 round | Re-spawn reviewer once; if still failing, AUQ (escalate / accept / abort). |
-| Reviewer output size | the per-dimension report cap in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap | Truncation with marker (canonical invariant #4). |
+| Reviewer output size | the per-dimension report cap in `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` §Output cap | That section's overflow rule (canonical invariant #4). |
 
 **Architecture constraints (design intent, not budget):**
 
@@ -138,7 +138,7 @@ Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §Budgets — qual
 
 ## Subagent model tiering
 
-Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn plugin-defined subagents through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` under Claude Code → bare `<agent>` where the host lists it → `general-purpose` with body inlined); cache the resolved rung for the session.
+Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn plugin-defined subagents through the registration ladder in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` (`geniro:<agent>` under Claude Code → bare `<agent>` where the host lists it → `general-purpose` + agent-file path); cache the resolved rung for the session.
 
 Co-cite `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` at every spawn site — every Agent prompt satisfies every pre-inlined field, because a spawn missing a field makes the subagent re-discover scope from scratch and drift.
 
@@ -208,7 +208,7 @@ Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 
 ## Definition of done
 
-The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md` — the load-bearing exit gates and safety invariants, including the no-ship boundary. Read at Phase 3 entry; walk it before the terminal `phase:` write.
+`${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md` carries the load-bearing exit gates and safety invariants, including the no-ship boundary; walk it before the terminal `phase:` write.
 
 ---
 

@@ -104,7 +104,7 @@ When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLA
 
 ## Subagent spawning
 
-Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `subagent_type="<agent>"` on any other host listing it, else that host's general-purpose type, agent body inlined. `--subagent-model <tier>` (state.md `subagent-model:` first, else `$ARGUMENTS`) passes `model="<tier>"` at every session spawn instead — announce the pinned tier once at run start. The flag only lowers the light S1 lookups; it never raises them. Spawn list, registration ladder, and flag reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
+Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `"<agent>"` on any other host listing it, else that host's general-purpose type, agent-file path; read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` when no plugin agent is listed or a spawn fails. `--subagent-model <tier>` (state.md `subagent-model:` first, else `$ARGUMENTS`) passes `model="<tier>"` at every session spawn instead — announce the pinned tier once at run start. The flag only lowers the light S1 lookups, never raises them. Spawn list, ladder, and flag reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
 
 ---
 
