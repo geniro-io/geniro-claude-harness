@@ -85,7 +85,7 @@ Present the agent's output verbatim — in mockup form that output is the digest
 - B) **Describe differently — I'll explain** — I want to describe how the UI should look in my own words
 - C) **Adjust the plan instead** — the description is fine but the underlying plan is wrong
 
-A reply that isn't A, B, or C — a question back, off-topic text, anything that isn't a selection — has not answered the gate: apply the unanswered-gate contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions (record it if the caller keeps a state file, then re-fire this identical question) rather than reading it as approval or moving on.
+A reply that isn't A, B, or C — a question back, off-topic text — has not answered the gate: apply the unanswered-gate contract in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions (record it if the caller keeps a state file, then re-fire this identical question, re-presenting the output first if other messages landed since) rather than reading it as approval or moving on.
 
 ### Step 3: Revision loop (only if user picked B)
 

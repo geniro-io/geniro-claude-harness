@@ -16,6 +16,7 @@
 # touched. The repo's own cursor/ tree is read-only input.
 
 set -uo pipefail
+unset CLAUDE_CONFIG_DIR
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SCRIPT="$REPO_ROOT/scripts/install-cursor.sh"

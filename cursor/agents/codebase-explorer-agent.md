@@ -120,7 +120,7 @@ Write the report to OUTPUT_PATH from a shell call — your grant has no direct f
 
 `Context loaded:` reports your Step 0 result; value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. Your Step 0 echo stays inside this run; this line is what reaches the spawn site.
 
-Cap total output at ~5000 characters. Use `... (truncated, N more)` markers if a section overflows. Empty sections may be omitted (e.g., no `.claude/rules/` matches → emit `(no project-scoped rules detected)`), except `Summary for Orchestrator`, which is always emitted.
+Cap total output at ~5000 characters, written once to fit: never measure the length or rewrite to reach it. Use `... (truncated, N more)` markers if a section overflows. Empty sections may be omitted (e.g., no `.claude/rules/` matches → emit `(no project-scoped rules detected)`), except `Summary for Orchestrator`, which is always emitted.
 
 ## Anti-patterns
 

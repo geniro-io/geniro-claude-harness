@@ -177,7 +177,7 @@ After loop:
   Send the accumulated batch (the invariant below governs how).
   - Use `Agent(subagent_type="geniro:finding-verifier-agent", ...)` — bare `subagent_type="finding-verifier-agent"`
     on any other host whose agent-type list carries it, else that host's general-purpose
-    type with the agent body inlined — per the ladder in
+    type with the agent-file path — per the ladder in
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md`.
   - Spawn as **session** — pass no `model=` — per
     `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, or pass the

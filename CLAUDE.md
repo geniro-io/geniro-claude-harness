@@ -92,5 +92,5 @@ scripts/word-delta.sh <base>          # instruction word budget — a pass ends 
 | Design decisions, subagent model tiering, optional MCP companions, the Cursor and Codex runtime ports | `ARCHITECTURE.md` |
 | Skill catalogue — full descriptions, every flag, the deleted skills and their replacements | `README.md` |
 | Breaking changes and the per-entry upgrade walk | `MIGRATION.md` |
-| Agent spawn ladder (`geniro:<agent>` → bare → `general-purpose` + inlined body) | `skills/_shared/spawn-agent.md` |
+| Agent spawn ladder (`geniro:<agent>` → bare → `general-purpose` + agent-file path) | `skills/_shared/spawn-agent.md` |
 | Authoring rules for skills and agents (voice, structure, what never ships) | `.claude/rules/*.md` — path-scoped, so they load when you touch a skill or agent file |

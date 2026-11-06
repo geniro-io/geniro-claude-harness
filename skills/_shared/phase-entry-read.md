@@ -16,7 +16,7 @@ A skill split into a spine plus phase files reaches the model as the spine alone
 
 ## The rule
 
-**The phase-body Read comes before any step of the phase.** No inspection of the project and no spawn precedes it — not a `git status` probe, not a Glob, not an Agent call. The phase's steps begin in the turn after.
+**The phase-body Read comes before any step of the phase.** No inspection of the project and no spawn precedes it — not a `git status` probe, not a Glob, not an Agent call.
 
 Three things are explicitly NOT displaced, because they are bookkeeping rather than phase work: the `phase:` stamp a skill writes to state.md on entry, a `MODE: initial-load` memory load a skill prescribes as its own first action, and — on a host where `${CLAUDE_PLUGIN_ROOT}` is unset — the plugin-root probe each SKILL.md preamble mandates, which is a precondition of this Read rather than an inspection competing with it. Where those are ordered first, they stay first — this contract governs the order of the phase's *steps*, and the file it makes you Read is usually where those very loads are invoked.
 

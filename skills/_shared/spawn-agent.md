@@ -44,16 +44,16 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
 2. **Bare name — the entry when the list carries it, or after rung 1 fails to start** (`Agent type 'geniro:<agent>' not found`, `Couldn't start`, or whatever else this host says when a subagent never begins): `Agent(subagent_type="<agent>", ...)`. This is the form registered in vendored / harness installs (agents copied to `.claude/agents/geniro-*.md` with their YAML `name:` unchanged) and in the Cursor IDE and `cursor-agent -p` after the profile install (`cursor/agents/*.md`). Judge by whether the agent started, not by whether the wording matched a string in this file.
 
-3. **The host's own general-purpose agent type — the entry when the list carries neither form, or after the bare name fails to start.** `general-purpose` on Claude Code, `default` on Codex (or `agent_type` omitted), `generalPurpose` on Cursor (its Task tool accepts a closed set of agent types built at session start; a name outside that set is rejected, not routed to a fallback):
+3. **The host's own general-purpose agent type — the entry when the list carries neither form, or after the bare name fails to start.** `general-purpose` on Claude Code, `default` on Codex (or `agent_type` omitted), `generalPurpose` on Cursor (its Task tool rejects any name outside its closed set of agent types):
 
    ```
    Agent(
      subagent_type=<host's general-purpose type>,
-     prompt=<<contents of ${CLAUDE_PLUGIN_ROOT}/agents/<agent-name>.md, body only — strip YAML frontmatter>> + "\n\n---\n\n" + <original prompt>
+     prompt="Read <root>/agents/<agent-name>.md in full first and follow it as your system prompt, ignoring its YAML frontmatter; ${CLAUDE_PLUGIN_ROOT} in that file and below is <root>. If it does not open, stop and say so.\n\n---\n\n" + <original prompt>
    )
    ```
 
-   Read the agent file, drop the leading `---\n…\n---\n` frontmatter block, and prepend the remaining body to your task prompt with a `---` separator. If the file has no leading `---` line, treat the whole file as the body and prepend verbatim. Pass the same `description=` you would have used (Codex's current spawn tool takes a unique snake_case `task_name` instead).
+   `<root>` is the absolute plugin root, resolved per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` §Plugin-root resolution — the child cannot expand the token. The prompt carries the path, never the body: a body typed into every spawn of a batch holds the fan-out back and keeps its unresolved `${CLAUDE_PLUGIN_ROOT}` tokens. Inline the body, tokens resolved, only where the child cannot Read the path but you can. Never summarize the contract; the child reads the whole file. Pass the same `description=` you would have used (Codex's current spawn tool takes a unique snake_case `task_name` instead).
 
 4. **Cache the resolution for the rest of the session.** Plugin registration is fixed at session init and does not change mid-session. Once you've established whether step 1 or step 2 worked (or both failed), every subsequent plugin-agent spawn in the same session uses that resolved form directly — do NOT re-walk the ladder. The cache does NOT carry across sessions; re-walk at the next session's first spawn.
 
@@ -61,7 +61,7 @@ When a skill's instructions say to `Agent(subagent_type="<plugin-agent>", ...)`:
 
 ## Empty-result fallback (spawn returned nothing usable)
 
-The ladder above resolves "agent type not found" — an agent-*registration* failure. A separate, independent failure is a spawn that resolves and runs but returns **empty** (`Done (0 tool uses · 0 tokens · 1s)` — zero output). The common cause is a model-availability mismatch: a light spawn passes a model different from the orchestrator's and fails immediately when the orchestrator session runs a context-window beta that model doesn't support — a 1M-context session cannot spawn a child from a family with no 1M-context variant. The orchestrator sees an error it may misread as "prompt too long" even when the prompt is tiny; an empty return on a *small* prompt is the tell that this is a model/beta mismatch, not a real size problem.
+The ladder above resolves "agent type not found" — an agent-*registration* failure. A separate, independent failure is a spawn that resolves and runs but returns **empty** (`Done (0 tool uses · 0 tokens · 1s)` — zero output). The common cause is a model-availability mismatch: a light spawn passes a model different from the orchestrator's and fails immediately when the orchestrator session runs a context-window beta that model doesn't support — a 1M-context session cannot spawn a child from a family with no 1M-context variant.
 
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes (Fallbacks) owns the triggers; this section runs the retries for read-only spawns and for a writer whose model the host refused, never for a writer that already started.
 
@@ -75,14 +75,14 @@ Every light site applies this fallback — the class is a speed/cost preference,
 
 ## Why the entry rung is read from the list
 
-The registered form follows the install, not the host: Claude Code registers `geniro:reviewer-agent` when marketplace-installed and bare `reviewer-agent` when vendored; Cursor registers the bare names in its IDE and in `cursor-agent -p`, but none when the same binary is driven over ACP. Neither the host nor the skill text tells these apart, and the list the host publishes already does. A wrong entry costs more than one round-trip — §Parallel-spawn sites degrades the *whole batch* together, so an 11-reviewer fan-out opened at a form the host does not list spends 11 dead spawns and a second full turn before any real work starts.
+The registered form follows the install, not the host, and only the list the host publishes tells them apart. A wrong entry costs more than one round-trip — §Parallel-spawn sites degrades the *whole batch* together, so an 11-reviewer fan-out opened at a form the host does not list spends 11 dead spawns and a second full turn before any real work starts.
 
 ## Worked example
 
-Rungs 1 and 2 are the skill's own `Agent(...)` call with `subagent_type` swapped for that rung's form (`geniro:reviewer-agent`, then bare `reviewer-agent`); nothing else about the call changes. Rung 3 is the only shape worth rendering — the host's general-purpose prompt is the agent body, a `---` separator, then the original prompt unchanged:
+Rungs 1 and 2 are the skill's own `Agent(...)` call with `subagent_type` swapped for that rung's form (`geniro:reviewer-agent`, then bare `reviewer-agent`); nothing else about the call changes. Rung 3 is the only shape worth rendering — the host's general-purpose prompt is one contract line naming the agent file, a `---` separator, then the original prompt unchanged:
 
 ```
-<<body of ${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md, frontmatter stripped>>
+<step 3 contract line, naming <root>/agents/reviewer-agent.md>
 ---
 DIMENSION: bugs …          ← the original prompt, verbatim
 ```
@@ -98,8 +98,8 @@ Step 3 loses the `tools:` allowlist enforcement (general-purpose has the full to
 | "I'm on Cursor, so the bare name is the entry — the ladder will catch it if not" | Only where the profile's agents load — the IDE and `cursor-agent -p`. Driven over ACP, the same binary's enum carries no plugin agent, and every bare-name spawn in the batch is rejected. Read the enum: neither form listed means rung 3 on the first call. |
 | "I'll prefix as `<some-other-plugin>:<agent>` — the prefix is the plugin name" | The prefix is the *installed* plugin namespace. For this plugin it is exactly `geniro` (matches `.claude-plugin/plugin.json`'s name field). Do not invent prefixes. |
 | "The first attempt failed — I should retry the same form just to be sure" | Plugin registration is fixed at session init. The cache does NOT carry across sessions, but it absolutely holds within a session; re-attempting wastes a call. Re-walk at next session's first spawn. |
-| "The agent body is long — I'll summarize it before inlining at step 3" | The agent's system prompt is the contract. Summarizing changes the contract. Inline the body verbatim (frontmatter stripped). |
-| "Read-only agents like reviewer-agent shouldn't run as general-purpose at step 3 because they could now edit files" | Correct hazard, wrong mitigation. The mitigation is an explicit instruction inside the inlined prompt — most agent files already say "Do not Edit/Write/Bash apart from read-only commands." If yours doesn't, add it before falling back. |
+| "The agent file is long — I'll summarize it at step 3, or skip the path and let the child find it" | The agent's system prompt is the contract. Summarizing changes it, and a child never given the path searches for it or runs without it. Name the absolute path. |
+| "Read-only agents like reviewer-agent shouldn't run as general-purpose at step 3 because they could now edit files" | Correct hazard, wrong mitigation. The mitigation is an explicit instruction in the file the child reads at step 3 — most agent files already say "Do not Edit/Write/Bash apart from read-only commands." If yours doesn't, add it to the spawn prompt. |
 | "If steps 1 and 2 both fail, I'll just give up and run the work in my own context" | That defeats the parallelism/isolation purpose of the spawn. Always degrade to general-purpose at step 3. |
-| "I'll pass a model explicitly at the spawn site to be safe" | A session spawn omits `model=` at every rung; only a light site passes a model, the host spelling of its class from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Runtime resolution. The model travels with the call, only `subagent_type` swaps per rung. |
+| "I'll pass a model explicitly at the spawn site to be safe" | A session spawn omits `model=` at every rung; only a light site passes a model, the host spelling of its class from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Runtime resolution. |
 | "The spawn came back empty saying the prompt was too long — I'll shorten the prompt and retry." | An empty return (`0 tokens`) with a "too long" message on a *small* prompt is a model/context-beta mismatch, not a real size problem — shortening won't help (the retry comes back just as empty). Apply the empty-result fallback: step up a class until session omits `model=` (inherits the parent's context window), then the caller's own error path, or the output authored inline where it has none. |

@@ -84,7 +84,7 @@ For each candidate finding you rate 40 or above:
 3. **Adjust confidence** — increase if confirmed, decrease if ambiguous
 
 ### Step 4: Emit findings
-Emit every finding that still scores 40 or above after Step 3's adjustment, each carrying its `Confidence:` number. Score honestly rather than strategically — do not distort a number to move a finding past a perceived threshold in either direction. Admission is not yours to decide: the orchestrator runs a gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) on severity, evidence, and decision-type — a PRODUCT-DECISION finding reaches the user at any severity. Your confidence and cross-reviewer convergence are reported alongside the finding, not gating inputs, so there is nothing to gain by withholding a mid-scored finding. The 40 is a noise bound on report volume, not an admission threshold — below it your own read is that the finding is more likely a misread than a defect.
+Emit every finding that still scores 40 or above after Step 3's adjustment, each carrying its `Confidence:` number; only §Output cap drops one. Score honestly rather than strategically — do not distort a number to move a finding past a perceived threshold in either direction. Admission is not yours to decide: the orchestrator runs a gate (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) on severity, evidence, and decision-type — a PRODUCT-DECISION finding reaches the user at any severity. Your confidence and cross-reviewer convergence are reported alongside the finding, not gating inputs, so withholding a mid-scored finding gains nothing. The 40 is a noise bound on report volume, not an admission threshold — below it your own read is that the finding is more likely a misread than a defect.
 
 Outside `intent` (which checks a decision's claims about the code rather than deferring to them), when a finding's behavior is explicitly addressed by a plan decision absorbed in Step 1.5, prefix the finding title with `[ALIGNS-WITH-PLAN-<marker>]` (behavior matches the decision — usually means downgrade or drop) or `[DIVERGES-FROM-PLAN-<marker>]` (behavior contradicts the decision — verify against spec), using the project's exact decision marker. Example: `[DIVERGES-FROM-PLAN-D-09] Backfill missing for existing timeline rows`.
 
@@ -140,7 +140,7 @@ The `Context loaded:` line is your Step 1 and Step 1.6 loads stated where the or
 
 ### Output cap
 
-**~4000 characters for the whole report.** Consumers inline your report beside every other dimension's, so an over-budget report degrades the synthesis. On overflow, keep the highest-severity findings, drop whole finding blocks from the tail rather than truncating one mid-block (consumers parse complete blocks), and append `... (truncated, N more findings)`.
+**~4000 characters for the whole report.** Consumers inline your report beside every other dimension's. Write it once to fit; never measure or rewrite to reach the number. Every MEDIUM-or-higher and `[PRODUCT-DECISION]` finding stays, its evidence cut to file:line plus two quoted lines (`Why this matters` and `Suggested fix` shrink first); only whole LOW blocks drop (consumers parse complete blocks), marked `... (truncated, N more findings)`.
 
 ### State verified facts — don't ask the reader to confirm what you can check
 
