@@ -28,7 +28,7 @@ Write `mode: init | re-run` to state frontmatter; persists across the run.
 
 ### 1.2 Query past learnings
 
-After load-custom-instructions, query past learnings for prior `discovery` entries tagged `setup` — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": under a `## Memory Backend` block query the declared read tool (the file `.geniro/knowledge/learnings.jsonl` is empty under `mode: replace`), else:
+After load-custom-instructions, query past learnings for prior `discovery` entries tagged `setup` — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (under a declared `## Memory Backend` block, the declared read tool is merged with the file query under `mirror` and replaces it under `replace`):
 
 ```bash
 source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh"

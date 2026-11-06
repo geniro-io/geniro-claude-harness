@@ -164,7 +164,7 @@ Route every user-facing choice in this skill through the `AskQuestion` tool per 
 ## ACI per-phase tool surface
 
 **Phase 1 (Plan):**
-- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / AskQuestion.
+- Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / the declared memory backend's read tool / AskQuestion.
 - Allowed subagent spawns: `codebase-research-agent` (**light (smallest)**) for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
 - Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`.
 

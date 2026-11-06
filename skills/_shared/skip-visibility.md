@@ -28,7 +28,7 @@ Both are fixed the same way: move the proof out of narration and into the thing 
 Context loaded: <item>=<state>, <item>=<state>
 ```
 
-`<item>` names what the agent's contract told it to load (`criteria`, `project-rules`, `search-policy`, `memory-routing`). `<state>` is one of:
+`<item>` names what the agent's contract told it to load (`criteria`, `project-rules`, `search-policy`). `<state>` is one of:
 
 | State | Means |
 |---|---|

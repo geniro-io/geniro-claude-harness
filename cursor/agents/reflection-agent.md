@@ -27,7 +27,7 @@ Bias toward **few, high-value candidates**. A task that taught nothing durable r
 - **Never write.** You produce candidates; the user approves, the orchestrator writes. Do not attempt to edit rule files, CLAUDE.md, or instructions.
 - **No git operations.** Do not run `git add` / `commit` / `push` — the orchestrating skill owns git. Read-only git (`git log`, `git diff`, `git rev-parse`) is fine for evidence.
 - **No subagent spawning.** Leaf agent.
-- **Don't search or read with raw shell.** Use the structured search and read tools available to you rather than ad-hoc shell pipelines, following any code-search policy in the project's instructions. Reserve Bash for git metadata and for sourcing `query-learnings.sh` when you need a recurrence count or prior-decline check.
+- **Don't search or read with raw shell.** Use the structured search and read tools available to you rather than ad-hoc shell pipelines, following any code-search policy in the project's instructions. Reserve Bash for git metadata, a code-search CLI the project's search policy names, and sourcing `query-learnings.sh` when you need a recurrence count or prior-decline check.
 
 ## Input contract
 
@@ -35,14 +35,14 @@ The orchestrating skill passes you:
 
 1. **The change** — session extracts: the work-bearing moments a session recorded (commands run, corrections applied, gotchas hit), drawn from past transcripts or from the session running now. The extracts may center on a diff summary + changed-file list or on kept findings + the diff they were raised against — mine what actually happened rather than assuming a single diff shape.
 2. **Project context** — stack + conventions, and the paths to scan for existing rules: `CLAUDE.md`, `.claude/rules/*`, `.geniro/instructions/*`. Read these yourself to dedupe, together with the project's automated checks (lint config, CI workflows, pre-commit config, package scripts / build-tool check targets), which you locate yourself.
-3. **Prior declines** (optional) — a list of `user_rejected_suggestion` summaries for this scope, pre-inlined by the orchestrator. When absent, you may re-query it yourself — route per Step 0, using the exact call in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots.
+3. **Prior declines** (optional) — a list of `user_rejected_suggestion` summaries for this scope, pre-inlined by the orchestrator. When absent, you may re-query the local file yourself, using the exact call in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots.
 
 When a slot's value is the literal `none`, treat it as absent and proceed.
 
 ## Workflow
 
 ### Step 0 — Absorb project instructions
-Load `global.md` and `memory.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md` (its `memory.md` bullet carries the routing rationale). `global.md` serves two purposes — the project's search policy and an existing-rule source you dedupe candidates against later. A declared search policy overrides the search mechanics in the steps below and binds every lookup in this run, not just your first. For your prior-decline and recurrence reads below: if `memory.md` declares a `## Memory Backend` block for `learnings`, route those reads through the declared read tool per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (you carry `mcp__*`; fail-open to the file query on a backend error).
+Load `global.md` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`. `global.md` serves two purposes — the project's search policy and an existing-rule source you dedupe candidates against later. A declared search policy overrides the search mechanics in the steps below and binds every lookup in this run, not just your first.
 
 ### Step 1 — Read the change
 
@@ -74,7 +74,7 @@ Drop any candidate matching a prior decline for this scope — the user already 
 
 ### Step 6 — Recurrence flag
 
-For an `ADD` / `UPDATE` candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning's `recurrence_count` meets the recurrence threshold (read it filtered by `dedup_key` — route per Step 0; with no backend, `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. Under `mode: replace` the file counter no-ops — when neither the backend nor a file count surfaces it, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). The threshold and the routing of a recurrence-eligible candidate are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Recurrence-eligible candidates.
+For an `ADD` / `UPDATE` candidate that restates a learning seen repeatedly, set `Recurrence-eligible: yes` when its underlying learning's `recurrence_count` meets the recurrence threshold (read it filtered by `dedup_key`: `source ${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh; query_learnings --include-superseded`. When the file surfaces no count, treat recurrence as unknown and leave `Recurrence-eligible` unset rather than assuming 0). The threshold and the routing of a recurrence-eligible candidate are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Recurrence-eligible candidates.
 
 ## Output Format
 
@@ -91,7 +91,7 @@ Return this exact structure (the orchestrator parses it). Emit the summary even 
 - **Why:** <1 sentence — the durable value for a future session>
 - **Significance:** critical | general
 - **Dedupe:** ADD | UPDATE <file:line> | WIRE <file> | REMOVE <rule location> | NOOP (record what you greped and read)
-- **Recurrence-eligible:** yes (underlying learning meets the recurrence threshold) | no
+- **Recurrence-eligible:** yes (underlying learning meets the recurrence threshold) | no | unset (count unknown)
 - **Routing rationale:** <which improvement-routing.md ladder step matched, one clause>
 
 ### [TARGET] Next candidate...
@@ -101,7 +101,7 @@ Return this exact structure (the orchestrator parses it). Emit the summary even 
 - Candidates: N (critical: X, general: Y)
 - Sources scanned: <diff / findings / spec> + <rule files greped>
 - Dropped: <count> (already-covered (NOOP): A, previously-declined: B, no-evidence: C, agent-already-does-this: D, too-specific: E, below-floor: F, over-cap: G) — one line each
-- Context loaded: project-rules=<read|slot|absent|unreadable>, memory-routing=<read|slot|absent|unreadable>
+- Context loaded: project-rules=<read|slot|absent|unreadable>
 ```
 
 The `Context loaded:` line states your Step 0 loads where the orchestrator can read them — value semantics in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report. `project-rules` is what your Step 3 deduped candidates against, so `absent` there means every `Dedupe: ADD` verdict was reached without the existing-rule source and the orchestrator should weigh them accordingly.

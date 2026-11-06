@@ -39,7 +39,7 @@ WORKTREE: <absolute path from `git rev-parse --show-toplevel`>
 RESEARCH_QUESTION: <complete-sentence question>
 
 PROJECT SEARCH POLICY: <verbatim global.md rule bullets governing how to search this codebase, or `none declared`>
-It governs every lookup you make, not just the first. If it names a tool your runtime defers, load it before deciding you cannot comply.
+It governs every lookup you make, not just the first. If it names a tool you cannot see, load it by name when you can; otherwise use its shell form, or your default search when it gives none.
 
 DELIVERABLE_SHAPE: <pinned output shape — ordered call chain / definition+caller table / module map / etc.>
 
@@ -95,7 +95,7 @@ Three properties are load-bearing, and a policy that reaches the agent without t
 - **Positioned with the task, not appended after the constraints.** A trailing note below the read-only rules reads as a footnote and loses to the agent's own workflow steps. When a batch shares one payload file, the policy is that file's first section, and each prompt carries a one-line binding to it with the exact invocation.
 - **Scoped to every lookup, not the first.** Say so explicitly; applying the project's tool once and reverting to the default is the common failure.
 
-If the policy names a tool, give its exact invocation form and state that the agent should load it first if the runtime defers it — a deferred tool is absent from the agent's surface and a policy naming it gets skipped silently. This push complements the agent's own pull (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`): the pull is a step an agent can skip, and the push only carries what the orchestrator itself loaded.
+If the policy names a tool, give its exact invocation form and its shell form when it has one — a plugin agent carries no MCP tools, so a policy naming only an MCP tool gets skipped silently. This push complements the agent's own pull (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-instruction-load.md`): the pull is a step an agent can skip, and the push only carries what the orchestrator itself loaded.
 
 Satisfying every field above is only half the contract — the other half is checking what the agent did with them, at return time, per the next section.
 

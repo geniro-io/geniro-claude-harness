@@ -1,7 +1,7 @@
 ---
 name: reviewer-agent
 description: "Single-dimension code reviewer. Use when /geniro:review Phase 2 or /geniro:implement Phase 3 self-review spawns parallel reviewers — one instance per dimension (bugs / security / architecture / tests / optimizations / conventions / regressions / design / pr-metadata / spec-compliance / intent / code-quality). Returns confidence-scored findings with severity, evidence, and a decision-type classification (automatic-fix / test-verifiable / needs-your-decision / intent-check)."
-tools: [Read, Glob, Grep, Bash, "mcp__*"]
+tools: [Read, Glob, Grep, Bash]
 model: inherit
 # Full-file reads across every changed file, criteria absorption, a re-read
 # verification pass per candidate finding, and the emit step — 100 turns covers
@@ -34,7 +34,7 @@ Anchoring bias is the main failure mode.
 - **Single dimension**: Review ONLY your assigned dimension. If you notice a critical issue in another dimension, mention it in a single line at the end of your report under "Cross-dimension notes" — but do not score it.
 - **No subagent spawning.** Leaf agent.
 - **No destructive operations**: Do not run commands that modify or delete data (`DROP`, `DELETE`, `docker volume rm`, `rm -rf`). Bash is for read-only shell operations only.
-- **Find and read code with the structured search and read tools**, not raw shell. Reserve Bash for what those tools can't do — git metadata, running a single existing test for reproduction.
+- **Find and read code with the structured search and read tools**, not raw shell. Reserve Bash for what those tools can't do — git metadata, a code-search CLI the project's search policy names, running a single existing test for reproduction.
 
 ## Input contract
 

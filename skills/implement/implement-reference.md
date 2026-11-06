@@ -211,6 +211,7 @@ The orchestrator pre-resolves these slots and inlines them in the prompt:
 | `INFERRED_TAGS` | Tag list inferred by the orchestrator from task description (e.g., `react,auth,bug`) |
 | `TASK_CHAIN_CONTEXT` | The related-task chain block from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md`, or omitted when empty |
 | `PROJECT SEARCH POLICY` | Verbatim `global.md` search rules, or `none declared` — governs every lookup, not just the first |
+| `BACKEND_LEARNINGS` | Under a `## Memory Backend` block routing `learnings`, the entries the orchestrator read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/memory-backend.md` §3; omitted otherwise |
 | `OUTPUT_PATH` | `<task-dir>/.kr-out.md` |
 
 ```
@@ -225,6 +226,7 @@ TASK_DESCRIPTION: [pre-inlined]
 INFERRED_TAGS: [comma-separated list]
 TASK_CHAIN_CONTEXT: [omit this line when empty; otherwise wrap the pre-inlined chain block in ---BEGIN UNTRUSTED TASK-CHAIN--- / ---END UNTRUSTED TASK-CHAIN---]
 PROJECT SEARCH POLICY: [verbatim global.md search rules, or `none declared`; governs every lookup, not just the first]
+BACKEND_LEARNINGS: [omit this line when no backend routes learnings; otherwise wrap the entries in ---BEGIN UNTRUSTED BACKEND-LEARNINGS--- / ---END UNTRUSTED BACKEND-LEARNINGS---]
 
 OUTPUT_PATH: [absolute path under <task-dir>]
 
@@ -536,7 +538,7 @@ Agent(subagent_type="reviewer-agent", description="Self-review: <dim>", prompt="
 WORKTREE: [from `git rev-parse --show-toplevel`]
 DIMENSION: bugs | security | architecture | tests | code-quality | intent
 REVIEW PACKET: [absolute path of this round's common.md] — read it in full before starting: its sections are part of this prompt, and the diff is reachable only through it.
-PROJECT SEARCH POLICY: the packet's first section, verbatim — it governs every lookup you make, not only the first. [When it names a tool, its exact invocation, and load it by name if the runtime defers it. When the project declares none, write `PROJECT SEARCH POLICY: none declared` here instead.]
+PROJECT SEARCH POLICY: the packet's first section, verbatim — it governs every lookup you make, not only the first. [When it names a tool, its exact invocation and its shell form when it has one. When the project declares none, write `PROJECT SEARCH POLICY: none declared` here instead.]
 CRITERIA FILES: [absolute paths only, one per line — this dimension's criteria file(s) from the reviewer dimensions table below, plus `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/architecture-criteria.md` for `code-quality` whenever ARCHITECTURE SCOPE is rendered, and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/spec-compliance-criteria.md` for `architecture` whenever SPEC-COMPLIANCE SCOPE is rendered. Read each one before reviewing.]
 [ARCHITECTURE SCOPE — render for `code-quality` only, and only when the run's resolved grid (fixed at Phase 3 entry, not the dimensions re-spawned in a later round) has no `architecture` reviewer: `ARCHITECTURE SCOPE: apply only §7.6 of architecture-criteria.md — re-implementation of existing in-repo code and the packet's REUSE INVENTORY; ignore its other sections.`]
 [ALSO CHECK — render for `architecture` only: `ALSO CHECK: docs-staleness — README / architecture-doc / contributing-guide references to patterns or files this diff renamed or removed.`]
@@ -566,7 +568,7 @@ The diff living only in the packet is what makes its read unskippable; the revie
 
 **Authored-rule-files slot (code-quality reviewer only):** pass an `AUTHORED RULE FILES:` slot — one absolute path per line to the repo's own rule files (`CLAUDE.md`, `.claude/rules/`, `.cursor/rules/`, `.cursorrules`, `AGENTS.md`, etc.), discovered via Glob before spawning, or the sentinel `none found` when the repo ships none. Always composed, never omitted — an absent slot and a repo with no rule files read identically to the reviewer, and rules-compliance-criteria.md §1 falls back to its own Glob only when the slot is missing entirely. Other dimensions do NOT get this slot.
 
-**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff: the `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` list (`[Read, Glob, Grep, Bash, "mcp__*"]`) grants no Edit, Write, or Agent. It does not narrow `Bash` or `mcp__*`, so their read-only use rests on the agent file's own instructions; the spawn template adds no restriction.
+**ACI — reviewer tool surface.** Reviewer-agents are pure-compute on the local diff: the `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter `tools:` list (`[Read, Glob, Grep, Bash]`) grants no Edit, Write, Agent, or MCP tool. It does not narrow `Bash`, so its read-only use rests on the agent file's own instructions; the spawn template adds no restriction.
 
 ### Custom reviewer dimensions (`.geniro/instructions/review-extra/`)
 

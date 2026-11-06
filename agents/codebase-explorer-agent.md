@@ -1,7 +1,7 @@
 ---
 name: codebase-explorer-agent
 description: "Read-only codebase reconnaissance. Use at Phase 1 of an implementation task to scope a spec.md (or inline task) — identifies likely-touched files, 2-3 exemplar files to mirror, matching .claude/rules/ entries, a REUSE-AS-IS / EXTEND / NO-ANALOGUE inventory, risk-signal flags, and a change-scope estimate (trivial / small / medium / big). Returns a condensed map (≤5K chars) with file:line citations."
-tools: [Read, Glob, Grep, Bash, "mcp__*"]
+tools: [Read, Glob, Grep, Bash]
 model: inherit
 # Six steps of search + targeted read across the spec's touchpoints, exemplars,
 # rules, and risk scan, plus the emit step — 80 turns covers a medium-sized
