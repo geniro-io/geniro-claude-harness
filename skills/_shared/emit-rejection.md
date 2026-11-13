@@ -59,12 +59,13 @@ If multiple match (e.g., picked = "Skip and cancel") the **first** keyword wins 
 | /geniro:plan | Phase 4 approach selection AUQ | producer=/geniro:plan, scope=<topic>, auq_category=approach_choice, suggestion=<approach name>, picked=<user's choice>, recommended=<recommended approach if any> |
 | /geniro:implement | Phase 3 ship-mode AUQ | producer=/geniro:implement, scope=<branch-or-topic>, auq_category=ship_mode, suggestion=<offered ship mode>, picked=<user's choice>, recommended=<recommended ship mode> |
 | /geniro:refactor | Phase 1 §1.5 "Intentional?" pick (smells the user left unpicked) | producer=/geniro:refactor, scope=global, auq_category=refactor_intentional, suggestion=<category: pattern in one line (key files)>, picked="Rejected as intentional" |
+| /geniro:resolve | Phase 3 Step 6, a posted decline with a lasting reason | producer=/geniro:resolve, scope=global, auq_category=resolve_declined, suggestion=<the ask in one line, its path, the reason>, picked="Rejected as <reason>" |
 
 **Optional:** any skill with an AUQ that has a clear "yes/no" or "recommended/alternative" semantic can invoke this helper. Skills with only-informational AUQs (e.g., section-by-section confirm) should not invoke — no rejection signal there.
 
 ## Read-side status
 
-`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `refactor_intentional` entries have one too — `/geniro:refactor` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag refactor_intentional`) and §1.5 skips those patterns. `approach_choice` entries have one — `/geniro:plan` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag approach_choice`) and re-ranks or omits a previously-rejected approach. `ship_mode` and `library_adoption` entries accumulate with no reader.
+`rule_candidate` entries have a reader — `/geniro:reflect`'s prior-declines query, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/improvement-routing.md` §Spawn slots. `refactor_intentional` entries have one too — `/geniro:refactor` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag refactor_intentional`) and §1.5 skips those patterns. `approach_choice` entries have one — `/geniro:plan` Phase 1 §1.1 queries them (`--type user_rejected_suggestion --tag approach_choice`) and re-ranks or omits a previously-rejected approach. `resolve_declined` entries have one — `/geniro:resolve` Phase 2 Step 3 matches new comments against them (same path or symbol, unchanged code). `ship_mode` and `library_adoption` entries accumulate with no reader.
 
 ## Example flow
 

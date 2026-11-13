@@ -1,150 +1,40 @@
 # PR metadata review criteria
 
-Quality checks for the **PR's own title and description** (not the code diff). The diff is reviewed by the other diff-anchored dimensions; this dimension audits the prose authored by the PR creator — clarity, completeness, expected sections, and alignment with what actually changed.
-
-This dimension fires only when input is a PR ref (`pr-ref != none`); it is skipped for local files, branches, or diff ranges. The reviewer emits findings without a `path:lines` anchor — the orchestrator routes them into the top-level review `body` field of the `gh api` POST in Phase 6, not as inline comments.
-
-## Contents
-
-- What to check
-- Common false positives
-- Severity tagging
-- Output anchor
-
----
+Quality checks for the **PR's own title and description** (the other dimensions review the code diff): does the author's prose say what changed and why, and does it match what changed? Fires only when `pr-ref != none`.
 
 ## What to check
 
-### 1. Title — imperative verb opener
-
-A PR title should describe an action: "Add user authentication", "Fix race in queue worker", "Drop dead config option". Past-tense ("Added X", "Fixed Y") and noun-only titles ("User authentication", "Queue race") are weaker — they describe a topic, not a change.
-
-**Red flag:** title starts with past-tense ("Added", "Fixed", "Updated"), gerund ("Adding", "Fixing"), or no verb at all.
-
-### 2. Title — convention conformance (when repo uses one)
-
-Many repos adopt Conventional Commits (`feat:`, `fix:`, `chore:`) or Linear/Jira issue-id prefixes (`[ENG-123]`, `PROJ-456`). When the repo uses a convention, the PR title should follow it.
-
-**How to detect:**
-- Sample the project's last 10 commit titles via `git log --pretty=format:'%s' -10` (already in the agent's reachable scope; do not pass `--merges` — merge-commit subjects are "Merge pull request …", not the change titles the convention check needs).
-- If ≥7 of the 10 follow the same prefix pattern, the repo uses a convention. Flag PR titles that deviate.
-- If <7 of 10 follow a pattern, the repo does not enforce one — skip this check (do not invent a convention).
-
-**Red flag:** repo's modal pattern is `^(feat|fix|chore|docs|refactor)(\(.+\))?: ` (≥7/10) and this PR's title lacks it.
-
-### 3. Description — presence and substance
-
-A PR description should be more than a one-line restatement of the title and should not be a raw template placeholder (e.g., GitHub's default `## Summary\n\n## Test plan\n` with no content filled in).
-
-**Red flag:** empty body, or body is just the template skeleton, or body is < 3 sentences when the diff exceeds 20 LOC.
-
-### 4. Description — "Why" clause present
-
-The description should explain *why* the change is being made, not just *what* changed. Reviewers need motivation to evaluate trade-offs. A clear bug-fix title ("Fix off-by-one in pagination") is itself the why for trivial fixes (<20 LOC); skip this check for trivial diffs.
-
-**Red flag:** non-trivial diff (>20 LOC) with no "because" / "to fix" / motivation heading anywhere in the body.
-
-### 5. Description — test plan when logic changed
-
-When the diff touches non-trivial business logic (controllers, services, models, reducers, query handlers) or includes test files, the description should describe how the change was tested.
-
-**Red flag:** ≥1 logic or test file changed; body contains no test-plan heading or bulleted test evidence.
-
-### 6. Description — screenshots when UI changed
-
-When the diff includes UI files (matching the UI-file detection rule in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule), the description should include screenshots, recordings, or a "no visual change" note.
-
-**Red flag:** ≥1 UI file in the diff; body contains no image, no video, and no "no visual change" disclaimer.
-
-### 7. Description — breaking-change note when API/contract changed
-
-When the diff changes a public API, a database migration, a config schema, or an exported function signature, the description should call out backward-incompatibility explicitly.
-
-**Red flag:** signature/migration/exported-API change visible in the diff; body silent on backward compatibility.
-
-### 8. Description — scope alignment
-
-The description should match the actual scope of the diff. A title saying "Fix typo in README" with a 500-LOC diff across 12 source files is a scope mismatch; a description that lists 5 unrelated changes when the diff only touches 1 of them is a scope-creep signal.
-
-**Red flag:** description's claimed scope and diff's actual scope diverge by more than one major area.
-
-### 9. Linked issue or ticket
-
-When the repo uses an issue tracker (Linear / Jira / GitHub Issues / Pivotal), most PRs should link to the issue they implement or fix.
-
-**How to detect:**
-- Check `pr.title` and `pr.body` for: `#NNN` (GitHub), `[ENG-NNN]` or `ENG-NNN` (Linear), `[PROJ-NNN]` or `PROJ-NNN` (Jira), GitHub `Fixes #NNN` / `Closes #NNN` / `Resolves #NNN` keywords.
-- Sample 5 recently merged PR titles via `gh pr list --state merged --limit 5 --json title` (when reachable). If ≥3 of them carry an issue ID, the repo uses tickets — flag PRs without one.
-- If <3 of 5 carry IDs, the repo does not enforce ticketing — skip this check.
-
-**Red flag:** repo's modal pattern includes issue IDs (≥3/5 sampled) and this PR's title+body together contain none.
-
-**LINEAR CONTEXT enhancement (workflow integration):** when the `LINEAR CONTEXT:` slot is non-`none`, the ticket ID was both detected by regex AND verified to exist via MCP fetch. Use this to distinguish two failure modes:
-
-- **ID in title/body but LINEAR CONTEXT = `none — MCP fetch failed (fail-open)`**: emit a structured `open_questions[]` entry with `source: pr-metadata`, `status: unresolved`, `question: "Linear ID ENG-NNN cited but not verifiable (MCP unavailable). Confirm the issue exists and matches the PR scope, or revise the PR title/body."`. No finding emitted (MCP outage isn't the author's fault). The orchestrator's Phase 6 gate will require user resolution before action-gate fires.
-- **ID in title/body AND LINEAR CONTEXT populated**: cross-check pr.title against `LINEAR CONTEXT.Title`. If pr.title diverges materially from issue title (different action verb / different surface area), flag as a LOW finding: "PR title `<pr-title>` materially diverges from Linear issue title `<linear-title>` — verify PR addresses the right scope". Pure prefix differences (`[ENG-123]` ahead of pr-title) are NOT divergence.
-- **Repo modal expects Linear AND LINEAR CONTEXT = `none — workflow not configured`**: surface a one-line informational note in `## Caveats` — "Repo uses Linear (judging by its recent PR titles) but `.geniro/workflow/linear.md` not configured — run `/geniro:setup` to enable issue context fetch".
-
-### 10. Description — acceptance criteria when issue linked
-
-When the PR links an issue (check #9), the description should either restate the acceptance criteria or explicitly confirm them ("Closes #123 — all ACs from the issue are covered").
-
-**Red flag:** linked issue ID is present; description is terse and contains no acceptance-criteria restatement or coverage confirmation.
-
-### 11. Description ↔ code drift on re-review
-
-On a re-review (round 2+ of human review on the same PR), the PR body often describes the EARLIER diff before fixes pushed in response to round 1. The body claims a behavior that the code no longer has, OR omits a behavior the code now has. The scope-alignment check (#8) above compares body vs CURRENT diff in a single pass; this check adds the cross-round dimension by comparing CURRENT body to the prior-run body persisted by the orchestrator.
-
-The handoff file at `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` carries `pr-body: <verbatim PR body>` in frontmatter (see the handoff frontmatter schema in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`). On re-review, the orchestrator's Phase 1 prior-round triage read (re-review detection) reads it before overwriting; this reviewer compares against it.
-
-**How to detect:**
-1. From the orchestrator-pre-inlined `PRIOR-ROUND PR BODY:` slot (added on round 2+; renders as `none — first review` on round 1 or when the prior-run state file has no `pr-body:`), check if a prior PR body is present.
-2. If `PRIOR-ROUND PR BODY: none — first review`, skip this check entirely (no drift possible without a prior round).
-3. Diff the current `pr.title` + `pr.body` (from the standard PR METADATA slot) against the prior `pr-body:` text. Identify clauses present in EITHER version but materially different:
-- **Claim removed**: the prior body described a behavior X (e.g., "fast path skips when X != null"); the current body no longer mentions X. Check whether the diff still has the behavior — if yes, the current body silently omits a still-real behavior; if no, the body correctly reflects the fix and no drift exists.
-- **Claim still present but no longer true**: the prior body said "behavior X is unchanged" AND the current body still says "behavior X is unchanged"; the diff between rounds shows X was actually changed in response to round 1.
-- **New behavior in diff, no claim in body**: the diff adds behavior Y between rounds; neither the prior nor current body mentions Y.
-4. For each material drift, surface as a finding describing the specific claim, the specific code state, and the asymmetry between them.
-
-**Red flag:** PR body claims `<behavior X>` is `<unchanged | fast-path | removed>`; the current diff (or the inter-round diff) shows `<behavior X>` was actually `<changed | reinstated | added>` in response to a prior round of review.
-
-**Severity:** LOW, like every finding this dim emits (§Severity tagging). Drift undermines reviewer trust but does not change the code's correctness — and where the drifted claim hides a real semantic change ("fast path is unchanged" was true round 1, false round 2), that change is a `regressions` finding anchored at the code, which carries the severity this one does not.
+1. **Title — imperative verb opener.** "Add user authentication", "Fix race in queue worker". Past tense ("Added"), gerund ("Adding"), or no verb at all describes a topic, not a change.
+2. **Title — convention conformance.** Sample the last 10 commit titles (`git log --pretty=format:'%s' -10`, no `--merges`). When ≥7 share a prefix pattern (`feat:` / `fix:` / `[ENG-123]`), the repo uses a convention and a deviating title is flagged; below 7, skip — never invent a convention the repo does not follow.
+3. **Description — substance.** Not empty, not a raw template skeleton, not under 3 sentences when the diff exceeds 20 LOC.
+4. **Description — the why.** A non-trivial diff (>20 LOC) says why it is made — a "because", "to fix", or motivation heading. A trivial fix's title is its own why.
+5. **Evidence — logic change.** The test or console output that now passes, showing a before and after.
+6. **Evidence — UI change.** Screenshots or a recording showing a before and after (UI files per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §UI-file detection rule), or an explicit "no visual change".
+7. **Evidence — API or contract change, with a breaking-change note.** The old and new shape of a public API, migration, config schema, or exported signature, and whether callers break.
+8. **Scope alignment.** The described scope matches the diff's — "Fix typo in README" over a 500-LOC, 12-file diff diverges by more than one major area.
+9. **Linked issue.** Sample `gh pr list --state merged --limit 5 --json title`; when ≥3 carry an issue ID (`#NNN`, `ENG-NNN`, `PROJ-NNN`, `Fixes` / `Closes` / `Resolves #NNN`), the repo uses tickets and a PR with none in title or body is flagged; below 3, skip (same rule: no convention, no finding). With a Linear ID in play:
+   - Cited but `LINEAR CONTEXT = none — MCP fetch failed (fail-open)`: emit an `open_questions[]` entry (`source: pr-metadata`, `status: unresolved`, `question: "Linear ID ENG-NNN cited but not verifiable (MCP unavailable). Confirm the issue exists and matches the PR scope, or revise the PR title/body."`) and no finding — an MCP outage is not the author's fault.
+   - Cited and context populated: a LOW finding when `pr.title` materially diverges from the issue title (different verb or surface); a `[ENG-123]` prefix alone is not divergence.
+   - Repo expects Linear but `LINEAR CONTEXT = none — workflow not configured`: a `## Caveats` line — "Repo uses Linear (judging by its recent PR titles) but `.geniro/workflow/linear.md` not configured — run `/geniro:setup` to enable issue context fetch".
+10. **Acceptance criteria when an issue is linked.** The description restates the criteria or confirms them ("Closes #123 — all ACs from the issue are covered").
+11. **Description ↔ code drift on re-review.** On round 2+ the PR body often still describes the earlier diff. Compare the current title and body against the `PRIOR-ROUND PR BODY:` slot (`none — first review` on round 1: skip). Flag a claim and the code disagreeing: a behavior the prior body described, the current body drops, and the diff still has; a claim ("behavior X is unchanged") the inter-round diff falsified; a behavior added between rounds that neither body mentions. Name the claim, the code state, and the asymmetry.
 
 ## Common false positives
 
-Skip or downgrade findings in these cases — they look like rubric violations but are routine PR patterns the rubric is not designed to flag:
+- **Draft PRs** (`isDraft`): skip 3, 4, 5, 6, 8 — incomplete by design; titles and the breaking-change note (7) still apply.
+- **Bot and generated PRs** (`dependabot[bot]`, `renovate[bot]`, `github-actions[bot]`, release-please, changesets, semantic-release, a `chore: release X.Y.Z` title): templated prose; emit zero findings.
+- **Reverts** (`Revert "` title or `This reverts commit <sha>`): skip 4, 5-7, 10. **Cherry-picks and backports** (`[backport]` / `Cherry-pick` title, or a cited parent PR): skip 4-8 and 10.
+- **Force-pushed PRs** whose earlier body was substantive: skip 3 and 4.
+- **Very small diffs** (<5 LOC, ≤2 files): skip 5-7 unless the diff touches an API surface, a migration, or a UI file.
 
-- **Draft PRs** (`gh pr view --json isDraft` returns `true`): description and test plan are often incomplete by design while the author iterates. Skip checks #3 (substance), #4 (why clause), #5 (test plan), #6 (screenshots), #8 (scope alignment). Still flag #1 (imperative verb), #2 (convention prefix), and #7 (breaking-change note if API/migration changed) — these apply regardless of draft state.
-- **Dependabot / Renovate / similar bot PRs** (author user matches `dependabot[bot]` / `renovate[bot]` / `github-actions[bot]` / a known dependency-bumper bot — check `gh pr view --json author --jq '.author.login'`): titles and bodies are templated and the rubric's prose expectations do not apply. Skip every check; emit zero findings.
-- **Revert PRs** (title begins with `Revert "` or body contains `This reverts commit <sha>`): the description is auto-generated by GitHub's revert button and typically lacks a custom "why" or test plan because the change is mechanical. Skip checks #4 (why), #5 (test plan), #6 (screenshots), #10 (acceptance criteria). Flag #7 (breaking-change note) only if the reverted change is a breaking-change reversal.
-- **Cherry-pick or backport PRs** (title begins with `[backport]` / `Cherry-pick` / `[cherry-pick]` or body cites a parent PR): description quality is delegated to the parent PR. Skip checks #4–#8 and #10 when a parent PR is cited; still flag #1, #2, #9.
-- **Force-pushed PRs** where the body was substantive on an earlier push (detect via `gh pr view --json reviews` — if there are review comments referencing earlier content, the description may have been condensed after the prior review): skip checks #3, #4. The author already engaged the prior reviewer; rubric-strict re-flagging is noise.
-- **First-review runs** (no prior `pr-body:` in the state file because this is the first `/geniro:review` invocation against this PR): skip check #11 only; it has nothing to compare against, and checks #1-#10 run as usual. Check #11 fires only on round 2+ re-reviews. This is the normal case; do not emit a "no drift to check" finding.
-- **Generated PRs** from automation (release-please, changesets, semantic-release, project-board automation): bodies are formulaic and the rubric does not apply. Detect via author user, title patterns (`chore: release X.Y.Z`, `Release v…`), or the presence of `release-please` / `changeset` labels. Skip every check.
-- **Very small diffs** (<5 LOC AND ≤2 files changed): the rubric's structural expectations (test plan, screenshots, breaking-change note) often do not apply. Skip checks #5 (test plan), #6 (screenshots), #7 (breaking-change) unless the diff visibly touches an API surface / migration / UI file. Still flag #1 (imperative verb) and #3 (substance) if the body is empty.
-- **"PR description could be more verbose" → still LOW** — Suggestions to add more context, link more tickets, or include checklists are LOW, same as every other finding this dim emits (§Severity tagging) — including a missing field documented as REQUIRED in the repo's PR template or CONTRIBUTING.md.
-
-The detection signals above (`isDraft`, `author.login`, `labels`, plus title and body) arrive in your PR-metadata context slot — the orchestrator fetched them once at Phase 1 and passes them through, so no API roundtrip of your own is needed. If a signal you need is missing from the slot, resolve it yourself with a single read-only `gh pr view --json <field>` rather than assuming the class does not apply: guessing "not a bot PR" from an absent author field is how a templated dependency bump collects a full set of prose findings the rubric says to skip. When that call is also unavailable, say which classifier you could not evaluate in your report rather than reviewing as if the PR were an ordinary human one.
+Detection signals (`isDraft`, `author.login`, `labels`, title, body) arrive in your PR-metadata slot. When one is missing, resolve it with one read-only `gh pr view --json <field>` rather than guessing "not a bot PR"; when that fails too, name the classifier you could not evaluate.
 
 ## Severity tagging
 
-Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1.
+Canonical decision rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1. **This dim emits LOW and nothing else** — §6 of that file puts documentation and PR-description findings at LOW, a missing field the repo's PR template marks REQUIRED included; lifting one higher is how a paper cut reaches the PR past the shared gate. LOW sits below the Phase 4.1 admission gate, so these land in `## Deferred — sub-threshold` and reach the user through the Action gate's deferred table — visible, off the PR by default, promotable by a user pick. Never score one higher to clear the bar.
 
-**This dim emits LOW and nothing else.** Its entire subject is the prose the PR author wrote, and §6 of the canonical file puts documentation and PR-description findings at LOW in every criteria file — lifting one above LOW is how a paper cut reaches the PR surface past the shared gate.
-
-That is not a coverage cut, because the substantive half of the strongest case is owned diff-side and keeps its severity there. A body claiming behavior X is unchanged while the diff changes X is TWO findings: the description defect (this dim, LOW) and the behavior change outside stated intent (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §Severity tagging — HIGH when an intent source exists). The regressions finding anchors at the changed code, so it clears admission, reaches the verifier, and lands on the PR; this dim's finding is the accompanying note that the description needs fixing too.
-
-- **LOW** — every finding this dim emits: missing or empty test plan, screenshots, why-clause, breaking-change note, acceptance criteria, or ticket link; title format, convention prefix, imperative-verb polish; description verbosity and rationale suggestions; scope mismatch between description and diff; a description claim the diff contradicts, the §11 cross-round drift case included.
-
-LOW sits below the Phase 4.1 admission gate, so these land in `## Deferred — sub-threshold` and reach the user through the deferred table the Action gate renders — visible, off the PR by default, promotable by a user pick. That disposition is the intended one for a prose finding, never a reason to score one higher so it clears the bar.
-
-Do not emit findings for repos that demonstrably do not follow a given convention (modal-pattern detection rules in checks #2 and #9 must show the repo uses the convention before flagging deviations).
+A body claiming behavior X is unchanged while the diff changes X is TWO findings: the description defect here (LOW) and the behavior change outside stated intent in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/regressions-criteria.md` §Severity tagging, anchored at the code where it clears admission.
 
 ## Output anchor
 
-PR-metadata findings have no `path:lines`. Emit each finding with:
-- `File:` field set to the literal string `PR-METADATA` (no path, no line number).
-- All other reviewer-agent output fields per the standard template (Severity, Evidence, Why this matters, Suggested fix, Decision Type, Confidence).
-- `Evidence:` quotes the relevant fragment of the title or body verbatim, with a brief surrounding-prose marker so the reader sees what was missing (e.g., "title: `Add stuff`" or "body section: `## Test plan` heading present but empty").
-
-The Phase 6 Post drill's comment composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4) detects the `File: PR-METADATA` sentinel and routes these findings into the top-level review `body` field of the `gh api` POST, NOT into the inline `comments[]` array (which requires a path-anchored line).
+PR-metadata findings have no `path:lines`. Emit each with `File:` set to the literal string `PR-METADATA`, the standard reviewer-agent fields (Severity, Evidence, Why this matters, Suggested fix, Decision Type, Confidence), and `Evidence:` quoting the title or body fragment verbatim with a marker showing what is missing (e.g., "title: `Add stuff`"). The Post drill's comment composer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §7.4) detects the `File: PR-METADATA` sentinel and routes these findings into the top-level review `body` of the `gh api` POST, never into the inline `comments[]` array.

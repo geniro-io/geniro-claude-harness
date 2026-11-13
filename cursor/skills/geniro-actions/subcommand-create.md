@@ -40,7 +40,7 @@ This default keeps `.geniro/actions/` committed (team-shareable). The negation m
 
 ### Step 3 — Interview (Q1–Q4)
 
-Use `AskQuestion` for each question. Q1–Q3 capture purpose, trigger, and output; **Q4 captures risk class**.
+Read the repo first, don't ask cold: skip any question the request or the repo already answers (an inferred answer still fills its field and shows in the Step 4 draft). Ask the rest with `AskQuestion`. Q1–Q3 capture purpose, trigger, and output; **Q4 captures risk class**.
 
 **Q1 — Purpose:** "What should this action do?"
 - `Slack/messaging workflow`, `Pull-request workflow`, `Release/deployment workflow`, `Custom workflow`

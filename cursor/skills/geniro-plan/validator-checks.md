@@ -2,18 +2,16 @@
 
 # Phase 7 validator — check set
 
-Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7. These are deterministic, script-checkable rules, near-zero token usage.
+Canonical definitions of the mechanical validator checks fired in `/geniro:plan` Phase 7.
 
-**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, is the enumeration of which checks are scripted, so adding one only means editing the script's own call list. Each check's *Scripted*/*Judgment* tag below is the single record of which kind it is. The judgment checks turn on reasoning no command can make, so they stay prose the orchestrator applies itself. Both surfaces emit the same tuple, and the run reports every check in §Contents' number order.
+**Two execution surfaces, one contract.** A check decidable by a command is scripted: `${CLAUDE_PLUGIN_ROOT}/lib/validate-plan-spec.sh` runs it and its `check_id` appears in the printed rows — that emitted set, not a count restated here, enumerates the scripted checks, so adding one only means editing the script's own call list. The judgment checks turn on reasoning no command can make, so they stay prose the orchestrator applies itself. §The checks records which kind each is, and the run reports every check in §Contents' number order.
 
-**Status:** Authoritative. Each check returns `(check_id, status, finding_text, fix_hint)`. Output: list of failing checks → state.md `## Open Questions` body section.
-
-**Hard-fail handling:** see `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3 — the auto-revision round cap, then AUQ to user with 3 options (accept-as-is / re-revise / abort).
+**Hard-fail handling:** `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-7-validator.md` §7.3.
 
 ## Contents
 
 - Running the checks
-- The checks: 1 `single_objective` / 2 `bounded_scope` / 3 `source_materials` / 4 `allowed_tools` / 5 `forbidden_actions` / 6 `budget` / 7 `checkpoints` / 8 `validation_method` / 9 `stopping_condition` / 10 `placeholder_scan` / 11 `schema_completeness` / 12 `workflow_refs_consistency` / 13 `launch_config_consistency` / 14 `effort_tier`
+- The checks: scripted table (1 `single_objective` / 2 `bounded_scope` / 4 `allowed_tools` / 6 `budget` / 7 `checkpoints` / 10 `placeholder_scan` / 11 `schema_completeness` / 12 `workflow_refs_consistency` / 13 `launch_config_consistency` / 14 `effort_tier`), then the judgment checks 3 `source_materials` / 5 `forbidden_actions` / 8 `validation_method` / 9 `stopping_condition`
 - Check API contract
 
 ---
@@ -29,21 +27,32 @@ validate_plan_spec ".geniro/planning/<task-slug>/spec.md"
 
 One TAB-separated `check_id status finding_text fix_hint` row per scripted check, in check-number order. `rc 0` = nothing failed (a `warn` or `skip` still exits 0), `rc 1` = at least one row is a `fail`, `rc 64` = no path passed, `rc 65` = path unreadable.
 
-Then apply every check tagged *Judgment* below yourself against the same spec.md (`source_materials` also reads state.md `## Tool log`), and report every check in number order. Do not re-derive a scripted check by hand: the script is the rule, and a hand-run second opinion on it is a second home that drifts.
+Then apply every judgment check below yourself against the same spec.md (`source_materials` also reads state.md `## Tool log`), and report every check in number order. Do not re-derive a scripted check by hand: the script is the rule, and a hand-run second opinion on it is a second home that drifts.
 
 ---
 
 ## The checks
 
-Each scripted check below states what it decides and what a `fail` means, so a returned row is actionable without opening the script; the exact predicate and the `fix_hint` text live in the script. Each judgment check carries its full rule, heuristic and fix hint, because the orchestrator is the one executing it.
+### Scripted checks
 
-### 1. `single_objective`
+Each script row carries its own finding text and `fix_hint`; this table records only what each check decides.
 
-*Scripted.* Section 1 (Objective) is exactly one goal sentence ending in a period — imperative ("Add X.") or declarative ("X is added."), never interrogative. Fails on an empty section, a question, a missing terminating period, or more than one sentence. A dotted file path inside the sentence (`src/constants.ts:12`) is not a sentence break.
+| # | `check_id` | Decides |
+|---|---|---|
+| 1 | `single_objective` | Section 1 is one sentence ending in a period. |
+| 2 | `bounded_scope` | Sections 2 and 3 each carry a bullet; section 3 may instead be "none" plus a rationale. |
+| 4 | `allowed_tools` | `tools_required` and section 7 agree on none versus a non-empty list. |
+| 6 | `budget` | `max_files_to_edit` and `max_lines_changed` are present (`null` is legal; `/geniro:implement`'s scope-drift trigger reads them); a missing `time_budget` only warns. |
+| 7 | `checkpoints` | Advisory, warn-only: with ≥5 steps, `checkpoints` is non-empty and its anchors resolve. |
+| 10 | `placeholder_scan` | The body (frontmatter is out of scope) carries no `TODO` / `XXX` / `FIXME` / `<placeholder>` / `[fill in]` / bare `...`. |
+| 11 | `schema_completeness` | Every required header is present with its exact `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` text, with no top-level section beyond them and the optional `## Considered Alternatives` / `## Milestones`. |
+| 12 | `workflow_refs_consistency` | Skipped on `m5-v1` or without `workflow_refs:`; missing required fields fail. A workflow file absent from cwd and the primary worktree (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) only warns — it may appear later. |
+| 13 | `launch_config_consistency` | Skipped when `launch_config:` is absent; otherwise its keys hold enum values (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`), shape-only. |
+| 14 | `effort_tier` | Lowercase `trivial` / `small` / `medium` / `big`. Phase 5 milestone-mode and `source_materials`' per-tier threshold both read it, so an absent or miscased value relaxes both silently. |
 
-### 2. `bounded_scope`
+**Ordering note (13).** The block is written at Phase 8.4, after Phase 7 and any Phase 7.5 pass, so Phase 7 never sees it. The present-branch fires at write time (`${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.4 runs the script on the rewritten spec before committing) and on re-validation in a later run over the same task-dir.
 
-*Scripted.* Sections 2 (Scope — Included) and 3 (Scope — Excluded) both carry at least one bullet. The single escape hatch is section 3 declaring open scope — a body opening with "none" plus a written rationale; a bare "none" fails.
+**Judgment checks (3, 5, 8, 9)** carry their full rule, heuristic and fix hint below, because the orchestrator executes them.
 
 ### 3. `source_materials`
 
@@ -68,10 +77,6 @@ Then, per matched citation, decide two things a presence match cannot:
 
 **Fix hint on fail:** "Phase 1 explore did not produce enough citations for effort tier <tier>. Re-spawn research agents with sharper sub-queries, OR if scope-bound, add explicit "scope-bound, no exploration needed" entry to ## Tool log."
 
-### 4. `allowed_tools`
-
-*Scripted.* Frontmatter `tools_required` and section 7 (Tools Required) agree: a "none" body pairs with a null or absent field, a body with real content pairs with a non-empty list (inline or block form). Fails on either mismatch.
-
 ### 5. `forbidden_actions`
 
 *Judgment.* A keyword scan is the trigger, not the verdict.
@@ -81,14 +86,6 @@ Then, per matched citation, decide two things a presence match cannot:
 **Heuristic:** keyword scan, then field-presence check.
 
 **Fix hint on fail:** "Sensitive keyword detected in objective/scope, but forbidden_actions is null. Add at least one explicit 'do NOT …' rule (e.g., 'do NOT bypass auth middleware')."
-
-### 6. `budget`
-
-*Scripted.* The frontmatter `budget` block carries `max_files_to_edit` and `max_lines_changed` (the sizes `/geniro:implement`'s scope-drift trigger reads); an absent block or key is a `fail`, a missing `time_budget` only a `warn` (nothing reads it). Key presence only — `null` is legal for an unbounded key, an absent key is not.
-
-### 7. `checkpoints`
-
-*Scripted, advisory.* When section 6 (Steps) has ≥5 steps, frontmatter `checkpoints` is a non-empty list and every `step_anchor: step-N` resolves to a real step; a miss is a `warn`, never a `fail`: no later phase reads checkpoints. Steps are counted by their `- [ ] N.` checkbox lines, equivalently by `<!-- step-N -->` anchors — not by a bare leading digit. Under 5 steps the check passes without requiring checkpoints. A checkpoint naming a section rather than a step anchor is left to the reader.
 
 ### 8. `validation_method`
 
@@ -114,36 +111,10 @@ Then, per matched citation, decide two things a presence match cannot:
 
 **A quantity written to satisfy this check is a claim, not a formatting fix.** The auto-revision round that repairs a section-11 failure invites inventing the value that makes the signal checkable — a suite count, a row count, a duration nobody measured. The observed shape is a done condition naming a number the project never produces: perfectly checkable, permanently false, and reported by this check as a pass. So when a revision introduces or changes a quantity here, derive it from the project rather than from the sentence that needs filling, and enter it into the spec-challenge claim set as a `quantity` claim (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-challenge.md` §3 item 5). Where the value cannot be derived at spec time, write the condition against the signal — "the suite is green" beats "48 suites pass" and cannot go stale. A baseline or target in the section's outcome clause (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §"Section 11") is a `quantity` claim on the same terms: read through a declared source or invented, and the claim set settles which.
 
-### 10. `placeholder_scan`
-
-*Scripted.* The spec body carries none of `TODO`, `XXX`, `FIXME`, `<placeholder>`, `[fill in]`, or a standalone three-dot ellipsis. Frontmatter is out of scope — a fetched tracker payload may legitimately carry a `TODO` status. The finding names the offending token and its line.
-
-### 11. `schema_completeness`
-
-*Scripted.* All required section headers are present with their exact canonical text (case-sensitive, from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), and no top-level `## ` section exists outside them plus the two allowed-optional ones (`## Considered Alternatives`, `## Milestones`). Both are allowed-optional: present or absent pass equally, so a spec that omits the milestone-only section is complete.
-
-### 12. `workflow_refs_consistency`
-
-*Scripted.* Skipped entirely on legacy `m5-v1` or when `workflow_refs:` is absent. Otherwise every entry carries non-empty `kind` / `issue_id` / `url` / `fetched_at`, and the m5-v3 chain-enrichment fields are shape-checked where present — each `siblings[]` entry has a non-empty `issue_id`, and a present `chain_fetched_at` is non-empty. `parent_ref.title` / `status` / `scope` are free-form cached payload and are never checked.
-
-**Status semantics:** a field-presence violation returns `fail` — the entry is structurally broken. A referenced workflow file missing from BOTH `./.geniro/workflow/<kind>.md` and `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md` (per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A) returns `warn`, not `fail` — the workflow file may legitimately appear later in the project lifecycle, and downstream skills simply skip workflow on-task-start hooks for unresolved kinds and continue.
-
-### 13. `launch_config_consistency`
-
-*Scripted.* Skipped entirely when `launch_config:` is absent — older specs without the block stay valid, mirroring the `m5-v1` skip above, and its absence is the default (`/geniro:implement` then asks its Step 0 setup questions interactively). When present, each of the three core keys (`workspace` / `branch_freshness` / `ship_mode`) is set to one of its enum values, case-sensitively, and the optional `tracker_status` is checked only when the key is there. Shape-only; nothing is executed. Canonical contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md`.
-
-**Ordering note:** the block is written at Phase 8.4 (after Phase 7 and any Phase 7.5 pass), so Phase 7 never sees it. The present-branch fires at write time (`${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-8-user-approval.md` §8.4 runs the script on the rewritten spec before committing) and on RE-validation in a later /geniro:plan run over the same task-dir.
-
-### 14. `effort_tier`
-
-*Scripted.* Frontmatter carries `effort_tier`, set to one of `trivial` / `small` / `medium` / `big`, lowercase. Fails on an absent field and on any other value, `Trivial` included.
-
-The field is not a label: Phase 5 milestone-mode fires off the Big tier, and `source_materials`'s research-agent threshold is read per tier. Both compare against the lowercase enum, so an absent or miscased value relaxes both silently.
-
 ---
 
 ## Check API contract
 
-The `(check_id, status, finding_text, fix_hint)` tuple is fixed regardless of which surface produced it — the script for its own emitted rows, orchestrator-side reasoning for everything tagged *Judgment*.
+Every check returns `(check_id, status, finding_text, fix_hint)`, whichever surface produced it.
 
-`status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in table order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally (e.g. "N/N clean") is not a validator result: it reads the same whether every check ran or only some did, which is exactly how a partial pass reaches the user looking like a complete one.
+`status` is one of `pass` / `fail` / `warn` / `skip`. Report one line per check in number order, so the transcript shows which checks ran. A check that was not actually executed reports `skip` with its reason — never `pass`. An aggregate tally (e.g. "N/N clean") is not a validator result: it reads the same whether every check ran or only some did, which is exactly how a partial pass reaches the user looking like a complete one.

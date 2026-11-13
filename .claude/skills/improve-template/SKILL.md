@@ -13,7 +13,7 @@ argument-hint: "<issue description or area to improve>"
 
 - Loop invariants
 - Subagent model tiering · State persistence
-- Workspace · Mode detection · Handoff-ingestion path · Complexity gate · Research selection matrix
+- Workspace · Mode detection · Complexity gate · Research selection matrix
 - Anti-rationalization · Definition of done
 - Phase 1 (investigate) · Phase 2 (cross-reference & filter) · Phase 2b (redundancy validation) · Phase 3 (present to user) — Phases 1-3 in `phase-1-3-investigate-present.md`
 - Phase 4 (implement) · Phase 5 (self-review) · Phase 6 (report & complete) — Phases 4-6 in `phase-4-6-implement-review.md`
@@ -42,17 +42,15 @@ You are the orchestrator for investigating and fixing issues in the Geniro plugi
 
 ## Subagent model tiering
 
-Follow the canonical rule in `skills/_shared/model-tiering.md` §Cost classes: research and review spawns are `session` and OMIT `model=` so they inherit the orchestrator tier — the user picked that tier at session start and owns the cost/quality trade-off on work that decides something; a skill-side hardcode there overrides that choice silently. Implementation and fix agents are `light (mid)`; the table below maps every spawn in this skill to its class. For plugin-defined subagents (the agents under `agents/`), also follow the ladder in `skills/_shared/spawn-agent.md` §The rule: try `Agent(subagent_type="geniro:<agent>", ...)` first — the marketplace-install happy path; on `Agent type '<name>' not found`, retry with the bare `<agent>` (vendored / harness installs); if that also returns "not found", degrade to `general-purpose` with the agent file's path in the prompt. Cache whichever rung resolved for the rest of the session — registration is fixed at session init. Skipping the prefixed rung silently degrades every spawn to `general-purpose` on a normal install.
-
-**Skill-specific mapping:**
+Classes follow `skills/_shared/model-tiering.md` §Cost classes; plugin-defined agents spawn per the ladder in `skills/_shared/spawn-agent.md` §The rule. Work that decides something is `session` and OMITS `model=` — the user owns that tier; applying an approved change is `light (mid)`.
 
 | Spawn | Class | Why |
 |---|---|---|
-| Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | `session` (OMIT `model=`) | Reasoning-grade research runs at the tier the user chose for the session |
-| Phase 2b validation | orchestrator-inline (no spawn) | Synthesis-of-findings — light reasoning that fits the orchestrator's context; a spawn would only buy isolation this work doesn't need |
-| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `light (mid)` | The user approved the finding at the Phase 3 gate and the spawn is handed its files and its change, so it applies rather than decides |
-| Phase 5 review agent | `session` (OMIT `model=`) | Fresh reviewer judges at the same tier that authored the changes |
-| Create-skill Phase A duplicate-check + Phase B author agent | `session` (OMIT `model=`) | Semantic comparison and skill authoring are reasoning-grade — the author agent composes a skill from an interview, it does not transcribe one |
+| Phase 1 research agents (codebase / ARCHITECTURE.md / internet) | `session` (OMIT `model=`) | Reasoning-grade research |
+| Phase 2b validation | orchestrator-inline (no spawn) | Light synthesis that fits the orchestrator's context |
+| Phase 4 implementation agents, and every fix agent (Phase 4 Step 3, Phase 5, Phase C) | `light (mid)` | The finding is approved: the spawn applies, it does not decide |
+| Phase 5 review agent | `session` (OMIT `model=`) | Judges at the tier that authored the changes |
+| Create-skill Phase A duplicate-check + Phase B author agent | `session` (OMIT `model=`) | Overlap comparison and authoring are reasoning-grade |
 
 ---
 
@@ -106,21 +104,13 @@ Persist before Phase 1 spawns anything — `approvals[]` category `improve_templ
 
 Detect which of three modes the request wants — **process-handoff** (consume findings from `/analyze-thread`), **create-skill** (author a new skill), or **fix/improve an existing skill** (default mode). Check in this order:
 
-**process-handoff mode.** Triggers when `$ARGUMENTS` matches `process-handoff`, `process handoff`, or `process handoff from analyze-thread`. Route to the **handoff-ingestion path** below — it reads the `/analyze-thread` findings file and feeds each finding through the existing complexity gate, so it does not skip the normal pipeline.
+**process-handoff mode.** Triggers when `$ARGUMENTS` matches `process-handoff`, `process handoff`, or `process handoff from analyze-thread`. Read `.claude/skills/improve-template/phase-1-3-investigate-present.md` §Handoff ingestion now — the `/analyze-thread` findings feed the complexity gate below, so the normal pipeline still runs.
 
 **create-skill mode.** Triggers on an explicit phrase — `create skill`, `new skill`, `author skill`, `write a skill`, `make a skill`, `add a skill`, `/improve-template create-skill` — which routes straight through. When `$ARGUMENTS` merely describes a capability with no matching SKILL.md, confirm before routing (`AskUserQuestion`: "This reads as a new skill rather than a fix to an existing one — create a new skill?"). Most improvement requests also name a scope no SKILL.md matches ("make the review dimension for X better"), and an unconfirmed route skips the complexity gate and Phase 1 to drop a fix request into an authoring interview.
 
 If create-skill mode is detected, Read `.claude/skills/improve-template/create-skill-mode.md` now — per `skills/_shared/phase-entry-read.md`, that Read is this branch's physically-first action — and route to the **create-skill flow** it carries, skipping the complexity gate and Phase 1 Investigate (those are improve-existing-skill mechanics; create-skill has its own 4-phase author flow).
 
 Otherwise default to **improve-existing-skill mode** (complexity gate → Phase 1).
-
-### Handoff-ingestion path (process-handoff mode)
-
-1. Resolve the branch (`git branch --show-current`) and read `.geniro/state/handoff/from-analyze-thread-<branch>.md`. If absent, report that no handoff exists for this branch and ask the user to name the area to improve instead (falls back to improve-existing-skill mode).
-2. Parse the frontmatter `open_questions[]` array — each entry carries `id` / `source` (the check that surfaced it) / `question` / `severity` / `suggested_action` / `status`, plus an optional `recurrence: <M>/<T>` when the analysis ran over several threads and a `fix_kind` (`DETERMINISTIC-CHECK` | `WIRE` | `NAV-POINTER` | `TOOL-CHANGE` | `REMOVE-RULE` | `PROSE`; absent on older handoffs — treat as `PROSE`). Skip entries already `status: resolved` or `wontfix`.
-3. For each unresolved finding, run the **complexity gate** below to classify it (obvious bug fix → Phase 1-fast; targeted improvement or open-ended → full pipeline). The `suggested_action` and any `context` framing seed the Step 1 request-parse, and a non-`PROSE` `fix_kind` aims the request at the check, wiring, pointer, tool change, or rule removal it names rather than at more instruction text; the `source` check and `findings_count` set the scope. Order the findings by `recurrence` before severity where it is present — a defect reproduced across several independent threads is a systematic instruction failure, while a one-off may be a single run's noise.
-4. Group findings that touch the same file into one implementation unit (Phase 4 grouping) rather than running the whole pipeline per finding.
-5. After the changes land and the user ships them (Phase 6), close each consumed entry in the producer's handoff: set `status: resolved` (or `wontfix` for a finding the user declined at the Phase 3 gate) plus `resolution.picked` / `.at` / `.resolved_by: improve-template`, then patch that entry with `atomic_state_edit`, anchored on its own lines. The edit replaces only the anchored span, so every other key, entry and body section the producer wrote stays exactly as written. Step 2 skips `resolved` and `wontfix`, so closing the entry is what stops a later run re-ingesting fixes already shipped.
 
 ---
 
@@ -167,7 +157,7 @@ For obvious bug fixes. The user already showed what's broken.
 | "I'll reuse the implementation agent for review" | Fresh agents avoid anchoring bias. The reviewer must NOT have seen the implementation prompt. |
 | "I already know the answer from previous sessions" | Memory is context, not evidence. Verify against current file state before acting. |
 | "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent() calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
-| "I'll add a note about the edge case" | Rewrite the original instruction so it reads correctly on its own — the edit-in-place constraint the Phase 4 Step 2 prompt carries. |
+| "I'll add a note about the edge case" | Rewrite the original instruction in place — the Phase 4 Step 2 constraint binds your own 1-2 line fixes too. |
 | "The change is too small to affect other skills" | Small changes to shared patterns (agent spawning syntax, phase structure, naming conventions) propagate through cross-references. The validation gate catches this — never skip it. |
 | "The findings are obviously good, skip the redundancy check" | Phase 2b is a separate pass because a finding that reads well in the research table often duplicates an instruction already in the target file. Grep the target files for existing coverage and judge over-engineering per finding — inline, no spawn. |
 | "I'll skip internet research because the request feels local" | A new pattern or external API shipped with no external evidence is the failure this catches — internal-feeling requests still introduce new patterns. |

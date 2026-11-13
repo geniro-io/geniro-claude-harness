@@ -201,7 +201,7 @@ A §4.1 survivor can reach Phase 5 with no verdict two ways: the spawn fails —
 
 Do not fall back to `spawn-agent.md`'s generic inline-author terminal step for a verifier spawn — the orchestrator holds the full reviewer bundle, which is exactly the anchoring context the §2 isolation contract forbids, so an inline self-check would be an anchored confirmation, not a verification. `unverified` states the truth instead: this finding was never independently checked, and the evidence string says why.
 
-`unverified` is orchestrator-assigned only — a verifier agent never emits it. Consumer-side semantics (legal since `m6-v2`; kept, not postable, one-line warning) live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`, unaffected by which cause applied.
+`unverified` is orchestrator-assigned only — a verifier agent never emits it. Consumer-side semantics (a legal value: kept, not postable, one-line warning) live in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md`, unaffected by which cause applied.
 
 ---
 

@@ -53,12 +53,12 @@ Used by:
  - **`label`**: 1-5 words — the action name (e.g. `"Move to utils"`, `"Keep as-is"`, `"Hand off to fix it"`).
  - **`description`**: 1-line trade-off. Preserves the existing `Options:` bullet's "— <one-line trade-off>" portion. For escalation gates where the calling skill overrides the finding's `Options:` with a fixed menu (e.g. `/geniro:refactor` escalation), the calling skill provides each option's `description` directly per its escalation menu's trade-off line — not derived from the finding's `Options:`.
  - **`preview`**: empty or a one-line recap only — the finding body (Evidence, Suggested fix, Confidence, Origin) lives in the chat block per `per-finding-question.md` §Message-first rendering (the "Why this shape" rationale there governs). When the calling skill's options are an escalation menu (not the finding's own `Options:`), the chat block still describes the finding's body — the escalation labels merely tell the user what action will be taken on it.
- - **Explain-further option:** append an **"Explain further"** option to the decision options — a reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option: picking it renders a deeper walkthrough of the finding (full evidence chain, expanded diagram, edge cases) as a new chat message, then the same question re-fires. It writes no decisions and never counts toward the calling skill's revision/round caps. When the finding's own options already fill the call, surface it via the chained call (`per-finding-question.md` §Cap-extension) instead of dropping a decision option.
+ - **Explain-further option:** append an **"Explain further"** option to the decision options — a reading aid per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option: picking it re-pitches the finding as a new chat message, then the same question re-fires. It writes no decisions and never counts toward the calling skill's revision/round caps. When the finding's own options already fill the call, surface it via the chained call (`per-finding-question.md` §Cap-extension) instead of dropping a decision option.
  - **Challenge-finding option (calling-skill opt-in):** when the calling skill enables it, append a **"Challenge this finding"** option per § Challenge-finding option below — picking it RE-VERIFIES the finding (not merely re-explains it) and can flip the verdict. Like Explain-further it writes no decision and consumes no round cap; unlike Explain-further it spawns a fresh verification pass. Counts toward the per-call option cap (chain per `per-finding-question.md` §Cap-extension, when full).
 
 ### Challenge-finding option
 
-A finding's option set MAY include a **"Challenge this finding"** option — a re-verification action distinct from the Explain-further reading aid. Explain-further re-renders the same finding in more depth and leaves the verdict untouched; Challenge re-runs the finding's verification and can overturn it.
+A finding's option set MAY include a **"Challenge this finding"** option — a re-verification action distinct from the Explain-further reading aid. Explain-further re-pitches the same finding and leaves the verdict untouched; Challenge re-runs the finding's verification and can overturn it.
 
 - Picking it makes the calling skill spawn a fresh verification pass primed with the user's stated objection, then re-render the finding to chat with the returned verdict + fresh evidence and re-fire the same gate. For `/geniro:review` the pass is a `finding-verifier-agent` (the same mechanism that confirmed the finding at Phase 4.2); see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-handoff.md` §3 for the wired action.
 - A `refuted` verdict demotes the finding (drops its gate); a `confirmed` verdict re-presents the same options, now with the verification the user asked for. A `clarified` verdict corrects rather than judges: the calling skill applies the verdict's `recommended_action` and corrected body (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §5), re-renders the corrected finding, and drops the gate when the correction routes it to a path that no longer needs the user's decision.
@@ -91,8 +91,8 @@ The chat block (`per-finding-question.md` §Message-first rendering) is the surf
 
 | Destination | Reviewer-agent finding field |
 |-----------|------------------------------|
-| chat lead sentence(s) — what the software does + the concern | synthesized in plain English from finding-title + `Evidence:` + `Why this matters:`, with identifiers held back for the technical block |
-| chat `Why it matters` line | `Why this matters:` (expanded to name the concrete impact, not a verbatim one-liner), in plain words with no cite inline |
+| chat lead sentence(s) — what the software does + the concern | synthesized in the plain layer from finding-title + `Evidence:` + `Why this matters:` |
+| chat `Why it matters` line | `Why this matters:` (expanded to name the concrete impact, not a verbatim one-liner), in the plain layer |
 | chat `Technical detail` block | `File:` (the `path:lines` cite) + the symbol / class / config names the plain layer described in words + `Evidence:`'s literal quote |
 | chat visual | built from `Evidence:` per § Finding-type visual map, rendered in the layer that map assigns it |
 | chat tracker tag (when ≥2 decisions queued) | finding-title, shortened to a 2-4 word plain-English tag |
@@ -111,7 +111,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
 ### Required AUQ shape
 
 - **`header`**: short chip label set by the calling skill (`"Fix path"` for the multi-path fix gate, `"No repro"` for the repro-infeasible escape hatch — both `/geniro:debug` Phase 2).
-- **Chat render (first):** render the investigation context to chat per `per-finding-question.md` §Message-first rendering — the progress tracker (only when ≥2 fix decisions are queued), `### 🧭 Fix decision: <plain-English root-cause title>`, `**In one sentence:** <what this decision settles>`, a conversational root-cause digest (what is failing and what the user would see, in ordinary words — describe the broken behavior rather than naming the function), then a `**Technical detail:**` block holding the root cause's `path:lines`, the failing symbol, and the captured output, with the cause→effect flow visual per § Finding-type visual map (Debug root cause row) inside it, a **Reproduction status** line, then **Options** (each fix path + consequence in plain words). Pull fields from `.geniro/state/debug/<slug>/state.md`.
+- **Chat render (first):** render the investigation context to chat per `per-finding-question.md` §Message-first rendering — the progress tracker (only when ≥2 fix decisions are queued), `### 🧭 Fix decision: <plain-English root-cause title>`, `**In one sentence:** <what this decision settles>`, a conversational root-cause digest in the plain layer (what is failing and what the user would see), then a `**Technical detail:**` block holding the root cause's `path:lines`, the failing symbol, and the captured output, with the cause→effect flow visual per § Finding-type visual map (Debug root cause row) inside it, a **Reproduction status** line, then **Options** (each fix path + consequence). Pull fields from `.geniro/state/debug/<slug>/state.md`.
 - **`question`** (lean): multi-line markdown:
 
  ```
@@ -125,7 +125,7 @@ Structurally identical to the Single-finding gate above, but the "finding" is co
  - **`label`**: 1-5 words — the path/guard name (e.g. `"COALESCE default"`, `"Add monitor/alert"`).
  - **`description`**: 1-line trade-off — provided by the calling skill per its constructed menu.
  - **`preview`**: empty or a one-line recap only — the investigation context lives in the chat block (`per-finding-question.md` §Message-first rendering).
- - **Explain-further option:** the same rule as the Single-finding gate — append an **"Explain further"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (deeper walkthrough as a new chat message, same question re-fires, no decisions written, no round caps consumed); when the fix paths already fill the call, surface it via the chained call in `per-finding-question.md` §Cap-extension.
+ - **Explain-further option:** the same rule as the Single-finding gate — append an **"Explain further"** option per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option (a re-pitch as a new chat message, same question re-fires, no decisions written, no round caps consumed); when the fix paths already fill the call, surface it via the chained call in `per-finding-question.md` §Cap-extension.
 
 ### Source-field map
 

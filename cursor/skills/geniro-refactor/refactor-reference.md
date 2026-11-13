@@ -27,6 +27,7 @@ state.md `phase:` enum transitions:
                  │           │
                  │           └── apply-escalated ──┬── verify (keep what worked → partial-application note)
                  │                                 └── reverted (terminal — "Revert all changes")
+                 ├── done (terminal — §1.6, no smell kept: nothing worth refactoring)
                  │
                  └── plan-escalated ──┬── plan (§1.2 "Proceed anyway" on red baseline; §1.3.2 "Proceed anyway (treat as Big)" or "Reduce scope")
                                       ├── aborted (terminal — §1.2 baseline-red "stop refactoring" pick)
@@ -135,4 +136,4 @@ Anchor: WORKTREE is your root — run every Bash call from it (`cd <WORKTREE> &&
 """, description="Review: refactor diff")
 ```
 
-**Custom reviewers (Medium and Big only — same gate):** With `PRIMARY_ROOT` resolved as in `phase-3-verify.md` §3.2, run the dual glob (cwd `.geniro/instructions/review-extra/*.md` + `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`) first: read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` when — and only when — it returns at least one file; skip both the Read and the custom-reviewer spawns otherwise, the common case with no `review-extra/` files. When it does return a file, apply that helper to discover user-authored review dimensions in `.geniro/instructions/review-extra/`. For each spawn-spec returned, append one additional `Agent(subagent_type="reviewer-agent",...)` to the SAME parallel batch as the independent reviewer above — same assistant response, parallel execution. The helper's `paths:` filter uses the refactor's changed-files list. Custom-reviewer findings flow through the same orchestrator disposition logic as independent-reviewer findings. If the helper aborts on hard-cap error, surface error + skip; do not proceed with review.
+**Custom reviewers (Medium and Big only — same gate):** With `PRIMARY_ROOT` resolved as in `phase-3-verify.md` §3.2, run the dual glob (cwd `.geniro/instructions/review-extra/*.md` + `<PRIMARY_ROOT>/.geniro/instructions/review-extra/*.md`) first and read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-reviewers.md` only when it returns at least one file — the common case has none and skips both the Read and the spawns. Pass the refactor's changed-files list as `CHANGED_FILES`; append each returned spawn-spec to the SAME parallel batch as the independent reviewer above, and let the findings flow through the same disposition logic. If the helper aborts on its hard cap, surface the error and skip; do not proceed with review.

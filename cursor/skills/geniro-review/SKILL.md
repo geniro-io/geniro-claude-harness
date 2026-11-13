@@ -97,13 +97,13 @@ The run-completion checklist is `${CLAUDE_PLUGIN_ROOT}/skills/review/review-defi
 
 ## Spec metadata contract (/geniro:plan → /geniro:review)
 
-When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`. Accepted `geniro_schema_version`: `m5-v1` (treat `workflow_refs` as absent), `m5-v2`, `m5-v3`, `m5-v4`; per-version fields and the merge with `$ARGUMENTS` / PR-body tracker refs: `phase-1-triage-reference.md` §3.5.1 step 4. Never mutate tracker state.
+When a spec.md is resolvable, parse its frontmatter `workflow_refs[]` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/workflow-refs-schema.md`. Accepted `geniro_schema_version` values, per-version fields, and the merge with `$ARGUMENTS` / PR-body tracker refs: `phase-1-triage-reference.md` §3.5.1 step 4. Never mutate tracker state.
 
 ---
 
 ## Subagent spawning
 
-Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `"<agent>"` on any other host listing it, else that host's general-purpose type, agent-file path; read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` when no plugin agent is listed or a spawn fails. `--subagent-model <tier>` (state.md `subagent-model:` first, else `$ARGUMENTS`) passes `model="<tier>"` at every session spawn instead — announce the pinned tier once at run start. The flag only lowers the light S1 lookups, never raises them. Spawn list, ladder, and flag reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
+Spawns are **session** (no `model=`) unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes). Spawn `subagent_type="geniro:<agent>"` under Claude Code, bare `"<agent>"` on any other host listing it, else that host's general-purpose type, agent-file path; read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spawn-agent.md` when no plugin agent is listed, or after a spawn fails or returns empty (0 tokens). `--subagent-model <tier>` (state.md `subagent-model:` first, else `$ARGUMENTS`) passes `model="<tier>"` at every session spawn instead; announce it once at run start. The flag only lowers the light S1 lookups. Spawn list and flag reach: `${CLAUDE_PLUGIN_ROOT}/skills/review/phase-2-spawns.md` §2.4.
 
 ---
 

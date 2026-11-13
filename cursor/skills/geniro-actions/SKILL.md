@@ -21,7 +21,6 @@ context: main
 - Termination case → state mapping
 - Phase 1 — parse intent
 - Phases 2-7 — one pointer per sub-command (`list` / `create` / `run` / `edit` / `delete` / `validate`); the bodies live in sibling files
-- Cross-references
 
 ---
 
@@ -61,16 +60,10 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "I'll just edit a core Geniro skill instead of creating a custom action" | No — core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
-| "I'll silently overwrite the existing action file" | No — for `create` on an existing slug, present edit/version/cancel via AUQ. For top-level `edit`, route through Phase 5. Silent overwrite destroys committed work. |
-| "The four interview questions are overkill for a small action" | No — they capture the things every action needs documented regardless of size: purpose, trigger, output, and risk class. |
-| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | No — Claude Code would then auto-discover it as its own slash command, routing around the no-run-confirmation contract (Phase 4.2), the scope checkpoint (Phase 4.3), and the L2 emit (Phase 4.4) entirely. Custom actions are reachable ONLY through `/geniro:actions run`. |
-| "I'll spawn a subagent to execute the action" | No — this skill runs in `context: main`, not a forked subagent; the scope checkpoint (Phase 4.3) is computed and confirmed in this session, and a spawned subagent's steps and questions would fall outside the authorization the user gave by invoking `run`. |
-| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it to be safe" | No — invoking `/geniro:actions run <slug>` IS the authorization; an "are you sure?" AUQ re-asks a decision the user already made. Action-author `[AUQ]`/`## Confirm:` checkpoints inside the body are different — those are the author's deliberate in-step pauses; honor them. |
-| "Invoking is the authorization, so this scope checkpoint is the confirmation gate that rule forbids." | Invocation removes the gate on the decision the user already made — running this action. The scope checkpoint reports something the user could not have known at invocation: the run outgrew what the action describes. New information, new decision. |
-| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | No — a top-scored fuzzy match can still be the wrong action, and `run` executes with no confirmation gate (Phase 4.2): a silent mismatch fires that action's side effects with nothing left to catch it. Every free-text resolution passes through AskQuestion. |
-| "I'll re-use the validation gate's `rm -f` failure behavior unconditionally" | No — failure path is parametric on **entry mode**. `create` → `rm -f` rollback is correct because the file didn't exist. `edit-in-place` → leave the file. |
-| "I'm in a linked worktree, so I'll refuse to edit/delete the main repo's copy of an action" | No — the main repo checkout is the canonical home of actions (`create` writes there); refusing would break the create→edit flow from a worktree. Local branch copies stay respected at read/run time (local wins); CRUD targets the canonical copy, asking only when both copies exist and differ. |
+| "I'll just edit a core Geniro skill instead of creating a custom action" | Core skills are shipped globally and overwritten on update. Custom workflow helpers belong at `.geniro/actions/`. |
+| "I'll register the new action as `<slug>/SKILL.md` so it shows in the slash menu" | Claude Code would then auto-discover it as its own slash command, routing around the no-run-confirmation contract (Phase 4.2), the scope checkpoint (Phase 4.3), and the L2 emit (Phase 4.4). Custom actions are reachable ONLY through `/geniro:actions run`. |
+| "This action is high-risk (git push / Slack send), so I'll add a confirmation before running it" | Invoking `/geniro:actions run <slug>` IS the authorization; an "are you sure?" AUQ re-asks a decision already made. The scope checkpoint is different: it reports what the user could not know at invocation — the run outgrew what the action describes. New information, new decision. An action author's own `[AUQ]`/`## Confirm:` pauses are deliberate; honor them. |
+| "I'll auto-pick the highest-scoring fuzzy match without showing the user" | A top-scored match can still be the wrong action, and `run` has no confirmation gate (Phase 4.2): a silent mismatch fires the wrong side effects with nothing left to catch it. Every free-text resolution passes through AskQuestion. |
 
 ## Definition of done
 
@@ -92,22 +85,16 @@ Phase 1 (`parse`) is read-only: `Read`, read-only `Bash`, `Glob`, `AskQuestion`.
 
 ## Memory I/O
 
-`.geniro/actions/*.md` is NOT a memory layer — it's executable workflow content. The 4 memory layers do not include actions.
-
-| Layer | Read | Write | Notes |
-|---|---|---|---|
-| L2 learnings.jsonl | not read in CRUD modes | written in run mode if `external-send: true` and success (Phase 4.4) | One `discovery` row per external-send run |
-| L4 `.geniro/instructions/*.md` | not read by `/geniro:actions` itself | not written | `/geniro:instructions` owns this surface |
-| Actions (`.geniro/actions/*.md`) | read in all modes | written in create/edit | T3 PERSISTENT/CRUD — NOT part of the memory model |
+`.geniro/actions/*.md` is executable workflow content, not a memory layer (T3 persistent CRUD: read in every mode, written by `create`/`edit`). `/geniro:instructions` owns L4, and this skill neither reads nor writes it. The one memory write: a successful `external-send: true` run emits one L2 `discovery` row (Phase 4.4).
 
 ## Termination case → state mapping
 
 | Cause | Message format |
 |---|---|
-| Scope checkpoint (Phase 4.3) — user picked "Stop here, keep what's changed" | `aborted: stopped at scope checkpoint after step <N>`; edits stay in place and the Phase 4.4 summary, with its `/geniro:review` recommendation, prints before the transition |
-| User cancelled at any question other than the scope checkpoint above | `aborted: user cancelled at <step>` |
-| Slug resolution retry cap exhausted (cap set in `actions-reference.md` §Target resolution Step 3) | `aborted: slug unresolved after <cap> rounds of asking` |
-| Validation rejected on create (frontmatter missing required field) | `aborted: create blocked by validation — <reason>` |
+| Scope checkpoint (Phase 4.3) — user picked "Stop here, keep what's changed" | `aborted: stopped at scope checkpoint after step <N>`; edits stay and the Phase 4.4 summary prints first |
+| User cancelled at any other question | `aborted: user cancelled at <step>` |
+| Slug resolution retry cap exhausted (`actions-reference.md` §Target resolution Step 3) | `aborted: slug unresolved after <cap> rounds of asking` |
+| Validation rejected on create | `aborted: create blocked by validation — <reason>` |
 | Action body execution failed mid-step | `failed: action <slug> step <N> returned non-zero exit` |
 | Validate found CRITICAL/HIGH issues | exit non-zero with `validate: <slug> failed — N CRITICAL, M HIGH` |
 
@@ -147,11 +134,9 @@ Re-ask up to 3 times via AskQuestion until valid.
 
 ### Dispatch
 
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. This is the boundary where the run stops parsing and starts acting: `create` opens a four-question interview and writes a file, and `run` executes an action body with arbitrary side effects, so a rule dropped between Step 0 and here is a rule that never reached the work.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: actions`, `LOAD_TIER: rules-only`, `MODE: refresh`, re-Reading all files and echoing per the helper's contract. Compaction since Step 0 may have dropped the rules, and this is where the run stops parsing and starts acting: `create` writes a file, `run` executes arbitrary side effects.
 
-Once the sub-command is resolved, **Read that sub-command's body file** — `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-<verb>.md`, named in its phase section below — and follow it. Read it again on any resumption of the run, including after a compaction: the Steps are not in this file, so a run that skips the Read has nothing to execute. Read only the one dispatched to.
-
-That Read comes before any step of the sub-command and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the dispatched body is this run's phase body, and it holds every pause this skill has. `run` is where that matters most: the sub-command deliberately skips the invocation confirmation, so the scope checkpoint inside `subcommand-run.md` is the whole distance between invoking an action and arbitrary side effects. `delete` holds the destructive-op confirmation, and nothing else stands between it and a per-file `rm -f` on `.geniro/actions/<slug>.md`. A further file a sub-command body defers to — `actions-reference.md` §Target resolution, §Validation gate — is bound by the same contract.
+Once the sub-command is resolved, **Read its body file** (`${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-<verb>.md`, named in its phase section below) before any step, with a one-line echo per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, and again on any resumption. The body holds every pause this skill has: `run`'s scope checkpoint is the whole distance between invocation and arbitrary side effects, and `delete`'s confirmation is all that stands before `rm -f`. A file the body defers to (§Target resolution, §Validation gate) is bound the same way.
 
 ## Phase 2: `list` sub-command
 
@@ -159,7 +144,7 @@ That Read comes before any step of the sub-command and carries a one-line echo, 
 
 ## Phase 3: `create` sub-command
 
-**On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-create.md`** — it carries the Steps: pre-check and existing-file branch, directory + `.gitignore` negation, the four interview questions, the draft preview, the `atomic_state_write`, and the validation gate.
+**On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-create.md`** — it carries the Steps: pre-check and existing-file branch, directory + `.gitignore` negation, the interview, the draft preview, the `atomic_state_write`, and the validation gate.
 
 ## Phase 4: `run` sub-command
 
@@ -176,9 +161,3 @@ That Read comes before any step of the sub-command and carries a one-line echo, 
 ## Phase 7: `validate` sub-command
 
 **On dispatch, Read `${CLAUDE_PLUGIN_ROOT}/skills/actions/subcommand-validate.md`** — it carries the Steps: resolve scope (single file or the whole deduped registry), run the shared validation gate per file plus the validate-only rows, and print the report. Read-only; never mutates.
-
-## Cross-references
-
-- PERSISTENT (CRUD) — `.geniro/actions/` tier; write via the `atomic-state-write` helpers with the caller-side optimistic mtime check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md`
-- L2 emit triggers — `discovery` emit on external-send actions (Phase 4.4)
-- `.gitignore` re-include — `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md`, applied at Phase 3 Step 2 so `.geniro/actions/` stays committed

@@ -21,6 +21,8 @@ Thumbs.db
 !.geniro/instructions/**
 !.geniro/actions/
 !.geniro/actions/**
+!.geniro/out-of-scope/
+!.geniro/out-of-scope/**
 
 # Claude Code agent / runtime artifacts (worktrees created by Agent + EnterWorktree
 # can leave gitlink pointers if accidentally staged — exclude the directory entirely).

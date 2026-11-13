@@ -30,12 +30,11 @@ lang: node
 pkg_mgr: npm
 test_runner: jest
 has_eslint: true
+instruction_file: CLAUDE.md # AGENTS.md when it is the only instruction file (phase-1-detect.md §1.1)
 default_branch_candidates: [main]
 evidence:
 - {file: package.json, line: 5, snippet: "\"name\": \"my-project\""}
-skill_inventory:
-- {slug: implement, purpose: "..."}
-# ... one entry per skill in the `phase-1-detect.md` §1.5 inventory
+skill_inventory: [implement, plan, review] # slugs listed per phase-1-detect.md §1.5
 write_targets:
 - {path: CLAUDE.md, op: write, loc: 45}
 validate_rounds: 1

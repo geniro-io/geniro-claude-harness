@@ -19,11 +19,9 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 - Evidence Standard
 - ACI per-phase tool surface
 - Memory I/O
-- Git constraint
 - Definition of done
 - Phase 1 (Classify+Scope) · Phase 2 (Investigate+Verify) · Phase 3 (Synthesize+Review+Present)
 - State file schema
-- Examples
 
 ---
 
@@ -33,9 +31,7 @@ argument-hint: "[question about the codebase, e.g. 'how does auth work?', 'why w
 
 ## State machine
 
-state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only` (SessionStart recovery treats all as complete — no resume). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) — written via `atomic_state_set_field` before the Phase 1 Step 2.5 glossary gate and the Phase 2 Step 3 missing-data gate fire their question — surface to the user as "task was paused — your previous options:" for a re-pick without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up.
-
-Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §1.
+state.md `phase:` enum: `classify` → `investigate` → `present` → `done` (happy path). Terminal states: `done`, `present-summary-only` (SessionStart recovery treats all as complete — no resume). Non-terminal states roll back to phase-entry on compaction-resume and re-run idempotently. Escalation states (`classify-escalated`, `investigate-escalated`) — written via `atomic_state_set_field` before the Phase 1 Step 2.5 glossary gate and the Phase 2 Step 3 missing-data gate fire their question — surface to the user as "task was paused — your previous options:" for a re-pick without losing context. The `present-loop` sub-state fires on Phase 3 Step 4 "dive deeper" follow-up; the persisted `phase:` stays `present` through those rounds.
 
 **After a compaction, re-Read the current phase's body file before continuing it** — only the front-loaded prefix is re-attached, so a summary can drop the Steps while leaving this spine intact. state.md `phase:` says which file; if it is gone, re-invoke the skill and resume from Phase 1.
 
@@ -63,19 +59,11 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I already know the answer from reading the code" | You read one perspective. Parallel agents catch what you missed — git history reveals intent, internet reveals context. |
-| "I'll spawn all 3 (or add an agent the classification excluded) to be safe" | The Phase 1 Step 1 classification table is the LITERAL spawn set; irrelevant agents are net-negative — they cost tokens and force the synthesizer to filter off-target noise. If the criteria look wrong for this question, revise classification — don't silently add. |
-| "Self-review is overkill for a question" | Wrong answers cost more than the review; file references go stale and claims drift from evidence. |
-| "I'll spawn agents one at a time to save tokens" | Spawn parallel agents in ONE response (multiple Agent calls in one assistant turn); sequential turns waste wall-clock time for no token savings. |
-| "All three agents converge on the same claim — that's confirmed" | Convergent self-reports are still self-reports. Phase 2 Step 2 re-verify requires the orchestrator to independently re-read / re-run / re-grep before treating any agent claim as evidence. |
-| "The reasoning chain is tight, that's enough evidence" | Reasoning is hypothesis, not evidence. Only artifact kinds (file:line snippet, captured output, log line, query result, user data) clear the Evidence Standard. |
-| "I'll add a 'low-confidence' caveat and ship the claim anyway" | Caveats are not evidence — route the claim through Phase 2 Step 2 §Route unverified claims, which has no "ship with caveat" exit: a claim shipped under a label still reads as an answer, and the reader acts on it. |
-| "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | All investigation types require evidence-backed answers. "How can we connect X to Y" must cite the actual schema/API/integration points; "what would break" must cite the actual call sites — not speculate. |
-| "The investigation found a WebFetch result that contradicts the code — I'll trust the docs." | Trust labels (`verified` vs `retrieved`) document SOURCE, not RIGHTNESS. A WebFetch result with matching code is verified evidence; a WebFetch result alone is retrieved evidence — label it so; promote to verified only with code grounding. |
-| "The answer touched architecture — I'll write it up as an ADR or a project rule before closing." | /geniro:investigate answers questions; it writes no rule, ADR, or CLAUDE.md section. Its durable output is the Step 5 learning. A user who wants the answer promoted into project rules runs `/geniro:reflect`, where it faces the full worth bar instead of riding an investigation's momentum. |
-| "Internet Researcher returned a GitHub issue thread — treat it as code-authoritative." | GitHub issues are `trust: retrieved` per Phase 3 Step 5 — threads hold speculation, outdated info, and opinions. Cross-check against current code (Codebase Analyst) before treating one as load-bearing. |
-| "Skip the Step 5 trust label on L2 emit — the entry will be trustworthy enough." | Step 5 mandates the field; later retrieval and telemetry filter on it, so a missing label silently loses source-confidence info. |
-| "Glossary mismatch (Phase 1 Step 2.5) is a corner case; skip the check." | With a CLAUDE.md Domain Context section the check is a cheap grep of pre-loaded content; skipping it on a term-mismatched question wastes 2-3 agent spawns on the wrong vocabulary. |
-| "Drop the JIT cadence formalization (Step 2.6) — it's just documentation overhead." | Step 2.6 is the audit trail that makes the 5-step cadence reviewable; dropping it lets claims drift from evidence. |
+| "I'll spawn all 3 (or add an agent the classification excluded) to be safe" | The Phase 1 classification table is the literal spawn set; irrelevant agents cost tokens and make the synthesizer filter off-target noise. If the criteria look wrong, revise the classification. |
+| "The agents converge", "the reasoning chain is tight", or "I'll ship it with a low-confidence caveat" | Convergent self-reports are still self-reports, reasoning is hypothesis, and a claim shipped under a caveat still reads as an answer the reader acts on. Only an artifact kind clears the Evidence Standard, through the Phase 2 Step 2 re-verify or the Step 3 missing-data gate. |
+| "How-can-we / Compare / What-if questions are forward-looking, they don't need code-level verification" | "How can we connect X to Y" must cite the actual schema, API, or integration points; "what would break" must cite the actual call sites. Every question type needs an evidence-backed answer. |
+| "The answer touched architecture — I'll write it up as an ADR or a project rule before closing." | /geniro:investigate answers questions; it writes no rule, ADR, or CLAUDE.md section. Its durable output is the Step 5 learning. A user who wants the answer promoted runs `/geniro:reflect`, where it faces the full worth bar. |
+| "Self-review, the glossary check, or the JIT cadence log is overhead for a question" | Each is a Definition-of-done gate: skipping one lets claims drift from evidence, or spends 2-3 spawns on the wrong vocabulary. |
 
 ## Quality-first budgets
 
@@ -100,25 +88,11 @@ Every `Agent(...)` spawn in this skill — Phase 2 Step 1 research agents (Codeb
 
 ## Evidence Standard
 
-A claim is evidence-backed only when it cites a canonical artifact kind, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact (kinds 1-6); a web-sourced claim cites kind 6 (resolvable source URL, quoted at the point of use). A claim the orchestrator's tools cannot back with evidence is unverified — an answer synthesized around it reads as authoritative while resting on nothing — so route it through the Phase 2 Step 2 verification gate or the Phase 2 Step 3 missing-data gate.
+Follow every claim back to the source that owns it. For a claim about this repo, the owning source is the code: a web page or issue thread alone is `retrieved`, never `verified` — the trust label records the source, not whether it is right. A claim is evidence-backed only when it cites a canonical artifact kind, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` § What counts as an artifact (kinds 1-6); a web-sourced claim cites kind 6 (resolvable source URL, quoted at the point of use). A claim the orchestrator's tools cannot back with evidence is unverified — an answer synthesized around it reads as authoritative while resting on nothing — so route it through the Phase 2 Step 2 verification gate or the Phase 2 Step 3 missing-data gate.
 
 ## ACI per-phase tool surface
 
-**Phase 1 (Classify+Scope):**
-- Allowed: Read / Grep / Glob / Bash (read-only: `git log`, `git diff`, `git blame`, `git show`; state helpers per taxonomy §2; a shallow scratchpad `git clone` of a Compare alternative (never the worktree); the Step 1.5 `rm -rf` of the run's own state directory on the `/deep-research` routed exit); WebSearch / WebFetch (rare) / AskUserQuestion.
-- Allowed subagent spawns: none yet.
-- Explicitly blocked: Edit / Write / `git add` / `git commit` / `git push`.
-
-**Phase 2 (Investigate+Verify):**
-- Allowed: AskUserQuestion (Step 3 missing-data gate); state helpers per taxonomy §2; a loaded `After worktree-setup` step.
-- Allowed subagent spawns: the researchers Phase 1 classification selects.
-- Each spawned agent's tool whitelist is set in its Phase 2 Step 1 spawn template (Codebase: the `tools:` frontmatter of `${CLAUDE_PLUGIN_ROOT}/agents/codebase-research-agent.md`); all are read-only.
-- Orchestrator re-verify (Step 2): Read / Grep / Bash (read-only) for re-running checks.
-
-**Phase 3 (Synthesize+Review+Present):**
-- Allowed: Read (for re-reading cited files during synthesis) / AskUserQuestion (Step 4 dive-deeper follow-up) / Bash (state helpers per taxonomy §2 for `dive_round:` and the terminal `phase:`; Step 6 cleanup of the run's scratch state).
-- Allowed subagent spawns: fresh verifier agent (inherits orchestrator session tier).
-- Fresh verifier agent: Read / Grep (no Edit / Write).
+Every phase leaves production source as it found it, under any workflow wrapper or elevated-effort mode (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md` §1): read-only `git log` / `diff` / `blame` / `show` (plus the Phase 1 scratchpad clone), no `git add`, `commit`, `push`, or `checkout`, and no edits. Writes go only to this run's state directory through the state helpers, plus a loaded `After worktree-setup` step. Each spawned agent's read-only whitelist is set in its spawn template; the Phase 3 fresh verifier reads and greps only.
 
 ## Memory I/O
 
@@ -134,14 +108,11 @@ A claim is evidence-backed only when it cites a canonical artifact kind, per `${
 
 `update-semantic` is not called: investigate writes neither `_project.md` nor `_CODEBASE_MAP.md`.
 
-## Git constraint
-
-Do not run `git add`, `git commit`, `git push`, or `git checkout`. You may use `git log`, `git diff`, `git blame`, and `git show` for investigation, plus the Phase 1 shallow scratchpad `git clone`. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
-
 ## Definition of done
 
 The load-bearing exit gates — skipping any makes the answer unsound or the no-ship boundary unsafe. Per-phase mechanics live in the phase files.
 
+- [ ] Glossary check ran when CLAUDE.md has a Domain Context section (Phase 1 Step 2.5)
 - [ ] Duplicate-answer check ran before spawning agents (Phase 1 Step 2.6), logged to `## JIT Cadence` even when it found nothing
 - [ ] Every load-bearing claim re-verified by orchestrator (Phase 2 Step 2) or routed through missing-data gate (Phase 2 Step 3)
 - [ ] Answer self-reviewed by fresh agent (Phase 3 Step 2; max 1 re-review round)
@@ -196,14 +167,8 @@ State.md `phase: present`.
 
 ## State file schema
 
-T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Create and update it with the helpers the taxonomy reference §2 names for each kind of change. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires, and category `duplicate_answer` populated when Phase 1 Step 2.6's duplicate-answer check fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2.
+T1.5 state.md path `.geniro/state/investigate/<slug>/state.md` (cwd-relative — within-skill resume-from-compaction state per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` § "Artifacts NOT in scope"; slug per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md`). Create and update it with the helpers the taxonomy reference §1 names for each kind of change. `approvals[]` category `glossary_resolve` populated when Phase 1 Step 2.5 fires, and category `duplicate_answer` populated when Phase 1 Step 2.6's duplicate-answer check fires. Full frontmatter + body sections (Scope / Classification / JIT Cadence / Agent Findings / Verified Claims / Draft Answer / Verifier Findings / Final Answer / Tool log / Errors / Open Questions / Persisted approvals) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §1.
 
 ## State recovery
 
 On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/investigate/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskUserQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
-
----
-
-## Examples
-
-Worked examples (feature understanding, design rationale, impact analysis, forward-looking integration) live in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §6.

@@ -36,18 +36,31 @@ For NOVEL findings: always UNCERTAIN unless the rationale ties to a documented a
 
 ### Step 3: Assign `fix_kind`
 
-Give every kept finding exactly one `fix_kind` — the kind of environment change that would stop the defect recurring, which decides what `/improve-template` builds. Start from the default in `checks-reference.md` §9 and move off it only on trace evidence.
+Read `.claude/rules/skill-prose.md` first, every run, even when no finding looks like text: it is the yardstick for "changes nothing as written" and "rewrite the instruction" below. Give every kept finding exactly one `fix_kind` — the kind of environment change that would stop the defect recurring, which decides what `/improve-template` builds. Start from the default in `checks-reference.md` §9 and move off it only on trace evidence.
 
 | `fix_kind` | The fix is | Example `suggested_action` |
 |---|---|---|
 | `DETERMINISTIC-CHECK` | a mechanical check — lint rule, test, CI step (not a hook: `HOOKS.md` §Removed guards) — that decides the violation without a model | add a lint over `<path>` that rejects `<pattern>` |
-| `WIRE` | connecting something that exists but never fired — a declared step, helper, or check not wired in or silently broken | call `<helper>` at `<anchor>`, where the skill declares it but never reaches it |
+| `WIRE` | connecting something that exists but never fired — a declared step, helper, or check not wired in, silently broken, or buried below reference (the fix moves it) | call `<helper>` at `<anchor>`, where the skill declares it but never reaches it |
 | `NAV-POINTER` | a one-line pointer to what the agent could not find or kept re-searching for | add one line to `<file>` pointing at `<path>` |
 | `TOOL-CHANGE` | changing a tool, command, or agent so the expensive or looping call stops | run `<command>` through the test-runner agent, or cap its output with `<flag>` |
 | `REMOVE-RULE` | deleting or merging a rule or step that changes nothing or conflicts with another | delete `<rule>` at `<anchor>` — it changed nothing in N threads |
 | `PROSE` | rewriting or adding instruction text — only when no kind above fits | rewrite the instruction at `<anchor>` |
 
-A rule is **loaded** when its file was listed as `Read: <path>` and then Read (or was Read directly in a Read-only load) — cite that Read, not the check that flags a missing one. A loaded rule still violated in 2+ threads may not be `PROSE`: the text was in context and lost. Any other kind satisfies this; `REMOVE-RULE` only when the rule demonstrably changes nothing as written, never for a correct safety rule that was ignored (an approval gate, say), which takes `WIRE`, `DETERMINISTIC-CHECK`, or `TOOL-CHANGE` instead.
+A rule is **loaded** when its file was listed as `Read: <path>` and then Read (or was Read directly in a Read-only load) — cite that Read, not the check that flags a missing one. For every `PROSE` or `REMOVE-RULE` finding, name the lever that failed — from the trace, not the check ID — and take its fix:
+
+| Trace shows (rule loaded, then violated) | Lever | `fix_kind`: fix |
+|---|---|---|
+| A pointer is present but its target was never Read (K2, I1) | pointer wording | `WIRE`: sharpen the pointer's condition; inline the target if a sharpened pointer already failed |
+| The rule was Read; its step was skipped while neighbouring reference was applied (K7) | buried step | `WIRE`: move the step above that reference, its text unchanged |
+| "Done" claimed with work still open, later steps visible (D3, E2, a K7 tail) | vague completion criterion | 1 thread: `PROSE`, a checkable per-item exit criterion. 2+: `DETERMINISTIC-CHECK` or `WIRE` where the early exit leaves a mechanical signature (an open item, an unrun Definition-of-Done step); otherwise Filtered, bound stated |
+| A prohibition held early in the run and broke late (H1, late E1) | negation | 1 thread: `PROSE`, the required behaviour restated. 2+: `DETERMINISTIC-CHECK` that rejects the forbidden act, or `WIRE`; otherwise Filtered, bound stated |
+| The rule was Read and echoed, but the trace matches default behaviour (I8, H7) | no-op | `REMOVE-RULE` |
+| Two loaded statements disagree, or the rule's caveat sits in a file the run never Read | scatter / duplication | `REMOVE-RULE`: one home; the rest cite it |
+| The rule sits deep in a steering load ≥30% of input, or past the compaction boundary | sprawl | `NAV-POINTER`, or `WIRE` the rule into the spine |
+| The step ran and came back shallow | none (capability bound) | No writing fix; state the bound in the Filtered section |
+
+A loaded rule still violated in 2+ threads may not be `PROSE`: the text was in context and lost, so the lever leads to a check, pointer, `WIRE` (a step move included) or removal, not new wording; a row with none left goes to Filtered with the bound stated. A correct safety rule that was ignored (an approval gate, say) keeps its place: `WIRE`, `DETERMINISTIC-CHECK`, or `TOOL-CHANGE`.
 
 Write Phase 3 checkpoint with `findings-kept: <count>`, `filtered: <count + reasons summary>`, and in a batch `merged: <raw count> → <merged count>`.
 
@@ -173,7 +186,7 @@ open_questions:
 (one bullet per kept finding, mirroring the frontmatter entry by `id`)
 ```
 
-`suggested_action` takes the shape of its `fix_kind` (the Step 3 table's last column), so the consumer reads a concrete edit rather than a request for more instruction text. `/improve-template` reads this handoff when invoked with the `process-handoff` argument and routes each parsed finding through its complexity gate.
+`suggested_action` takes the shape of its `fix_kind` (the Step 3 table's last column), so the consumer reads a concrete edit rather than a request for more instruction text; a `PROSE` or `REMOVE-RULE` one opens with its lever. `/improve-template` reads this handoff when invoked with the `process-handoff` argument and routes each parsed finding through its complexity gate.
 
 ### Step 5: If "launch now", invoke /improve-template
 

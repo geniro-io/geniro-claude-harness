@@ -16,7 +16,7 @@ mutating shell command — report DRIFT items and let the orchestrator regenerat
 sections. An edit from here would overwrite content the orchestrator is about to rewrite from
 the detected project facts. Read, read-only Bash, Glob, and Grep are the whole job.
 
-Validate the generated <PROJECT_ROOT>/CLAUDE.md against the codebase.
+Validate the generated <PROJECT_ROOT>/<instruction_file> (the orchestrator fills in CLAUDE.md or AGENTS.md) against the codebase.
 
 First, Read ${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md and run every check it
 defines (cross-language contamination, template artifact, generic-placeholder) — that
@@ -24,7 +24,7 @@ file is the single source for the contamination, template-residue and placeholde
 its per-language wrong-token table catches stack drift no fixed grep list would.
 
 Then run these additional checks:
-1. Every command in the `## Commands` section runs locally (try `bash -n` syntax check; do not execute).
+1. Every command in the `## Essential Commands` section runs locally (try `bash -n` syntax check; do not execute).
 2. Every claimed file path in `## Tech Stack` exists.
 3. No Geniro-plugin content — report every entry of verification-checks.md's §Excluded content
    list that appears in the generated file. CLAUDE.md is project-only.

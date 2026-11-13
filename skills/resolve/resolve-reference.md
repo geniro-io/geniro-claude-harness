@@ -87,11 +87,7 @@ Per item, after reading the cited code and attempting a repro. The filter is the
 | `regression-risk` | Making the change would break behavior something depends on | The dependent — a test that pins it, a caller that relies on it, a documented contract |
 | `too-large` | The ask is real and in scope but is its own piece of work, not a review-round fix | What the change would actually touch, so the user can size the separate work |
 
-Two rules keep this from becoming a way to avoid work: a `decline` is only ever assigned with evidence you can quote, and every `decline` is re-checked by a fresh `finding-verifier-agent` as part of being assigned `decline`, reply or no reply (SKILL.md §Loop invariants #3). A verifier that refutes the decline re-opens the item as `fix` or `ask`. "I would rather not" is not a reason on this table.
-
-**Reproduce before you commit to a verdict.**
-- A bug claim → construct a concrete failing case or name the exact trigger path. A claim that cannot be reproduced is evidence for `decline` / `wrong-claim`.
-- A `ci-check` → run the failing command locally when the check name and output make it derivable (`test:unit` → the project test command scoped to the failing file). A locally-reproduced failure confirms the `fix`; a green local run flags an environment-only or flaky check → report it, no code change.
+A `decline` is only ever assigned with evidence you can quote, and every one is verified by a fresh `finding-verifier-agent` (SKILL.md §Loop invariants #3). "I would rather not" is not a reason on this table.
 
 ## 2.5 Gate mechanics (Phase 2)
 
@@ -109,7 +105,7 @@ The chat message that precedes it (§Message-first rendering in the same file) i
 
 **The single-item gate — one call per ambiguous item.** Shape per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Single-finding gate. Options are the item's competing readings plus two standing aids:
 
-- **"Explain further"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option. Renders a deeper walkthrough and re-fires the same question; writes nothing, consumes no cap slot.
+- **"Explain further"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option. Renders a re-pitch and re-fires the same question; writes nothing, consumes no cap slot.
 - **"Challenge this comment"** — per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` §Challenge-finding option. Spawns one fresh `finding-verifier-agent` (**session**) primed with the user's objection. A `refuted` result reclassifies the item to `decline` with the verifier's evidence as the push-back and drops the gate; a `clarified` result is written back and re-routes the item (`phase-2-decide.md` Step 6).
 
 Persist every pick to `approvals[]` (category `comment_decision`). An unpicked `ask` sets `picked: false` and stops there — no edit, no reply, thread untouched — and appears in the final report under what was left for the user.

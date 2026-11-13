@@ -25,13 +25,11 @@ Model synthesizes Phase 1 explore + Phase 3 answers into 2-3 distinct approaches
 
 ### 4.1.5 Design it twice (Big tier, interface shape)
 
-Runs before the §4.1 approach list is finalised — numbered after §4.1 but feeding it. Fires only when the tier is Big AND the decision is the shape of an interface or module boundary (a new public contract, a module's seam, a service API) — the one decision where the first design in mind is rarely the best and rework is costliest. Spawn 3 `codebase-research-agent` generators in ONE assistant response, per the spine §Spawn contract (OMIT `model=`), each designing under a different constraint so the designs differ in kind rather than in detail: minimal surface (1-3 entry points), maximal flexibility (many callers, extension points), optimized for the most common caller (the default case trivial). Slots as in §4.2: `RESEARCH_QUESTION` is the boundary, the constraint, and the Phase 3 decisions it must honor; `DELIVERABLE_SHAPE` is the interface (signatures, invariants, error modes), a caller usage example, what it hides, and trade-offs; `PRE_INLINED_CONTEXT` carries the Phase 1 surface, the Phase 3 closing summary, and the run's canonical terms, plus this line in every brief: "The proposed design is exempt from the file:line citation requirement — it does not exist yet; only claims about existing code cite file:line"; `OUTPUT_PATH` is `<task-dir>/.research-design-<constraint-slug>.md`.
-
-The designs feed §4.1: the distinct ones (or a hybrid) become the interface shape of the 2-3 approaches, ahead of the §4.2 critics, which stress-test them like any other approach. Append a `## Tool log` Echo entry per spawn; on a failed spawn log a `## Errors` entry and generate from the surviving designs, or your own when none returned.
+Fires only on the Big tier when the decision is the shape of an interface or module boundary (a new public contract, a module's seam, a service API) — the one decision where the first design in mind is rarely the best and rework is costliest. Then read `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-4-design-twice.md`, before finalising the §4.1 list.
 
 ### 4.2 Independent stress-test (adversarial weighing)
 
-The model that generated the §4.1 approaches also ranks them in the §4.3 AUQ — same context, same blind spots, so its `Recommended` pick re-confirms its own bias. Before ranking, get an independent challenge grounded in the codebase, so `Recommended` reflects feasibility evidence rather than the author's confidence.
+The model that generated the §4.1 approaches also ranks them in the §4.3 AUQ — same blind spots, so its `Recommended` pick re-confirms its own bias. Before ranking, get an independent codebase-grounded challenge, so `Recommended` reflects feasibility evidence rather than the author's confidence.
 
 Effort-tier-scaled (tier already detected in Phase 1.2 — the critic cost lands only where a wrong approach is expensive):
 
@@ -48,7 +46,7 @@ Spawn per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` 
 - `DELIVERABLE_SHAPE`: `"table of [{approach, risk, evidence file:line, severity: blocking|major|minor}], plus one 'Checked:' line per approach listing the files/surfaces examined — required even, and especially, when no risks were found"`
 - `SCOPE_HINT`: path globs from the approach's touched surface (Phase 1 echo entries).
 - `PRE_INLINED_CONTEXT`: the §4.1 approach list + relevant Phase 1 `query-learnings` entries — especially any prior `user_rejected_suggestion` for this topic-area, which is itself a blocking signal.
-- `OUTPUT_PATH`: `<task-dir>/.research-critique-<approach-slug>.md` (Big) or `<task-dir>/.research-critique.md` (Medium) — T1 ephemeral, within the documented `.research-<facet>.md` glob.
+- `OUTPUT_PATH`: `<task-dir>/.research-critique-<approach-slug>.md` (Big) or `<task-dir>/.research-critique.md` (Medium).
 - `THOROUGHNESS`: `medium`.
 
 After the batch returns, fold the critiques into the ranking — trust a verdict only as far as its evidence:
@@ -59,13 +57,13 @@ After the batch returns, fold the critiques into the ranking — trust a verdict
 - **A clean verdict needs a checked account.** A critique reporting no risks for an approach without its `Checked:` line is silence, not feasibility evidence — treat that approach as un-stress-tested (note "stress-test inconclusive" on it in the §4.3 chat message) rather than feasibility-confirmed.
 - Each approach gains a one-line `Stress-test:` verdict (top risk + evidence file:line) carried into the §4.3 chat message (per the Gate presentation contract) and the §4.4 `## Considered Alternatives` body.
 
-Append a `## Tool log` Echo entry per spawn (same shape as `plan-loop.md` §Echo contract). Fail-open: if a critic spawn fails, log a `## Errors` entry and proceed to §4.3 on the model's own ranking, noting "stress-test unavailable" in the §4.3 chat message on every approach whose critique did not return — on the Big tier (one critic per approach) that is only the failed critic's assigned approach; on the Medium tier the single comparative critic covers all approaches, so its failure marks all of them. The weighing is advisory, not a hard gate.
+Append a `## Tool log` Echo entry per spawn. The weighing is advisory and fail-open: a failed critic logs a `## Errors` entry, and every approach it covered renders "stress-test unavailable" in §4.3, ranked on the model's own judgment.
 
 ### 4.2.5 Build-vs-buy library reuse (per approach)
 
-While designing approaches, when a component an approach would otherwise hand-write looks like a solved problem an established library likely covers, surface "adopt an external library vs hand-write" as an explicit trade-off in the approach prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: plan — a textual consideration with no research spawn and no registry calls. Skip Trivial (a one-liner never justifies a new dependency). A manifest-less project skips the external-library trade-off — nothing to buy from — but the Step 0 language/stdlib check still applies.
+While designing approaches, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/library-reuse-audit.md` MODE: plan to each component an approach would otherwise hand-write — it owns the adopt-vs-hand-write trade-off, the Trivial and manifest-less skips, and carrying the trade-off into the spec prose. No spawn and no separate adoption AUQ: the §4.3 pick is the confirmation.
 
-A specific package name may appear in the approach prose or the spec only when it is already in the project's manifest or the user named it; otherwise describe the capability generically ("an established CSV-parsing library") — a package name not grounded in the manifest or the user's words is unverified, and an unverified name written into a spec becomes an install target downstream (the anti-slopsquatting floor). `/geniro:implement`'s library-reuse audit does the candidate research, the registry existence-verification, and the binding install confirmation. Do NOT fire a separate adoption AUQ here — the §4.3 approach-approval gate is the planning-time confirmation. Carry the trade-off into the spec's Approach and Steps prose (Phase 5 / Phase 6) so /geniro:implement inherits it.
+A package name appears in approach prose or the spec only when the project's manifest holds it or the user named it; otherwise describe the capability generically ("an established CSV-parsing library") — an unverified name written into a spec becomes an install target downstream.
 
 ### 4.3 Present approaches — message-first
 
@@ -75,7 +73,7 @@ Apply the Gate presentation contract.
 
 1. **Render the approaches to a chat message in the Visual rendering language** (Gate presentation contract): open with the progress tracker (`● Approach` current) and a one-sentence opener naming the decision. For each of the 2-3 approaches, the two layers of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers: name, a plain-English 1-2 sentence summary of what the user would get, and `Trade-off:` (gain vs give-up in plain words) — then a `**Technical detail:**` block holding the ASCII data-flow / architecture diagram (5-10 lines), `What changes:` (the key new/edited files), and the approach's `Stress-test:` verdict line from §4.2 (top risk + evidence `file:line`). Lead with the Recommended approach. Where no usable verdict exists, render the note in the verdict line's place: "stress-test unavailable" on an approach whose §4.2 critique did not return, "stress-test inconclusive" on an approach whose no-risks critique lacked its `Checked:` account.
 
-2. **Ask one lean question.** Single-select; header "Approach"; one option per approach, `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). Option `label` = approach name; `description` = 1-line summary + trade-off; `preview` empty or a one-line recap. The `Recommended` marker reflects the §4.2 stress-test ranking — an approach carrying a verified blocking feasibility risk is never Recommended. With a single approach the gate is a confirm, not a pick: options are "Go with this approach" / "Explain further" (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option) / "I want a different shape — I'll describe".
+2. **Ask one lean question.** Single-select; header "Approach"; one option per approach, `Recommended` first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` (§Recommended-label policy). Option `label` = approach name; `description` = 1-line summary + trade-off; `preview` empty or a one-line recap. The `Recommended` marker follows the §4.2 ranking. With a single approach the gate is a confirm, not a pick: options are "Go with this approach" / "Explain further" (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Explain-further option) / "I want a different shape — I'll describe".
 
 Full literal example (chat message + lean AUQ: Service-layer fan-out vs in-process Promise.all) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §3.
 
@@ -91,9 +89,9 @@ emit_rejection_if_signal \
  "<recommended approach label>" "<picked label>" "<recommended label>"
 ```
 
-Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. Helper detects whether picked != recommended OR picked is explicit-cancel/no/skip and emits L2 `user_rejected_suggestion` only when signal fires. Acceptance (picked == recommended, no rejection keyword) is a no-op. A free-text answer overriding the question is a divergent pick like any other and fires the signal. After a fired signal, echo `Recorded learning: <summary>` — the same echo §8.5 makes, so a skipped emit shows up as a missing line instead of leaving no trace at all.
+Where `<topic>` = $ARGUMENTS topic OR `global` if not inferable. The helper emits `user_rejected_suggestion` only when the signal fires (picked differs from recommended, or an explicit cancel/no/skip); acceptance is a no-op. A free-text answer overriding the question is a divergent pick like any other and fires the signal. After a fired signal, echo `Recorded learning: <summary>` — the same echo §8.5 makes, so a skipped emit shows up as a missing line instead of leaving no trace at all.
 
-**Read side:** the Phase 1 §1.1 second past-learnings query already surfaces any prior `approach_choice` rejection for this topic — use it to re-rank or omit that approach from the §4.3 AUQ.
+**Read side:** re-rank or omit, in the §4.3 AUQ, any approach whose prior `approach_choice` rejection §1.1's second query surfaced.
 
 Example body:
 

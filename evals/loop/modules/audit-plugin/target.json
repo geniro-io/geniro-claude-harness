@@ -46,6 +46,7 @@
       "name": "simplicity",
       "criteria": [
         "D6-simplicity.md",
+        "rule-skill-prose.md",
         "severity-tiers.md",
         "output-contract.md",
         "do-not-flag.md"

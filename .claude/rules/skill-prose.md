@@ -14,7 +14,6 @@ How prose inside a skill / agent / reference file is written so the orchestrator
 - **Imperative.** "Read X." — not "Claude should consider reading X."
 - **Second person collapses to imperative.** "You read the spec" → "Read the spec."
 - **No first-person plural.** The body addresses its reader, a future orchestrator session; the authoring team is not present at runtime.
-- **Third person in frontmatter descriptions.** "Processes Excel files and generates reports." Mixed point-of-view in a description degrades skill discovery.
 
 ## Explain WHY, don't shout MUST
 
@@ -24,9 +23,6 @@ How prose inside a skill / agent / reference file is written so the orchestrator
 |---|---|
 | "NEVER skip the test run." | "Run the test suite once at end-of-phase. The Phase 3 review pre-condition assumes green tests; skipping leaves the review reading stale code." |
 | "ALWAYS use atomic_state_write." | "Write state.md via `atomic_state_write` — direct `Edit`/`Write` truncates and rewrites in place, so a crash mid-write leaves a partial file." |
-| "Spawn the reviewers in parallel." | "Spawn every reviewer dimension in ONE assistant response — separate turns serialize execution and double wall-time." |
-
-Routine procedure needs none of it: "Read `<task-dir>/.kr-out.md`." / "Set `phase: ship` on entry."
 
 Caps and MUST have exactly one home: the right-hand cell of an anti-rationalization row, where the left cell is the rationalization and the right cell has to confront it bluntly. Caps in normal prose are the yellow flag.
 
@@ -34,12 +30,9 @@ Caps and MUST have exactly one home: the right-hand cell of an anti-rationalizat
 
 ## Assume a capable model
 
-Write at the altitude of goal + constraint, not mechanics. The model already knows standard tooling, shell idioms, and platform quirks — spelling those out costs tokens, goes stale, and primes the model toward one mechanism when a better one exists in the environment it is actually running in.
+State goal + constraint, not mechanics the model derives itself: loop shapes, shell recipes, and platform quirks cost tokens, go stale, and prime one mechanism where the environment offers a better one ("Poll until the server responds or ~30 seconds elapse", not the loop shape or a `timeout` wrapper).
 
-- "Poll until the server responds or ~30 seconds elapse" — not the loop shape, the sleep interval, or a `timeout` wrapper.
-- "Bound the fetch so an offline remote can't hang the run" — not a snippet probing `timeout` vs `gtimeout`.
-
-Detail earns its place only where the model reliably gets it wrong without it (the explain-WHY cases) or where the value is a project contract — exact paths, schemas, thresholds, canonical option labels. Litmus: would a competent engineer joining the project need this sentence, or just the goal?
+The **environment** is a source of truth too (`package.json` scripts, config files, the directory layout, `--help` output), and a document that restates it is a **cache**: a copy of a lookup, earning its load only when the lookup is expensive. Cache what the agent cannot find by looking: the unwritten convention, the reason behind a choice, the gotcha no config confesses; leave the one-file, one-command lookups to the environment, where they cannot go stale. Detail earns its place only where the model reliably gets it wrong without it (the explain-WHY cases) or where the value is a project contract — exact paths, schemas, thresholds, canonical option labels.
 
 ## One default + escape hatch
 
@@ -48,20 +41,11 @@ State the default authoritatively, then name the one case where the escape hatch
 | Menu of equivalents | Default + escape hatch |
 |---|---|
 | "You can run tests with pytest, jest, vitest, or go test depending on the project." | "Use the test command from CLAUDE.md §'Essential Commands'." |
-| "Reviewers may spawn at haiku, sonnet, or opus tier." | "Reviewers inherit the orchestrator's tier (OMIT `model=`). Custom reviewers declare their own tier in `.geniro/instructions/review-extra/<slug>.md` frontmatter — honor that." |
 | "Worktree creation is optional. You can also work in the current branch, on a feature branch, or in a worktree." | "Create a worktree by default; the `no-worktree` modifier in `$ARGUMENTS` skips it." |
 
 ## Terminology consistency
 
-One term per concept, across the whole file. Mixed synonyms fragment the model's attention across variants it has to unify.
-
-| Concept | Pick one | Don't mix |
-|---|---|---|
-| Git working tree | `worktree` | `worktree` + `checkout` + `tree` + `clone-of-the-repo` |
-| Plugin shared helper | `helper` | `helper` + `utility` + `lib script` + `tool` |
-| User-approval prompt | `AUQ` (after first definition) | `AUQ` + `prompt` + `confirmation dialog` |
-| Subagent spawn | `spawn` | `spawn` + `invoke` + `call` + `delegate` |
-| Sub-step | `Step N.M` | `Step 0.5` + `Sub-step 0b` + `Phase 1 §3` for the same thing |
+One term per concept, across the whole file: `worktree` (not also `checkout` / `tree`), `spawn` (not `invoke` / `call` / `delegate`), `AUQ` after its first definition (not also `prompt` / `confirmation dialog`), `Step N.M` (not `Step 0.5` + `Sub-step 0b` + `Phase 1 §3` for one thing). Mixed synonyms fragment the model's attention across variants it has to unify.
 
 ## Leading words
 
@@ -75,11 +59,7 @@ When one quality gets restated at every step ("fast, deterministic, low-overhead
 
 **Front-load everything the model must check every turn; keep the tail for detail it can look up.** The mechanism is compaction: Claude Code re-attaches only the first ~20,000 characters of each skill after a summary (measured at that exact cutoff — `tests/authoring/lint-skills.sh`'s `REATTACH_CHARS`), and re-attached skills share a 25,000-token budget filled most-recent-first ([skills reference](https://code.claude.com/docs/en/skills)). So a skill over ~20,000 characters loses its tail for the rest of the session at the first compaction, and one invoked early in a busy session can be dropped in full — while a long, subagent-heavy run is exactly where compaction is the expected case.
 
-Placement for a SKILL.md:
-- **Top (first ~20,000 characters):** role statement, phases overview, loop invariants, budgets, tool surface, cross-skill contract vocabulary, anti-rationalization table.
-- **Below:** per-phase Steps with detail, REFERENCE list, state recovery. Cite them by name from the invariants so the model jumps to a phase rather than scanning for it.
-
-An invariant that would land past the boundary moves into Loop invariants and gets cited by `#N` from the phase that needs it.
+The first ~20,000 characters of a SKILL.md carry `skill-structure.md` §Section ordering items 1-9 (role, phases overview, loop invariants, budgets, tool surface, contract vocabulary, anti-rationalization table); per-phase Steps, REFERENCE list, and state recovery sit below, cited by name from the invariants so the model jumps to a phase rather than scanning for it. An invariant that would land past the boundary moves into Loop invariants and gets cited by `#N` from the phase that needs it.
 
 **When the top list alone exceeds the budget, split the file — don't ration it.** Rationing produces the worst possible outcome: every rule about how to behave survives and the work itself is lost. Build a spine that fits the re-attach budget, plus one file per phase that the skill Reads on entry to that phase.
 
@@ -94,118 +74,39 @@ Keep the `## PHASE N` heading in the spine above its pointer, so external `<skil
 
 ## Token budget awareness
 
-**A reference file's cost is its size times its load frequency.** Before moving detail into a reference, name the runs that will not load it; if the honest answer is "none", the move adds a round-trip and saves nothing. The same test kills the move into an `agents/*.md` body, which is injected whole as the subagent's system prompt — relocating a rule there converts free prompt tokens into the same tokens plus a Read the agent may skip.
+**Progressive disclosure** moves reference out of the main file and behind a pointer so the top stays legible — it protects the information hierarchy more than it saves tokens. Branch test: inline what every branch needs, and push behind a pointer what only some branches reach. In-file reference that should be disclosed buries a document's steps and turns attending to them into a coin-flip: a variance lever, not just a legibility one. `agents/*.md` bodies are the exception (`skill-structure.md` §File-size limits).
 
-**What degrades rule-following is rule count and applicability, not word count.** The expensive operation is adjudicating which of several similar-looking rules binds right now; an equivalent volume of inert text costs comparatively little. The failure mode is omission — the model acts as if the dropped rule was never written. So partition before you delete: path-scope a rule set so it loads only for the work it governs, and the same words stop competing.
+**Co-location** is the within-file companion: keep a concept's definition, rules, and caveats under one heading rather than scattered, so reading one part brings its neighbours with it. The test: the document should read like documentation written for the agent. (Distinct from duplication, which repeats one meaning in two places; scattering fragments one meaning across many.)
+
+**What degrades rule-following is rule count and applicability, not word count.** The expensive operation is adjudicating which of several similar-looking rules binds right now; an equivalent volume of inert text costs comparatively little. The failure mode is omission — the model acts as if the dropped rule was never written.
 
 **The reduction has a ceiling, lower than it looks.** Constraint compliance falls measurably faster than knowledge retention, with the gap pronounced past roughly 60-70% reduction ([arXiv 2512.17920](https://arxiv.org/abs/2512.17920)); these files are constraint payload end to end, so compression figures measured on fact recall do not transfer. Deferral, not density, is the lever that scales.
 
 That also disqualifies the obvious way to test a cut: "I removed it and the run still worked" is evidence about the path that ran, not about the text. A prohibition, an edge-case branch, or an ordering constraint never fails the happy path, so a pass-based removal loop strips exactly the guard prose it should keep and reports a win. Name the case the text exists for; when no such case can be named, the text may genuinely be spent.
 
 Heuristics, in priority order:
-- **Scope before you cut.** A rule that applies to one kind of task belongs behind a path scope or a conditional load, not in the always-on body.
+- **Scope before you cut.** A rule that applies to one kind of task belongs behind a path scope or a conditional load, not in the always-on body — the same words stop competing.
 - **Restatement summaries** (a paragraph ending "in other words, …") — drop.
 - **Hedge clauses** ("may or may not", "depending on the situation") — commit to the condition or drop the line.
 - **Defensive disclaimers** ("Note that this only applies if X") — fold into the rule as a single-clause conditional.
-- **Inline pseudo-code and multi-paragraph step explanations** → move to a reference file, once you have named the runs that skip it.
-
-Reference files carry no budget pressure until loaded — be generous there. SKILL.md stays lean.
 
 ## What adding instructions buys
 
 Rule text raises compliance on a step the model would otherwise skip. It does not raise capability on a step the model already attempts: four separate attempts to make a reviewer catch more by adding text — a prose directive, a checklist item, a required output slot, an injected context file — each moved detection by zero, while a −75% rewrite of the same criteria held detection across two task sets and two executor families (`evals/loop/experiments/`).
 
 - **Diagnose before drafting.** A step that never runs is an instruction problem: write the rule. A step that runs and comes back shallow is a capability bound, and no wording reaches it — spend on a differently-angled second pass, or state the bound and stop.
-- **A required slot proves a step ran; it does not deepen it.** Forced enumeration comes back honest, thorough, and one hop short of the defect.
+- **A required slot proves a step ran; it does not deepen it.** Forced enumeration comes back honest, thorough, and one hop short of the defect. Add a slot to expose what a step did, never to raise how well it did it.
 - **Cut boldly or not at all.** Keeping a checklist's headings while dropping its content measured worse than either the full text or a charter — mission, common false positives, severity calibration — which is the shape a criteria file compresses to without loss.
 
-This does not license compressing constraint payload; §Token budget awareness carries that ceiling. The kinds differ: an enumeration of what to look for compresses to a charter, a set of rules to obey does not.
+This does not license compressing constraint payload (§Token budget awareness): an enumeration of what to look for compresses to a charter, a set of rules to obey does not.
 
-## Time-sensitive content
+## Relevance
 
-Wrap a deprecated procedure in collapsible HTML rather than inlining it — still greppable, no longer competing with the current procedure for attention.
-
-```markdown
-<details>
-<summary>Legacy v1 API (deprecated 2025-08; removed next major version)</summary>
-
-[old procedure]
-
-</details>
-```
+Check every line for **relevance**: does it still bear on what the document does? A line loses relevance by never bearing on the task (mere exposition, or a branch that should be disclosed) or by going stale as the behaviour or world it describes changes. Without a pruning discipline the default fate is **sediment**: stale layers that settle because adding feels safe and removing feels risky. Delete a stale line or procedure outright — git keeps the history, and a collapsed copy left in the file still competes for attention.
 
 ## User-facing output uses plain English
 
-### The fresh-user test
-
-**A fresh user with the plugin installed but no architecture docs loaded — no `CLAUDE.md`, no `state-tier-spec.md` — must be able to act on the string without first learning a Geniro-specific identifier.** If understanding it requires knowing `T2` / `FIX-NOW` / `phase: triage` / `m5-v2` / `KR`, restate the identifier's meaning inline or drop it for the plain-English form.
-
-Both dimensions must pass:
-
-- **No untranslated identifiers.** `T2` / `FIX-NOW` / `phase: triage` restated inline or dropped.
-- **No assumed hidden context.** The string explains the situation it is about. A review gate asking *"How should we handle the implicit entity-default @Filter at the 3 call sites?"* fails even though every word is plain English — the user was never shown what that code does, why it is a concern, or what the options mean. For decisions carrying finding or investigation context, render the self-contained explanation to a chat message first, then fire a lean question, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question.md` §Message-first rendering.
-
-### Explanations are layered, plain before technical
-
-Any explanation a skill renders before a decision splits into a plain layer and a `**Technical detail:**` block, in that order — the shape, the two properties that keep the layers honest, and when to omit the technical block are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers. Authoring consequence: when a render template in a skill or reference enumerates its slots, the slot list names both layers and puts the cites in the second, so a run instantiating the template does not merge them back. A slot list ending at `**Why it matters:** … (evidence: path:lines)` is the shape this rule replaces.
-
-Applies to everything the orchestrator surfaces: chat narration, todo-list labels, `AskUserQuestion` `header` / `question` / `description` / option `label` / `preview`, status echoes, final report sections, and errors surfaced to chat (not the state-file `## Errors` body section — that is a structured artifact for downstream consumers).
-
-### Translation tables
-
-Extend when new internal vocabulary appears.
-
-| Family | Internal term | Plain-English form for user-facing prose |
-|---|---|---|
-| Memory layer | `L1` / working memory | "task state" / "session state" |
-| | `L2` / episodic memory / learnings | "past learnings" / "prior knowledge" |
-| | `L3` / semantic memory / snapshot | "project snapshot" / "codebase map" |
-| | `L4` / procedural memory / instructions | "custom instructions" / "project rules" |
-| State tier | `T1` / ephemeral state | "scratch files" / "transient working files" |
-| | `T1.5` / durable task state | "task artifacts" |
-| | `T2` / handoff | "handoff" (drop the `T2` — the word carries the semantic) |
-| | `T3` / persistent state | "persistent state" (drop `T3`) |
-| Subagent | `KR` / `KR output` | "knowledge-retrieval agent" / "knowledge-retrieval output" |
-| | `CE` / `CE output` | "codebase-explorer agent" / "codebase-explorer output" |
-| | `TR` / `TR output` | "test-runner agent" / "test-runner output" |
-| Decision type (reviewer-internal) | `FIX-NOW` | "automatic fix" / "I can fix this directly" |
-| | `TESTABLE` | "this can be verified with a test" |
-| | `PRODUCT-DECISION` | "needs your decision" / "judgment call required" |
-| | `INTENT-CHECK` | "needs you to confirm intent" |
-| Cause type (debug-internal) | `ROOT-CAUSE` | "root cause" |
-| | `SYMPTOM` | "surface symptom" / "downstream effect" |
-| | `UNKNOWN` | "cause not yet identified" |
-| Frontmatter field | `approvals[]` | "decisions you've made in this run" / "saved choices" |
-| | `non-resumable-actions[]` | "external actions that can't be undone (push, PR open)" |
-| | `workflow_refs[]` | "linked tracker tickets" |
-| | `open_questions[]` | "open questions from the prior review/debug" |
-| | `related_findings[]` | "findings this question gates" |
-
-**Everything else** — phase / step labels (`Phase 4.3`, `Step 0b`), state-machine enum values (`phase: analyze`), reviewer dimension slugs (`spec-compliance`), schema versions (`m5-v2`), helper / hook names (`load_semantic`, `PreToolUse`). Narrate what is happening or what a helper did, never the identifier: "Analyzing the change scope", not "Now in `phase: analyze`"; "Couldn't refresh the project snapshot", not "load_semantic returned rc=11". Surface a schema version only when the user must act on the difference, and then describe the action ("this spec uses the older format and needs re-authoring"), not the version. Cross-reference a step by its concept ("the open-question gate"), not its number.
-
-### What's exempt
-
-The rule governs narrative prose surfaced to the user. It does not govern:
-
-- **Filesystem paths** (`.kr-out.md`, `_CODEBASE_MAP.md`) — their prefixes and extensions carry the semantics. Keep them.
-- **YAML / JSON keys inside code blocks** rendered to the user.
-- **Architectural sections documenting the layer / tier / subagent system itself** — `CLAUDE.md` §Memory Layers, `skills/_shared/state-tier-spec.md`. Those address authors.
-- **Skill body declarative prose** referencing architecture for authors — the orchestrator paraphrases rather than echoes it.
-- **`## Errors` body sections** in state files. The chat-surfaced version of the same error still follows the rule.
-
-### Step titles ARE user-facing
-
-The model echoes a step title when it executes the step. `5. **Load custom instructions.**` is fine; `5. **Load L4 instructions.**` is not. This is the most common leak vector — fix step titles first when auditing a skill. Section headers behave the same way: the model paraphrases them into narration.
-
-### Anti-rationalization
-
-| Rationalization | What's actually wrong |
-|---|---|
-| "The user can grep the architecture docs if they don't understand `T2`." | Forcing a context-switch into doc archaeology to read a progress message is the failure this test prevents. |
-| "Spelling out `knowledge-retrieval agent` every time bloats the prose." | Three words per occurrence is the cost of clarity. The body has the bandwidth; the user-facing surface is the load-bearing constraint. |
-| "The skill body uses `Phase 4.3` everywhere — I'll keep it for consistency in echoes." | Consistency with author-facing vocabulary IS the problem: the model echoes it verbatim because it sees no signal not to. |
-| "`PRODUCT-DECISION` is precise; 'needs your decision' loses precision." | That precision serves author-side coordination, mapping findings to gates. The user needs to act on the decision, not learn the taxonomy. |
-| "`(Internal: L4 procedural memory layer)` preserves the cross-reference without confusing the user." | The model echoes the parenthetical too. The rule is binary at the user surface; author cross-references live in the architecture docs. |
+**A fresh user with the plugin installed and no architecture docs loaded must be able to act on any string the orchestrator surfaces — chat narration, todo labels, `AskUserQuestion` fields, final reports — without first learning a Geniro identifier** (`T2`, `FIX-NOW`, `phase: triage`, `m5-v2`). Read `.claude/authoring/user-facing-prose.md` before writing or editing such a string: it carries the test's two dimensions, the translation tables, the exemptions, and the anti-rationalization rows. Runtime explanations follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers (the reply-language plain layer, then a technical block).
 
 ## Examples — diverse and canonical
 

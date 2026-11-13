@@ -9,7 +9,7 @@ The run-completion checklist of `.claude/skills/analyze-thread/SKILL.md`, Read a
 - [ ] Phase 3 cross-thread merge ran before triage: recurring defects collapsed to one finding with `threads: [...]`, recurrence raising confidence but never severity
 - [ ] The coverage scoreboard rendered for every thread whose expectation set was non-empty, each gap citing the finding that carries its evidence
 - [ ] The cost table rendered for every JSONL thread carrying usage fields, each driver citing the finding that carries its evidence
-- [ ] Every kept finding carries a `fix_kind`, and none with a loaded-and-still-violated rule at recurrence ≥ 2 is PROSE
+- [ ] Every kept finding carries a `fix_kind`, none with a loaded-and-still-violated rule at recurrence ≥ 2 is PROSE, and every PROSE or REMOVE-RULE one names its lever, judged against `.claude/rules/skill-prose.md` Read this run
 - [ ] Every UNCERTAIN finding got its own AUQ, fired sequentially rather than batched into one multiSelect
 - [ ] Handoff written via `atomic_state_write` when the user chose to emit, with one `open_questions[]` entry per kept finding, each carrying `fix_kind`
 - [ ] State file cleaned up per the helper § Cleanup contract

@@ -43,15 +43,7 @@ investigate ── (§1.6 second refuted/clarified verifier round) ── phase-
                                                                                        └── adversarial-aborted (terminal — zero red tests after F→P + flake check)
 ```
 
-Each escalation edge leaves the phase whose gate writes it: `phase-1-escalated` from `investigate` (the stall gate), `phase-1-verification-stalled` from `investigate` (the §1.6 verification-stalled gate, on a second consecutive refuted/clarified verifier round), `phase-2-escalated` from `propose` (the fix-loop gate).
-
-**Terminal states:** `done`, `ship-summary-only`, `aborted`, `adversarial-aborted`, `adversarial-ship-summary-only`. The SessionStart recovery treats all five as "task complete — no resume needed".
-
-**Non-terminal states:** `mode-detect`, `investigate`, `propose`, `ship`, `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship`. The recovery rolls these back to phase-entry and re-runs (idempotent — `approvals[]` ensures gates skip already-answered).
-
-**Escalation states:** `phase-1-escalated`, `phase-1-verification-stalled`, `phase-2-escalated`. The recovery surfaces these to the user as "task was paused — your previous options:" so the user re-picks without losing context.
-
-The `## Termination reason` body section is written on `aborted` / `adversarial-aborted` terminals.
+SKILL.md § State machine lists the terminal and escalation sets; the SessionStart recovery reads every terminal as "task complete — no resume needed" and surfaces each escalation state as "task was paused — your previous options:". The other states — `mode-detect`, `investigate`, `propose`, `ship`, `adversarial-mode-detect`, `adversarial-investigate`, `adversarial-ship` — roll back to phase entry on recovery and re-run (idempotent: `approvals[]` makes already-answered gates skip). The `## Termination reason` body section is written on `aborted` / `adversarial-aborted` terminals.
 
 ---
 

@@ -15,20 +15,19 @@ Mechanical structure rules for every skill / agent / reference file. Companions:
 
 | File class | Front-load budget | Whole-file guideline | On overflow |
 |---|---|---|---|
-| `skills/<slug>/SKILL.md` body (after frontmatter) | ~3,000 words | ~5,000 words | Everything load-bearing belongs inside the front-load budget — that is what survives compaction (`skill-prose.md` §Rule placement). Past the whole-file guideline, move templates / pseudo-code / contracts to a sibling `*-reference.md` that some runs genuinely skip. |
+| `skills/<slug>/SKILL.md` body (after frontmatter) | ~3,000 words | ~5,000 words | Load-bearing content stays inside the front-load budget (`skill-prose.md` §Rule placement); apply the branch test (`skill-prose.md` §Token budget awareness) and move what some runs skip to a sibling `*-reference.md`. |
 | Reference file (`*-reference.md`) | n/a | none | Split by phase / concern. Add a Contents block past ~1,200 words (§Reference graph). |
-| Agent file (`agents/*.md`) | whole file | ~2,500 words | Tighten or cut in place. An agent body is injected whole as the subagent's system prompt, so moving content to `agents/<name>-reference.md` converts free prompt tokens into the same tokens plus a Read the agent may skip — and a skipped rule is silently gone rather than merely late. Move only content some runs need and others don't. |
+| Agent file (`agents/*.md`) | whole file | ~2,500 words | Tighten or cut in place. An `agents/*.md` body is injected whole, so moving its content out adds a Read and saves nothing — and a skipped rule is silently gone rather than merely late. Move only content some runs need and others don't. |
 
-The ~3,000-word front-load budget approximates the compaction re-attach boundary, canonical in `skill-prose.md` §Rule placement — the boundary itself is measured in characters, not words, because characters-per-word swings several-fold with table density. The whole-file numbers are guidelines. An oversize file is a signal to check what is load-bearing and where it sits, not a defect — never trim load-bearing content to hit a number.
-
-Growth is measured per pass, not per file: `scripts/word-delta.sh <base>` reports a pass's net word change across the instruction files, and `CLAUDE.md` §Editing plugin content sets the bar.
+The ~3,000-word front-load budget approximates the compaction re-attach boundary (`skill-prose.md` §Rule placement), which is measured in characters because characters-per-word swings several-fold with table density. **Sprawl** is a file simply too long, every line live and unique: attention thins across the excess, and every extra line is one more to keep relevant. The cure is the branch test — disclose reference behind pointers, and split by branch or sequence so each path carries only what it needs. The whole-file numbers are guidelines; never trim load-bearing content to hit a number.
 
 ## Reference graph
 
 - **Depth ≤ 1 hop from SKILL.md to reference / helper.** SKILL.md may link to `*-reference.md` or to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/*.md`. Those targets may not link back into another skill body for runtime instructions — cross-skill coordination lives in `_shared/`. **Inside `_shared/`, peers cross-link freely**: it is a flat namespace whose helpers navigate among themselves, and the 1-hop ceiling constrains the SKILL → reference edge only. Claude does partial reads on transitively-discovered files, so chains past ~3 hops to a leaf degrade — avoid those.
-- **TOC required** for any file over ~1,200 words **that is Read at runtime** — SKILL.md bodies, `*-reference.md`, `_shared/*.md`. Place a 5-15 line "Contents" block right after the H1 so partial-read previews see the full scope. `agents/*.md` are exempt: injected in full, so there is no preview for a TOC to widen and the bullets cost their tokens on every spawn.
+- **TOC required** for any file over ~1,200 words **that is Read at runtime** — SKILL.md bodies, `*-reference.md`, `_shared/*.md`. Place a 5-15 line "Contents" block right after the H1 so partial-read previews see the full scope. `agents/*.md` are exempt: injected in full, a TOC only adds tokens to every spawn.
 - **Single source of truth.** Pseudo-code blocks, slot tables, and schema definitions live in exactly one file. Cross-reference the source; never inline a copy.
-- **One exemption — the turn-boundary rule** is inlined verbatim in every pipeline `SKILL.md` instead of referenced, and the lint's cross-file duplication warning is expected to name it. Across 20 measured `/geniro:implement` runs, `_shared/loop-invariants.md` was read 0 times and `gate-rendering.md` once: a rule behind a pointer the run never opens does not exist at runtime. Keep the copies in step when editing one, and re-measure that the target is actually read before collapsing any of them back to a citation.
+- **A must-have target behind a weakly worded pointer is a variance bug:** sharpen the wording first, and inline the material only if sharpening fails.
+- **One exemption — the turn-boundary rule** is inlined verbatim in every pipeline `SKILL.md`, and the lint's cross-file duplication warning is expected to name it: across 20 measured `/geniro:implement` runs, `_shared/loop-invariants.md` was read 0 times and `gate-rendering.md` once. Keep the copies in step, and re-measure that the target is read before collapsing any of them back to a citation.
 
 ### Reference classes
 
@@ -45,13 +44,12 @@ When a section of prose is really a rubric or an executable check, convert it ra
 
 ## Design the interface, not the instructions
 
-Where a contract's *shape* can carry a rule, prefer that to prose stating the rule. A closed enum, a typed field, a required slot, or a tool allowlist communicates usage at the point of use and cannot drift from its documentation, because it is the documentation.
+Where a contract's *shape* can carry a rule, prefer that to prose stating the rule. A closed enum, a typed field, a required slot (auditability, not depth — `skill-prose.md` §What adding instructions buys), or a tool allowlist communicates usage at the point of use and cannot drift from its documentation, because it is the documentation.
 
 - **Enumerate instead of demonstrating.** Listing a field's legal values (`confirmed` / `clarified` / `refuted` / `unverified`) teaches usage without a worked example, and without constraining the model to the one case the example showed.
 - **Name the field for what it does.** A name implying a behavior the field lacks costs more than it saves: every consumer then needs a sentence undoing the implication, and those sentences are what drift.
-- **Let the tool surface state the boundary where the surface actually is one.** A plugin-defined agent's own `tools:` frontmatter withholds a tool outright, so it expresses read-only discipline structurally — the Agent tool itself takes no `tools=` or `disallowedTools=` argument, so a spawn cannot restrict a generic subagent this way. A skill's `allowed-tools` does not withhold anything either: it pre-approves tools for the turn so they skip a permission prompt, and an unlisted tool stays callable. So a skill's read-only rule is prose, and citing its `allowed-tools` as enforcement states a guarantee the field never made. Keep prose for what no surface expresses — a `Bash`-issued `git push` is not covered by withholding `Edit`.
+- **Let the tool surface state the boundary where the surface actually is one.** A plugin-defined agent's own `tools:` frontmatter withholds a tool outright, so it expresses read-only discipline structurally — the Agent tool itself takes no `tools=` or `disallowedTools=` argument, so a spawn cannot restrict a generic subagent this way. A skill's `allowed-tools` withholds nothing either (it only pre-approves tools, and an unlisted tool stays callable), so a skill's read-only rule is prose, and citing `allowed-tools` as enforcement states a guarantee the field never made. Keep prose for what no surface expresses — a `Bash`-issued `git push` is not covered by withholding `Edit`.
 - **Return the value instead of asking the caller to remember it.** A helper that echoes its own result needs no rule telling callers to echo it.
-- **A slot buys auditability, not depth.** A required output section reliably comes back filled, which makes a step's output checkable; it does not make the work behind it deeper (`skill-prose.md` §What adding instructions buys). Add one to expose what a step did, never to raise how well it did it.
 
 When you find yourself writing a second sentence to clarify how a field should be used, check whether renaming the field or closing its value set removes the need for both.
 
@@ -77,7 +75,7 @@ Description rules — every description loads into every session's skill listing
 2. **≤250 characters, "Use when …" opener, optional "Skip for …" tail.** One trigger per branch; cut identity and process summary the body already carries.
 3. **No reserved words** (`anthropic`, `claude`) in `name:`.
 4. **No XML tags** anywhere in the description.
-5. **Hand-only skills** — one that only ever starts by hand (no other skill invokes it inline) — set `disable-model-invocation: true` so its description stops loading every session. A skill another skill hands off to stays model-invoked.
+5. **Invocation.** Pick model-invocation only when the agent must reach the skill on its own, or another skill must. If it only ever fires by hand, set `disable-model-invocation: true` and pay no context load. A skill another skill hands off to stays model-invoked.
 
 ### `maxTurns` on agent frontmatter
 
@@ -96,14 +94,12 @@ Set the cap comfortably above the workload estimate, never at it: the last turns
 7. Budgets / quality gates — table.
 8. ACI per-phase tool surface — table.
 9. Memory I/O — short references to `_shared` helpers.
-10. Per-phase sections (`## PHASE 1`, ...) — short Steps lists. Inline only the workflow narrative; push templates and pseudo-code to a reference. End each phase on a completion criterion the model can check — done distinguishable from not-done — and, where coverage matters, exhaustive ("every kept finding rendered", not "render the findings"); a vague bound is what lets a phase end early. The Definition-of-Done checklist is the canonical form.
+10. Per-phase sections (`## PHASE 1`, ...) — short Steps lists. Inline only the workflow narrative; push templates and pseudo-code to a reference. End each phase on a completion criterion that tells done from not-done and, where coverage matters, is exhaustive ("every kept finding rendered", not "render the findings"). A vague bound invites premature completion: the visible later steps pull the run toward finishing, and the criterion's clarity is the resistance — sharpen the criterion first; hiding later steps helps only across a real context boundary (a hand-off or a subagent dispatch), never an inline call. The Definition-of-Done checklist is the canonical form.
 11. Modifier handling — table.
 12. Task execution entry / state recovery.
 13. REFERENCE — bulleted list of `${CLAUDE_PLUGIN_ROOT}/...` paths.
 
-Sections 1-9 are the spine — what the model checks every turn and what has to survive a summary — so they belong inside the ~3,000-word front-load budget. Anti-rationalization sits at 6 for that reason (`skill-prose.md` §Rule placement carries the mechanism).
-
-**When sections 1-9 alone approach 3,000 words, split the file** rather than compressing the spine — a spine filling the whole budget leaves no room for the phases, which is the failure the split exists to prevent.
+Sections 1-9 are the spine — what the model checks every turn and what has to survive a summary — so they belong inside the ~3,000-word front-load budget (`skill-prose.md` §Rule placement carries the mechanism, and the split when they alone approach it).
 
 ## Cross-skill references
 
@@ -122,13 +118,9 @@ Line numbers decay within the same edit; section numbers and content anchors sur
 Each row is `| reasoning the model might generate | why that reasoning is wrong + what to do instead |`.
 
 - **≤ 15 rows per skill.** Past 15 the table itself becomes hard to read. Adding row #16 means auditing the existing rows — at least one is defending against a failure mode that is no longer live.
-- **Each right-hand cell carries reasoning**, not caps. It explains *why* the reasoning is wrong, citing an invariant, a documented failure mode, or a real incident.
-- **No internal design-doc anchors** in the right-hand cell. The reader has no access to `design/<file>.md` from their own repo.
+- **Each right-hand cell carries reasoning**, not bare caps. It explains *why* the reasoning is wrong, citing an invariant, a documented failure mode, or a real incident.
 
 ## Pre-commit verification
 
 1. **Run `bash tests/authoring/lint-skills.sh`** — it hard-fails on SKILL.md frontmatter that would not load, dangling `${CLAUDE_PLUGIN_ROOT}` references and unknown spawn names, and names the last section that survives compaction — **then `scripts/word-delta.sh <base>`** for the pass's word budget.
-2. **Reference depth.** Any file this edit makes a skill cite must not itself pull runtime instructions from another skill's body (§Reference graph).
-3. **TOC presence.** A runtime-Read file past ~1,200 words has a Contents block near the top. `agents/*.md` are exempt.
-4. **No pseudo-code duplication.** A block added to SKILL.md must not also live in the sibling reference file.
-5. **Frontmatter description** is third-person, "Use when …" form, within the 250-character budget.
+2. **Re-check the edit against §Reference graph** (depth, Contents block, no pseudo-code in both SKILL.md and its reference) **and §Frontmatter hygiene** (description form and length).

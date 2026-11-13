@@ -12,11 +12,11 @@ Phase file for `/geniro:setup`. The spine — invariants, budgets, tool surface,
 
 ---
 
-**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: setup`, `LOAD_TIER: rules-only`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract. This phase writes `CLAUDE.md` and `.gitignore` into the user's tree; the only prior load predates the Detect scan and the Interview.
+**Refresh custom instructions.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: setup`, `LOAD_TIER: rules-only`, `MODE: refresh`. Compaction since the previous load may have silently dropped the rules — re-Read all files and echo per the helper's contract.
 
 ### 3.0 Migration sweep (re-run only)
 
-When `mode == re-run`, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` now — before any step of the re-run, echoing per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md`, because it is the sole home of this skill's migration apply policy: which `Auto-fix:` values may reach a shell at all, the `manual-only`-tested-first ordering, and the destructive-command deferral. A run that improvises the sweep runs prose through `bash -c`, which is exactly what that policy exists to prevent. Then run its §3.0 sweep before generating content.
+When `mode == re-run`, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` now — before any step of the re-run, echoing per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — as the sole home of the migration apply policy; an improvised sweep runs prose through `bash -c`. Then run its §3.0 sweep before generating content.
 
 **Init mode skips this step** — fresh installs write the current schema directly.
 
@@ -28,24 +28,24 @@ If `mode == init`, skip the pre-write audit and proceed to §3.2.
 
 ### 3.2 CLAUDE.md generation — project-only content
 
-CLAUDE.md is a **project file**, not a plugin manual. It contains ONLY information specific to THIS repository. Before generating, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content — the single enumeration of the plugin content that must not appear in the generated file — and keep every item out.
+CLAUDE.md is a **project file**, not a plugin manual: ONLY what is specific to THIS repository, and by the cache rule in SKILL.md only what the agent cannot find by looking — never a copy of what ESLint, Prettier, or `.editorconfig` already enforce, nor a README overview. Before generating, Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content — the single enumeration of the plugin content that must not appear in the generated file — and keep every item out.
 
-Generated CLAUDE.md sections:
+Generated CLAUDE.md sections — other skills look these headings up by name, so keep them exactly:
 
 | Section | Content | Source |
 |---|---|---|
 | Header | Project name + 1-line purpose | `README.md` / `package.json` name field |
-| Project Overview | What this project does, architecture, key design decisions | `README.md`, `ARCHITECTURE.md`, `docs/` |
+| Project Overview | What this project does and the design decisions whose reason is written nowhere else | `README.md`, `ARCHITECTURE.md`, `docs/` |
 | Tech Stack | Languages, frameworks, databases, infra | Phase 1 Detect output |
-| Commands | Build, test, lint, typecheck, dev server | `package.json` scripts / `Makefile` / `pyproject.toml` |
-| Project Conventions | Naming, patterns, code style rules | `.editorconfig`, ESLint/Prettier config, `CONTRIBUTING.md` |
+| Essential Commands | Build, test, lint, typecheck, dev server | `package.json` scripts / `Makefile` / `pyproject.toml` |
+| Project Conventions | Unwritten conventions and the reason behind a choice | `CONTRIBUTING.md`, existing AI-tool instructions, Interview answers |
 | Domain Context | Key entities, API patterns, business terms | Project docs, API specs, `.env.example` variable names |
 
 ### 3.3 Write targets
 
-- `<PROJECT_ROOT>/CLAUDE.md` — project-specific content only. No section markers — CLAUDE.md is user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts).
+- `<PROJECT_ROOT>/<instruction_file>` (CLAUDE.md, or AGENTS.md per §1.1) — project-specific content only. No section markers — user-owned content, not plugin-managed. Re-run mode uses orchestrator-inline merge (preserve user edits + update detected facts). When `instruction_file` is AGENTS.md and CLAUDE.md is absent, also write `<PROJECT_ROOT>/CLAUDE.md` holding the single line `@AGENTS.md`.
 - `<PRIMARY_ROOT>/.geniro/instructions/global.md` — only if user opted in.
-- `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` — per `$ISSUE_TRACKER_CHOICE` (§2.4), installed from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` (a stub for non-Linear). Include the AI-disclosure prefix section, a `## Searching for issues` heading, and a `## PR description` heading in every workflow file — filled in for Linear, left as an unfilled placeholder for the user to complete in the non-Linear stub. The disclosure section lets reviewers tell an AI-authored tracker update from a teammate's; the search heading lets a consumer read "no search capability declared" instead of mistaking a blank section for an unreachable tracker; the PR-description heading lets `/geniro:implement` tell a prescribed PR-body line from an unfilled stub, which it ignores.
+- `<PRIMARY_ROOT>/.geniro/workflow/<tracker>.md` — per `$ISSUE_TRACKER_CHOICE` (§2.4), installed from `${CLAUDE_PLUGIN_ROOT}/skills/setup/workflow-templates/` (a stub for non-Linear). Include the AI-disclosure prefix section, a `## Searching for issues` heading, and a `## PR description` heading in every workflow file — filled in for Linear, left as an unfilled placeholder for the user to complete in the non-Linear stub.
 - `<PRIMARY_ROOT>/.geniro/instructions/{plan,implement}.md` — only when `$OPENSPEC_CHOICE` is "Yes" (§2.4b). Merge `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-plan.md`'s `## Additional Steps` → `### After user-approve` subsection into `plan.md`, and `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/openspec-implement.md`'s `### After ship` subsection into `implement.md`, creating either file from its scaffold in `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/instruction-file-scaffolds.md` first when absent.
 - `<PRIMARY_ROOT>/.geniro/state/setup/state.md` — frontmatter update (`phase: generate → validate`). The singleton state file lives in `PRIMARY_ROOT`, not `PROJECT_ROOT` (they differ in a linked worktree; rehydration and cleanup look in the main one).
 - `$CLAUDE_USER_DIR/hooks/geniro-statusline.js` — statusline script copy (§3.6); a user-config write outside PROJECT_ROOT.
@@ -86,15 +86,15 @@ Check `$CLAUDE_USER_DIR/settings.json` for a `statusLine` entry. If absent, add 
 
 ### 3.7 Install Geniro into the Cursor profile (conditional)
 
-Fires only when this machine has a Cursor install (`$HOME/.cursor/` exists) AND the resolved plugin root carries `cursor/skills/` AND it was not dropped at the §3.3 batch approval. Skip silently when any of these fails — there is nothing to install into, nothing to install, or the user declined it.
+Fires only when this machine has a Cursor install (`$HOME/.cursor/` exists) AND the resolved plugin root carries `cursor/skills/` AND it was not dropped at the §3.3 batch approval. Skip silently when any of these fails.
 
-`cursor-agent` loads no plugin components, so a plugin install alone leaves Cursor CLI and ACP sessions without Geniro skills, subagents, or hooks (the IDE is unaffected); the per-component profile directories are the only route reaching both surfaces. `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §Install carries the evidence and the source threads.
+A plugin install alone leaves `cursor-agent` sessions without Geniro skills, subagents, or hooks; `${CLAUDE_PLUGIN_ROOT}/cursor/README.md` §Install carries the evidence.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-cursor.sh"
 ```
 
-The script is idempotent and touches only what it owns in those shared destinations, so a re-run costs nothing. It also picks its own link target: invoked from a versioned install cache it links to the marketplace checkout instead, so the install survives plugin updates. Report the source line it prints, and pass on every `WARNING:` and `SKIP:` line it emits — a version-carrying link, a Cursor plugin install that will now double every skill, a `hooks.json` left untouched because `jq` is missing — rather than dropping them. Record the outcome for the §5.1 report.
+The script is idempotent and touches only what it owns in those shared destinations, so a re-run costs nothing. It picks its own link target, preferring the marketplace checkout over a versioned install cache. Report the source line it prints, and pass on every `WARNING:` and `SKIP:` line it emits — a version-carrying link, a Cursor plugin install that will now double every skill, a `hooks.json` left untouched because `jq` is missing — rather than dropping them. Record the outcome for the §5.1 report.
 
 ### 3.8 Install Geniro into Codex (conditional)
 

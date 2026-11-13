@@ -53,6 +53,8 @@ Combined examples: `--depth 2 --focus auth,api` (scan monorepo at depth 2, conce
 
 When `--focus <area1,area2>` is provided: sections 3 / 4 / 6 / 7 concentrate detail on the focus areas; non-focus areas appear as one-line summary entries. Sections 1 / 2 / 5 / 8 cover the full scanned scope regardless of focus.
 
+A full worked example of the 8 sections is in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §1; the template above is the operative spec.
+
 **Map quality bar** — two checks: an executable one (`wc -l` on the written file: under 1000 lines) and a rubric one (skimmable in 5 minutes — a reader gets oriented from headers and summaries alone, without reading every entry).
 
 ## State machine
@@ -86,44 +88,27 @@ S1. **Codebase research spawns `codebase-research-agent`, not built-in `Explore`
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "Let me document every file" | Exhaustive maps are unreadable. Sample key files, focus on structure and relationships. |
-| "I need more detail on this module" | The codebase map captures architecture, not implementation. Module-level detail belongs in the code; the map's job is orientation. |
-| "The code is self-documenting" | Code shows what, not why. Note the critical paths (user flow, deploy flow) and what's unclear. |
-| "I'll create the map and move on" | A map nobody references is waste. Update it as you learn more, reference it when planning. |
-| "The repo has 5000 files but I'll just scan everything — better safe than sorry" (or "it's monorepo-scale, so bypass the cap silently" / "add a wall-time kill cap so long discovery aborts cleanly") | Both directions break the same contract. The read budget — not a hard abort — is what bounds cost: sample the most relevant files and record what was covered in `## Scope`. Expansion is explicit (`--cap N` up front, or the §1.3 Step 2 AUQ), so raising it on your own authority defeats the cost control; a wall-time kill cap would abort legitimate complex discovery mid-stride. |
-| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | The contract IS /geniro:onboard's contract — state.md frontmatter, `approvals[]`, `## Tool log`, `## Errors`. Without them, compaction mid-scan loses scan progress and the user re-runs from scratch. The `## Tool log` records which directories were covered and which raised permission errors, so a failed onboard stays diagnosable. |
+| "Let me document every file", "I need more detail on this module", or "the code is self-documenting" | Exhaustive maps are unreadable, and code shows what, not why. Sample key files; map structure, relationships, and critical paths; leave module-level detail in the code. |
+| "The repo has 5000 files, I'll scan everything" (or "bypass the cap silently", "add a wall-time kill cap") | The read budget bounds cost. Sample the most relevant files and record the coverage in `## Scope`; raise the budget only explicitly (`--cap N` up front, or the §1.3 Step 2 AUQ), and let long discovery run. |
+| "Defer compaction-survival to downstream skills — /geniro:onboard is mostly scan." | Without state.md frontmatter, `approvals[]`, `## Tool log`, and `## Errors`, a compaction mid-scan loses the scan progress and a failed onboard cannot be diagnosed. |
 
 ## Quality-first budgets
 
-No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. All limits below are escalation gates that surface to the user.
-
-| Gate | Cap | Where | Past threshold |
-|---|---|---|---|
-| Repo-size scan cap | owned by §1.3 Step 2 (override via `--cap N`) | §1.3 Step 2 | A repo too large for that sample to represent it escalates via AUQ — §1.3 Step 2 owns the threshold, the option list and the `approvals[]` persistence. |
-
-**Architecture constraints (design intent, not budget):**
-- No parallel agent spawns — /geniro:onboard is a solo orchestrator skill. The codebase scan that produces `_CODEBASE_MAP.md` runs orchestrator-inline (Read / Grep / Glob / read-only Bash) so the orchestrator owns the synthesis end-to-end; for narrow locator side queries during the scan (e.g., "where is the build entry point defined?"), spawn `codebase-research-agent` as **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
+No hard kill caps (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)"): the repo-size scan cap is an escalation gate, and §1.3 Step 2 owns its threshold, options, and `approvals[]` persistence. The scan runs solo and orchestrator-inline; for a narrow locator side query, spawn `codebase-research-agent` as **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research.
 
 ## ACI per-phase tool surface
 
-**Phase 1 (Discover):**
-- Allowed: Read / Grep / Glob / Bash (read-only commands: `git status`, `find . -type f`, `wc -l`) / AskQuestion (the §1.3 repo-size-cap expansion gate).
-- Explicitly blocked: production-source writes and edits, `git add` / `git commit` / `git push`. subagent spawns limited to `codebase-research-agent` (**light (smallest)**) for narrow locator side queries during the scan.
-
-**Phase 2 (Map):**
-- Allowed: Read / `update-semantic` (the lock-guarded write mechanism for `_CODEBASE_MAP.md`) / `update_fingerprint` / `emit-learning` helper invocations / AskQuestion / Bash (`atomic_state_write` for state transitions; the §2.5 cleanup of the run's scratch state).
-- Explicitly blocked: a direct write or edit to `_CODEBASE_MAP.md` (route through `update-semantic`, which holds the `.codebase-map.lock`), production-source writes and edits, `git add` / `git commit` / `git push`.
+Phase 1 runs read-only commands. Neither phase edits production source or runs `git add` / `commit` / `push`. Phase 2 writes `_CODEBASE_MAP.md` only through `update-semantic` (§2.2), never directly.
 
 ---
 
 ## Definition of done
 
-These are the load-bearing exit gates — the invariants that, if skipped, make the onboarding incomplete or unsafe. The 8-section map content is enforced by the §2 template, not re-listed here.
+The load-bearing exit gates — skipping any makes the onboarding incomplete or unsafe.
 
 - [ ] `_CODEBASE_MAP.md` created/updated at `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md` via `update-semantic`, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md`
 - [ ] Every critical path the scanned scope exposes is traced and documented, or `## Critical Paths` says none was found
-- [ ] Map line count under 1000 (`wc -l` on `_CODEBASE_MAP.md`; use `--focus` for large repos)
-- [ ] Map is skimmable in 5 minutes — headers and summaries alone orient a reader (§Outputs)
+- [ ] Map meets the §Outputs quality bar (under 1000 lines; use `--focus` for large repos)
 - [ ] Project-snapshot fingerprint refreshed via `update_fingerprint` (per §2.2)
 - [ ] L2 `discovery` emit fired per trigger conditions
 - [ ] Next-steps suggestions printed at the end of the report (per §2.4)
@@ -145,7 +130,7 @@ On Phase 1 entry:
 
 1. **Load custom instructions** — Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: onboard`, `LOAD_TIER: pipeline`, `MODE: initial-load`.
 2. **Refresh project snapshot** — `load-semantic` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-semantic.md` default top-2 (`_project.md` + `_CODEBASE_MAP.md`). If `_CODEBASE_MAP.md` already exists, the previous map is loaded as context (informs incremental update strategy). `CODEBASE_MAP.md` (without underscore) is also read once for compatibility.
-3. **Query past learnings** — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (under a declared `## Memory Backend` block, the declared read tool is merged with the file query under `mirror` and replaces it under `replace`): `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag onboard --scope global --limit 5`. Surfaces prior architectural decisions and gotchas relevant to the scan (matches the `scope: global` discovery entries this skill emits in §2.3).
+3. **Query past learnings** — route per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag onboard --scope global --limit 5`.
 4. **Reconcile custom instructions, snapshot and past learnings** — `resolve-conflicts` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` (precedence: custom instructions > project snapshot > past learnings when layers disagree; halt with AUQ on hard conflict).
 
 Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` § Echo contract.
@@ -156,7 +141,7 @@ Echo lines are mandatory per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-i
 
 1. **Top-level discovery** — `Glob("*")` at repo root (`pwd` resolved via `git rev-parse --show-toplevel`). Read top-level structure markers: README.md, package.json / pyproject.toml / Cargo.toml / go.mod, .github/, src/.
 2. **Estimate scan size** — count the repo's source files, honoring its ignore rules and any `--depth N`.
-3. **Apply the read budget:** sample within it — files chosen for relevance (entry points, manifests, top-level modules), not directory order — and proceed: 50 files by default, `--cap N` to raise it, `--focus` to narrow what gets sampled, `--depth N` to bound traversal. Proceeding is the default because the question is unanswerable before the user has seen anything about the repo, and the budget already bounds the cost. Escalate only when the repo is large enough that a 50-file sample can no longer represent it (50,000+ files) and no `--focus` or `--cap` was given: auto-apply `--depth 2` so traversal doesn't stall, then fire the repo-size scan cap AUQ — header "Repo size":
+3. **Apply the read budget** — 50 files by default, `--cap N` to raise it, `--focus` to narrow what gets sampled, `--depth N` to bound traversal — and proceed. Walk back a good stretch of the commit history (`git log --name-only`) to find the codebase's hot spots, and let those paths pull attention first; then sample files chosen for relevance (entry points, manifests, top-level modules), not directory order. Escalate only when the repo is large enough that a 50-file sample can no longer represent it (50,000+ files) and no `--focus` or `--cap` was given: auto-apply `--depth 2` so traversal doesn't stall, then fire the repo-size scan cap AUQ — header "Repo size":
 - **"Narrow to specific areas"** — user supplies focus areas (the `--focus <area>` flag); re-run scan with that filter.
 - **"Expand scan (specify cap)"** — user provides explicit cap (e.g. 200, 500). **Persists to state.md `approvals[]` with category `expand_scope`.**
 - **"Truncate at top 50"** — proceeds with top 50 most-likely-relevant files. Terminal state on completion: `map-truncated`.
@@ -186,8 +171,6 @@ State.md `phase: map`. Builds `_CODEBASE_MAP.md` (underscore-prefixed) with the 
 
 ### 2.1 Compose the codebase map content
 
-Canonical path: `<PRIMARY_ROOT>/.geniro/planning/_CODEBASE_MAP.md`. Resolve `<PRIMARY_ROOT>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A so the map persists across worktrees.
-
 Compose the map content in-context using the 8-section template from §Outputs above — do not write it to disk yet. Apply `--focus` concentration per the rule in §Outputs (sections 3 / 4 / 6 / 7 concentrate on focus areas; 1 / 2 / 5 / 8 stay full-scope). §2.2 persists the composed content through the `update-semantic` helper.
 
 ### 2.2 Persist the codebase map
@@ -213,14 +196,13 @@ After `_CODEBASE_MAP.md` write:
 
 ### 2.4 Print next steps
 
-After the map ships, end the onboarding report with a printed "Next steps" block — suggestions only, no question:
+Write the onboarding report to the plain layer of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers. After the map ships, end it with a printed "Next steps" block — suggestions only, no question:
 
 ```
 ### Next steps
 - Run `/geniro:plan <idea>` to draft an approved spec for a feature against the new map.
 - Run `/geniro:investigate <question>` to dig deeper into a subsystem.
 - Run `/geniro:implement <task>` to design and build a change directly.
-- Review `_FEATURES.md` (the manual feature backlog) if the project keeps one — it is hand-authored, not generated by any Geniro skill.
 ```
 
 ### 2.5 Cleanup
@@ -289,9 +271,3 @@ EOF
 ## State recovery
 
 On skill start: compute `<slug>` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/within-skill-state-handoff.md` §Slug rules, Glob `.geniro/state/onboard/<slug>/state.md`. If present: source `${CLAUDE_PLUGIN_ROOT}/lib/validate-state-file.sh` and run `validate_state_file` on it — on failure fire the recovery AskQuestion from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/validate-state-file.md` instead of consuming a corrupt file. On pass, run the helper §Consumer contract (Case A/B/C/D mismatch handling) — a same-cwd resume against a different branch's state file otherwise consumes it silently — then resume from the next incomplete phase.
-
----
-
-## _CODEBASE_MAP.md format example
-
-Full 8-section worked example (sample TypeScript/Express project) in `${CLAUDE_PLUGIN_ROOT}/skills/onboard/onboard-reference.md` §1. The 8-section template in §Outputs is the operative spec; the example illustrates the rendering.

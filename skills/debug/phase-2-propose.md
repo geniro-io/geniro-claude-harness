@@ -39,7 +39,7 @@ Persist to state.md `## Proposed Fix` body section.
 
 **Seam correctness.** Author the test at a seam that exercises the bug pattern as it actually occurred — a single-caller unit test for a multi-caller interaction bug passes without guarding the regression and buys false confidence. When no correct seam exists, that absence is itself a finding: record it in the findings template's "Special handling" field so the consumer knows the regression is not locked down.
 
-**Test name + comments rule.** The reproduction test name AND any comments inside the test describe the bug behavior — the input, condition, or observable failure — never the hypothesis number from `## Hypotheses` or any other thread-local label. Tags like `Bug A/B/C`, `Hypothesis 1/2`, `Test 1`, `Case X`, `Issue #N from this run`, `regression from review run`, `found by review-gate`, or `confirmed by this <skill> run` are meaningless once the investigation ends. Prefer `cacheKey omits userId so role change leaves stale cached profile` over `Bug C`.
+**Test name + comments rule.** Name the reproduction test and comment inside it for the bug behavior — the input, condition, or observable failure — never a thread-local label such as a hypothesis number or `Bug C`: the test outlives state.md and the investigation (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-criteria/tests-criteria.md` §5 Test names as specifications). Prefer `cacheKey omits userId so role change leaves stale cached profile`.
 
 **F→P invariant.** Pre-fix: run the authored test ≥2× and confirm the SAME failure signature both times (same exception type + same failing assertion). Two divergent failures are NOT confirmation — investigate flakiness or two bugs before continuing.
 

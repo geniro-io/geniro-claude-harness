@@ -8,7 +8,7 @@ Phase file for `/geniro:setup`. The spine — invariants, budgets, tool surface,
 ✓ /geniro:setup complete (init)
 
 Wrote:
-CLAUDE.md (45 lines — project-specific only)
+<instruction file> (45 lines — project-specific only)   (plus CLAUDE.md, a one-line `@AGENTS.md` import, when only AGENTS.md pre-existed)
 .gitignore (updated .geniro/ ignores)
 
 Detected:
@@ -21,7 +21,7 @@ Codex: Geniro is already installed   (only when §3.8 found it installed)
 Codex: not installed — <the error | no plugin checkout to install from>; install by hand per the plugin README, "Using with Codex"   (only when §3.8 failed or found no source)
 
 Next:
-• Commit: git add CLAUDE.md
+• Commit: git add <the instruction file(s) above>
 • Run a real task: /geniro:plan "your-task-here"
 • Or browse skills: /geniro:investigate "what does /geniro:debug do?"
 ```

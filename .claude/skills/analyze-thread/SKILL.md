@@ -100,8 +100,8 @@ Body: `Mode: [single | batch]`; one line per thread (`<thread_id> · <path> · <
 6. **Filter before user.** Phase 3 drops REDUNDANT and FALSE-POSITIVE findings BEFORE Phase 4, so the user sees only TRUE-POSITIVE + UNCERTAIN; filtered items appear in a separate "Filtered" section.
 7. **Per-finding AUQ for UNCERTAIN, batch AUQ for confidence-high.** High-confidence findings go into the default-approve bucket the user can deselect; low/medium-confidence ones each get their own AUQ.
 8. **No silent auto-default.** Empty AUQ answers indicate an upstream tool bug and must be re-asked — never auto-default to "skip".
-9. **The declared side of a coverage check comes from the analyzed trace, never from this checkout** (the trace-is-the-declaration invariant). The I- and K-class checks ask what is *missing*, so they need what the run promised — recorded in the thread as the injected skill body and the tool_results of the instruction files it read. This repo's own `skills/` and `.geniro/instructions/` belong to a different project than the thread (the normal case in a batch), and even for the same project they have moved on since the run, so diffing against them reports your own later edits as the run's failures. `checks-reference.md` §8 holds the field list and the degradations when the trace lacks a field.
-10. **No declaration, no finding** (the no-declaration-no-finding invariant). A coverage check with an empty declared side reports nothing: absence of an expectation is the clean path, and inventing one turns a silent run into a wall of fictional "missing" rows.
+9. **The declared side of a coverage check comes from the analyzed trace, never from this checkout** (the trace-is-the-declaration invariant). This repo's `skills/` and `.geniro/instructions/` belong to another project and have moved on since the run, so diffing against them reports your own later edits as the run's failures; field list and degradations in `checks-reference.md` §8.
+10. **No declaration, no finding** (the no-declaration-no-finding invariant). A coverage check with an empty declared side reports nothing.
 
 **Turn-completion check** (deliberately un-numbered, per `skills/_shared/loop-invariants.md` §Turn-completion check): before stopping, re-read the last emitted paragraph — a stated intent to fire an AUQ, spawn the judge, or emit the handoff is not the same as having done it. Phase 4's per-finding gates and its handoff emit are exactly the seam this guards.
 
@@ -114,13 +114,12 @@ Body: `Mode: [single | batch]`; one line per thread (`<thread_id> · <path> · <
 | "I'll skip Phase 1 Step 4 metadata extraction — the user said the thread is a Geniro run" | Step 4 detects WHICH skill ran, not WHETHER one ran; without the skill identity, the plugin-specific checks misfire on every run. |
 | "I'll batch all uncertain findings into one multiSelect AUQ to save user clicks" | The user asked for per-finding gates to see the evidence and decide individually; MultiSelect collapses the evidence review that is the point of UNCERTAIN. |
 | "The thread is small — skip the parse step, just regex the markdown" | Phase 2's checks query the Step 3 field schema, which is what makes the mechanical pre-pass high-precision; ad-hoc regex reads different fields per check and the false-positive rate explodes. |
-| "Findings_raw is 80, but they look real — present them all" | The raw-findings cap §Budgets sets is a parser-sanity tripwire, not a UX preference. 80 raw findings on one thread means either Phase 1 Step 2 misdetected the input format, so every check is reading the wrong fields, or every check is firing (taxonomy bug). Halt and have the user re-verify input. |
-| "This rule was loaded and still broken in several threads — the fix is a firmer rewrite of it" | The rule already sat in context and lost; more text is the lever that has just failed. At recurrence ≥ 2 with its file Read, the finding's `fix_kind` is never PROSE (`phase-3-4-filter-present.md` §Phase 3 Step 3). |
+| "Findings_raw is 80, but they look real — present them all" | The cap is a parser-sanity tripwire, not a UX preference: 80 raw findings on one thread means Phase 1 Step 2 misdetected the format or the taxonomy fires on everything. Halt and have the user re-verify input. |
+| "This rule was loaded and still broken in several threads — the fix is a firmer rewrite of it" | The rule already sat in context and lost; more text is the lever that has just failed. At recurrence ≥ 2 with its file Read, `fix_kind` is never PROSE — the lever table in `phase-3-4-filter-present.md` §Phase 3 Step 3 names the check, pointer, step move or removal instead. |
 | "No argument given — I'll ask the user which thread they meant" | Every input shape resolves without a question (Phase 1 Step 1): empty means the last 3 work-bearing threads, and asking re-imposes the browse-and-paste step the batch default exists to remove. |
-| "The newest log is the freshest data — analyze it first" | The newest log is this session's own, which the own-log-exclusion invariant excludes: every finding it yields describes the analysis in progress rather than past work. |
-| "The trace shows no instruction load, so every declared file is a missing-load finding" | Check first whether the trace covers the turns where the load would have been. A compacted or mid-run thread cannot evidence a Step 0 before its first recorded turn — `checks-reference.md` §8 degradation 1: keep the check, cap confidence at medium, say the trace is partial. |
-| "Every phase in the skill body owes a finding when I can't see it run" | A conditional phase whose trigger never fired, and a run the user stopped early, leave phases unentered without anything being skipped. K1 fires only on a phase stepped over while its successors ran. |
-| "That's 4 unloaded files and 6 unrun steps — 10 findings" | Coverage findings roll up per declaration site: one finding for the load site listing every missing file, one for the phase listing every skipped step. Per-item findings turn one systematic defect into a wall that trips the raw-findings cap §Budgets sets and buries every other check. |
+| "The newest log is the freshest data — analyze it first" | It is this session's own log, which the own-log-exclusion invariant excludes. |
+| "The trace shows no instruction load, so every declared file is missing" | A compacted or mid-run trace cannot evidence a load before its first turn: `checks-reference.md` §8 degradation 1 caps confidence at medium. A conditional phase that never triggered, or a run the user stopped, is not a K1 hit. |
+| "That's 4 unloaded files and 6 unrun steps — 10 findings" | One finding per declaration site, itemised (`checks-reference.md` §I-class); per-item findings trip the raw-findings cap. |
 | "This pick comes up mid-run and isn't one of Phase 4's two named gates — I'll ask in prose" | The per-finding UNCERTAIN gate and the final handoff-destination gate are this skill's gates, not the complete set — route every user-facing choice through `AskUserQuestion` (`skills/_shared/gate-rendering.md` §Lean-question conventions owns the rule). |
 
 ---
@@ -143,7 +142,7 @@ Body: `Mode: [single | batch]`; one line per thread (`<thread_id> · <path> · <
 |---|---|---|
 | 1 Parse | Read, Bash (`scan.py`, `file`, `jq`, `wc`) | Bash runs batch discovery, format sniffing, and JSONL parsing; Step 4b projects the expectation set out of the thread file itself, with no Read of this repo's skills or instruction files |
 | 2 Detect | Bash (`jq`, `grep`, `awk`), Agent | Bash for mechanical checks; Agent for the per-thread LLM-judge spawns, issued together in one response |
-| 3 Filter | (orchestrator inline) | No tools — merge across threads, tag, and assign `fix_kind` |
+| 3 Filter | Read (orchestrator inline) | Reads: the phase file and `.claude/rules/skill-prose.md`; the rest is merging across threads, tagging, and assigning `fix_kind` |
 | 4 Present | AskUserQuestion, Bash | AUQ for the per-finding gates and the final handoff AUQ; Bash runs `atomic_state_write` for the handoff file — a direct `Write` to a `.geniro/state/` path skips the atomic rename |
 
 Glob is permitted across phases for state-file lookup and helper resolution but is not the workhorse tool.
@@ -166,7 +165,7 @@ The run-completion checklist is `.claude/skills/analyze-thread/analyze-thread-de
 
 ## PHASE 3: FILTER (orchestrator-inline)
 
-`Steps: phase-3-4-filter-present.md §Phase 3` (Steps 1-3). No subagent. Exit when every finding is tagged, every kept finding carries a `fix_kind`, and the checkpoint records the kept and filtered counts.
+`Steps: phase-3-4-filter-present.md §Phase 3` (Steps 1-3). No subagent. Exit when every finding is tagged, every kept finding carries a `fix_kind` (a `PROSE` or `REMOVE-RULE` one naming the writing lever that failed), and the checkpoint records the kept and filtered counts.
 
 ## PHASE 4: PRESENT (WAIT — user gates)
 
@@ -193,6 +192,7 @@ On resume from a checkpoint: skip completed phases, print "Resuming at phase N o
 - `.claude/skills/analyze-thread/phase-3-4-filter-present.md` — Phase 3 + Phase 4 Steps, incl. the per-finding gate and the handoff emit (Read on entry to Phase 3)
 - `.claude/skills/analyze-thread/analyze-thread-definition-of-done.md` — the run-completion checklist (Read on entry to Phase 4)
 - `.claude/skills/analyze-thread/checks-reference.md` — canonical check taxonomy + per-check detection logic; §8 defines the expectation set the coverage checks compare against, §9 the default `fix_kind` per check
+- `.claude/rules/skill-prose.md` — the writing yardstick: the judge Reads it at Phase 2, the orchestrator at Phase 3, every run
 - `skills/_shared/load-custom-instructions.md` — the load / echo / refresh contract the I-class checks measure a run against
 - `skills/_shared/phase-entry-read.md` — the phase-body Read and echo contract behind K2
 - `skills/_shared/gate-rendering.md` — gate render-then-ask shape and the lean-question conventions behind K3-K5, K8

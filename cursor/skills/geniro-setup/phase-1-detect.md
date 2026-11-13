@@ -18,13 +18,15 @@ if exists(<PRIMARY_ROOT>/.geniro/state/setup/state.md):
         resume from frontmatter.phase
     else:
         mode = re-run (a prior /geniro:setup completed; user is re-invoking)
-elif exists(CLAUDE.md):
-    mode = re-run (no state file, but a prior CLAUDE.md exists — merge into it rather than overwrite)
+elif exists(CLAUDE.md) or exists(AGENTS.md):
+    mode = re-run (no state file, but a prior instruction file exists — merge into it rather than overwrite)
 else:
     mode = init
 ```
 
 Write `mode: init | re-run` to state frontmatter; persists across the run.
+
+**Pick the instruction file** (`detected.instruction_file`): AGENTS.md when it exists and CLAUDE.md is absent or only imports it (`@AGENTS.md`); otherwise CLAUDE.md, created in init mode. Claude Code does not read AGENTS.md natively, so when CLAUDE.md is absent, §3.3 also creates it holding the single line `@AGENTS.md`. Every later "CLAUDE.md" in this skill's generation, merge, and validation means `instruction_file`.
 
 ### 1.2 Query past learnings
 
@@ -43,29 +45,11 @@ Set `TEMPLATE_DIR` to `${CLAUDE_PLUGIN_ROOT}`, falling back to `$ARGUMENTS` when
 
 ### 1.4 Codebase scan (Evidence Block standard)
 
-Detect via **lockfile / config presence**, NOT inference: the manifest+lockfile pair for the project's stack captures `pkg_mgr`, `lang`, and `scripts: {...}` where the manifest defines one — `package.json` + `package-lock.json` for Node/npm (`pkg_mgr: npm`, `lang: node`; also yarn/pnpm/bun), and the same pattern for Python (uv/poetry/pip), Rust (`Cargo.lock`), Go (`go.sum`), Ruby (`Gemfile.lock`), and Java (`pom.xml`/`build.gradle*`).
+Read whatever exists; don't assume. Detect the stack via **lockfile / config presence**, NOT inference: the manifest+lockfile pair for the project's stack captures `pkg_mgr`, `lang`, and `scripts: {...}` where the manifest defines one — `package.json` + `package-lock.json` is `pkg_mgr: npm`, `lang: node`, and the same pattern holds for yarn/pnpm/bun, Python (uv/poetry/pip), Rust (`Cargo.lock`), Go (`go.sum`), Ruby (`Gemfile.lock`), and Java (`pom.xml`/`build.gradle*`).
 
-Each detection records `{ file: <path>, line: <N>, snippet: "<exact text>" }`. No inference without evidence — if `package.json` exists but no lockfile, `pkg_mgr: unknown` (Interview asks).
+Each detection records `{ file: <path>, line: <N>, snippet: "<exact text>" }` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md`. No inference without evidence — if `package.json` exists but no lockfile, `pkg_mgr: unknown` (Interview asks).
 
-**Conventions detected** (read-only — never inferred from heuristic, only from explicit config):
-
-- ESLint config → naming/formatting hints
-- Prettier config → style hints
-- `.editorconfig` → indentation rules
-- `tsconfig.json` / `jsconfig.json` → module resolution
-- Test runner: `jest.config.*`, `vitest.config.*`, `pytest.ini`, etc.
-
-**Existing AI tool instructions** (read for domain rules, not just detect presence):
-
-- `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`, `.continue/config.json`, `.cody/`, `AGENTS.md`, `.agents.md`
-
-**Project documentation scan** (extract domain context):
-
-- `README.md`, `CONTRIBUTING.md`, `CONVENTIONS.md`, `ARCHITECTURE.md`, `SECURITY.md`, `API.md`, `docs/architecture.md`, `docs/adr/`, `docs/decisions/`
-- API specs: `openapi.{yaml,json}`, `swagger.{yaml,json}`, `asyncapi.{yaml,json}` (extract endpoints/auth/entities — not full content)
-- Env docs: `.env.example`, `.env.sample` (variable names and comments; never values)
-- GitHub knowledge: `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/`
-- Monorepo structure: `turbo.json`, `nx.json`, `pnpm-workspace.yaml`, `lerna.json`
+Beyond the stack, read: tool configs (linter, formatter, test runner, module resolution) for explicit conventions only; existing AI-tool instructions (`.cursorrules`, `AGENTS.md`, and the like) for domain rules, not just their presence; project documentation and API specs (README, `docs/`, ADRs, OpenAPI) for domain context — endpoints, auth, entities, not full content; env docs (`.env.example`) for variable names and comments, never values; issue-tracker signals and the monorepo layout.
 
 **Spec-driven-development tooling (read-only):** an `openspec/` directory (the default OpenSpec root; a non-default checkout shows the same `project.md` / `specs/` / `changes/` children under a different top-level dir). Store the resolved root as `$OPENSPEC_ROOT` (empty when absent) for the Phase 2 OpenSpec integration question.
 
@@ -73,27 +57,7 @@ Store as `$PROJECT_KNOWLEDGE` for Phase 3.
 
 ### 1.5 Skill inventory
 
-Reconcile two sources: list `${CLAUDE_PLUGIN_ROOT}/skills/` — every subdirectory except `_shared` is a skill — against the block below, which carries the purpose strings a directory listing cannot. `marketplace.json` holds only a `plugins` entry, not a per-skill array, so there is nothing to extract from it.
-
-```yaml
-skill_inventory:
-- {slug: implement, purpose: "Spec-driven implementation"}
-- {slug: plan, purpose: "Spec-first planning"}
-- {slug: review, purpose: "Multi-dim code review"}
-- {slug: resolve, purpose: "Fixes and closes PR review feedback"}
-- {slug: debug, purpose: "Scientific-method investigation"}
-- {slug: refactor, purpose: "Zero-behavior-change restructuring"}
-- {slug: onboard, purpose: "Codebase mapping"}
-- {slug: investigate, purpose: "Codebase Q&A"}
-- {slug: reflect, purpose: "On-demand session-history rule mining"}
-- {slug: instructions, purpose: "Custom project-rules management (create/edit/delete)"}
-- {slug: audit-instructions, purpose: "Repo-wide AI-instruction audit"}
-- {slug: actions, purpose: "Workflow-helper CRUD + runner"}
-- {slug: setup, purpose: "Project bootstrap"}
-- {slug: update, purpose: "Plugin update + integrity check"}
-```
-
-Name a skill anywhere this run produces user-facing text (the Phase 5 report's next-step suggestions, any generated content) only when it appears in **both** the listing and the block — a slug present in only one either points the user at a command that does not run or hides one that does. On a mismatch the directory decides which skills exist and the block supplies the purpose; log the delta to `## Phase log` and write the reconciled set to state frontmatter `skill_inventory`.
+List `${CLAUDE_PLUGIN_ROOT}/skills/` — every subdirectory except `_shared` is a skill — into state frontmatter `skill_inventory` (slugs). Name a skill in user-facing text only when `skills/<slug>/` exists.
 
 ### 1.6 Detect output
 

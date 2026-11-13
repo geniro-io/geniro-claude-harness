@@ -5,7 +5,7 @@ Concrete, measurable performance wins on the changed lines: skip ORM hydration o
 Find every real defect this dimension owns by reading the changed code and its callers directly — your own analysis is the detector. The sections below are the contract you are held to: what NOT to flag, and how severity is calibrated.
 
 ## Scope boundary — defers to `architecture-criteria.md`
-This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues handled by `architecture-criteria.md` (Performance & Scalability). Defer to that section; do not duplicate findings:
+This dimension owns *micro-level* optimization wins observable on the diff. The following six concerns are **not** owned here — they are systemic performance issues owned by `architecture-criteria.md` (its §Severity guidelines rates a request-path N+1 HIGH; the rest fall under its architectural-coupling and dead-work charter). Defer to that dimension; do not duplicate findings:
 
 1. **N+1 query patterns** — queries inside loops without batching → architecture
 2. **ORM eager-loading** — `include` / `prefetch_related` / `joinedload` design → architecture
@@ -13,13 +13,13 @@ This dimension owns *micro-level* optimization wins observable on the diff. The 
 4. **Missing pagination on unbounded queries** → architecture
 5. **Sync I/O in async context** — `readFileSync` etc. on hot paths → architecture
 6. **Inefficient algorithms (O(n²) where O(n) possible)** → architecture
-If a finding fits one of those six, emit it as an architecture finding (its Performance & Scalability section) instead. Optimizations stays focused on the six categories below.
+If a finding fits one of those six, emit it as an architecture finding instead. Optimizations stays focused on the six categories named in the opening paragraph above — hydration skipping, column projection, independent-await parallelization, batched writes, React re-render hygiene, and lean bundle shipping.
 
 ## Common false positives
 
 1. **Detached entity mutation** — `.lean` / `raw:true` / `HYDRATE_ARRAY` / `disableIdentityMap` returns objects that cannot be saved through the ORM. Flag mutate-then-save paths only when the path is read-only; do not flag pure-read paths that already use these mechanisms, and never recommend skipping hydration on a path that calls `.save` afterward.
 2. **defer/only/load_only N+1 footgun** — Django `.only` and SQLAlchemy `load_only` trigger an extra `SELECT` when a deferred column is later accessed. Flag deferred-then-accessed patterns; do not flag use of these on truly write-once-read-rare columns where the deferred access path is cold.
-3. **Perf claims without profile data** — "missing index" or "lean would speed this up" without execution-plan / profile evidence is speculative. Lower confidence when no measurement exists; prefer concrete mechanism citations (round-trip count, hydration cost) over hand-waved magnitudes.
+3. **Perf claims without profile data** — "missing index" or "lean would speed this up" without execution-plan / profile evidence is speculative. A cost on a cold or one-shot path (a per-click handler, a prefetch on user action, a payload copied once per click) with no measurement and no evidence of scale is not a finding; elsewhere, lower confidence when no measurement exists. Prefer concrete mechanism citations (round-trip count, hydration cost) over hand-waved magnitudes.
 4. **Premature memoization** — `useMemo` / `useCallback` on cheap computations is overhead, not optimization. Only flag when the wrapped expression is non-trivial AND the consumer is in a render-frequent context (loop, parent re-renders >5x/sec, large memo'd subtree).
 5. **Prisma / Drizzle "missing lean"** — these ORMs return POJOs by default; only projection (`select`) applies. Don't flag a missing skip-hydration call where there's no hydration to skip — recommend `select` / `omit` instead, or stay silent.
 6. **Single-use `Promise.all` adjacent awaits** — sometimes serial is intentional: the second call depends on the first's success or its side-effects, or the team wants explicit failure ordering. Verify independence (read the variables, follow the data flow) before flagging.

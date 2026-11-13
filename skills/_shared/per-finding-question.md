@@ -31,17 +31,17 @@ Every gate under this contract follows a two-step shape — **render the finding
 
    **In one sentence:** <what this decision settles>
 
-   <conversational lead: what the software does now and what the concern is, in ordinary words — behavior, not function names; reviewer shorthand expanded>
+   <conversational lead: what the software does now and what the concern is — plain layer, reviewer shorthand expanded>
 
-   **Why it matters:** <concrete impact in plain words: what breaks, who is affected, under what condition>
+   **Why it matters:** <concrete impact: what breaks, who is affected, under what condition>
 
    **Technical detail:** <evidence — `path:lines`, symbol / class / config names, command or error string>
 
    <the visual — shape per the visual map in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md`; a symbol-naming visual goes under the technical block, a plain-language one (risk mini-table, `☐` checklist) stays above it>
 
    **Options:**
-   - **<Option A>** — <consequence in plain words>
-   - **<Option B>** — <consequence in plain words>
+   - **<Option A>** — <consequence>
+   - **<Option B>** — <consequence>
    ```
 
    The element definitions (tracker, opener, digest, technical block, per-unit visual, heading icons) are canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Visual rendering language, with a worked example, and the plain-then-technical split in its §Two explanation layers; this template is their finding-gate instantiation.
@@ -52,7 +52,7 @@ Every gate under this contract follows a two-step shape — **render the finding
 
 **Turn-completion rule.** The inverse failure is forbidden too: once the chat block is emitted, the `AskUserQuestion` is the immediate next action. Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Turn-completion guard.
 
-**Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a phrase like "relies on the implicit entity-default @Filter at the 3 call sites" is spelled out in the plain layer — what the code does today, what goes wrong, who notices — with the annotation's name and the call sites' `path:lines` in the technical block. Never echo the reviewer's phrasing verbatim into the question. No term may appear in the `question` or any option that was not explained in the chat block first, and a term explained only in the technical block has not been explained for the plain layer (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers). The `preview` side-box cannot carry a finding body (reason: gate-rendering.md §Lean-question conventions), so the body lives in the chat message and the lean question captures only the decision.
+**Self-containment rule.** The chat block and the AUQ must be understandable to a fresh user who never saw the reviewer agents' output. Expand reviewer shorthand into plain English: a phrase like "relies on the implicit entity-default @Filter at the 3 call sites" is spelled out in the plain layer — what the code does today, what goes wrong, who notices — with the annotation's name and the call sites' `path:lines` in the technical block. Never echo the reviewer's phrasing verbatim into the question. No term may appear in the `question` or any option that the chat block's plain layer did not explain first (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers). The `preview` side-box cannot carry a finding body (reason: gate-rendering.md §Lean-question conventions), so the body lives in the chat message and the lean question captures only the decision.
 
 **Resume paths render too.** The separate-message rule holds after a compaction, wakeup, or workflow-completion continuation. Treat a wakeup or self-prompt's embedded premises as claims, not facts — verify against the visible transcript/state, then author the render fresh if it is not there. The pre-compaction message is gone from the user's live view even when state.md records that the gate was reached.
 
@@ -114,4 +114,4 @@ Renaming `(Recommended)` to `(Suggested)` does NOT fix the anchoring problem: wh
 
 ## Why this exists
 
-A title-only AUQ option — or a finding body hidden in `preview` — creates the ceremony of approval without the substrate for judgment: users rubber-stamp the recommended option or escape to "Type something", defeating the Always-WAIT contract. Rendering the finding to chat in self-contained plain English at the moment of decision (§ Message-first rendering) keeps the gate informed and the question standalone.
+A title-only AUQ option — or a finding body hidden in `preview` — creates the ceremony of approval without the substrate for judgment: users rubber-stamp the recommended option or escape to "Type something", defeating the Always-WAIT contract. Rendering the finding to chat in a self-contained plain layer at the moment of decision (§ Message-first rendering) keeps the gate informed and the question standalone.

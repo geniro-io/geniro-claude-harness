@@ -10,7 +10,7 @@ A rule file is payload for a model that has to act on it, not a document arguing
 
 **Ships — the rule:**
 
-- The instruction, in requirement form (`skill-prose.md` §"Explain WHY, don't shout MUST" on why prohibitions decay).
+- The instruction, in requirement form (`skill-prose.md` §"Explain WHY, don't shout MUST").
 - The reason, only where the model would otherwise rationalize around the rule — anti-patterns, escape hatches, error semantics. That same section draws the line.
 - Values a run has to match exactly: paths, thresholds, schemas, canonical labels.
 - A bare link where a counterintuitive rule needs evidence to stop being re-litigated. The link, not a summary of it.
