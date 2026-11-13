@@ -216,7 +216,7 @@ Every rule here is loaded into the model's context on each skill run that matche
 
 ## 5. Per-skill phase enums
 
-An `Additional Steps` subsection must name a phase that a skill actually reads custom steps at — `### After <phase>`, lowercase-hyphenated (subsection prose may use any case; validate normalizes). Each skill's own state machine has more named phases than this; the table below is narrower on purpose; it lists only the anchors a skill actually reads `## Additional Steps` at, not every phase the skill passes through. Naming any other phase — a real one with no read site, a dropped one, or the `Before <phase>` form (no skill reads that prefix) — fails silently in the loader: the step is parsed, looks legal at a glance, and is never reached, with no error at the point the user would notice. `validate` flags anything outside this table (MEDIUM, below) so the gap surfaces at authoring time instead of staying invisible until someone notices the step never ran.
+An `Additional Steps` subsection must be `### After <phase>` (validate normalizes case) naming a phase in the table below. Any other anchor — a real phase with no read site, a dropped one, `Before <phase>` — fails silently in the loader, and `validate` flags it (MEDIUM, below).
 
 | Scope | Legal anchor | Execution site |
 |---|---|---|

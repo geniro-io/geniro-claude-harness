@@ -4,7 +4,7 @@
 #   scripts/word-delta.sh [base-ref]      (default: the merge-base with origin/main)
 #
 # Counts words (awk NF — the repo's one counting rule) in every .md file under
-# skills/, agents/, .claude/skills/, .claude/rules/ and CLAUDE.md, at the base ref
+# skills/, agents/, .claude/skills/, .claude/rules/, .claude/authoring/ and CLAUDE.md, at the base ref
 # and in the working tree, and prints each changed file plus the total. Exits 1
 # when the total grew, so a pass that must end net <= 0 can gate on it.
 
@@ -35,8 +35,8 @@ while IFS= read -r f; do
   printf '%+6d  %6d -> %6d  %s\n' "$d" "$before" "$after" "$f"
   total=$((total + d))
 done < <(
-  { git diff --name-only "$base" -- skills agents .claude/skills .claude/rules CLAUDE.md
-    git ls-files --others --exclude-standard -- skills agents .claude/skills .claude/rules
+  { git diff --name-only "$base" -- skills agents .claude/skills .claude/rules .claude/authoring CLAUDE.md
+    git ls-files --others --exclude-standard -- skills agents .claude/skills .claude/rules .claude/authoring
   } | grep -E '(\.md$|^CLAUDE\.md$)' | sort -u
 )
 

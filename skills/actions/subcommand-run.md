@@ -14,7 +14,7 @@ Read `<resolved-path>`. Parse frontmatter (`description`, `risk_class`, `model`,
 
 ### Phase 4.2: No run-confirmation gate
 
-`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization, so re-asking "are you sure?" would only repeat a decision the user already made. Proceed straight to Phase 4.3. Scope of that authorization: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`. The four WAIT points that survive this rule are enumerated in SKILL.md loop invariant 3. `risk_class` stays as action metadata: it drives the `list` Risk column, the `delete` high-risk warning (Phase 6), the validate lint rules (Phase 7), and the L2 learning tag (Phase 4.4) — it never gates execution.
+`run` executes the action's steps directly regardless of `risk_class` — invoking `/geniro:actions run <slug>` IS the authorization (scope: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/approval-scope.md`), so re-asking would repeat a decision already made. The four WAIT points that survive are in SKILL.md loop invariant 3. `risk_class` is metadata for the `list` Risk column, the `delete` warning, validate lint and the L2 learning tag — it never gates execution. Proceed to Phase 4.3.
 
 ### Phase 4.3: Execute inline
 
@@ -47,7 +47,7 @@ External calls: <list, or "none">
 Scope checkpoint: <fired — see below / assessed, nothing out of scope>
 ```
 
-The `Scope checkpoint` line is always written, never omitted — it is the only record that Phase 4.3's tracking ran at all, and "assessed, nothing out of scope" is a different state from the line being absent, which would mean the checkpoint's own edit-tracking never ran.
+The `Scope checkpoint` line is always written: "assessed, nothing out of scope" is the only record that Phase 4.3's tracking ran.
 
 When the scope checkpoint fired (Phase 4.3), close the summary by recommending an independent look at the diff: "This run went past what the action describes — `/geniro:review` reviews the diff before you push." Recommend it, never run it — `/geniro:actions` spawns no subagent and calls no other skill (the inline-execution invariant); the user decides whether to run it.
 

@@ -2,22 +2,20 @@
 
 # Definition of Done — `/geniro:review`
 
-The run-completion checklist of `/geniro:review` (spine: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`). Walk it at Phase 6, before the terminal `phase:` write.
+The run-completion checklist (spine: `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md`). Walk it at Phase 6, before the terminal `phase:` write; skipping any item leaves the review incomplete or unsafe.
 
-Per-phase mechanics live in the phase files; this is the final contract check, and skipping any item leaves the review incomplete or unsafe.
-
-- [ ] Every mandatory reviewer spawned in parallel — every always-fire dimension per §2.1 + every triggered conditional one (optimizations / design / pr-metadata / spec-compliance) + custom dimensions; `spawn_dims_declared[]` recorded before the batch, and §4.0b confirmed declared == actual and spawn instances == `spawn_dims_count`.
-- [ ] The spawn echo (`Spawning <N> reviewers: ...`), carrying the declared count, went out in the same response that fired the batch (§2.3.1).
-- [ ] The brief opt-in was settled in Phase 1 (§13) — never in the batch's own response, which would push the spawn past the wait it exists to fill. When the answer was not `off`, the brief spawn rode in the same response as the reviewer batch, and was materialized per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Medium selection in the response that batch returned in — before Phase 3, with its location surfaced to the user once; when `off`, nothing was produced.
-- [ ] `steering-note:` was set before the batch fired — the round-≥2 gate's answer, the `--focus` flag, or `none` when neither — and threaded into every reviewer's `USER STEERING:` slot. Any finding it suppressed moved to `## Filtered` only after admission and verification, carries the instruction verbatim as its reason, and is never a CRITICAL (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.2).
-- [ ] A `Validation:` verdict exists for EVERY admitted CRITICAL / HIGH / MEDIUM survivor — from a fresh `finding-verifier-agent` spawn, or, for a survivor decidable against artifacts already held in full, from the inline route in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §1 carrying the same fields (spawned findings that share code cluster into a shared spawn per that file's §4 cluster rule); refuted findings demoted to `## Filtered` — a CRITICAL / HIGH refutation only after a second independent verdict agreed, per the same file's §5 High-stakes refutation guard.
-- [ ] The admission gate was applied per its canonical rule (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5) — not a single confidence threshold.
-- [ ] Every kept finding carries a severity (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §1), a decision type, and a `[NEW]` / `[PRE-EXISTING]` tag.
-- [ ] The needs-your-decision gate fired for every such finding at any severity, and all are resolved or wontfix BEFORE the handoff is offered or anything is posted (§7.0 Pre-Post guard).
-- [ ] `phase:` was stamped via `atomic_state_set_field` on ENTRY to each phase (invariant S3), so both declarations existed before the gates reading them.
-- [ ] All three pre-pass checks (lint / schema / secret) ran to a recorded outcome — `findings`, `clean`, or `error` — declared in `mechanical_prepass_attempted`, and §4.0a confirmed it.
-- [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, carrying structured `open_questions[]`.
-- [ ] `report_status: draft→final` flipped on this pass once the decision gates cleared — including on a clean review with no gates to fire; on a Post, `[POSTED-TO-PR]` markers persisted.
+- [ ] Every always-fire dimension (§2.1), every triggered conditional one (optimizations / design / pr-metadata / spec-compliance), and every custom dimension spawned in parallel; `spawn_dims_declared[]` recorded before the batch; §4.0b confirmed declared == actual and instances == `spawn_dims_count`.
+- [ ] The spawn echo (`Spawning <N> reviewers: ...`) went out in the response that fired the batch (§2.3.1).
+- [ ] The brief opt-in was settled in Phase 1 (§13). Unless `off`, the brief spawn rode in the batch's response and was materialized before Phase 3 with its location surfaced once (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/review-brief.md` §Caller contract); `off` produced nothing.
+- [ ] `steering-note:` was set before the batch (the round-≥2 gate's answer, `--focus`, or `none`) and threaded into every reviewer's `USER STEERING:` slot. A finding it suppressed moved to `## Filtered` after admission and verification, with the instruction verbatim as its reason, and is never a CRITICAL (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-3-4-filter-stratify.md` §4.2).
+- [ ] Every admitted CRITICAL / HIGH / MEDIUM survivor has a `Validation:` verdict — from a fresh `finding-verifier-agent` spawn or the inline route in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/finding-verification.md` §1 (shared-code findings cluster per its §4). Refuted findings sit in `## Filtered`, a CRITICAL / HIGH one only after a second independent verdict (its §5 guard).
+- [ ] The admission gate followed `${CLAUDE_PLUGIN_ROOT}/skills/_shared/severity-calibration.md` §5, not a single confidence threshold.
+- [ ] Every kept finding carries a severity (`severity-calibration.md` §1), a decision type, and a `[NEW]` / `[PRE-EXISTING]` tag.
+- [ ] The needs-your-decision gate fired for every such finding at any severity, all resolved or wontfix BEFORE the handoff is offered or anything is posted (§7.0 Pre-Post guard).
+- [ ] `phase:` was stamped via `atomic_state_set_field` on ENTRY to each phase (invariant S3).
+- [ ] All three pre-pass checks (lint / schema / secret) have a recorded outcome — `findings`, `clean`, or `error` — in `mechanical_prepass_attempted`, confirmed by §4.0a.
+- [ ] The handoff was written to `<PRIMARY_ROOT>/.geniro/state/handoff/from-review-<branch>.md` via `atomic_state_write`, with structured `open_questions[]`.
+- [ ] `report_status` flipped `draft→final` once the decision gates cleared, a clean review included; on a Post, `[POSTED-TO-PR]` markers persisted.
 - [ ] The Action gate fired (always-WAIT) with its pick in `approvals[]`; the chained include-deferred gate fired on the `/geniro:implement findings` pick when set-aside minor findings existed; the round-N gate fired past the round threshold (`${CLAUDE_PLUGIN_ROOT}/skills/review/phase-1-triage-reference.md` §7 step 4).
-- [ ] The run's final chat message states the verdict (kept-finding counts by severity, or the clean-pass affirmation) and the handoff's ABSOLUTE path — a final message carrying only the repo-relative form, or omitting either, fails this check.
-- [ ] No test was authored — a testable finding's `Decision Type` carries into the handoff unchanged, for `/geniro:implement` to confirm when it applies the fix.
+- [ ] The final chat message states the verdict (kept-finding counts by severity, or the clean-pass affirmation) and the handoff's ABSOLUTE path; the repo-relative form alone, or either half missing, fails.
+- [ ] No test was authored — a testable finding's `Decision Type` carries into the handoff unchanged for `/geniro:implement`.

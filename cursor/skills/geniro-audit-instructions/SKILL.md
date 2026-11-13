@@ -57,21 +57,10 @@ S1. **Secrets are cited, never quoted.** A credential found inside an instructio
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "The reviewer quoted the line — no need to re-read it." | The no-unverified-finding invariant: admission requires YOUR Read of the cited location. |
-| "I'll fix this obviously dead path while scanning." | The report-before-fix invariant: edits before the action gate change the baseline other reviewers and Phase 3 verification cite. Queue it as a finding. |
-| "I'll spawn reviewers one at a time to manage context." | Reviewer output is capped (§Budgets); the orchestrator holds tables, not the reviewers' reading. Sequential spawns multiply wall-time. |
-| "AGENTS.md is a copy of CLAUDE.md — flag the duplication." | Deliberate mirroring (symlink or generated copy) is the endorsed way to serve many tools from one source. Flag drift BETWEEN the copies, never the mirroring itself. |
-| "CLAUDE.md is only 30 lines — that's a coverage gap." | Brevity is healthy. A coverage finding needs two pieces of evidence: the tool is actively used here, and a specific needed fact is documented nowhere. |
-| "This skill description is keyword-stuffed — trim it." | Trigger keywords are the routing surface the tool selects skills by; trimming them degrades selection. Flag only genuine description-vs-body drift. |
-| "Two files state the same test command and agree, so it's fine." | Agreement today is drift tomorrow. Hand-maintained duplicates are a finding even while values match — propose one home, or a symlink/generation mechanism. |
-| "I found an API key — I'll quote it in the evidence column so the user can verify." | Invariant S1: the report would then contain the secret and outlive the fix. Cite `file:line` and the credential's shape; NEVER the value. |
 | "This file tells agents to use `--no-verify`; maybe the team wants that." | An instruction directing agents around safety mechanisms is the highest-severity finding whether or not it is intentional. Surface it and let the user decide — never silently endorse it. |
-| "The bloat sweep found nothing this round, so there's nothing to report." | A silent no-op is indistinguishable from a skipped sweep. Name what you examined and what you rejected; zero findings is a valid result, an unreported sweep is not. |
 | "There are 40 findings — I'll show tier counts and link the report." | A count hides the exact edits the user is authorizing. Phase 4 renders every finding before the gate — the visible set must equal the approvable set. |
-| "Phase 5 fixes failed re-verification — I'll run another fix round." | Budget: 1 round. A second silent round compounds unreviewed edits on files every future agent session reads. Surface what failed and let the user decide. |
-| "This `.geniro/instructions/` file has a malformed section header — flag it." | Per-file structural lint of that layer is owned by `/geniro:instructions validate` — route the finding there. Every other dimension's findings in those files stay in scope here. |
 | "This rule reads fine — leave it." | Reading fine is not the bar. A rule can be live and correct and still cost more than it buys — a guardrail written for a weaker model, a fixed prohibition where a criterion would serve. The bloat dimension hunts those, not only redundancy. |
-| "This paragraph explains why the rule exists — that's useful context." | Useful to a human deciding whether to keep the rule; inert to the agent following it. `dimensions-reference.md` §D4's case-for-the-rule check splits the two: the reason inside a rule an agent would rationalize around stays, the case built for a reviewer — sources, evidence grading, refutations, how the rule arrived — goes. |
+| "This paragraph explains why the rule exists — that's useful context." | Useful to a human deciding whether to keep the rule, inert to the agent following it. The reason inside a rule an agent would rationalize around stays; the case built for a reviewer — sources, evidence grading, refutations, how the rule arrived — goes (`dimensions-reference.md` §D4 check 9). |
 
 ## Budgets
 
@@ -87,22 +76,11 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## ACI per-phase tool surface
 
-The report-before-fix invariant ("Report before fix") is a prose rule; this table is its per-phase contract, since `allowed-tools` pre-approves and never withholds. Direct edits and writes to any repo file (state-file writes go through `atomic_state_write` in a shell call, never a direct file write) are forbidden in every phase before the action gate, and open only inside an approved fix agent's disjoint allowlist after it fires.
-
-| Phase | Allowed | Forbidden |
-|---|---|---|
-| `scope-inventory` (0) | `Read`, `Glob`, `Grep`, `Bash` (read-only + `atomic_state_write` for the state checkpoint) | `Edit`, `Write`, mutating `Bash`, `Agent` |
-| `mechanical-pre-pass` (1) | `Read`, `Glob`, `Grep`, `Bash` (read-only battery) | `Edit`, `Write`, mutating `Bash`, `Agent` |
-| `dimension-reviewers` (2) | `Agent` (reviewer spawns), `Bash` (`atomic_state_write` for `findings-<reviewer>.md` persistence) | `Edit`, `Write`, mutating `Bash` outside the state helper |
-| `merge-verify-filter` (3) | `Read`, `Bash` (read-only re-reads), `Agent` (`finding-verifier-agent` spawns) | `Edit`, `Write`, mutating `Bash` |
-| `report` (4) | `Read`, `Bash` (`atomic_state_write` for the dated report) | `Edit`, `Write`, mutating `Bash` outside the state helper, `Agent` |
-| `action-gate` (5) | `AskQuestion`, `Agent` (fix agents, spawned only after the gate approves), `Bash` (cleanup + commit offer) | `Edit`/`Write` before the gate fires, or outside an approved fix agent's disjoint allowlist |
-
-External sends are not part of `/geniro:audit-instructions` ACI.
+Report-before-fix is a prose rule, since `allowed-tools` pre-approves and never withholds. Phases 0-4 are read-only: shell calls are read-only except `atomic_state_write` for state files (checkpoint, `findings-<reviewer>.md`, the dated report), and `Agent` is spawned only for Phase 2 reviewers and Phase 3 `finding-verifier-agent` verdicts. Phase 5 adds `AskQuestion`, then `Agent` fix agents after the gate approves; `Edit`/`Write` open only inside an approved fix agent's disjoint allowlist, and the cleanup and commit offer use `Bash`. External sends are not part of this skill.
 
 ## Subagent tiering
 
-All reviewers and fix agents are `subagent_type="generalPurpose"`. Reviewers are `session` (OMIT `model=`), so the user's session-level model choice governs audit depth; they stay general-purpose with the rubric pasted rather than `reviewer-agent`, whose output contract feeds /geniro:review's calibration machinery, not this skill's finding table. Phase 3's T0/T1 cold-verify (`finding-verifier-agent` ladder) is `session` too: its verdict decides whether a safety or correctness finding is admitted. Phase 5 fix agents are **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes: they apply findings the user already approved within a file allowlist. The Phase 1 battery and the rest of Phase 3 are orchestrator-inline.
+Reviewers and fix agents are `subagent_type="generalPurpose"` with the rubric pasted: `reviewer-agent`'s output contract feeds /geniro:review's calibration, not this skill's finding table. Reviewers and Phase 3's cold-verify are `session` (OMIT `model=`) — the user's model choice governs audit depth, and the verdict decides whether a safety or correctness finding is admitted. Phase 5 fix agents are **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes. The Phase 1 battery and the rest of Phase 3 run inline.
 
 ---
 

@@ -2,15 +2,15 @@
 
 The spine is `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md`; this file carries the Steps.
 
-State.md `phase: mode-detect` during this phase. Light cost — a single design-doc-detect.md helper call.
+State.md `phase: mode-detect` during this phase.
 
 ### 0.1 $ARGUMENTS resolution
 
-**Opt-in flag detection.** Strip every recognized flag token from `$ARGUMENTS` before passing the remaining text to mode detection. state.md does not exist yet — it is created in §0.3 — so write no frontmatter here; carry each detected flag forward and write its field into the INITIAL frontmatter at the §0.3 creation step. The flags are orthogonal; any combination may be passed.
+**Opt-in flag detection.** Strip every recognized flag token from `$ARGUMENTS` before mode detection. state.md does not exist until §0.3, so carry each detected flag forward and write its field into the initial frontmatter there. The flags are orthogonal.
 
 - **`--artifact`** → `artifact_mode: true` + `artifact_status: pending`. Turns on the live visual plan artifact (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`) and IS the opt-in, so §0.2.5 skips its question. Absent: the §0.2.5 question decides whether artifact mode turns on.
 
-**Launch-modifier detection (opt-in pre-fill of `launch_config`).** `/geniro:plan` also recognizes the `/geniro:implement` launch modifiers so a `/plan <topic> worktree ship:draft` invocation pre-fills the plan's `launch_config` block instead of discarding them. Semantic-parse `$ARGUMENTS` for the workspace modifiers (`new-branch` / `current-branch` / `worktree` / `no-worktree` / `here`), the ship modifiers (`don't push` / `no push` / `commit only` → commit-no-push, `draft only` → draft-pr, `ready-for-review` → ready-for-review, `stop after review` → stop-after-review), and a `freshness:merge` / `freshness:rebase` / `freshness:skip` modifier (colon form only — bare `merge` / `skip` are too ambiguous inside a free-text planning topic). Strip the matched tokens from the topic text before mode detection, then carry the recognized set forward: the `freshness:` token feeds §1.1b (applied directly), and the full set feeds §8.3.5 to pre-fill `launch_config` non-interactively. With no launch modifier, both steps run interactively.
+**Launch-modifier detection (pre-fills `launch_config`).** Semantic-parse `$ARGUMENTS` for the `/geniro:plan` launch modifiers cataloged in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/flags-reference.md` — workspace, ship (`don't push` / `no push` / `commit only` → commit-no-push, `draft only` → draft-pr, `ready-for-review`, `stop after review` → stop-after-review) and `freshness:merge` / `freshness:rebase` / `freshness:skip` (colon form only — bare `merge` / `skip` are too ambiguous inside a free-text topic). Strip the matched tokens before mode detection and carry the set forward: `freshness:` feeds §1.1b, the full set feeds §8.3.5. With none, both run interactively.
 
 Use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md` helper unchanged. Returns:
 
@@ -41,7 +41,7 @@ There is no in-loop edit-existing-sections mode: edit an existing design doc dir
 
 ### 0.2.5 Visual artifact opt-in
 
-After mode resolves (IDEA or DESIGN_DOC) and before the §0.3 state.md write. When the `--artifact` flag was present in §0.1, skip this question — the flag is the opt-in, the run is in artifact mode. When the flag was absent, fire the single opt-in `AskUserQuestion` — literal template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b. On the "Yes" pick (or flag present) the run is in artifact mode — the §0.3 frontmatter gets `artifact_mode: true` + `artifact_status: pending`; on "No" artifact mode stays off and no artifact fields are written. Persist the pick to `approvals[]` category `artifact_choice` so a resume doesn't re-ask.
+After mode resolves and before the §0.3 state.md write. With the `--artifact` flag present the flag is the opt-in: skip the question. Without it, fire the single opt-in `AskUserQuestion` — literal template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1b. A "Yes" (or the flag) puts the run in artifact mode and the §0.3 frontmatter gets the artifact fields; "No" writes none. Persist the pick to `approvals[]` category `artifact_choice` so a resume doesn't re-ask.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md` only when the run is in artifact mode, starting from the §1.5 `loop-artifact-call-sites.md` read; a run that declines the page never loads it.
 
@@ -51,7 +51,7 @@ After mode is resolved (IDEA or DESIGN_DOC):
 
 1. **Resolve task slug.** Inputs: $ARGUMENTS topic OR basename(design-doc) sans extension. Output: kebab-case slug ≤40 chars.
 2. **Task-dir:** `.geniro/planning/<task-slug>/`.
-3. **state.md:** `.geniro/planning/<task-slug>/state.md`. Write via `atomic_state_write`. Full frontmatter + body template (frontmatter fields `tier`/`producer`/`schema-version`/`branch`/`worktree`/`timestamp`/`phase`/`status`/`non-resumable-actions`/`approvals`/`task_slug`/`mode`; plus `artifact_mode: true`, `artifact_status: pending`, and an empty `artifact_url: ""` placeholder written together when artifact mode is on (the `--artifact` flag or a §0.2.5 Yes), all three omitted otherwise — the placeholder is required because `atomic_state_set_field` only replaces an existing key, so without it the first-publish write of the real URL fails; body sections `# State: <topic>` / `## Inputs` / `## Tool log` / `## Errors` / `## Open Questions`) in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1.
+3. **state.md:** `.geniro/planning/<task-slug>/state.md`, written via `atomic_state_write` from the frontmatter and body template in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-auq-reference.md` §1. In artifact mode (`--artifact` or a §0.2.5 Yes) write `artifact_mode: true`, `artifact_status: pending` and an empty `artifact_url: ""` together — `atomic_state_set_field` only replaces an existing key, so without the placeholder the first publish's URL write fails; omit all three otherwise.
 4. **Transition.** Set `phase: explore` via `atomic_state_set_field` and proceed to Phase 1.
 
 ### 0.4 Cancel handling

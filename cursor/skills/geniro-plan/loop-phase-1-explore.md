@@ -20,13 +20,13 @@ State.md `phase: explore` during this phase.
 At Phase 1 entry, load **L4 + L3 + L2** (full tier, NOT rules-only):
 
 - **Custom instructions:** apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` with `SKILL_SLUG: plan`, `LOAD_TIER: pipeline`, `MODE: refresh`.
-- **Project snapshot:** `source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh" && load_semantic`. Default top-2 (`_project.md` + `_CODEBASE_MAP.md`). Fingerprint drift check fires; surface drift to user.
-- **Past learnings:** route the read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override" (under a declared `## Memory Backend` block, the declared read tool is merged with the file query under `mirror` and replaces it under `replace`): `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic to infer tags. Then always run a second file query, merging any backend matches and not skipped on a generic topic, for approaches earlier runs declined — `--type user_rejected_suggestion --tag approach_choice --limit 10`, with no `--tag <inferred>` or `--scope` (a rejection is tagged by category only, and its topic string rarely repeats). Keep entries whose suggestion concerns the current topic and display each as "User previously rejected <suggestion> on <ts>" so Phase 4's approach AUQ (§4.3/§4.4) can re-rank or omit it.
+- **Project snapshot:** `source "${CLAUDE_PLUGIN_ROOT}/lib/load-semantic.sh" && load_semantic`. Surface any fingerprint drift to the user.
+- **Past learnings:** route the read per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/query-learnings.md` §"Memory backend override": `source "${CLAUDE_PLUGIN_ROOT}/lib/query-learnings.sh" && query_learnings --tag <inferred> --scope <topic-area> --limit 5`. Skipped if topic is too generic to infer tags. Then always run a second file query, merging any backend matches and not skipped on a generic topic, for approaches earlier runs declined — `--type user_rejected_suggestion --tag approach_choice --limit 10`, with no `--tag <inferred>` or `--scope` (a rejection is tagged by category only, and its topic string rarely repeats). Keep entries whose suggestion concerns the current topic and display each as "User previously rejected <suggestion> on <ts>" so Phase 4's approach AUQ (§4.3/§4.4) can re-rank or omit it.
 - **Cross-layer resolution:** `${CLAUDE_PLUGIN_ROOT}/skills/_shared/resolve-conflicts.md` protocol if L4/L3/L2 disagree.
 
 ### 1.1b Branch freshness
 
-On a fresh run (skip on compaction-resume), before research spawns apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`, so the spec is grounded in fresh code rather than a stale tree. It covers a feature branch behind the default (merge/rebase) and the default branch behind its remote (pull); skip silently only when `BEHIND == 0`.
+On a fresh run (skip on compaction-resume), before research spawns apply Mode FRESH-CONTINUE in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/branch-freshness.md`, so the spec is grounded in fresh code; skip silently only when `BEHIND == 0`.
 
 The update is an offer, never auto-run — an unasked merge moves the user's HEAD. Fire that file's update-default or catch-up question verbatim when behind; before any action that moves HEAD, run `git status --porcelain`, and any output chains its unsaved-work question first. Append the pick and resolved `behind` count to `approvals[]` (category `branch_freshness`) via `atomic_state_append_list_item`.
 
@@ -45,7 +45,7 @@ Detect effort tier from $ARGUMENTS shape using `${CLAUDE_PLUGIN_ROOT}/skills/_sh
 
 Spawn `codebase-research-agent` for each primary Phase 1 facet per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research. Facet-specific slot values: `RESEARCH_QUESTION` = the facet's research goal; `DELIVERABLE_SHAPE` = `"table of [{file, lines, observation}] verified findings"`; `SCOPE_HINT` = the facet's path globs; `OUTPUT_PATH` = `<task-dir>/.research-<facet>.md`; `THOROUGHNESS` = `medium` (default) or `very thorough` for Big-tier subsystem facets.
 
-When `$ARGUMENTS` carries a tracker reference, complete §1.4's tracker fetch + chain assembly **before** issuing these spawns — §1.4 produces the "TASK CHAIN CONTEXT" block these spawns consume, so it must run first or the block does not exist yet. Then issue all spawns `run_in_background: true` in a single assistant response per the parallel-spawn rule (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` — the orchestrator fires code-independent grill questions per §3.1 during the wait; the drain is §1.5), each additionally receiving the "TASK CHAIN CONTEXT" block (when present) as added context so the spec is grounded in where this task sits in the larger chain of work. Per-spawn output schema: `[{file, lines, observation}]`; cap ~4000 chars (truncate with marker) — this section is that cap's single home, cited rather than restated at the other `/geniro:plan` sites.
+When `$ARGUMENTS` carries a tracker reference, finish §1.4 first — it produces the "TASK CHAIN CONTEXT" block these spawns receive as added context. Then issue all spawns `run_in_background: true` in a single assistant response (Shape A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md` — the orchestrator fires code-independent grill questions per §3.1 during the wait; the drain is §1.5). Per-spawn output schema: `[{file, lines, observation}]`; cap ~4000 chars (truncate with marker) — this section is that cap's single home, cited rather than restated at the other `/geniro:plan` sites.
 
 ### 1.3 Echo contract
 
@@ -53,51 +53,23 @@ Canonical in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Echo contract �
 
 ### 1.4 Workflow refs fetch (tracker linkage)
 
-If `$ARGUMENTS` contains a tracker reference (Linear URL/ID, Jira key, GitHub issue URL, Asana task URL), fetch via the matching MCP and persist to state.md `## Workflow Refs`, the source of truth for Phase 6 frontmatter assembly.
+Runs only when `$ARGUMENTS` carries a tracker reference (Linear URL/ID, Jira key, GitHub issue URL, Asana task URL), and before the §1.2 spawns. Without one the spec has no `workflow_refs[]`.
 
-**Detection:** existing workflow-plumbing detects tracker references at Phase 1 entry. Workflow files (`.geniro/workflow/<kind>.md`) live in the primary worktree per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` (Mode A) — try `./.geniro/workflow/<kind>.md` (cwd-local; uncommitted local edits win) first, on file-not-found retry against `<PRIMARY_ROOT>/.geniro/workflow/<kind>.md`. Each file defines per-tracker patterns. When a match resolves to `kind=<linear|jira|github-issues|asana>` and `issue_id=<id>`:
+1. **Fetch.** Each tracker's patterns live in `.geniro/workflow/<kind>.md` — `./` first, then `<PRIMARY_ROOT>/` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/primary-worktree.md` Mode A). Fetch through the MCP tool that file names for `<kind>`; a project may register any client under any tool name.
+2. **Persist.** Append the ref to state.md `## Workflow Refs` via `atomic_state_append_section --create`, in the `workflow_refs[]` entry shape of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md` §Frontmatter. The fetched payload feeds the research-agent prompts, and Phase 6 copies this block into the spec frontmatter.
+3. **Assemble the chain.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: plan) to the fetched ref(s) and the task-dir; merge its `ENRICHED_REFS` into the `## Workflow Refs` block via `atomic_state_edit`; hold the "TASK CHAIN CONTEXT" block fenced as `TASK-CHAIN` (that file's §5; `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` §Untrusted-content fence) for the spawn prompts. The milestone half is derived fresh each run and never persisted.
 
-1. Fetch via the MCP tool the matched workflow file names for `<kind>` — never hardcode a tracker API; a project may register any client under any tool name. If that MCP is unregistered, log a `## Errors` entry and continue without persistence.
-2. Append to state.md `## Workflow Refs` via `atomic_state_append_section --create`:
-
-```yaml
-## Workflow Refs
-- kind: linear
-  issue_id: ENG-303
-  url: https://linear.app/.../ENG-303/...
-  fetched_at: 2026-05-26T10:42:13Z
-  title: "..."
-  suggested_branch: ci-303-...
-  status: Todo
-  parent_ref:
-    kind: linear
-    issue_id: ENG-300
-    url: ...
-    title: "Telemetry performance epic"    # chain enrichment (§1.4 step 4)
-    status: In Progress                      # chain enrichment
-    scope: "Cut backfill latency below 5 min."  # chain enrichment — bounds per workflow-refs-schema.md
-  siblings:                                  # chain enrichment — bounds per workflow-refs-schema.md, omit when none
-  - issue_id: ENG-301
-    title: "..."
-    status: Done
-  chain_fetched_at: 2026-05-26T10:42:15Z     # chain enrichment, independent staleness from fetched_at
-```
-
-3. The fetched payload feeds Phase 1 research-agent prompts and is the source for Phase 6 frontmatter. Skipped when `$ARGUMENTS` carries no tracker reference — a spec.md then has no `workflow_refs[]`.
-
-4. **Assemble the related-task chain.** After the current issue resolves, apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` (MODE: plan) with the fetched ref(s) + the task-dir to gather the chain of related work — the parent epic (title / status / scope), the sibling sub-tasks (each with its status), and neighboring milestone files on disk — and to derive the done-before / where-we-are / what's-next narrative. The helper also cross-checks each load-bearing chain fact against the project's declared `## Data Sources` (read-only, fail-open) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/data-sources.md`, marking unconfirmable statuses and surfacing conflicts. Merge the helper's `ENRICHED_REFS` (the tracker half: `parent_ref.{title,status,scope}` + `siblings[]` + `chain_fetched_at`) into the state.md `## Workflow Refs` block via `atomic_state_edit`, anchored on the ref line each enrichment lands on. Stay read-only on the tracker — never mutate the parent or siblings. Fail-open: on MCP unregistered/timeout, skip enrichment, log a `## Errors` entry, and continue. Run this assembly before the §1.2 research spawns and hold the assembled "TASK CHAIN CONTEXT" block in context for their prompts, fenced as `TASK-CHAIN` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/task-chain-context.md` §5 and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/untrusted-content-defense.md` §Untrusted-content fence; the milestone half is derived fresh each run and is never persisted.
+The tracker stays read-only — never mutate the parent or siblings — and every call is fail-open: an unregistered MCP or a timeout logs a `## Errors` entry and the run continues without that step.
 
 ### 1.5 Transition to Phase 2
 
-**Drain the backgrounded explore agents first.** Before synthesizing, confirm every §1.2 explore spawn returned — Read each `<task-dir>/.research-<facet>.md`, or resume the agent by ID if an output is missing. This drain closes the §1.2 overlap (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/idle-overlap.md`): synthesis cannot start against an in-flight agent. Read each report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report — an agent that skipped its project-rules load is otherwise indistinguishable from one that ran it.
+**Drain the backgrounded explore agents first.** Before synthesizing, confirm every §1.2 explore spawn returned — Read each `<task-dir>/.research-<facet>.md`, or resume the agent by ID if an output is missing. Read each report for its `Context loaded:` line and act on an `unreadable` or missing one, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The load report.
 
 Model synthesizes findings into a brief inline summary held in context (no separate artifact). The summary feeds Phase 2 UI trigger detection, Phase 3 question generation, and Phase 5 section authoring.
 
-**Prior-work scan.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` against the topic this run is about to plan — already named by `$ARGUMENTS` or the resolved tracker ref, so it sits inside the read-only carve-out `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §Forbidden discovery moves draws around an already-named target, not the target-invention it forbids. On a hit, §4 owns the gate shape; persist the pick under `category: prior_work_scan` via `atomic_state_append_list_item` and fold it into the summary above so it reaches Phase 4 approach design before any approach is proposed.
+**Prior-work scan.** Apply `${CLAUDE_PLUGIN_ROOT}/skills/_shared/prior-work-scan.md` against the topic this run is about to plan — already named by `$ARGUMENTS` or the resolved tracker ref, so it falls inside the read-only carve-out `${CLAUDE_PLUGIN_ROOT}/skills/_shared/scope-anchor.md` §Forbidden discovery moves allows for a named target. On a hit, §4 owns the gate shape; persist the pick under `category: prior_work_scan` via `atomic_state_append_list_item` and fold it into the summary above so it reaches Phase 4 approach design before any approach is proposed.
 
-**Custom post-explore steps.** Execute any user-authored post-explore steps from the L4 `plan.md` instruction file (`.geniro/instructions/plan.md`) loaded at §1.1. Per the `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract, a `## Additional Steps` subsection is anchored to a phase-enum boundary; the canonical post-explore anchor is `### After explore` (`explore` is the Phase 1 enum value, and the research is drained and synthesized above, so the step runs against a mapped codebase and before any question, approach, or spec section exists). Run any subsection anchored to the end of `explore`, treating each bullet as an imperative to execute in order and honoring any `AskQuestion` the user's step prescribes.
-
-It runs before the transition write below, so a step that changes what the plan is about still reaches Phase 3's questions and Phase 4's approaches. Skip silently when no such subsection is loaded.
+**Custom post-explore steps.** Run the user-authored steps under `### After explore` in the plan custom-instructions file loaded at §1.1 (anchor per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` §Producer contract), each bullet as an imperative in order, honoring any `AskQuestion` it prescribes. They run against the mapped codebase and before the transition write, so a step that changes what the plan is about still reaches Phase 3's questions and Phase 4's approaches. Skip silently when no such subsection is loaded.
 
 **Transition.** Resolve the Trivial skip below before evaluating the §2.1 UI trigger, then write the `phase:` of the phase actually being entered — Trivial skip → Phase 4; UI trigger matches → Phase 2; neither → Phase 3 (each phase's enum is in the spine §Phase files table). Leaving `phase:` on a phase this step just decided to skip sends a compaction-resume back into it.
 

@@ -4,7 +4,7 @@
 
 Phase file for `/geniro:investigate`. The spine — invariants, budgets, tool surface, anti-rationalization — is `${CLAUDE_PLUGIN_ROOT}/skills/investigate/SKILL.md`.
 
-State.md `phase: investigate` on the first pass; a dive-deeper re-entry from Phase 3 leaves it at `present` (taxonomy reference §1). Parallel research-agent spawns + orchestrator re-verify. Exits to Phase 3 only when every load-bearing claim is verified, dropped, or routed through missing-data gate.
+State.md `phase: investigate` on the first pass; a dive-deeper re-entry from Phase 3 leaves it at `present` (SKILL.md §State machine). Parallel research-agent spawns + orchestrator re-verify. Exits to Phase 3 only when every load-bearing claim is verified, dropped, or routed through missing-data gate.
 
 ## Contents
 
@@ -22,19 +22,19 @@ Spawn 1-3 agents in ONE response — all Agent calls in the same assistant turn,
 
 Every spawn below follows §Subagent spawn contract. Replace every `{{placeholder}}` with actual content before spawning; pre-inline file contents under `## Pre-Inlined Files` rather than expecting the agent to re-Glob.
 
-The Codebase Analyst spawn IS `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research — Phase 2's findings-list deliverable maps onto the agent's `DELIVERABLE_SHAPE` slot in the spawn template (§3 Agent A). Git Historian and Internet Researcher remain `general-purpose` spawns (different tool surfaces — git read-verbs / web search and fetch respectively). The taxonomy reference §3 Agent C variant says when the External-codebase researcher is spawned. For narrow codebase-locator side queries during synthesis (Phase 3) — "where is the cache-key builder defined?" / "find all call sites of X" — also spawn `codebase-research-agent`.
+The Codebase Analyst spawn IS `codebase-research-agent` per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/context-isolation-checklist.md` § Codebase research — Phase 2's findings-list deliverable maps onto the agent's `DELIVERABLE_SHAPE` slot in the spawn template (taxonomy reference §2 Agent A). Git Historian and Internet Researcher remain `general-purpose` spawns (different tool surfaces — git read-verbs / web search and fetch respectively). The taxonomy reference §2 Agent C variant says when the External-codebase researcher is spawned. For narrow codebase-locator side queries during synthesis (Phase 3) — "where is the cache-key builder defined?" / "find all call sites of X" — also spawn `codebase-research-agent`.
 
 ### Agent A: Codebase Analyst (when not skipped by Phase 1 Step 2)
 
-Read-only research agent — the plugin `codebase-research-agent` (tools: Read / Glob / Grep / Bash; writes its findings report to OUTPUT_PATH in a shell call, no writes or edits elsewhere). Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 2 + Relevance) + `Gaps` report. Full spawn template (acceptance criteria, pre-inlined-files convention, investigation strategy, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent A).
+Read-only research agent — the plugin `codebase-research-agent` (tools: Read / Glob / Grep / Bash; writes its findings report to OUTPUT_PATH in a shell call, no writes or edits elsewhere). Produces a `Files examined` + `Findings` (file:line + verified snippet per Evidence Standard kind 2 + Relevance) + `Gaps` report. Full spawn template (acceptance criteria, pre-inlined-files convention, investigation strategy, output schema) in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent A).
 
 ### Agent B: Git Historian (for How current/forward-looking, Why, Risk, What-if)
 
-Read-only research agent, spawned as **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — restricted to a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`); no file writes or edits. Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent B).
+Read-only research agent, spawned as **light (smallest)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — restricted to a strict allowlist of git read-verbs (`log`, `blame`, `show`, `diff`); no file writes or edits. Produces a chronological `Timeline` + `Findings` (commit-hash + message excerpt per Evidence Standard kind 1 + Relevance) + `Patterns` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent B).
 
 ### Agent C: Internet Researcher (for How forward-looking, Why, What-if, Compare, Risk)
 
-WebSearch+WebFetch agent, spawned as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — read-only, no local-codebase Bash and no file writes or edits. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §3 (Agent C).
+WebSearch+WebFetch agent, spawned as **light (mid)** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes — read-only, no local-codebase Bash and no file writes or edits. Produces a `Sources consulted` + `Findings` (URL + Reliability label per Evidence Standard kind 6) + `Consensus` / `Disagreements` report. Full spawn template in `${CLAUDE_PLUGIN_ROOT}/skills/investigate/investigate-taxonomy-reference.md` §2 (Agent C).
 
 ### Step 2: Verify — orchestrator re-checks each load-bearing claim
 

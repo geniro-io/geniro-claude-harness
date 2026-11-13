@@ -28,8 +28,8 @@ After the sweep, verify per the shared walk §6: re-run the `Auto-detect:` for e
 
 ## 3.1 Pre-write existing-content audit
 
-1. Read existing `CLAUDE.md`.
-2. Identify project-specific sections (Tech Stack, Commands, Conventions, Domain Context).
+1. Read the existing instruction file (`detected.instruction_file`, §1.1).
+2. Identify project-specific sections (Tech Stack, Essential Commands, Conventions, Domain Context); a legacy `## Commands` heading is the Essential Commands section — rename it, never add a second one.
 3. For each: merge detected updates into existing content via orchestrator-inline merge (preserve user edits + update facts).
 4. If existing CLAUDE.md carries anything on the exclusion list in `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content from a prior `/geniro:setup` version — **remove it silently**. It is plugin noise the plugin already loads on its own.
 5. Display merged diff to user, then `AskUserQuestion` (header: "Merge diff") — options "Apply the merge" / "Show me the full diff" / "Keep my CLAUDE.md unchanged".

@@ -119,6 +119,7 @@ The I- and K-class coverage checks are the exception: they match on an absence, 
 ONE agent spawn per thread, all in the SAME assistant response in a batch (the one-judge-per-thread invariant). The judge shares none of your context and may not resolve a `CLAUDE_PLUGIN_ROOT`-rooted path, so the taxonomy travels as inlined text — a bare path it fails to open leaves it judging against nothing and says so nowhere. Pre-inline, per spawn:
 - The short-form taxonomy — `checks-reference.md` §4 (the `[J]` table) in full, plus one line per mechanical check ID already run. §§1-3 detection logic, §5, §6, and §7 are orchestrator-side and stay out of the seed — inlining them would blow the seed budget (SKILL.md §Budgets & quality gates — LLM-judge token budget row).
 - **This thread's expectation set** from Phase 1 Step 4b, with the degradation level it was built at. The judged coverage checks (the judged I/K-class rows in `checks-reference.md` §4) have no declared side without it and silently return nothing; the judge cannot re-derive it, because the turns it came from may not survive the excerpt slice. Send the set itself, never a pointer.
+- **The writing yardstick**: the absolute path of `.claude/rules/skill-prose.md` — too long to inline, and an absolute path the judge can open is the one exception. Judging E1, I8 and I9 needs its definition of a no-op rule.
 - The mechanical findings from Step 1 (so the judge doesn't re-discover them and can use them as context).
 - The most-suspicious thread excerpts, ranked and sliced per `checks-reference.md` §7, which carries the weighted signal set and the always-include opening and closing turns. Keep the total within the excerpt budget (same Budgets row).
 
@@ -142,6 +143,9 @@ This is the declared side of every judged coverage check (the judged I/K-class
 rows in checks-reference.md §4): judge the trace against THIS list, not against
 what a skill of this kind usually does. An item absent from this list was never
 declared, so it cannot be missing.
+
+### Writing yardstick
+Read {{absolute path of .claude/rules/skill-prose.md}} before judging E1, I8 and I9; if it does not open, say so in each rationale.
 
 ### Mechanical findings already detected
 {{mechanical findings from Step 1, as a table}}

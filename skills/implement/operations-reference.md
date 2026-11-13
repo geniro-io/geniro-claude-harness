@@ -1,6 +1,6 @@
 # /geniro:implement — operations reference
 
-Read at every phase entry, alongside that phase's own body file. `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` keeps the role, the state machine, the loop invariants and the anti-rationalization table; this file carries the operational contracts every phase runs under.
+Read once per session, alongside the first phase body entered, and again after a compaction. `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` keeps the role, the state machine, the loop invariants and the anti-rationalization table; this file carries the operational contracts every phase runs under.
 
 ## Contents
 
@@ -124,7 +124,7 @@ Inline modifiers from Phase 1 `$ARGUMENTS` override AUQ defaults deterministical
 
 ## Loop-invariant detail
 
-Detail behind the `SKILL.md` §Loop invariants and §State machine, read here at every phase entry.
+Detail behind the `SKILL.md` §Loop invariants and §State machine.
 
 **Ship exception to S5.** When the Ship sub-step's review-coverage guard finds staged files the fix loop's last round never reviewed, editing reopens once for those diverged files only: fixes go through the fix loop's existing inline-fix rule, a fresh full-suite test run covers any fix it makes before staging whenever an edit landed after the last full run, it counts against neither the round cap nor a new one, and `phase:` stays `ship` throughout. An unbuilt spec requirement the Ship reconciliation step catches is not a second exception — it rolls the run back to `phase: implement` for that requirement and flows forward through Phase 3 again, never an inline edit at Ship.
 

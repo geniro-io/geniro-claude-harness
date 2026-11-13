@@ -62,11 +62,9 @@ Apply the following approved changes:
   `git show <sha>:<path>` — never by reverting the tree. Confirm your own edits landed with
   `git diff -- <your paths>` rather than trusting a tool's success message; if one was reverted underneath
   you, re-apply it and report it.
-- **Edit-in-place principle:** When fixing or improving an instruction, rewrite the
-  original instruction to be explicit about the correct behavior. NEVER add separate
-  notes, exceptions, caveats, or conditions below/after the original. Adding
-  "NOTE: also handle X" or "Exception: when Y, do Z" creates context distance and
-  instruction rot. The original instruction should read correctly on its own.
+- **Edit-in-place:** rewrite the original instruction so it reads correctly on its own. A
+  separate note, exception, or caveat below or after it ("NOTE: also handle X") creates
+  context distance and instruction rot.
 - **Word budget:** your edits end net ≤ 0 words across the instruction files you touch
   (`scripts/word-delta.sh <base>`). Pay for each addition by tightening the sections you touch, per
   `.claude/rules/skill-prose.md` §"Assume a capable model" (repo-relative path, you have Read access) —
@@ -82,17 +80,16 @@ Apply the following approved changes:
 
 Orchestrator runs these checks directly (no subagent). All must pass before Phase 5:
 
-1. **Integrity lint:** `bash tests/authoring/lint-skills.sh` — a hard failure fails this check.
+1. **Integrity lint:** `bash tests/authoring/lint-skills.sh` — a hard failure fails this check; it covers every SKILL.md's required frontmatter fields (check 1b).
 2. **Outbound references:** Glob for every path/agent/skill name mentioned in changed files — all must exist
 3. **Inbound references:** Grep the entire template for filenames of changed files — verify referencing files aren't broken
-4. **YAML frontmatter:** Verify changed SKILL.md files have valid frontmatter (name, description fields present)
-5. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
-6. **Description-format checks:** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks, their warning/blocker levels, and the procedure are in § Description-format validator below; its YAML-validity check overlaps with #4 above and counts once.
-7. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md`, whose § Skill routing says which skills ship code and which are read-only. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
+4. **Pattern consistency:** Compare phase structure and agent-spawning syntax in changed skills against 1-2 other skills
+5. **Description-format checks:** apply when any changed SKILL.md's YAML `description:` field was added or modified. The checks and their warning/blocker levels are in § Description-format validator below.
+6. **README/docs sync + generated-file sync (when changes touch user-facing surface or `agents/*.md`):** apply when the change adds/removes/renames a sub-command (verb), modifies YAML `description` or `argument-hint`, alters advertised behavior of an existing slash command, or adds/removes a top-level skill. Grep `README.md` and any `docs/*.md` for the changed skill's name (e.g., `geniro:actions`); also grep `CLAUDE.md`, whose § Skill routing says which skills ship code and which are read-only. For each matched section, read it and compare against the new behavior — flag as **warning** any drift: missing or extra sub-commands in lists, contradictory or stale behavioral descriptions, outdated usage examples, stale frontmatter mirrors. Propose the specific README/CLAUDE.md edits as part of the Phase 6 Step 1 summary so they ship with the same commit the user approves; do NOT silently apply them. If no README/CLAUDE.md/docs mention exists for the changed skill, note "no docs mention to sync". Warning-level — does NOT trigger the fix agent.
    **Generated Cursor agents — blocker, not a warning:** when the change edited any `agents/*.md`, run `scripts/build-cursor-agents.sh` and include the regenerated `cursor/agents/*.md` in the same change set. `tests/cursor/build-agents-fresh.sh` hard-fails CI on drift between the two, so omitting it ships a red build. Fix it by re-running the script rather than spawning a fix agent, and never hand-edit `cursor/agents/`.
-8. **Word budget:** `scripts/word-delta.sh <base>` exits 0 — a positive total fails this check unless the user approved that named growth at the Phase 3 approval.
+7. **Word budget:** `scripts/word-delta.sh <base>` exits 0 — a positive total fails this check unless the user approved that named growth at the Phase 3 approval.
 
-If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (the warning-level description-format checks, #7 README/docs drift) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
+If any check fails: spawn a fix agent. Re-run failed checks only. Max 1 fix round. Write checkpoint. Warnings (the warning-level description-format checks, #6 README/docs drift) do NOT trigger the fix agent — they appear in the Phase 6 Step 1 Summary as advisory items.
 
 ---
 
@@ -128,8 +125,7 @@ Commit {{pre-change sha from Phase 4 Step 0}}; files {{paths from Phase 4 Step 0
    - Spawn syntax matches template conventions?
    - Anti-rationalization tables present where needed?
 3. **Scope creep:** Compare the diff against the approved set — report any change or touched file that no approved item asked for.
-4. **Edit-in-place:** Were original instructions rewritten to be explicit, or were
-   notes/exceptions/caveats added separately? Separate notes = blocker.
+4. **Edit-in-place:** a note, exception, or caveat added beside an instruction instead of rewriting it is a blocker.
 5. **Regressions:** Compare the diff against the baseline. Check:
    - Did any existing instruction's meaning change unintentionally?
    - Are cross-references that worked before still valid?
@@ -275,19 +271,18 @@ If the user picks commit+push or commit-only:
 
 If the user picks skip, print the suggested commit message and the `git add` / `git commit` / `git push` commands for them to run manually.
 
+**process-handoff mode, once the user ships (a commit):** close each consumed entry in the producer's handoff — set `status: resolved` (or `wontfix` for a finding the user declined at the Phase 3 gate) plus `resolution.picked` / `.at` / `.resolved_by: improve-template`, patching the entry with `atomic_state_edit` anchored on its own lines so every other key, entry and body section the producer wrote stays exactly as written. Ingestion skips `resolved` and `wontfix`, so closing the entry is what stops a later run re-ingesting fixes already shipped.
+
 ---
 
 ## Description-format validator (Phase 4 Step 3 extension)
 
 Adds format checks to the existing Phase 4 validation gate. Applies to BOTH improve-existing-skill (when changes touch a SKILL.md description field) AND create-skill mode.
 
-For each changed/created SKILL.md, check the YAML `description:` field:
+For each changed/created SKILL.md, check the YAML `description:` against `.claude/rules/skill-structure.md` §Frontmatter hygiene description rules 1, 2 and 4 (third person, length budget with "Use when" opener, no XML):
 
-1. **Length within budget**: per `.claude/rules/skill-structure.md` §Frontmatter hygiene. Warning if violated (not blocker). Flag a description that is over budget OR verbose — a process summary, argument docs `argument-hint` already carries, identity the body carries. Keep the trigger keywords: they drive skill selection.
-2. **Third person**: description should read as "use when X" / "the skill does Y" — NOT "I will X" / "you should X". Check: grep for `\b(I |my |me |you |your )\b` in the description; if matches, flag as warning.
-3. **"Use when" trigger clause**: description should include a phrase like "Use when …" / "Use for …" / "Trigger when …" — names the conditions that activate the skill. Required (warning if missing).
-4. **"Skip for" anti-trigger clause** (recommended, not required): "Skip for X — use Y instead" — disambiguates against neighbor skills. Adds a recommendation note when missing; not a warning.
-5. **No `{{placeholder}}` patterns**: residual template variables. Blocker if found.
-6. **Single line OR clean multi-line YAML**: description must parse as valid YAML; check for unescaped quotes or unbalanced `|` `>` indicators that break frontmatter parsing. Blocker if YAML invalid.
+- **Warning:** a rule violated, or a description over budget or verbose — a process summary, argument docs `argument-hint` already carries, identity the body carries. Keep the trigger keywords: they drive skill selection.
+- **Recommendation note** (not a warning): no "Skip for" tail.
+- **Blocker:** a residual `{{placeholder}}`, or a description that does not parse as valid YAML (unescaped quotes, unbalanced `|` `>`).
 
 Report results in the existing Phase 4 validation summary. Warnings do not block; blockers route to a fresh fix agent (max 1 round) per existing Phase 4 routing.

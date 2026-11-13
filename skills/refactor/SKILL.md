@@ -32,14 +32,7 @@ argument-hint: "[what to refactor and why]"
 
 **Runtime portability.** If Codex truncated this file, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
-**Detailed contracts:**
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/effort-scaling.md` — canonical tier rubric (Trivial / Small / Medium / Big)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md` — the smell-detection sub-step (reuse-vs-create audit per detected smell)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/per-finding-question-reference.md` § Single-finding gate — the single-finding AskUserQuestion gate
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` § Visual rendering language — visual language for gate messages rendered before a lean question
-- `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-definition-of-done.md` — the run-completion checklist. Read at Phase 3 entry, before the terminal `phase:` write.
-
-**Phase bodies.** Phase 1, Phase 2, and Phase 3 all live in sibling files, Read on entry to that phase and again on any resumption of it, including after a compaction: `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-1-plan.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`, `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`. That Read is the phase's first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold the gates and helper call sites, so work started before the Read runs outside them. state.md `phase:` says which file to re-Read after a compaction.
+**Phase bodies** live in sibling files — the pointer sits under each `## Phase N` heading below — Read on entry to that phase and again on any resumption, including after a compaction; state.md `phase:` says which. That Read is the phase's first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold the gates and helper call sites, so work started before the Read runs outside them.
 
 **Section-reference convention:** bare `§N.M` refs point to Phase sub-sections — `§1.M` in `phase-1-plan.md`, `§2.M` in `phase-2-apply.md`, `§3.M` in `phase-3-verify.md`; `§ <name>` refs name a section inside the cited `_shared` helper. `refactor-reference.md` numbers its own top-level sections 1-3 (State machine / Schema / Spawn template), so any Phase reference there is written `Phase N §N.M` to avoid colliding with those.
 
@@ -47,7 +40,7 @@ argument-hint: "[what to refactor and why]"
 
 ## Your role — restructure, don't ship
 
-You refactor. You validate behavior preservation. You do not commit or push the diff. Phase 3 endpoint is a working-tree diff (the deliverable) + a chat completion summary + state.md audit trail. Downstream actors (user `git commit`, `/geniro:implement` to ship through review gate) handle the actual ship. Running under a dynamic `Workflow(...)` or ultracode mode does not relax this no-ship contract — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
+You refactor and validate behavior preservation. Phase 3 ends at a working-tree diff (the deliverable), a chat completion summary and the state.md audit trail; the user's `git commit`, or `/geniro:implement` through its review gate, ships it. Running under a dynamic `Workflow(...)` or ultracode mode does not relax §Git constraint — the reporter boundary, action gate, and state-write rules bind inside every workflow step per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/reporter-boundary.md`.
 
 ---
 
@@ -61,15 +54,13 @@ You refactor. You validate behavior preservation. You do not commit or push the 
 
 ## State machine
 
-state.md `phase:` enum: `plan` → `apply` → `verify` → `done` (happy path). Terminal states: see §Terminal states below (SessionStart recovery treats every terminal state as "task complete — no resume needed"). Escalation states: `plan-escalated` (hard signal OR baseline red), `apply-escalated` (session-level blocked-ratio cap exceeded — §Budgets), `verify-escalated` (1-round fix-loop exhausted). Recovery surfaces escalation states as "task was paused — your previous options:" so the user re-picks without losing context.
-
-Full ASCII state diagram in `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
+state.md `phase:` enum: `plan` → `apply` → `verify` → `done` on the happy path, with the escalation states `plan-escalated`, `apply-escalated` (blocked-ratio cap, §Budgets) and `verify-escalated`. The full diagram, the terminal and escalation lists, and how SessionStart recovery treats each: `${CLAUDE_PLUGIN_ROOT}/skills/refactor/refactor-reference.md` §1.
 
 ---
 
 ## Terminal states
 
-`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Within Phase 3 the terminal `phase:` is written exactly once, at the §3.6 point in `phase-3-verify.md`; §3.3 only records the outcome, so a resume before it still runs the summary, emit and post-verify steps. A path that reaches a terminal without entering Phase 3 writes the terminal and then runs §3.7 Cleanup itself, in that order: Phase 1 §1.2 (no tests → `routed`; "Fix the broken tests first" on a red baseline → `aborted`), §1.3.1 Big tier's "Run /geniro:plan first" → `routed`, §1.3.2 hard-signal "Escalate" → `routed`, Phase 2 §2.2 / §2.4 ("Revert all changes" → `reverted`; "Keep changes for debugging" → `aborted`) and §2.3 ("Revert all changes" → `reverted`). A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
+`done`, `verify-summary-only`, `reverted`, `aborted`, `routed`. Within Phase 3 the terminal `phase:` is written exactly once, at the §3.6 point in `phase-3-verify.md`; §3.3 only records the outcome, so a resume before it still runs the summary, emit and post-verify steps. A path that reaches a terminal without entering Phase 3 — a Phase 1 or Phase 2 exit — writes the terminal and then runs §3.7 Cleanup itself, in that order. A `reverted` / `routed` / `aborted` write also carries a `## Termination reason` body line naming what ended the run.
 
 ---
 
@@ -103,13 +94,11 @@ S2. **One todo in_progress at a time.** Expose progress in the todo list: phase-
 | "This refactoring needs a behavior change" | Then it's not a refactoring. Use `/geniro:implement` instead. The zero-behavior-change guarantee is non-negotiable. |
 | "This duplication needs a new shared helper" | Run the Existing Abstraction Audit first per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/existing-abstraction-audit.md`. Prefer a small extension of a utility / service / hook that already exists nearby; create a new shared helper only when no analogue exists or extending one would add a parameter or conditional that complicates it (Rule of Three). |
 | "All detected smells are real issues" | Generic smell categories flag intentional repo patterns. Without filtering against THIS repo's conventions via Phase 1 §1.5 smell evidence + KEEP/FILTER synthesis matrix, you'll refactor code that was designed that way on purpose. |
-| "I'll spawn agents one at a time" | All parallel agents MUST be spawned in ONE response — multiple Agent calls in the same assistant turn. Separate turns = no concurrency, full wall-clock latency per agent. |
 | "I noticed a bug mid-refactor, I'll fix it" | That's feature work. Note it for `/geniro:implement` and stay in refactor scope. The zero-behavior-change guarantee applies even when the in-scope behavior is buggy. |
 | "Reviewer flagged a `[PRODUCT-DECISION]` finding — I'll route it through the fix loop like any other CRITICAL/HIGH" | A `[PRODUCT-DECISION]` finding has multiple valid resolution paths by definition — picking one is a behavior change, which contradicts refactor's zero-behavior-change guarantee. Phase 3 §3.3 disposition logic ESCALATES PRODUCT-DECISION to `/geniro:implement` (always-WAIT) — never gates-and-fixes them in-skill. |
-| "Auto-promote a recorded discovery into a project rule when refactor completes." | /geniro:refactor proposes no project rules at all — its durable output is the `discovery` / `pitfall` learning emitted at Phase 3 §3.5. Rule mining is `/geniro:reflect`, which the user invokes when they want it; a rule offer bolted onto a refactor interrupts the diff review the run exists to deliver. |
+| "Auto-promote a recorded discovery into a project rule when refactor completes." | The durable output is the learning emitted at Phase 3 §3.5; rule mining is `/geniro:reflect`, which the user invokes — an unasked rule offer interrupts the diff review the run exists to deliver. |
 | "The revert step is simpler as `git checkout -- .` / `git restore .`." | A bare pathspec discards every uncommitted change in the tree, including work outside this refactor. Use the targeted form § Git constraint defines; `git stash` reaches the same unrelated work. |
 | "PRODUCT-DECISION 3-option AUQ is paternalistic — collapse to 2 options (run /geniro:implement / accept-as-is)." | Phase 3 §3.3 is explicit: 3 fixed options. The Revert path is a user-controlled safety net, and dropping it leaves a user who dislikes the diff with no in-skill way out. Collapsing removes meaningful agency. |
-| "Trivial tier should still run a quick reviewer-pass — what if a smell slipped through?" | Trivial is by definition 1-2 files, mechanical, single module, unambiguous; the diff-sanity check in Phase 3 §3.1 and the regression run in Phase 2 §2.4 catch behavioral drift, so a reviewer batch for a 5-line rename wastes tokens. |
 
 ---
 
@@ -167,18 +156,17 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 **Phase 1 (Plan):**
 - Allowed: Read / Grep / Glob / Bash (read-only — `git status`, `git log`, `git diff`, `git branch --show-current`, test suite invocation for baseline) / the declared memory backend's read tool / AskUserQuestion.
 - Allowed subagent spawns: `codebase-research-agent` (**light (smallest)**) for wide cross-file locator queries during smell detection (Phase 1 §1.4). smell detection + smell evidence otherwise run orchestrator-inline.
-- Explicitly blocked: production-source writes and edits, `git commit`, `git push`, `gh pr create`.
+- Blocked: production-source writes and edits; git and PR writes per §Git constraint.
 
 **Phase 2 (Apply):**
 - Allowed subagent spawns: none. Per-step execution runs orchestrator-inline (Edit + Bash for tests).
 - Orchestrator uses Edit / Write / Bash (test cmd) / AskUserQuestion directly. Per-step regression runs via backpressure helper.
-- Explicitly blocked at orchestrator level: `git add`, `git commit`, `git push`, `gh pr create`, branch switching.
+- Blocked at orchestrator level: branch switching; git and PR writes per §Git constraint.
 
 **Phase 3 (Verify):**
 - Allowed: Read / Grep / Glob / Bash (`git diff --name-only`, `git diff --stat`, test cmd for re-runs) / AskUserQuestion / Edit (fix-loop-scoped — the §3.3 1-round CRITICAL/HIGH non-PRODUCT-DECISION fix applies findings inline).
 - Allowed subagent spawns: reviewer-agent + custom reviewers (Medium+ only).
-- Allowed: targeted per-file revert per § Git constraint — the one orchestration-level exception to the git-write constraint.
-- Explicitly blocked: `git commit`, `git push`, `gh pr create`.
+- Allowed: targeted per-file revert per § Git constraint — the one orchestration-level exception to the git-write ban. Blocked: every other git and PR write.
 
 **All reviewer / custom reviewer spawns are pure read-only:** tool whitelist via `${CLAUDE_PLUGIN_ROOT}/agents/reviewer-agent.md` frontmatter (Read / Grep / Glob / Bash for read-only checks).
 
@@ -186,7 +174,7 @@ Route every user-facing choice in this skill through the `AskUserQuestion` tool 
 
 ## Git constraint
 
-Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow handles version control. Exception: revert applied work in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <paths>`, where `<paths>` is the aggregated `files_affected` from state.md's executed `## Plan steps` rows (plus, in Phase 3, any path a fix-loop finding touched) — never `git diff --name-only`, which would also sweep up any unrelated uncommitted work already in the tree (Phase 1 §1.2 does not require a clean working tree before scope discovery starts). Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the mass-discard form wipes every uncommitted change, including work outside this refactor entirely.
+Do not run `git add`, `git commit`, `git push` or `gh pr create`; the orchestrating workflow handles version control. Exception: revert applied work in Phase 2 / Phase 3 with a targeted `git restore --source=HEAD -- <paths>`, where `<paths>` is the aggregated `files_affected` from state.md's executed `## Plan steps` rows (plus, in Phase 3, any path a fix-loop finding touched) — never `git diff --name-only`, which would also sweep up any unrelated uncommitted work already in the tree (Phase 1 §1.2 does not require a clean working tree before scope discovery starts). Never reach for a bare `.` or `*` pathspec (`git checkout -- .` / `git restore .`): the mass-discard form wipes every uncommitted change, including work outside this refactor entirely.
 
 ---
 
@@ -214,19 +202,19 @@ Do not run `git add`, `git commit`, or `git push`. The orchestrating workflow ha
 
 ## Phase 1 — plan
 
-state.md `phase: plan`. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-1-plan.md`** — it carries the Steps (§1.0-§1.6: state entry, instructions and memory load, scope and baseline, tier, smell detection and evidence, plan build and approval), and every `Phase 1 §1.M` citation in this skill resolves there. Exit: `phase: apply` once the plan is built and approved (HIGH-risk steps gated), `phase: plan-escalated` on a hard signal or a red baseline, `phase: routed` (terminal) when no tests exist.
+state.md `phase: plan`. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-1-plan.md`** — the Steps §1.0-§1.6; every `Phase 1 §1.M` citation resolves there. Exit: `phase: apply` once the plan is built and approved (HIGH-risk steps gated), `phase: plan-escalated` on a hard signal or a red baseline, `phase: routed` (terminal) when no tests exist, `phase: done` (terminal) when no smell is worth keeping.
 
 ---
 
 ## Phase 2 — apply
 
-state.md `phase: apply`. The orchestrator executes the approved plan one step at a time, each transformation gated by its own regression run. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`** — it carries the Steps (§2.1-§2.4: instruction refresh, per-step execution with the Blocked Step Protocol, blocked-ratio escalation, final regression), and every `Phase 2 §2.M` citation in this skill resolves there. Exit: `phase: verify` on a green regression run, `phase: apply-escalated` at the blocked cap, `phase: reverted` when the user reverts.
+state.md `phase: apply`. The orchestrator executes the approved plan one step at a time, each transformation gated by its own regression run. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-2-apply.md`** — the Steps §2.1-§2.4; every `Phase 2 §2.M` citation resolves there. Exit: `phase: verify` on a green regression run, `phase: apply-escalated` at the blocked cap, `phase: reverted` when the user reverts.
 
 ---
 
 ## Phase 3 — verify
 
-state.md `phase: verify`. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`** — it carries the Steps (§3.1-§3.7: diff sanity, reviewer batch, disposition, summary, learnings, post-verify steps, cleanup), and every `Phase 3 §3.M` citation in this skill resolves there. Exit: a terminal state — `done`, `verify-summary-only`, `reverted`, `aborted`, or `routed` — or the paused escalation state `verify-escalated` when the 1-round fix loop exhausts.
+state.md `phase: verify`. **On entry, Read `${CLAUDE_PLUGIN_ROOT}/skills/refactor/phase-3-verify.md`** — the Steps §3.1-§3.7; every `Phase 3 §3.M` citation resolves there. Exit: a terminal state — `done`, `verify-summary-only`, `reverted`, `aborted`, or `routed` — or the paused escalation state `verify-escalated` when the 1-round fix loop exhausts.
 
 ---
 

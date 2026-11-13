@@ -57,7 +57,7 @@ The visual-artifact lifecycle is owned by `${CLAUDE_PLUGIN_ROOT}/skills/_shared/
 ## Open Questions
 ```
 
-Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections authored in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered — assemble per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: both the approved-text form and the routed-out sentinel assemble into the spec verbatim, since a dropped sentinel reads identically to Phase 2 never having triggered at all; drop the section only when the heading is absent or present-but-bare, meaning the producing step did not run), `## Considered Alternatives` (Phase 4.4).
+Three further body sections are optional, each written by the phase that populates it and assembled into the spec body alongside the standard schema's sections authored in Phase 5 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`): `## Workflow Refs` (Phase 1.4), `## UI Preview` (Phase 2, when triggered — the approved text and the routed-out sentinel both assemble into the spec verbatim, and the section drops only when its heading is absent or bare, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/skip-visibility.md` §The assessed sentinel: a dropped sentinel reads as Phase 2 never having triggered), `## Considered Alternatives` (Phase 4.4).
 
 ### `approvals[]` entry shape — every gate below writes this
 
@@ -393,7 +393,7 @@ header: "Approve spec"
 question: "Approve the spec summarized above? (Full text: .geniro/planning/<slug>/spec.md)"
 options:
   - label: "Approve — commit the plan"   # Recommended
-    description: "Commits spec.md and prints the /geniro:implement command to build it."
+    description: "Commits the plan (if the project tracks its planning folder) and this run's glossary and decision-record notes, then prints the /geniro:implement command."
   - label: "Request changes — I'll describe"
     description: "Name the sections to change and what to change — I'll revise and re-check just those."
   - label: "Abort — stop planning"
@@ -424,55 +424,11 @@ options:
     description: "Leave the settings unset; /implement asks them interactively at start, exactly as it does today."
 ```
 
-On "No" → write no `launch_config:` block; persist the declined gate answer to `approvals[]` (Step 3) and proceed to §8.4 with the spec unchanged. On "Yes — use the recommended settings" → hold the block of recommended defaults and skip Step 2. On "Let me choose each setting" → fire Step 2.
+Each pick routes per `loop-phase-8-user-approval.md` §8.3.5; only "Let me choose each setting" fires Step 2.
 
 ### Step 2 — batched capture (only on "Let me choose each setting")
 
-A batched capture. The three always-present settings (workspace / branch handling / ship mode), plus — when the spec has a linked tracker ticket (state.md `## Workflow Refs` / held `workflow_refs[]` non-empty) — the kickoff tracker-status setting, all fit inside the 4-question-per-call tool cap and fire together in ONE AUQ call; with no linked tracker ticket only the three always-present questions fire. An empty answer on a field falls back to that field's recommended default (the user already opted in), so no field can block.
-
-```yaml
-questions:
-  - header: "Workspace"
-    question: "Where should /implement do the work?"
-    options:
-      - label: "New branch"                  # Recommended → workspace: new-branch
-        description: "Cut a fresh branch from the latest default branch."
-      - label: "Current branch"
-        description: "Work in place on the current branch."
-      - label: "Worktree"
-        description: "Cut a separate worktree so the current checkout is untouched."
-      - label: "Here"
-        description: "Work in the current directory as-is, no branch change."
-  - header: "Branch sync"
-    question: "If the branch is behind the default branch, how should /implement catch it up?"
-    options:
-      - label: "Rebase"                       # Recommended → branch_freshness: rebase
-        description: "Replay your commits on top of the latest default branch."
-      - label: "Merge"
-        description: "Merge the latest default branch into yours."
-      - label: "Skip"
-        description: "Leave the branch as-is; don't update it before working."
-  - header: "Ship mode"
-    question: "How should /implement finish — what should it do at ship time?"
-    options:
-      - label: "Draft PR"                     # Recommended → ship_mode: draft-pr
-        description: "Push and open a draft pull request."
-      - label: "PR ready for review"
-        description: "Push and open a pull request marked ready for review."
-      - label: "Commit only, don't push"
-        description: "Commit locally; don't push or open a PR."
-      - label: "Stop after review"
-        description: "Stop before any commit or push."
-  - header: "Task status"                    # only when a tracker ticket is linked
-    question: "When /geniro:implement starts, move the linked tracker task to In Progress?"
-    options:
-      - label: "Yes — move to In Progress"        # Recommended → tracker_status: move-to-in-progress
-        description: "/geniro:implement confirms the kickoff move on its own. It still skips the move when the task is already In Progress."
-      - label: "No — leave the status unchanged"   # → tracker_status: leave-unchanged
-        description: "/geniro:implement won't change the tracker status at kickoff."
-```
-
-Map the picks to the `launch_config:` block values (`workspace` / `branch_freshness` / `ship_mode`, plus `tracker_status` when the tracker-status question fired) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/launch-config-schema.md` §"The block". Omit `tracker_status` from the block when no tracker ticket was linked (the question did not fire). Hold the block for the §8.4 spec rewrite.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-launch-config-capture.md` — the batched questionnaire and the pick-to-block mapping for the §8.4 rewrite.
 
 ### Step 3 — persistence
 

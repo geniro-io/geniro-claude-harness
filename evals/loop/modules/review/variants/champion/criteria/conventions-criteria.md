@@ -4,6 +4,14 @@ Statistical pattern inference across siblings. Flags deviations from the modal p
 
 Find every real defect this dimension owns by reading the changed code and its callers directly — your own analysis is the detector. The sections below are the contract you are held to: what NOT to flag, and how severity is calibrated.
 
+## Contents
+
+- Methodology — modal pattern inference
+- What this dimension does NOT cover
+- Common false positives
+- Cross-PR convention drift (peer-PR context)
+- Severity guidelines
+
 ## Methodology — modal pattern inference
 
 Structural conventions emerge from repetition across a codebase, not from an external style guide. Infer them by sampling the existing code and codifying the dominant pattern.
@@ -29,7 +37,7 @@ The conventions reviewer is **structural and semantic**. It ignores anything a l
 - Quote style (single vs double)
 - Pure aesthetic naming preferences (`userList` vs `users` when both are clear)
 
-Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) belong to the authored-rule-citation class (`rules-compliance-criteria.md`) per §What to check step 1.
+Single-exemplar rubric drift signals (default-vs-named export rubric, ADR contradictions, file placement) are **owned here** — emit with modal inference (cite the ADR for ADR-sourced drift). Authored-rule-file citations (CLAUDE.md / `.claude/rules/` / `.cursor/rules/` / etc.) belong to the authored-rule-citation class (`rules-compliance-criteria.md`) per §Methodology step 1.
 
 **Out of this class — route:**
 - Vague names, magic numbers, missing JSDoc, TODO without issue ref → the style-rubric class (`guidelines-criteria.md`)

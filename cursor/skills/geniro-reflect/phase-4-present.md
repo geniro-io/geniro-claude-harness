@@ -16,7 +16,7 @@ Walk the remaining candidates one at a time per `${CLAUDE_PLUGIN_ROOT}/skills/_s
 
 **On approval**, write before rendering the next candidate, routed per the improvement-routing §Routing table:
 
-- **CLAUDE.md / `.claude/rules/<scope>.md` / ADR** — an ordinary file edit by the orchestrator, including deleting a `REMOVE` candidate's rule; these are user-visible project files, and the approval you just collected is the authorization.
+- **CLAUDE.md (or the AGENTS.md it imports) / `.claude/rules/<scope>.md` / ADR** — an ordinary file edit by the orchestrator, into the file that holds the content, never a one-line `@AGENTS.md` import stub, including deleting a `REMOVE` candidate's rule; these are user-visible project files, and the approval you just collected is the authorization.
 - **`.geniro/instructions/<skill>.md` / `code-style.md`** — hand off to the `/geniro:instructions` patterns (`create`; for a `REMOVE`, `edit` — its remove-a-rule path — for one rule, and `delete` only when that rule is the file's entire content, since `delete` removes the whole scope file), or write via `atomic_state_write` (`source "${CLAUDE_PLUGIN_ROOT}/lib/atomic-state-write.sh"`); a direct `Edit`/`Write` can leave a half-written file (invariant #5).
 - **Project rules/hooks (CI, lint, project-local hooks) — every `WIRE`, and the replacement check for a mechanical `REMOVE`** — outside this skill's tool surface: name the exact change (which config, which check) in chat and let the user apply it in their own automation.
 - **Memory (native auto-memory)** — no file write exists to route to; state the approved preference plainly in the chat response so Claude Code's own auto-memory captures it.

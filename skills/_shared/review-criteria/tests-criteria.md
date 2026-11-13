@@ -22,43 +22,37 @@ Test coverage analysis, edge case handling, test quality, and critical path cove
 
 This section is the canonical doctrine for what makes a test "good" in this codebase. It is read by every tests-dimension reviewer (`/geniro:review` Phase 2, `/geniro:implement` Phase 3 self-review, `/geniro:refactor` reviewer pass), by `/geniro:implement` Phase 2 test authoring (inline and delegated), and by `/geniro:implement` Phase 3's inline edge-case test authoring step. Write the test according to these principles; review the test against them.
 
-### 1. Tests describe behavior, not implementation
+### 1–3. Tests verify behavior through public interfaces
 
-A test should read like a specification of what the system does for a user — not a description of how the code is structured internally. The test name + assertions should make the capability obvious to a reader who has never seen the implementation.
+Tests verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't.
 
-- **Good (behavior)**: `test_user_can_checkout_with_valid_cart` / `expect(orderTotal).toBe(42.50)` / `assert response.status_code == 401 when token expired`
-- **Bad (implementation)**: `test_internal_helper_returns_array` / `expect(spy).toHaveBeenCalledWith(...)` / `assert mockDB.query.mock_calls[0].args[0] == "SELECT..."`
+Red flags:
 
-The test that verifies implementation breaks every time you refactor the implementation. The test that verifies behavior survives refactors and catches behavior regressions.
+- Mocking internal collaborators
+- Testing private methods
+- Asserting on call counts/order
+- Test breaks when refactoring without behavior change
+- Test name describes HOW not WHAT
+- Verifying through external means instead of interface
 
-### 2. Public interface only
-
-Tests reach the system through the same surfaces real callers use — public functions, exported types, REST endpoints, CLI commands. Reaching through private members, internal helpers, or "test-only" backdoors breaks the spec contract: the test passes when the interface is broken (because it's calling around the interface) or fails when the interface is intact (because internal restructuring shifted the private member).
-
-- **Good**: HTTP test calls `POST /api/orders` and asserts on the response.
-- **Bad**: Test imports `_calculateOrderTotal` directly and asserts on its return.
-- **Bad**: verifying through a side channel — create a user via `POST /api/users`, then assert with a raw `db.query` instead of `GET /users/<id>`; the side-channel read stays green even when the public read path is broken.
-- **Exception**: pure-function utility modules whose public API IS the function set under test — test those functions directly.
-
-If a behavior is hard to test through the public interface, the seam is wrong (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` — narrow seams over wide seams). Fix the seam, not the test framework.
-
-### 3. The "would survive a refactor" rule
-
-Before keeping a test, ask: "if I rename internal functions, move private state around, switch the implementation language of this module — does this test still pass IF behavior is unchanged?" If no, the test is testing implementation. Either rewrite it to verify the behavior it actually cared about, or delete it.
-
-This is the single highest-leverage rule for test quality. Tests that fail a refactor without a behavior change are net-negative — they slow refactoring without protecting the user-visible contract.
+Exception: pure-function utility modules whose public API IS the function set under test — test those functions directly. A behavior that is hard to test through the public interface means the seam is wrong (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/architecture-vocabulary.md` §Core terms, Seam row): fix the seam, not the test framework.
 
 ### 4. Mocking discipline
 
-Mocks fall into three tiers:
+Mock at **system boundaries** only:
 
-| Tier | Use when | Example |
-|---|---|---|
-| **External boundary** (allowed) | Mock services your code does not own — third-party APIs, payment processors, email senders, the wall clock | Mock `stripe.charges.create` — you don't control Stripe; you don't want tests calling production |
-| **Internal boundary, expensive** (case-by-case) | Mock owned-by-you modules ONLY when running them in tests is genuinely too slow / too stateful (DB, Redis, S3) — and even then, prefer in-memory test doubles or test containers | Mock the database layer in unit tests; use a real test database in integration tests |
-| **Internal collaborators, cheap** (FORBIDDEN) | Do NOT mock pure functions, internal helpers, classes you wrote and could just instantiate | Mocking `OrderCalculator` inside a test of `CheckoutService` couples the test to the wiring; refactor breaks it for no behavior change |
+- External APIs (payment, email, etc.)
+- Databases (sometimes - prefer test DB)
+- Time/randomness
+- File system (sometimes)
 
-**Smell — over-mocking**: more than 3-4 mocks per test usually means the test has been rewritten to match the implementation's structure rather than the system's behavior. Either the test is testing implementation (Rule 1 violation) or the module being tested is too coupled to its collaborators (the design is the bug — narrower seams + dependency injection at the boundary, not mocks at every internal call). At external boundaries, prefer per-operation interfaces (`api.getUser(id)`, `api.createOrder(data)`) over one generic fetcher — a generic `api.fetch(endpoint, opts)` forces conditional logic inside every mock, while per-operation functions each mock to a single shape.
+Don't mock:
+
+- Your own classes/modules
+- Internal collaborators
+- Anything you control
+
+**Smell — over-mocking**: more than 3-4 mocks per test usually means the test has been rewritten to match the implementation's structure rather than the system's behavior. Either the test is testing implementation (a §1–3 violation) or the module being tested is too coupled to its collaborators (the design is the bug — narrower seams + dependency injection at the boundary, not mocks at every internal call). At external boundaries, prefer per-operation interfaces (`api.getUser(id)`, `api.createOrder(data)`) over one generic fetcher — a generic `api.fetch(endpoint, opts)` forces conditional logic inside every mock, while per-operation functions each mock to a single shape.
 
 **Smell — verifying mock interactions**: assertions like `expect(mockUserRepo.save).toHaveBeenCalledWith(...)` test what the implementation does, not what the system produces. Replace with an assertion on the observable outcome (the saved user comes back when you GET /users/<id>; the side effect happened in the system).
 
@@ -86,11 +80,7 @@ Every newly-authored test must demonstrate red-then-green at least once before b
 1. **Red**: run the test against current code BEFORE the change → it must fail with the failure signature you expect (the test is real).
 2. **Green**: run the test against code WITH the change → it must pass.
 
-A test that passes the first time you run it (without any production change) is testing something that already works — either it's redundant with existing coverage OR it's not actually exercising the new behavior. Investigate before committing. This rule applies to:
-- New tests authored during `/geniro:implement` Phase 2
-- F→P tests authored during `/geniro:implement` Phase 3's inline edge-case authoring step
-
-`/geniro:implement` Phase 3's inline edge-case authoring enforces F→P with 3-run determinism checks and deletes a test that passes on current code.
+A test that passes the first time you run it (without any production change) is testing something that already works — either redundant with existing coverage or not exercising the new behavior. Investigate before committing. If you forced the red by mutating code or a fixture, `diff` against a pristine copy to prove the mutation landed before you trust it.
 
 ### 8. Coverage is behaviors pinned, not tests written
 

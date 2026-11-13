@@ -259,17 +259,17 @@ An empty expectation set is a normal outcome, not a parse failure: a thread with
 
 ## 9. Fix routing — the default `fix_kind` per check
 
-Phase 3 Step 3 assigns each kept finding one `fix_kind` (the enum and the loaded-and-still-violated rule are defined there), starting from this default and moving off it only on trace evidence. Rewritten instruction text only raises compliance on a step the model would otherwise skip, so the defaults favor a check, a wiring fix, a pointer, or a removal wherever the model already attempts the step.
+Phase 3 Step 3 assigns each kept finding one `fix_kind` (the enum, the lever table and the loaded-and-still-violated rule are defined there), starting from this default and moving off it only on trace evidence. Rewritten instruction text only raises compliance on a step the model would otherwise skip, so the defaults favor a check, a wiring fix, a pointer, or a removal wherever the model already attempts the step.
 
 | Finding | Default `fix_kind` |
 |---|---|
 | Violation a script can decide: A2, A3, B1, B2, E5, F2, G1-G3 | `DETERMINISTIC-CHECK`; `WIRE` when the check exists but never ran |
 | Declared thing never reached: I1, I3, I4, I5, I6, I7, K1, K2, K3 | `WIRE` — the load, step, or gate exists in the skill and was not connected |
 | C1 direct state write | `WIRE` an existing lint or test over the skill's state-write sites — not a hook (`HOOKS.md` §Removed guards) |
-| I9 / E1 / I8 — rule loaded and broken anyway | `DETERMINISTIC-CHECK` when the rule is mechanically decidable (a path, a command shape, an ordering), else `REMOVE-RULE` for a rule that changes nothing as written. A correct safety rule that was ignored keeps its place and takes `WIRE` or `TOOL-CHANGE`. |
+| I9 / E1 / I8 — rule loaded and broken anyway | `DETERMINISTIC-CHECK` when the rule is mechanically decidable (a path, a command shape, an ordering), else the failed lever's row |
 | H4 oversized result, B3 retry or poll | `TOOL-CHANGE` — cap or filter the output, delegate to an agent, run in the background |
 | H5 search streak, H2 re-reads | `NAV-POINTER`; `TOOL-CHANGE` when one tool's output is what forced the re-read |
 | H6 phase dominance | The `fix_kind` of the H4 / H5 / H7 hit that drives it |
-| H7 steering share | `REMOVE-RULE` for text that changes nothing; `NAV-POINTER` when content moves behind a pointer to a doc read on demand |
-| Judgment-only: E2, E3, H1, H3, D1, D3-D5, K4, K5, K7, K8 | `PROSE` is allowed; prefer `DETERMINISTIC-CHECK` where the judged defect has a mechanical signature |
+| H7 steering share | the no-op row (`REMOVE-RULE`) or the sprawl row (`NAV-POINTER`) |
+| Judgment-only: E2, E3, H1, H3, D1, D3-D5, K4, K5, K7, K8 | The failed lever's row, `PROSE` when that row rewrites wording; `DETERMINISTIC-CHECK` where the judged defect has a mechanical signature |
 | Any check not listed above | Pick from the Phase 3 Step 3 table on trace evidence |

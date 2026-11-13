@@ -9,7 +9,7 @@ State.md `phase: handoff` during this phase. Non-interactive — no AskQuestion 
 ### 9.1 Print next-step command
 
 1. **Determine the target path.** For milestone-sliced specs (`approvals[]` carries a `milestone_slice` entry picked "Slice into milestones"): `.geniro/planning/<slug>/milestone-1.md`. Otherwise: `.geniro/planning/<slug>/spec.md`.
-2. **Print a short closing message** stating where the plan is saved — and that it is committed, when §8.4's tracked-vs-ignored check took the tracked branch — plus the next-step command and one plain-English tip line suggesting a fresh session for it, with no cost figures. E.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md` then `Tip: run it in a fresh session (for example after /clear) — the approved spec has everything /geniro:implement needs, and continuing in this thread re-reads the whole planning conversation on every message.` When `<task-dir>/questionnaire.md` exists, name it and its owners too, and say how answers come back: /geniro:implement reads only the spec's section-4 `pending:` lines, never the questionnaire, so once an owner answers, replace that `pending:` line in the spec (and in any `milestone-N.md` copying it) with the decision — or re-run /geniro:plan with the answers — before running /geniro:implement. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
+2. **Print a short closing message** stating where the plan is saved — and that it is committed, when §8.4's tracked-vs-ignored check took the tracked branch — plus the next-step command and one plain-English tip line suggesting a fresh session for it, with no cost figures. Name any glossary entry or ADR file from Phase 3 that is still uncommitted (§9.2). E.g.: `Your plan is saved and committed at .geniro/planning/<slug>/spec.md. To build it, run: /geniro:implement .geniro/planning/<slug>/spec.md` then `Tip: run it in a fresh session (for example after /clear) — the approved spec has everything /geniro:implement needs, and continuing in this thread re-reads the whole planning conversation on every message.` When `<task-dir>/questionnaire.md` exists, name it and its owners too, and say how answers come back: /geniro:implement reads only the spec's section-4 `pending:` lines, never the questionnaire, so once an owner answers, replace that `pending:` line in the spec (and in any `milestone-N.md` copying it) with the decision — or re-run /geniro:plan with the answers — before running /geniro:implement. Do NOT auto-invoke /geniro:implement — printing the command leaves invocation entirely to the user (user agency).
 
 ### 9.2 Clean up transient working files
 
@@ -21,6 +21,8 @@ clean_task_transients ".geniro/planning/<slug>"
 ```
 
 The helper preserves the durable artifacts (`spec.md`, `state.md`, `plan-*.md`, `milestone-*.md`) and is a no-op on files that were never written, so the same call is safe on the `aborted` terminal path. Run it before every terminal `phase:` write (`done` and `aborted`). After it runs, echo `Cleaned up transient working files from .geniro/planning/<slug>`.
+
+The glossary entries and ADR files Phase 3 wrote are repo documentation, not scratch: the cleanup leaves them in place. On every terminal path, `aborted` included, the final message names each one not committed — never revert one silently.
 
 ### 9.3 Terminal transition
 

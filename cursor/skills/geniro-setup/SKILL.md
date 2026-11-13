@@ -12,18 +12,15 @@ disable-model-invocation: true
 ## Contents
 
 - Path constraints
-- Subagent model tiering
 - Loop invariants
 - Anti-rationalization
 - Definition of done
-- Budgets — quality-first
 - ACI per-phase tool surface
 - Termination case → state mapping
 - Memory I/O
 - Phase 0 — pre-flight
 - Phase 1 — Detect · Phase 2 — Interview · Phase 3 — Generate · Phase 4 — Validate · Phase 5 — Done
 - State file schema
-- Cross-references
 
 ---
 
@@ -31,7 +28,7 @@ disable-model-invocation: true
 
 **Runtime portability.** If Codex truncated this file, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
-**Scope discipline:** CLAUDE.md is auto-loaded on every run in this project, so every section has to justify that recurring cost — keep what changes how a task is executed, and leave anything the model can read on demand from the project's own docs where it already lives.
+**Cache rule.** CLAUDE.md loads on every run, so it is a cache. Cache what the agent cannot find by looking: the unwritten convention, the reason behind a choice, the gotcha no config confesses. Leave the one-file, one-command lookups to the environment, where they cannot go stale.
 
 **Read the phase's Steps on entry to that phase**, from `${CLAUDE_PLUGIN_ROOT}/skills/setup/`: `phase-0-preflight.md` · `phase-1-detect.md` · `phase-2-interview.md` · `phase-3-generate.md` · `phase-4-validate.md` · `phase-5-done.md`. That Read is the phase's first action and carries a one-line echo, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/phase-entry-read.md` — the phase files hold the gates and helper call sites, so work started before the Read runs outside them. The state file's `phase:` says where to resume, including after a compaction.
 
@@ -41,23 +38,17 @@ disable-model-invocation: true
 
 Resolve the user's Claude config dir once as `CLAUDE_USER_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
 
-## Subagent model tiering
-
-Per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes, a spawn is `session` unless a site names a light class. Setup has a single spawn — the verification subagent — and it is light. This table is the one place its class and reason are stated; the §4.1 spawn site points here.
-
-| Spawn | Class | Why |
-|---|---|---|
-| Verification subagent (validate generated CLAUDE.md against codebase) | **light (smallest)** | Mechanical check-and-report: runs a fixed check list and emits PASS/DRIFT lines the orchestrator re-decides from, so its output does not scale with orchestrator tier |
-
 ## Loop invariants
 
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply, with five setup-specific bindings:
 
 - **Invariant #2 (args validated before execution)** — every Write to `CLAUDE.md` / `.geniro/instructions/*.md` preceded by Read-then-diff in re-run mode.
-- **Invariant #3 (permission before side-effect)** — Writes to project root files (`CLAUDE.md`, `.gitignore`) are AUQ-gated at the §3.3 batch gate; user-config writes outside PROJECT_ROOT (§3.6 statusline copy + `settings.json` edit, §3.7 Cursor skill links, §3.8 Codex install) fold into that same batch AUQ, and the `settings.json` replacement fires its own §3.6 `AskQuestion` when an entry already points elsewhere. Any further mid-phase choice goes through that tool, never chat prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
+- **Invariant #3 (permission before side-effect)** — Writes to project root files (`CLAUDE.md` / `AGENTS.md`, `.gitignore`) are AUQ-gated at the §3.3 batch gate; user-config writes outside PROJECT_ROOT (§3.6 statusline copy + `settings.json` edit, §3.7 Cursor skill links, §3.8 Codex install) fold into that same batch AUQ, and the `settings.json` replacement fires its own §3.6 `AskQuestion` when an entry already points elsewhere. Any further mid-phase choice goes through that tool, never chat prose, per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions.
 - **Invariant #4 (bounded structured tool results)** — verification subagent output truncated per the §4.1 subagent-prompt cap; over-long reports trigger AUQ.
 - **Invariant #5 (escalation gates, not silent abort)** — the validation retry loop escalates via AUQ (`accept-with-warnings | abort | start-over`) rather than aborting silently; retry cap and round count owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2.
 - **Invariant #7 (errors → structured observations)** — Detect failures written to `## Errors`, not swallowed.
+
+S1. **One instruction file.** Edit the project's existing instruction file — CLAUDE.md, or AGENTS.md when it is the only one — and never create a second next to it (`phase-1-detect.md` §1.1 picks it).
 
 `## Tool log` selective logging: record verification subagent spawns + every Write to project root or `.geniro/`. Skip routine Read/Bash inside Detect.
 
@@ -66,7 +57,6 @@ The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invari
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I already know this stack, skip Detect" | Detect's scan output is what Phase 3 generates the Tech Stack / Validation Commands / domain-facts sections from (`phase-3-generate.md` §3.2). Skip it and generation has no project facts, so Phase 4's Template-artifact / Generic-placeholder checks (`verification-checks.md`) flag DRIFT and force a regeneration round. |
-| "No docs to read, skip documentation scan" | Check first. README.md, CONTRIBUTING.md, .cursorrules — even partial docs contain domain knowledge that improves CLAUDE.md. |
 | "Default settings are fine, skip Interview" | §2.2 corrects Detect's `unknown` fields and ambiguous guesses before Phase 3 generates from them. Skip it and those values ship into the file, where Phase 4 reports them as DRIFT — a regeneration round for what one AUQ would have fixed. |
 | "The generated files look correct, skip Validate" | Placeholder text and wrong-language content are invisible without systematic scanning. |
 | "I already verified everything in my own checks, skip the verification subagent" | You generated the files — you're blind to your own mistakes. The independent subagent catches residual placeholders, broken paths, and cross-file inconsistencies you anchored past. |
@@ -83,15 +73,6 @@ The load-bearing exit gates — skipping any makes the setup incomplete or unsaf
 - [ ] L2 `discovery` emit fired
 - [ ] State file deleted on the success path
 - [ ] All user interactions used `AskQuestion`
-
-## Budgets — quality-first
-
-No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md` §"Budgets — quality-first (canonical)" applies. Aborting mid-bootstrap leaves the project in a half-configured state, so this skill's own gates escalate rather than abort:
-
-| Layer | Lever | Why |
-|---|---|---|
-| **Class-B escalation gates** | Validation retry loop → AUQ (cap owned by `${CLAUDE_PLUGIN_ROOT}/skills/setup/phase-4-validate.md` §4.2) | Drift past the cap means structural disagreement; surface to user |
-| **Architecture constraints** | Singleton state file (no `<slug>/`) | Parallel `/geniro:setup` runs would race and corrupt `CLAUDE.md` |
 
 ## ACI per-phase tool surface
 
@@ -118,12 +99,7 @@ External sends are outside this skill's tool surface; users wire those via `/gen
 
 ## Memory I/O
 
-| Layer | Read at | Write at | Notes |
-|---|---|---|---|
-| CLAUDE.md (not a memory layer) | Phase 1 (existing AI-tool config scan) | Phase 3 (project-specific CLAUDE.md) | Project-only content per `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` §Excluded content. Preserves user customizations via orchestrator-inline merge |
-| L2 learnings.jsonl | Phase 1 (prior `discovery` query, tag `setup`) | Phase 4 (one `discovery` row on `done`) | `trust: verified` — code-grounded |
-| L3 `.geniro/planning/_*.md` | not read | not written | `/geniro:setup` and `/geniro:onboard` are different skills with non-overlapping write surfaces |
-| L4 `.geniro/instructions/*.md` | Phase 0 (rules-only load via `load-custom-instructions.md`) | Optional `global.md` if user opted in | Standard format (`## Rules`, `## Additional Steps`, `## Constraints`) |
+Phase 1 queries prior `discovery` learnings and Phase 4 emits one. Setup reads and writes no L3 `_*.md` registry file — `/geniro:onboard` owns those.
 
 ## Phase 0: Pre-flight
 
@@ -131,7 +107,7 @@ External sends are outside this skill's tool surface; users wire those via `/gen
 
 ## Phase 1: Detect
 
-`phase: detect` · Steps: `phase-1-detect.md` §1.1-§1.6. Rehydrate or pick `mode: init | re-run`, query past learnings, locate the plugin source, scan the codebase for stack/conventions/docs (Evidence Block standard), reconcile the skill inventory. Exit when `detected:` and `skill_inventory` are written to state frontmatter and the Phase log summary line is recorded.
+`phase: detect` · Steps: `phase-1-detect.md` §1.1-§1.6. Rehydrate or pick `mode: init | re-run`, query past learnings, locate the plugin source, pick the instruction file, scan the codebase for stack/conventions/docs (Evidence Block standard), list the skills. Exit when `detected:` and `skill_inventory` are written to state frontmatter and the Phase log summary line is recorded.
 
 ## Phase 2: Interview
 
@@ -152,15 +128,3 @@ External sends are outside this skill's tool surface; users wire those via `/gen
 ## State file schema
 
 Path: `<PRIMARY_ROOT>/.geniro/state/setup/state.md`. Durable singleton at the T1.5 tier (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` §T1.5): deleted at Phase Done (§5.3), because no downstream skill reads it and a stale copy makes the next invocation resolve to `re-run` against a run that already finished. Full frontmatter + body-section schema: `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-state-reference.md` — read it before every state write.
-
-## Cross-references
-
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — singleton state tier and body sections (Tool log, Errors, Open Questions, Persisted approvals, Termination reason).
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/setup-rerun-reference.md` — every re-run-only procedure (§3.0 sweep, §3.1 pre-write audit, §3.4 merge rules); an `init` run never reads it.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/migration-walk.md` — the §3.0 sweep's parse / classify / re-verify procedure, shared with `/geniro:update`.
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/verification-checks.md` — §Excluded content (applied at §3.2 and Validate) plus the contamination and template-residue checks the §4.1 subagent runs.
-- `${CLAUDE_PLUGIN_ROOT}/skills/setup/instruction-templates/instruction-file-scaffolds.md` — the `plan.md` / `implement.md` scaffolds §3.3 writes before merging an OpenSpec block into a missing file.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/emit-learning.md` — L2 schema and the `trust:` evidence bar; the §4.3 `discovery` row conforms.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/evidence-standard.md` — Evidence Block standard; §1.4 conforms.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` — cost classes; the verification subagent's class is in §Subagent model tiering.
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gitignore-negation.md` — the §3.5 `.gitignore` re-include that keeps `.geniro/workflow/` and `.geniro/instructions/` committed.

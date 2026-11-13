@@ -33,11 +33,7 @@ Stateless loop: **Parse → Execute → Done** — every invocation is a single 
 
 **Runtime portability.** If Codex truncated this file, read it in full from its path first. `${CLAUDE_PLUGIN_ROOT}` is a placeholder Claude Code substitutes into file references, not a shell export — it reads empty in Bash under every host, so an empty probe proves nothing (`CLAUDECODE` marks Claude Code). Resolve the root from the first rung that holds: the ancestor of this file's real path (symlinks followed) containing `.claude-plugin/plugin.json`; a copy of the referenced file beside this one (the Cursor build); a plugin checkout in the workspace. The run's first Bash call prints this file's real directory and checks the rungs against it; echo that output verbatim before anything else (a resolved ladder is bookkeeping: add a degraded-run notice only for a rung that failed), then substitute the resolved root everywhere and export it as `CLAUDE_PLUGIN_ROOT` in every Bash call. A path the output does not show did not resolve. Before deciding a step cannot run here, read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/runtime-portability.md` — it substitutes mechanisms, not steps, and routes a host with no one to ask to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/non-interactive-host.md`. **When no rung resolves, the files are missing but the contract is not:** name what is unavailable in your first message, run every phase and gate this skill declares, never let project rules stand in for its decision gates, and take no outward-facing action (ready PR, merge, force-push, protected-branch push, posted comment, tracker transition) without an explicit answer.
 
-Code rules split three ways depending on **when** they should fire:
-
-- **`.geniro/instructions/code-style.md`** — cross-cutting code-style rules that apply to **all code writing AND all code review** done by Geniro pipeline skills (loaded at code-writing/review phases regardless of file pattern).
-- **`.claude/rules/<scope>.md` with `paths:` YAML frontmatter** — file-pattern-scoped rules (Anthropic-native, auto-loads on matching glob — fires even outside Geniro pipelines).
-- **CLAUDE.md** — reserved for always-loaded essentials (commands, project structure, compaction-surviving gates) and should NOT carry code rules.
+Code rules go where they fire: cross-cutting style that applies to all Geniro code writing and review → `.geniro/instructions/code-style.md`; file-pattern-scoped rules → `.claude/rules/<scope>.md` with `paths:` (fires outside Geniro pipelines too); CLAUDE.md carries no code rules (`instructions-authoring-reference.md` §4).
 
 **After a compaction, re-Read the phase body and the dispatched mode's body file before continuing** — only the front-loaded prefix is re-attached, so a summary can drop the Steps while leaving this spine intact. If which mode was running is also gone, re-invoke and restart from Phase 1.
 
@@ -56,12 +52,7 @@ The canonical agent-loop invariants in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/loo
 | Your reasoning | Why it's wrong |
 |---|---|
 | "I'll auto-fix `validate` issues to save the user a step" | Auto-fix would silently mutate user-authored content the user never agreed to change. `validate` reports; the user fixes via `edit`. |
-| "I'll silently overwrite existing instruction file" | A silent overwrite destroys user-authored rules with no undo — present overwrite/edit-instead/cancel via AUQ on `create` against an existing file. |
-| "I'll skip the per-skill phase-enum check because the user said `### After Phase 1`" | An old enum fails silently in the loader — the anchor never fires and the user believes the step is wired. Validate-mode catches it and suggests the canonical name. |
-| "I'll spawn a subagent to do the freeform rule synthesis" | `/geniro:instructions` is a small CRUD frontend; a subagent adds no parallelism benefit and complicates the stateless single-transaction model for no return. |
-| "I'll output the questions as plain text instead of `AskQuestion`" | A plain-text question has no structured answer to persist or resume against — the transaction stalls waiting on a reply the skill has no slot for. |
 | "I'll rename a per-skill scope to something custom (e.g., implement → my-flow)" | A custom scope name resolves no loader path — no skill's Step 0 ever reads it, so the rules it holds silently never load. |
-| "I'll skip showing the scope-specific scaffold to save tokens" | The scaffold is the section shape, headings only; without it the user miswrites the shape. Bullets come from the user or the interview. |
 
 ## Definition of done
 
@@ -90,14 +81,7 @@ External sends are never part of this skill's tool surface.
 
 ## Memory I/O
 
-`/geniro:instructions` is the **CRUD frontend for L4 (procedural memory)**.
-
-| Layer | Read | Write | Notes |
-|---|---|---|---|
-| CLAUDE.md (not a memory layer) | not read | not written | That's `/geniro:setup`'s domain |
-| L4 `.geniro/instructions/*.md` | `list` reads all; `validate` reads target; `edit` reads target before mutation | `create`/`edit` write; `delete` removes | This is `/geniro:instructions`'s entire surface |
-
-**compaction-survival route:** `.geniro/instructions/*.md` files are file-on-disk. After compaction, the SessionStart hook's suggested-file list re-reads `global.md` + active skill's `<skill>.md` + `code-style.md` via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`. `/geniro:instructions`'s CRUD writes are immediately durable.
+`/geniro:instructions` is the CRUD frontend for L4 (`.geniro/instructions/*.md`): `list` reads all, `validate` and `edit` read their target, `create`/`edit` write, `delete` removes. CLAUDE.md is `/geniro:setup`'s domain. CRUD writes are immediately durable; after a compaction the SessionStart hook's suggested-file list re-reads `global.md`, the active skill's file and `code-style.md` via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md`.
 
 ## Termination case → state mapping
 
@@ -151,11 +135,4 @@ Companion file: `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-review-e
 
 ## Cross-references
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-parse.md` — the Phase 1 Steps, including the external instructions dir rule (Step 0.5).
-- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/phase-1-block-type-reference.md` — the intent → block-type routing table.
 - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/state-tier-spec.md` — persistent-CRUD tier for `.geniro/instructions/` and the optimistic mtime check
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/load-custom-instructions.md` — the L4 procedural-memory loader for `.geniro/instructions/*.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/atomic-state-write.md` — write helper for instruction files
-- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/instructions-authoring-reference.md` — file shapes, create scaffolds, writing principles, and the per-skill phase enums validate-mode checks `Additional Steps` anchors against (§5)
-- `${CLAUDE_PLUGIN_ROOT}/skills/_shared/description-quality.md` — the description-quality rows validate-mode grades a `review-extra/<slug>.md` description against
-- `${CLAUDE_PLUGIN_ROOT}/skills/instructions/mode-list.md` · `mode-create.md` · `mode-edit.md` · `mode-validate.md` · `mode-delete.md` — the five mode bodies Phase 1 dispatches to

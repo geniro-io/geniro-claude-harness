@@ -10,7 +10,7 @@
 - §Reflection-agent feed — how `/geniro:reflect` sources candidates
 - §Presentation — surface the routed suggestions one candidate at a time
 
-**One caller.** `/geniro:reflect` is the only skill that proposes project rules. No other skill drafts, routes, or offers a rule candidate: a rule offer riding the tail of a plan, a debug session, or an onboarding run interrupts the work the user actually asked for, and the run that produced the lesson is the worst judge of whether it generalizes. Every other skill's durable output is its own learnings emit, which `/geniro:reflect` later mines.
+**One caller.** `/geniro:reflect` is the only skill that proposes project rules. No other skill drafts, routes, or offers a rule candidate: a rule offer riding the tail of a plan, a debug session, or an onboarding run interrupts the work the user actually asked for, and the run that produced the lesson is the worst judge of whether it generalizes. Every other skill's durable output is its own learnings emit, which `/geniro:reflect` later mines. The `/geniro:plan` grill's ADR offer records a decision that run made, not a rule candidate (§Who routes to ADR).
 
 When an improvement pass finds a project-scope improvement, first gate it through the §Candidate bar (is it worth persisting at all?), then classify the survivors by **routing target** using the table below. **Project scope only** — do NOT route to plugin-internal files (`${CLAUDE_PLUGIN_ROOT}/agents/*.md`, `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`); the plugin is installed globally and overwritten on update. Plugin-file improvements belong to a separate channel — submit a PR to the plugin repo OR edit your local plugin install directly (out of scope for the improvement pass).
 
@@ -113,7 +113,7 @@ What does this choice commit the project to? What becomes harder? What becomes e
 
 ### Who routes to ADR
 
-`/geniro:reflect` only — its on-demand improvement walk presents ADR alongside the CLAUDE.md / `.claude/rules/` / instructions / knowledge targets. A decision worth an ADR that surfaces during any other skill's run rides that skill's learnings emit, and reaches an ADR later through a reflect pass.
+`/geniro:reflect`, whose improvement walk presents ADR alongside the other targets, and the `/geniro:plan` grill, which offers an ADR at its exit when the repo already keeps an ADR folder. A decision worth an ADR in any other skill's run rides that skill's learnings emit to a later reflect pass.
 
 ## Why code rules go to `.claude/rules/`, not CLAUDE.md
 

@@ -9,6 +9,7 @@ Checks:
 4. **Missing navigation.** A very long instruction file with no contents block near the top — tools that partially read see only the head.
 5. **Wrong-surface content.** Session narration, changelogs, TODO lists, or design history inside instruction files — it costs attention on every load and belongs in docs or git history.
 6. **Rules that never fire.** Adjudicate the D1 reachability candidates in context: a zero-match glob may be a typo (the rule was meant to apply — T1) or a planned-but-unbuilt area (staleness — T3); a rule reachable by no tool the team actually uses is dead weight (T4). Reachability intent is unreadable from the pattern alone — that is why these arrive as candidates, not machine findings.
+7. **Pointer wording.** A CLAUDE.md or AGENTS.md line that points at another document must name the condition for reaching it ("when changing the billing schema, read `docs/billing.md`"). A must-have target behind a weakly worded pointer is a variance bug: sharpen the wording first, and inline the material only if sharpening fails.
 
 Tier mapping: T4. A move proposal names what loads less often afterward; a move to a surface every session loads anyway saves nothing.
 

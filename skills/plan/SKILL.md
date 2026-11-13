@@ -24,7 +24,7 @@ Turn a vague idea into an approved `spec.md` that `/geniro:implement` consumes d
 - spec.md at `.geniro/planning/<task-slug>/spec.md` with the fixed section schema (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/spec-template.md`), goal-state frontmatter, and all three design-doc detection markers per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/design-doc-detect.md`.
 - For Big tasks: sibling `milestone-N.md` files.
 - state.md at the same task-dir tracking phase progress + AUQ answers.
-- `git commit` of spec.md (+ milestones) — fires at Phase 8 post-approve, NOT Phase 6; skipped, with the spec left on disk, when the project ignores `.geniro/planning/` (the default `.gitignore` does).
+- `git commit` — fires at Phase 8 post-approve, NOT Phase 6: spec.md (+ milestones) plus the glossary entries and ADR files the Phase 3 grill wrote. When the project ignores `.geniro/planning/` (the default `.gitignore` does), the spec stays on disk uncommitted and only those docs are committed.
 
 The HARD-GATE in `plan-loop.md` blocks any implementation invocation until Phase 8 returns "Approve".
 
@@ -83,11 +83,9 @@ Any phase may branch to the `aborted` terminal on cancel; a Phase 7 validator ha
 
 The canonical loop invariants (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/loop-invariants.md`) apply across every phase, with plan-specific bindings:
 
-- **Invariant #1 (one result per tool call)** — a failed `AskUserQuestion` (the empty-answer bug) is re-asked per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, which also owns the rule that every user-facing choice routes through this tool — Phase 0 mode-detect, Phase 1 branch-freshness, Phase 3 grill, Phase 4 approach choice, Phase 5 milestone-mode, Phase 7 validator hard-fail, Phase 7.5 milestone re-open, and Phase 8 final approval are this skill's gates; never auto-default.
-- **Invariant #3 (permission before side-effect)** — Phase 6's `atomic_state_write` to `.geniro/planning/<task-dir>/spec.md` is the loop's only mutation, and `git commit` is deferred to Phase 8 post-approval.
-- **Invariant #4 (bounded results)** — Phase 1 research-agent output carries the per-spawn cap declared in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-1-explore.md` §1.2, which owns that value; schema `[{file, lines, observation}]`. Phase 7 validator output is a structured pass/fail list per check.
-- **Invariant #6 (grounded in observations)** — Phase 5 section content cites Phase 1 explore findings by `file:line`, not generic prose; the Phase 7 validator's citation check fails an uncited section.
-- **Invariant #7 (structured observations)** — a Phase 1 research-agent failure lands in state.md `## Errors`; a Phase 0 cancel in `## Termination reason`; Phase 7 validator findings in `## Open Questions`.
+- **Invariant #1 (one result per tool call)** — every user-facing choice, from the Phase 0 mode pick to the Phase 8 approval, is an `AskUserQuestion`; re-ask a failed call per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions, never auto-default.
+- **Invariant #3 (permission before side-effect)** — spec.md (Phase 6) and the Phase 3 glossary and ADR writes follow the user's own answer; `git commit` waits for Phase 8 approval.
+- **Invariants #4, #6, #7** — the phase files carry them: the Phase 1 research-output cap (§1.2), Phase 5 `file:line` citations, and failures in state.md `## Errors` / `## Termination reason` / `## Open Questions`.
 
 This skill adds one invariant:
 
@@ -107,10 +105,10 @@ Loop-level rows live in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Anti-
 
 | Your reasoning | Why it's wrong |
 |---|---|
-| "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR the topic names a product screen). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it makes the user describe visual intent twice (Phase 3 prose, then /geniro:implement when the rendered UI doesn't match). |
-| "Cap Phase 3 at ~5 questions, skip the checkpoint, or move to Phase 4 once the tree looks resolved." | Only a user's answer ends the grill — a §3.4 checkpoint or exit pick, or the §3.1 build-nothing confirmation; "resolved" is the model's read of a tree it built. Skipping the checkpoint drops the user's off-ramp; a flat cap drops the relentlessness the grill exists for. |
-| "spec.md's fixed section schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
-| "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
+| "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | When the UI trigger matches, the approved description is the substrate Phase 5 sections 6 + 9 cite; skipping it makes the user describe visual intent twice — in Phase 3, then when /geniro:implement's UI misses. |
+| "Cap Phase 3 at ~5 questions, skip the checkpoint, or move to Phase 4 once the tree looks resolved." | Only the user's answer ends the grill (a §3.4 pick or the §3.1 build-nothing confirmation); "resolved" is the model's read of its own tree, and a cap or skipped checkpoint drops the user's off-ramp. |
+| "spec.md's fixed section schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial; the schema commits to structure (consumers can rely on section presence), not content. |
+| "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones is a planning decision; left to /geniro:implement, the user finds a 50-step spec unmanageable only after planning has ended. |
 
 ---
 
@@ -143,21 +141,21 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 ## ACI per-phase tool surface
 
-| Phase | Allowed | Blocked |
-|---|---|---|
-| Phase 0 (Mode detect) | Read / Bash (read-only: `ls`, `file`) / AskUserQuestion / atomic_state_write (state.md creation §0.3, cancel write §0.4) | Edit / Write outside state.md / mutating Bash |
-| Phase 1 (Explore) | Read / Grep / Glob / Bash (read-only) / AskUserQuestion / atomic_state_write (state.md `## Workflow Refs` §1.4, the `phase:` transition + Trivial-skip note §1.5, Tool-log entries) / Agent (research spawn) / tracker MCP read (the tool named in `.geniro/workflow/<kind>.md`) / native `Artifact` publish in artifact mode (via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/plan-artifact.md`; deliberately absent from `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt) | Edit / Write outside state.md |
-| Phase 2 (Visual Companion, UI-conditional) | Read / Agent (UI description spawn) / AskUserQuestion / atomic_state_write (state.md `## UI Preview`) / native `Artifact` calls + scratchpad `Write`† | Edit / Write outside state.md and the artifact scratchpad |
-| Phase 3-5 (Clarify / Approaches / Section authoring) | Read / Grep / Glob / AskUserQuestion / atomic_state_write (state.md; Phase 3 questionnaire.md) / emit_learning (Phase 3 glossary) / Agent (Phase 3 research + Phase 4 design-generator and critic spawns) / native `Artifact` calls + scratchpad `Write`† | Edit / mutating Bash |
-| Phase 6 (Write spec) | atomic_state_write (spec.md + state.md) / native `Artifact` call + scratchpad `Write`† | Edit / direct Write outside the artifact scratchpad / mutating Bash |
-| Phase 7 (Validate) | Read / AskUserQuestion / atomic_state_write (state.md `## Open Questions`; spec.md re-author of failing sections only, §7.3 step 2) | All other mutations |
-| Phase 7.5 (Spec challenge) | Read / Grep / Glob / Bash (read-only) / AskUserQuestion / Agent (claim-verifier spawn) / atomic_state_write (state.md `## Errors`) | Edit / Write outside state.md / mutating Bash |
-| Phase 8 (User approve) | AskUserQuestion / Bash (`git add`, `git commit` only) / atomic_state_write / native `Artifact` calls + scratchpad `Write`† | Edit / general-purpose Bash |
-| Phase 9 (Handoff) | Read / Bash (terminal state.md write via atomic_state_write; `clean_task_transients` rm of this run's own scratch in the planning task-dir) | All file mutations except the state.md terminal write and the transient-scratch cleanup (deleting the skill's own scratch is not a source mutation) |
+Reads and `AskUserQuestion` are open in every phase; writes are limited to those listed, Bash stays read-only unless listed, and no source is written before the Phase 8 approval (HARD-GATE, `plan-loop.md`).
 
-†Artifact mode only — the update/before-gate/finalize calls at each phase's own gate sites, plus a write to the session-scratchpad HTML file; exact call sites are in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`'s table.
+| Phase | Writes and spawns allowed |
+|---|---|
+| 0 Mode detect | state.md (§0.3, §0.4) |
+| 1 Explore | state.md; research Agents; tracker MCP read; Bash for §1.1b's git `merge` / `rebase` / `pull`, only on the user's answer; `Artifact` publish† |
+| 2 Visual Companion | state.md `## UI Preview`; UI-description Agent; `Artifact` + scratchpad `Write`† |
+| 3-5 Clarify / Approaches / Sections | state.md, questionnaire.md; glossary entries in the repo's existing glossary file and new files in its existing ADR folder (Phase 3); emit_learning; research, design-generator and critic Agents; `Artifact` + scratchpad `Write`† |
+| 6 Write spec | spec.md, each `milestone-N.md`, state.md; `Artifact` + scratchpad `Write`† |
+| 7 Validate | state.md `## Open Questions`; failing spec.md sections (§7.3) |
+| 7.5 Spec challenge | state.md `## Errors`; claim-verifier Agent |
+| 8 User approve | state.md; spec.md rewrite; Bash for §8.4's git and validator calls; `Artifact` + scratchpad `Write`† |
+| 9 Handoff | state.md terminal write; removal of this run's own scratch |
 
-Spawns are `session` unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes); Phase 3 grill lookups and Phase 2 UI description (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1) are **light (mid)**.
+†Artifact mode only — call sites in `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-artifact-call-sites.md`; `Artifact` stays out of `allowed-tools` so the first publish raises the one-time `claude.ai` consent prompt. Spawns are `session` unless a site names a light class (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/model-tiering.md` §Cost classes); Phase 3 grill lookups and Phase 2 UI description (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/ui-preview-gate.md` §Step 1) are **light (mid)**.
 
 ---
 

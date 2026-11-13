@@ -1,10 +1,10 @@
 # PR body
 
-Single source for the description a skill writes when it opens a pull request. The caller maps its run records to these sections, so a reviewer who never saw the chat meets the same sections in the same order on every PR.
+Single source for the description a skill writes when it opens a pull request. The caller maps its run records to these sections, so a reviewer who never saw the chat meets the same sections in the same order on every PR. The prose follows the plain layer of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Two explanation layers, in the repo's language; cites, test names, and identifiers stay in the lists.
 
 ## Sections, in order
 
-1. **Why + ticket (first line).** One or two sentences in product words stating the problem: what was wrong or needed, and how it is known (the ticket, a repro, a failing test, the user's report). Then the ticket reference. Previews (Slack, email) show the first characters, so the body never opens with a code fence or a heading. A short list follows with the premises the change relies on as the run recorded them, each a checkable claim with `file:line`, and for a bug fix the root cause.
+1. **Why + ticket (first line).** One or two sentences stating the problem: what was wrong or needed, and how it is known (the ticket, a repro, a failing test, the user's report). Then the ticket reference. Previews (Slack, email) show the first characters, so the body never opens with a code fence or a heading. A short list follows with the premises the change relies on as the run recorded them, each a checkable claim with `file:line`, and for a bug fix the root cause.
 2. **Summary.** Prose first. Add ONE visual from the menu below only when it clarifies the change beyond the prose. Mermaid renders on GitHub but not in every tracker or preview; prefer a text tree when the body is read elsewhere.
 3. **Evidence.** Built only from what the run recorded:
    - the tests added, by name, each with the behavior it pins. Say a test failed before and passes now only when the run's records show it failing against the base code (a reproduction test authored before the fix); a test written against this run's own new code carries no before/after claim;

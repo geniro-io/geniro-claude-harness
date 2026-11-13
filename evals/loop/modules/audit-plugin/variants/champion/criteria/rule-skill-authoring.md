@@ -29,25 +29,18 @@ A downstream reader has zero context about this plugin's authoring history. Stri
 - Commit SHAs ("restored from `f6c0632~1`"). The downstream user does not have that commit.
 - Plugin-version references in a skill body ("v3.0.0 introduces this", "since M4"). Those belong in `MIGRATION.md`.
 - Author memory pointers ("per memory rule `feedback_X.md`"). The author's auto-memory does not ship.
-- "We", "us", "our team" — the body addresses its reader, a downstream session. Use imperative voice.
 
 ### 3. Authoring-process narration
 
-Skills are runtime instructions, not change logs. Strip:
-
-- Decision history ("we decided to do X because Y"). The decision is the rule; the history is inert at runtime.
-- Comparison to a deleted prior version ("the OLD skill did X — we now do Y"). State the current rule.
-- "REPLACED" / "ADDED IN" / "DEPRECATED" markers inside a body. Those belong to git history.
-
-Anti-rationalization rows stay: they address the reader's future reasoning, where narration describes the author's past reasoning.
+Skills are runtime instructions, not change logs. Apply the relevance test (`.claude/rules/skill-prose.md` §Relevance) to every line: decision history ("we decided X because Y"), a comparison to a deleted prior version, and "REPLACED" / "ADDED IN" / "DEPRECATED" markers describe how the rule got here, not what to do — delete them, git keeps the history. Anti-rationalization rows stay: they address the reader's future reasoning, where narration describes the author's past reasoning.
 
 ### 4. Informational noise / hedges
 
-Apply the no-op test to every sentence: does it change the model's behavior versus what it would do by default? A failing sentence is deleted whole, not trimmed to a shorter no-op — "be thorough" addressed to a model that is already thorough is paid-for silence, and the fix for a too-weak steering word is a stronger one ("relentless"), not more words. Sentences that commonly fail:
+Hunt no-ops sentence by sentence: an instruction the model already obeys by default pays load to say nothing. The test — does the sentence change behavior versus the default? — is model-relative, not reader-relative: two people disagreeing about a no-op disagree about the default, so settle it by running the document, not by debate. For a guard, name the case it exists for: a removal that still passes the happy path proves nothing about the guard (`.claude/rules/skill-prose.md` §Token budget awareness). When a sentence fails, delete the whole sentence rather than trim words from it. The test also grades steering words: one too weak to beat the default ("be thorough" to an already-thorough model) is a no-op, and the fix is a stronger word ("relentless"), not a different technique. Sentences that commonly fail:
 
 - Re-explanations of standard tooling ("the Read tool reads a file").
 - Over-detailed mechanics the model derives itself — platform command recipes, shell hand-holding, prescribed loop shapes where a goal + bound suffices. State goal + constraint per `.claude/rules/skill-prose.md` §"Assume a capable model"; remove such a passage when editing near it, even if your change didn't introduce it.
-- Hedge clauses and restatement summaries — both cut per `.claude/rules/skill-prose.md` §Token budget awareness, which names the shapes and the remedy.
+- Hedge clauses and restatement summaries — cut per `.claude/rules/skill-prose.md` §Token budget awareness.
 - "Note:" / "Important:" / "Keep in mind:" on lines that are neither.
 
 ### 5. Out-of-scope content
@@ -80,15 +73,14 @@ A light spawn in a skill or agent names its class — `light (smallest)` or `lig
 
 ## Soft preferences (apply where reasonable)
 
-- Short imperative sentences.
-- Concrete examples over abstract description, capped per rule — `.claude/rules/skill-prose.md` §"Examples — diverse and canonical" owns the count.
+- Concrete examples over abstract description, capped per `.claude/rules/skill-prose.md` §"Examples — diverse and canonical".
 - Sentence case headings.
 - Bullet lists over prose for enumerable rules.
 - ASCII / Unicode box-drawing for diagrams; never embedded images.
 
 ## User-facing strings — plain English only
 
-Any string the orchestrator surfaces to the user must pass the **fresh-user test**. The test itself, the translation tables, the scope, the exempt cases, and which surface to audit first: `.claude/rules/skill-prose.md` §"User-facing output uses plain English".
+Any string the orchestrator surfaces to the user must pass the **fresh-user test**: `.claude/rules/skill-prose.md` §"User-facing output uses plain English", with the translation tables, scope, and exempt cases in `.claude/authoring/user-facing-prose.md`.
 
 ## Allowed and load-bearing
 
