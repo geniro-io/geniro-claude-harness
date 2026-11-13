@@ -108,7 +108,7 @@ Loop-level rows live in `${CLAUDE_PLUGIN_ROOT}/skills/plan/plan-loop.md` §Anti-
 | Your reasoning | Why it's wrong |
 |---|---|
 | "Skip Phase 2 Visual Companion — UI intent fits in Phase 5 sections later." | Phase 2 fires only when the UI trigger matches (Phase 1 found UI files OR the topic names a product screen). When it fires, the approved description IS the substrate Phase 5 sections 6 + 9 cite. Skipping it makes the user describe visual intent twice (Phase 3 prose, then /geniro:implement when the rendered UI doesn't match). |
-| "Re-cap Phase 3 at ~5 questions, grill forever without pausing, OR walk into Phase 4 the moment the tree looks resolved." | Phase 3 is an uncapped decision-tree grill bounded by two gates, and each of the three drops one. Re-imposing a flat cap drops the relentless property the grill exists to provide. Skipping the §3.4 checkpoint gate drops the user's off-ramp. Exiting on an exhausted tree without the §3.4 exit gate drops the user's on-ramp — exhaustion is the model's read of a tree the model built, and it reads that way after two questions as easily as after twenty, so keep-grilling stays live on an empty frontier. |
+| "Cap Phase 3 at ~5 questions, skip the checkpoint, or move to Phase 4 once the tree looks resolved." | Only a user's answer ends the grill — a §3.4 checkpoint or exit pick, or the §3.1 build-nothing confirmation; "resolved" is the model's read of a tree it built. Skipping the checkpoint drops the user's off-ramp; a flat cap drops the relentlessness the grill exists for. |
 | "spec.md's fixed section schema is too rigid for small tasks." | Sections 4 / 5 / 10 can be "none with rationale" for Trivial. The schema is structural commitment (every consumer can rely on section presence), not content commitment. |
 | "Drop the milestone-mode AUQ — a Big task can just emit a spec and the user decides later." | Slicing into milestones IS a planning decision. Punting it to /geniro:implement time means the user discovers a 50-step spec is unmanageable, and must come back to re-plan. Phase 5 surfaces the choice when context AND attention are present. |
 
@@ -122,8 +122,8 @@ No hard kill caps — the quality-first doctrine in `${CLAUDE_PLUGIN_ROOT}/skill
 
 | Gate | Cap | Where | Past threshold |
 |---|---|---|---|
-| Phase 3 grill checkpoint | the checkpoint trigger per §3.4 — no fixed question cap | §3.4 | Render running summary → AUQ: Keep grilling / Wrap up now / Skip remaining as stated assumptions. |
-| Phase 3 grill exit | none — fires whenever the tree exhausts | §3.4 | Render closing summary → AUQ: Start building / Keep grilling deeper / Keep grilling on a named area. Keep-grilling reopens the walk and the gate re-fires at the next termination. Skipped when a checkpoint Wrap up / Skip pick ended the grill. |
+| Phase 3 grill checkpoint | the checkpoint trigger per §3.4 — no fixed question cap | §3.4 | Running summary, then the user's call — options in §3.4. |
+| Phase 3 grill exit | none — fires whenever the tree exhausts | §3.4 | Closing summary, then the user's call — options in §3.4. Skipped when a checkpoint Wrap up pick ended the grill. |
 | Phase 7 → Phase 6 auto-revision rounds | §7.3 owns the count | §7.3 | AUQ — accept-as-is / re-revise / abort. |
 | Phase 8 user-revision rounds | §8.3 owns the count | §8.3 | AUQ — accept-as-is / re-revise / abort. |
 

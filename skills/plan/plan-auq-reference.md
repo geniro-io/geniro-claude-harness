@@ -6,7 +6,7 @@ Literal `AskUserQuestion` templates and state-schema blocks for the `/geniro:pla
 
 1. state.md frontmatter + body template (Phase 0.3) + the `approvals[]` entry shape every gate below writes
 1b. Artifact opt-in question — Phase 0, asked once when `--artifact` is absent
-2. Phase 3 grill AUQ — message-first, one round at a time
+2. Phase 3 grill AUQ — message-first rounds
 3. Phase 4 approach AUQ — message-first (diagrams in chat, lean AUQ)
 4. Phase 5 milestone-mode AUQ (Big tasks only)
 5. Phase 8 approval — message-first (summary in chat, lean AUQ)
@@ -96,7 +96,7 @@ Empty answer → re-ask, never auto-default, per `${CLAUDE_PLUGIN_ROOT}/skills/_
 
 ---
 
-## 2. Phase 3 grill AUQ — message-first, one round at a time
+## 2. Phase 3 grill AUQ — message-first rounds
 
 The procedure is `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.2; this section holds the literal templates.
 
@@ -106,17 +106,18 @@ Chat message rendered before a round's AUQ — the first round also opens with t
 Already settled earlier in this conversation (tell me if any is wrong):
 - Rate limit: reuse the existing per-user limiter.
 
-Two decisions I can ask now — neither depends on the other:
+Two decisions I can ask now:
 
 **1. Auth method** — how should callers of the new endpoint prove who they are?
+Depends on: nothing.
 
 - **A token sent with each request.** The caller attaches a token; anyone without a
-  valid one is turned away. This is the same check the rest of the API already does,
-  so there is nothing new to build or maintain.
+  valid one is turned away. It is the check the rest of the API already does, so
+  there is nothing new to build or maintain.
   **Technical detail:** `@UseGuards(JwtAuthGuard)`; token read from the Authorization
   header; 401 on missing/invalid, `code: 'UNAUTHENTICATED'`.
-- **The browser's login cookie.** The caller is recognised by the session they already
-  have from logging in. The API then has two ways of proving identity to keep working.
+- **The browser's login cookie.** The caller is recognised by the session from logging
+  in; the API then has two ways of proving identity to keep working.
   **Technical detail:** `@UseGuards(SessionGuard)`; reads the `session_id` cookie;
   mirrors `/auth/session.spec.ts`; same 401 shape.
 - **Decide later.** I write down "tokens, unless told otherwise" as a stated assumption.
@@ -124,6 +125,7 @@ Two decisions I can ask now — neither depends on the other:
 ➡️ I recommend the token check — it already exists and is already tested.
 
 **2. Retention** — how long should the new audit rows be kept?
+Depends on: nothing.
 
 - **90 days**, **forever**, or **someone else decides this** — a compliance call; I
   record it as pending with an owner and write the questions for them.
@@ -131,7 +133,7 @@ Two decisions I can ask now — neither depends on the other:
 ➡️ 90 days, matching the existing events table.
 ```
 
-Then ONE lean AUQ carrying the round's questions (`loop-phase-3-grill.md` §3.2 sizes the call; a larger round chains further calls from the same message). Options are short selectors carrying the plain layer only (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions); the identifiers live in the message above, so `preview` is omitted. Per the §3.2 recommended-answer rule, each question's first option carries the `(Recommended)` marker:
+Then ONE lean AUQ carrying the round's questions (at most 4, per `loop-phase-3-grill.md` §3.2). Options are short plain-layer selectors (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/gate-rendering.md` §Lean-question conventions); identifiers stay in the message above, so `preview` is omitted. Per §3.2, each question's first option carries the `(Recommended)` marker:
 
 ```yaml
 questions:
@@ -155,23 +157,36 @@ questions:
         description: "Recorded as pending for its owner; the questions go in questionnaire.md."
 ```
 
-After the answers, persist each (below), recompute the frontier, and render the next round. A "Someone else decides this" pick opens one follow-up AUQ (`header: "Decided by"`, role options the conversation already named, a name typed via Other). The `<task-dir>/questionnaire.md` that §3.4 termination writes:
+A "Someone else decides this" pick opens one follow-up AUQ (`header: "Decided by"`, role options the conversation already named, a name typed via Other). The `<task-dir>/questionnaire.md` that §3.4 termination writes, one `## <Owner> — <theme>` section per owner:
 
 ```markdown
-# Questions for <owner>
+# <title>
 
-## Retention — how long should the new audit rows be kept?
-**Why it matters:** decides whether a cleanup job is needed.
-**Options considered:** 90 days (recommended — matches the events table); forever.
+**Purpose:** <why this exists; the decision riding on it>
+**From:** <user, if known> **How your answers will be used:** <...>
+
+## Context
+<one paragraph>
+
+## How to answer
+<deadline, if the user named one, and effort. Partial answers and "I don't know" help — flag uncertainty rather than skip.>
+
+## <Owner> — <theme>
+**To:** <owner>
+**1. <One idea, never compound; most important first>**
+_Why this matters:_ <one line, only where the question could be misread>
+Options: <A (recommended); B>
 
 > (answer here)
+
+## Anything else?
 ```
 
-Each answered question → one `approvals[]` entry (§1 entry shape) with category `clarify_<dim>` (e.g. `clarify_auth_method`), `asked_in_phase: clarify`; a pending pick records `picked: "pending: <owner>"` (quoted — an unquoted colon-space breaks the YAML).
+Persistence: `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.3.
 
-### 2b. Checkpoint gate and termination summary
+### 2b. Checkpoint gate and exit gate
 
-Trigger and procedure: `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4.
+Trigger: `${CLAUDE_PLUGIN_ROOT}/skills/plan/loop-phase-3-grill.md` §3.4; persistence: §3.3.
 
 Chat message rendered before the checkpoint AUQ:
 
@@ -197,31 +212,27 @@ Then the LEAN AUQ — `preview` omitted (the summary is the message above):
 header: "Checkpoint"
 question: "Keep grilling the open branches, or wrap up here?"
 options:
-  - label: "Keep grilling"                         # Recommended while open branches remain
+  - label: "Keep grilling (Recommended)"
     description: "Continue the walk through failure handling + admin visibility."
   - label: "Wrap up now"
     description: "Stop; the open branches become stated assumptions in the spec."
-  - label: "Skip remaining with stated assumptions"
-    description: "Same as wrap-up, but I name the skipped branches in Assumptions for /geniro:implement to verify."
 ```
 
-Persist each checkpoint decision to `approvals[]` (§1 entry shape) with category `grill_checkpoint`, `asked_in_phase: clarify`.
-
-**Termination** (closing summary → exit gate → Phase 4) is §3.4 of the same file; the exit gate template:
+The exit gate template (§3.4):
 
 ```yaml
 header: "Grill exit"
 question: "I'm out of questions that would change the spec. Start building the plan, or keep grilling?"
 options:
-  - label: "Start building the plan (Recommended)"
+  - label: "Start building (Recommended)"
     description: "Move to approaches; anything left open goes into the spec as a stated assumption."
-  - label: "Keep grilling — go deeper"
+  - label: "Keep grilling deeper"
     description: "A second pass over failure handling, operations, migration, and the scope edges I assumed."
-  - label: "Keep grilling — I'll name the area"
+  - label: "Keep grilling on an area I name"
     description: "Say what to dig into and I'll build the branch from it."
 ```
 
-On the third pick the follow-up is an ordinary §2 grill question — `header: "Grill area"`, options built from the closed branches and the second-pass angles, the user free to name their own — and its answer opens the branch. Persist the exit pick to `approvals[]` with category `grill_checkpoint`, `asked_in_phase: clarify`, same as a checkpoint.
+On the second pick, run a second pass over the angles a first walk leaves closed — failure and rollback behavior, operational surface, data migration and backfill, assumed scope edges — without re-asking what resolved. On the third, the follow-up is an ordinary §2 grill question — `header: "Grill area"`, options built from the closed branches and those angles, the user free to name their own — and its answer opens a branch walked by rounds.
 
 ---
 
